@@ -1,0 +1,89 @@
+---
+- name: List the files this host needs
+  ansible.builtin.set_fact:
+    ai_models_wanted: >-
+      {{ (ai_models_wanted | default([]))
+         + [{'repository': item.value.repository, 'revision': item.value.revision}
+            | combine(item.value.model)]
+         + ([{'repository': item.value.repository, 'revision': item.value.revision}
+             | combine(item.value.vision)] if 'vision' in item.value else []) }}
+  loop: >-
+    {{ (ai_models_bonsai | dict2items | selectattr('key', 'in', ai_models_bonsai_sizes) | list)
+       + (ai_models_qwen | dict2items | selectattr('key', 'in', ai_models_qwen_sizes) | list) }}
+  loop_control:
+    label: "{{ item.value.repository }}"
+
+- name: Make the models directory
+  ansible.builtin.file:
+    path: "{{ ai_models_directory }}"
+    state: directory
+    mode: "0755"
+
+- name: Look for files already here
+  ansible.builtin.stat:
+    path: "{{ ai_models_directory }}/{{ item.file }}"
+    get_checksum: false
+  loop: "{{ ai_models_wanted }}"
+  loop_control:
+    label: "{{ item.file }}"
+  register: ai_models_present
+
+- name: Add up what's left to download
+  ansible.builtin.set_fact:
+    ai_models_missing_bytes: >-
+      {{ ai_models_present.results
+         | rejectattr('stat.exists')
+         | map(attribute='item.bytes')
+         | sum }}
+
+- name: Measure the free disk space
+  ansible.builtin.command:
+    argv: [df, -k, "{{ ai_models_directory }}"]
+  register: ai_models_disk
+  changed_when: false
+
+- name: Refuse to start a download that won't fit
+  ansible.builtin.assert:
+    that: >-
+      (ai_models_disk.stdout_lines[-1].split()[3] | int) * 1024
+      >= (ai_models_missing_bytes | int) + ai_models_free_margin_bytes
+    fail_msg: >-
+      {{ ai_models_missing_bytes }} bytes to download, plus {{ ai_models_free_margin_bytes }} left
+      free, and only {{ (ai_models_disk.stdout_lines[-1].split()[3] | int) * 1024 }} available
+
+- name: Download and verify the models
+  ansible.builtin.include_tasks: download.yml
+  loop: "{{ ai_models_wanted }}"
+  loop_control:
+    loop_var: model_file
+    label: "{{ model_file.file }}"
+
+# Apache-2.0 requires these to ship with the weights. Qwen's GGUF repositories have neither, which
+# plans/lucid-circuit.md records as open before shipping to players
+- name: Make the notices directory
+  ansible.builtin.file:
+    path: "{{ ai_models_directory }}/notices/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ ai_models_bonsai_sizes }}"
+
+- name: Fetch each Bonsai size's license and notice at its pinned revision
+  ansible.builtin.command:
+    argv:
+      - curl
+      - --fail
+      - --location
+      - --silent
+      - --show-error
+      - --connect-timeout
+      - "30"
+      - --retry
+      - "5"
+      - --retry-all-errors
+      - --output
+      - "{{ ai_models_directory }}/notices/{{ item.0 }}/{{ item.1 }}"
+      - "{{ ai_models_base_url }}/{{ ai_models_bonsai[item.0].repository }}/resolve/{{ ai_models_bonsai[item.0].revision }}/{{ item.1 }}"
+    creates: "{{ ai_models_directory }}/notices/{{ item.0 }}/{{ item.1 }}"
+  loop: "{{ ai_models_bonsai_sizes | product(['LICENSE', 'NOTICE.txt']) | list }}"
+  loop_control:
+    label: "{{ item.0 }} {{ item.1 }}"

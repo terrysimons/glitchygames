@@ -71,6 +71,7 @@ from glitchygames.tracing import read_trace_result
 from tests.demo_runs import engine_run_environment
 from tests.replay.replay_helpers import replay_through_engine, rewrite_recording
 from tests.stand_in_games import (
+    STAND_IN_GAME_TARGET_FPS,
     StandInGame,
     copy_recording,
     record_stand_in_game,
@@ -80,6 +81,8 @@ from tests.stand_in_games import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
+
     from pytest_mock import MockerFixture
 
     from glitchygames.scenes import Scene
@@ -121,6 +124,12 @@ STAND_IN_SIZE = (320, 240)
 FRAME_STREAM_TOKEN_LENGTH_FOR_TESTS = 32
 # How long the end-to-end children may run
 CHILD_TIMEOUT_SECONDS = 120.0
+# Every frame time of a recording the watched replays present: exactly one paced frame, so the
+# frames presented never depend on the recording machine's timing. Up to 1x the viewer presents
+# a late frame and the short one catching up after it each in its own tick
+# (glitchygames/replay/viewer.py, rule 2), but a genuine stall (frames owed beyond a tick) still
+# runs as one burst presenting only its last frame
+STEADY_FRAME_SECONDS = 1 / float(STAND_IN_GAME_TARGET_FPS)
 
 COLOR_GAME_SOURCE = f'''\
 """A stand-in game: a plain floor with one marker on it, the seed's red and the frame's green."""
@@ -242,6 +251,35 @@ def recorded_frame_count(*, path: Path) -> int:
     return len(read_trace_result(path=path).trace['frames'])
 
 
+def recorded_frame_milliseconds(*, path: Path) -> list[float]:
+    """Return every frame's recorded dt in milliseconds, rounded to hundredths.
+
+    Returns:
+        One per frame.
+
+    """
+    return [round(frame['dt'] * 1000, 2) for frame in read_trace_result(path=path).trace['frames']]
+
+
+def presented_frames_evidence(*, recording: Path, run: WatchedRun) -> str:
+    """Return a watched replay's frame times and what it presented, for a failure message.
+
+    Args:
+        recording: The watched recording.
+        run: How its watched replay went.
+
+    Returns:
+        The recording's frame times (ms) and the presented frames' indexes, in order (None:
+        no frame of its own, such as the start screen).
+
+    """
+    return (
+        f'recorded frame times (ms) of {recording.name}: '
+        f'{recorded_frame_milliseconds(path=recording)}; '
+        f'presented frames: {[frame.frame_index for frame in run.presented]}'
+    )
+
+
 def install_color_game(*, install_directory: Path) -> StandInGame:
     """Install the color game (its package and its distribution's console script).
 
@@ -280,14 +318,32 @@ def recorded_old(tmp_path_factory) -> Path:
     """
     root = tmp_path_factory.mktemp('recorded-old')
     # Paced: a watched replay presents OLD's frames by their recorded frame times (its viewer
-    # runs as many recorded frames per 60 Hz tick as their times fill, up to 32), so an
-    # uncapped OLD's frames would all go by in one tick
-    return record_stand_in_game_once(
+    # runs one recorded frame per 60 Hz tick at 1x unless behind, then as many as owed), so an
+    # uncapped OLD's frames, far shorter than a tick, would run many to a tick; then steadied
+    # (steady_frame_times), so the frames presented never depend on this machine's timing
+    recording = record_stand_in_game_once(
         game=install_color_game(install_directory=root / 'site-packages'),
         path=root / 'old.jsonl.gz',
         extra_arguments=('--random-seed', str(OLD_SEED)),
         paced=True,
     )
+    steady_frame_times(recording=recording)
+    return recording
+
+
+def steady_frame_times(*, recording: Path) -> None:
+    """Give every frame of a paced recording exactly one frame period (``STEADY_FRAME_SECONDS``).
+
+    Pacing is still what the recording ran under; only the jitter of the machine that recorded
+    it goes (a stall would still run as a burst), so a watched replay presents the same frames
+    on every machine.
+    """
+
+    def steady(trace: dict[str, Any]) -> None:
+        for frame in trace['frames']:
+            frame['dt'] = STEADY_FRAME_SECONDS
+
+    rewrite_recording(recording_path=recording, change=steady)
 
 
 @pytest.fixture
@@ -363,6 +419,15 @@ def rgb_at(*, surface: pygame.Surface) -> tuple[int, int, int]:
     """
     color = surface.get_at(SAMPLE_POINT)
     return (color.r, color.g, color.b)
+
+
+def test_watched_recordings_have_steady_frame_times(color_game, tmp_path):
+    """OLD and the pausing run hold one frame period per frame, whatever the machine managed."""
+    pausing = record_a_pausing_run(color_game=color_game, path=tmp_path / 'pausing.jsonl.gz')
+
+    for recording in (color_game.old, pausing):
+        frames = read_trace_result(path=recording).trace['frames']
+        assert {frame['dt'] for frame in frames} == {STEADY_FRAME_SECONDS}, recording
 
 
 def presented_frame_index(*, sources: ReplaySources) -> int | None:
@@ -588,8 +653,13 @@ class FrameStreamListener:
         """Listen, and read on a thread from the first connection.
 
         Args:
-            closes_at_once: Close the connection as soon as it is made, reading nothing, and
-                abortively (a reset, not a graceful close), so a send after it fails at once.
+            closes_at_once: Close the connection once its token is read, abortively (a reset,
+                not a graceful close), so the child's next send fails at once. The token is
+                read first: reset at once, a loaded Windows runner's reset reached the child
+                before it sent the token, so it failed to connect instead of failing a frame.
+
+        Use ``frame_stream_listeners``, which stops every listener after the test, failed or
+        not (a listening socket left to the collector is a ResourceWarning in a later test).
 
         """
         self._listener = socket.create_server((compare.FRAME_STREAM_HOST, 0))
@@ -602,8 +672,14 @@ class FrameStreamListener:
         self._thread.start()
 
     def _read(self) -> None:
-        connection, _ = self._listener.accept()
+        try:
+            connection, _ = self._listener.accept()
+        except OSError:
+            # Stopped before the child connected (its test failed first): nothing to read
+            return
         if self._closes_at_once:
+            token = receive_exactly(connection=connection, count=len(self._token))
+            assert token == self._token.encode('ascii')
             # Linger on, for 0 seconds: close resets the connection rather than closing it
             # gracefully, which Windows' loopback lets sends succeed against into its buffers
             connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
@@ -637,8 +713,32 @@ class FrameStreamListener:
         """
         self._thread.join(timeout=CHILD_TIMEOUT_SECONDS)
         assert not self._thread.is_alive()
-        self._listener.close()
+        self.stop()
         return self._frames
+
+    def stop(self) -> None:
+        """Stop listening (again is harmless); a thread still waiting to accept then ends."""
+        self._listener.close()
+
+
+@pytest.fixture
+def frame_stream_listeners() -> Iterator[Callable[..., FrameStreamListener]]:
+    """Make frame stream listeners, each stopped after the test, whether it passed or not.
+
+    Yields:
+        ``FrameStreamListener``'s constructor, keeping each listener it makes.
+
+    """
+    made: list[FrameStreamListener] = []
+
+    def make(**options: bool) -> FrameStreamListener:
+        listener = FrameStreamListener(**options)
+        made.append(listener)
+        return listener
+
+    yield make
+    for listener in made:
+        listener.stop()
 
 
 @pytest.mark.parametrize(
@@ -646,15 +746,15 @@ class FrameStreamListener:
     [((), 0), (('--replay-pause-at-frame', '4'), 3)],
     ids=['from-frame-0', 'restarted-at-frame-4'],
 )
-def test_the_child_streams_one_frame_per_frame_in_order(
-    color_game, mocker, caplog, pause_arguments, first_frame
+def test_the_child_streams_one_frame_per_frame_in_order(  # ruff: ignore[too-many-arguments, too-many-positional-arguments] — pytest fixtures and parameters
+    color_game, mocker, caplog, pause_arguments, first_frame, frame_stream_listeners
 ):
     """A headless replay with a frame stream writes each frame once, in order, as presented.
 
     Restarted at a pause frame N, it writes from the frame a watched restart shows paused there
     (N - 1): the frames before it are rebuilt by the watched replay unshown.
     """
-    listener = FrameStreamListener()
+    listener = frame_stream_listeners()
 
     replay = replay_through_engine(
         mocker=mocker,
@@ -676,14 +776,14 @@ def test_the_child_streams_one_frame_per_frame_in_order(
     assert 'is ignored with --headless' not in caplog.text
 
 
-def test_a_stream_nobody_reads_any_more_ends_the_replay(color_game, mocker):
+def test_a_stream_nobody_reads_any_more_ends_the_replay(color_game, mocker, frame_stream_listeners):
     """When the parent is gone, the child stops replaying instead of running on unseen.
 
     The child writes its first frame only once the listener has reset the connection: left to
     the threads, a slow listener on a loaded Windows runner closed after the child had sent
     every frame into loopback's buffers, so the replay ended at the end of the recording.
     """
-    listener = FrameStreamListener(closes_at_once=True)
+    listener = frame_stream_listeners(closes_at_once=True)
     connect = compare.FrameStream.connect
 
     def connect_once_the_listener_is_gone(
@@ -730,8 +830,13 @@ def test_a_shorter_old_holds_its_last_frame_with_the_label(color_game, mocker, t
 
     assert run.exit_status == ExitCode.SUCCESS
     shown = [frame for frame in run.presented if frame.frame_index is not None]
-    # The recorded game quits in its last frame, so the replay ends without presenting it
-    assert {frame.frame_index for frame in shown} == set(range(1, color_game.old_frame_count - 1))
+    # The recorded game quits in its last frame, so the replay ends without presenting it.
+    # Every other frame is presented at 1x (OLD's frame times are steady); the frame times and
+    # the presented sequence are the evidence when a frame is missing
+    # (scripts/replay_schedule.py simulates the schedule)
+    assert {frame.frame_index for frame in shown} == set(
+        range(1, color_game.old_frame_count - 1)
+    ), presented_frames_evidence(recording=color_game.old, run=run)
     for frame in shown:
         assert frame.frame_index is not None
         # OLD's last frame, its own green, stays over NEW's later ones
@@ -2576,14 +2681,15 @@ def record_a_pausing_run(*, color_game: ColorGame, path: Path) -> Path:
         The recording.
 
     """
-    # Paced, as OLD is (color_game): the watched replays present its frames by their recorded
-    # frame times
+    # Paced, as OLD is (color_game), with the same steady frame times: the watched replays
+    # present its frames by their recorded frame times
     recording = record_stand_in_game(
         game=color_game.game,
         path=path,
         extra_arguments=('--random-seed', str(PAUSING_SEED)),
         paced=True,
     )
+    steady_frame_times(recording=recording)
     assert recorded_frame_count(path=recording) == len(GAME_FRAME_OF_A_PAUSING_RUN)
     return recording
 
@@ -2735,10 +2841,10 @@ def test_olds_own_pauses_are_skipped(color_game, mocker, tmp_path):
     assert run.onion_skin.frames_received == COLOR_GAME_FRAMES
 
 
-def test_the_child_streams_only_game_frames(color_game, mocker, tmp_path):
+def test_the_child_streams_only_game_frames(color_game, mocker, tmp_path, frame_stream_listeners):
     """A headless replay of a pausing run streams its game frames, numbered 0 to N - 1, only."""
     pausing = record_a_pausing_run(color_game=color_game, path=tmp_path / 'pausing.jsonl.gz')
-    listener = FrameStreamListener()
+    listener = frame_stream_listeners()
 
     replay = replay_through_engine(
         mocker=mocker,

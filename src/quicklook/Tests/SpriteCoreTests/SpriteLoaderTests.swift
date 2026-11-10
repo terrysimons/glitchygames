@@ -87,10 +87,8 @@ private func frameMarkers(_ animation: SpriteAnimation) -> [UInt8] {
     #expect(sprite.animations[0].frames.map(\.duration) == [0.25, 0.25, 0.1])
 }
 
-@Test func framesPlayInFileOrderIgnoringFrameIndex() throws {
-    // The engine sorts by getattr(frame, 'frame_index', 0), but SpriteFrame never has a
-    // frame_index attribute, so every key is 0 and the stable sort keeps file order
-    // (plans/future-work.md, "Bugs found and not fixed yet")
+@Test func framesPlayInFrameIndexOrder() throws {
+    // The engine's loader orders frames by frame_index (frame_tables_in_load_order, BUGS.md #232)
     let sprite = try loadSprite("""
         [[animation]]
         [[animation.frame]]
@@ -103,7 +101,23 @@ private func frameMarkers(_ animation: SpriteAnimation) -> [UInt8] {
         frame_index = 1
         pixels = "Z"
         """)
-    #expect(frameMarkers(sprite.animations[0]) == [1, 2, 3])
+    #expect(frameMarkers(sprite.animations[0]) == [2, 3, 1])
+}
+
+@Test func aFrameWithoutAnIndexCountsAsItsFilePosition() throws {
+    // X has no frame_index (position 0); Y's index 0 ties with it and comes later in the file
+    let sprite = try loadSprite("""
+        [[animation]]
+        [[animation.frame]]
+        pixels = "X"
+        [[animation.frame]]
+        frame_index = 0
+        pixels = "Y"
+        [[animation.frame]]
+        frame_index = -1
+        pixels = "Z"
+        """)
+    #expect(frameMarkers(sprite.animations[0]) == [3, 1, 2])
 }
 
 @Test func emptyFrameSkipped() throws {
@@ -117,7 +131,8 @@ private func frameMarkers(_ animation: SpriteAnimation) -> [UInt8] {
         frame_index = 0
         pixels = "Y"
         """)
-    #expect(frameMarkers(sprite.animations[0]) == [1, 2])
+    // Y's frame_index 0 ties with the empty frame's position 0, so Y comes before X (position 1)
+    #expect(frameMarkers(sprite.animations[0]) == [2, 1])
 }
 
 @Test func crlfInMultilineStringsBecomesLF() throws {

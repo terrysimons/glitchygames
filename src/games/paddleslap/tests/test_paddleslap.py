@@ -398,7 +398,9 @@ class TestPaddleslapExample:
                 paddle.rect.left : paddle.rect.right, paddle.rect.top : paddle.rect.bottom
             ] = True
 
-        ball_box = ball.rect
+        # In whole pixels: the screen's pixel array takes integer indexes (the ball's rect may be
+        # typed as an FRect)
+        ball_box = pygame.Rect(ball.rect)
         ball_pixels = pixels[ball_box.left : ball_box.right, ball_box.top : ball_box.bottom]
         ball_box_colors = {
             tuple(int(channel) for channel in pixel) for pixel in ball_pixels.reshape(-1, 3)
@@ -647,14 +649,14 @@ class TestPositionalKeys:
         ],
     )
     def test_a_paddle_key_is_its_position(self, player, action, scancode, qwerty_key):
-        actions = Game._create_action_maps()[player]
+        actions = Game._create_action_maps(options={})[player]
         # Another layout names the key in that place differently (AZERTY's Z is QWERTY's W)
         assert actions.get_action(key_at(key=pygame.K_F13, scancode=scancode)) == action
         # The QWERTY key code somewhere else is not the paddle key
         assert actions.get_action(key_at(key=qwerty_key, scancode=pygame.KSCAN_F13)) is None
 
     def test_pause_is_a_position_too(self):
-        pause_actions = Game._create_action_maps()[2]
+        pause_actions = Game._create_action_maps(options={})[2]
         assert (
             pause_actions.get_action(key_at(key=pygame.K_F13, scancode=pygame.KSCAN_SPACE))
             == 'pause'

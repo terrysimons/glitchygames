@@ -140,7 +140,8 @@ class CanvasModeStrategy:
     """Button handling for canvas mode.
 
     In canvas mode, the D-pad moves the cursor with continuous movement,
-    A starts painting/drag, shoulder buttons jump or paint 8 pixels,
+    A starts painting/drag, shoulder buttons jump or paint 8 pixels along the fill direction,
+    clicking the left stick switches the fill direction (horizontal or vertical),
     B undoes, X redoes, and Y toggles frame visibility.
     """
 
@@ -189,6 +190,8 @@ class CanvasModeStrategy:
             self._handle_shoulder_button(controller_id, is_left=True)
         elif button == pygame.CONTROLLER_BUTTON_RIGHTSHOULDER:
             self._handle_shoulder_button(controller_id, is_left=False)
+        elif button == pygame.CONTROLLER_BUTTON_LEFTSTICK:
+            self._handle_left_stick_click(controller_id)
         else:
             handler.log.debug(
                 'DEBUG: Controller %s: Button %s not handled in canvas mode',
@@ -270,6 +273,24 @@ class CanvasModeStrategy:
             controller_id,
         )
         handler.multi_controller_toggle_selected_frame_visibility(controller_id)
+
+    def _handle_left_stick_click(self, controller_id: int) -> None:
+        """Switch the controller's fill direction, the line the shoulder buttons follow.
+
+        Args:
+            controller_id: The controller ID.
+
+        """
+        editor = self.handler.editor
+        if not (
+            hasattr(editor, 'controller_selections')
+            and controller_id in editor.controller_selections
+        ):
+            return
+        new_direction = editor.controller_selections[controller_id].toggle_fill_direction()
+        self.handler.log.debug(
+            'Controller %s: left stick click - fill direction %s', controller_id, new_direction
+        )
 
     def _handle_shoulder_button(self, controller_id: int, *, is_left: bool) -> None:
         """Handle shoulder button press in canvas mode (move/paint 8 pixels).

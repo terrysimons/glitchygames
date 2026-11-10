@@ -29,9 +29,10 @@ struct ColorPalette {
     init(colors: [String: ColorEntry]) {
         var colorsByGlyph: [Unicode.Scalar: RGBA] = [:]
         for (key, entry) in colors {
-            // A glyph is one code point (Python iterates str by code point)
+            // A glyph is one code point (Python iterates str by code point), and U+0000 is the
+            // padding glyph, which nothing may color (the engine's build_color_map drops it too)
             let scalars = Array(key.unicodeScalars)
-            guard scalars.count == 1 else { continue }
+            guard scalars.count == 1, scalars[0] != PixelRows.paddingGlyph else { continue }
             colorsByGlyph[scalars[0]] = ColorPalette.color(of: entry)
         }
         self.colorsByGlyph = colorsByGlyph

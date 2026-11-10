@@ -26,7 +26,6 @@ from brave_adventurer_modes import GAMES_BY_NAME, game_for_recording, launcher, 
 from brave_adventurer_modes.title import GAME_CHOICES, GameChoiceCard, TitleScene
 from brave_adventurer_papyrus import game as papyrus_game
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
-from glitchygames.display_mode import set_display_mode
 from glitchygames.events.base import HashableEvent
 from glitchygames.exit_codes import ExitCode
 from glitchygames.live_sources import LiveSources
@@ -44,6 +43,7 @@ from glitchygames.replay.tools.golden_traces import (
 )
 from glitchygames.scenes import SceneManager
 from glitchygames.tracing import read_trace_result, write_trace
+from tests.display_canvas import show_canvas_on_new_display
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -63,8 +63,13 @@ SCREEN_SIZE = (800, 480)
 def _start_display():
     if not pygame.get_init():
         pygame.init()
-    if pygame.display.get_surface() is None:
-        set_display_mode(size=SCREEN_SIZE)
+    # Reopen a display of another size too: the scenes size the pit floor from it, and under
+    # pytest another test may have left any size (BUGS.md #211 item 7)
+    display_surface = pygame.display.get_surface()
+    if display_surface is None or display_surface.get_size() != SCREEN_SIZE:
+        # The harness's canvas pattern on it: a new display is black, which its black-frame
+        # guard fails
+        show_canvas_on_new_display(size=SCREEN_SIZE)
 
 
 def _replay_arguments(recording: Path) -> list[str]:

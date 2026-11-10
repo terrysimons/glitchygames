@@ -15,6 +15,7 @@ has per-pixel alpha, dummy's and x11's do not).
 import pygame
 import pytest
 
+from glitchygames.backgrounds import BackgroundPattern, background_pattern_surface
 from glitchygames.opacity import OPAQUE, has_per_pixel_alpha
 from glitchygames.scenes import Scene, SceneManager
 
@@ -404,13 +405,6 @@ class TestSceneRenderingEdgeCases:
         assert _rgb_at(display, (105, 105)) == BACKGROUND
         assert _rgb_at(display, (305, 105)) == SPRITE_COLOR
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'Scene.background_color set after the scene has rendered repaints only the areas'
-            ' sprites dirty: the rest of the display keeps the old background color'
-        ),
-    )
     def test_scene_rendering_with_render_state_changes_manager(self, display):
         """A new background color set while a scene is showing reaches the whole display."""
         scene = _scene_with_background(BACKGROUND)
@@ -422,6 +416,22 @@ class TestSceneRenderingEdgeCases:
         scene.render(display)
 
         assert _count_rgb(display, OTHER_BACKGROUND) == SCREEN_SIZE[0] * SCREEN_SIZE[1]
+
+    def test_background_pattern_set_while_showing_reaches_the_whole_display(self, display):
+        """A pattern set while a scene is showing replaces the old color everywhere (#166)."""
+        scene = _scene_with_background(BACKGROUND)
+        self.scene_manager.switch_to_scene(scene)
+        scene.render(display)
+
+        scene.background_pattern = BackgroundPattern.CHANNEL_THREE
+        scene.update()
+        scene.render(display)
+
+        expected = background_pattern_surface(
+            pattern=BackgroundPattern.CHANNEL_THREE, size=SCREEN_SIZE
+        )
+        assert _count_rgb(display, BACKGROUND) == _count_rgb(expected, BACKGROUND)
+        assert scene.rects == [pygame.Rect((0, 0), SCREEN_SIZE)]
 
     def test_scene_rendering_with_edge_cases(self, display):
         """An empty scene renders only its background; later renders report no changes."""

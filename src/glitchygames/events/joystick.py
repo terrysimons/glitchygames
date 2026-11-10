@@ -8,8 +8,9 @@ from typing import TYPE_CHECKING, Any, ClassVar, Protocol, Self, override
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Sequence
 
-    from glitchygames.input.devices import OpenedJoystick
+    from glitchygames.input.devices import DeviceDescriptor, OpenedJoystick
 
 import pygame
 
@@ -29,6 +30,28 @@ from glitchygames.sources import active_sources
 
 LOG = logging.getLogger('game.joysticks')
 LOG.addHandler(logging.NullHandler())
+
+
+def _cache_holds(cache: list[Any], *, index: int, default: object) -> bool:
+    """Grow a joystick state cache to hold ``index``, as the button cache does.
+
+    An event for an index past the opened device's counts raised IndexError (SDL never sends
+    one; a replay against other stand-ins could) (BUGS.md #184 item 4).
+
+    Args:
+        cache: The axis, hat or ball cache.
+        index: The event's axis, hat or ball index.
+        default: The resting value for the new entries.
+
+    Returns:
+        False for a negative index, which no cache holds; True otherwise.
+
+    """
+    if index < 0:
+        return False
+    if index >= len(cache):
+        cache.extend([default] * (index + 1 - len(cache)))
+    return True
 
 
 class IdentifiableJoystick(Protocol):
@@ -165,6 +188,8 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
             """
             # JOYAXISMOTION    instance_id, axis, value
+            if not _cache_holds(self._axes, index=event.axis, default=0.0):
+                return
             self._axes[event.axis] = event.value
             self.game.on_joy_axis_motion_event(event)
 
@@ -210,6 +235,8 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
             """
             # JOYHATMOTION     instance_id, hat, value
+            if not _cache_holds(self._hats, index=event.hat, default=(0, 0)):
+                return
             self._hats[event.hat] = event.value
             self.game.on_joy_hat_motion_event(event)
 
@@ -222,6 +249,8 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
             """
             # JOYBALLMOTION    instance_id, ball, rel
+            if not _cache_holds(self._balls, index=event.ball, default=(0, 0)):
+                return
             self._balls[event.ball] = event.rel
             self.game.on_joy_ball_motion_event(event)
 
@@ -349,9 +378,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             pygame.event.set_allowed(JOYSTICK_EVENTS)
         except pygame.error:
             LOG.debug('Failed to set allowed joystick events: pygame not fully initialized')
-        # By instance id (the id every joystick event carries); a device that could not be
-        # opened on hot-plug is keyed by its device index instead (on_joy_device_added_event)
-        self.joysticks: dict[int, JoystickEventManager.JoystickEventProxy] = {}
         self.game: Any = game
 
         # This must be called before other joystick methods,
@@ -361,7 +387,26 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         self.log.info('Joystick Module Inited: %s', pygame.joystick.get_init())
         self.log.debug('JoystickEventManager init id(self)=%s', id(self))
 
-        # Joystick Setup, through the devices door (glitchygames/input/devices.py)
+        # Joystick Setup, through the devices door (glitchygames/input/devices.py). By instance
+        # id (the id every joystick event carries); a device that could not be opened on
+        # hot-plug is keyed by its device index instead (on_joy_device_added_event)
+        self.joysticks: dict[int, JoystickEventManager.JoystickEventProxy] = (
+            self.open_connected_joysticks()
+        )
+
+        self.proxies = [self.game]
+
+    def open_connected_joysticks(self: Self) -> dict[int, JoystickEventManager.JoystickEventProxy]:
+        """Open every joystick the devices door counts, as new proxies.
+
+        ``__init__`` holds what this returns; a playback scope opens its recording's joysticks
+        with it, through the scope's door (``GameEngine.enter_playback_devices``).
+
+        Returns:
+            The proxies, by instance id (by device index when the device has none).
+
+        """
+        joysticks: dict[int, JoystickEventManager.JoystickEventProxy] = {}
         devices = active_sources().devices()
         joystick_count = devices.joystick_count()
         self.log.info('Joystick Count: %s', joystick_count)
@@ -413,11 +458,35 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
                 instance_id=instance_id,
                 game=self.game,
             )
-            self.joysticks[instance_id] = joystick_proxy
+            joysticks[instance_id] = joystick_proxy
             # The joystick proxy overrides the joystick object
             self.log.info('Added Joystick: %s', joystick_proxy)
+        return joysticks
 
-        self.proxies = [self.game]
+    def adopt_joysticks(
+        self: Self, *, descriptors: Sequence[DeviceDescriptor]
+    ) -> dict[int, JoystickEventManager.JoystickEventProxy]:
+        """Make proxies for devices the devices door already holds, asking it nothing.
+
+        An instant replay's playback scope adopts its journal's devices into its door first
+        (``ReplayDeviceRegistry.adopt_device``; ``GameEngine.enter_playback_devices``): each
+        proxy finds its device by instance id.
+
+        Args:
+            descriptors: The devices, every one a joystick (a game controller's joystick view).
+
+        Returns:
+            The proxies, by instance id.
+
+        """
+        return {
+            descriptor.instance_id: JoystickEventManager.JoystickEventProxy(
+                joystick_id=descriptor.device_index,
+                instance_id=descriptor.instance_id,
+                game=self.game,
+            )
+            for descriptor in descriptors
+        }
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:

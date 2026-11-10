@@ -2,64 +2,57 @@ import Testing
 
 @testable import SpriteCore
 
+// The same inputs and rows as the engine's TestNormalizePixelRows
+// (tests/sprites/test_pixel_utils.py); "\u{0}" is a padded, transparent pixel.
+
 private func rows(_ text: String...) -> [[Unicode.Scalar]] {
     text.map { Array($0.unicodeScalars) }
 }
 
-@Test func animatedStripsEachLineAndDropsEmpty() {
-    #expect(PixelRows.animatedFrameRows("\n  ab \n\n cd\n") == rows("ab", "cd"))
+@Test func rectangleIsUnchanged() {
+    #expect(PixelRows.rows("ab\nab") == rows("ab", "ab"))
 }
 
-@Test func animatedTruncatesAndPadsToModeLength() {
-    #expect(PixelRows.animatedFrameRows("abc\nabc\nab\nabcd") == rows("abc", "abc", "abb", "abc"))
+@Test func longRowWidensNeverTruncates() {
+    #expect(PixelRows.rows("x\nxxxx\nx\nx") == rows("x\u{0}\u{0}\u{0}", "xxxx", "x\u{0}\u{0}\u{0}", "x\u{0}\u{0}\u{0}"))
 }
 
-@Test func animatedModeTieGoesToFirstSeenLength() {
-    #expect(PixelRows.animatedFrameRows("ab\nabc") == rows("ab", "ab"))
+@Test func modeCannotCutARow() {
+    #expect(PixelRows.rows("abcd\nab\nab").first == Array("abcd".unicodeScalars))
 }
 
-@Test func animatedCRLFStripsCarriageReturn() {
-    #expect(PixelRows.animatedFrameRows("ab\r\ncd\r\n") == rows("ab", "cd"))
+@Test func blankInteriorLineIsATransparentRow() {
+    #expect(PixelRows.rows("ab\n\nab") == rows("ab", "\u{0}\u{0}", "ab"))
 }
 
-@Test func animatedEmptyHasNoRows() {
-    #expect(PixelRows.animatedFrameRows(" \n\n ").isEmpty)
+@Test func outerBlankLinesAndTrailingWhitespaceAreTidied() {
+    #expect(PixelRows.rows("\n\nab  \n ab\t\n\n") == rows("ab\u{0}", " ab"))
 }
 
-@Test func staticPadsWithMostCommonScalarToLongestRow() {
-    #expect(PixelRows.staticSpriteRows("abb\nb") == rows("abb", "bbb"))
+@Test func sharedIndentationIsRemoved() {
+    #expect(PixelRows.rows("    ab\n    ab") == rows("ab", "ab"))
+    #expect(PixelRows.rows("\tab\n\tab") == rows("ab", "ab"))
 }
 
-@Test func staticPadTieGoesToFirstSeenScalar() {
-    #expect(PixelRows.staticSpriteRows("aab\nb") == rows("aab", "baa"))
+@Test func unsharedIndentationStays() {
+    #expect(PixelRows.rows("  x  \n xxx \nxxxxx") == rows("  x\u{0}\u{0}", " xxx\u{0}", "xxxxx"))
 }
 
-@Test func staticDoesNotStripLines() {
-    // The leading space stays a glyph; the tie between all five glyphs pads with a (seen first)
-    #expect(PixelRows.staticSpriteRows("ab\n cd") == rows("aba", " cd"))
+@Test func mixedPrefixCharactersAreNotShared() {
+    #expect(PixelRows.rows(" \tab\n\t ab") == rows(" \tab", "\t ab"))
 }
 
-@Test func staticStripsTheWholeString() {
-    #expect(PixelRows.staticSpriteRows("\n  ab\ncd  \n") == rows("ab", "cd"))
+@Test func crlfIsTidied() {
+    #expect(PixelRows.rows("ab\r\nab\r\n") == rows("ab", "ab"))
 }
 
-@Test func staticKeepsCarriageReturnAsGlyph() {
-    // Every glyph appears once, so the first seen (a) pads: Python Counter.most_common(1)
-    #expect(PixelRows.staticSpriteRows("ab\r\ncd") == rows("ab\r", "cda"))
+@Test func blankTextHasNoRows() {
+    #expect(PixelRows.rows("").isEmpty)
+    #expect(PixelRows.rows("\n  \n").isEmpty)
 }
 
-@Test func unicodeGlyphIsOneScalar() {
-    #expect(PixelRows.animatedFrameRows("█o█") == rows("█o█"))
-    #expect(PixelRows.animatedFrameRows("█o█").first?.count == 3)
-}
-
-@Test func pythonStripRemovesFileSeparator() {
-    let scalars = Array("\u{1C}ab\u{1F}".unicodeScalars)
-    #expect(PixelRows.pythonStrip(scalars) == Array("ab".unicodeScalars))
-}
-
-@Test func pythonStripKeepsNonBreakingSpaceRules() {
-    // Python's str.isspace() is true for U+00A0 and U+3000, so strip() removes them
-    let scalars = Array("\u{A0}ab\u{3000}".unicodeScalars)
-    #expect(PixelRows.pythonStrip(scalars) == Array("ab".unicodeScalars))
+@Test func eachCodePointIsOnePixel() {
+    #expect(PixelRows.rows("e\u{301}e").first?.count == 3)
+    #expect(PixelRows.rows("\u{2764}\u{FE0F}").first?.count == 2)
+    #expect(PixelRows.rows("█o█") == rows("█o█"))
 }

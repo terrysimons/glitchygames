@@ -1,10 +1,18 @@
 """Tests for the debug overlay state, protocols and rolling frame-time history."""
 
+import dataclasses
+
 import pygame
 import pytest
 
 from glitchygames.debug import DebugDrawable, DebugOverlay, DebugPanel, HasPhysicsBody
-from glitchygames.debug.overlay import NEXT_PANEL_KEY, OVERLAY_KEYS, TOGGLE_KEY
+from glitchygames.debug.overlay import (
+    NEXT_PANEL_KEY,
+    OVERLAY_KEYS,
+    TOGGLE_KEY,
+    load_debug_font,
+)
+from glitchygames.debug.panels import DebugFrameInfo, draw_ai_panel
 
 
 class TestToggleAndCycle:
@@ -21,7 +29,7 @@ class TestToggleAndCycle:
         """F4 cycles through the panels in declaration order and wraps to ALL."""
         overlay = DebugOverlay(visible=True)
         seen_panels = []
-        for _ in range(6):
+        for _ in range(8):
             seen_panels.append(overlay.panel)
             overlay.cycle_panel()
         assert seen_panels == [
@@ -30,6 +38,8 @@ class TestToggleAndCycle:
             DebugPanel.PHYSICS,
             DebugPanel.CAMERA,
             DebugPanel.PERFORMANCE,
+            DebugPanel.AUDIO,
+            DebugPanel.AI,
             DebugPanel.ALL,
         ]
 
@@ -139,3 +149,48 @@ class TestProtocols:
                 """Do nothing; only the method's presence matters here."""
 
         assert isinstance(Drawer(), DebugDrawable)
+
+
+def test_the_ai_panel_draws_its_lines_or_says_there_is_no_ai():
+    """A run without AI says so, rather than showing an empty panel."""
+    font = load_debug_font()
+    empty = pygame.Surface((320, 240))
+    with_lines = pygame.Surface((320, 240))
+    info = DebugFrameInfo(
+        target_fps=60.0,
+        audio=None,
+        rumble_levels=(0.0, 0.0),
+        screen_shake_offset=(0.0, 0.0),
+        mouse_position=None,
+    )
+
+    draw_ai_panel(surface=empty, font=font, frame_info=info)
+    draw_ai_panel(
+        surface=with_lines,
+        font=font,
+        frame_info=dataclasses.replace(info, ai_status=('Link: connected', 'Requests: 0')),
+    )
+
+    assert empty.get_bounding_rect().width > 0
+    assert pygame.image.tobytes(empty, 'RGB') != pygame.image.tobytes(with_lines, 'RGB')
+
+
+def test_the_overlay_draws_the_ai_panel_when_it_is_selected(mocker):
+    """F4 reaches it, with no game annotations over its text."""
+    overlay = DebugOverlay(visible=True)
+    overlay.panel = DebugPanel.AI
+    draw = mocker.patch('glitchygames.debug.overlay.panels.draw_ai_panel')
+    scene = mocker.Mock()
+    hook = scene.debug_draw
+    info = DebugFrameInfo(
+        target_fps=60.0,
+        audio=None,
+        rumble_levels=(0.0, 0.0),
+        screen_shake_offset=(0.0, 0.0),
+        mouse_position=None,
+    )
+
+    overlay.draw(pygame.Surface((320, 240)), scene=scene, screen_offset=(0, 0), frame_info=info)
+
+    draw.assert_called_once()
+    hook.assert_not_called()

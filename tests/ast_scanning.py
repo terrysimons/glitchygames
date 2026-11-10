@@ -103,8 +103,19 @@ def qualified_name(
     return dynamic_import_name(node=node, watched_modules=watched_modules)
 
 
-# The calls that load a module named by a string
-STRING_LOADS = frozenset({'importlib.import_module'})
+# The calls that load (or, for find_spec, look up) a module named by a string. find_spec
+# imports a dotted name's parent package, and a test that only looks a member up still
+# depends on it, so it counts too
+STRING_LOADS = frozenset({
+    'builtins.__import__',
+    'importlib.__import__',
+    'importlib.import_module',
+    'importlib.util.find_spec',
+    'pytest.importorskip',
+})
+
+# The modules whose bindings resolve a STRING_LOADS call
+STRING_LOAD_MODULES = frozenset({'builtins', 'importlib', 'importlib.util', 'pytest'})
 
 
 class MemberImport(NamedTuple):
@@ -137,7 +148,7 @@ def _string_loaded_module(*, call: ast.Call, bindings: dict[str, str]) -> str | 
         bindings: The module's bindings of ``importlib``, from ``import_bindings``.
 
     Returns:
-        The literal module name ``importlib.import_module`` or ``__import__`` is given, else None.
+        The literal module name a ``STRING_LOADS`` call or ``__import__`` is given, else None.
 
     """
     is_dunder_import = isinstance(call.func, ast.Name) and call.func.id == '__import__'
@@ -167,7 +178,7 @@ def member_imports(*, tree: ast.Module, member_packages: frozenset[str]) -> list
         The imports.
 
     """
-    bindings = import_bindings(tree=tree, watched_modules=frozenset({'importlib'}))
+    bindings = import_bindings(tree=tree, watched_modules=STRING_LOAD_MODULES)
     found: list[MemberImport] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):

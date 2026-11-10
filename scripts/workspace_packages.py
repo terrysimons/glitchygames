@@ -88,16 +88,20 @@ class WorkspaceMember(BaseModel):
 
     @model_validator(mode='before')
     @classmethod
-    def _default_package_relative_paths(cls, values: dict[str, Any]) -> dict[str, Any]:
+    def _default_package_relative_paths(cls, values: object) -> object:
         """Fill package_relative_paths from the import packages when none were given.
 
         Args:
-            values: The fields as given.
+            values: The fields as given (anything else, such as an existing member, passes
+                through for pydantic to validate).
 
         Returns:
             The fields, with package_relative_paths set.
 
         """
+        if not isinstance(values, dict):
+            return values
+        values = cast('dict[str, Any]', values)
         if not values.get('package_relative_paths'):
             values = {
                 **values,
@@ -149,15 +153,18 @@ def workspace_members(*, project_root: Path) -> list[WorkspaceMember]:
     Args:
         project_root: The repository.
 
+    Each member is read by ``_read_member``, which raises FileNotFoundError if a listed
+    member's directory or its pyproject.toml is missing, or a package its wheel declares is not a
+    directory; and ValueError if a member is not in src/<layer>/
+    (``glitchygames.logical_names.LAYERS``), its pyproject.toml has no ``[project]`` table or no
+    ``name``, or it declares no wheel packages (or declares them as anything but a list of
+    strings).
+
     Returns:
         The members.
 
     Raises:
-        FileNotFoundError: If a listed member has no pyproject.toml, or a package its wheel
-            declares is not a directory.
-        ValueError: If the workspace's members are not a list of strings, a member is not in
-            src/<layer>/ (``glitchygames.logical_names.LAYERS``), or a member declares no wheel
-            packages.
+        ValueError: If the workspace's members are not a list of strings.
 
     """
     root = _read_toml(path=project_root / 'pyproject.toml')
@@ -169,47 +176,85 @@ def workspace_members(*, project_root: Path) -> list[WorkspaceMember]:
         message = f'[tool.uv.workspace] members must be a list of strings, not {declared_members!r}'
         raise ValueError(message)
     member_paths = cast('list[str]', declared_members)
-    members: list[WorkspaceMember] = []
-    for member_path in member_paths:
-        directory = project_root / member_path
-        pyproject_path = directory / 'pyproject.toml'
-        if not pyproject_path.is_file():
-            message = f'Workspace member {member_path} has no pyproject.toml'
-            raise FileNotFoundError(message)
-        if directory.parent.parent != project_root / 'src' or directory.parent.name not in LAYERS:
-            message = (
-                f'Workspace member {member_path} is not in src/<layer>/ '
-                f'(layers: {", ".join(LAYERS)})'
-            )
-            raise ValueError(message)
-        member = _read_toml(path=pyproject_path)
-        project = member['project']
-        wheel = member.get('tool', {}).get('hatch', {}).get('build', {}).get('targets', {})
-        packages = wheel.get('wheel', {}).get('packages', [])
-        if not packages:
-            message = (
-                f'Workspace member {member_path} declares no '
-                '[tool.hatch.build.targets.wheel] packages'
-            )
-            raise ValueError(message)
-        for package in packages:
-            if not (directory / package).is_dir():
-                message = f'Workspace member {member_path} has no package directory {package}'
-                raise FileNotFoundError(message)
-        members.append(
-            WorkspaceMember(
-                directory=directory,
-                distribution=project['name'],
-                import_packages=tuple(Path(package).name for package in packages),
-                package_relative_paths=tuple(Path(package) for package in packages),
-                console_scripts=tuple(project.get('scripts', {})),
-                dependencies=tuple(
-                    requirement_distribution(requirement=requirement)
-                    for requirement in project.get('dependencies', [])
-                ),
-            )
+    return [_read_member(project_root=project_root, member_path=path) for path in member_paths]
+
+
+def _read_member(*, project_root: Path, member_path: str) -> WorkspaceMember:
+    """Read one workspace member (``workspace_members`` says what it refuses).
+
+    Returns:
+        The member.
+
+    Raises:
+        FileNotFoundError: If the member's directory or its pyproject.toml is missing.
+        ValueError: If the member is not in src/<layer>/, or its pyproject.toml has no
+            ``[project]`` table or no ``name``.
+
+    """
+    directory = project_root / member_path
+    pyproject_path = directory / 'pyproject.toml'
+    if not directory.is_dir():
+        message = f'Workspace member {member_path} has no directory {directory}'
+        raise FileNotFoundError(message)
+    if not pyproject_path.is_file():
+        message = f'Workspace member {member_path} has no pyproject.toml'
+        raise FileNotFoundError(message)
+    if directory.parent.parent != project_root / 'src' or directory.parent.name not in LAYERS:
+        message = (
+            f'Workspace member {member_path} is not in src/<layer>/ (layers: {", ".join(LAYERS)})'
         )
-    return members
+        raise ValueError(message)
+    member = _read_toml(path=pyproject_path)
+    project = member.get('project', {})
+    if 'name' not in project:
+        message = f'Workspace member {member_path} has no [project] name in its pyproject.toml'
+        raise ValueError(message)
+    packages = _wheel_packages(member_path=member_path, directory=directory, member=member)
+    return WorkspaceMember(
+        directory=directory,
+        distribution=project['name'],
+        import_packages=tuple(Path(package).name for package in packages),
+        package_relative_paths=tuple(Path(package) for package in packages),
+        console_scripts=tuple(project.get('scripts', {})),
+        dependencies=tuple(
+            requirement_distribution(requirement=requirement)
+            for requirement in project.get('dependencies', [])
+        ),
+    )
+
+
+def _wheel_packages(*, member_path: str, directory: Path, member: dict[str, Any]) -> list[str]:
+    """Return the packages a member's wheel declares (``[tool.hatch.build.targets.wheel]``).
+
+    Returns:
+        The package paths, relative to the member's directory.
+
+    Raises:
+        FileNotFoundError: If a declared package is not a directory.
+        ValueError: If none is declared, or they are not a list of strings.
+
+    """
+    wheel = member.get('tool', {}).get('hatch', {}).get('build', {}).get('targets', {})
+    declared: object = wheel.get('wheel', {}).get('packages', [])
+    if not isinstance(declared, list) or not all(
+        isinstance(package, str) for package in cast('list[object]', declared)
+    ):
+        message = (
+            f'Workspace member {member_path} must declare '
+            f'[tool.hatch.build.targets.wheel] packages as a list of strings, not {declared!r}'
+        )
+        raise ValueError(message)
+    packages = cast('list[str]', declared)
+    if not packages:
+        message = (
+            f'Workspace member {member_path} declares no [tool.hatch.build.targets.wheel] packages'
+        )
+        raise ValueError(message)
+    for package in packages:
+        if not (directory / package).is_dir():
+            message = f'Workspace member {member_path} has no package directory {package}'
+            raise FileNotFoundError(message)
+    return packages
 
 
 def source_package_directories(*, project_root: Path) -> list[Path]:

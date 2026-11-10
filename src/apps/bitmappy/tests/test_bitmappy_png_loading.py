@@ -76,7 +76,8 @@ class TestPNGLoading:
                 'bitmappy.animated_canvas.AnimatedSprite',
             )
             mock_sprite = self._mocker.Mock()
-            mock_sprite._animations = {}  # Add required attribute
+            # A sprite with something to draw: a load with nothing to draw is an error
+            mock_sprite._animations = {'idle': [self._mocker.Mock()]}
             mock_sprite_class.return_value = mock_sprite
 
             # Call the method
@@ -118,7 +119,8 @@ class TestPNGLoading:
             'bitmappy.animated_canvas.AnimatedSprite',
         )
         mock_sprite = self._mocker.Mock()
-        mock_sprite._animations = {}  # Add required attribute
+        # A sprite with something to draw: a load with nothing to draw is an error
+        mock_sprite._animations = {'idle': [self._mocker.Mock()]}
         mock_sprite_class.return_value = mock_sprite
 
         # Call with a TOML file
@@ -546,14 +548,6 @@ class TestColorQuantization:
         }
         assert [glyph_colours[glyph] for glyph in rows[0]] == pixels[:32]
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'AIManager._generate_frame_toml_content(force_single_char_glyphs=False) writes one '
-            '[colors."<glyph>"] table per colour, but past the 64 sprite glyphs several colours '
-            'share a glyph, so the TOML declares a table twice and cannot be parsed'
-        ),
-    )
     def test_generate_frame_toml_without_quantization_many_colours_is_valid_toml(self):
         """Without quantization, more colours than glyphs must still produce valid TOML."""
         toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
@@ -563,6 +557,9 @@ class TestColorQuantization:
 
         data = tomllib.loads(toml_content)
         assert len(data['colors']) <= TEST_SIZE_64
+        # Every glyph the pixels use has a color table
+        used_glyphs = set(data['sprite']['pixels'].replace('\n', ''))
+        assert used_glyphs <= set(data['colors'])
 
     def test_generate_frame_toml_with_quantization(self):
         """With quantization, 100 colours become at most 64 single-character glyphs."""

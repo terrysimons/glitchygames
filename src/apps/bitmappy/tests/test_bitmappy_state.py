@@ -5,18 +5,14 @@ import logging
 import pytest
 
 from bitmappy.ai_worker import (
-    _check_ollama_model_status,
     _create_ai_retry_decorator,
-    _create_ollama_config,
-    _get_provider_timeout_value,
     _initialize_ai_client,
     _log_capabilities_dump,
     _process_ai_request,
-    _set_ollama_env_timeout,
     _setup_ai_worker_logging,
     select_relevant_training_examples,
 )
-from bitmappy.constants import AI_MODEL, AI_TIMEOUT, ai_training_state
+from bitmappy.constants import AI_TIMEOUT, ai_training_state
 from bitmappy.models import AIRequest, AIResponse
 from bitmappy.sprite_inspection import load_ai_training_data
 
@@ -50,95 +46,32 @@ class TestSetupAIWorkerLogging:
         assert len(second_log.handlers) == 1
 
 
-class TestCheckOllamaModelStatus:
-    """Test _check_ollama_model_status function."""
-
-    def test_non_ollama_model_returns_downloaded(self):
-        """Test that non-ollama models always report as downloaded."""
-        log = logging.getLogger('test')
-        # Since AI_MODEL is 'anthropic:claude-sonnet-4-5' (not ollama), should return downloaded
-        if not AI_MODEL.startswith('ollama:'):
-            result = _check_ollama_model_status(log)
-            assert result['downloaded'] is True
-            assert result['reason'] == 'not_ollama'
-
-
-class TestCreateOllamaConfig:
-    """Test _create_ollama_config function."""
-
-    def test_non_ollama_model_returns_empty(self):
-        """Test that non-ollama models return empty config."""
-        log = logging.getLogger('test')
-        if not AI_MODEL.startswith('ollama:'):
-            result = _create_ollama_config(log)
-            assert result == {}
-
-
-class TestSetOllamaEnvTimeout:
-    """Test _set_ollama_env_timeout function."""
-
-    def test_non_ollama_model_no_env_set(self):
-        """Test that non-ollama models don't set environment variables."""
-        import os
-
-        log = logging.getLogger('test')
-        original_timeout = os.environ.get('OLLAMA_TIMEOUT')
-        if not AI_MODEL.startswith('ollama:'):
-            _set_ollama_env_timeout(log)
-            # Should not have set the environment variable
-            if original_timeout is None:
-                assert os.environ.get('OLLAMA_TIMEOUT') is None
-            else:
-                assert os.environ.get('OLLAMA_TIMEOUT') == original_timeout
-
-
-class TestGetProviderTimeoutValue:
-    """Test _get_provider_timeout_value function."""
-
-    def test_non_ollama_returns_default_timeout(self):
-        """Test that non-ollama models return default timeout."""
-        log = logging.getLogger('test')
-        if not AI_MODEL.startswith('ollama:'):
-            result = _get_provider_timeout_value(log)
-            assert result == AI_TIMEOUT
-
-
-class TestClientProviderTimeouts:
-    """The real aisuite Client _initialize_ai_client builds carries each provider's timeout.
-
-    aisuite creates its providers lazily from these configurations on the first request.
-    """
-
-    def test_non_ollama_model_configures_no_ollama_provider(self, mocker):
-        """A hosted model sets up no ollama provider."""
-        import aisuite
-
-        mocker.patch('bitmappy.ai_worker.AI_MODEL', 'anthropic:claude-sonnet-4-5')
-        client = _initialize_ai_client(logging.getLogger('test'))
-
-        assert isinstance(client, aisuite.Client)
-        assert 'ollama' not in client.provider_configs
-
-    def test_anthropic_provider_gets_the_ai_timeout(self, mocker):
-        """The Anthropic provider is configured with AI_TIMEOUT."""
-        import aisuite
-
-        mocker.patch('bitmappy.ai_worker.AI_MODEL', 'anthropic:claude-sonnet-4-5')
-        client = _initialize_ai_client(logging.getLogger('test'))
-
-        assert isinstance(client, aisuite.Client)
-        assert client.provider_configs['anthropic'] == {'timeout': AI_TIMEOUT}
-
-
 class TestInitializeAIClient:
     """Test _initialize_ai_client function."""
 
-    def test_returns_none_when_aisuite_unavailable(self, mocker):
-        """Test returns None when aisuite is not available."""
-        log = logging.getLogger('test')
-        mocker.patch('bitmappy.ai_worker.ai', None)
-        result = _initialize_ai_client(log)
-        assert result is None
+    def test_returns_the_local_services_client_with_the_ai_timeout(self, mocker):
+        """The client comes from create_chat_client, given AI_TIMEOUT."""
+        client = mocker.Mock(name='LocalAIClient')
+        create_chat_client = mocker.patch(
+            'glitchygames.ai.local_service.create_chat_client',
+            return_value=client,
+        )
+
+        result = _initialize_ai_client(logging.getLogger('test'))
+
+        assert result is client
+        create_chat_client.assert_called_once_with(timeout_seconds=AI_TIMEOUT)
+
+    def test_returns_none_when_the_service_is_not_installed(self, mocker):
+        """Test returns None when the local AI service is not installed."""
+        from glitchygames.ai.local_service import LocalAIServiceNotInstalledError
+
+        mocker.patch(
+            'glitchygames.ai.local_service.create_chat_client',
+            side_effect=LocalAIServiceNotInstalledError('not installed'),
+        )
+
+        assert _initialize_ai_client(logging.getLogger('test')) is None
 
 
 class TestProcessAIRequest:

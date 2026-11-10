@@ -223,15 +223,6 @@ class TestFilmStripSelection:
             f'Expected frame {TEST_FRAME_COUNT_2} (global), got {frame_idx}'
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'Production bug: FilmStripEventHandler.handle_click tests the strip-local click '
-            "position against the widget's screen rect (film_strip_events.py, parent strip "
-            'path), so in the editor, where strips sit right of the canvas, a click on a '
-            "strip's empty area selects nothing"
-        ),
-    )
     def test_parent_strip_click_selects_itself(self, editor, film_strip_widget):
         """Test that clicking on the strip's empty area selects the strip at the global frame."""
         film_strip_widget.selected_frame = 0
@@ -243,14 +234,6 @@ class TestFilmStripSelection:
         assert result == ('walk', TEST_FRAME_COUNT_2)
         assert film_strip_widget.selected_frame == TEST_FRAME_COUNT_2
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'Production bug: a click on the empty area of a film strip in the editor does '
-            'not select that strip (handle_click compares the strip-local position with the '
-            "widget's screen rect)"
-        ),
-    )
     def test_clicking_a_strips_empty_area_on_screen_selects_that_strip(
         self,
         editor,

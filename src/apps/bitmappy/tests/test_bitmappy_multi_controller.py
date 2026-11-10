@@ -382,10 +382,10 @@ class TestVisualCollisionManager:
         # Check that offsets were applied
         # Controller 0 should have (0, 0) as it's the first at this position
         # Controller 1 should have (-15, -15) offset
-        # Controller 2 should have fallback (0, 0) since we only have 2 predefined patterns
         assert self.manager.indicators[0].offset == (0, 0)  # First controller at position
         assert self.manager.indicators[1].offset == (-15, -15)  # Second controller offset
-        assert self.manager.indicators[2].offset == (0, 0)  # Fallback for third controller
+        # The third gets the next pattern, not a cached two-controller layout (BUGS.md #141)
+        assert self.manager.indicators[2].offset == (15, -15)
 
     def test_final_position_calculation(self):
         """Test final position calculation with offsets."""
@@ -534,11 +534,11 @@ class TestMultiControllerIntegration:
         # Check that offsets were applied correctly
         # Controller 0 should have (0, 0) as it's the first at this position
         # Controller 1 should have (-15, -15) offset
-        # Controllers 2 and 3 should have fallback (0, 0) since we only have 2 predefined patterns
         assert self.visual_manager.indicators[0].offset == (0, 0)  # First controller at position
         assert self.visual_manager.indicators[1].offset == (-15, -15)  # Second controller offset
-        assert self.visual_manager.indicators[2].offset == (0, 0)  # Fallback for third controller
-        assert self.visual_manager.indicators[3].offset == (0, 0)  # Fallback for fourth controller
+        # Each later controller gets the next pattern, not a cached smaller layout (BUGS.md #141)
+        assert self.visual_manager.indicators[2].offset == (15, -15)
+        assert self.visual_manager.indicators[3].offset == (-15, 15)
 
     def test_controller_state_preservation(self):
         """Test controller state preservation across operations."""

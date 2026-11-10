@@ -19,6 +19,37 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## High Priority Features
 
+### 63. Sound Engine: One-Call Sound API, Instruments and the CRT's Sound — M1 BUILT
+- **Description**: sound becomes a first-class retro feature (the user, 2026-11-02). One call,
+  `audio.sound(...)`, takes a short name, a path or an `Instrument`. The first request compiles
+  the sound, later requests return it from the engine's cache, and getting a sound never plays it
+  ("the way you load it is the same as the way you'd use it in the game - one API"). Pitches can
+  be notes, hertz, MIDI or scale steps, side by side. Named waves can be mixed, blended, put in
+  wavetables, drawn as points or built from harmonics, with named constants for their numbers.
+  TOML instruments; live sounds driven by game parameters; buses; offline render to WAV; retro
+  profiles; demos (Sound Board first).
+- **Spec**: `docs/specs/2026-11-02-sound-engine-feature-spec.md` and
+  `docs/specs/2026-11-02-sound-engine-implementation-spec.md` (from the user's brief,
+  `~/Documents/ChatGPT/GlitchyGames/glitchygames-sound-engine-development-brief.md`)
+- **Order (the user, 2026-11-02)**: M1 the one-call API (pitch and wave types, notes and chords,
+  the cache as `None`/`'ram'`, per-frame audio accounting, buses and voices, offline render, the
+  CRT power-on sound (#53's follow-up), the Sound Board demo); M2 live instruments, migration of
+  all five games and removal of the old sound paths; M3 measurement with the cache off, then
+  `'ram'`, then `'disk'`, with a *Sound Performance* docs page of plots; then instrument depth,
+  music and authoring
+- **Status**: M1 BUILT on `docs/sound-engine-specs` (2026-11-02; plan
+  `plans/2026-11-02-sound-engine-m1-implementation.md`, user docs `docs/architecture/sound.md`):
+  the one-call API, pitches and waves, sound files, the `none` and `ram` caches, accounting,
+  voices and buses, the Audio debug panel, offline render, the CRT power-on sound and the Sound
+  Board. The owner's listening check passed (2026-11-02: the Sound Board, the CRT power-on and
+  its skip with no clicks, and the browser build). The instrument catalog (2026-11-03, the
+  owner's "every instrument, every variant"): `glitchygames.audio.instruments`, 431 instruments
+  in 18 families with their ranges, voices from soprano to basso profundo on five vowels
+  (`docs/architecture/sound.md`, "The instrument catalog"), audited against published references
+  the same day: 28 ranges, the soprano and tenor "o" formants and the chime, bell and tine
+  partials corrected. M2 next, in the order above
+- **Priority**: High (requested 2026-11-02)
+
 ### 1. Memory Optimization
 - **Description**: Implement configurable buffer sizes and automatic cleanup for long-running games
 - **Use Case**: Reduced memory footprint for extended gameplay sessions, 5 9s reliability (100,000+ data points)
@@ -161,8 +192,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
      brightness, a frame or two of vertical roll or jitter), slight bloom and scanlines, a
      brief degauss-style colour wobble
   4. settles into the steady pattern, then the first scene's frame replaces it
-- **Possible extras**: the power-on sound (a synth recipe: the click, the high whine, the static
-  crackle; src/glitchygames/audio/recipes.py), a matching CRT power-off collapse when the game quits
+- **Possible extras**: the power-on sound (BUILT 2026-11-02 with the sound engine's M1, #63:
+  `src/glitchygames/crt_power_on_sound.py`), a matching CRT power-off collapse when the game quits
 - **Rules it must keep**:
   - visual only, before frame 0: never in recordings, screenshots or golden traces, and it
     changes no game state, random stream or clock a replay serves
@@ -180,7 +211,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   (CLAUDE.md, Scene backgrounds); the sequence replaces that single paint
 - **Status**: BUILT 2026-10-24 (`src/glitchygames/crt_power_on.py`, plan
   plans/2026-10-24-crt-power-on.md); being tested by the user, the stage constants tuned by eye
-  from that. The power-on sound and a power-off collapse are follow-ups
+  from that. The power-on sound is built (2026-11-02, #63's M1: a power click, the degauss thump,
+  the flyback whine, static, then the bars' tone or channel 3's hiss; `--crt-power-on-sound`);
+  a power-off collapse is a follow-up
 
 ### 57. A pygame-examples-Like Demos Experience — TODO (plan later)
 - **Description**: the demos (today `dt_demo`, `joystick_demo` and `text_input_demo`, each a member of the
@@ -210,9 +243,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
     `--game papyrus` case; a recording whose header cannot be read is refused through the title
     flow, so the refusal cannot name a game
   - Brave Adventurer code noticed while sharing the scenes (behaviour, so left for a change that
-    re-checks the goldens): `brave_adventurer_core/scene.py` sets `_was_airborne` and never reads
-    it; the respawn clamp `max(0, self.player.world_x - RESPAWN_OFFSET)` can make the respawn x
-    the int 0 (both tracked in BUGS.md, #229 and #230); both games' `game.py` import their scarab
+    re-checks the goldens): `brave_adventurer_core/scene.py` set `_was_airborne` and never read
+    it (resolved 2026-10-31: the landing sound already played from a local); the respawn clamp `max(0, self.player.world_x - RESPAWN_OFFSET)` can make the respawn x
+    the int 0 (resolved 2026-10-31: `max(0.0, ...)`) (both tracked in BUGS.md, #229 and #230); both games' `game.py` import their scarab
     lazily inside a method although nothing needs it deferred
   - Member tests use the engine's test seams (`SceneManager._reset`, `FontManager._font_cache`),
     a known exemption from the public-API rule (`docs/architecture/game_packages.md`); member
@@ -248,7 +281,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: TODO, after workspace packages Parts 1 and 2 (`plans/2026-10-24-workspace-packages.md`)
 - **Priority**: Medium
 
-### 54. Docs Deploys That Cannot Go Stale — TODO
+### 68. Docs Deploys That Cannot Go Stale — TODO
 - **Goal**: the published docs (https://terrysimons.github.io/glitchygames/) are always `main`'s
   latest, not just usually (the user, 2026-10-25)
 - **Today**: CircleCI's `deploy-docs` publishes its own pipeline's commit after every merge to
@@ -426,7 +459,16 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Code Architecture Features
 
-### 55. Swatches Into the Engine: Recolouring Sprites by Palette Swap — TODO
+### 62. Reserve the Game Package Names on PyPI Before Publishing the Engine — TODO
+- **Goal**: never let `pip install glitchygames[games]` (or `[demos]`, `[apps]`) install a package someone else registered (the owner, 2026-10-30)
+- **Why**: `pyproject.toml`'s extras `games`, `demos` and `apps` list the workspace members by distribution name (`mr-muncher`, `brave-adventurer`, `clockwork-keep`, `paddleslap`, `drawing-fire`, `dt-demo`, `joystick-demo`, `text-input-demo`, `bitmappy`). In the workspace they resolve to the members; from PyPI they resolve to whatever is registered under those names, and none is registered by this project yet. Publishing the engine first would let anyone register one of those names and be installed by the extra (dependency confusion)
+- **Before the engine is published**: either publish (or reserve) every member under its name first, or drop the extras from the published engine (keep them for the workspace only), or rename the distributions under a prefix this project owns (e.g. `glitchygames-mr-muncher`). A test could refuse a publish build whose extras name a distribution not owned on PyPI
+- **Found**: comparing the workspace migration plan with #109 (2026-10-26)
+- **Status**: TODO, before any PyPI publish
+- **Priority**: High at publish time, none until then
+
+### 61. Swatches Into the Engine: Recolouring Sprites by Palette Swap — TODO
+- **Numbering**: was a second #55 (the Recording Naming Convention entry kept #55, which other plans cite); renumbered 2026-10-30
 - **Goal**: move the mechanic Drawing Fire proved (plans/2026-10-25-drawing-fire-design.md,
   section 7) from `src/games/drawing-fire/drawing_fire/swatches.py` into the engine, so any
   game recolours a sprite's parts (a helmet, a uniform) by palette swap, its shades following.
@@ -878,7 +920,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Animation Features
 
-### 21. Onion Skinning ✅ COMPLETED
+### 66. Onion Skinning ✅ COMPLETED
 - **Description**: Animation feature that allows users to see previous/future frames as semi-transparent overlays while editing current frame
 - **Use Case**: Helps with smooth animation creation by providing visual reference of motion
 - **Status**: ✅ COMPLETED
@@ -899,7 +941,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - `tests/tools/test_onion_skinning.py` - Comprehensive test suite
 
 
-### 22. Multi-Controller Navigation System (BETTER) ✅ COMPLETED
+### 67. Multi-Controller Navigation System (BETTER) ✅ COMPLETED
 - **Description**: Multi-controller support system for bitmappy tool allowing up to 4 simultaneous controllers with independent navigation and visual distinction
 - **Use Case**: Enables multiple users to navigate and select different frames/animations simultaneously using separate controllers
 - **Status**: ✅ COMPLETED
@@ -1276,8 +1318,19 @@ This document tracks planned future features for the GlitchyGames project. Featu
   whose commits are pure renames.
 - **Priority**: Low
 
+### 69. Bitmappy: White Outline on the Color-Slider Knob — TODO
+- **Description**: Give each color slider's draggable knob (`SliderSprite.slider_knob`,
+  `src/glitchygames/ui/sliders.py`, created around line 150 and filled `(200, 200, 200)`) a white
+  outline, so it contrasts the dark-gray slider track and reads clearly at a glance.
+- **Use Case**: The user (2026-10-29): "Wrap the slider knob in a white outline (to contrast the
+  dark gray)."
+- **Status**: TODO (requested 2026-10-29); not started
+- **Priority**: Low
+- **Files**: `src/glitchygames/ui/sliders.py`
+
 ### 28. Sprite Format Linter
 - **Description**: Comprehensive validation and linting tool for TOML sprite files to ensure format compliance and catch common errors
+- **Started (2026-10-30)**: the pixel-row core exists. `normalize_pixel_rows` in strict mode and `palette_key_problems` (`src/glitchygames/sprites/pixel_utils.py`) reject ragged rows, blank lines between rows, glyphs missing from the palette and palette keys that aren't one code point; `check_rows_have_equal_lengths` runs them on every repo sprite (`docs/specs/2026-10-30-unified-pixel-rows-design.md`)
 - **Use Case**: Essential for maintaining sprite file quality, catching format errors early, and ensuring compatibility across different sprite formats
 - **Status**: Planned
 - **Priority**: High
@@ -1671,6 +1724,250 @@ This document tracks planned future features for the GlitchyGames project. Featu
   screen, and that the golden and the Rally demo still replay identically (the screen must not
   shift a recorded frame; rebaseline only deliberately).
 - **Priority**: Medium
+
+### 64. Sound Engine: Sequences in Sound Files, and Music and Instrument Formats — DESIGN
+- **Description**: A beat-based `[sequences]` table in sound files (the file form of M5's
+  `Sequence`), `music = <path>` to read other music formats into it with loaders that work out a
+  file's type, and `patch = <path>` for instrument formats. ABC first; then MIDI, Csound scores,
+  MML, sfxr, SFZ, trackers and FM patches as the engine gains what each needs
+- **Design**: `plans/2026-11-06-music-and-instrument-formats-design.md`
+- **Status**: Design (requested by the owner 2026-11-03: ABC import is in scope, and "eventually
+  support all of these formats, and wire them into our formats in ways that make sense")
+- **Priority**: Medium
+
+### 65. Sprites: Importing Sprite and Spritesheet Formats — DESIGN
+- **Description**: A registry of sprite loaders (detected by extension, confirmed by content) and
+  a `glitchygames sprite-import` converter that writes sprite TOML and reports what it could not
+  carry over; Bitmappy opens the same formats. Aseprite first, then Aseprite JSON sheets,
+  animated GIF and APNG, grid sheets, TexturePacker JSON and Tiled tilesets; libGDX, Godot,
+  Unity and Piskel as needed. Replaces `LOADER_README.md`'s "Future Format Ideas"
+- **Design**: `plans/2026-11-06-spritesheet-formats-design.md`
+- **Status**: Design (requested by the owner 2026-11-06)
+- **Priority**: Medium
+
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 3 DONE
+- **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
+  batch 1, 448 in 23 after batch 2, 624 after batch 3) toward every instrument a game might want, in one verified
+  batch per family. Adversarial audits (2026-11-07) found 1,303 candidates, only 84 with
+  source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
+  makers, sound effects, and electromechanical, which takes the electric pianos, Clavinet and
+  tonewheel organs from keyboards and organs), makes mechanical instruments a tag, and lists
+  the instruments that wait for engine features (sympathetic strings, moving formants, FM,
+  samples); every sound effect is usable in music.
+  Batch 1 (plucked idiophones, friction instruments, noise makers, tags and aliases) is done:
+  of its 79 audited candidates 8 shipped, 4 moved family, 58 wait for engine features, 4 became
+  aliases and 5 were dropped.
+  Batch 2 (electromechanical and sound effects) is done: of its 62 audited candidates (30
+  electromechanical, 32 sound effects) 9 shipped, 10 moved family, 11 wait for engine
+  features, 4 became aliases and 28 were dropped.
+  Batch 3 (drums and percussion) is done: of its 255 sheet rows 45 shipped (their own builds),
+  131 became sound-alikes (entries of their own that share a parent's build, `sounds_like`), 29
+  wait for engine features, 27 became aliases and 23 were dropped; the family grew from 61 to
+  237 entries. The audit's "Gaps you could not close"
+  (`plans/data/instrument-audit/drums-and-percussion.md`: MIMO, the Met, Horniman and Grove
+  unconsulted, truncated Wikipedia lists, Korean, Cuban, Oceanian, Indigenous American and
+  Eastern European names never searched) are a later pass over this family. `agung`, `tingsha`
+  and `teponaztli` also have tuned-percussion audit rows (`merged.tsv`) and shipped here under
+  those names, so the tuned percussion batch must not ship them again. Next: plucked strings
+- **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
+- **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
+  `plans/data/instrument-audit/batch-1.tsv`
+- **Plan (batch 2)**: `plans/2026-11-08-instrument-catalog-batch-2-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-2.tsv`
+- **Plan (batch 3)**: `plans/2026-11-08-instrument-catalog-batch-3-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-3.tsv`
+- **Status**: Batches 1, 2 and 3 done (requested by the owner 2026-11-06)
+- **Priority**: Medium
+
+### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
+- **Goal**: confirm or overturn the calls made while batch 2 of #70 ran, and listen to its new
+  instruments (the owner, 2026-11-08: "make note of those checks")
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+  every level, filter, ring and glide below is sound design, not sourced):
+  - [ ] `hohner pianet` against `reed electric piano`: distinct enough to be two entries (the
+    anti-goal), and does the Pianet's bright strike settle as its source describes?
+  - [ ] The eight sound effects (`build/instruments/sound effects/`): thunder sheet, rain
+    machine, ocean drum, cannon, crash box, coconut shells, door slam, giants footsteps
+  - [ ] `thunder sheet`: `drum`'s one `attack` also swells its 120 Hz metal-ring tone, not
+    only the noise
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-2.tsv`):
+  - [ ] `thunder run` waits for an amplitude LFO (its separate ball impacts), as fire crackle
+    does, rather than shipping as a smooth rumble
+  - [ ] `sandpaper blocks` is dropped to drums and percussion (batch 3), like the washboard
+    and rain stick
+  - [ ] `gunshot`, `snow crunch` and `bone crack` are dropped as Foley tricks, not devices
+  - [ ] `rain stick` is a percussion instrument (batch 3), not an alias of `rain machine`
+  - [ ] `rumble cart` stays DROP; its note says it would wait for the same feature as the
+    thunder run (WAIT instead is one cell)
+  - [ ] `thunder sheet` ships although it is shaken slowly then quickly
+  - [ ] The Pianet is built with `struck` (harmonics 1–4, higher ones ringing shorter)
+  - [ ] Electric guitars, basses, violins and steels stay in their string families rather
+    than electromechanical; `combo organ` stays in organs (H-S 53)
+  - [ ] The tine electric piano (E1–E7) and tonewheel organ (C2–C7) ranges are kept from the
+    catalog: no fetched source gives their ends
+- **Follow-ups**:
+  - [ ] Brand aliases a game developer would type (`fender rhodes`, `rhodes piano`,
+    `hammond organ`), each sourced in the sheet
+  - [ ] The tonewheel source comment quotes "near an electromagnetic pickup"; the sheet quotes
+    "in front of"; align both with the Hammond organ page
+  - [ ] CI: the macOS syft and grype install (`.circleci/config.yml`, `install_release`) makes
+    one `curl` attempt, so a GitHub 504 fails the job (PR #162's first run); add
+    `--retry 5 --retry-delay 5 --retry-all-errors`
+- **Found**: batch 2's reviews and final whole-branch review (2026-11-08)
+- **Status**: TODO
+- **Priority**: Medium (before batch 3 builds on the family boundaries)
+
+### 72. Sound Engine: The Owner's Checks on Instrument Catalog Batch 3 — TODO
+- **Goal**: confirm or overturn the calls made while batch 3 of #70 ran, and listen to its new
+  instruments (drums and percussion, 61 to 237 entries; the owner, 2026-11-08: "I want them to
+  all show up")
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+  every level, filter, ring and glide is sound design, not sourced; the folder is
+  `build/instruments/drums and percussion/`). The 45 new builds come first, then the
+  sound-alikes; each group below is a parent with the sound-alikes that share its build, which
+  must sound alike by design:
+  - [ ] The 45 new builds: `bendir`, `bombo leguero`, `chenda`, `daf`, `dhol`, `dholak`,
+    `field drum`, `gong bass drum`, `janggu`, `kanjira`, `kebero`, `kendang`, `kendang ageng`,
+    `ketipung`, `khol`, `lambeg drum`, `mridangam`, `naqareh`, `otsuzumi`, `pandeiro`,
+    `piccolo snare`, `pipe band snare`, `thavil`, `agung`, `anvil`, `bak`, `daluo`,
+    `flat ride cymbal`, `garamut`, `ghatam`, `gongue`, `guira`, `jing`, `jingle bells`,
+    `karkabou`, `kemanak`, `khartal`, `kkwaenggwari`, `lagerphone`, `sizzle cymbal`,
+    `tiger gong`, `tingsha`, `udu`, `washboard`, `xiaoluo`: each distinct from the 61 already
+    there and from each other (the anti-goal; the rule-7 test only catches equal builds)
+  - [ ] Near pairs to hear side by side: `garamut` and `janggu` and `kendang`, `anvil` and
+    `kkwaenggwari`, `bak` and `otsuzumi`, `washboard` and `castanets`
+  - [ ] The sound-alikes, 131 in 52 groups (each is its parent's sound):
+  - [ ] `paiban`, `sasara` of `bak`
+  - [ ] `cultrun`, `damphu`, `parai`, `sakara drum`, `uchiwa daiko` of `bodhran`
+  - [ ] `afoxe`, `axatse`, `shekere` of `cabasa`
+  - [ ] `chuk`, `gome` of `cajon bass`
+  - [ ] `bones`, `spoons` of `castanets`
+  - [ ] `bo` of `china cymbal`
+  - [ ] `hyoshigi`, `lummi stick` of `claves`
+  - [ ] `dabakan` of `conga slap`
+  - [ ] `atabaque`, `bamboula`, `bata drum`, `candombe drums`, `kpanlogo`, `kundu`, `makuta`,
+    `ngoma`, `tambora`, `timbal` of `conga`
+  - [ ] `crash ride cymbal` of `crash cymbal`
+  - [ ] `khanjani` of `daf`
+  - [ ] `tombak`, `tumbaknari` of `darbuka doum`
+  - [ ] `bangu`, `tamborim`, `trong chau` of `darbuka tek`
+  - [ ] `davul`, `dhak`, `dohol`, `dollu`, `tabl`, `zabumba` of `dhol`
+  - [ ] `bougarabou` of `djembe bass`
+  - [ ] `ashiko`, `sabar`, `tifa` of `djembe tone`
+  - [ ] `marching snare`, `tabor` of `field drum`
+  - [ ] `elathalam`, `kecer`, `manjira` of `finger cymbals`
+  - [ ] `dunun` of `floor tom`
+  - [ ] `tar drum` of `frame drum`
+  - [ ] `ikoro`, `semantron`, `slit drum`, `teponaztli`, `txalaparta` of `garamut`
+  - [ ] `ferrinho`, `frottoir`, `guayo` of `guira`
+  - [ ] `eo`, `esterilla`, `reco reco` of `guiro`
+  - [ ] `puniu`, `tbilat` of `high bongo`
+  - [ ] `gudugudu`, `repinique` of `high timbale`
+  - [ ] `kakko`, `octoban`, `okedo daiko`, `shime daiko`, `urumi` of `high tom`
+  - [ ] `ghungroo`, `turkish crescent` of `jingle bells`
+  - [ ] `kendang ciblon`, `kendang wadon`, `klong khaek`, `madal`, `samphor`, `taphon`, `trong
+    com` of `kendang`
+  - [ ] `chimta`, `triccaballacca` of `khartal`
+  - [ ] `stomp box` of `kick drum`
+  - [ ] `chengila`, `shoko` of `kkwaenggwari`
+  - [ ] `igba` of `low bongo`
+  - [ ] `sangban` of `low tom`
+  - [ ] `caxirola`, `caxixi`, `hosho` of `maracas`
+  - [ ] `concert tom`, `kenkeni`, `tanggu` of `mid tom`
+  - [ ] `maddalam`, `pakhavaj` of `mridangam`
+  - [ ] `tasha` of `naqareh`
+  - [ ] `bedug`, `fontomfrom`, `gbedu`, `thunder drum`, `tsuri daiko` of `orchestral bass drum`
+  - [ ] `popcorn snare` of `piccolo snare`
+  - [ ] `rainstick` of `rain machine`
+  - [ ] `ganza` of `shaker`
+  - [ ] `swish cymbal` of `sizzle cymbal`
+  - [ ] `sandpaper blocks` of `snare brush`
+  - [ ] `caixa malacacheta`, `tarol` of `snare drum`
+  - [ ] `dhimay`, `tan tan` of `surdo`
+  - [ ] `alfaia`, `buk`, `hira daiko`, `jwago`, `kus`, `nagado daiko` of `taiko`
+  - [ ] `pandero jarocho`, `rebana`, `sistrum` of `tambourine`
+  - [ ] `ekwe`, `moktak` of `temple block`
+  - [ ] `thunder tube` of `thunder sheet`
+  - [ ] `atumpan`, `carimbo`, `huehuetl`, `pahu` of `tumba`
+  - [ ] `quijada` of `vibraslap`
+  - [ ] `cata`, `jam block`, `shishi odoshi` of `woodblock`
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-3.tsv`; the sheet's counts:
+  SHIP 45, SOUND_ALIKE 131, WAIT 29, ALIAS 27, DROP 23):
+  - [ ] Sound-alikes: each is an entry of its own sharing its parent's build (decision 8). The
+    groups under Listen name each parent; confirm none should rather be an alias (`riq` and
+    `doira` are ALIAS rows of `daf`, `tavil` of `thavil`) or a drum of its own build
+  - [ ] WAIT, amplitude LFO: `damaru`, `lions roar`, `binzasara`, `ratchet`, `bell tree`, `mark
+    tree` and `flexatone` (the last three with a stepped or bent pitch)
+  - [ ] WAIT, a pitch the sequence moves through a phrase (the squeezed cords): `talking drum`,
+    `idakka`, `kotsuzumi`, `udukku`
+  - [ ] WAIT, a filter LFO: `water drum`; a pitch LFO: `wobble board`
+  - [ ] WAIT because their target waits: `den den daiko` and `pellet drum` (target `damaru`),
+    `lion roar` (`lions roar`), `edakka` (`idakka`), and `dundun`, `gangan`, `kalangu`, `dan
+    karbi`, `tama`, `tamma`, `tamanin`, `donno`, `lunna`, `odondo`, `doodo`, `obodom` (`talking
+    drum`)
+  - [ ] Fixed tones: tonic-tuned drums and fixed-pitch gongs ship with one fixed tone (the pitch a
+    game gives is ignored): `mridangam` (280 Hz, tuned to the singer, so a fixed tone as the
+    catalog tabla bayan is), `agung` (110 Hz), `jing` (205 Hz), `kemanak` (600 Hz), `ghatam` (240
+    Hz), `tiger gong` (175 Hz falling), `tingsha` (2350 Hz), `udu` (73 Hz sliding to 137 Hz),
+    `daluo` (330 Hz falling) and `xiaoluo` (360 Hz rising)
+  - [ ] Strokes shipped: each drum ships one struck sound (a two-headed drum's bass and treble
+    heads blended in one hit; no slaps, rolls or open and closed strokes as separate entries), so
+    `kendang`, `kendang ageng` and `ketipung` are three drums, not three strokes
+  - [ ] The two-half split: membranophones (Hornbostel-Sachs class 2) and everything else (class 1)
+    were built in two halves, and the sound-alikes of the second half sit in
+    `drum_sound_alikes.py` beside the first half's; confirm the split reads right to a person
+    adding the next entry
+  - [ ] `bossed gong` is an ALIAS of the tuned percussion family's `tuned gong`, and `chau gong`
+    of `tam tam`
+- **Follow-ups**:
+  - [ ] `candombe drums` (three sizes) is one sound-alike of `conga`; split into three, or keep
+    one
+  - [ ] `riq` is an ALIAS of `daf` by a redirect; a sound-alike if a source separates them
+  - [ ] `kendang ciblon` is the drum `kendang` builds: alias or sound-alike
+  - [ ] `zob stick` and `ugly stick` are ALIAS rows of `lagerphone`; SOUND_ALIKE if the
+    construction differs
+  - [ ] `cata` is parented to `woodblock`, while its source page compares claves
+  - [ ] `pandero jarocho` and `rebana` point at `tambourine`; `daf` or `pandeiro` is nearer by the
+    sheet's own reasoning
+  - [ ] `garamut`'s 1.4 s ring is a weak inference (a sound that carries far is a long hollow
+    resonance), and its 330 Hz wood partial's 0.3 s ring is unexplained
+  - [ ] `washboard` against `castanets`: thin separation; listen, and merge or tune if they sound
+    alike
+  - [ ] `jing` is in `LONG_RINGING_ONE_SHOTS` (its ring outlasts the note): the test exempts it
+    from the energy-share assertion only; the envelope check (`strikes_again`) and the held
+    one-shot test still apply to it
+  - [ ] Eight notes and builders disagree where a sourced trait is not built: `jing`, `tiger
+    gong`, `sizzle cymbal` (cuts out sharply), `tingsha`, `ghatam`, `washboard`, `lagerphone`,
+    `kkwaenggwari`; `bendir`, `dholak` (soft attack) and `bombo leguero` (hollow-log body) too
+  - [ ] `LONG_RINGING_ONE_SHOTS` and `NOT_PERIODIC_AT_THE_NOTE` have no guard against going stale
+  - [ ] `lions roar` waits for an amplitude LFO by the sheet's reading, not a sourced gap
+  - [ ] `drums.py` is about 1,800 lines even with the sound-alikes moved out; split it by class if
+    it grows
+  - [ ] A sound-alike a source later sets apart (a smaller head's higher tone, a stick's click)
+    takes `sound_changes`, citing the source
+  - [ ] `sound_changes` cannot change a value a parent's builder fills positionally (e.g. `hertz`
+    in `partial(_hand_drum, 215.0, ...)`, `_tom`, `_metal`; 19 parents of 48 sound-alikes, including
+    `conga` and `tumba`), so its first real use needs that parent rewritten with keywords
+- **Found**: batch 3's reviews (2026-11-08)
+- **Status**: TODO
+- **Priority**: Medium (before the plucked strings batch builds on the same catalog)
+### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
+- **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,
+  `next_frame_deadline_ns`: a frame up to one period late is caught up by the next, so the
+  average rate holds; only a frame more than a period behind re-anchors). After a late frame the
+  next deadline stays on the original grid, so the next frame is very short: committed
+  recordings hold a 28.63 ms frame followed by a 1.51 ms one (PaddleSlap's `rally.jsonl.gz`,
+  frame 286) and a 34.02 ms frame followed by a 7.44 ms one (Brave Adventurer's
+  `golden-classic.jsonl.gz`, frame 460). A 60 Hz display probably never shows a frame that
+  lasts 1.5 ms (it and the next are presented within one refresh), so "the player saw it" may
+  not hold. The watched replay now presents every recorded frame at 1x (rule 2 of
+  `src/glitchygames/replay/viewer.py`), which assumes the live run showed each; the question is
+  whether the live pacer's catch-up is right, or whether it should re-anchor after any late
+  frame (or otherwise avoid the very short frame), and what that does to the average rate, the
+  recorded frame times and the frame-time statistics.
+- **Status**: TODO, decision needed (found 2026-10-30 while triaging why a watched replay hid a
+  frame, with scripts/replay_schedule.py)
+- **Priority**: Low
 
 ## Notes
 

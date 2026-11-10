@@ -164,7 +164,7 @@ class TestFrameCopyPaste:
 
         # Mock undo/redo manager
         scene.undo_redo_manager = self._mocker.Mock()
-        scene.undo_redo_manager.push_command = self._mocker.Mock()
+        scene.undo_redo_manager.push_frame_command = self._mocker.Mock()
 
         # Test paste operation
         scene._frame_operations.handle_paste_frame()
@@ -176,7 +176,7 @@ class TestFrameCopyPaste:
         assert math.isclose(target_frame.duration, 1.0)
 
         # Verify undo/redo command was pushed
-        scene.undo_redo_manager.push_command.assert_called_once()
+        scene.undo_redo_manager.push_frame_command.assert_called_once()
 
     def test_paste_frame_dimension_mismatch(self):
         """Test paste frame with dimension mismatch."""
@@ -364,14 +364,14 @@ class TestFrameCopyPaste:
         }
 
         # Mock undo/redo manager
-        scene.undo_redo_manager.push_command = self._mocker.Mock()
+        scene.undo_redo_manager.push_frame_command = self._mocker.Mock()
 
         # Test paste operation
         scene._frame_operations.handle_paste_frame()
 
         # Verify command was pushed with correct type
-        scene.undo_redo_manager.push_command.assert_called_once()
-        pushed_command = scene.undo_redo_manager.push_command.call_args[0][0]
+        scene.undo_redo_manager.push_frame_command.assert_called_once()
+        pushed_command = scene.undo_redo_manager.push_frame_command.call_args[0][2]
         assert pushed_command.operation_type == OperationType.FRAME_PASTE
 
     def test_frame_paste_command_execute(self):

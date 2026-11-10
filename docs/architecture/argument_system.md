@@ -207,9 +207,13 @@ Added by `GameEngine.args()` in `src/glitchygames/engine/game_engine.py`.
 - `--screen-shake-intensity SCREEN_SHAKE_INTENSITY` (`float`): screen shake strength from 0.0 (off) to 1.0 (default: 1.0)
 - `--rumble-intensity RUMBLE_INTENSITY` (`float`): controller rumble strength from 0.0 (off) to 1.0 (default: 1.0)
 - `--live-voice-pool LIVE_VOICE_POOL` (`int`): mixer channels reserved for real-time synth voices (default: 4)
+- `--sound-channels SOUND_CHANNELS` (`int`): mixer channels reserved for the sound library (scene_manager.audio) (default: 32)
+- `--sound-cache {none,ram,disk}` (`choice`, default `ram`): how compiled sounds are kept: none (compiled again at every play), ram (in memory, default) or disk (arrives in M3; refused with OPTIONS_REFUSED until then). Replay-local: a recording replays under any mode
+- `--sound-cache-memory MB` (`int`, default `256`): megabytes the ram sound cache may hold before the least recently played idle sounds go
+- `--crt-power-on-sound {on,off}` (`choice`, default `on`): play the CRT power-on sequence with its sound
 - `--crt-power-on {auto,on,off}` (`choice`, default `auto`): show the game's canvas switching on like a CRT before the game starts: auto (default: when someone can see it, so not on SDL's dummy driver or before a replay, audit, rebaseline or recording), on (always; refused with a replay or a recording) or off
 - `--default-background {test-pattern,channel-3}` (`choice`): the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default: test-pattern)
-- `--video-driver {cocoa,offscreen,dummy}` (`choice`, default `None`): not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER (or --headless) instead
+- `--video-driver {cocoa,offscreen,dummy}` (`choice`, default `None`): SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: SDL_VIDEODRIVER's own value, then Wayland on a Linux Wayland session, then SDL's choice; --headless overrides it)
 
 **`--video-driver` choices by platform** (SDL 2's video driver names, by `platform.system()`;
 `--help` above is macOS's):
@@ -232,6 +236,7 @@ from `--help`: the watched replay's restart internals.
 - `--perf-trim-percent PERF_TRIM_PERCENT` (`float`, default `5.0`): percent of frames to trim from top and bottom in global FPS report
 - `--fps-histogram {equal-range,target-relative}` (`choice`, default `equal-range`): FPS histogram buckets in the shutdown report: equal-range (10 equal buckets spanning the analyzed min to max, default) or target-relative (10% steps of the target FPS)
 - `--debug-overlay, --no-debug-overlay` (`bool`, default `False`): show the debug overlay at startup (F3 toggles, F4 cycles panels)
+- `--sound-diagnostics` (`store_true`, default `False`): start with the debug overlay on, showing the Audio panel (replay-local)
 - `--debug-events` (`store_true`, default `False`): log a warning the first time each unhandled event type arrives (--no-unhandled-events raises on one instead)
 - `--record-trace PATH` (`PATH`): record the session (sprites, frame times, input events, random seed) to a gzip JSON Lines trace for inspection and later replay (default: off)
 - `--replay-trace PATH` (`PATH`): replay a --record-trace recording exactly through the engine, comparing every frame with it and reporting the first divergence (default: off)
@@ -253,6 +258,7 @@ Added by `ControllerEventManager.args()` in `src/glitchygames/events/controller.
 [Event System](event_system.md#one-device-one-event-layer)).
 
 - `--input-mode {auto,joystick,controller}` (`choice`): Which gamepads the game sees (default: auto, every device; a mapped pad sends controller events, any other device joystick events; joystick: every device sends joystick events; controller: mapped pads only)
+- `--axis-deadzone` (`unit_interval`): Gamepad axis deadzone from 0.0 to 1.0: an axis position nearer its center reads as centered (default: 0.15). One value for every device and both event layers (a deadzone belongs to the physical stick, which `--input-mode` can read on either layer). A game's maps follow it when built with `ActionMap.from_engine_options(options)`, as every bundled game's are; a player's deadzone saved with a map (`ActionMap.to_dict`) wins over it on load unless the game passes `deadzone=` to `from_dict`
 
 #### Font Options
 
@@ -260,10 +266,12 @@ Added by `FontManager.args()` in `src/glitchygames/fonts/font_manager.py`.
 
 - `--font-name FONT_NAME` (`str`): Font to use (default: the bundled Vera; the bundled variants are Vera, VeraBd, VeraIt and VeraBI; any other name is looked up among the system's fonts)
 - `--font-size FONT_SIZE` (`int`): size of the default font, used by text that asks for no font of its own (default: 14)
-- `--font-bold` (`store_true`, default `False`): not used yet: stored, but no text is drawn bold because of it
-- `--font-italic` (`store_true`, default `False`): not used yet: stored, but no text is drawn italic because of it
-- `--font-antialias` (`store_true`, default `False`): not used yet: stored, but each text widget chooses its own antialiasing
-- `--font-dpi FONT_DPI` (`int`): the resolution, in dots per inch, freetype font sizes are scaled at (sets pygame.freetype's default resolution); the pygame font system ignores it (default: 72)
+- `--font-bold` (`store_true`, default `False`): draw text bold
+- `--font-italic` (`store_true`, default `False`): draw text italic
+- `--font-antialias`, `--no-font-antialias` (`BooleanOptionalAction`): antialias text (default: True). freetype fonts carry it; every `pygame.font` render call passes `FontManager.antialias()`, except the channel 3 screen's digit, which stays hard-edged on purpose
+- `--font-dpi FONT_DPI` (`int`): the resolution, in dots per inch, font sizes are scaled at (a size is in pixels at 72) (default: 72)
+
+The style options reach every font `FontManager` loads; a font configuration that gives its own `font_bold`, `font_italic`, `font_antialias` or `font_dpi` overrides them. All four are in the font cache key.
 - `--font-system {pygame,freetype}` (`choice`, default `freetype`): Font system to use: freetype (enhanced, default) or pygame (built-in)
 
 #### Game Options

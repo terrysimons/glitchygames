@@ -492,7 +492,7 @@ def text_surface(text: str, *, size: int) -> pygame.Surface:
         The rendered text (kept, so no frame renders text again).
 
     """
-    return _font(size=size).render(text, antialias=True, color=PENCIL_COLOR)
+    return _font(size=size).render(text, antialias=FontManager.antialias(), color=PENCIL_COLOR)
 
 
 def draw_hud(surface: pygame.Surface, battle: Battle) -> None:
@@ -543,7 +543,7 @@ def _banner_surface(text: str) -> pygame.Surface:
     left = float(padding)
     for index, (letter, advance) in enumerate(zip(text, advances, strict=True)):
         offset_x, offset_y = wobble(x=index, y=len(text), salt=SALT_LETTER)
-        glyph = font.render(letter, antialias=True, color=PENCIL_COLOR)
+        glyph = font.render(letter, antialias=FontManager.antialias(), color=PENCIL_COLOR)
         banner.blit(
             glyph,
             (

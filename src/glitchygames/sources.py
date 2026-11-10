@@ -36,6 +36,8 @@ if TYPE_CHECKING:
 
     import pygame
 
+    from glitchygames.audio.accounting import AudioFrameAccount
+
     # Type only: glitchygames.input's package __init__ imports input.rumble, which comes to
     # import this module, so a runtime import here would be a cycle (this module is a leaf)
     from glitchygames.input.devices import DeviceDescriptor, DeviceRegistry, EnumerationAnswer
@@ -193,7 +195,7 @@ class EngineSources(Protocol):
         """
         ...
 
-    def end_frame(
+    def end_frame(  # ruff: ignore[too-many-arguments] - the EngineSources door's signature
         self,
         *,
         frame_number: int,
@@ -201,6 +203,7 @@ class EngineSources(Protocol):
         scene: Scene | None,
         control_events: list[ControlEvent],
         processing_seconds: float | None = None,
+        audio_frame: AudioFrameAccount | None = None,
     ) -> None:
         """Called once after each frame (recording writes it, replay compares it).
 
@@ -208,7 +211,10 @@ class EngineSources(Protocol):
         ``processing_seconds`` is the frame's processing time (its work, without presenting,
         without this call and without pacing; ``clock.measured_seconds``): a diagnostic a
         recording writes and a replay may compare (glitchygames/replay/processing.py), never
-        served to the game; None when not measured.
+        served to the game; None when not measured. ``audio_frame`` is the frame's audio work
+        (glitchygames/audio/accounting.py; None when the game has no audio engine): a
+        measurement only the recording doors write, as ``audio_seconds`` and ``audio_work``,
+        never compared or served.
         """
         ...
 
@@ -587,11 +593,12 @@ def frame_clock_seconds() -> float:
 def reset_sources() -> None:
     """Forget the current engine context's sources, frame clock and observers (a new run, a test).
 
-    Its installed and scoped sources, frame clock, held events and observers; other contexts keep
-    theirs.
+    The installed and scoped sources are uninstalled, and the frame clock, the held events and
+    the observers are cleared. Other engine contexts keep all of theirs.
 
     The frame's polled input is not reset here (this leaf may not import glitchygames.input):
-    callers also call glitchygames.input.state.reset_current_input().
+    callers also call glitchygames.input.state.reset_current_input(), which likewise resets the
+    current engine context's input only.
     """
     registry = _registry()
     for sources in [*registry.scoped, registry.installed]:

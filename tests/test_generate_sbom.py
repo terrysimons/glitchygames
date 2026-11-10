@@ -327,7 +327,7 @@ def test_our_lock_installs_the_overridden_platform_packages_somewhere_only():
     locked = {str(package['name']) for package in lock['package']}
     somewhere_only = locked - generate_sbom.packages_installed_everywhere(lock=lock)
 
-    assert {'pywin32', 'macholib', 'tomli'} <= somewhere_only
+    assert {'pywin32-ctypes', 'macholib', 'tomli'} <= somewhere_only
     assert somewhere_only <= set(check_licenses.PACKAGE_LICENSE_OVERRIDES)
 
 

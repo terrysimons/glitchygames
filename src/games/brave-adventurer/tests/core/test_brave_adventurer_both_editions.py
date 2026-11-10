@@ -61,6 +61,7 @@ from glitchygames.sprites import AnimatedSprite
 from glitchygames.state import DiskSaveManager
 from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.world import position_world_sprites
+from tests.display_canvas import show_canvas_on_new_display
 
 FRAME_SECONDS = 1 / 60
 # The member's golden replays: golden-classic.jsonl.gz, golden-papyrus.jsonl.gz
@@ -120,7 +121,7 @@ class TestDeathRumble:
 def _drawn_player(scene):
     """Tick and draw the player once, as a game frame does, and return it.
 
-    dt_tick draws Brave Adventurer's pose and sets Papyrus's hitbox_scale; update() is the
+    dt_tick draws Brave Adventurer's pose and sets Papyrus's scale; update() is the
     render phase (Brave Adventurer's respawn fade, Papyrus's animation).
     """
     scene.player.dt_tick(0.0)
@@ -141,7 +142,7 @@ def _widen_player_hitbox(scene, extra_pixels):
         frame.hitbox = pygame.Rect(
             native_hitbox.x,
             native_hitbox.y,
-            native_hitbox.width + extra_pixels // player.hitbox_scale,
+            native_hitbox.width + extra_pixels // player.scale,
             native_hitbox.height,
         )
     else:
@@ -783,8 +784,13 @@ BACKGROUND_COLOR = (1, 2, 3)
 def _start_display():
     if not pygame.get_init():
         pygame.init()
-    if pygame.display.get_surface() is None:
-        set_display_mode(size=SCREEN_SIZE)
+    # Reopen a display of another size too: the scenes size the pit floor from it, and under
+    # pytest another test may have left any size (BUGS.md #211 item 7)
+    display_surface = pygame.display.get_surface()
+    if display_surface is None or display_surface.get_size() != SCREEN_SIZE:
+        # The harness's canvas pattern on it: a new display is black, which its black-frame
+        # guard fails
+        show_canvas_on_new_display(size=SCREEN_SIZE)
 
 
 @pytest.fixture(params=GAME_SCENE_CLASSES)
@@ -1272,6 +1278,23 @@ class TestRespawnStopsWalking:
 
         assert player.is_respawning
         assert player.world_x == pytest.approx(position_at_death)
+
+
+class TestRespawnNearTheStart:
+    """A death within RESPAWN_OFFSET of the start respawns at x 0.0, a float like every x (#230)."""
+
+    def test_the_clamped_respawn_position_is_a_float(self, real_scene):
+        player = real_scene.player
+        player.world_x = 50.0
+
+        real_scene._respawn_player()
+        # Past the 0.2 s fade out, where the player is repositioned
+        for _ in range(30):
+            real_scene.dt_tick(FRAME_SECONDS)
+
+        assert not player.is_respawning
+        assert player.world_x == 0.0
+        assert type(player.world_x) is float
 
 
 class TestScarabInAPitIsDrawn:

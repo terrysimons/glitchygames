@@ -431,7 +431,9 @@ def running_game_command() -> list[str]:
     return [sys.executable, *sys.orig_argv[1:program_end]]
 
 
-def replay_recording_headless(*, console_script: str, path: Path) -> CompletedProcess[str]:
+def replay_recording_headless(
+    *, console_script: str, path: Path, game_arguments: Sequence[str] = ()
+) -> CompletedProcess[str]:
     """Replay a recording headless through a game's console script, in a child process.
 
     The child is ``replay_command``'s, started with ``run_command`` with this process's
@@ -442,6 +444,8 @@ def replay_recording_headless(*, console_script: str, path: Path) -> CompletedPr
         console_script: The game's console script (``[project.scripts]``), for example
             ``paddleslap``.
         path: The recording.
+        game_arguments: More arguments for the game, after the replay's (a replay-local
+            option such as ``--sound-cache none``; none by default).
 
     Returns:
         The finished child: ``returncode`` is the replay's ``ExitCode`` (``SUCCESS`` when every
@@ -451,7 +455,7 @@ def replay_recording_headless(*, console_script: str, path: Path) -> CompletedPr
     """
     entry_point = game_entry_point(console_script=console_script)
     return run_command(
-        command=replay_command(entry_point=entry_point, recording=path),
+        command=[*replay_command(entry_point=entry_point, recording=path), *game_arguments],
         environment=os.environ,
         timeout_seconds=REPLAY_TIMEOUT_SECONDS,
         capture_output=OutputCapture.TOGETHER,

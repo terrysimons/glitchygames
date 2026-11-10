@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
 
 import pygame
@@ -17,7 +18,7 @@ from glitchygames.camera import Camera2D
 from glitchygames.collision import CollisionManager
 from glitchygames.color import BLACK, RGB_COMPONENT_COUNT, RGBA_COMPONENT_COUNT
 from glitchygames.debug import DebugFrameInfo, DebugOverlay
-from glitchygames.debug.overlay import OVERLAY_KEYS
+from glitchygames.debug.overlay import OVERLAY_KEYS, DebugPanel
 from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
 from glitchygames.effects.tween import TweenManager
 from glitchygames.engine_context import ContextSlot, current_context
@@ -25,8 +26,12 @@ from glitchygames.events.mouse import MousePointer
 from glitchygames.exit_codes import BUG_REPORT_HINT
 from glitchygames.game_frames import game_frame_clock, restart_game_frame_clock
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
-from glitchygames.input.input_devices import InputDevices
-from glitchygames.input.rumble import ConnectedRumbleDevices, RumbleController
+from glitchygames.input.input_devices import (
+    InputDevices,
+    recorded_devices,
+    scene_start_devices_record,
+)
+from glitchygames.input.rumble import RumbleController
 from glitchygames.input.state import (
     IDLE_INPUT,
     apply_snapshot_changes,
@@ -40,6 +45,7 @@ from glitchygames.opacity import OPAQUE, make_opaque
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.randomness import restore_stream_states
 from glitchygames.recording import (
+    SCENE_START_DEVICES_HEADER_FIELD,
     is_input_post,
     is_live_game_post,
     live_game_code_running,
@@ -68,6 +74,7 @@ from glitchygames.sources import (
     set_frame_clock_seconds,
     take_redelivered_events,
 )
+from glitchygames.sprites.animated import AnimatedSprite
 from glitchygames.supervision import PLAYBACK_KIND, ControlEvent
 from glitchygames.timing import DEFAULT_TARGET_FPS
 from glitchygames.world import aim_camera, is_world_positioned, position_world_sprites
@@ -76,6 +83,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     from pathlib import Path
 
+    from glitchygames.audio.accounting import AudioFrameAccount
+    from glitchygames.audio.engine import AudioEngine
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
     from glitchygames.input.input_devices import InputDevice
@@ -201,6 +210,20 @@ SCENE_MANAGERS_SLOT: ContextSlot[dict[type[SceneManager], SceneManager | None]] 
 )
 
 
+def _existing_audio_engine() -> AudioEngine | None:
+    """The engine context's audio engine, without making one (glitchygames/audio/engine.py).
+
+    Imported when called: the audio package is not imported until a frame asks.
+
+    Returns:
+        The audio engine, or None when nothing asked for audio yet.
+
+    """
+    from glitchygames.audio.engine import existing_audio_engine
+
+    return existing_audio_engine()
+
+
 def _scene_manager_for_class(*, scene_manager_class: type[SceneManager]) -> SceneManager | None:
     """Return the current context's manager for a class, looked up along its MRO.
 
@@ -214,6 +237,9 @@ def _scene_manager_for_class(*, scene_manager_class: type[SceneManager]) -> Scen
 
     """
     scene_managers = current_context().value(slot=SCENE_MANAGERS_SLOT)
+    # Only SceneManager classes are keys, so at run time membership alone would pick the nearest
+    # one; the issubclass narrows the MRO's plain types to type[SceneManager] for ty, which
+    # refuses a plain type as a key (BUGS.md #228 item 15)
     for base_class in scene_manager_class.__mro__:
         if issubclass(base_class, SceneManager) and base_class in scene_managers:
             return scene_managers[base_class]
@@ -238,6 +264,8 @@ class SceneManager(SceneInterface, events.EventManager):
         if instance is None:
             instance = super().__new__(cls)
             current_context().value(slot=SCENE_MANAGERS_SLOT)[cls] = instance
+        # Not always a cls: a subclass asked after its base was made gets the base's manager
+        # (_scene_manager_for_class walks the MRO). The cast keeps the subclass type callers expect
         return cast('Self', instance)
 
     def __init__(self: Self) -> None:
@@ -287,12 +315,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self._frame_present_seconds: float = 0.0
         self.debug_overlay: DebugOverlay = DebugOverlay()
         self.rumble: RumbleController = RumbleController()
-        # The devices rumble is sent to (joysticks opened once, while their count holds), and
-        # the live game's rumble controller while a playback scope plays on its own
-        self._rumble_devices = ConnectedRumbleDevices()
-        # A playback scope's own device lookups, asked through its doors and then dropped
-        # (_rumble_devices_for_scope); new for each scope, so the live cache is never touched
-        self._scope_rumble_devices = ConnectedRumbleDevices()
+        # The live game's rumble controller while a playback scope plays on its own
         self._live_rumble_behind_scope: RumbleController | None = None
         self._live_audio: LiveAudio | None = None
 
@@ -311,6 +334,9 @@ class SceneManager(SceneInterface, events.EventManager):
         self._playback_requesting_scene: Scene | None = None
         # The scene whose setup() runs now (a request made there is that scene's)
         self._scene_in_setup: Scene | None = None
+        # True from the run's start, and from each scene's setup() until its first logic frame:
+        # an audio engine made then counts its compiles as setup (sound engine impl 6.5)
+        self._awaiting_first_logic_frame: bool = True
         self._playback_session: PlaybackSession | None = None
         self._last_playback_result: ReplayResult | None = None
         self._last_playback_outcome: PlaybackOutcome | None = None
@@ -380,7 +406,13 @@ class SceneManager(SceneInterface, events.EventManager):
             self.target_fps = self.OPTIONS.get('target_fps', DEFAULT_TARGET_FPS)
             self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
             self.rumble.intensity = self.OPTIONS.get('rumble_intensity', 1.0)
-            self.debug_overlay.is_visible = bool(self.OPTIONS.get('debug_overlay', False))
+            # --sound-diagnostics opens the overlay too (its Audio panel: sound engine impl 10.5)
+            sound_diagnostics = bool(self.OPTIONS.get('sound_diagnostics', False))
+            self.debug_overlay.is_visible = bool(
+                self.OPTIONS.get('debug_overlay', False) or sound_diagnostics
+            )
+            if sound_diagnostics:
+                self.debug_overlay.panel = DebugPanel.AUDIO
         self.log.info('Screen update type: %s', self.update_type)
         self.log.info('FPS Log Interval: %sms', self.fps_log_interval_ms)
         self.log.info('Target FPS: %s', self.target_fps)
@@ -621,7 +653,9 @@ class SceneManager(SceneInterface, events.EventManager):
         self._end_instant_replay_journal()
         game_engine = self.game_engine
         self._instant_replay_journal = InstantReplayJournal(
-            scene=scene, game=game_engine.game if game_engine is not None else None
+            scene=scene,
+            game=game_engine.game if game_engine is not None else None,
+            scene_start_devices=scene_start_devices_record(input_devices=self.input_devices),
         )
 
     def _journal_frame(self: Self, *, frame_dt: float) -> None:
@@ -1143,6 +1177,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self._last_playback_result = None
         self._last_playback_outcome = None
         self._end_instant_replay_journal()
+        self._awaiting_first_logic_frame = True
 
     def record_control_event(self: Self, *, kind: str, data: Mapping[str, Any]) -> None:
         """Record a supervisor action in this frame and hand it to its handlers.
@@ -1198,73 +1233,149 @@ class SceneManager(SceneInterface, events.EventManager):
             self._in_supervisor_slot = False
 
     def _update_frame_services(self: Self) -> None:
-        """Advance services that outlive scenes: screen shake, rumble and live audio."""
-        self.debug_overlay.record_frame(frame_seconds=self._performance_frame_seconds())
+        """Advance services that outlive scenes: screen shake, rumble, live voices and audio."""
+        # The frame's audio work joins the frame time in the overlay's history. Hidden, an empty
+        # entry keeps the histories aligned and the audio engine unread (the overlay off costs
+        # nothing); it is read here once, so the audio panel reads it again only for its snapshot
+        audio_engine = _existing_audio_engine()
+        self.debug_overlay.record_frame(
+            frame_seconds=self._performance_frame_seconds(),
+            audio_work_by_kind=(
+                audio_engine.last_frame_work_by_kind()
+                if audio_engine is not None and self.debug_overlay.is_visible
+                else None
+            ),
+        )
         self.screen_shake.update(self.dt)
 
         shakers = [self.screen_shake]
         active_camera = self._active_camera()
         if active_camera is not None:
             shakers.append(active_camera.shake_effect)
-        # None without an engine (a bare SceneManager) and in joystick mode
-        game_engine = self.game_engine
-        controller_manager = game_engine.controller_manager if game_engine is not None else None
         self.rumble.update(
             shakers=shakers,
             dt=self.dt,
-            # A playback never rumbles the player's real devices (playback.py, rule 8)
-            devices=(
-                (lambda: self._rumble_devices_for_scope(controller_manager=controller_manager))
-                if self.in_playback_scope
-                else lambda: self._rumble_devices.find(controller_manager=controller_manager)
-            ),
+            # One send per device the game sees, whatever the input mode, asking no door (the
+            # managers opened them). A playback never rumbles the player's real devices
+            # (playback.py, rule 8): list() is no device
+            devices=list if self.in_playback_scope else self._rumble_devices,
         )
 
+        if self._live_audio is None and audio_engine is None:
+            return
         # The pending transition counts: a ride creates its motor before transition_to starts it
+        pending_transition = (
+            self._pending_transition[1] if self._pending_transition is not None else None
+        )
+        active_transitions = (self._active_transition, pending_transition)
+        # A playback scope's stashed live scene, the scene it returns to and the live
+        # previous scene (the game behind a pause screen the scope began from) wait behind
+        # it: their voices pause, then play on (never released for good). The playback's own
+        # scene switches set previous_scene to playback scenes, so the live one is the saved
+        session = self._playback_session
+        paused_owners = (
+            []
+            if session is None
+            else [
+                owner
+                for owner in (session.live_scene, session.then, session.saved_previous_scene)
+                if owner is not None
+            ]
+        )
         if self._live_audio is not None:
-            pending_transition = (
-                self._pending_transition[1] if self._pending_transition is not None else None
-            )
-            # A playback scope's stashed live scene, the scene it returns to and the live
-            # previous scene (the game behind a pause screen the scope began from) wait behind
-            # it: their voices pause, then play on (never released for good). The playback's own
-            # scene switches set previous_scene to playback scenes, so the live one is the saved
-            session = self._playback_session
-            paused_owners = (
-                []
-                if session is None
-                else [
-                    owner
-                    for owner in (session.live_scene, session.then, session.saved_previous_scene)
-                    if owner is not None
-                ]
-            )
             self._live_audio.update(
                 active_scene=self.active_scene,
                 previous_scene=self.previous_scene,
-                active_transitions=(self._active_transition, pending_transition),
+                active_transitions=active_transitions,
+                paused_owners=paused_owners,
+            )
+        if audio_engine is not None:
+            # The library's voices follow the same owner rules, moved by the frame's served dt
+            # (glitchygames/audio/engine.py; sound engine impl spec 4.2)
+            audio_engine.update(
+                dt=self.dt,
+                active_scene=self.active_scene,
+                previous_scene=self.previous_scene,
+                active_transitions=active_transitions,
                 paused_owners=paused_owners,
             )
 
-    def _rumble_devices_for_scope(
-        self: Self, *, controller_manager: object | None
-    ) -> list[RumbleDevice]:
-        """Ask the scope's doors for the devices as a live send would, then send to none.
-
-        A playback never rumbles the player's real devices (playback.py, rule 8), but each send
-        still asks the played recording's devices door, as the recorded run did: a joystick
-        count it answered for rumble and nobody asked would be read by the played scene's next
-        enumeration of its own.
-
-        Args:
-            controller_manager: GameEngine.controller_manager; None in joystick mode.
+    def _rumble_devices(self: Self) -> list[RumbleDevice]:
+        """Return every device the game sees (``input_devices``): each can be rumbled.
 
         Returns:
-            An empty list.
+            The devices, in ``input_devices`` order (empty without an engine).
 
         """
-        self._scope_rumble_devices.find(controller_manager=controller_manager)
-        return []
+        return list(self.input_devices)
+
+    @property
+    def audio(self: Self) -> AudioEngine:
+        """The engine context's audio engine (sound engine impl spec 8), made on first use.
+
+        Made from the game engine's channel partition (reserved now if it is not yet:
+        ``GameEngine.reserved_channel_partition``) and sound options (``--sound-cache``,
+        ``--sound-cache-memory``); without a game engine, on the default partition with cache
+        ``ram``. Plays belong to the scene in ``setup()``, else the active scene, and short
+        names resolve in that scene's ``SOUND_DIRECTORY``. (``audio_for`` makes it for a game
+        engine not yet set here: the CRT power-on's, before the game is built.)
+        """
+        return self.audio_for(game_engine=self.game_engine)
+
+    def audio_for(self: Self, *, game_engine: GameEngine | None) -> AudioEngine:
+        """The engine context's audio engine, made on first use from ``game_engine``.
+
+        ``audio`` with the game engine given rather than read from ``game_engine``, which
+        ``GameEngine`` sets only as it builds the game: the CRT power-on asks before that
+        (rulings R34, R35), and the engine it makes is the one ``audio`` returns afterwards.
+
+        Args:
+            game_engine: The game engine whose partition and sound options the audio engine is
+                made from, or None for the default partition with cache ``ram``.
+
+        Returns:
+            The audio engine (the existing one, whatever ``game_engine`` is given, once made).
+        """
+        from glitchygames.audio.engine import (
+            BYTES_PER_MEGABYTE,
+            DEFAULT_CACHE_MEMORY_MEGABYTES,
+            AudioEngine,
+            default_channel_partition,
+            install_audio_engine,
+        )
+        from glitchygames.audio.library import CacheMode
+
+        audio_engine = _existing_audio_engine()
+        if audio_engine is not None:
+            return audio_engine
+        partition = (
+            default_channel_partition()
+            if game_engine is None
+            else game_engine.reserved_channel_partition()
+        )
+        options: Mapping[str, Any] = {} if game_engine is None else game_engine.OPTIONS
+        return install_audio_engine(
+            engine=AudioEngine(
+                partition=partition,
+                cache=CacheMode(options.get('sound_cache', CacheMode.RAM.value)),
+                memory_limit_bytes=int(
+                    options.get('sound_cache_memory', DEFAULT_CACHE_MEMORY_MEGABYTES)
+                )
+                * BYTES_PER_MEGABYTE,
+                scene_source=self._scene_for_audio,
+                frame_number=self.frame_number,
+                # Made in gameplay (a first audio call in dt_tick), its compiles are the frame's
+                setup_mode=self._scene_in_setup is not None or self._awaiting_first_logic_frame,
+            )
+        )
+
+    def _scene_for_audio(self: Self) -> Scene | None:
+        """The scene audio plays belong to: the one in ``setup()``, else the active scene.
+
+        Returns:
+            The scene, or None.
+        """
+        return self._scene_in_setup if self._scene_in_setup is not None else self.active_scene
 
     @property
     def live_audio(self: Self) -> LiveAudio:
@@ -1291,19 +1402,30 @@ class SceneManager(SceneInterface, events.EventManager):
             DebugFrameInfo: The readings for this frame.
 
         """
-        live_voice_count = (
-            self._live_audio.playing_voice_count if self._live_audio is not None else None
-        )
+        # Only an engine that already exists is read: drawing the panel never starts audio
+        audio_engine = _existing_audio_engine()
+        audio = None if audio_engine is None else audio_engine.snapshot()
         frame_input = current_input()
         mouse_position = frame_input.mouse_position if frame_input.mouse_focused else None
         return DebugFrameInfo(
             target_fps=float(self.target_fps),
-            live_voice_count=live_voice_count,
+            audio=audio,
             rumble_levels=self.rumble.sent_levels,
             screen_shake_offset=shake_offset,
             mouse_position=mouse_position,
             inspected_scene_label=inspected_scene_label,
+            ai_status=self._ai_status(),
         )
+
+    def _ai_status(self: Self) -> tuple[str, ...]:
+        """Read the AI console's state for the overlay's AI panel.
+
+        Returns:
+            Its lines, or nothing for a run without AI.
+
+        """
+        console = None if self.game_engine is None else self.game_engine.ai_console
+        return () if console is None else tuple(console.status_lines())
 
     def _active_scene_has_focused_sprite(self: Self) -> bool:
         """Report whether a sprite in the active scene has keyboard focus.
@@ -1917,6 +2039,9 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         work_started_seconds = clock.measured_seconds()
         self._frame_present_seconds = 0.0
+        audio_engine = _existing_audio_engine()
+        if audio_engine is not None:
+            audio_engine.begin_frame(frame_number=self.frame_number)
         self._enter_requested_playback()
         self._apply_resume_bridge()
         self._begin_scene_logic_frame()
@@ -1932,10 +2057,20 @@ class SceneManager(SceneInterface, events.EventManager):
         processing_seconds = (
             clock.measured_seconds() - work_started_seconds - self._frame_present_seconds
         )
+        # The frame's audio work, taken once whichever doors end the frame (the engine may
+        # have been made during the frame)
+        audio_engine = _existing_audio_engine()
+        audio_frame = (
+            None
+            if audio_engine is None
+            else audio_engine.take_frame_account(processing_seconds=processing_seconds)
+        )
         session = self._playback_session
         if session is None:
             self._end_frame_at_doors(
-                frame_dt=installed_frame_dt, processing_seconds=processing_seconds
+                frame_dt=installed_frame_dt,
+                processing_seconds=processing_seconds,
+                audio_frame=audio_frame,
             )
             self._journal_frame(frame_dt=frame_dt)
         else:
@@ -1956,6 +2091,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 scene=self.active_scene,
                 control_events=self._frame_control_events,
                 processing_seconds=processing_seconds,
+                audio_frame=audio_frame,
             )
         self._frame_control_events = []
         self.frame_number += 1
@@ -2035,12 +2171,19 @@ class SceneManager(SceneInterface, events.EventManager):
             LOG.error(BUG_REPORT_HINT)  # ruff: ignore[error-instead-of-exception]
             self._exit_playback(reason='error')
 
-    def _end_frame_at_doors(self: Self, *, frame_dt: float, processing_seconds: float) -> None:
+    def _end_frame_at_doors(
+        self: Self,
+        *,
+        frame_dt: float,
+        processing_seconds: float,
+        audio_frame: AudioFrameAccount | None,
+    ) -> None:
         """Tell the active doors the frame ended (a recording writes it, a replay compares it).
 
         Args:
             frame_dt: The frame's raw dt, read before the frame ran.
             processing_seconds: The frame's processing time (``_run_frame_steps``).
+            audio_frame: The frame's audio work, or None without an audio engine.
 
         """
         active_sources().end_frame(
@@ -2049,6 +2192,7 @@ class SceneManager(SceneInterface, events.EventManager):
             scene=self.active_scene,
             control_events=self._frame_control_events,
             processing_seconds=processing_seconds,
+            audio_frame=audio_frame,
         )
 
     def _run_in_playback_scope(self: Self, *, step: Callable[[], None]) -> None:
@@ -2125,16 +2269,35 @@ class SceneManager(SceneInterface, events.EventManager):
             fps_event_seconds=self._previous_fps_event_seconds,
         )
         push_scoped_sources(sources=request.sources)
-        # Events an earlier scope held and has not delivered yet (it ended into a scene that
-        # started this one) belong to the live game: held again, ahead of this scope's own
-        request.sources.held_live_events[:0] = take_redelivered_events()
-        # From here on an error ends the scope and restores all of the above (_exit_playback)
-        self._playback_session = session
+        try:
+            # Events an earlier scope held and has not delivered yet (it ended into a scene
+            # that started this one) belong to the live game: held again, ahead of this scope's
+            # own
+            request.sources.held_live_events[:0] = take_redelivered_events()
+            # From here on an error ends the scope, and _exit_playback restores all of the above
+            self._playback_session = session
+        except BaseException:
+            # No session yet, so _exit_playback has nothing to end: pop the doors here, or they
+            # stay pushed over the live game
+            pop_scoped_sources()
+            raise
+        # The played scene sees the recording's devices, opened through the scope's devices
+        # door in the input mode it was recorded in; the live game's wait untouched (BUGS.md
+        # #184.3; _exit_playback puts them back)
+        game_engine = self.game_engine
+        if game_engine is not None:
+            replay = request.sources.replay
+            game_engine.enter_playback_devices(
+                recorded=recorded_devices(
+                    options=replay.header.get('options'),
+                    scene_start_devices=replay.header.get(SCENE_START_DEVICES_HEADER_FIELD),
+                ),
+                registry=replay.devices(),
+            )
         # The playback's rumble (its scene's pulses and shakes) goes to a controller of its own
         # that reaches no device (_update_frame_services), so the live game's waits untouched
         self._live_rumble_behind_scope = self.rumble
         self.rumble = RumbleController(intensity=self.rumble.intensity)
-        self._scope_rumble_devices = ConnectedRumbleDevices()
         LOG.info('Starting the %s playback of %s', request.kind, request.scene_class.__name__)
         self.record_control_event(
             kind=PLAYBACK_KIND, data={'source': request.kind, 'frames': request.frame_count}
@@ -2220,6 +2383,10 @@ class SceneManager(SceneInterface, events.EventManager):
             # Supervisors and handlers the scope's code added (its cleanup above included) end
             # with it (rule 4); the live ones stay
             self._remove_scope_supervision()
+            # The live game's devices, set aside by _enter_playback, before its doors return
+            game_engine = self.game_engine
+            if game_engine is not None:
+                game_engine.exit_playback_devices()
             pop_scoped_sources()
             restore_stream_states(states=session.saved_random_states)
             set_frame_clock_seconds(seconds=session.saved_frame_clock_seconds)
@@ -2633,6 +2800,11 @@ class SceneManager(SceneInterface, events.EventManager):
 
         """
         assert self.active_scene is not None
+        # Compiles from here on are the frame's, not the scene's setup (sound engine impl 6.5)
+        self._awaiting_first_logic_frame = False
+        audio_engine = _existing_audio_engine()
+        if audio_engine is not None:
+            audio_engine.begin_logic_frame()
         # Engine-owned, so a dt_tick override that skips super() still has game time
         self.active_scene.advance_game_time(seconds=scene_dt)
         self.active_scene.dt_tick(scene_dt)
@@ -2728,6 +2900,11 @@ class SceneManager(SceneInterface, events.EventManager):
             # The scene's snap mode is active from setup() on, so positions snapped while it
             # sets itself up (camera.snap_to, collision) use it, not the previous scene's mode
             self._activate_scene_snap_mode(next_scene)
+            # Compiles until its first logic frame are its setup's (sound engine impl 6.5)
+            self._awaiting_first_logic_frame = True
+            audio_engine = _existing_audio_engine()
+            if audio_engine is not None:
+                audio_engine.begin_scene_setup()
             self._scene_in_setup = next_scene
             try:
                 next_scene.setup()
@@ -2744,7 +2921,7 @@ class SceneManager(SceneInterface, events.EventManager):
             scene: The scene being activated.
 
         """
-        set_active_default_snap_mode(scene.PIXEL_SNAP_MODE)
+        set_active_default_snap_mode(mode=scene.PIXEL_SNAP_MODE)
 
     def _log_blocked_events(self, next_scene: Scene | None) -> None:
         """Log the event types blocked when switching to the scene, on one line.
@@ -2789,7 +2966,8 @@ class SceneManager(SceneInterface, events.EventManager):
             caption = f'{self.active_scene.NAME}'
 
         if self.active_scene.VERSION:
-            caption += f' v{self.active_scene.VERSION}'
+            # No NAME: the version alone, without a leading space
+            caption = f'{caption} v{self.active_scene.VERSION}'.strip()
 
         pygame.display.set_caption(caption, caption)
 
@@ -2840,6 +3018,26 @@ class SceneManager(SceneInterface, events.EventManager):
         # The scene's target_fps is already set by _configure_scene_fps()
 
 
+def pin_dirty_rect_drawing(group: object) -> None:
+    """Keep a LayeredDirty group drawing in dirty-rect mode, however long a draw takes.
+
+    pygame's ``LayeredDirty.draw`` times itself (``pygame.time.get_ticks``) and draws the next
+    frame in full-screen mode when a draw took longer than its threshold (1000/80 ms by
+    default), dirty-rect mode otherwise, so which pixels a frame shows depended on the
+    machine's speed: forcing full-screen mode changed the frames 184 tests present (BUGS.md
+    #190), and the engine's own draws assume dirty-rect mode (``Scene.render`` returns only
+    the dirty rects). An unreachable threshold keeps every draw after the first (always
+    full-screen: nothing drawn yet) in dirty-rect mode, which is what a fast machine got.
+    Anything else (a test's stand-in group) is left alone.
+
+    Args:
+        group: The group (pinned only if it is a ``LayeredDirty``).
+
+    """
+    if isinstance(group, pygame.sprite.LayeredDirty):
+        group.set_timing_threshold(math.inf)
+
+
 class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     """Scene object base class.
 
@@ -2875,6 +3073,10 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # raw messages (SYSWMEVENT) in on_sys_wm_event; blocked by default, as SDL leaves them.
     # See allow_every_event_type in glitchygames/events/base.py
     NATIVE_WINDOW_MESSAGES: ClassVar[bool] = False
+    # Where audio.sound('coin') looks short names up: a directory relative to the scene's
+    # package directory (an absolute path is used as is), or None for no short names
+    # (glitchygames/audio/engine.py; sound engine feature spec 3.2)
+    SOUND_DIRECTORY: ClassVar[str | None] = 'sounds'
 
     def __init__(
         self: Self,
@@ -2923,7 +3125,8 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.dirty = 1
         self.options = options
         self.scene_manager = SceneManager()
-        self.name = type(self)
+        # The class name as a string, like an unnamed Sprite's (BUGS.md #178 item 18)
+        self.name: str = type(self).__name__
         self._background_color: tuple[int, ...] | None = None
         self._background_pattern: BackgroundPattern | None = None
         self._last_fps_log_time: float = 0.0
@@ -2976,6 +3179,17 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         with the frozen picture.
         """
         return self
+
+    def describe_for_ai(self: Self) -> dict[str, Any]:
+        """Say what a game knows that its sprites don't show, for the AI console to read.
+
+        Read only when asked, and it must change nothing.
+
+        Returns:
+            JSON-ready facts: the score, say. A scene without any says nothing.
+
+        """
+        return {}
 
     @property
     def scene_start(self: Self) -> SceneStart | None:
@@ -3116,6 +3330,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         assert self.screen is not None
         self.background.fill(self._background_color)
         self.all_sprites.clear(self.screen, self.background)
+        # The next draw repaints the whole screen from the new background, not only the areas
+        # sprites dirty (BUGS.md #166)
+        self.all_sprites.repaint_rect(self.screen.get_rect())
 
     @property
     def background_pattern(self: Self) -> BackgroundPattern | None:
@@ -3147,6 +3364,8 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             (0, 0),
         )
         self.all_sprites.clear(self.screen, self.background)
+        # The next draw repaints the whole screen from the new background (BUGS.md #166)
+        self.all_sprites.repaint_rect(self.screen.get_rect())
 
     def transition_to(self: Self, next_scene: Scene | None, transition: Transition) -> None:
         """Switch to another scene with a visual transition effect.
@@ -3261,13 +3480,31 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # sprite object, but that doesn't work for some reason.
         [sprite.update_nested_sprites() for sprite in self.all_sprites]
 
-        # Update all sprites that are dirty
-        [sprite.update() for sprite in self.all_sprites if sprite.dirty]
+        # Update all sprites that are dirty. An AnimatedSprite is given the frame's dt, so it
+        # animates by time, not by frames rendered (its update() defaults to 16 ms; BUGS.md
+        # #115). Games that animate in dt_tick override update() as a no-op taking dt
+        for sprite in self.all_sprites:
+            if not sprite.dirty:
+                continue
+            if isinstance(sprite, AnimatedSprite):
+                sprite.update(self.dt)
+            else:
+                sprite.update()
 
         # Make all of the new scene's sprites dirty to force a redraw
         if self.dirty:
             for sprite in self.all_sprites:
                 sprite.dirty = 1 if not sprite.dirty else sprite.dirty
+
+    @property
+    def all_sprites(self: Self) -> pygame.sprite.LayeredDirty[Any]:
+        """The scene's sprites, the group it draws: dirty-rect drawing pinned (BUGS.md #190)."""
+        return self._all_sprites
+
+    @all_sprites.setter
+    def all_sprites(self: Self, group: pygame.sprite.LayeredDirty[Any]) -> None:
+        pin_dirty_rect_drawing(group)
+        self._all_sprites = group
 
     @override
     def render(self: Self, screen: pygame.Surface) -> None:

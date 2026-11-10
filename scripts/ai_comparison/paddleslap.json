@@ -1,0 +1,65 @@
+{
+ "scene": "Paddle Slap",
+ "class": "Game",
+ "paused": false,
+ "game_time_seconds": 2.0,
+ "screen": [
+  800,
+  480
+ ],
+ "game": {
+  "rally_count": 1,
+  "balls_in_play": 2
+ },
+ "sprite_count": 4,
+ "sprites": [
+  {
+   "name": "Player 1",
+   "class": "VerticalPaddle",
+   "rect": [
+    0,
+    190,
+    20,
+    100
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Player 2",
+   "class": "VerticalPaddle",
+   "rect": [
+    780,
+    190,
+    20,
+    100
+   ],
+   "visible": 1
+  },
+  {
+   "name": "BallSprite",
+   "class": "BallSprite",
+   "rect": [
+    717,
+    277,
+    20,
+    20
+   ],
+   "visible": 1,
+   "world_x": 712.6,
+   "world_y": 278.53
+  },
+  {
+   "name": "BallSprite",
+   "class": "BallSprite",
+   "rect": [
+    49,
+    166,
+    20,
+    20
+   ],
+   "visible": 1,
+   "world_x": 47.32,
+   "world_y": 164.37
+  }
+ ]
+}

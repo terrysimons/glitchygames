@@ -587,6 +587,23 @@ class TestExtractFramesErrors:
         assert data['success'] is False
         assert data['error'].startswith('Invalid APNG file:')
 
+    @pytest.mark.parametrize(
+        'not_an_apng',
+        [b'anything', b'GIF89a not a png at all', b'\x89PNG\r\n\x1a\n'],
+        ids=['garbage', 'other-format', 'signature-only'],
+    )
+    def test_data_with_no_frames_is_an_unsuccessful_response(self, client, not_an_apng):
+        """Bytes that hold no PNG frame are refused, not a success with 0 frames (BUGS.md #137)."""
+        response = client.post(
+            '/sprites/extract-frames',
+            json={'apng_base64': base64.b64encode(not_an_apng).decode('ascii')},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is False
+        assert data['error'].startswith('Invalid APNG file:')
+
     def test_unexpected_error_returns_500(self, client, mocker):
         """An error the extraction does not expect becomes an internal server error."""
         mocker.patch(

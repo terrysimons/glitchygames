@@ -1,0 +1,14 @@
+# Hand-written fixture: a static pyramid drawn with spaces as its transparent pixels, indented
+# as TOML allows. The shared indentation goes; the pyramid's own spaces stay
+[sprite]
+name = "pyramid"
+pixels = """
+      x
+     xxx
+    xxxxx
+"""
+
+[colors."x"]
+red = 200
+green = 150
+blue = 10

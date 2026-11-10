@@ -18,6 +18,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from bitmappy.indicators import LocationType
+from glitchygames.ui.sliders import ColorChannel
 
 if TYPE_CHECKING:
     from bitmappy.controllers.event_handler import ControllerEventHandler
@@ -31,9 +32,26 @@ class ControllerMode(Enum):
 
     FILM_STRIP = 'film_strip'
     CANVAS = 'canvas'
+    A_SLIDER = 'a_slider'
     R_SLIDER = 'r_slider'
     G_SLIDER = 'g_slider'
     B_SLIDER = 'b_slider'
+
+
+# The slider modes in screen order, top to bottom (alpha sits above red, BUGS.md #153), each
+# with the editor's slider attribute and the channel name its slider events carry
+SLIDER_MODE_CHANNELS: dict[ControllerMode, tuple[str, ColorChannel]] = {
+    ControllerMode.A_SLIDER: ('alpha_slider', ColorChannel.ALPHA),
+    ControllerMode.R_SLIDER: ('red_slider', ColorChannel.RED),
+    ControllerMode.G_SLIDER: ('green_slider', ColorChannel.GREEN),
+    ControllerMode.B_SLIDER: ('blue_slider', ColorChannel.BLUE),
+}
+SLIDER_MODES_TOP_TO_BOTTOM: tuple[ControllerMode, ...] = tuple(SLIDER_MODE_CHANNELS)
+# Keyed by the mode's value, as the controller code matches modes (controller_mode.value)
+SLIDER_CHANNELS_BY_MODE_VALUE: dict[str, tuple[str, ColorChannel]] = {
+    mode.value: channel for mode, channel in SLIDER_MODE_CHANNELS.items()
+}
+SLIDER_MODE_VALUES: frozenset[str] = frozenset(SLIDER_CHANNELS_BY_MODE_VALUE)
 
 
 @dataclass
@@ -69,9 +87,7 @@ class ControllerModeState:
         self.mode_positions = {
             ControllerMode.FILM_STRIP: ModePosition((0, 0)),
             ControllerMode.CANVAS: ModePosition((0, 0)),
-            ControllerMode.R_SLIDER: ModePosition((0, 0)),
-            ControllerMode.G_SLIDER: ModePosition((0, 0)),
-            ControllerMode.B_SLIDER: ModePosition((0, 0)),
+            **{slider_mode: ModePosition((0, 0)) for slider_mode in SLIDER_MODES_TOP_TO_BOTTOM},
         }
         self.mode_history = [initial_mode]
         self.last_mode_switch_time = float('-inf')  # No switch yet
@@ -137,11 +153,7 @@ class ControllerModeState:
             return LocationType.FILM_STRIP
         if self.current_mode == ControllerMode.CANVAS:
             return LocationType.CANVAS
-        if self.current_mode in {
-            ControllerMode.R_SLIDER,
-            ControllerMode.G_SLIDER,
-            ControllerMode.B_SLIDER,
-        }:
+        if self.current_mode in SLIDER_MODE_CHANNELS:
             return LocationType.SLIDER
         return LocationType.FILM_STRIP  # pragma: no cover - every ControllerMode is matched above
 
@@ -221,22 +233,14 @@ class ModeSwitcher:
         self.controller_modes: dict[int, ControllerModeState] = {}
         self.trigger_detector = TriggerDetector()
         self._strategies: dict[ControllerMode, ModeStrategy] = {}
-        # R2 cycle: B -> G -> R -> canvas -> film strip
-        self.r2_cycle = [
-            ControllerMode.B_SLIDER,
-            ControllerMode.G_SLIDER,
-            ControllerMode.R_SLIDER,
-            ControllerMode.CANVAS,
-            ControllerMode.FILM_STRIP,
-        ]
-        # L2 cycle: film strip -> canvas -> R -> G -> B
+        # L2 cycle: film strip -> canvas -> A -> R -> G -> B (the sliders top to bottom)
         self.l2_cycle = [
             ControllerMode.FILM_STRIP,
             ControllerMode.CANVAS,
-            ControllerMode.R_SLIDER,
-            ControllerMode.G_SLIDER,
-            ControllerMode.B_SLIDER,
+            *SLIDER_MODES_TOP_TO_BOTTOM,
         ]
+        # R2 cycle: the reverse, B -> G -> R -> A -> canvas -> film strip
+        self.r2_cycle = list(reversed(self.l2_cycle))
 
     def set_handler(self, handler: ControllerEventHandler) -> None:
         """Set the controller event handler and initialize mode strategies.
@@ -261,9 +265,7 @@ class ModeSwitcher:
         self._strategies = {
             ControllerMode.FILM_STRIP: film_strip_strategy,
             ControllerMode.CANVAS: canvas_strategy,
-            ControllerMode.R_SLIDER: slider_strategy,
-            ControllerMode.G_SLIDER: slider_strategy,
-            ControllerMode.B_SLIDER: slider_strategy,
+            **dict.fromkeys(SLIDER_MODES_TOP_TO_BOTTOM, slider_strategy),
         }
 
     def get_strategy(self, controller_id: int) -> ModeStrategy | None:

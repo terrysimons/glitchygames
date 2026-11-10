@@ -21,6 +21,7 @@ from glitchygames.audio.synth import Waveform
 from glitchygames.events import FPSEVENT, GAMEEVENT
 from glitchygames.exit_codes import BUG_REPORT_HINT
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, ReplayDeviceRegistry
+from glitchygames.input.input_devices import InputMode
 from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.logical_names import logical_name
@@ -455,7 +456,22 @@ class TestPlaybackErrors:
             assert not start_playback(
                 manager=manager, header=header, frames=frames, then=manager.active_scene
             )
-        assert 'no scene class named NoSuchScene' in caplog.text
+        assert 'no loaded scene class matches NoSuchScene' in caplog.text
+
+    def test_a_loaded_class_under_another_logical_name_is_named_in_full(self, tmp_path, caplog):
+        """The warning names the logical name it looked for (BUGS.md #224 item 46).
+
+        CountingScene is loaded, so "no scene class named CountingScene is loaded" was wrong.
+        """
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        header, frames = recorded_trace(path=recording_path)
+        frames[0][SCENE_START_FIELD]['scene'] = 'no-such-game.counting'
+        with running_scene(CountingScene) as manager:
+            assert not start_playback(
+                manager=manager, header=header, frames=frames, then=manager.active_scene
+            )
+        assert 'no loaded scene class matches CountingScene' in caplog.text
+        assert 'logical name no-such-game.counting' in caplog.text
 
     def test_an_unreadable_recording_starts_nothing(self, tmp_path, caplog):
         not_a_recording = tmp_path / 'not-a-recording.jsonl.gz'
@@ -1886,7 +1902,7 @@ class PulsingScene(CountingScene):
             SceneManager().rumble.pulse(low_frequency=1.0, high_frequency=0.5, duration=0.5)
 
 
-# The input mode whose rumble counts joysticks through the devices door
+# The input mode whose rumble counted joysticks through the devices door (BUGS.md #184.1)
 JOYSTICK_MODE_ARGUMENTS = ('--input-mode', 'joystick')
 
 
@@ -1899,7 +1915,7 @@ class TestRumbleThroughAPlayback:
         )
         with running_scene(CountingScene) as manager:
             device = mocker.Mock()
-            mocker.patch.object(manager._rumble_devices, 'find', return_value=[device])
+            mocker.patch.object(manager, '_rumble_devices', return_value=[device])
             live_rumble = manager.rumble
             assert start_playback_from_recording(
                 manager=manager, path=recording_path, then=active_counting_scene(manager)
@@ -1917,15 +1933,12 @@ class TestRumbleThroughAPlayback:
             step(manager)
             device.rumble.assert_called_once()
 
-    def test_a_playback_asks_its_own_door_for_the_joysticks_as_the_recording_did(
-        self, tmp_path, mocker: MockerFixture
-    ):
-        """Each send asks the played recording's joystick count, so none is left queued.
+    def test_rumble_asks_no_devices_door(self, tmp_path, mocker: MockerFixture):
+        """Rumble goes to input_devices, so a recording holds no per-send joystick count.
 
-        A count left unasked would be read by the played scene's next enumeration of its own.
-        The live game's device cache is never asked (it would reopen joysticks afterwards).
-        Joystick mode rumbles the joysticks it counts (auto and controller mode rumble the
-        controller manager's controllers, asking nothing).
+        A count asked for rumble would be left unasked by a playback scope (which rumbles no
+        device), and the played scene's next enumeration of its own would read it (BUGS.md
+        #184.2). Joystick mode asked the count on every send before (#184.1).
         """
         recording_path = record_counting_scene(
             tmp_path=tmp_path,
@@ -1939,17 +1952,80 @@ class TestRumbleThroughAPlayback:
             for answer in frame.get('device_enumeration', [])
             if answer['call'] == JOYSTICK_COUNT_CALL
         ]
-        assert recorded_counts, 'the recorded pulse should have asked the joystick count'
+        assert recorded_counts == []
         with running_scene(CountingScene, extra_arguments=JOYSTICK_MODE_ARGUMENTS) as manager:
-            live_find = mocker.spy(manager._rumble_devices, 'find')
+            live_devices = mocker.spy(manager, '_rumble_devices')
             assert start_playback_from_recording(
                 manager=manager, path=recording_path, then=active_counting_scene(manager)
             )
+            # Entering opens the recording's devices, asking its count once (#184.3); the
+            # pulse comes on the played scene's second tick, after this
+            step(manager)
+            assert manager.playback_session is not None
             asked_counts = mocker.spy(ReplayDeviceRegistry, 'joystick_count')
+            step(manager, frames=SHORT_RECORDED_FRAMES - 1)
+            assert outcome_reason(manager) == 'end_of_recording'
+            asked_counts.assert_not_called()
+            live_devices.assert_not_called()
+
+
+class TestDevicesInAPlayback:
+    """A playback opens its recording's devices in its mode; the live ones wait (#184.3)."""
+
+    def test_a_joystick_mode_recording_plays_without_a_controller_manager(self, tmp_path):
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, extra_arguments=JOYSTICK_MODE_ARGUMENTS
+        )
+        with running_scene(CountingScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            live_controller_manager = engine.controller_manager
+            live_devices = engine.input_devices
+            assert live_controller_manager is not None  # auto, the default
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            step(manager)
+
+            assert manager.playback_session is not None
+            assert engine.controller_manager is None
+            assert engine.input_devices.input_mode is InputMode.JOYSTICK
+
             step(manager, frames=SHORT_RECORDED_FRAMES)
             assert outcome_reason(manager) == 'end_of_recording'
-            assert asked_counts.call_count == len(recorded_counts)
-            live_find.assert_not_called()
+            assert engine.controller_manager is live_controller_manager
+            assert engine.input_devices is live_devices
+
+    def test_a_playback_without_an_engine_has_no_devices_to_set_aside(
+        self, tmp_path, mocker: MockerFixture
+    ):
+        """A bare scene manager (no engine) plays a scope; there are no live devices to swap.
+
+        Without an engine nothing pumps events (``SceneManager._process_events``), so the scope
+        diverges on its first frame (the recording pumped there): it still enters and ends
+        without touching the engine's devices, which is what this checks.
+        """
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            live_devices = engine.input_devices
+            entered = mocker.spy(engine, 'enter_playback_devices')
+            exited = mocker.spy(engine, 'exit_playback_devices')
+            mocker.patch.object(
+                SceneManager, 'game_engine', new_callable=mocker.PropertyMock, return_value=None
+            )
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+
+            assert outcome_reason(manager) == 'diverged'
+            assert manager.playback_session is None
+            entered.assert_not_called()
+            exited.assert_not_called()
+            assert engine.input_devices is live_devices
 
 
 class TestOnlyScopedErrorsAreContained:
@@ -2326,6 +2402,23 @@ class TestScopeHousekeeping:
             manager.terminate()
             assert manager._playback_requesting_scene is None
 
+    def test_a_failure_entering_the_scope_pops_the_scoped_doors(
+        self, tmp_path, mocker: MockerFixture
+    ):
+        """An error after the doors are pushed, before the session is set, leaves none pushed."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            mocker.patch(
+                'glitchygames.scenes.scene.take_redelivered_events',
+                side_effect=RuntimeError('cannot take the held events'),
+            )
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            # Contained: the live game goes on (_enter_requested_playback)
+            step(manager)
+            assert manager.playback_session is None
+            assert not has_scoped_sources()
+
     def test_teardown_drops_the_held_live_posts(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
@@ -2537,7 +2630,7 @@ class TestPlayRecordingDemos:
             )
             step(manager)
             assert manager.playback_session is None
-        assert 'No demo: no scene class named NoSuchScene' in caplog.text
+        assert 'No demo: no loaded scene class matches NoSuchScene' in caplog.text
 
     def test_a_recording_whose_header_saves_are_not_a_mapping_is_logged(self, tmp_path, caplog):
         """The playback's saves start from the header's: a header that holds none is refused."""

@@ -14,7 +14,6 @@ Covers:
 - print_system_info and print_game_info
 - screen_width and screen_height properties
 - process_*_event dispatcher methods (audio, app, controller, drop, touch, midi, etc.)
-- process_window_focus_event: all window focus event types
 - process_window_event: dispatch table routing
 - _build_window_event_dispatch: dispatch table construction
 - process_game_event: FPSEVENT, GAMEEVENT, MENUEVENT, ACTIVEEVENT, USEREVENT, etc.
@@ -37,7 +36,10 @@ Covers:
 
 import argparse
 import contextlib
+import dataclasses
 import logging
+import os
+import platform
 import sys
 from collections import OrderedDict
 from pathlib import Path
@@ -57,16 +59,27 @@ if TYPE_CHECKING:
 
 
 from glitchygames import events
-from glitchygames.argument_types import non_negative_int, non_negative_percent
+from glitchygames.argument_types import non_negative_int, non_negative_percent, unit_interval
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
-from glitchygames.engine.game_engine import unit_interval
+from glitchygames.engine.game_engine import (
+    pygame_needs_fastevents,
+    scene_class_of,
+)
 from glitchygames.events import base as events_base
+from glitchygames.events.controller import ControllerEventManager
 from glitchygames.exit_codes import ExitCode
-from glitchygames.input.input_devices import InputMode
+from glitchygames.input.devices import (
+    CONTROLLER_COUNT_CALL,
+    IS_CONTROLLER_CALL,
+    JOYSTICK_COUNT_CALL,
+    EnumerationAnswer,
+    ReplayDeviceRegistry,
+)
+from glitchygames.input.input_devices import InputMode, RecordedDevices
 from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene, SceneManager
-from glitchygames.sources import advance_frame_clock, install_sources
+from glitchygames.sources import active_sources, advance_frame_clock, install_sources
 from tests.display_canvas import CANVAS_PATTERN, show_canvas_on_new_display
 from tests.input.stand_in_devices import (
     STAND_IN_PAD,
@@ -437,6 +450,19 @@ class TestGameEngineDisplayMethods:
         assert engine.mode_flags & pygame.SCALED
         assert not engine.mode_flags & pygame.FULLSCREEN
 
+    def test_a_headless_display_asks_for_no_window_flags(self, mocker):
+        """--headless opens the display without SCALED or RESIZABLE (BUGS.md #178 item 32).
+
+        The dummy driver has no renderer for SCALED, so it warned "no fast renderer available".
+        """
+        # The test already runs on the dummy driver: keep the SDL variables as they are
+        mocker.patch.object(GameEngine, '_enter_headless_mode')
+
+        engine = _make_engine(mocker, '--headless', '--resolution', '640x480')
+
+        assert engine.mode_flags == 0
+        assert engine.screen.get_size() == (640, 480)
+
     def test_initialize_display_waits_for_a_late_resize(self, mocker):
         """A window manager answering after set_mode returns: the game sees the new size."""
         window_manager = SlowWindowManager(pumps_until_resized=4, final_size=(640, 480))
@@ -533,14 +559,18 @@ class TestGameEngineSystemInfo:
     """Test GameEngine system info methods."""
 
     def test_print_game_info(self, mocker, caplog):
-        """Test print_game_info logs game title and version."""
+        """print_game_info logs the game's title and version, not the engine's placeholder.
+
+        The engine's own NAME, "Boilerplate Adventures", names no game (BUGS.md #178 item 27).
+        """
         engine = _make_engine(mocker)
 
         with caplog.at_level(logging.INFO, logger=GameEngine.log.name):
-            engine.print_game_info()
+            engine.print_game_info(game=EngineTestGame)
 
-        assert f'Game Title: {GameEngine.NAME}' in caplog.text
-        assert f'Game Version: {GameEngine.VERSION}' in caplog.text
+        assert f'Game Title: {GAME_NAME}' in caplog.text
+        assert f'Game Version: {GAME_VERSION}' in caplog.text
+        assert GameEngine.NAME not in caplog.text
 
     def test_print_system_info(self, mocker, caplog):
         """print_system_info logs the real display driver and resolution."""
@@ -576,13 +606,17 @@ class TestGameEngineSystemInfo:
             assert record.args == (str(engine.display_info),)
 
     def test_initialize_system_icons(self, mocker):
-        """initialize_system_icons sets the real window caption (a game with no icon)."""
+        """initialize_system_icons captions the window with the game's name and version.
+
+        Not the engine's placeholder "Boilerplate Adventures" (BUGS.md #178 item 27). A game
+        with no icon.
+        """
         engine = _make_engine(mocker, game=NoIconGame)
         pygame.display.set_caption('something else')
 
         engine.initialize_system_icons()
 
-        expected_caption = f'{GameEngine.NAME} v{GameEngine.VERSION}'
+        expected_caption = f'{NoIconGame.NAME} v{NoIconGame.VERSION}'
         assert pygame.display.get_caption() == (expected_caption, expected_caption)
 
 
@@ -602,94 +636,6 @@ class TestGameEngineIconWithSurface:
 # ---------------------------------------------------------------------------
 # From test_game_engine_coverage.py
 # ---------------------------------------------------------------------------
-
-
-class TestProcessWindowFocusEvent:
-    """Test GameEngine.process_window_focus_event for all window focus types."""
-
-    def test_window_shown(self, mocker):
-        """Test WINDOWSHOWN dispatches to window_manager."""
-        engine = _make_engine(mocker)
-        engine.window_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.WINDOWSHOWN)
-
-        result = engine.process_window_focus_event(event)
-        assert result is True
-        engine.window_manager.on_window_shown_event.assert_called_once_with(event)
-
-    def test_window_leave(self, mocker):
-        """Test WINDOWLEAVE dispatches to window_manager."""
-        engine = _make_engine(mocker)
-        engine.window_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.WINDOWLEAVE)
-
-        result = engine.process_window_focus_event(event)
-        assert result is True
-        engine.window_manager.on_window_leave_event.assert_called_once_with(event)
-
-    def test_window_focus_gained(self, mocker):
-        """Test WINDOWFOCUSGAINED dispatches and sets grab."""
-        engine = _make_engine(mocker)
-        engine.window_manager = mocker.Mock()
-        # Mocked: a real grab would confine the mouse of whoever runs the suite on a real driver
-        mock_set_grab = mocker.patch('pygame.event.set_grab')
-
-        event = events.HashableEvent(pygame.WINDOWFOCUSGAINED)
-
-        result = engine.process_window_focus_event(event)
-        assert result is True
-        engine.window_manager.on_window_focus_gained_event.assert_called_once_with(event)
-        mock_set_grab.assert_called_once()
-        assert mock_set_grab.call_args[0][0] is True
-
-    def test_window_focus_lost(self, mocker):
-        """Test WINDOWFOCUSLOST dispatches and releases grab."""
-        engine = _make_engine(mocker)
-        engine.window_manager = mocker.Mock()
-        # Mocked: a real grab would confine the mouse of whoever runs the suite on a real driver
-        mock_set_grab = mocker.patch('pygame.event.set_grab')
-
-        event = events.HashableEvent(pygame.WINDOWFOCUSLOST)
-
-        result = engine.process_window_focus_event(event)
-        assert result is True
-        engine.window_manager.on_window_focus_lost_event.assert_called_once_with(event)
-        mock_set_grab.assert_called_once()
-        assert mock_set_grab.call_args[0][0] is False
-
-    def test_window_enter(self, mocker):
-        """Test WINDOWENTER dispatches to window_manager."""
-        engine = _make_engine(mocker)
-        engine.window_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.WINDOWENTER)
-
-        result = engine.process_window_focus_event(event)
-        assert result is True
-        engine.window_manager.on_window_enter_event.assert_called_once_with(event)
-
-    def test_window_take_focus(self, mocker):
-        """Test WINDOWTAKEFOCUS dispatches to window_manager."""
-        engine = _make_engine(mocker)
-        engine.window_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.WINDOWTAKEFOCUS)
-
-        result = engine.process_window_focus_event(event)
-        assert result is True
-        engine.window_manager.on_window_take_focus_event.assert_called_once_with(event)
-
-    def test_unhandled_returns_false(self, mocker):
-        """Test unhandled window focus event returns False."""
-        engine = _make_engine(mocker)
-        engine.window_manager = mocker.Mock()
-
-        event = events.HashableEvent(99999)
-
-        result = engine.process_window_focus_event(event)
-        assert result is False
 
 
 class TestProcessWindowEvent:
@@ -2354,6 +2300,172 @@ class TestProcessControllerEvent:
         assert engine.process_controller_event(events.HashableEvent(99999)) is False
 
 
+# A played recording's devices: the stand-ins' kinds and counts, other instance ids
+RECORDED_STICK = dataclasses.replace(STAND_IN_STICK, instance_id=40)
+RECORDED_PAD = dataclasses.replace(STAND_IN_PAD, device_index=0, instance_id=41)
+# A stick the recording plugs in while it plays (device index 1, after RECORDED_STICK)
+RECORDED_LATE_STICK = dataclasses.replace(STAND_IN_STICK, device_index=1, instance_id=42)
+
+
+def _playback_door(mocker, *, descriptors, answers):
+    """Make a played recording's devices door the active one, as a playback scope pushes it.
+
+    Returns:
+        The door.
+
+    """
+    registry = ReplayDeviceRegistry(descriptors=descriptors, enumeration_answers=answers)
+    mocker.patch.object(active_sources(), 'devices', return_value=registry)
+    return registry
+
+
+@pytest.mark.usefixtures('event_blocking_restored')
+class TestPlaybackDevices:
+    """A playback scope sees its recording's devices; the live ones wait (BUGS.md #184.3)."""
+
+    def test_a_recording_files_devices_replace_the_live_ones_until_the_scope_ends(self, mocker):
+        """Opened through the scope's door in the recorded mode; put back as they were."""
+        engine, scene = _engine_with_devices(mocker)
+        live_devices = engine.input_devices
+        live_joysticks = engine.joystick_manager.joysticks
+        live_controller_manager = engine.controller_manager
+        assert live_controller_manager is not None
+        live_controllers = live_controller_manager.controllers
+        registry = _playback_door(
+            mocker,
+            descriptors=[RECORDED_STICK],
+            answers=[EnumerationAnswer(call=JOYSTICK_COUNT_CALL, device_index=None, value=1)],
+        )
+
+        engine.enter_playback_devices(
+            recorded=RecordedDevices(input_mode=InputMode.JOYSTICK, scene_start_devices=None),
+            registry=registry,
+        )
+
+        assert [device.instance_id for device in engine.input_devices] == [40]
+        assert engine.input_devices.input_mode is InputMode.JOYSTICK
+        assert engine.controller_manager is None
+        assert scene.devices_added == []  # No scene is told
+
+        engine.exit_playback_devices()
+
+        assert engine.input_devices is live_devices
+        assert engine.joystick_manager.joysticks is live_joysticks
+        assert engine.controller_manager is live_controller_manager
+        assert live_controller_manager.controllers is live_controllers
+        assert [device.instance_id for device in engine.input_devices] == [
+            STAND_IN_PAD.instance_id,
+            STAND_IN_STICK.instance_id,
+        ]
+        assert scene.devices_removed == []
+
+    def test_a_device_the_recording_plugs_in_never_reaches_the_live_game(self, mocker):
+        """The played JOYDEVICEADDED changes the scope's devices only, and goes with them."""
+        engine, _scene = _engine_with_devices(mocker)
+        registry = _playback_door(
+            mocker,
+            descriptors=[RECORDED_STICK, RECORDED_LATE_STICK],
+            answers=[EnumerationAnswer(call=JOYSTICK_COUNT_CALL, device_index=None, value=1)],
+        )
+        engine.enter_playback_devices(
+            recorded=RecordedDevices(input_mode=InputMode.JOYSTICK, scene_start_devices=None),
+            registry=registry,
+        )
+
+        engine.process_joystick_event(
+            events.HashableEvent(pygame.JOYDEVICEADDED, device_index=1, guid='g')
+        )
+        assert [device.instance_id for device in engine.input_devices] == [40, 42]
+
+        engine.exit_playback_devices()
+
+        assert RECORDED_LATE_STICK.instance_id not in engine.joystick_manager.joysticks
+        assert engine.input_devices.get(instance_id=RECORDED_LATE_STICK.instance_id) is None
+
+    def test_an_auto_recording_played_in_joystick_mode_has_a_controller_manager_of_its_own(
+        self, mocker
+    ):
+        """Made for the scope, controller events kept blocked at SDL, released as it ends."""
+        engine, _scene = _engine_with_devices(mocker, input_mode='joystick')
+        assert engine.controller_manager is None
+        registry = _playback_door(
+            mocker,
+            descriptors=[RECORDED_PAD],
+            answers=[
+                EnumerationAnswer(call=CONTROLLER_COUNT_CALL, device_index=None, value=1),
+                EnumerationAnswer(call=IS_CONTROLLER_CALL, device_index=0, value=True),
+                EnumerationAnswer(call=JOYSTICK_COUNT_CALL, device_index=None, value=1),
+            ],
+        )
+
+        engine.enter_playback_devices(
+            recorded=RecordedDevices(input_mode=InputMode.AUTO, scene_start_devices=None),
+            registry=registry,
+        )
+
+        scope_controller_manager = engine.controller_manager
+        assert scope_controller_manager is not None
+        assert list(scope_controller_manager.controllers) == [RECORDED_PAD.instance_id]
+        assert [device.controller is not None for device in engine.input_devices] == [True]
+        assert pygame.event.get_blocked(pygame.CONTROLLERDEVICEADDED)
+
+        engine.exit_playback_devices()
+
+        assert engine.controller_manager is None
+        assert ControllerEventManager not in events_base.ResourceManager.__instances__
+
+    def test_an_instant_replays_devices_are_adopted_asking_the_door_nothing(self, mocker):
+        """The journal's devices become stand-ins: no count, open or is_controller is asked.
+
+        Each of those answers is the played scene's own (its __init__ and setup()), so taking
+        one would leave the scene a wrong one.
+        """
+        engine, _scene = _engine_with_devices(mocker)
+        registry = _playback_door(mocker, descriptors=[], answers=[])
+        asked = [
+            mocker.spy(registry, name)
+            for name in (
+                'joystick_count',
+                'controller_count',
+                'is_controller',
+                'open_joystick',
+                'open_controller',
+            )
+        ]
+        unmapped_stick = dataclasses.replace(RECORDED_STICK, device_index=1)
+
+        engine.enter_playback_devices(
+            recorded=RecordedDevices(
+                input_mode=InputMode.AUTO, scene_start_devices=(RECORDED_PAD, unmapped_stick)
+            ),
+            registry=registry,
+        )
+
+        assert [
+            (device.instance_id, device.controller is not None) for device in engine.input_devices
+        ] == [(RECORDED_PAD.instance_id, True), (unmapped_stick.instance_id, False)]
+        assert registry.joystick_for_instance(instance_id=RECORDED_PAD.instance_id) is not None
+        for spy in asked:
+            spy.assert_not_called()
+
+    def test_entering_twice_is_refused(self, mocker):
+        engine, _scene = _engine_with_devices(mocker)
+        registry = _playback_door(mocker, descriptors=[], answers=[])
+        recorded = RecordedDevices(input_mode=InputMode.JOYSTICK, scene_start_devices=None)
+        engine.enter_playback_devices(recorded=recorded, registry=registry)
+
+        with pytest.raises(RuntimeError, match='already holds the devices'):
+            engine.enter_playback_devices(recorded=recorded, registry=registry)
+
+    def test_exiting_without_a_scope_changes_nothing(self, mocker):
+        engine, _scene = _engine_with_devices(mocker)
+        live_devices = engine.input_devices
+
+        engine.exit_playback_devices()
+
+        assert engine.input_devices is live_devices
+
+
 class TestProcessMidiEvent:
     """Test GameEngine.process_midi_event dispatcher."""
 
@@ -2523,8 +2635,137 @@ class TestVideoDriverArgument:
         assert video_driver.choices == expected_choices
         assert video_driver.default is None
 
-    def test_the_help_says_the_option_is_not_applied(self):
-        assert 'not applied' in str(_engine_parser_action(destination='video_driver').help)
+    def test_the_help_no_longer_says_the_option_is_not_applied(self):
+        assert 'not applied' not in str(_engine_parser_action(destination='video_driver').help)
+
+
+class TestVideoDriverApplied:
+    """--video-driver sets SDL_VIDEODRIVER for the run and puts it back after (BUGS.md #210)."""
+
+    def test_the_driver_is_set_before_the_display_starts(self, mocker):
+        mocker.patch.dict(os.environ, {'SDL_VIDEODRIVER': 'before-the-run'})
+        # The driver the test display already runs on (dummy, or the native one in the driver
+        # comparison's second run), so nothing is restarted: asking for another one restarts
+        # the display, which the native run used to do here (it asked for dummy)
+        running_driver = pygame.display.get_driver()
+        display_quit = mocker.spy(pygame.display, 'quit')
+
+        engine = _make_engine(mocker, '--video-driver', running_driver)
+
+        assert os.environ['SDL_VIDEODRIVER'] == running_driver
+        assert pygame.display.get_driver() == running_driver
+        display_quit.assert_not_called()
+        engine._restore_sdl_driver_variables()
+        assert os.environ['SDL_VIDEODRIVER'] == 'before-the-run'
+
+    def test_an_unset_variable_is_unset_again_after_the_run(self, mocker):
+        mocker.patch.dict(os.environ)
+        os.environ.pop('SDL_VIDEODRIVER', None)
+
+        engine = _make_engine(mocker, '--video-driver', 'dummy')
+        engine._restore_sdl_driver_variables()
+
+        assert 'SDL_VIDEODRIVER' not in os.environ
+
+    def test_a_display_on_another_driver_is_restarted(self, mocker):
+        mocker.patch.dict(os.environ)
+        engine = _make_engine(mocker)
+        # As if pygame had started the display on another driver before the engine
+        mocker.patch.object(pygame.display, 'get_init', return_value=True)
+        mocker.patch.object(pygame.display, 'get_driver', return_value='cocoa')
+        display_quit = mocker.patch.object(pygame.display, 'quit')
+
+        engine._enter_video_driver(video_driver='dummy')
+
+        display_quit.assert_called_once_with()
+        assert os.environ['SDL_VIDEODRIVER'] == 'dummy'
+
+    def test_headless_wins_over_the_video_driver(self, mocker):
+        enter_headless_mode = mocker.patch.object(GameEngine, '_enter_headless_mode')
+        enter_video_driver = mocker.patch.object(GameEngine, '_enter_video_driver')
+
+        _make_engine(mocker, '--headless', '--video-driver', 'offscreen')
+
+        enter_headless_mode.assert_called_once_with()
+        enter_video_driver.assert_not_called()
+
+
+class TestWaylandByDefault:
+    """A Linux Wayland session runs on Wayland unless something else chose a driver."""
+
+    @staticmethod
+    def _session(mocker, monkeypatch, *, system='Linux', wayland_display='wayland-0', driver=None):
+        """Set up the session the engine reads, with _enter_video_driver stood in for.
+
+        Returns:
+            The stand-in.
+
+        """
+        mocker.patch.object(platform, 'system', return_value=system)
+        monkeypatch.setenv('WAYLAND_DISPLAY', wayland_display)
+        if driver is None:
+            monkeypatch.delenv('SDL_VIDEODRIVER', raising=False)
+        else:
+            monkeypatch.setenv('SDL_VIDEODRIVER', driver)
+        return mocker.patch.object(GameEngine, '_enter_video_driver')
+
+    def test_a_wayland_session_tries_wayland_then_x11(self, mocker, monkeypatch):
+        enter_video_driver = self._session(mocker, monkeypatch)
+
+        _make_engine(mocker)
+
+        enter_video_driver.assert_called_once_with(video_driver='wayland,x11')
+
+    @pytest.mark.parametrize(
+        'session',
+        [
+            {'system': 'Darwin'},
+            {'wayland_display': ''},
+            {'driver': 'x11'},
+        ],
+        ids=['not-linux', 'no-wayland-session', 'the-variable-already-chose'],
+    )
+    def test_nothing_is_chosen_otherwise(self, mocker, monkeypatch, session):
+        enter_video_driver = self._session(mocker, monkeypatch, **session)
+
+        _make_engine(mocker)
+
+        enter_video_driver.assert_not_called()
+
+    def test_the_option_wins_over_the_default(self, mocker, monkeypatch):
+        enter_video_driver = self._session(mocker, monkeypatch)
+
+        _make_engine(mocker, '--video-driver', 'x11')
+
+        enter_video_driver.assert_called_once_with(video_driver='x11')
+
+    def test_headless_wins_over_the_default(self, mocker, monkeypatch):
+        enter_video_driver = self._session(mocker, monkeypatch)
+        enter_headless_mode = mocker.patch.object(GameEngine, '_enter_headless_mode')
+
+        _make_engine(mocker, '--headless')
+
+        enter_headless_mode.assert_called_once_with()
+        enter_video_driver.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ('running_driver', 'restarted'),
+        [('wayland', False), ('x11', True)],
+        ids=['already-on-the-first-choice', 'on-another'],
+    )
+    def test_a_started_display_restarts_only_when_not_on_the_first_choice(
+        self, mocker, running_driver, restarted
+    ):
+        mocker.patch.dict(os.environ)
+        engine = _make_engine(mocker)
+        mocker.patch.object(pygame.display, 'get_init', return_value=True)
+        mocker.patch.object(pygame.display, 'get_driver', return_value=running_driver)
+        quit_display = mocker.patch.object(pygame.display, 'quit')
+
+        engine._enter_video_driver(video_driver='wayland,x11')
+
+        assert quit_display.called is restarted
+        assert os.environ['SDL_VIDEODRIVER'] == 'wayland,x11'
 
 
 class TestGameEngineFastEvents:
@@ -2536,7 +2777,7 @@ class TestGameEngineFastEvents:
 
     def test_use_fastevents_with_old_pygame(self, mocker):
         """Test USE_FASTEVENTS is set for old pygame versions (line 341)."""
-        # Mock pygame version to be < 2.2 (both major < 2 AND minor < 2)
+        # Mock pygame version to be < 2.2
         mocker.patch.object(pygame.version, 'vernum', (1, 1, 0))
         # Create a fake fastevent module
         mock_fastevent = mocker.Mock()
@@ -2547,6 +2788,25 @@ class TestGameEngineFastEvents:
         engine = _make_engine(mocker)
         assert engine.USE_FASTEVENTS is True
         mock_fastevent.init.assert_called_once()
+
+    @pytest.mark.parametrize(
+        ('vernum', 'expected'),
+        [
+            ((1, 1, 0), True),
+            ((1, 9, 6), True),
+            ((2, 1, 3), True),
+            ((2, 2, 0), False),
+            ((2, 5, 2), False),
+            ((3, 0, 0), False),
+        ],
+    )
+    def test_pygame_needs_fastevents_compares_major_and_minor_together(
+        self, mocker, vernum, expected
+    ):
+        """Any pygame older than 2.2 needs fastevent, pygame 1.9 included (BUGS.md #75)."""
+        mocker.patch.object(pygame.version, 'vernum', vernum)
+
+        assert pygame_needs_fastevents() is expected
 
     def test_process_events_with_fastevents(self, mocker):
         """Test process_events uses fastevent.get when USE_FASTEVENTS is True (line 924)."""
@@ -3096,3 +3356,18 @@ class TestReplayRestartExitStatus:
         relaunch.assert_called_once()
         assert exit_info.value.code == game_own_exit_status
         assert f'Exiting with {ExitCode.describe_status(game_own_exit_status)}' in caplog.text
+
+
+class TestSceneClassOf:
+    """scene_class_of: the one spelling of class-or-instance (BUGS.md #224 item 15)."""
+
+    def test_a_class_is_its_own_scene_class(self):
+        """A scene class comes back as it is."""
+        assert scene_class_of(EngineTestGame) is EngineTestGame
+
+    def test_an_instance_gives_its_class(self, mocker):
+        """A scene instance gives its class, and so does a stand-in that is not a Scene."""
+        stand_in = mocker.NonCallableMock()
+
+        assert scene_class_of(EngineTestGame.__new__(EngineTestGame)) is EngineTestGame
+        assert scene_class_of(stand_in) is type(stand_in)

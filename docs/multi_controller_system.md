@@ -20,7 +20,7 @@ The Multi-Controller System enables up to 4 simultaneous controllers to navigate
 1. **MultiControllerManager** (`src/apps/bitmappy/src/bitmappy/controllers/manager.py`) - Central singleton managing all controllers
 2. **ControllerSelection** (`src/apps/bitmappy/src/bitmappy/controllers/selection.py`) - Individual controller state management
 3. **VisualCollisionManager** (`src/apps/bitmappy/src/bitmappy/indicators/collision.py`) - Smart positioning and collision avoidance
-4. **ModeSwitcher** (`src/apps/bitmappy/src/bitmappy/controllers/modes.py`) - Each controller's mode (film strip, canvas, R/G/B slider), switched with the L2/R2 triggers
+4. **ModeSwitcher** (`src/apps/bitmappy/src/bitmappy/controllers/modes.py`) - Each controller's mode (film strip, canvas, A/R/G/B slider), switched with the L2/R2 triggers
 5. **Integration with Bitmappy** - `ControllerEventHandler` (`src/apps/bitmappy/src/bitmappy/controllers/event_handler.py`) and the per-mode button strategies (`src/apps/bitmappy/src/bitmappy/controllers/strategies.py`)
 
 The button and trigger bindings are listed in `CONTROLLER_CONTROLS_README.md` at the repository root.

@@ -72,7 +72,7 @@ def _key_down(key: int) -> HashableEvent:
 
 
 def _demo_text(text: str) -> pygame.Surface:
-    """Render ``text`` as the demo draws it: the bundled font, size 40, white, not antialiased.
+    """Render ``text`` as the demo draws it: the bundled font, size 40, white, antialiased.
 
     Returns:
         The rendered text.
@@ -84,7 +84,7 @@ def _demo_text(text: str) -> pygame.Surface:
             font_config={'font_name': DEFAULT_FONT_NAME, 'font_size': DEMO_FONT_SIZE}
         ),
     )
-    return font.render(text, False, WHITE)  # ruff: ignore[boolean-positional-value-in-call]
+    return font.render(text, True, WHITE)  # ruff: ignore[boolean-positional-value-in-call]
 
 
 def _shows(screen: pygame.Surface, *, image: pygame.Surface, topleft: tuple[int, int]) -> bool:
@@ -216,15 +216,27 @@ def test_the_scene_draws_the_sprite_group_it_is_given() -> None:
     assert isinstance(dt_demo.Game(options={}).all_sprites, pygame.sprite.LayeredDirty)
 
 
-def test_args_add_the_demos_options() -> None:
-    """The demo adds -v/--version and -b/--balls (default 1) to the command line."""
+def test_args_add_only_the_version_flag() -> None:
+    """The demo adds -v/--version, which stores nothing, and no -b/--balls (BUGS.md #178)."""
     parser = argparse.ArgumentParser()
     dt_demo.Game.args(parser)
 
-    assert parser.parse_args([]) == argparse.Namespace(version=False, balls=1)
-    assert parser.parse_args(['--version', '--balls', '3']) == argparse.Namespace(
-        version=True, balls=3
-    )
+    assert parser.parse_args([]) == argparse.Namespace()
+
+
+@pytest.mark.parametrize('version_flag', ['-v', '--version'])
+def test_version_flag_prints_the_version_and_exits(
+    capsys: pytest.CaptureFixture[str], version_flag: str
+) -> None:
+    """-v/--version prints the demo's name and version and exits (BUGS.md #178 item 25)."""
+    parser = argparse.ArgumentParser()
+    dt_demo.Game.args(parser)
+
+    with pytest.raises(SystemExit) as exit_info:
+        parser.parse_args([version_flag])
+
+    assert exit_info.value.code == 0
+    assert capsys.readouterr().out == 'Delta Time Demo 1.0\n'
 
 
 @pytest.mark.usefixtures('engine_run')

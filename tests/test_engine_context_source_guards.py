@@ -55,10 +55,8 @@ def declared_slot_names_in_source(*, source_path: Path) -> list[str]:
         name_values = [keyword.value for keyword in node.keywords if keyword.arg == 'name']
         assert len(name_values) == 1, f'{source_path}:{node.lineno}: a ContextSlot needs name='
         name_value = name_values[0]
-        assert isinstance(name_value, ast.Constant), (
-            f'{source_path}:{node.lineno}: a ContextSlot name must be a string literal'
-        )
-        assert isinstance(name_value.value, str), (
+        # One check, one message (BUGS.md #228 item 18)
+        assert isinstance(name_value, ast.Constant) and isinstance(name_value.value, str), (
             f'{source_path}:{node.lineno}: a ContextSlot name must be a string literal'
         )
         names.append(name_value.value)

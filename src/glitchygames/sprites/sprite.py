@@ -116,9 +116,10 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
         self.parent: Any = parent
         self.proxies = [self]
 
-        # For debugging sanity.
+        # For debugging sanity: an unnamed sprite is named after its class, as a string (the
+        # class object itself made name not always a str: BUGS.md #178 item 18)
         if not name:
-            self.name = type(self)
+            self.name = type(self).__name__
 
         if not self.width:
             self.log.error('%s has 0 Width', type(self))
@@ -341,141 +342,6 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
         """
         # Custom Event
         self.log.debug('Mouse Exit Event: %s: %s', type(self), event)
-
-    def on_mouse_drag_down_event(self: Self, event: HashableEvent, trigger: object | None) -> None:
-        """Handle a mouse drag down event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        """
-        self.log.debug(
-            'Mouse Drag Down Event: %s: event: %s, trigger: %s', type(self), event, trigger
-        )
-
-    def on_left_mouse_drag_down_event(
-        self: Self,
-        event: MouseMotionEvent,
-        trigger: object | None,
-    ) -> None:
-        """Handle a left mouse drag down event.
-
-        Args:
-            event (MouseMotionEvent): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        """
-        self.log.debug(
-            'Left Mouse Drag Down Event: %s: event: %s, trigger: %s',
-            type(self),
-            event,
-            trigger,
-        )
-
-    def on_left_mouse_drag_up_event(
-        self: Self,
-        event: MouseButtonEvent,
-        trigger: object | None,
-    ) -> None:
-        """Handle a left mouse drag up event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        """
-        self.log.debug(
-            'Left Mouse Drag Up Event: %s: event: %s, trigger: %s',
-            type(self),
-            event,
-            trigger,
-        )
-
-    def on_middle_mouse_drag_down_event(
-        self: Self,
-        event: MouseMotionEvent,
-        trigger: object | None,
-    ) -> None:
-        """Handle a middle mouse drag down event.
-
-        Args:
-            event (MouseMotionEvent): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        """
-        self.log.debug(
-            'Middle Mouse Drag Down Event: %s: event: %s, trigger: %s',
-            type(self),
-            event,
-            trigger,
-        )
-
-    def on_middle_mouse_drag_up_event(
-        self: Self,
-        event: MouseButtonEvent,
-        trigger: object | None,
-    ) -> None:
-        """Handle a middle mouse drag up event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        """
-        self.log.debug(
-            'Middle Mouse Drag Up Event: %s: event: %s, trigger: %s',
-            type(self),
-            event,
-            trigger,
-        )
-
-    def on_right_mouse_drag_down_event(
-        self: Self,
-        event: MouseMotionEvent,
-        trigger: object | None,
-    ) -> None:
-        """Handle a right mouse drag down event.
-
-        Args:
-        event (MouseMotionEvent): The event to handle.
-        trigger (object | None): The object that triggered the event.
-
-        """
-        self.log.debug(
-            'Right Mouse Drag Down Event: %s: event: %s, trigger: %s',
-            type(self),
-            event,
-            trigger,
-        )
-
-    def on_right_mouse_drag_up_event(
-        self: Self,
-        event: MouseButtonEvent,
-        trigger: object | None,
-    ) -> None:
-        """Handle a right mouse drag up event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        """
-        self.log.debug(
-            'Right Mouse Drag Up Event: %s: event: %s, trigger: %s',
-            type(self),
-            event,
-            trigger,
-        )
-
-    def on_mouse_drag_up_event(self: Self, event: HashableEvent) -> None:
-        """Handle a mouse drag up event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        """
-        self.log.debug('Mouse Drag Up Event: %s: %s', type(self), event)
 
     @override
     def on_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:

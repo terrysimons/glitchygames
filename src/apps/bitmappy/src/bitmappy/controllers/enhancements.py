@@ -34,7 +34,11 @@ class BitmappyMultiControllerEnhancements:
 
         # Enhanced features
         self.controller_history: dict[int, list[dict[str, Any]]] = {}
+        # The seconds between an operation's last two readings (what the stats report), and each
+        # operation's last reading, kept apart so a duration is never read as a reading
+        # (BUGS.md #72).
         self.performance_metrics: dict[str, float] = {}
+        self._last_operation_readings: dict[str, float] = {}
         self.visual_customizations: dict[int, dict[str, Any]] = {}
         self.controller_groups: dict[str, list[int]] = {}
 
@@ -323,19 +327,20 @@ class BitmappyMultiControllerEnhancements:
             ]
 
     def _update_performance_metrics(self, operation: str, timestamp: float) -> None:
-        """Update performance metrics.
+        """Record the seconds since this operation's previous reading.
+
+        The first reading of an operation only starts its clock: there is no duration to report
+        until the second.
 
         Args:
             operation: Operation name
-            timestamp: Timestamp
+            timestamp: The reading, in seconds
 
         """
-        if operation not in self.performance_metrics:
-            self.performance_metrics[operation] = timestamp
-        else:
-            # Calculate time difference
-            time_diff = timestamp - self.performance_metrics[operation]
-            self.performance_metrics[operation] = time_diff
+        previous_reading = self._last_operation_readings.get(operation)
+        if previous_reading is not None:
+            self.performance_metrics[operation] = timestamp - previous_reading
+        self._last_operation_readings[operation] = timestamp
 
     def get_controller_performance_stats(self, controller_id: int) -> dict[str, Any]:
         """Get performance statistics for a controller.

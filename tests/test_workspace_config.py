@@ -16,6 +16,7 @@ import noxfile
 import pytest
 import yaml
 from scripts.gen_ref_pages import reference_page_path
+from scripts.git_checkout import run_git
 from scripts.workspace_packages import (
     ENGINE_PACKAGE,
     WorkspaceMember,
@@ -63,13 +64,20 @@ def parse_jsonc(*, text: str) -> dict[str, Any]:
     Returns:
         The parsed object.
 
+    Raises:
+        TypeError: If the document is JSON but not an object (pyright's configuration is one).
+
     """
     # Comments first (a comma before a comment is trailing only once the comment is gone)
     without_comments = JSONC_COMMENTS.sub(lambda match: match.group('string') or ' ', text)
     plain_json = JSONC_TRAILING_COMMAS.sub(
         lambda match: match.group('string') or '', without_comments
     )
-    return json.loads(plain_json)
+    parsed = json.loads(plain_json)
+    if not isinstance(parsed, dict):
+        message = f'expected a JSON object, got {type(parsed).__name__}'
+        raise TypeError(message)
+    return parsed
 
 
 def pyright_configuration(*, project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
@@ -118,21 +126,40 @@ def test_lint_and_type_checks_cover_every_member(member):
 
     Imports resolve from the member's import roots: its own directory, or its src/ in a src
     layout (src/games/brave-adventurer/src); the files checked are the whole member's.
+    Every tool's miss is listed, each naming the tool and the setting, so one miss does not
+    hide the rest.
     """
     pyproject = root_pyproject()
+    ruff = pyproject['tool']['ruff']
+    ty = pyproject['tool']['ty']
     member_path = repository_path(member.directory)
     pyright = pyright_configuration()
 
-    for import_root in member.import_roots:
-        assert repository_path(import_root) in pyproject['tool']['ruff']['src']
-        assert repository_path(import_root) in pyproject['tool']['ty']['environment']['root']
-    assert f'{member_path}/**/*.py' in pyproject['tool']['ruff']['include']
-    assert set(member.import_packages) <= set(
-        pyproject['tool']['ruff']['lint']['isort']['known-first-party']
+    misses = [
+        f'ruff src lacks {repository_path(import_root)}'
+        for import_root in member.import_roots
+        if repository_path(import_root) not in ruff['src']
+    ]
+    misses.extend(
+        f'ty environment.root lacks {repository_path(import_root)}'
+        for import_root in member.import_roots
+        if repository_path(import_root) not in ty['environment']['root']
     )
-    assert member_path in pyproject['tool']['ty']['src']['include']
-    assert member_path in pyright['include']
-    assert member_path in noxfile._CODE_DIRS
+    if f'{member_path}/**/*.py' not in ruff['include']:
+        misses.append(f'ruff include lacks {member_path}/**/*.py')
+    missing_first_party = set(member.import_packages) - set(
+        ruff['lint']['isort']['known-first-party']
+    )
+    if missing_first_party:
+        misses.append(f'ruff isort known-first-party lacks {sorted(missing_first_party)}')
+    if member_path not in ty['src']['include']:
+        misses.append(f'ty src.include lacks {member_path}')
+    if member_path not in pyright['include']:
+        misses.append(f'pyrightconfig.json include lacks {member_path}')
+    if member_path not in noxfile._CODE_DIRS:
+        misses.append(f'noxfile _CODE_DIRS lacks {member_path}')
+
+    assert misses == []
 
 
 @pytest.mark.parametrize('member', MEMBERS, ids=member_name)
@@ -154,6 +181,7 @@ def test_member_tests_get_the_tests_relaxations(member):
     member_tests = {
         key: value for key, value in environments[roots.index(tests_path)].items() if key != 'root'
     }
+    assert 'tests' in roots, 'pyrightconfig.json has no executionEnvironment for tests/'
     engine_tests = {
         key: value for key, value in environments[roots.index('tests')].items() if key != 'root'
     }
@@ -177,12 +205,27 @@ def test_dependency_dead_code_security_and_complexity_scans_cover_every_member(m
     wily = configparser.ConfigParser()
     wily.read(PROJECT_ROOT / 'wily.cfg', encoding='utf-8')
 
-    assert set(member.import_packages) <= set(deptry['known_first_party'])
+    # deptry ties the root's imports of a member (scripts/ imports the games) to the member's
+    # distribution, which the root's extras declare: a member package taken as first party is
+    # never checked against them (a game missing from its extra goes unreported), and in the
+    # editable dev venv, which records no member's packages, the map is what ties them
+    assert not set(member.import_packages) & set(deptry['known_first_party'])
+    assert deptry['package_module_name_map'][member.distribution] == list(member.import_packages)
     # Members are projects of their own: the root's dependency check leaves their layer out
     assert repository_path(member.directory.parent) in deptry['extend_exclude']
     for package_directory in member.package_directories:
         assert repository_path(package_directory) in noxfile._SOURCE_PACKAGE_DIRS
     assert repository_path(member.directory) in wily['wily']['path'].split(',')
+
+
+def test_the_deptry_map_names_the_members_and_pygame_alone():
+    """No key is left for a removed member: the map is pygame-ce's and each member's."""
+    package_module_name_map = root_pyproject()['tool']['deptry']['package_module_name_map']
+
+    assert sorted(package_module_name_map) == sorted([
+        'pygame-ce',
+        *(member.distribution for member in MEMBERS),
+    ])
 
 
 def test_nox_installs_and_reinstalls_every_member():
@@ -194,8 +237,13 @@ def test_nox_installs_and_reinstalls_every_member():
     assert [member.distribution for member in MEMBERS] == noxfile._MEMBER_DISTRIBUTIONS
 
 
+DOCS_CONFIGURATION = 'zensical.yml'
+DOCS_CONFIGURATION_LINK = 'mkdocs.yml'
+GIT_SYMLINK_MODE = '120000'
+
+
 class MkdocsConfigurationLoader(yaml.SafeLoader):
-    """Reads mkdocs.yml, its ``!!python/name:`` tags (pymdownx's fence formats) read as None."""
+    """Reads zensical.yml, its ``!!python/name:`` tags (pymdownx's fence formats) read as None."""
 
 
 MkdocsConfigurationLoader.add_multi_constructor(
@@ -204,12 +252,35 @@ MkdocsConfigurationLoader.add_multi_constructor(
 
 
 def mkdocs_configuration(*, project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
-    """mkdocs.yml."""
-    loader = MkdocsConfigurationLoader((project_root / 'mkdocs.yml').read_text(encoding='utf-8'))
+    """The docs configuration, zensical.yml (by name: Windows may check the link out as text)."""
+    loader = MkdocsConfigurationLoader(
+        (project_root / DOCS_CONFIGURATION).read_text(encoding='utf-8')
+    )
     try:
         return loader.get_single_data()
     finally:
         loader.dispose()
+
+
+def test_mkdocs_yml_is_a_link_to_zensical_yml():
+    """The mkdocs.yml mkdocs reads by default is a link to zensical.yml, the one configuration.
+
+    Asked of git's index, not the checkout: Windows may check a link out as a text file.
+    """
+    exit_code, output = run_git(
+        arguments=['ls-files', '--stage', '--', DOCS_CONFIGURATION_LINK], directory=PROJECT_ROOT
+    )
+    mode, blob, _stage_and_path = output.split(maxsplit=2)
+    _exit_code, target = run_git(arguments=['cat-file', 'blob', blob], directory=PROJECT_ROOT)
+
+    assert (exit_code, mode, target) == (0, GIT_SYMLINK_MODE, DOCS_CONFIGURATION)
+
+
+def test_the_docs_site_shows_our_favicon():
+    """Material shows its own icon unless the theme names ours (mkdocs' theme found it alone)."""
+    favicon = mkdocs_configuration()['theme']['favicon']
+
+    assert (PROJECT_ROOT / 'docs' / favicon).is_file()
 
 
 def navigation_pages(*, entries: list[Any]) -> set[str]:
@@ -720,7 +791,7 @@ def configuration_lists_naming_member_paths(
     mkdocs = mkdocs_configuration(project_root=project_root)
     configuration_lists.extend(
         (
-            'mkdocs.yml plugins mkdocstrings handlers python paths',
+            f'{DOCS_CONFIGURATION} plugins mkdocstrings handlers python paths',
             False,
             plugin['mkdocstrings']['handlers']['python']['paths'],
         )
@@ -825,7 +896,7 @@ def write_synthetic_workspace(*, project_root: Path, stale: bool) -> list[Worksp
         f'_SOURCE_PACKAGE_DIRS = ["src/glitchygames", "{derived}/fake_game", "{old}/fake_game"]\n',
         encoding='utf-8',
     )
-    (project_root / 'mkdocs.yml').write_text(
+    (project_root / DOCS_CONFIGURATION).write_text(
         'plugins:\n'
         '  - search\n'
         '  - mkdocstrings:\n'
@@ -859,7 +930,7 @@ def test_the_stale_path_guard_names_the_file_and_key_of_each_planted_flat_path(t
         'pyproject.toml [tool.coverage.paths]: src/games/fake-game/fake_game',
         'noxfile.py _SOURCE_PACKAGE_DIRS: src/games/fake-game/fake_game',
         f'{tests_extra_paths}: src/games/fake-game',
-        'mkdocs.yml plugins mkdocstrings handlers python paths: src/games/fake-game',
+        'zensical.yml plugins mkdocstrings handlers python paths: src/games/fake-game',
     ]
 
 

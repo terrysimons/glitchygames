@@ -1,0 +1,14 @@
+{
+  "port": {{ ai_service_api_port }},
+  "models": [
+{% set model_agents = ai_service_agents | rejectattr('role', 'eq', 'api') | list %}
+{% for agent in model_agents %}
+    {"alias": {{ agent.alias | to_json }}, "role": {{ agent.role | to_json }}, "port": {{ agent.port }}{% if agent.dimensions is defined %}, "dimensions": {{ agent.dimensions }}{% endif %}}{{ "," if not loop.last else "" }}
+{% endfor %}
+  ],
+  "service_key_file": {{ ai_service_service_key_file | to_json }},
+  "worker_key_file": {{ ai_service_api_key_file | to_json }},
+  "control_script": {{ ai_service_control | to_json }},
+  "scalar_file": {{ (ai_sidecar_directory ~ '/scalar.js') | to_json }},
+  "shutdown_grace_seconds": {{ ai_service_shutdown_grace_seconds }}
+}

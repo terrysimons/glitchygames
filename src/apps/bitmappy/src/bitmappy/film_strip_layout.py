@@ -52,7 +52,7 @@ def render_label_text(
         )
         return text_surface, text_rect
     pygame_font = cast('pygame.font.Font', font)
-    text_surface = pygame_font.render(text, antialias=True, color=color)
+    text_surface = pygame_font.render(text, antialias=FontManager.antialias(), color=color)
     return text_surface, text_surface.get_rect()
 
 
@@ -132,9 +132,6 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
 
     def initialize_external_references(self) -> None:
         """Initialize external references set by parent components."""
-        # Copy/paste buffer for frames
-        self.widget.copied_frame = None  # Temporary storage for copied frame
-
         # Parent canvas reference (set externally via set_parent_canvas)
         self.widget.parent_canvas = None
 

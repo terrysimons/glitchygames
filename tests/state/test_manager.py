@@ -142,8 +142,19 @@ class TestLoadErrors:
         """An OSError reading the file passes through: the save is unreadable, not corrupt."""
         saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         saves.save('slot_1', {'score': 100})
+        path_class = type(tmp_path)
+        real_read_text = path_class.read_text
+
+        def read_text_refusing_the_saves(path: Path, *args, **kwargs) -> str:
+            # Only the save directory is unreadable. The patch is on the class, so refusing
+            # every read also failed the memory guard's thread sampling /proc on Linux, an
+            # error pytest then reported against the next test (BUGS.md #246)
+            if path.is_relative_to(tmp_path):
+                raise PermissionError(13, 'Permission denied')
+            return real_read_text(path, *args, **kwargs)
+
         mocker.patch.object(
-            type(tmp_path), 'read_text', side_effect=PermissionError(13, 'Permission denied')
+            path_class, 'read_text', autospec=True, side_effect=read_text_refusing_the_saves
         )
 
         with pytest.raises(PermissionError, match='Permission denied'):

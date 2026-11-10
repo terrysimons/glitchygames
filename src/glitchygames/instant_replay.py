@@ -71,9 +71,13 @@ and play the journal back with no divergence (glitchygames/replay/playback.py). 
    ``MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS`` (rule 11).
 10. ``as_recording`` returns the recording: a header (``source: "instant_replay"``, the game
     and scene classes, ``recorded_at`` set so that it plus the frame clock is the wall clock
-    the scene saw, the run's ``random_seed``, and ``devices`` and ``device_enumeration``: the
+    the scene saw, the run's ``random_seed``, ``devices`` and ``device_enumeration``: the
     devices opened and the answers given from the scene's ``__init__`` until its first logic
-    frame, which the rebuilt scene's ``__init__`` and ``setup()`` are served), a lead-in frame
+    frame, which the rebuilt scene's ``__init__`` and ``setup()`` are served, and
+    ``scene_start_devices``: the live input mode and devices as the scene was first set up,
+    which the playback scope adopts as stand-ins asking its devices door nothing, so the
+    played scene sees the devices the live one did (``GameEngine.enter_playback_devices``;
+    BUGS.md #184.3)), a lead-in frame
     (frame 0: no scene, no sprites; the polled input before the scene's first logic frame and
     the save stores its setup first opened, which a playback learns but does not serve;
     glitchygames/replay/driver.py, rule 18), then the journal's frames from ``start_frame``
@@ -112,8 +116,12 @@ from glitchygames import clock
 from glitchygames.input.state import IDLE_INPUT, snapshot_changes
 from glitchygames.logical_names import logical_name
 from glitchygames.recording import (
+    CUSTOM_EVENT_TYPES_HEADER_FIELD,
     DEVICE_ENUMERATION_FIELD,
     DEVICES_HEADER_FIELD,
+    GAME_HEADER_FIELD,
+    SCENE_START_DEVICES_HEADER_FIELD,
+    custom_event_types_header,
     event_batch_records,
     event_to_record,
     recorded_frame,
@@ -184,13 +192,22 @@ class InstantReplayJournal:
 
     """
 
-    def __init__(self: Self, *, scene: Scene, game: object | None) -> None:
+    def __init__(
+        self: Self,
+        *,
+        scene: Scene,
+        game: object | None,
+        scene_start_devices: dict[str, Any] | None = None,
+    ) -> None:
         """Start watching save stores open and device answers, as the scene is first set up.
 
         Args:
             scene: The opted-in scene, its start completed, before its ``setup()`` (rule 2).
             game: The running game (``GameEngine.game``), named in the header; None without
                 an engine.
+            scene_start_devices: The live devices and input mode as the scene starts
+                (``glitchygames.input.input_devices.scene_start_devices_record``), which the
+                playback scope adopts (rule 10); None without an engine.
 
         """
         self.scene = scene
@@ -200,12 +217,19 @@ class InstantReplayJournal:
             'frame_seconds': None,
             'scene_class': type(scene).__name__,
             'random_seed': active_sources().random_seed,
+            # The engine's custom event ids it records with: a replay in a process that
+            # allocated them otherwise moves them (BUGS.md #211.1). Without it, a playback in a
+            # shifted process would read the journal as made with the legacy ids
+            CUSTOM_EVENT_TYPES_HEADER_FIELD: custom_event_types_header(),
         }
         if game is not None:
             self._header['game_class'] = type(game).__name__
             self._header['game_module'] = type(game).__module__
             # The game's logical name, which replays compare (glitchygames/logical_names.py)
-            self._header['game'] = logical_name(scene_class=type(game))
+            # The header field the driver reads, by its constant (BUGS.md #224 item 16)
+            self._header[GAME_HEADER_FIELD] = logical_name(scene_class=type(game))
+        if scene_start_devices is not None:
+            self._header[SCENE_START_DEVICES_HEADER_FIELD] = scene_start_devices
         # Save namespaces a playback seeds from the scene's start; others are snapshotted
         # into the frame that first opens them (setup's go to the lead-in frame)
         self._known_save_namespaces: set[str] = set() if start is None else set(start.saves)

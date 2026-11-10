@@ -276,6 +276,24 @@ def test_a_rename_to_a_missing_recording_is_found(tmp_path):
     ]
 
 
+def test_a_rename_from_a_recording_still_there_is_found(tmp_path):
+    """An old path that still holds a recording is no rename: its history would go to the new one.
+
+    A moved recording whose old file was copied rather than moved, or a new recording made at
+    an old path, would have both files' runs counted as one recording's.
+    """
+    for relative_path in ('old/a.jsonl.gz', 'new/a.jsonl.gz', 'new/b.jsonl.gz'):
+        (tmp_path / relative_path).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / relative_path).write_bytes(b'')
+    settings = ProjectSettings(
+        recording_renames={'old/a.jsonl.gz': 'new/a.jsonl.gz', 'old/b.jsonl.gz': 'new/b.jsonl.gz'}
+    )
+
+    assert recording_renames_problems(settings=settings, project_root=tmp_path) == [
+        'old/a.jsonl.gz is renamed to new/a.jsonl.gz, but old/a.jsonl.gz still exists'
+    ]
+
+
 @pytest.mark.parametrize(
     'pyproject_text', ['[project\n', '[tool.glitchygames]\n'], ids=['broken', 'no-name']
 )

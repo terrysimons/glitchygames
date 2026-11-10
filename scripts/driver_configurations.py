@@ -60,6 +60,10 @@ WAYLAND = 'wayland'
 X11 = 'x11'
 X11_MACOS = 'x11-macos'
 X11_LINUX = 'x11-linux'
+# Not a configuration: every native one that can run here (``--drivers native``: the pre-push
+# comparison names it so on any platform)
+NATIVE = 'native'
+NATIVE_CONFIGURATIONS = (COCOA, WINDOWS, WAYLAND, X11)
 DRIVERS_SEPARATOR = ','
 DOCKER_CHECK_TIMEOUT_SECONDS = 30.0
 
@@ -303,10 +307,33 @@ def select_configurations(
         The configurations to run, in ``CONFIGURATIONS`` order with dummy first (added when
         not asked for: it is the baseline), and the availability of each one left out.
 
+    ``native`` (``NATIVE``) stands for every native configuration available here (``cocoa`` on
+    macOS, ``windows`` on Windows, ``x11`` and/or ``wayland`` on Linux).
+
     Raises:
-        SelectionError: If a requested name is unknown or cannot run here.
+        SelectionError: If a requested name is unknown or cannot run here, or ``native`` is
+            asked for where no native configuration can run.
 
     """
+    availabilities = {
+        configuration.name: configuration_availability(configuration=configuration, facts=facts)
+        for configuration in CONFIGURATIONS
+    }
+    if requested is not None and NATIVE in requested:
+        native = [name for name in NATIVE_CONFIGURATIONS if availabilities[name].available]
+        if not native:
+            reasons = '; '.join(
+                f'{name} ({availabilities[name].reason})' for name in NATIVE_CONFIGURATIONS
+            )
+            message = f'no native configuration can run here: {reasons}'
+            raise SelectionError(message)
+        requested = list(
+            dict.fromkeys(
+                expanded
+                for name in requested
+                for expanded in (native if name == NATIVE else [name])
+            )
+        )
     if requested is not None:
         unknown = [name for name in requested if name not in CONFIGURATIONS_BY_NAME]
         if unknown:
@@ -315,10 +342,6 @@ def select_configurations(
                 f'known: {", ".join(CONFIGURATIONS_BY_NAME)}'
             )
             raise SelectionError(message)
-    availabilities = {
-        configuration.name: configuration_availability(configuration=configuration, facts=facts)
-        for configuration in CONFIGURATIONS
-    }
     if requested is not None:
         refused = [
             f'{name} ({availabilities[name].reason})'

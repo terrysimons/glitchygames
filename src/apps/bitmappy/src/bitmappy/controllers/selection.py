@@ -38,7 +38,6 @@ class ControllerSelectionState:
     instance_id: int
     selected_animation: str = ''
     selected_frame: int = 0
-    selected_slider: str = 'R'  # R, G, or B
     controller_fill_direction: str = 'HORIZONTAL'  # HORIZONTAL or VERTICAL
     is_active: bool = False
     # elapsed_seconds() of the last activity; -inf before any, so the activity age is inf
@@ -166,28 +165,6 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
         """
         return self.state.selected_frame
 
-    def set_slider(self, slider_name: str) -> None:
-        """Set the selected slider for this controller.
-
-        Args:
-            slider_name: Name of the slider (R, G, or B)
-
-        """
-        if slider_name in {'R', 'G', 'B'} and self.state.selected_slider != slider_name:
-            self.state.selected_slider = slider_name
-            self.state.last_update_time = clock.elapsed_seconds()
-
-            LOG.debug("Controller %s selected slider '%s'", self.controller_id, slider_name)
-
-    def get_slider(self) -> str:
-        """Get the current slider selection.
-
-        Returns:
-            Name of the selected slider (R, G, or B)
-
-        """
-        return self.state.selected_slider
-
     def set_fill_direction(self, direction: str) -> None:
         """Set the fill direction for this controller.
 
@@ -205,6 +182,17 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
                 direction,
                 self.controller_id,
             )
+
+    def toggle_fill_direction(self) -> str:
+        """Switch the fill direction between HORIZONTAL and VERTICAL (BUGS.md #200 item 7).
+
+        Returns:
+            The new fill direction.
+
+        """
+        new_direction = 'VERTICAL' if self.get_fill_direction() == 'HORIZONTAL' else 'HORIZONTAL'
+        self.set_fill_direction(new_direction)
+        return new_direction
 
     def get_fill_direction(self) -> str:
         """Get the current fill direction for this controller.

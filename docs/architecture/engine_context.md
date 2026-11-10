@@ -2,7 +2,7 @@
 
 An engine context is the state one running game owns, so several games can run in one process
 (the Arcade's demo tiles; design: `plans/2026-10-25-engine-context.md`). Ordinary games never
-create one: they run in the default context, exactly as before. Only the six slots below are
+create one: they run in the default context, exactly as before. Only the nine slots below are
 per context today; the rest of the process-wide state (`GameEngine` and its `OPTIONS`,
 `SceneManager.OPTIONS`, `FontManager`, `ResourceManager`, the event managers and the other rows
 of the audit in `plans/2026-10-25-engine-context.md`) is still shared and belongs to later
@@ -26,18 +26,25 @@ tests do.
    when started with `context=contextvars.copy_context()` (or on an interpreter whose
    `sys.flags.thread_inherit_context` is set, such as free-threaded 3.14 builds).
 6. A context owns only what its slots hold. The display, the mixer, SDL's event queue and the
-   joystick subsystem are one per process.
+   joystick subsystem are one per process. So are read-only caches of values computed only from their keys,
+   such as the background pattern cache and the engine's own compiled sounds
+   (`glitchygames.audio.library.ENGINE_SOUND_CACHE`: the CRT power-on's, compiled once per
+   process and shared by every context as read-only samples; each context makes its own `Sound`
+   over them).
 
 ## What belongs to a context today
 
-| Slot | Module | Public functions |
+| Slot (its `ContextSlot` name) | Module | Public functions |
 |---|---|---|
-| `glitchygames.pixel_snap.default_mode` | `src/glitchygames/pixel_snap.py` | `set_active_default_snap_mode`, `active_default_snap_mode`, `resolve_snap_mode` |
-| `glitchygames.backgrounds.default_pattern` | `src/glitchygames/backgrounds.py` | `set_active_default_background_pattern`, `active_default_background_pattern`, `paint_default_background` |
-| `glitchygames.input.state.current_input` | `src/glitchygames/input/state.py` | `current_input`, `set_current_input`, `reset_current_input` |
-| `glitchygames.randomness.streams` | `src/glitchygames/randomness.py` | `random_stream`, `numpy_stream`, `reset_streams`, `seed_engine_random`, `engine_random_seed`, `capture_stream_states`, `restore_stream_states` |
-| `glitchygames.sources.registry` | `src/glitchygames/sources.py` | `active_sources`, `install_sources`, the scoped sources, the frame clock, held events, observers |
-| `glitchygames.scenes.scene.scene_managers` | `src/glitchygames/scenes/scene.py` | `SceneManager()`, `SceneManager._reset()` |
+| `'glitchygames.pixel_snap.default_mode'` | `src/glitchygames/pixel_snap.py` | `set_active_default_snap_mode`, `active_default_snap_mode`, `resolve_snap_mode` |
+| `'glitchygames.backgrounds.default_pattern'` | `src/glitchygames/backgrounds.py` | `set_active_default_background_pattern`, `active_default_background_pattern`, `paint_default_background` |
+| `'glitchygames.input.state.current_input'` | `src/glitchygames/input/state.py` | `current_input`, `set_current_input`, `reset_current_input` |
+| `'glitchygames.randomness.streams'` | `src/glitchygames/randomness.py` | `engine_random`, `random_stream`, `numpy_stream`, `reset_streams`, `seed_engine_random`, `engine_random_seed`, `capture_stream_states`, `restore_stream_states` |
+| `'glitchygames.game_frames.clock'` | `src/glitchygames/game_frames.py` | `game_frame_clock`, `restart_game_frame_clock` |
+| `'glitchygames.sources.registry'` | `src/glitchygames/sources.py` | `active_sources`, `install_sources`, `reset_sources`, `push_scoped_sources`, `pop_scoped_sources`, `has_scoped_sources`, `redeliver_events`, `pending_redelivered_events`, `take_redelivered_events`, `discard_scope_posts`, `without_discarded_scope_posts`, `mark_frames_started`, `advance_frame_clock`, `set_frame_clock_seconds`, `frame_clock_seconds`, `observe_save_store_openings`, `stop_observing_save_store_openings`, `notify_save_store_opened`, `observe_device_answers`, `stop_observing_device_answers`, `notify_device_answer` |
+| `'glitchygames.scenes.scene.scene_managers'` | `src/glitchygames/scenes/scene.py` | `SceneManager()`, `SceneManager._reset()` |
+| `'glitchygames.audio.waves.registry'` | `src/glitchygames/audio/waves.py` | `current_wave_registry` (the named waves a sound file or `Wave` registers; `AudioEngine.waves`) |
+| `'glitchygames.audio.engine.audio_engine'` | `src/glitchygames/audio/engine.py` | `SceneManager.audio`, `existing_audio_engine`, `install_audio_engine`, `discard_audio_engine` |
 
 `tests/test_engine_context.py` proves, for every slot, that two contexts in one process never
 see each other's values; a slot added without such a check fails the suite.

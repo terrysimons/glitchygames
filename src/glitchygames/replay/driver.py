@@ -98,14 +98,15 @@ session again, and every frame's sprites are compared with the recorded frame. T
     refuses a digest file it cannot write before the run (``ExitCode.CANNOT_WRITE_OUTPUT``);
     one that cannot be written at the end is logged on one line (``digest_write_failed``), and
     the run exits ``ExitCode.CANNOT_WRITE_OUTPUT`` once the replay is reported.
-13. Pacing: the scene manager never paces a replay (``paced_frame_seconds`` is 0.0). A
-    headless replay (``--headless``) is not paced at all, as its frame times come from the
-    recording. A watched replay is paced by its viewer (glitchygames/replay/viewer.py, whose
-    docstring is the contract): an outer tick 60 times a second of real time
+13. Pacing: the scene manager never paces a replay (``paced_frame_seconds`` is 0.0). A headless
+    replay (``--headless``) is not paced at all, as its frame times come from the recording. A
+    watched replay is paced by its viewer (glitchygames/replay/viewer.py, whose docstring is the
+    contract): an outer tick 60 times a second of real time
     (``glitchygames.clock.measured_seconds``, never replayed: it only decides when frames run,
-    never what they do) runs the inner recorded frames its accumulator pays for (real time
-    times the speed, consumed by each frame's recorded duration, bounded per tick in frames and
-    real time, never owing more than one tick's worth).
+    never what they do) runs the inner recorded frames its accumulator pays for (real time times
+    the speed, consumed by each frame's recorded duration, bounded per tick only by real time,
+    the work budget; the owed time capped at ``MAX_OWED_INNER_FRAMES`` and a half frames, never
+    less than the floor of a frame plus a 60 Hz tick plus the tick paid for).
 14. Watching (not ``--headless``): ``ReplayControls`` (glitchygames/replay/controls.py) take
     the viewer's real key presses and releases; none reaches the game. ``hold_frame`` drives
     the viewer: with no outer tick open it sleeps until the next one, drains the real queue
@@ -279,6 +280,7 @@ from glitchygames.recording import (
     EVENT_ORIGIN_FIELD,
     EVENT_TYPE_FIELD,
     EXTERNAL_ORIGIN,
+    GAME_HEADER_FIELD,
     INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
     PLAYBACK_ANSWERS_FIELD,
@@ -291,12 +293,14 @@ from glitchygames.recording import (
     RecordedReference,
     RecordingSources,
     UnrepresentableValue,
+    custom_event_type_remap,
     event_from_record,
     event_to_record,
     forget_pending_posts,
     is_input_post,
     pending_internal_posts,
     recorded_start_time,
+    remapped_event_records,
     start_tracking_internal_posts,
     stop_tracking_internal_posts,
     take_matching_post,
@@ -304,7 +308,7 @@ from glitchygames.recording import (
 )
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
-    MEASUREMENT_FRAME_FIELDS,
+    HISTORY_FRAME_FIELDS,
     PROCESSING_SECONDS_FIELD,
     frame_content_hash,
     latest_measurement_run,
@@ -353,6 +357,7 @@ from glitchygames.tracing import (
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
 
+    from glitchygames.audio.accounting import AudioFrameAccount
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scene_start import SceneStart
     from glitchygames.scenes import Scene
@@ -365,6 +370,7 @@ LOG.addHandler(logging.NullHandler())
 # Options the recording never overrides: how this run is watched, logged, paced and recorded,
 # not what the game does
 REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
+    'ai',
     'replay_trace',
     'record_trace',
     'audit',
@@ -395,6 +401,10 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     'fps_histogram',
     # --debug-events: whether unhandled events are logged, not what the game does
     'debug_events',
+    # How compiled sounds are kept and whether the Audio panel opens: how this run sounds and is
+    # watched, never what the game does, so a recording replays under any cache mode
+    'sound_cache',
+    'sound_diagnostics',
 })
 
 # How many frames before a sprite divergence its report lists (with the divergent frame itself)
@@ -443,8 +453,6 @@ CONTROL_EVENTS_FORMAT_VERSION = 3
 # Header fields the replay reads
 GAME_CLASS_HEADER_FIELD = 'game_class'
 GAME_MODULE_HEADER_FIELD = 'game_module'
-# The game class's logical name (glitchygames/logical_names.py), which replays compare
-GAME_HEADER_FIELD = 'game'
 # The module name of a file run as a script (python paddleslap.py)
 SCRIPT_MODULE_NAME = '__main__'
 RANDOM_SEED_HEADER_FIELD = 'random_seed'
@@ -705,7 +713,7 @@ class RecordedFrames:
         frame = self.frame(frame_index=frame_index)
         if frame is None:
             return {}
-        return {name: frame[name] for name in MEASUREMENT_FRAME_FIELDS if name in frame}
+        return {name: frame[name] for name in HISTORY_FRAME_FIELDS if name in frame}
 
 
 class BookmarkedCopy:
@@ -1813,7 +1821,7 @@ class ReplaySources:
             if record.get(KIND_FIELD) in REAPPLIED_CONTROL_EVENT_KINDS
         ]
 
-    def end_frame(
+    def end_frame(  # ruff: ignore[too-many-arguments] - the EngineSources door's signature
         self: Self,
         *,
         frame_number: int,
@@ -1821,6 +1829,7 @@ class ReplaySources:
         scene: Scene | None,
         control_events: list[ControlEvent],
         processing_seconds: float | None = None,
+        audio_frame: AudioFrameAccount | None = None,
     ) -> None:
         """Compare the frame with the recorded one, then move on to the next (rule 8).
 
@@ -1831,10 +1840,12 @@ class ReplaySources:
             control_events: The control events recorded in the frame.
             processing_seconds: This replay's processing time for the frame, compared with the
                 recorded one under ``--compare-processing`` (None: not measured).
+            audio_frame: The frame's audio work: a measurement a replay neither compares nor
+                writes (a rebaseline's recording doors write it).
 
         """
-        # dt is the recorded one by construction
-        del dt
+        # dt is the recorded one by construction; audio work is never compared
+        del dt, audio_frame
         frame = self._current_frame()
         # Frames run only while the recording has one: a headless replay stops after its last
         # frame, a watched one holds there (rules 8 and 14)
@@ -2674,6 +2685,11 @@ def decoded_replay_sources(
     unreadable file (``ReplaySources.from_path``), and a playback refuses as it does any
     recording it cannot play (``playback_replay_sources``).
 
+    The frames' event records are first moved to this process's engine custom event ids
+    (``custom_event_type_remap``, from the header's ``CUSTOM_EVENT_TYPES_HEADER_FIELD``; BUGS.md
+    #211.1), so everything the sources read compares and serves this process's FPSEVENT,
+    GAMEEVENT and MENUEVENT.
+
     Known limitation: the catch covers the whole ``ReplaySources.__init__``, so a genuine
     engine bug there that raises AttributeError, KeyError, TypeError or ValueError is reported
     as a malformed recording (``UNUSABLE_INPUT``, 65), not as ``INTERNAL_ERROR`` (70); the
@@ -2690,10 +2706,11 @@ def decoded_replay_sources(
         The sources.
 
     Raises:
-        TraceFormatError: If the header has no seed or start time, or what the sources decode
-            is malformed.
+        TraceFormatError: If the header has no seed or start time, its custom event types are
+            malformed, or what the sources decode is malformed.
 
     """
+    frames = remapped_event_records(frames=frames, remap=custom_event_type_remap(header=header))
     try:
         return ReplaySources(
             header=header,

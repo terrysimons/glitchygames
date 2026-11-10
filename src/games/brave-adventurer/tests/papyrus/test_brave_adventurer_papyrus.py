@@ -22,8 +22,8 @@ from brave_adventurer_papyrus.enemies import PapyrusCobra, PapyrusScarab, Papyru
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from brave_adventurer_papyrus.player import PapyrusPlayer
 from brave_adventurer_papyrus.sprite_utils import (
-    apply_transparency_and_scale,
     prepare_papyrus_sprite,
+    refresh_drawn_image,
 )
 from brave_adventurer_papyrus.terrain import PapyrusGoldScarab
 from glitchygames.animation.state_machine import AnimationStateMachine
@@ -32,6 +32,7 @@ from glitchygames.display_mode import set_display_mode
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode, snap_to_pixel
 from glitchygames.sprites import AnimatedSprite, FrameAnchor
 from glitchygames.world import CoordinateSpace, position_world_sprites, screen_position_for
+from tests.display_canvas import show_canvas_on_new_display
 
 PAPYRUS_PACKAGE = Path(papyrus_package.__file__).parent
 BRAVE_ADVENTURER_CORE_PACKAGE = Path(brave_adventurer_core_package.__file__).parent
@@ -48,8 +49,13 @@ SCREEN_SIZE = (800, 480)
 def _start_display():
     if not pygame.get_init():
         pygame.init()
-    if pygame.display.get_surface() is None:
-        set_display_mode(size=SCREEN_SIZE)
+    # Reopen a display of another size too: the scenes size the pit floor from it, and under
+    # pytest another test may have left any size (BUGS.md #211 item 7)
+    display_surface = pygame.display.get_surface()
+    if display_surface is None or display_surface.get_size() != SCREEN_SIZE:
+        # The harness's canvas pattern on it: a new display is black, which its black-frame
+        # guard fails
+        show_canvas_on_new_display(size=SCREEN_SIZE)
 
 
 def _surface_bytes(surface):
@@ -73,7 +79,7 @@ class TestPapyrusFacingLeftHitbox:
             set_display_mode(size=(800, 480))
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         mocker.patch.object(scene, 'sounds')
-        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=2000)]
+        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=2000)]  # pyright: ignore[reportCallIssue] - a ground stand-in
         scene.wall_sprites[:] = []
         return scene
 
@@ -153,7 +159,7 @@ class TestPapyrusFeetAnchoring:
             set_display_mode(size=(800, 480))
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         mocker.patch.object(scene, 'sounds')
-        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=4000)]
+        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=4000)]  # pyright: ignore[reportCallIssue] - a ground stand-in
         scene.wall_sprites[:] = []
         player = scene.player
         player.world_x = 200.0
@@ -180,7 +186,7 @@ class TestPapyrusFeetAnchoring:
         assert player.default_hitbox is not None
         assert player.default_hitbox.bottom == tallest_bottom == 27
         assert player.frame_anchor is FrameAnchor.BOTTOM
-        assert player.hitbox_scale * 27 == PAPYRUS_PLAYER_HEIGHT
+        assert player.scale * 27 == PAPYRUS_PLAYER_HEIGHT
 
     def test_every_frame_stands_its_visible_feet_on_the_ground(self, standing_player):
         """Lowest visible row on screen == ground line - 1 and hitbox bottom == ground line."""
@@ -189,7 +195,7 @@ class TestPapyrusFeetAnchoring:
         for animation_name, frame_index in self._all_frames(player):
             player.set_animation(animation_name)
             player.set_frame(frame_index)
-            apply_transparency_and_scale(player)
+            refresh_drawn_image(player)
             # The engine places the player: snap(world) - snap(camera) plus the frame's offset
             position_world_sprites(sprites=[player], camera=scene.camera, screen_size=SCREEN_SIZE)
             screen_ground = GROUND_Y - snap_to_pixel(
@@ -361,7 +367,7 @@ class TestPapyrusEngineWorldSpace:
             set_display_mode(size=SCREEN_SIZE)
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         mocker.patch.object(scene, 'sounds')
-        scene.ground_sprites[:] = [
+        scene.ground_sprites[:] = [  # pyright: ignore[reportCallIssue] - a ground stand-in
             types.SimpleNamespace(world_x=0.0, world_y=float(GROUND_Y), segment_width=2000)
         ]
         scene.wall_sprites[:] = []
@@ -385,7 +391,7 @@ class TestPapyrusEngineWorldSpace:
         player = scene.player
         player.set_animation('running')
         player.set_frame(1)
-        apply_transparency_and_scale(player)
+        refresh_drawn_image(player)
         draw_offset_x, draw_offset_y = player.draw_offset
         assert draw_offset_y != 0  # a running frame is drawn lower than the idle one
         player.world_x = 200.4
@@ -436,25 +442,119 @@ class TestPapyrusSpriteUtilities:
         image = sprite.image
 
         prepare_papyrus_sprite(sprite)
-        apply_transparency_and_scale(sprite)
 
         assert sprite.image is image
-        assert sprite.hitbox_scale == 2
+        assert sprite.scale == 2
 
-    def test_scale_one_draws_a_copy_of_the_frame(self):
+    def test_scale_one_draws_the_frame_itself(self):
+        """A refresh resets image to the drawn frame, not a copy (BUGS.md #270)."""
         _start_display()
         sprite = AnimatedSprite(
             filename=str(SPRITES_DIR / 'cobra.toml'), groups=pygame.sprite.LayeredDirty()
         )
         prepare_papyrus_sprite(sprite, scale_factor=1)
+        sprite.image = pygame.Surface((1, 1))
 
-        apply_transparency_and_scale(sprite, scale_factor=1)
+        refresh_drawn_image(sprite)
 
-        frame_image = sprite.get_current_frame().image
-        assert sprite.image is not frame_image
-        assert sprite.image.get_size() == frame_image.get_size()
-        assert _surface_bytes(sprite.image) == _surface_bytes(frame_image)
-        assert sprite.hitbox_scale == 1
+        assert sprite.image is sprite.drawn_frame_surface()
+        assert sprite.image.get_size() == sprite.get_current_frame().image.get_size()
+        assert sprite.scale == 1
+
+    @pytest.mark.parametrize(
+        'make_sprite',
+        [
+            lambda groups: PapyrusCobra(world_x=100.0, groups=groups),
+            lambda groups: PapyrusScarab(world_x=100.0, groups=groups),
+            lambda groups: PapyrusGoldScarab(world_x=100.0, world_y=100.0, groups=groups),
+            lambda groups: PapyrusScorpion(world_x=100.0, groups=groups),
+            lambda groups: PapyrusPlayer(world_x=100.0, world_y=100.0, groups=groups),
+        ],
+        ids=['cobra', 'scarab', 'gold-scarab', 'scorpion-facing-right', 'player-facing-right'],
+    )
+    def test_a_tick_draws_the_cached_frame_without_copying_it(self, make_sprite):
+        """Unflipped and unfaded, a sprite's image is the engine's cached frame (BUGS.md #270).
+
+        Papyrus copied every sprite's frame every tick, 51 surfaces a frame in its golden.
+        """
+        _start_display()
+        sprite = make_sprite(pygame.sprite.LayeredDirty())
+        sprite.facing_right = True
+
+        sprite.dt_tick(1 / 60)
+
+        assert sprite.image is sprite.drawn_frame_surface()
+
+    def test_the_players_fade_never_reaches_the_cached_frame(self):
+        """set_alpha changes a surface in place, so the fading player draws a copy."""
+        _start_display()
+        player = PapyrusPlayer(world_x=100.0, world_y=100.0, groups=pygame.sprite.LayeredDirty())
+        player.facing_right = True
+        player.alpha = 100.0
+
+        player.dt_tick(1 / 60)
+
+        assert player.image is not player.drawn_frame_surface()
+        assert player.image.get_alpha() == 100
+        assert player.drawn_frame_surface().get_alpha() in {None, 255}
+
+        player.alpha = 255.0
+        player.dt_tick(1 / 60)
+
+        # Faded in again: the frame itself, never faded
+        assert player.image is player.drawn_frame_surface()
+        assert player.drawn_frame_surface().get_alpha() in {None, 255}
+
+    def test_a_flipped_player_fades_its_flipped_image_without_another_copy(self):
+        """Facing left, the image is already the flip's new surface: it fades that one."""
+        _start_display()
+        player = PapyrusPlayer(world_x=100.0, world_y=100.0, groups=pygame.sprite.LayeredDirty())
+        player.facing_right = False
+        player.alpha = 100.0
+
+        player.dt_tick(1 / 60)
+
+        assert player.image is not player.drawn_frame_surface()
+        assert player.image.get_alpha() == 100
+        assert player.drawn_frame_surface().get_alpha() in {None, 255}
+
+    def test_a_flip_each_tick_does_not_stack(self):
+        """Refreshing before each flip draws the same mirrored image every tick."""
+        _start_display()
+        sprite = AnimatedSprite(
+            filename=str(SPRITES_DIR / 'cobra.toml'), groups=pygame.sprite.LayeredDirty()
+        )
+        prepare_papyrus_sprite(sprite)
+
+        flipped_images = []
+        for _ in range(2):
+            refresh_drawn_image(sprite)
+            sprite.image = pygame.transform.flip(sprite.image, flip_x=True, flip_y=False)
+            flipped_images.append(_surface_bytes(sprite.image))
+
+        assert flipped_images[0] == flipped_images[1]
+        assert _surface_bytes(sprite.drawn_frame_surface()) != flipped_images[0]
+
+    @pytest.mark.parametrize(
+        'make_sprite',
+        [
+            lambda groups: PapyrusPlayer(world_x=100.0, world_y=100.0, groups=groups),
+            lambda groups: PapyrusCobra(world_x=100.0, groups=groups),
+            lambda groups: PapyrusScarab(world_x=100.0, groups=groups),
+            lambda groups: PapyrusScorpion(world_x=100.0, groups=groups),
+        ],
+        ids=['player', 'cobra', 'scarab', 'scorpion'],
+    )
+    def test_the_rect_is_the_scaled_images_size(self, make_sprite):
+        """A 2x sprite's rect is its drawn image's size, not the native frame's (BUGS.md #59)."""
+        _start_display()
+        sprite = make_sprite(pygame.sprite.LayeredDirty())
+        native_size = sprite.get_current_frame().image.get_size()
+
+        refresh_drawn_image(sprite)
+
+        assert sprite.image.get_size() == (native_size[0] * 2, native_size[1] * 2)
+        assert sprite.rect.size == sprite.image.get_size()
 
 
 # A player running right that has just left the ground and started to fall

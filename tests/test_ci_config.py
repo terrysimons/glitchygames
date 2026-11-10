@@ -9,8 +9,10 @@ import shlex
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
+from typing import NoReturn
 
 import pytest
+import yaml
 from scripts.workspace_packages import workspace_members
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -69,6 +71,61 @@ def test_circleci_pins_the_locked_version(parameter, package):
     assert pipeline_parameter_default(name=parameter) == locked_version(package=package)
 
 
+def test_the_raspberry_pi_playbook_pins_circlecis_uv():
+    """The uv the owner measures with on the Pi is the one its CI job installs."""
+    playbook = (PROJECT_ROOT / 'ansible' / 'raspberry_pi_runner.yml').read_text(encoding='utf-8')
+
+    uv_version = pipeline_parameter_default(name='UV_VERSION')
+
+    assert f'    raspberry_pi_uv_version: "{uv_version}"\n' in playbook
+
+
+def raspberry_pi_hosts() -> dict[str, dict[str, str]]:
+    """Return the inventory's Raspberry Pis, by host name.
+
+    Returns:
+        Each host's variables (``raspberry-pi-4``: its address, resource class, ...).
+
+    """
+    inventory = yaml.safe_load(
+        (PROJECT_ROOT / 'ansible' / 'inventory.yml').read_text(encoding='utf-8')
+    )
+    return inventory['all']['children']['raspberry_pis']['hosts']
+
+
+def circleci_jobs() -> dict[str, dict[str, object]]:
+    """Return the CircleCI configuration's jobs, with YAML merge keys resolved.
+
+    Returns:
+        Each job's settings, by name.
+
+    """
+    return yaml.safe_load(CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8'))['jobs']
+
+
+def test_each_raspberry_pis_job_uses_the_resource_class_ansible_registers():
+    """Each Pi's job (build-and-test-<host>) runs on the resource class its runner registers."""
+    jobs = circleci_jobs()
+    hosts = raspberry_pi_hosts()
+
+    assert sorted(hosts) == ['raspberry-pi-4', 'raspberry-pi-5']
+    for host, variables in hosts.items():
+        assert (
+            jobs[f'build-and-test-{host}']['resource_class']
+            == (variables['raspberry_pi_resource_class'])
+        )
+
+
+def test_the_raspberry_pi_5_job_is_the_raspberry_pi_4_job_on_its_own_runner():
+    """Only the runner differs, so the two Pis' results compare the hardware, not the settings."""
+    jobs = circleci_jobs()
+
+    assert jobs['build-and-test-raspberry-pi-5'] == {
+        **jobs['build-and-test-raspberry-pi-4'],
+        'resource_class': 'terrysimons/raspberry-pi-5',
+    }
+
+
 def test_circleci_runs_an_installed_nox_never_through_uvx():
     """Each job installs nox once, as a uv tool, and runs it directly: no uvx parent waits on it.
 
@@ -81,7 +138,9 @@ def test_circleci_runs_an_installed_nox_never_through_uvx():
     install = 'uv tool install "nox[uv]==<< pipeline.parameters.NOX_VERSION >>"'
     jobs = configuration[configuration.index('\njobs:\n') : configuration.index('\nworkflows:\n')]
     windows_job = jobs[
-        jobs.index('\n  build-and-test-windows:\n') : jobs.index('\n  deploy-docs:\n')
+        jobs.index('\n  build-and-test-windows:\n') : jobs.index(
+            '\n  build-and-test-raspberry-pi-4:'
+        )
     ]
     install_deps_posix = configuration[
         configuration.index('\n  install-deps-posix:\n') : configuration.index('\n  nox-format:\n')
@@ -96,7 +155,7 @@ def test_circleci_runs_an_installed_nox_never_through_uvx():
         job = jobs[start:end]
         first_nox = re.search(r'^\s+(- nox-|nox -s )', job, flags=re.MULTILINE)
         if first_nox is not None and not job.startswith('  build-and-test-windows:'):
-            assert '      - install-deps-posix\n' in job[: first_nox.start()], job.split(':')[0]
+            assert '      - install-deps-posix' in job[: first_nox.start()], job.split(':')[0]
     # The tool is never restored from a cache: the uv caches name uv's Python, not all its data
     assert '- ~/.local/share/uv\n' not in configuration
 
@@ -116,18 +175,41 @@ def test_circleci_installs_uv_at_its_pinned_version():
 class RecordingSession:
     """Stands in for a nox session: records every command, runs nothing."""
 
-    def __init__(self, *, posargs: list[str]) -> None:
-        """Start with the session's arguments and no commands."""
+    def __init__(self, *, posargs: list[str], outputs: dict[str, str] | None = None) -> None:
+        """Start with the session's arguments and no commands.
+
+        Args:
+            posargs: The session's arguments.
+            outputs: What a silent command prints, by its program (``python``): ``run`` returns
+                it, as nox does for ``silent=True``.
+
+        """
         self.posargs = posargs
+        self.outputs = {} if outputs is None else outputs
         self.commands: list[tuple[str, ...]] = []
         # Each command's environment overrides (``env=``), by command
         self.environments: dict[tuple[str, ...], object] = {}
         self.virtualenv = type('Virtualenv', (), {'location': '.nox/docs-deploy'})()
 
-    def run(self, *command: str, **options: object) -> None:
-        """Record a command the session runs, and its environment overrides."""
+    def run(self, *command: str, **options: object) -> str | None:
+        """Record a command the session runs, and its environment overrides.
+
+        Returns:
+            A silent command's canned output (``outputs``), else None.
+
+        """
         self.commands.append(command)
         self.environments[command] = options.get('env')
+        return self.outputs.get(command[0]) if options.get('silent') else None
+
+    def error(self, message: str) -> NoReturn:
+        """Fail the session, as nox's ``session.error`` does.
+
+        Raises:
+            RuntimeError: Always, with the message.
+
+        """
+        raise RuntimeError(message)
 
     def run_install(self, *command: str, **options: object) -> None:
         """Record an install command the session runs, and its environment overrides."""
@@ -163,7 +245,7 @@ def test_docs_deploy_measures_the_replays_by_default():
     commands = docs_deploy_commands(posargs=[])
 
     measuring = commands.index((*GLITCHYGAMES_IN_THE_PROJECT, 'measure', '--skip-dirty'))
-    deploying = commands.index(('mkdocs', 'gh-deploy', '--strict'))
+    deploying = commands.index(('mkdocs', 'gh-deploy', '--strict', '--config-file', 'zensical.yml'))
     clearing = commands.index((*GLITCHYGAMES_IN_THE_PROJECT, 'clear-published'))
     assert measuring < deploying < clearing
 
@@ -200,7 +282,7 @@ def test_docs_deploy_with_no_measure_measures_nothing():
 
     assert not any('measure' in command for command in commands)
     assert ('python', '-m', 'scripts.build_browser_bundle', 'all') in commands
-    assert ('mkdocs', 'gh-deploy', '--strict') in commands
+    assert ('mkdocs', 'gh-deploy', '--strict', '--config-file', 'zensical.yml') in commands
 
 
 def circleci_workflow_job(*, name: str) -> str:
@@ -302,6 +384,10 @@ def test_every_other_sync_installs_the_workspace_members():
     assert all('--all-packages' in sync for sync in envrc_syncs)
 
 
+# The uv commands that sync a nox session's environment (inside a session uv targets it)
+UV_SYNCS = frozenset({('uv', 'run'), ('uv', 'sync')})
+
+
 def test_the_test_session_installs_a_stamped_engine():
     """The nox test session builds its engine with the build stamp: the installed copy names HEAD.
 
@@ -311,15 +397,202 @@ def test_the_test_session_installs_a_stamped_engine():
     """
     import noxfile
 
-    session = RecordingSession(posargs=[])
+    installed = '.nox/test-3-14/lib/python3.14/site-packages/glitchygames'
+    session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
     noxfile.test(session)
     commands = session.commands
-    write_stamp = ('uv', 'run', '--frozen', 'python', 'scripts/write_build_stamp.py')
-    remove_stamp = (*write_stamp, '--remove')
+    # The session's python: a `uv run` after the install would sync the session's environment
+    # again (editable), replacing the installed copy it stamps
+    stamp_installed_copy = ('python', 'scripts/write_build_stamp.py', '--into', installed)
     install = next(index for index, command in enumerate(commands) if command[:2] == ('uv', 'sync'))
     pytest_run = next(index for index, command in enumerate(commands) if command[0] == 'pytest')
 
-    assert commands.index(write_stamp) < install < commands.index(remove_stamp) < pytest_run
+    assert install < commands.index(stamp_installed_copy) < pytest_run
+    # Nothing syncs the session's environment again after the install: the suite tests the
+    # installed (built) engine, not an editable one
+    assert not [
+        command for command in commands[install + 1 : pytest_run] if command[:2] in UV_SYNCS
+    ]
+    # Never the checkout's stamp: a build running alongside keeps its own (BUGS.md #224.47)
+    assert not [
+        command
+        for command in commands
+        if 'scripts/write_build_stamp.py' in command and '--into' not in command
+    ]
+
+
+def test_the_test_session_fails_when_it_cannot_find_its_installed_engine():
+    """No package path printed: the session stops rather than run unstamped."""
+    import noxfile
+
+    session = RecordingSession(posargs=[])
+
+    with pytest.raises(RuntimeError, match='installed glitchygames'):
+        noxfile.test(session)
+
+
+def test_random_order_is_off_unless_asked_for():
+    """pytest-randomly is blocked in addopts: CI and every ordinary run keep the files' order."""
+    pyproject = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
+    addopts = shlex.split(pyproject['tool']['pytest']['ini_options']['addopts'])
+
+    assert '-p' in addopts
+    assert addopts[addopts.index('-p') + 1] == 'no:randomly'
+
+
+def test_the_shuffled_run_reorders_only_on_the_dummy_drivers():
+    """Nox -s test-random -- SEED: pytest-randomly back on, that seed, no reseeding, no coverage."""
+    import noxfile
+
+    session = RecordingSession(posargs=['12345'])
+    noxfile.test_random(session)
+
+    (command,) = session.commands
+    assert command[:4] == ('uv', 'run', '--frozen', 'pytest')
+    assert command[4:7] == ('-p', 'randomly', '--randomly-dont-reset-seed')
+    assert '--randomly-seed=12345' in command
+    assert '--no-cov' in command
+    assert session.environments[command] == {'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'}
+
+
+def test_a_shuffled_run_picks_a_new_seed_each_time():
+    """Without a seed given, each run draws one, in pytest-randomly's range."""
+    import noxfile
+
+    seeds = set()
+    for _ in range(3):
+        session = RecordingSession(posargs=[])
+        noxfile.test_random(session)
+        (command,) = session.commands
+        (seed_argument,) = [
+            argument for argument in command if argument.startswith('--randomly-seed=')
+        ]
+        seeds.add(int(seed_argument.removeprefix('--randomly-seed=')))
+
+    assert all(0 <= seed < noxfile.RANDOM_ORDER_SEED_LIMIT for seed in seeds)
+    assert len(seeds) > 1
+
+
+def test_a_failed_shuffled_run_names_its_seed_and_how_to_replay_it(mocker):
+    """The failure says which order failed and gives the one-process command that replays it."""
+    import noxfile
+    from nox.command import CommandFailed
+
+    session = RecordingSession(posargs=['777'])
+    mocker.patch.object(session, 'run', side_effect=CommandFailed('pytest failed'))
+
+    with pytest.raises(RuntimeError) as failure:
+        noxfile.test_random(session)
+
+    message = str(failure.value)
+    assert 'seed 777' in message
+    assert '--randomly-seed=777 -n 0' in message
+    assert 'nox -s test-random -- 777' in message
+
+
+def test_the_pre_push_hooks_run_the_shuffled_suite():
+    """Every push shuffles the suite once (the hook, not CI: CI keeps the files' order)."""
+    hooks = (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
+
+    assert 'entry: uv run --extra dev nox -s test-random' in hooks
+
+
+@pytest.mark.parametrize(
+    ('posargs', 'expected'),
+    [
+        ([], (None, False, False, [])),
+        (['--drivers', 'native', '--fail-on-difference'], ('native', False, True, [])),
+        (
+            ['--drivers=dummy,cocoa', '--sound', 'tests/scenes'],
+            ('dummy,cocoa', True, False, ['tests/scenes']),
+        ),
+    ],
+    ids=['nothing', 'the-pre-push-hooks', 'by-hand'],
+)
+def test_compare_drivers_reads_its_options(posargs, expected):
+    """--drivers, --sound and --fail-on-difference are taken out; the rest selects tests."""
+    import noxfile
+
+    assert noxfile._compare_drivers_arguments(RecordingSession(posargs=posargs)) == expected
+
+
+@pytest.mark.parametrize(
+    ('posargs', 'differing', 'fails'),
+    [
+        (['--fail-on-difference'], ['tests/a.py::test_one'], True),
+        (['--fail-on-difference'], [], False),
+        ([], ['tests/a.py::test_one'], False),
+    ],
+    ids=['a-difference-fails', 'agreement-passes', 'by-hand-only-reports'],
+)
+def test_compare_drivers_fails_on_a_difference_only_when_asked(
+    mocker, tmp_path, posargs, differing, fails
+):
+    """The failure comes after the comparison completed: its report is kept, not set aside."""
+    import noxfile
+
+    # Every folder and the lock under tmp_path: never the real test-results
+    for name in ('_COMPARE_DRIVERS_OUTPUT', '_COMPARE_DRIVERS_PREVIOUS', '_COMPARE_DRIVERS_FAILED'):
+        mocker.patch.object(noxfile, name, tmp_path / name.lower())
+    mocker.patch.object(noxfile, '_COMPARE_DRIVERS_LOCK', tmp_path / 'compare-drivers.lock')
+    mocker.patch.object(noxfile, '_set_aside_previous_comparison')
+    restore = mocker.patch.object(noxfile, '_restore_previous_comparison')
+    mocker.patch.object(noxfile, '_compare_driver_configurations', return_value=differing)
+    session = RecordingSession(posargs=posargs)
+
+    if fails:
+        with pytest.raises(
+            RuntimeError, match=r'1 test\(s\) presented different frames'
+        ) as failure:
+            noxfile.compare_drivers(session)
+        assert 'tests/a.py::test_one' in str(failure.value)
+        assert 'matrix.md' in str(failure.value)
+    else:
+        noxfile.compare_drivers(session)
+    restore.assert_not_called()
+
+
+def test_a_second_compare_drivers_is_refused_while_one_runs(mocker, tmp_path):
+    """Two at once deleted each other's runs: the second refuses, the first goes on."""
+    import noxfile
+    from filelock import FileLock
+
+    lock_path = tmp_path / 'compare-drivers.lock'
+    compare = mocker.patch.object(noxfile, '_compare_driver_configurations', return_value=[])
+    mocker.patch.object(noxfile, '_set_aside_previous_comparison')
+    mocker.patch.object(noxfile, '_COMPARE_DRIVERS_LOCK', lock_path)
+    mocker.patch.object(noxfile, '_COMPARE_DRIVERS_PREVIOUS', tmp_path / 'previous')
+
+    with FileLock(lock_path), pytest.raises(RuntimeError, match='Another compare-drivers'):
+        noxfile.compare_drivers(RecordingSession(posargs=[]))
+    compare.assert_not_called()
+
+    # Released by the one that held it: the next comparison runs
+    noxfile.compare_drivers(RecordingSession(posargs=[]))
+    compare.assert_called_once()
+
+
+def test_the_pre_push_hooks_compare_the_native_driver_with_dummy():
+    """Every push compares the drivers here, and a difference stops it."""
+    hooks = (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
+
+    assert (
+        'entry: uv run --extra dev nox -s compare-drivers -- --drivers native --fail-on-difference'
+        in hooks
+    )
+
+
+def test_no_type_checking_environment_turns_off_call_checks():
+    """Wrong arguments in a test's call into game code are type errors (BUGS.md #250).
+
+    The test environments had reportCallIssue off, so a call with a keyword the function had
+    lost (input_mode=, after --axis-deadzone) passed basedpyright and reached CI as a collection
+    error. A deliberate wrong call takes a narrow ``# pyright: ignore[reportCallIssue]``.
+    """
+    config = (PROJECT_ROOT / 'pyrightconfig.json').read_text(encoding='utf-8')
+
+    assert '"reportCallIssue": true' in config
+    assert '"reportCallIssue": false' not in config
 
 
 def test_docs_deploy_publishes_only_from_main():
@@ -332,12 +605,22 @@ def test_docs_deploy_publishes_only_from_main():
     on_main = ('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main')
 
     assert on_main in commands
-    assert commands.index(on_main) < commands.index(('mkdocs', 'gh-deploy', '--strict'))
+    assert commands.index(on_main) < commands.index((
+        'mkdocs',
+        'gh-deploy',
+        '--strict',
+        '--config-file',
+        'zensical.yml',
+    ))
     assert on_main not in docs_deploy_commands(posargs=['--build-only'])
 
 
-def test_the_performance_session_benchmarks_every_testpath():
-    """Benchmarks live in several packages' tests: pytest is given no directory to narrow it."""
+def test_the_performance_session_collects_only_the_benchmark_paths():
+    """The session gives pytest exactly ``_BENCHMARK_PATHS``, so it collects only benchmarks.
+
+    Benchmarks live in several packages' tests; tests/test_benchmark_paths.py fails if one is
+    added outside these paths.
+    """
     import noxfile
 
     session = RecordingSession(posargs=[])
@@ -345,7 +628,7 @@ def test_the_performance_session_benchmarks_every_testpath():
 
     pytest_command = next(command for command in session.commands if command[0] == 'pytest')
     assert '--benchmark-only' in pytest_command
-    assert not [argument for argument in pytest_command if argument.startswith('tests')]
+    assert pytest_command[-len(noxfile._BENCHMARK_PATHS) :] == tuple(noxfile._BENCHMARK_PATHS)
 
 
 def test_the_wheel_build_builds_every_workspace_package(mocker):
@@ -360,11 +643,123 @@ def test_the_wheel_build_builds_every_workspace_package(mocker):
     )
 
 
-def test_only_the_linux_job_sets_the_memory_limit():
+def raspberry_pi_job() -> str:
+    """Return the Raspberry Pi 4 job's text in the CircleCI configuration.
+
+    The Pi 5's job is this one merged with its own resource class
+    (``test_the_raspberry_pi_5_job_is_the_raspberry_pi_4_job_on_its_own_runner``).
+
+    Returns:
+        From its name to the Pi 5 job's comment.
+
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    job = configuration[configuration.index('\n  build-and-test-raspberry-pi-4:') :]
+    return job[: job.index('\n  # The same job on a Raspberry Pi 5')]
+
+
+@pytest.mark.parametrize('host', ['raspberry-pi-4', 'raspberry-pi-5'])
+def test_no_workflow_runs_a_raspberry_pis_job(host):
+    """The Pis measure replays when the owner pushes, and take no CI jobs."""
+    configuration = (PROJECT_ROOT / '.circleci' / 'config.yml').read_text(encoding='utf-8')
+    workflow = configuration[configuration.index('\nworkflows:\n') :]
+
+    assert f'\n      # - build-and-test-{host}\n' in workflow
+    assert f'\n      - build-and-test-{host}\n' not in workflow
+    assert f'            - build-and-test-{host}\n' not in workflow
+
+
+def test_the_raspberry_pi_job_runs_the_tests_serially_on_its_runner():
+    """The job runs on the self-hosted machine runner, with no xdist workers to reach its swap."""
+    job = raspberry_pi_job()
+
+    assert '    machine: true\n    resource_class: terrysimons/raspberry-pi-4\n' in job
+    assert '      PYTEST_WORKERS: "0"\n' in job
+    assert job.index('      - install-deps-posix') < job.index('      - nox-test\n')
+
+
+def test_the_raspberry_pi_job_allows_30_minutes_of_silence_per_step():
+    """A cold install compiles without printing, past CircleCI's default 10 minutes."""
+    job = raspberry_pi_job()
+
+    assert '- install-deps-posix:\n          no_output_timeout: 30m\n' in job
+    assert '- nox-timer-report:\n          no_output_timeout: 30m\n' in job
+    assert job.count('          no_output_timeout: 30m\n') == 4
+
+
+def test_the_raspberry_pi_job_never_runs_the_benchmarks():
+    """performance-test runs test_logging_cost.py, whose heavy logs wear the Pi's SD card."""
+    steps = raspberry_pi_job().split('    steps:\n')[1]
+
+    assert 'performance' not in steps
+    assert 'benchmark' not in steps
+
+
+def test_the_raspberry_pi_job_needs_no_sudo_and_no_circleci_cache():
+    """The runner's user has no sudo, and the uv cache stays on the host, pruned every run."""
+    job = raspberry_pi_job()
+
+    assert 'sudo apt-get' not in job
+    assert '_cache' not in job
+    assert 'uv-cache' not in job
+    prune = job[job.index('name: "Prune the uv cache"') :]
+    assert 'when: always\n' in prune
+    assert 'uv cache prune\n' in prune
+    assert '--ci' not in prune
+
+
+def test_the_raspberry_pi_job_reports_throttling_even_when_the_tests_fail():
+    """A failed or slow run on a Pi with no added cooling says whether heat was the reason."""
+    job = raspberry_pi_job()
+    throttling = job[job.index('name: "Throttling and temperature') :]
+
+    assert job.index('      - nox-test\n') < job.index('name: "Throttling and temperature')
+    assert 'when: always\n' in throttling
+    assert 'vcgencmd get_throttled\n' in throttling
+
+
+@pytest.mark.parametrize(
+    ('system', 'machine', 'has_no_wheel'),
+    [
+        ('linux', 'aarch64', True),
+        ('linux', 'x86_64', False),
+        ('darwin', 'arm64', False),
+        ('win32', 'AMD64', False),
+    ],
+)
+def test_the_taplo_sessions_skip_only_linux_arm(mocker, system, machine, has_no_wheel):
+    """pyproject.toml's marker leaves taplo out on Linux ARM alone, so only there do they skip."""
+    import noxfile
+
+    mocker.patch.object(noxfile.sys, 'platform', system)
+    mocker.patch.object(noxfile.platform, 'machine', return_value=machine)
+    session = mocker.Mock()
+
+    noxfile._format_toml(session)
+    noxfile._lint_toml(session)
+
+    assert session.run.call_count == (0 if has_no_wheel else 2)
+    assert session.log.call_count == (2 if has_no_wheel else 0)
+
+
+def test_taplo_leaves_the_worktrees_nested_in_this_checkout_alone():
+    """Claude Code's worktrees (.claude/worktrees/<name>/) are other checkouts inside this one.
+
+    Formatted from here, their TOML files were rewritten mid-task: their CRLF sprite fixtures
+    lost their line endings, which the fixture exclusions (this checkout's paths) don't cover
+    (BUGS.md #271).
+    """
+    configuration = tomllib.loads((PROJECT_ROOT / '.taplo.toml').read_text(encoding='utf-8'))
+
+    assert '.claude/**' in configuration['exclude']
+
+
+def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():
     """The Linux job (2 GB, serial) stops a run past 1600 MiB, naming the test (memory_guard.py).
 
-    Only there: the macOS and Windows jobs have the memory, and the plugin needs Linux's
-    ``/proc/self/statm`` anyway. The resource class and the worker count stay as they were.
+    So does the Raspberry Pi's (real hardware, 3.7 GB with its desktop). The macOS and Windows
+    jobs have the memory, and the plugin needs Linux's ``/proc/self/statm`` anyway. The Linux
+    job's resource class and worker count stay as they were.
     """
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     linux_job = configuration[
@@ -373,7 +768,8 @@ def test_only_the_linux_job_sets_the_memory_limit():
         )
     ]
 
-    assert configuration.count('GLITCHYGAMES_TEST_RSS_LIMIT_MB') == 1
+    assert configuration.count('GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"') == 2
+    assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"\n' in raspberry_pi_job()
     assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"\n' in linux_job
     assert '    resource_class: small\n' in linux_job
     assert '      PYTEST_WORKERS: "0"\n' in linux_job

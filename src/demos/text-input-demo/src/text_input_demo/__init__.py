@@ -58,8 +58,8 @@ class Game(Scene):
 
         self.background_color = (255, 255, 0)
 
-        self.all_sprites = pygame.sprite.LayeredDirty(self.input_box)
-
+        # The box is in the scene's own group (all_sprites), which draws it: a second group of
+        # its own, and a blit in update(), drew it twice (BUGS.md #178 item 31)
         assert self.screen is not None
         self.all_sprites.clear(self.screen, self.background)
 
@@ -70,11 +70,9 @@ class Game(Scene):
 
     @override
     def update(self: Self) -> None:
-        """Update the game."""
-        self.input_box.update()
-        assert self.screen is not None
-        assert self.input_box.image is not None
-        self.screen.blit(self.input_box.image, (320, 240))
+        """Update the game: the box redraws every frame, for its blinking cursor."""
+        self.input_box.dirty = 1
+        super().update()
 
     def on_input_box_submit_event(self: Self, control: InputBox) -> None:
         """Handle input box submit events.

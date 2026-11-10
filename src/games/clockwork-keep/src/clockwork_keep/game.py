@@ -67,8 +67,10 @@ from glitchygames.audio.recipes import SoundBank, Tremolo
 from glitchygames.audio.synth import Waveform
 from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.collision.solids import feet_land_on_surface
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeAxis, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
+from glitchygames.fonts import FontManager
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene, TextSprite
@@ -80,6 +82,7 @@ from glitchygames.world import CoordinateSpace
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Mapping
 
     from glitchygames.audio.live import LiveVoice
     from glitchygames.events.base import (
@@ -325,7 +328,7 @@ class ClockworkKeepScene(Scene):
         self.saves: SaveManager = open_saves(app_name='clockwork-keep')
 
         # Input
-        self.actions = self._create_action_map(input_mode=self.options.get('input_mode', 'auto'))
+        self.actions = self._create_action_map(options=self.options)
 
         # HUD
         self.hud_font: pygame.font.Font | None = None
@@ -537,17 +540,18 @@ class ClockworkKeepScene(Scene):
             self._win()
 
     @staticmethod
-    def _create_action_map(*, input_mode: str) -> ActionMap:
+    def _create_action_map(*, options: Mapping[str, Any]) -> ActionMap:
         """Bind the controls: arrows, SPACE, W, left shift, ESC, Q by position; D-pad, A, Y, X.
 
         Args:
-            input_mode: Gamepad event family ('joystick', 'controller' or 'auto').
+            options: The engine's options: the map follows its input mode and axis deadzone
+                (``ActionMap.from_engine_options``).
 
         Returns:
             The action map (the golden replays' controls check reads it too).
 
         """
-        actions = ActionMap(input_mode=input_mode)
+        actions = ActionMap.from_engine_options(options)
         # Every control binds a physical key position (a scancode: the same place on every
         # keyboard layout), pause and quit included (ActionMap module docstring)
         actions.bind(
@@ -694,9 +698,13 @@ class ClockworkKeepScene(Scene):
             True if the feet land on the surface.
 
         """
-        if self.player.velocity_y < 0 or player_bottom < surface_top:
-            return False
-        return feet_start <= surface_top + GROUND_SNAP_TOLERANCE
+        return feet_land_on_surface(
+            velocity_y=self.player.velocity_y,
+            feet_now=player_bottom,
+            feet_start=feet_start,
+            surface_top=surface_top,
+            tolerance=GROUND_SNAP_TOLERANCE,
+        )
 
     def _land_on_moving_gear(
         self: Self, *, player_rect: pygame.Rect, player_bottom: float, feet_start: float
@@ -1167,7 +1175,7 @@ class ClockworkKeepScene(Scene):
         if self.hud_font is None:
             return
 
-        antialias = True
+        antialias = FontManager.antialias()
         score_text = f'Score: {self.player.score}'
         lives_text = f'Lives: {self.player.lives}'
         floor_text = f'Floor: {self.floor_data.name}'

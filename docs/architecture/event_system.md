@@ -31,7 +31,7 @@ per frame, and whatever another reader takes never reaches the engine.
   per-button mouse events (`on_left_mouse_button_down_event` vs raw
   `MOUSEBUTTONDOWN` with a button field).
 - **Custom event types** — three engine-level event types (`FPSEVENT`,
-  `GAMEEVENT`, `MENUEVENT`) allocated with `pygame.event.custom_type()`, plus an
+  `GAMEEVENT`, `MENUEVENT`) allocated by name (`named_custom_event_type`), plus an
   extensible `GAMEEVENT` bus for posting arbitrary game-specific events with
   per-subtype callbacks.
 - **An unhandled event safety net** — every `on_*_event()` has a default stub
@@ -181,21 +181,30 @@ block the event at the pygame level with `pygame.event.set_blocked()`.
 ## Custom Event Types
 
 GlitchyGames defines three custom event types beyond the standard pygame events,
-allocated with `pygame.event.custom_type()` when `glitchygames.events` is imported, so a
+allocated from `pygame.event.custom_type()` when `glitchygames.events` is imported, so a
 game's or library's own `custom_type()` never gets one of their ids (BUGS.md #197).
 `custom_type()` hands out `USEREVENT + 1`, `+ 2`, `+ 3`, ... in order, and the engine's
-module is imported before any game code runs, so they are `USEREVENT + 1`, `+ 2` and `+ 3`,
-the numbers recordings hold. Something that calls `custom_type()` before glitchygames is
-imported shifts them (a recording made that way replays only in a process that imports the
-same way).
+module is imported before any game code runs, so they are usually `USEREVENT + 1`, `+ 2` and
+`+ 3`. Something that calls `custom_type()` before glitchygames is imported shifts them, so
+each is registered by name (`NAMED_CUSTOM_EVENT_TYPES`): a recording's header names the ids
+it was made with (`custom_event_types`), and a replay moves the recorded events to its own
+process's ids (BUGS.md #211.1).
 
 These constants are defined in `src/glitchygames/events/base.py` (exported by `glitchygames.events`):
 
 ```py
-FPSEVENT = pygame.event.custom_type()  # FPS counter updates (USEREVENT + 1)
-GAMEEVENT = pygame.event.custom_type()  # Game-specific events, extensible via subtypes (+ 2)
-MENUEVENT = pygame.event.custom_type()  # Menu item selections (+ 3)
+FPSEVENT = named_custom_event_type('FPSEVENT')  # FPS counter updates (usually USEREVENT + 1)
+GAMEEVENT = named_custom_event_type('GAMEEVENT')  # Game-specific events, via subtypes (+ 2)
+MENUEVENT = named_custom_event_type('MENUEVENT')  # Menu item selections (+ 3)
 ```
+
+A game that needs its own event type should allocate it the same way, at import:
+`LEVEL_UP = named_custom_event_type('MY_GAME_LEVEL_UP')`. A name is registered once (a second
+registration raises `CustomEventNameTakenError`). A type allocated straight from
+`pygame.event.custom_type()` has no name, so a recording cannot say which id it had and a
+replay in a shifted process cannot move it. It can also collide: `pygame.quit()` restarts
+pygame's allocation at `USEREVENT + 1`, so the first raw `custom_type()` after a quit returns
+FPSEVENT's id. `named_custom_event_type` skips every id a name already holds.
 
 `GAMEEVENT` is intentionally generic — game code posts events with arbitrary
 payloads via `GameEngine.post_game_event()`, and can register per-subtype
@@ -205,7 +214,7 @@ event bus without consuming additional pygame event IDs.
 
 ```mermaid
 flowchart LR
-    subgraph CustomEvents["Custom Event Types (pygame.event.custom_type())"]
+    subgraph CustomEvents["Custom Event Types (named_custom_event_type)"]
         FPS["FPSEVENT\npygame.USEREVENT + 1\nFPS counter updates"]
         GAME_E["GAMEEVENT\npygame.USEREVENT + 2\nGame-specific events"]
         MENU["MENUEVENT\npygame.USEREVENT + 3\nMenu item selections"]

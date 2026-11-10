@@ -2,7 +2,10 @@
 
 import re
 import tempfile
+import tomllib
 from pathlib import Path
+
+from glitchygames.sprites.animated import AnimatedSprite, toml_pixel_block
 
 
 def _strip_hitbox_sections(content: str) -> str:
@@ -775,3 +778,67 @@ class TestSaveLoadPixelPreservation:
                 temp_path = Path(temp_file)
                 if temp_path.exists():
                     temp_path.unlink()
+
+
+# Glyphs that TOML gives meaning to inside a """ string. Written escaped here, as a file must
+# write them: '\\' is a backslash glyph and '\"' a quote glyph
+ESCAPE_GLYPH_COLORS_TOML = (
+    '[colors."\\\\"]\nred = 200\ngreen = 10\nblue = 10\n\n'
+    '[colors."\\""]\nred = 10\ngreen = 200\nblue = 10\n\n'
+    '[colors."b"]\nred = 10\ngreen = 10\nblue = 200\n'
+)
+# Rows: 'b\' (ends in a backslash glyph, which unescaped joins the next row), 'bbb',
+# '"""' (three quote glyphs, which unescaped end the string)
+ESCAPE_GLYPH_ROWS_TOML = 'b\\\\\nbbb\n\\"\\"\\"\n'
+
+
+class TestPixelRowsSurviveTomlEscapes:
+    """Saving escapes pixel rows and palette keys, so TOML's own characters can be glyphs."""
+
+    @staticmethod
+    def _save_and_reload(
+        tmp_path: Path, toml_content: str
+    ) -> tuple[AnimatedSprite, AnimatedSprite]:
+        original_file = tmp_path / 'original.toml'
+        original_file.write_text(toml_content, encoding='utf-8')
+        original = AnimatedSprite(str(original_file))
+        saved_file = tmp_path / 'saved.toml'
+        original.save(str(saved_file), 'toml')
+        return original, AnimatedSprite(str(saved_file))
+
+    def test_backslash_glyph_round_trips(self, tmp_path):
+        """An animated sprite with a row ending in a backslash glyph saves and reloads as is."""
+        frame = (
+            f'[[animation.frame]]\nframe_index = 0\npixels = """\n{ESCAPE_GLYPH_ROWS_TOML}"""\n\n'
+        )
+        toml_content = (
+            '[sprite]\nname = "escapes"\n\n'
+            '[[animation]]\nnamespace = "walk"\nframe_interval = 1\n\n'
+            f'{frame}{frame}{ESCAPE_GLYPH_COLORS_TOML}'
+        )
+        original, reloaded = self._save_and_reload(tmp_path, toml_content)
+        original_frame = original.animation_data['walk'][0]
+        reloaded_frame = reloaded.animation_data['walk'][0]
+        assert reloaded_frame.image.get_size() == original_frame.image.get_size() == (3, 3)
+        assert reloaded_frame.pixels == original_frame.pixels
+        assert reloaded.pixel_row_repairs == []
+
+    def test_quote_glyph_round_trips(self, tmp_path):
+        """A static sprite with a row of three quote glyphs saves and reloads as is."""
+        toml_content = (
+            f'[sprite]\nname = "quotes"\npixels = """\n{ESCAPE_GLYPH_ROWS_TOML}"""\n\n'
+            f'{ESCAPE_GLYPH_COLORS_TOML}'
+        )
+        original, reloaded = self._save_and_reload(tmp_path, toml_content)
+        original_frame = original.get_current_frame()
+        reloaded_frame = reloaded.get_current_frame()
+        assert original_frame is not None
+        assert reloaded_frame is not None
+        assert reloaded_frame.pixels == original_frame.pixels
+        assert reloaded.pixel_row_repairs == []
+
+    def test_toml_pixel_block_escapes(self):
+        """Each row is escaped like a basic string, and the newlines between rows stay real."""
+        assert toml_pixel_block('a\\b\n"c') == '"""\na\\\\b\n\\"c\n"""'
+        assert toml_pixel_block('ab\n') == '"""\nab\n"""'
+        assert tomllib.loads(f'pixels = {toml_pixel_block("a\\\nb")}')['pixels'] == 'a\\\nb\n'

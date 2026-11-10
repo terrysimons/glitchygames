@@ -71,7 +71,6 @@ class _Canvas:
         self.animated_sprite = animated_sprite
         self.canvas_interface = _CanvasInterface()
         self.pixels = [RED] * (FRAME_WIDTH * FRAME_HEIGHT)
-        self.dirty_pixels = [False] * (FRAME_WIDTH * FRAME_HEIGHT)
         self.dirty = 0
         self.shown_frames = []
 
@@ -118,11 +117,11 @@ class _FilmStripWidget:
     """
 
     def __init__(self):
-        self.refresh_calls = []
+        self.refresh_count = 0
 
-    def refresh(self, *, recalculate_layout):
-        """Record a refresh and whether it recalculated the layout."""
-        self.refresh_calls.append({'recalculate_layout': recalculate_layout})
+    def refresh(self):
+        """Record a refresh."""
+        self.refresh_count += 1
 
 
 class _FilmStripSprite:
@@ -371,7 +370,6 @@ class TestFramePasteCommand:
         assert frame.get_pixel_data() == new_pixels
         assert frame.duration == pytest.approx(2.0)
         assert editor.canvas.pixels == new_pixels
-        assert editor.canvas.dirty_pixels == [True] * len(new_pixels)
         assert editor.canvas.dirty == 1
 
         assert command.undo() is True
@@ -454,7 +452,6 @@ class TestFramePasteCommand:
 
     def test_paste_into_canvas_without_dirty_tracking(self, editor):
         """A canvas with no dirty flags still gets the pasted pixels."""
-        del editor.canvas.dirty_pixels
         del editor.canvas.dirty
         new_pixels = [GREEN] * 4
         command = FramePasteCommand(
@@ -702,7 +699,7 @@ class TestFrameReorderCommand:
         assert command.description == "Moved frame 0 to 2 in 'idle'"
         assert command.execute() is True
         assert _first_pixel_colors(animated_sprite, 'idle') == [GREEN, BLUE, RED]
-        assert film_strip_widget.refresh_calls == [{'recalculate_layout': False}]
+        assert film_strip_widget.refresh_count == 1
         assert command.undo() is True
         assert _first_pixel_colors(animated_sprite, 'idle') == [RED, GREEN, BLUE]
 
@@ -764,8 +761,8 @@ class TestAnimationAddCommand:
         assert walk_frames[0].get_pixel_data() == [GREEN] * 4
         assert walk_frames[0].duration == pytest.approx(0.2)
         assert walk_frames[1].duration == pytest.approx(1.0)
-        assert film_strip_widget.refresh_calls == [{'recalculate_layout': False}]
-        assert sprite_widget.refresh_calls == [{'recalculate_layout': True}]
+        assert film_strip_widget.refresh_count == 1
+        assert sprite_widget.refresh_count == 1
         assert film_strip_sprite.dirty == 1
 
     def test_undo_deletes_animation_and_reloads_film_strips(self, editor, animated_sprite):

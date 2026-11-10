@@ -23,30 +23,35 @@ from mkdocs.config.defaults import MkDocsConfig
 from mkdocs.exceptions import PluginError
 from scripts import generate_complexity_graphs, mkdocs_hooks
 from scripts.generate_complexity_graphs import (
+    EXPLORER_DATA_NAME,
     GENERATED_FROM_NAME,
     GENERATION_LOCK_NAME,
     GRAPHS_SNIPPET_NAME,
     METRICS,
     STAGING_DIRECTORY_PREFIX,
+    TOP_MODULE_COUNT,
     ComplexityGraphError,
     ComplexityGraphs,
     RadonReport,
+    complexity_history,
     detached_checkout,
     generate_if_stale,
-    graph_file_name,
     graphs_snippet,
     join_moved_paths,
     joined_operator_data,
-    load_plotly_from_jsdelivr,
     main,
+    measure_ranked_modules,
+    measurement,
+    packages_at_head,
     rank_modules,
     run_tool,
-    space_commits_evenly,
     wily_command,
+    wily_revisions,
 )
 
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import OutputCapture, run_command
+from glitchygames.replay.tools.performance_pages import PLOTLY_JS_URL
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -230,20 +235,26 @@ def moved_fixture_repository(tmp_path: Path) -> Path:
     return repository
 
 
-def graph_trace_labels(*, html: str) -> dict[str, list[str]]:
-    """Return each series of a wily graph page with its points' hover labels (commit messages).
+def explorer_data(*, graphs_directory: Path) -> dict:
+    """Return the explorer's data a generation published.
 
     Returns:
-        The labels of each series' points, by series name.
+        The data.
 
     """
-    plot_call = 'Plotly.newPlot('
-    # Plotly.newPlot("<graph id>", [<traces>], ...), its arguments spread over lines
-    arguments = html[html.index(plot_call) + len(plot_call) :].lstrip()
-    decoder = json.JSONDecoder()
-    _graph_id, graph_id_end = decoder.raw_decode(arguments)
-    traces, _end = decoder.raw_decode(arguments[graph_id_end:].lstrip().removeprefix(',').lstrip())
-    return {trace['name']: list(trace['text']) for trace in traces}
+    return json.loads((graphs_directory / EXPLORER_DATA_NAME).read_text(encoding='utf-8'))
+
+
+def series_messages(*, data: dict, path: str, metric: str) -> list[str]:
+    """Return the commit messages of a path's points of one metric, oldest first.
+
+    Returns:
+        The messages.
+
+    """
+    return [
+        data['commits'][commit_index]['message'] for commit_index, _ in data['series'][path][metric]
+    ]
 
 
 def test_joined_operator_data_renames_former_paths_to_current_ones():
@@ -259,6 +270,23 @@ def test_joined_operator_data_renames_former_paths_to_current_ones():
         'raw': {
             'src/glitchygames/scene.py': {'total': {'loc': 10}},
             'tests/test_scene.py': {'total': {'loc': 3}},
+        }
+    }
+
+
+def test_joined_operator_data_renames_the_moved_directory_itself():
+    """The package's own measurement joins too; a name that only starts the same does not."""
+    operator_data: dict[str, dict[str, object]] = {
+        'raw': {
+            'glitchygames': {'total': {'loc': 10}},
+            'glitchygames_tools': {'total': {'loc': 2}},
+        }
+    }
+
+    assert joined_operator_data(operator_data=operator_data) == {
+        'raw': {
+            'src/glitchygames': {'total': {'loc': 10}},
+            'glitchygames_tools': {'total': {'loc': 2}},
         }
     }
 
@@ -328,58 +356,142 @@ def test_a_moved_modules_graph_is_one_series_through_its_whole_history(
 
     main()
 
-    html = (graphs_directory / graph_file_name(metric='raw.loc')).read_text(encoding='utf-8')
-    series = graph_trace_labels(html=html)
-    assert list(series) == ['src/glitchygames/branchy.py']
-    # One point per commit (wily lists them newest first), the one before the move included
-    messages = {label.split('<br>')[-1].strip() for label in series['src/glitchygames/branchy.py']}
-    assert messages == {'Before the move', 'The move', 'After the move'}
-
-
-def test_load_plotly_from_jsdelivr_keeps_plotlys_version():
-    """cdn.plot.ly's plotly.js becomes the same version on jsDelivr."""
-    html = '<script charset="utf-8" src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>'
-
-    rewritten = load_plotly_from_jsdelivr(html=html)
-
-    assert rewritten == (
-        '<script charset="utf-8" '
-        'src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>'
+    data = explorer_data(graphs_directory=graphs_directory)
+    assert data['modules'] == ['src/glitchygames/branchy.py']
+    # One point per commit (each changed its line count), the one before the move included
+    assert series_messages(data=data, path='src/glitchygames/branchy.py', metric='raw.loc') == [
+        'Before the move',
+        'The move',
+        'After the move',
+    ]
+    # The package's own series runs through the move too
+    assert data['packages'] == ['src/glitchygames']
+    assert series_messages(data=data, path='src/glitchygames', metric='raw.loc')[0] == (
+        'Before the move'
     )
 
 
-def test_load_plotly_from_jsdelivr_refuses_a_page_without_plotlys_cdn_script():
-    """A page without the cdn.plot.ly script means plotly changed its output: refused."""
-    with pytest.raises(ComplexityGraphError, match=r'no plotly\.js from cdn\.plot\.ly'):
-        load_plotly_from_jsdelivr(html='<script>/* plotly.js inlined */</script>')
+def revision(*, key: str, date: int, message: str, loc: dict[str, object]) -> dict[str, object]:
+    """Return a revision as ``wily_revisions`` gives it, measuring only line counts.
+
+    Returns:
+        The revision.
+
+    """
+    return {
+        'key': key,
+        'date': date,
+        'message': message,
+        'operator_data': {'raw': {path: {'total': {'loc': value}} for path, value in loc.items()}},
+    }
 
 
-def test_space_commits_evenly_makes_the_x_axis_one_slot_per_commit():
-    """Commits plotted by date get one evenly spaced slot each once the page loads."""
-    html = (
-        '<html><body><div class="plotly-graph-div"></div><script>/* plot */</script></body></html>'
-    )
+def test_wily_revisions_are_oldest_first_and_skip_a_revision_without_measurements(tmp_path):
+    """Oldest first (wily's index lists the newest first); one without its file is skipped."""
+    archiver_directory = tmp_path / 'git'
+    archiver_directory.mkdir()
+    index = [
+        {'key': 'newest', 'date': 30, 'message': 'Newest'},
+        {'key': 'missing', 'date': 20, 'message': 'Never measured'},
+        {'key': 'oldest', 'date': 10, 'message': 'Oldest'},
+    ]
+    (archiver_directory / 'index.json').write_text(json.dumps(index), encoding='utf-8')
+    for key in ('newest', 'oldest'):
+        (archiver_directory / f'{key}.json').write_text(
+            json.dumps({'operator_data': {'raw': {}}}), encoding='utf-8'
+        )
 
-    spaced = space_commits_evenly(html=html)
+    revisions = wily_revisions(cache_directory=tmp_path)
 
-    script_start = spaced.index('<script>window.addEventListener')
-    assert spaced.endswith('</script></body></html>')
-    assert spaced[:script_start] == html.removesuffix('</body></html>')
-    script = spaced[script_start:]
-    assert "'xaxis.type': 'category'" in script
-    assert "'xaxis.categoryorder': 'category ascending'" in script
-    assert 'Plotly.relayout' in script
-
-
-def test_space_commits_evenly_refuses_a_page_without_a_body_end():
-    """A page with no </body> means wily changed its output: refused."""
-    with pytest.raises(ComplexityGraphError, match=r'no </body>'):
-        space_commits_evenly(html='<div class="plotly-graph-div"></div>')
+    assert [entry['key'] for entry in revisions] == ['oldest', 'newest']
+    assert revisions[0]['operator_data'] == {'raw': {}}
 
 
-def test_graph_file_name_replaces_the_metric_dots():
-    """A metric's graph page is named after it, dots made underscores."""
-    assert graph_file_name(metric='maintainability.mi') == 'maintainability_mi.html'
+def test_wily_revisions_name_windows_paths_with_slashes(tmp_path):
+    """On Windows wily names paths with backslashes; the modules are looked up /-separated."""
+    archiver_directory = tmp_path / 'git'
+    archiver_directory.mkdir()
+    index = [{'key': 'only', 'date': 10, 'message': 'Only'}]
+    (archiver_directory / 'index.json').write_text(json.dumps(index), encoding='utf-8')
+    measured = {
+        'operator_data': {
+            'raw': {
+                'src\\glitchygames': {'total': {'loc': 5}},
+                'src\\glitchygames\\scene.py': {'total': {'loc': 3}},
+            }
+        }
+    }
+    (archiver_directory / 'only.json').write_text(json.dumps(measured), encoding='utf-8')
+
+    revisions = wily_revisions(cache_directory=tmp_path)
+
+    assert set(revisions[0]['operator_data']['raw']) == {
+        'src/glitchygames',
+        'src/glitchygames/scene.py',
+    }
+    assert packages_at_head(revisions=revisions) == ['src/glitchygames']
+
+
+def test_measurement_reads_a_paths_total_rounded_or_none():
+    """A path's total, rounded; None for an unmeasured path, operator or non-number."""
+    operator_data = {
+        'raw': {'a.py': {'total': {'loc': 10}}, 'b.py': {'total': {'loc': True}}},
+        'halstead': {'a.py': {'total': {'effort': 12.3456}}},
+    }
+
+    assert measurement(operator_data=operator_data, path='a.py', metric='raw.loc') == 10.0
+    assert measurement(operator_data=operator_data, path='a.py', metric='halstead.effort') == 12.35
+    assert measurement(operator_data=operator_data, path='b.py', metric='raw.loc') is None
+    assert measurement(operator_data=operator_data, path='c.py', metric='raw.loc') is None
+    assert measurement(operator_data=operator_data, path='a.py', metric='cyclomatic.x') is None
+
+
+def test_packages_at_head_are_the_ranked_packages_directories_at_the_newest_revision():
+    """The package and its directories as the newest revision measured them; files left out."""
+    revisions = [
+        revision(key='a', date=1, message='Old', loc={'src/glitchygames/gone': 1}),
+        revision(
+            key='b',
+            date=2,
+            message='New',
+            loc={
+                '': 9,
+                'src/glitchygames': 5,
+                'src/glitchygames/scenes': 3,
+                'src/glitchygames/scenes/scene.py': 3,
+                'src/glitchygames_other': 1,
+                'tests': 2,
+            },
+        ),
+    ]
+
+    assert packages_at_head(revisions=revisions) == ['src/glitchygames', 'src/glitchygames/scenes']
+    assert packages_at_head(revisions=[]) == []
+
+
+def test_complexity_history_keeps_only_the_commits_that_changed_a_value():
+    """Each series holds its first measurement and every change, as [commit index, value]."""
+    revisions = [
+        revision(key='1' * 40, date=0, message='First\n\nbody', loc={'m.py': 2}),
+        revision(key='2' * 40, date=86400, message='Same', loc={'m.py': 2, 'p': 4}),
+        revision(key='3' * 40, date=172800, message='Longer', loc={'m.py': 6, 'p': 4}),
+    ]
+
+    data = complexity_history(revisions=revisions, modules=['m.py'], packages=['p'])
+
+    assert data['commits'] == [
+        {'commit': '1111111', 'date': '1970-01-01', 'message': 'First'},
+        {'commit': '2222222', 'date': '1970-01-02', 'message': 'Same'},
+        {'commit': '3333333', 'date': '1970-01-03', 'message': 'Longer'},
+    ]
+    assert data['series']['m.py']['raw.loc'] == [[0, 2.0], [2, 6.0]]
+    # A package measured from the second commit on starts there
+    assert data['series']['p']['raw.loc'] == [[1, 4.0]]
+    # Metrics the revisions never measured have no points
+    assert data['series']['m.py']['cyclomatic.complexity'] == []
+    assert data['metrics'] == [{'key': metric, 'label': label} for metric, label in METRICS]
+    assert (data['modules'], data['packages']) == (['m.py'], ['p'])
+    assert (data['default_count'], data['plotly']) == (TOP_MODULE_COUNT, PLOTLY_JS_URL)
 
 
 def test_wily_command_runs_this_interpreters_wily_with_the_given_cache(tmp_path):
@@ -389,25 +501,26 @@ def test_wily_command_runs_this_interpreters_wily_with_the_given_cache(tmp_path)
     assert command == [sys.executable, '-m', 'wily', '--cache', str(tmp_path), 'index']
 
 
-def test_graphs_snippet_names_the_commit_and_modules_and_embeds_each_graph():
-    """The snippet names what was measured and embeds every metric's graph."""
+def test_graphs_snippet_names_what_was_measured_and_holds_the_explorer():
+    """The snippet names the commit and counts, then the explorer reading the published data."""
     graphs = ComplexityGraphs(
         commit='abc1234',
         commit_date='2026-10-23',
         commit_count=12,
-        modules=('glitchygames/a.py', 'glitchygames/b.py'),
-        graph_files={metric: graph_file_name(metric=metric) for metric, _label in METRICS},
+        modules=('src/glitchygames/a.py', 'src/glitchygames/b.py'),
+        packages=('src/glitchygames',),
     )
 
     snippet = graphs_snippet(graphs=graphs)
 
     assert snippet.startswith(
-        'Generated at commit `abc1234` (2026-10-23) from all 12 commits. The modules, highest '
-        'total cyclomatic complexity first: `glitchygames/a.py`, `glitchygames/b.py`.'
+        'Generated at commit `abc1234` (2026-10-23) from all 12 commits: 2 modules and 1 '
+        'packages of `src/glitchygames`.'
     )
-    for metric, metric_label in METRICS:
-        assert f'## {metric_label}' in snippet
-        assert f'<iframe src="../graphs/{graph_file_name(metric=metric)}"' in snippet
+    assert (
+        '<div class="complexity-explorer" data-source="../graphs/complexity-explorer.json"></div>'
+    ) in snippet
+    assert '<iframe' not in snippet
 
 
 def test_run_tool_returns_the_output(tmp_path):
@@ -429,6 +542,12 @@ def test_run_tool_raises_with_the_output_of_a_failed_tool(tmp_path):
             working_directory=tmp_path,
             timeout_seconds=60.0,
         )
+
+
+def test_a_checkout_without_the_ranked_package_is_refused_by_name(tmp_path):
+    """HEAD without src/glitchygames/ says so, not a raw FileNotFoundError from radon's report."""
+    with pytest.raises(ComplexityGraphError, match=r'no src/glitchygames/ to rank'):
+        measure_ranked_modules(checkout=tmp_path, report_path=tmp_path / 'radon.json')
 
 
 def test_run_tool_raises_for_a_tool_that_outlives_its_timeout(tmp_path):
@@ -466,12 +585,13 @@ def test_detached_checkout_removes_its_worktree_after_an_error(fixture_repositor
     assert len(git(repository=fixture_repository, arguments=['worktree', 'list']).splitlines()) == 1
 
 
-def test_main_graphs_the_fixture_repositorys_history(fixture_repository, tmp_path, mocker):
-    """Running main graphs every metric for the ranked modules, loading plotly.js from jsDelivr."""
+def test_main_measures_the_fixture_repositorys_history(fixture_repository, tmp_path, mocker):
+    """Running main writes every metric of the ranked modules and the package, and the snippet."""
     graphs_directory = tmp_path / 'graphs'
     graphs_directory.mkdir()
-    stale_graph = graphs_directory / 'src_glitchygames_old_module_py_raw_loc.html'
-    stale_graph.write_text('a graph of a module that left the ranking', encoding='utf-8')
+    # A graph page an earlier generation wrote, before the explorer
+    stale_graph = graphs_directory / 'raw_loc.html'
+    stale_graph.write_text('a wily graph page', encoding='utf-8')
     mocker.patch.object(generate_complexity_graphs, 'PROJECT_ROOT', fixture_repository)
     mocker.patch.object(generate_complexity_graphs, 'GRAPHS_DIR', graphs_directory)
     head_commit = git(repository=fixture_repository, arguments=['log', '-1', '--format=%h'])
@@ -479,22 +599,25 @@ def test_main_graphs_the_fixture_repositorys_history(fixture_repository, tmp_pat
     main()
 
     assert not stale_graph.exists()
-    for metric, _label in METRICS:
-        html = (graphs_directory / graph_file_name(metric=metric)).read_text(encoding='utf-8')
-        assert 'src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@' in html
-        assert 'cdn.plot.ly' not in html
-        # Both modules are graphed (simple.py's line too)
-        # (plotly escapes the trace names' slashes in its JSON)
-        assert '"name":"src\\u002fglitchygames\\u002fsimple.py"' in html
-        assert '"name":"src\\u002fglitchygames\\u002fbranchy.py"' in html
-    snippet = (graphs_directory / GRAPHS_SNIPPET_NAME).read_text(encoding='utf-8')
+    data = explorer_data(graphs_directory=graphs_directory)
     # branchy.py (complexity 3) ranks before simple.py (1); radon reports nothing for the empty
     # __init__.py, so it is not ranked
+    assert data['modules'] == ['src/glitchygames/branchy.py', 'src/glitchygames/simple.py']
+    assert data['packages'] == ['src/glitchygames']
+    assert [commit['message'] for commit in data['commits']] == ['First', 'Branchier']
+    for path in (*data['modules'], *data['packages']):
+        assert set(data['series'][path]) == {metric for metric, _label in METRICS}
+    # branchy.py grew in the second commit; simple.py never changed (one point)
+    assert series_messages(data=data, path='src/glitchygames/branchy.py', metric='raw.loc') == [
+        'First',
+        'Branchier',
+    ]
+    assert series_messages(data=data, path='src/glitchygames/simple.py', metric='raw.loc') == [
+        'First'
+    ]
+    snippet = (graphs_directory / GRAPHS_SNIPPET_NAME).read_text(encoding='utf-8')
     assert f'Generated at commit `{head_commit.strip()}` ' in snippet
-    assert (
-        'from all 2 commits. The modules, highest total cyclomatic complexity first: '
-        '`src/glitchygames/branchy.py`, `src/glitchygames/simple.py`.'
-    ) in snippet
+    assert 'from all 2 commits: 2 modules and 1 packages of `src/glitchygames`.' in snippet
     # The worktree is gone and the repository's own checkout untouched
     assert len(git(repository=fixture_repository, arguments=['worktree', 'list']).splitlines()) == 1
     assert not git(repository=fixture_repository, arguments=['status', '--porcelain'])
@@ -563,35 +686,32 @@ def test_two_generations_at_once_both_succeed_and_only_one_generates(fixture_rep
 
     assert errors == []
     assert sorted(outcomes) == [False, True]
-    for metric, _label in METRICS:
-        html = (graphs_directory / graph_file_name(metric=metric)).read_text(encoding='utf-8')
-        assert 'cdn.jsdelivr.net/npm/plotly.js-dist-min@' in html
-        assert 'cdn.plot.ly' not in html
+    assert explorer_data(graphs_directory=graphs_directory)['modules']
 
 
-def test_the_published_graphs_stay_whole_while_new_ones_are_made(
+def test_the_published_data_stays_whole_while_new_data_is_made(
     fixture_repository, tmp_path, mocker
 ):
-    """Wily graphs into staging: published pages are replaced only once the new ones are done."""
+    """The data is made in staging: the published file is replaced only once the new one is done."""
     graphs_directory = tmp_path / 'graphs'
     graphs_directory.mkdir()
-    published_page = graphs_directory / graph_file_name(metric=METRICS[0][0])
-    published_page.write_text("the previous generation's page", encoding='utf-8')
-    real_graph_metric = generate_complexity_graphs.graph_metric
-    seen_while_graphing: list[str] = []
+    published_data = graphs_directory / EXPLORER_DATA_NAME
+    published_data.write_text("the previous generation's data", encoding='utf-8')
+    real_complexity_history = generate_complexity_graphs.complexity_history
+    seen_while_measuring: list[str] = []
 
-    def graph_metric_watching(**arguments) -> None:
-        seen_while_graphing.append(published_page.read_text(encoding='utf-8'))
-        # Into the staging directory, never straight into the published one
-        assert arguments['output_path'].parent != graphs_directory
-        real_graph_metric(**arguments)
+    def complexity_history_watching(**arguments) -> dict:
+        seen_while_measuring.append(published_data.read_text(encoding='utf-8'))
+        return real_complexity_history(**arguments)
 
-    mocker.patch.object(generate_complexity_graphs, 'graph_metric', graph_metric_watching)
+    mocker.patch.object(
+        generate_complexity_graphs, 'complexity_history', complexity_history_watching
+    )
 
     generate_if_stale(project_root=fixture_repository, graphs_directory=graphs_directory)
 
-    assert seen_while_graphing == ["the previous generation's page"] * len(METRICS)
-    assert 'cdn.jsdelivr.net' in published_page.read_text(encoding='utf-8')
+    assert seen_while_measuring == ["the previous generation's data"]
+    assert explorer_data(graphs_directory=graphs_directory)['modules']
 
 
 def test_a_generation_cleans_up_after_one_that_crashed(fixture_repository, tmp_path):
@@ -605,8 +725,8 @@ def test_a_generation_cleans_up_after_one_that_crashed(fixture_repository, tmp_p
 
     assert not leftover.exists()
     published = {path.name for path in graphs_directory.iterdir()}
-    expected = {graph_file_name(metric=metric) for metric, _label in METRICS}
-    assert published - {GENERATION_LOCK_NAME} == expected | {
+    assert published - {GENERATION_LOCK_NAME} == {
+        EXPLORER_DATA_NAME,
         GRAPHS_SNIPPET_NAME,
         GENERATED_FROM_NAME,
     }

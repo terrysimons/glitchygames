@@ -7,6 +7,7 @@ import sys
 from http import HTTPStatus
 from typing import Any
 
+from glitchygames.color import MAX_COLOR_CHANNEL_VALUE
 from glitchygames.sprites import BitmappySprite
 
 # Logger
@@ -23,11 +24,11 @@ MAX_PIXELS_ACROSS = 64
 MIN_PIXELS_ACROSS = 1
 MAX_PIXELS_TALL = 64
 MIN_PIXELS_TALL = 1
+# The engine's channel range under Bitmappy's names, so the two cannot drift (BUGS.md #155 item 4)
 MIN_COLOR_VALUE = 0
-MAX_COLOR_VALUE = 255
+MAX_COLOR_VALUE = MAX_COLOR_CHANNEL_VALUE
 
 # Timing and debouncing
-MODEL_DOWNLOAD_TIME_THRESHOLD_SECONDS = 60  # AI model response time threshold
 PIXEL_CHANGE_DEBOUNCE_SECONDS = 0.1  # Debounce timer for auto-submit
 
 # Color and training
@@ -74,12 +75,13 @@ AI_FEATURES_ENABLED: bool = sys.platform != 'emscripten'
 SPRITE_FILE_EXTENSIONS: tuple[str, ...] = ('.toml',)
 
 # AI model configuration
-AI_MODEL: str = 'anthropic:claude-sonnet-4-5'
-AI_TIMEOUT = 600  # Seconds to wait for AI response (10 minutes for ollama models)
+# The local AI service's role name: it answers with whichever size this machine can run
+AI_MODEL: str = 'reasoning'
+AI_TIMEOUT = 600  # Seconds to wait for AI response
 AI_QUEUE_SIZE = 10
-AI_MAX_CONTEXT_SIZE = 65536  # Total context window size
+AI_MAX_CONTEXT_SIZE = 262144  # Total context window size: the model's whole 262K
 AI_MAX_INPUT_TOKENS = 8192  # Maximum tokens for INPUT (prompts, examples)
-AI_MAX_OUTPUT_TOKENS = 64000  # Maximum tokens for OUTPUT (AI response, large sprites)
+AI_MAX_OUTPUT_TOKENS = 262144  # No cap of its own: the context ends a response
 AI_MAX_TRAINING_EXAMPLES = 1000  # Allow many more training examples for full context
 
 # Retry configuration for AI requests
@@ -92,9 +94,6 @@ RETRYABLE_CLIENT_ERROR_STATUS_CODES = frozenset({
     HTTPStatus.CONFLICT,
     HTTPStatus.TOO_MANY_REQUESTS,
 })
-
-# Model download timeout (much longer for initial model download)
-AI_MODEL_DOWNLOAD_TIMEOUT = 1800  # 30 minutes for model download
 
 # AI training state (module-level global)
 ai_training_state: dict[str, list[dict[str, Any]] | str | None] = {

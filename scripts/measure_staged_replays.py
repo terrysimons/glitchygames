@@ -20,7 +20,7 @@ The rules (a code review's findings, 2026-10-25):
    still lacking one): a docs commit after a measured one is instant, while
    code that arrived without the hook (a branch updated from main: no merge, rebase or GitHub
    "Update branch" runs the pre-commit stage) is measured by the next commit, whatever it
-   changes. After updating a branch, run this script by hand and commit what it stages.
+   changes. After updating a branch, run ``nox -s measure-staged`` and commit what it stages.
 2. Every row file of the staged code tree is staged, not only new ones: rows written before a
    measurement failed (the commit was refused) are staged on the retry. So is every row file the
    measurement wrote (found by comparing the rows directory before and after), the history
@@ -41,8 +41,8 @@ repository given, never from a module-level read of this one's (the controller's
 
 ``SKIP=replay-metrics git commit ...`` commits without measuring.
 
-Usage (the framework runs it; by hand after updating a branch, then commit):
-    uv run python -m scripts.measure_staged_replays
+Usage (the framework runs it through nox; by hand after updating a branch, then commit):
+    nox -s measure-staged
 """
 
 from __future__ import annotations
@@ -242,14 +242,17 @@ def measure_staged(*, repository: Path, rows_directory: Path) -> int:
     )
     # The files this measurement wrote are valid measurements even when it failed partway
     # (history rows among them: their names lead with "history", not the tree), plus every row
-    # file of the tree already on disk (rule 2): staged now, so a retry commits them
+    # file of the tree already on disk (rule 2): staged now, so a retry commits them. A file
+    # written now is also one of the tree's, so the two lists are merged without repeats
     written = sorted(_row_file_names(rows_directory=rows_directory) - files_before)
     _stage(
         repository=repository,
-        paths=[
-            *(rows_directory / name for name in written),
-            *_tree_row_files(rows_directory=rows_directory, code_tree=code_tree),
-        ],
+        paths=list(
+            dict.fromkeys([
+                *(rows_directory / name for name in written),
+                *_tree_row_files(rows_directory=rows_directory, code_tree=code_tree),
+            ])
+        ),
     )
     if exit_code != ExitCode.SUCCESS:
         sys.stderr.write(

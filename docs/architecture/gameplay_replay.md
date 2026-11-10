@@ -359,16 +359,26 @@ events are served as `None`, as live events of the display window carry.
 
 A replay without `--headless` is watched: a read-only game inside a game
 (`src/glitchygames/replay/viewer.py`). The outer loop, the replay viewer, owns the window: it ticks
-60 times a second of real time whatever the speed and whether paused, reads the viewer's keys,
-and presents the recorded game's latest frame with the status bar drawn on it. The inner loop,
-the recorded game, runs its frames in full (logic, update and render) at their recorded frame
-times: each tick runs as many as the real time since the last tick, times the speed, pays for
-(at most `MAX_INNER_FRAMES_PER_TICK`, and only within an 11 ms real-time budget per tick, so
-keys and drawing keep their 60 Hz). It never owes more than one tick's worth: after a stall it
-runs one bounded burst and drops the rest, and when the recorded game cannot keep up with the
-speed the status bar says so and shows the real speed (`can't keep up: ×3.2`). So 1x shows
-about one recorded frame per tick, 8x about eight, 1/4x one every fourth tick. Which frames run
-when never changes what they do, so a watched replay is exactly as exact as a headless one.
+60 times a second of real time whatever the speed and whether paused, reads the viewer's keys, and
+presents the recorded game's latest frame with the status bar drawn on it. The inner loop, the
+recorded game, runs its frames in full (logic, update and render) at their recorded frame times:
+each tick runs as many as the real time since the last tick, times the speed, pays for, only within
+an 11 ms real-time budget per tick, so keys and drawing keep their 60 Hz. At every speed the budget
+is the only per-tick limit (no frame count), so an uncapped recording whose frames cost what they
+did live may still not keep up on a real machine, and "can't keep up" then means exactly that. Up to
+1x a tick runs at most one recorded frame unless the replay is genuinely behind (it owes that frame
+plus a whole tick): a frame the live game ran long and the short frame its pacing caught up with
+then get a tick each, so both are presented, and the replay then stays about a tick behind real time
+(a constant lag, not a drift; a pause resets it). A recording faster than 60 FPS is behind by that
+measure every tick, so a tick runs several of its frames and presents the last. Above 1x the same
+limit follows a frame lasting at least a tick of inner time at that speed (17 ms of real time for a
+34 ms frame at 2x), so fast-forward still shows it; shorter frames run several a tick and the last
+is presented. What it owes is capped (32.5 frames, never below a frame plus a 60 Hz tick plus the
+tick paid for, so a slower display keeps the rate): after a stall it runs one bounded burst and
+drops the rest, and when the recorded game cannot keep up with the speed the status bar says so and
+shows the real speed (`can't keep up: ×3.2`). So 1x shows about one recorded frame per tick, 8x
+about eight, 1/4x one every fourth tick. Which frames run when never changes what they do, so a
+watched replay is exactly as exact as a headless one.
 
 It first runs frame 0, then holds on a start screen: that frame dimmed, "Press Spacebar to Start
 Game Replay" centred, and a smaller line naming the debug overlay's keys (`F3: debug overlay
@@ -822,7 +832,8 @@ Each tool is reachable two ways, with the same name and the same options:
   nearest directory at or above the current one whose `pyproject.toml` has
   `[tool.glitchygames]`, else the nearest with a `pyproject.toml`, else the current directory);
   for `record-trace`, `replay-trace`, `record-golden-trace` and `record-session`, the directory
-  the game runs in (default: the current directory); `report` reads only its recording.
+  the game runs in (default: the current directory); `report`, `sound-render` and
+  `sound-migrate` read only what they are given.
 
 Both front ends are generated from one table, `TOOLS` in
 `src/glitchygames/replay/tools/registry.py`, which is the reference for every flag, option,
@@ -844,6 +855,8 @@ own git repository.
 | `clear-published` | no | `--clear-published [--pending PATH]` | `glitchygames clear-published [--pending PATH]` |
 | `report` | no | `--report PATH [--threshold PERCENT] [--minimum-ms MS] [--spans N]` | `glitchygames report PATH` with the same options |
 | `performance-pages` | no | `--performance-pages DIRECTORY [--published]` | `glitchygames performance-pages DIRECTORY [--published]` |
+| `sound-render` | no | `--sound-render SOURCE --sound-output PATH [--sample-format int16\|float32]` (SOURCE: `sounds/pickups.toml#coin` or a WAV file; offline, no audio device) | `glitchygames sound-render SOURCE` with the same options |
+| `sound-migrate` | no | `--sound-migrate FILE [--migrated-output PATH]` (a version 0 recipe file to version 1, default `<stem>.v1.toml` beside it, never over FILE) | `glitchygames sound-migrate FILE [--migrated-output PATH]` |
 
 - An option several tools list is one flag on the game: `--random-seed` (every tool that runs
   the game) and `--headless` (the four that record or replay). `--random-seed` is never needed:
@@ -929,7 +942,7 @@ by the tool that writes it, or reported; it is never a traceback.
 
 | Key | Default | Ours (the root `pyproject.toml`) |
 |---|---|---|
-| `games` | the project's `[project.scripts]` | the nine members' console scripts |
+| `games` | the project's `[project.scripts]` | the ten members' console scripts |
 | `golden-globs` | `["tests/fixtures/replays/**/*.jsonl.gz"]` | `["src/*/*/tests/fixtures/replays/golden*.jsonl.gz"]` |
 | `ledger-directory` | `"replay-ledger"` | `"quality/replay-ledger"` |
 | `pending-ledger` | `".glitchygames/pending-ledger.jsonl"` | `"test-results/replay-metrics/pending.jsonl"` |

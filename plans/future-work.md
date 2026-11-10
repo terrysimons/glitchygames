@@ -4,6 +4,65 @@ Suggested during the `feature/debug-overlay`, `feature/engine-world-space` and
 `feature/gameplay-replay` sessions (2026-10-17 to 2026-10-20) and not done yet. One line per item, with where it is detailed. Review, then promote items into
 `plans/engine-audit.md`, a plan, or BUGS.md, or delete them.
 
+## Game samples, phase 0: re-audit before planning (2026-10-28)
+
+Phase 0 of the game samples feature (plans/2026-10-25-game-samples-design.md, section 0) was to
+remove the layer crossings found by plans/2026-10-26-layer-audit.md, taken at `a97efbe9`. PR #111
+(Part 3: members' packages under `src/`, the demos as members, engine tests that borrow no member
+and import no `scripts.*`, the engine owning every replay tool in `glitchygames.replay.tools`)
+removes much of that audit and changes the ground under the rest, so the phase 0 plan waits.
+Branch `feature/samples-phase-0-layers` holds no phase 0 work yet. In order:
+
+- [x] **Land #111.** Its Windows CI job fails (Linux and macOS pass); find out why and fix it, or
+  confirm another session has it. **Done**: #111 merged 2026-10-28 (checked 2026-11-08).
+- [ ] **Rebase `feature/samples-phase-0-layers` onto `main`** once #111 is merged.
+- [ ] **Re-run the layer audit** against the new tree, and record what #111 resolved, what is
+  left and anything new, against the 2026-10-26 audit (update that file, dated, rather than
+  writing another).
+- [ ] **Write the phase 0 plan from what is left.** Expected: public controls (`_create_action_map(s)`
+  made public, a `Controls` record), the `Game` descriptor and registration by composition (section
+  5a), and each game's robot-player script moved into its game as its `cpu.scripted` player,
+  built on #111's `record-golden-trace` rather than a new harness.
+- [ ] **Coordinate the test-isolation API with engine context sub-plan 2**
+  (`feature/engine-context-2-engine-state`; since 2026-11-08 Arcade sub-plan 1, rebased onto main
+  as `arcade-1-engine-state`), which rewrites the same resets in `tests/harness.py`: one of the
+  two owns them, not both.
+- [ ] **Bring the samples design up to date with what landed meanwhile:** #111's seed rule
+  (decision 17: `--random-seed` defaults to None and a recording logs the seed it rolled) against
+  the design's fixed per-target default seed, and the player roster design
+  (`plans/2026-10-28-player-roster-design.md`, moved from `feature/player-roster` on 2026-11-08;
+  its open question on players that are not people is this item's) against the design's human
+  and ai players.
+
+Carried from the Part 2 session (#109), to settle in the re-audit or the phase 0 plan:
+
+- [ ] **Delete the multiple-console-script selection** in `recording_console_script`
+  (`glitchygames.testing.replays` then; `glitchygames.replay.tools.children` since; ruling R1 of
+  Part 2): it picks a member's command by the
+  recording's game, and nothing outside its tests uses it since the Brave Adventurer launcher
+  replaced the per-game commands. Registration by composition (design section 5a) reaches a
+  wrapped game through its wrapper, so no target needs a command of its own. Check first that #111
+  did not change or start using it.
+- [ ] **Bundled demos inside a wrapped game** need no lookup of their own: `bundled_demos()` pairs a
+  demo with the command whose module is the demo's package, so a demo in a package without a
+  command (`brave_adventurer/demos/`) would fail collection. No wrapped game ships a demo; the
+  samples catalogue (composition) replaces this lookup. Record it there, build nothing now.
+- [ ] **The moved recordings' stale module fields, and the ledger's key, in this order**: re-key the
+  run ledger by sample identity (`<target>:<kind>:<role>`, design section 5) before the samples move
+  the recordings again, so that move needs no rename lines; then convert each recording's header
+  once so it stops naming the old module (its `game_module` names the deleted examples package)
+  and the first frame stops storing the raw module, which is why every moved recording reports a one-frame
+  difference when re-measured (or stop recording the raw module: future-features #55); then move the
+  recordings into each package's `samples/`. #111 migrated 7 golden headers' stored paths: check
+  what it left.
+- [ ] **Package data for every game**: a check that each member's wheel carries the data its game
+  reads (sprites, sounds, demos, and later `samples/`). #111 added import declarations and sprite
+  round-trip checks for every member: see whether it covers this.
+- [x] **`plans/future-features.md` has two entries numbered 54 and two numbered 55** (Docs deploys and
+  Drawing Fire after the MVP; Recording naming and Swatches). Ask the user whether to renumber;
+  other documents may cite the numbers. **Done**: main has no duplicate numbers (checked
+  2026-11-08).
+
 ## Gameplay replay wrap-up (done)
 
 Merged 2026-10-22: `feature/engine-world-space` as PR #94 (`cd5e5f97`) and
@@ -56,6 +115,14 @@ local branches are deleted. The decisions made on the way, for the record:
   recorded key event given its position; a one-off check proved nothing else changed), not
   re-recorded, and `ScriptedInputSupervisor` posts with `post_input_event`. Later: a rebind
   screen saving `ActionMap.to_dict()` (it already round-trips scancodes).
+- **Per-device axis deadzones** (2026-11-01, from the `--axis-deadzone` discussion): the engine
+  option is one value for every device and both event layers (a deadzone belongs to the
+  physical stick, which `--input-mode` can read on either layer). A player with a drifting pad
+  and a precise flight stick plugged in together needs one per device: a saved setting keyed by
+  the device's GUID (stable across sessions; instance ids are not), set from a controls screen,
+  with `--axis-deadzone` as the fallback. Per-layer options (`--controller-deadzone`,
+  `--joystick-deadzone`) were considered and rejected: the same stick would get two deadzones
+  depending on the input mode.
 
 ## Sprite QuickLook (`src/quicklook`, 2026-10-29)
 
@@ -78,8 +145,9 @@ local branches are deleted. The decisions made on the way, for the record:
 - Later ideas, not built: hitbox and frame-anchor overlays in the preview; a swatch (palette-swap)
   picker; `[[transition]]` playback; syntax highlighting in the plain-text fallback for
   non-sprite `.toml` files.
-- When the engine's row-normalization or `frame_index` bugs (below) are fixed, update
-  `Sources/SpriteCore` and regenerate the golden frames in the same change.
+- ~~When the engine's `frame_index` bug (below) is fixed, update `Sources/SpriteCore` and
+  regenerate the golden frames in the same change.~~ Done 2026-10-31 (BUGS.md #232). (The
+  row-normalization one was, 2026-10-30.)
 
 ## Bugs found and not fixed yet
 
@@ -95,11 +163,17 @@ local branches are deleted. The decisions made on the way, for the record:
 | Undoing an animation delete restores the sprite data but only refreshes existing film strip widgets, so the restored animation appears to get no film strip until strips are rebuilt (`on_sprite_loaded`) | `src/glitchygames/bitmappy/history/commands.py` (`AnimationAddCommand._add_animation`) | Found while fixing BUGS.md #51; not checked in the running app. |
 | The animation-delete undo capture keeps frame pixels and durations but not per-frame hitboxes | `src/glitchygames/bitmappy/film_strip_coordinator.py` (`_capture_animation_deletion_for_undo`) | Found while fixing BUGS.md #51. |
 | PaddleSlap's `_separate_overlapping_balls` runs after wall and paddle handling, so a ball can sit 1–3 px inside a paddle or past a wall for one frame | `src/games/paddleslap/paddleslap/__init__.py` | Pre-existing, self-correcting next frame. |
-| Papyrus sprites keep their unscaled native rect size | BUGS.md #59 | Latent; fixing it needs its own golden expected-difference class. |
-| Brave Adventurer's ground and walls stay drawn only because the parallax layers dirty the whole screen | BUGS.md #60 | Fragile; make the terrain `dirty = 2` or document the dependency. |
+| ~~Papyrus sprites keep their unscaled native rect size~~ | BUGS.md #59 | Latent; fixing it needs its own golden expected-difference class. **Done** 2026-10-31 (bug sweep, golden changers): rects sized to the scaled image, a new `ExpectedDifference`, golden-papyrus rebaselined. |
+| ~~Brave Adventurer's ground and walls stay drawn only because the parallax layers dirty the whole screen~~ | BUGS.md #60 | Fragile; make the terrain `dirty = 2` or document the dependency. **Done** 2026-10-31 (bug sweep 2): the terrain is `dirty = 2`. |
 | Brave Adventurer's and Papyrus's enemies (Cobra, Scarab, Scorpion) still draw in `update()` | `src/games/brave-adventurer/src/brave_adventurer/enemies.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py` | Harmless while their hitboxes do not depend on the pose (the scarab's bounds are the same at every roll angle); move drawing into `dt_tick` (the pose rule) if they ever do. |
-| Static and animated sprites normalize ragged pixel rows differently: static (`_convert_static_sprite`) strips only the whole string, pads to the longest row with the sprite's most common glyph and never truncates; animated frames (`parse_toml_pixel_lines` + `_validate_toml_frame_dimensions`) strip each line, drop empty lines, use the most common row length, truncate longer rows and pad shorter ones with their own last glyph. Unify on one rule (do it **on its own branch**, the owner, 2026-10-29) | `src/glitchygames/sprites/animated.py` | Found 2026-10-29 while writing the sprite QuickLook design (`docs/specs/2026-10-29-sprite-quicklook-design.md`), which copies both behaviors; update the QuickLook parser and its golden frames in the same change. |
-| TOML frames are never ordered by `frame_index`: `_process_toml_animation` sorts with `frames.sort(key=lambda f: getattr(f, 'frame_index', 0))`, but `SpriteFrame` never gets a `frame_index` attribute, so every key is 0 and frames play in file order | `src/glitchygames/sprites/animated.py` (`_process_toml_animation`, `_create_toml_frame`) | Found 2026-10-29 by the sprite QuickLook golden tests (`src/quicklook`), which copy the file-order behavior. Decide whether `frame_index` should order frames (set it on the frame) or be dropped from the format; update the QuickLook loader and golden frames in the same change. |
+| ~~Static and animated sprites normalize ragged pixel rows differently: static (`_convert_static_sprite`) strips only the whole string, pads to the longest row with the sprite's most common glyph and never truncates; animated frames (`parse_toml_pixel_lines` + `_validate_toml_frame_dimensions`) strip each line, drop empty lines, use the most common row length, truncate longer rows and pad shorter ones with their own last glyph. Unify on one rule (do it **on its own branch**, the owner, 2026-10-29)~~ | `src/glitchygames/sprites/animated.py` | Found 2026-10-29 while writing the sprite QuickLook design (`docs/specs/2026-10-29-sprite-quicklook-design.md`), which copies both behaviors; update the QuickLook parser and its golden frames in the same change. **Done** 2026-10-30 (`feat/unified-pixel-rows`): one rule, `normalize_pixel_rows`, for both and for QuickLook; design `docs/specs/2026-10-30-unified-pixel-rows-design.md`, BUGS.md #239. |
+| ~~Bitmappy's AI clean-up (`_normalize_escaped_newlines`, `toml_processing.py`, used by the alpha path and `ai_manager`) turns a `\` glyph followed by an `n` glyph into a line break, splitting the row~~ | `src/apps/bitmappy/src/bitmappy/toml_processing.py` | Found 2026-10-30 in the pixel-rows review (BUGS.md #243). Won't fix (the owner, 2026-11-01): `\n` is always a line break. |
+| ~~`scripts/foo.toml` has pixels and no `[colors]`, so every pixel draws transparent; nothing checks `scripts/`~~ | `scripts/foo.toml` | Found 2026-10-30 by the pixel-rows audit (BUGS.md #244). Deleted (the owner, 2026-11-01); the demos load `scripts/animated.toml`. |
+| ~~`BitmappySprite.inflate` raises `KeyError` for a glyph missing from the palette, while `AnimatedSprite` draws it transparent; the fallback loader and the engine still disagree on missing glyphs~~ | `src/glitchygames/sprites/bitmappy_sprite.py` | Found 2026-10-30 moving the fallback onto `normalize_pixel_rows` (its padding is mapped, so padding is safe). Fixed 2026-11-01 (BUGS.md #178.2): both static loaders draw an unknown glyph magenta, with a warning. |
+| `normalize_pixel_rows` counts a trimmed `\r` back in when deciding whether a row is short, so raw (non-TOML) text like `"abcd\r\nabc\r\nabcd"` pads `abc` without reporting it. Files are unaffected (`tomllib` turns CRLF into LF) | `src/glitchygames/sprites/pixel_utils.py` | Found 2026-10-30 by the pixel-rows final review (minor). Count back only spaces and tabs. |
+| `namespace` is written unescaped by the sprite writers, so a namespace containing `"` or `\` writes broken TOML | `src/glitchygames/sprites/animated.py`, `src/apps/bitmappy/src/bitmappy/ai_manager.py`, `src/glitchygames/ai/sprite_generator.py` | Found 2026-10-30 by the pixel-rows final review (minor; predates the branch). Use `toml_basic_string`. |
+| Bitmappy's repair notice counts a palette-key problem as a "block" ("Repaired the pixel rows of 2 block(s)") | `src/apps/bitmappy/src/bitmappy/animated_canvas.py` (`pixel_row_repair_notice`) | Found 2026-10-30 by the pixel-rows final review (minor; wording only). |
+| Each AI response runs `_prepare_ai_content` twice (the pixel-row check, then the load), repeating its parse, rewrite and logs | `src/apps/bitmappy/src/bitmappy/ai_manager.py` | Found 2026-10-30 by the pixel-rows final review (minor). |
 | ~~`qlmanage -t -s 256 -o <dir> <sprite.toml>...` hangs with no output and the sprite thumbnail extension never launches~~ | `src/quicklook/tools/make_thumbnails.swift` | Found 2026-10-29 (`feat/sprite-quicklook`, plan Task 7). **Done** (explained, not an extension bug): on this macOS `qlmanage -t` only uses old generator plug-ins (its log says "missing or invalid generator for thumbnail" and its `com.apple.quicklook.thumbnail` discovery finds 0 extensions), and it hangs on any type without one (an unknown `.qqqzz` file hangs too). Through `QLThumbnailGenerator`, the API Finder uses, the extension draws sprites and declines other `.toml` files, which keep the plain document icon they had before (checked with the extension switched off). Check thumbnails with `swift tools/make_thumbnails.swift`. |
 | The multi-ball simulation tests write `ball.rect.x/y` for start positions and separations, which never took effect (the ball's position is `world_x`/`world_y`; rect was rebuilt from it, now by the engine), so every ball starts at its `reset()` serve position, not the drawn random one | `tests/game_objects/test_multi_ball_*.py` | Pre-existing test weakness found in feature/engine-world-space Task 9; set `world_x`/`world_y` instead and re-check the thresholds. |
 
@@ -107,9 +181,12 @@ local branches are deleted. The decisions made on the way, for the record:
 
 - ~~Engine world space (#6) with the `_finish_frame()` consolidation (#15)~~ **Done** on
   `feature/engine-world-space` (see `plans/engine-audit.md`).
-- **Next: solid collision (#1) with the rest of balls on `CollisionManager` (#7).** Brave Adventurer
-  and Papyrus now duplicate `_player_support_span` / `_entered_wall_from_left`; the solid-collision
-  design should absorb them.
+- **Solid collision (#1) with balls on `CollisionManager` (#7): phase 1 done** 2026-11-02
+  (`feat/solid-collision`): the side rule, flush placement and swept landing are engine
+  primitives (`src/glitchygames/collision/solids.py`) used by Brave Adventurer, Clockwork Keep and the
+  ball, with no behavior change (the editions' duplicated helpers had already been merged on
+  2026-10-26). **Next:** phase 2, solids as data on the tilemap format's property layers
+  (`plans/2026-11-02-solid-collision.md`).
 - **Level tools / Glitchy Studio (#11):** `plans/2026-10-18-level-tools.md` and sub-plans A–E
   (tilemap format with object layers, Mapsmith, Tilesmith, Bitmappy updates, Galimore import). Each
   needs a brainstormed spec before implementation.
@@ -134,36 +211,18 @@ Part 3 stopped the engine's tests borrowing members (decision 7) and measured th
 coverage from the root `tests/` alone before and after each of C2, C3 and C4 (decision 11): no
 arc was lost. What follows is left.
 
-- **Engine arcs reached only by root tests that run members.** The engine has no test of its own
-  for these; the golden-trace test, the golden-script round trip and the power-on test reach them
-  by running the games. They are not gaps (a full run covers them), but each deserves an engine
-  stand-in test that reaches it directly. Line numbers are as of 273fa323 and re-checked
-  2026-10-26 (none of these files changed since):
-  - `game_objects/ball.py`: `dt_tick` (744), `_finish_wall_bounce` (820-821)
-  - `animation/state_machine.py`: `evaluate` (291-292), `_switch_to` (342, 346)
-  - `physics/body.py`: `get_animation_context` (133)
-  - `input/action_map.py`: `handle_event` (401)
-  - `audio/recipes.py`: `render` (116-117)
-  - `audio/synth.py`: `concatenate` (437)
-  - `camera.py`: `update_scroll` (144)
-  - `transitions/elevator.py`: `_draw_shaft_walls` (208-209); the `ElevatorTransition` stand-in in
-    `tests/world/test_transition_input.py` may reach it now: check before writing a test
-  - `sprites/animated.py`: `SpriteAnimation.__init__` (575), `update_nested_sprites` (2663)
-  - `engine/game_engine.py`: `_crash_boundary` (2577), `_run_game` (2596); only the power-on
-    test reaches them
-- **Root-only engine gaps that were there before Part 3.** The root `tests/` alone misses the
-  same 5 lines and 7 branches before and after C2 (so they are not from the moves; a full run
-  covers them through members' tests or not at all): `collision/layers.py` 72;
-  `scenes/scene.py` 1270->1276; `sprites/animated.py` 1096, 1098, 2039-2040 and their branches.
-  Give the engine its own tests for them.
-- **Member tests import helpers from root test modules** (`tests.collision.test_ball_paddle_collision`,
-  `tests.world.test_frame_integration`). Move the shared helpers into non-test helper modules
-  both can import.
-- **The import guard's blind spots.** `engine_test_imports_of_members` finds literal
-  `importlib.import_module`/`__import__` strings but not `importlib.__import__`,
-  `builtins.__import__`, `pytest.importorskip` or `importlib.util.find_spec`. The member-test
-  naming check (`test_<distribution>*`) matches a prefix with no separator, so
-  `test_bitmappyx.py` passes (the unique-name guard still catches clashes).
+- ~~**Engine arcs reached only by root tests that run members.**~~ **Done** (checked
+  2026-10-31 with `pytest tests/` alone): every arc listed here is now reached by root tests.
+- ~~**Root-only engine gaps.**~~ **Done** 2026-10-31 (`test/engine-root-gaps`): engine tests
+  for `CollisionLayer.clear`, `SceneManager.live_audio` reuse, `rename_animation` of an
+  animation not playing, and `restore_animation_settings` with a loop flag and interval.
+- ~~**Member tests import helpers from root test modules.**~~ **Done** 2026-10-31: `running_scene`
+  moved to `tests/world/frame_harness.py`, `make_ball` and `VISIBLE_SIZE` to
+  `tests/game_objects/ball_helpers.py`.
+- ~~**The import guard's blind spots.**~~ **Done** 2026-10-31: `tests/ast_scanning.py`'s
+  `STRING_LOADS` adds `importlib.__import__`, `builtins.__import__`, `pytest.importorskip` and
+  `importlib.util.find_spec`; the member-test naming check already required a separator
+  (`test_bitmappyx.py` is refused).
 
 ## Engine tools after Stage D (2026-10-27, workspace packages part 3)
 
@@ -471,13 +530,16 @@ Follow-ups (not in any plan yet):
   `SourcesAlreadyRunningError` after it), when no playback scope can be active, so it always
   wraps the installed doors.
 - Bugs found during the replay core and not fixed (BUGS.md, Active): #67 (Bitmappy's
-  joystick-event trigger conversion assumes pygame 1's integer axis scale), #68
+  joystick-event trigger conversion assumes pygame 1's integer axis scale; resolved
+  2026-10-31, bug sweep 2), #68
   (`ControllerEventManager` keys controllers by device index but routes events by instance id;
   resolved 2026-10-22 with #181),
-  #72 (`BitmappyMultiControllerEnhancements` stores a duration where a timestamp is expected), #73
+  #72 (`BitmappyMultiControllerEnhancements` stores a duration where a timestamp is expected;
+  resolved 2026-10-31, bug sweep 2), #73
   (PaddleSlap sets the `game` logger to INFO at import), #74 (`debug_events` is always False;
   resolved 2026-10-23: it is the `--debug-events` flag now),
-  #75 (`pygame_needs_fastevents` compares major and minor separately).
+  #75 (`pygame_needs_fastevents` compares major and minor separately; resolved 2026-10-31,
+  bug sweep 2).
 
 ## Headless capture to raw files and a frame/audio ready latch — groundwork for an external control API
 
@@ -609,8 +671,114 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   `plans/2026-10-18-level-tools-d-bitmappy-updates.md` (D1–D10).
 - `plans/future-features.md` (the older feature roadmap, moved from the repo root on 2026-10-18):
   its item 38 (frame alignment command) duplicates plan D's D8.
+- A changed-pixels-only canvas redraw (the canvas repaints every pixel on each redraw). The old
+  `dirty_pixels` list was removed unread (BUGS.md #178.15, 2026-11-01); a new design must also
+  mark everything on pan, frame switch, hover and onion-skin changes.
+
+## AI (Lucid Circuit; plans/lucid-circuit.md)
+
+- **A flow chart the AI follows for every query** (the owner, 2026-11-07): does it already have the pieces to answer,
+  or must it infer them? For example, PaddleSlap tracks no longest rally and Mr. Muncher doesn't record which chaser
+  caught you, yet both can be worked out by rewinding and replaying history. The chart decides, in order: is it in the
+  cached opening (mechanics, controls)? Can a tool read it now (`get_scene`, `get_sprite`, `get_game_facts`)? Can it be
+  computed from history (`history`, replaying to a frame) or found by experiment in a copy (`try_in_copy`)? Or is it
+  impossible, a false premise, or something to refuse? When it infers, it says how (what it counted, over which
+  frames). Draw it as a diagram for review, turn it into the system prompt's instructions, and add a behaviour test per
+  branch (plans/lucid-circuit-5-load-harness.md, Part 2b).
+
+- **A `/gist` mode in the AI console** (the owner, 2026-11-07): `/gist enable` and `/gist disable`. While
+  enabled, the AI considers what each request most likely means and answers that. When it can't
+  reasonably choose between readings, it says so instead of guessing: it explains the ambiguity,
+  lists the readings, and asks which was meant. Show the mode in `/ai` and the AI debug panel, keep
+  it per game like the history, and add behaviour tests (plans/lucid-circuit-5-load-harness.md,
+  Part 2b) with deliberately ambiguous questions: one with a clear likeliest meaning, which should
+  be answered, and one with no clear winner, which should be asked about.
+
+- **Deferred: choosing 2B's context by free memory** (the owner, 2026-11-07: "we're just going to
+  stick with the 2B model for the foreseeable future"). Every run already uses 2B
+  (`ai_service_default_bonsai_size`, plans/lucid-circuit.md section 5), at its full context, or
+  nothing when that doesn't fit. Agreed earlier and deferred: step down instead, full context, then
+  32K, then 8K, then none, with Qwen starting with the game as it does today.
+
+## Games
+
+- **Convert Drawing Fire to sprites** (the owner, 2026-11-07). It draws its soldiers, sandbags and bullets straight
+  onto the screen, so it has no sprites: the AI's sprite tools see nothing, the stable ids name nothing, and replays
+  compare nothing of it, which is why it posts a GAMEEVENT per death and seat change to give its replay something to
+  compare. As sprites (one per soldier, sandbag and bullet; its soldiers are already drawn from `sprites/soldier.toml`
+  with palette swaps), it gets ids, sprite comparison, hitboxes in the debug overlay, and the AI's tools for free.
+  Its golden replay will change, so re-recording it is a reviewed step, and the GAMEEVENTs can stay or go once the
+  sprites carry what they did. Check the per-frame cost against the run ledger, since it draws many soldiers.
 
 ## Performance and pacing
+
+- **Re-measure the requirements page** (the owner, 2026-11-09). `docs/requirements.md` gives each
+  measured machine's verdict per game from runs of November 5 to 9, 2026 (Raspberry Pi 4,
+  Raspberry Pi 5, Apple M4 Max). The owner expects the numbers to improve once the in-flight work
+  lands: the Arcade's engine-context sub-plans, Lucid Circuit Stage 4b and the Raspberry Pi
+  speedups below. Then re-measure every machine, regenerate `docs/data/requirements.json` from the
+  replay ledger (the page's tables and verdicts are drawn from it), and update the page's prose
+  and dates. The page also has a claude.ai doc copy, "GlitchyGames Requirements"; update it or
+  retire it then.
+- **Test the docs explorers in a browser** (2026-11-09). The requirements, Replay Performance and
+  Code Complexity pages draw their pickers and charts in JavaScript (`docs/js/requirements.js`,
+  `performance.js`, `complexity.js`); the suite tests the data files the generators write, but the
+  pages themselves were only checked by hand in headless Chrome. A small browser test (a built
+  site, each page loaded, each picker clicked, no console error) would keep them working. The
+  frame x commit heatmaps stay on each recording's own page; they could join the performance
+  explorer as a chart of their own.
+- **A per-game AI sweep of performance bottlenecks** (the owner, 2026-11-07). For each game, have the AI
+  read what our benchmarks record (the run ledger in `quality/replay-ledger/`, each recording's
+  `processing_seconds` and `FrameProfile`, the slowest frames and scenes in each `RunSummary`, and
+  `nox -s performance-test`), find where that game spends its frame time, and suggest fixes, each
+  with the evidence behind it. Suggestions are a report for the owner to choose from, not changes
+  made by the sweep. It can use Stage 4b's churn measurements (garbage collector pauses,
+  allocations by type) once they exist (plans/lucid-circuit-4b-mirror.md, step 1).
+- **Raspberry Pi hardware runners** (the user, 2026-11-02; do this on its own branch, separate from
+  the sound engine work). Self-hosted CI runners on the user's Raspberry Pis, so the replay ledger
+  and the sound benchmarks (`docs/specs/2026-11-02-sound-engine-implementation-spec.md` §11) are
+  measured on real hardware, each board its own line on the performance pages. The user has two
+  boards of each tier:
+
+  | Tier | Board | Storage | Cooling | Clocks |
+  | --- | --- | --- | --- | --- |
+  | Worst case (sets the gates) | Raspberry Pi 4 (RAM TBD; 2 GB preferred) | SD card | Passive (case TBD) | stock |
+  | Mid | Raspberry Pi 5 (RAM TBD) | SD card | Official Raspberry Pi 5 case with its fan | stock |
+  | High | Raspberry Pi 5 16 GB | NVMe SSD (PCIe) | Thrml Neo 5 NVMe PCIe case: direct-contact heatsink and fan | overclocked within the warranty |
+
+  - **Operating systems:** Ubuntu 26.04 and the latest Raspberry Pi OS. Suggestion: in each tier,
+    one board runs each OS, so the two compare on identical hardware. Swapping the two SD cards
+    between the boards once separates board-to-board variance from the OS.
+  - **One interpreter on both:** Python 3.14 from uv (python-build-standalone) on both OSes, not
+    the distribution's Python, so the OSes differ only in kernel, audio stack and libraries.
+  - **Passive case for the Pi 4** (to choose; validate before buying the second):
+    - The EDATec aluminium passive cooler has an independent test. Tom's Hardware measured a Pi 4
+      at 54.5 °C under stress at stock clocks, but only for a five-minute stress run.
+    - Pimoroni's Aluminium Heatsink Case is the most widely recommended, but has only the maker's
+      claim of 10–15 °C cooler.
+    - Neither has a published sustained test, so validate the chosen one with our own 30-minute
+      soak that logs `vcgencmd get_throttled` and the ARM clock.
+  - **Provenance per row:** extend `src/glitchygames/machine_state.py` (today: CPU, memory, power,
+    the macOS thermal report, CI) with what a Pi needs:
+    - board model and revision, and RAM;
+    - OS release and kernel;
+    - boot storage device and model;
+    - cooling (a label from the runner's config);
+    - overclock settings read from `config.txt`;
+    - SoC temperature and ARM clock at the start and end;
+    - `vcgencmd get_throttled` at the end. A run during which throttling occurred is marked.
+  - **Thermal protocol:** measure after a warm-up (a soak run before the timed run), so the passive
+    tier reports its steady-state worst case. Optionally also record a cold run.
+  - **The gates** come from the worst-case tier, from the slower of its two OSes.
+
+  Things to settle first:
+  - **Wheels:** numpy has a Linux ARM64 wheel since 2.x. miniaudio 1.71 has no Linux ARM64 wheel,
+    so it still compiles. pygame-ce 2.5.8 has one (`manylinux2014_aarch64`).
+  - **Audio output:** the Pi 5 has no 3.5 mm jack (HDMI, USB or I2S audio only); the Pi 4 has one.
+  - **The SD card** is the worst-case tier's boot storage on purpose, so the disk cache is
+    measured there as is. Record the card's model, since cards differ a lot.
+  - **Runner registration:** CircleCI self-hosted runners for ARM64, and the `(CI)` marking on the
+    performance pages.
 
 - Cull pickups by distance before `check_overlap` (Brave Adventurer checks all 46 collectibles per
   frame; each now measures visible pixels, ~0.15 ms/frame). Final review M5.
@@ -683,6 +851,33 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   package has none today; its async loops wait for the host's tick) and third-party code's own
   clock reads (tenacity stamps each retry's start with `time.monotonic()`; only its sleep is
   ours, through `sleep=`).
+
+## Sprite tags (user request, 2026-11-02)
+
+- **Done** 2026-11-02 (`feat/sprite-tags`, design and plan `plans/2026-11-02-sprite-tags.md`):
+  `[sprite] tags`, normalized as below (casefold, single spaces, repeats dropped), through every
+  reader and writer, the sprite-file checks, Bitmappy's AI (asked for tags, examples carry and
+  show them, +8 per tag word in example choice) and `glitchygames.sprites.catalog` (fuzzy search
+  with difflib, JSON lines export). **Still open:** editing tags in Bitmappy's UI (its only text
+  box is the AI prompt) and merging plurals.
+- **A `tags` list in the sprite file, saying what kind of thing the sprite is**, for fuzzy string
+  matching and for wiring sprites into an LLM or a vector database. Today a sprite carries only
+  its `name` and a free-text `description` (`[sprite]`; Bitmappy's AI writes the prompt there),
+  and Bitmappy's AI picks its example sprites by guessing from names
+  (`ai_worker._score_training_example`: +5 per word of the request found in an example's name).
+  Sketch: an optional `[sprite] tags = ["item", "weapon", "sword"]` (a TOML array of strings),
+  kept in order and written back as loaded, so files without it are unchanged. Decided
+  (2026-11-02): plain free-form tags for now, one list per sprite; no controlled vocabulary or
+  separate kind field, and no per-animation tags yet (either can come later on top of the list).
+  Still to decide in the design: normalization (lowercase, one spelling, singular). Touches every
+  reader and writer:
+  `AnimatedSprite` load/save (single-frame and animated), `BitmappySprite`'s static loader, the
+  sprite-file checks (`glitchygames.testing` sprite files), QuickLook's Swift reader
+  (`src/quicklook`), Bitmappy (show and edit tags; the AI writes tags for what it generates), and
+  the AI's example scoring (tags before name words). Then the search side: fuzzy matching on
+  tags, name and description (a library such as rapidfuzz, or the standard library's difflib),
+  and an export of each sprite's text (name, description, tags) for embedding into a vector
+  store, with the sprite's path as its key. Design first, then a plan.
 
 ## Assets and art
 
@@ -757,6 +952,93 @@ drafted issue text. Not posted yet:
 - griffe's `_dataclass_parameters` and mkdocstrings-python's `_test_existing_template` caches
   keep every `mkdocs serve` rebuild alive (BUGS.md #213; worked around in
   `scripts/mkdocs_hooks.py`'s `on_post_build`).
+
+## Documentation scrub (user request, 2026-11-02)
+
+- **Scrub every document against the code, across the whole stack.** Much has changed since the
+  `src/` layout scrub: workspace packages, the bug sweeps (#127-#135: input devices and
+  `--axis-deadzone`, named custom event types, the measured rows' landing rules, the build
+  stamp), and the BUGS.md audit (2026-11-02) found code comments and docs ahead of or behind
+  the tracker. Scope: the root's Markdown (`README.md`, `CLAUDE.md`, `ANIMATION_README.md`,
+  `API_README.md`, `BITMAPPY_ARCHITECTURE.md`, `CONTROLLER_CONTROLS_README.md`,
+  `LOADER_README.md`, `TEST_UPDATE_PLAN.md`: is each still current, or merged into `docs/`?),
+  the 51 pages under `docs/` (architecture, playback, games, quality), every member's README
+  (`src/games/*`, `src/demos/*`, `src/apps/bitmappy`, `src/quicklook`), and module docstrings
+  that describe behaviour (the engine's especially). For each claim: check it against the code
+  (paths, option names and defaults against `--help`, BUGS.md numbers against their entries'
+  status, named functions and classes still existing), fix or remove it, and keep American
+  spellings. Finish with `mkdocs build --strict` and the docs guard tests. Plan it as its own
+  branch (design, then plan), split by area so each piece is reviewable.
+  **Where it stands (2026-11-09):** #145 landed the scrub's design and plan
+  (`plans/2026-11-02-whole-stack-docs-scrub.md`), `scripts/docs_claims.py` with its worklist, the
+  `game_packages.md` recipe, the stale member counts, the Material theme and the explorers. Left:
+  the plan's steps 3-7 (root files keep/fold/retire; `docs/` by area; audio; member READMEs and
+  module docstrings; promoting the cheap checks to tests; the closing build and suite), after the
+  Material formatting below. The plan's "Status and handoff (2026-11-09)" has the next step,
+  the claims left to clear and the working notes.
+- **Format the docs site in Material** (the owner, 2026-11-09: goes first, page by page, ahead of
+  the scrub's reading pass). The pages stay markdown, written with Material's markdown
+  conventions (admonitions, content tabs, titled and annotated code blocks, collapsible
+  reference sections), and the theme's configuration turns on what is off (light/dark palette,
+  code copy buttons, search suggestions, edit links, footer navigation, last-updated dates, a
+  glossary of abbreviations). Material stays, with mkdocs pinned below 2.0. Plan:
+  `plans/2026-11-09-docs-material-formatting.md`.
+- **Smaller docs items left from #145** (2026-11-09):
+  - `docs/index.md` says the engine "aims to support 20-25FPS minimum games on Raspberry Pi",
+    while the requirements page's minimum is a typical p99 under 16.7 ms (60 FPS). The owner
+    decides which holds; the other is reworded.
+  - The event system diagrams' click links (`js/mermaid-config.js` sets Mermaid's `loose` security
+    level so they work under Material) were checked to render, not clicked: click one on the
+    published site.
+  - The explorers' JavaScript has no automated test (the browser test under Performance and
+    pacing).
+  - The requirements page and its claude.ai doc copy are re-measured later (under Performance and
+    pacing).
+- **Move the docs site to Zensical** (the owner, 2026-11-09: later, after the Material
+  formatting). Material for MkDocs reaches end of life on 2027-05-05; Zensical is its successor
+  from the same team and reads the same markdown and configuration (`zensical.yml` is already
+  named for it, `mkdocs.yml` a link to it). Before moving, check that Zensical supports every
+  plugin the site uses (mkdocstrings, gen-files, macros, section-index, autorefs, search) and the
+  hook in `scripts/mkdocs_hooks.py` (the complexity and performance generation, the caches it
+  clears), then drop the `mkdocs<2.0` pin and the link, and update `CLAUDE.md`'s documentation
+  note and `tests/test_workspace_config.py`'s link test.
+
+## Raspberry Pi speedups (user request, 2026-11-04)
+
+Try each on the Pi 4 with and without, a few runs apiece, one change at a time:
+`nox -s replay-metrics -- --allow-dirty --force` writes to the pending file, so trials are never
+published. Adopt what helps through `ansible/raspberry_pi_runner.yml`, and note when: an adopted
+change moves the Pi's line on the Performance page. As found 2026-11-04 unless marked.
+
+Engine time (today's rows):
+
+- **OpenBLAS.** `numpy` has no BLAS here (`show_config`). Needs `libopenblas-dev` and `pkg-config`,
+  and a rebuild past uv's cached `numpy`. Expected to do little: no linear algebra found in shipped
+  code.
+- **CPython's JIT: `PYTHON_JIT=1`.** Ubuntu's 3.14 has it built in but off
+  (`--enable-experimental-jit=yes-off`). The cheapest trial here.
+- **uv's managed Python** against Ubuntu's: the venv uses `/usr/bin/python3.14`, while CI's
+  `install-deps-posix` installs uv's.
+- **CPU governor and power profile.** Now `ondemand` and `balanced`; try `performance`. May help the
+  slowest frames more than the medians, as the clock ramps less.
+- **`pygame-ce` and SDL built for the Cortex-A72** (`-mcpu=cortex-a72`), not the generic ARM wheel. Most
+  work to keep up; only if the profile points there.
+- **Garbage collection pauses.** Single slow frames (Drawing Fire: p99 6.8 ms, max 48 ms). Unconfirmed:
+  check the frame heatmap first, then try `gc.freeze()` after loading.
+- **Cooling and clocks.** A heatsink or fan if `vcgencmd get_throttled` reports throttling under a
+  run. Overclocking last: it needs cooling, and the machine stops being a stock Pi 4.
+
+Driver time (needs present timing, `plans/2026-11-04-raspberry-pi-ci-runner.md`):
+
+- **SDL's render driver:** `SDL_RENDER_DRIVER` of `opengles2`, `opengl` and `software`, as the engine
+  asks for `SCALED`, which uses a renderer.
+- **Video path:** the desktop's `wayland`, against `x11`, fullscreen, and `kmsdrm` with no compositor
+  (a one-off from a console: the desktop stays).
+
+Loading and memory:
+
+- **USB 3 SSD** against the SD card, for start-up and asset loading (the runner plan's storage decision).
+- **Background services and `vm.swappiness`** (60 now): fewer services, less swapping onto the card.
 
 ## Code quality
 

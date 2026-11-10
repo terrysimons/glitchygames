@@ -1,0 +1,3 @@
+---
+# Added to each model's agent port, so a check can run while the agents do
+ai_validate_port_offset: 100

@@ -19,6 +19,7 @@ Covers:
 - _get_pixel_string and _get_color_map helpers
 """
 
+import logging
 from typing import cast
 
 import pygame
@@ -121,7 +122,7 @@ class TestSpriteInitialization:
         sprite = Sprite(x=SPRITE_X, y=SPRITE_Y, width=SPRITE_WIDTH, height=SPRITE_HEIGHT)
 
         # When no name is provided, it defaults to the class type
-        assert sprite.name is type(sprite)
+        assert sprite.name == type(sprite).__name__
 
     def test_sprite_initialization_with_zero_dimensions(self, mocker):
         """Test Sprite initialization with zero dimensions."""
@@ -437,34 +438,6 @@ class TestSpriteEventHandlerStubs:
         """Test on_mouse_exit_event does not raise."""
         sprite.on_mouse_exit_event(mock_event)
 
-    def test_on_mouse_drag_down_event(self, sprite, mock_event):
-        """Test on_mouse_drag_down_event does not raise."""
-        sprite.on_mouse_drag_down_event(mock_event, trigger=None)
-
-    def test_on_left_mouse_drag_down_event(self, sprite, mock_event):
-        """Test on_left_mouse_drag_down_event does not raise."""
-        sprite.on_left_mouse_drag_down_event(mock_event, trigger=None)
-
-    def test_on_left_mouse_drag_up_event(self, sprite, mock_event):
-        """Test on_left_mouse_drag_up_event does not raise."""
-        sprite.on_left_mouse_drag_up_event(mock_event, trigger=None)
-
-    def test_on_middle_mouse_drag_down_event(self, sprite, mock_event):
-        """Test on_middle_mouse_drag_down_event does not raise."""
-        sprite.on_middle_mouse_drag_down_event(mock_event, trigger=None)
-
-    def test_on_middle_mouse_drag_up_event(self, sprite, mock_event):
-        """Test on_middle_mouse_drag_up_event does not raise."""
-        sprite.on_middle_mouse_drag_up_event(mock_event, trigger=None)
-
-    def test_on_right_mouse_drag_down_event(self, sprite, mock_event):
-        """Test on_right_mouse_drag_down_event does not raise."""
-        sprite.on_right_mouse_drag_down_event(mock_event, trigger=None)
-
-    def test_on_right_mouse_drag_up_event(self, sprite, mock_event):
-        """Test on_right_mouse_drag_up_event does not raise."""
-        sprite.on_right_mouse_drag_up_event(mock_event, trigger=None)
-
 
 class TestSpriteEventHandlerStubsExtended:
     """Test additional Sprite event handler stubs (buttons, keys, drag/drop, wheel)."""
@@ -491,10 +464,6 @@ class TestSpriteEventHandlerStubsExtended:
         event.rel = (1, 1)
         event.buttons = (0, 0, 0)
         return event
-
-    def test_on_mouse_drag_up_event(self, sprite, mock_event):
-        """Test on_mouse_drag_up_event does not raise."""
-        sprite.on_mouse_drag_up_event(mock_event)
 
     def test_on_mouse_button_up_event(self, sprite, mock_event):
         """Test on_mouse_button_up_event does not raise."""
@@ -1772,12 +1741,11 @@ class TestBitmappySpriteLoadStaticTomlException:
 class TestBitmappySpriteLoadStaticTomlNoColors:
     """Test _load_static_toml with no colors section (line 1020->1028)."""
 
-    def test_load_static_toml_without_colors_uses_empty_map(self, tmp_path):
+    def test_load_static_toml_without_colors_uses_empty_map(self, tmp_path, caplog):
         """Test _load_static_toml with no colors section passes empty color_map to inflate.
 
-        When no 'colors' section exists, the color_map stays empty. The inflate
-        method then raises KeyError for unmapped characters. This tests the
-        branch at line 1020->1028 where 'colors' is not in data.
+        When no 'colors' section exists, the color_map stays empty, so every glyph is unknown
+        and draws magenta, as _inflate_toml does (BUGS.md #178 item 2).
         """
         toml_content = """[sprite]
 name = "no_colors"
@@ -1789,9 +1757,11 @@ pixels = \"\"\"
         toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = BitmappySprite(x=0, y=0, width=1, height=1)
-        # Without colors, inflate will fail on unknown char '#'
-        with pytest.raises(KeyError):
-            sprite._load_static_toml(str(toml_file))
+        with caplog.at_level(logging.WARNING, logger='game.sprites'):
+            image, _rect, _name = sprite._load_static_toml(str(toml_file))
+
+        assert tuple(image.get_at((0, 0)))[:3] == (255, 0, 255)
+        assert "['#']" in caplog.text
 
 
 class TestBitmappySpriteSaveStaticOnlyUnsupported:

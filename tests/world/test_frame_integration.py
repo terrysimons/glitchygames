@@ -8,13 +8,10 @@ are the ones drawn.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import math
 import os
 import sys
-import tempfile
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
@@ -39,11 +36,7 @@ from glitchygames.replay.ghosts import GhostRecorder, GhostSample, GhostSprite, 
 from glitchygames.replay.tools.golden_traces import (
     FRAME_SECONDS,
     RANDOM_SEED,
-    SCREEN_RESOLUTION,
-    GoldenTraceEngine,
     GoldenTraceSceneManager,
-    command_line,
-    deterministic_environment,
     discard_environment_events,
     press,
     release,
@@ -62,10 +55,9 @@ from glitchygames.state import open_saves
 from glitchygames.supervision import BREAKPOINT_KIND, ControlEvent
 from glitchygames.transitions import FadeTransition
 from glitchygames.world import CoordinateSpace, screen_position_for
+from tests.world.frame_harness import running_scene
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Sequence
-
     from pytest_mock import MockerFixture
 
 
@@ -561,44 +553,6 @@ class PaddleHitScene(Scene):
         for sprite in self.all_sprites:
             sprite.dt_tick(dt)
         self.collisions.check_overlap('balls', 'paddles', callback=self._on_ball_paddle_collision)
-
-
-@contextlib.contextmanager
-def running_scene(
-    scene_class: type[Scene], *, extra_arguments: Sequence[str] = ()
-) -> Generator[GoldenTraceSceneManager]:
-    """Start a scene headless in the harness's deterministic environment.
-
-    Args:
-        scene_class: The scene class to make active.
-        extra_arguments: More command-line arguments (``--replay-trace PATH``).
-
-    Yields:
-        The scene manager with the scene active.
-
-    """
-    with (
-        tempfile.TemporaryDirectory(prefix='frame-integration-saves-') as save_directory,
-        deterministic_environment(save_root=Path(save_directory)),
-    ):
-        manager = GoldenTraceSceneManager.install()
-        try:
-            with command_line([
-                '--windowed',
-                '--resolution',
-                SCREEN_RESOLUTION,
-                '--log-level',
-                'warning',
-                '--random-seed',
-                str(RANDOM_SEED),
-                *extra_arguments,
-            ]):
-                engine = GoldenTraceEngine(game=scene_class)
-            engine.install_game(scene_class=scene_class)
-            yield manager
-        finally:
-            pygame.event.clear()
-            GoldenTraceSceneManager.uninstall()
 
 
 def step(manager: GoldenTraceSceneManager, *events: pygame.event.Event, frames: int = 1) -> None:

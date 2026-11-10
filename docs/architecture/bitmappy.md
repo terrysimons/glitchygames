@@ -27,8 +27,9 @@ replay, which names the remedy; `--replay-trace OLD --rebaseline NEW --headless`
   same: the name is used as given, with surrounding whitespace trimmed, and a sprite in the
   library is opened by its path. The `example:` prefix they once understood is gone, and Save
   applies a per-platform rule to `:` in a file name (`_file_name_problem`, the platform passed in
-  and `sys.platform` by default); the refusal is shown in the editor's debug text and nothing is
-  written:
+  and `sys.platform` by default); nothing is written, the full refusal is shown in the editor's
+  debug text, and the dialog stays open with the name kept and a short reason in its prompt
+  (`REFUSED_FILE_NAME_PROMPT`), so the name can be corrected in place:
 
   | Platform | `:` in a Save name |
   |---|---|
@@ -416,14 +417,14 @@ flowchart LR
         FILL["Flood fill"]
         FSEL["Select frame"]
         FDEL["Delete frame"]
-        FCOPY["Copy/paste frame"]
+        FCOPY["Paste frame"]
         CMOVE["Controller move / mode change"]
     end
 
     subgraph Trackers["Operation Trackers"]
         COT["CanvasOperationTracker\npixel-level, batched per drag"]
         FOT["FilmStripOperationTracker\nframe-level operations"]
-        CAOT["CrossAreaOperationTracker\nframe copy/paste"]
+        FOM["FrameOperationManager\nFramePasteCommand"]
         CPOT["ControllerPositionOperationTracker\ncontroller positions and modes"]
     end
 
@@ -437,12 +438,12 @@ flowchart LR
     FILL --> COT
     FSEL --> FOT
     FDEL --> FOT
-    FCOPY --> CAOT
+    FCOPY --> FOM
     CMOVE --> CPOT
 
     COT -->|"batch submit\n0.1s debounce"| STACK_F
     FOT -->|"submit"| STACK_U
-    CAOT -->|"submit"| STACK_U
+    FOM -->|"push to the pasted frame's stack"| STACK_F
     CPOT -->|"submit"| STACK_U
 
     STACK_F -.->|"Ctrl+Z tries the current frame first"| STACK_U
@@ -504,7 +505,7 @@ flowchart TD
 ## Multi-Controller System
 
 Up to 4 color-coded controllers can operate simultaneously. Each controller
-independently switches between film strip, canvas and slider (R, G, B) modes using the
+independently switches between film strip, canvas and slider (A, R, G, B) modes using the
 triggers: L2 steps forward, R2 steps back (R2 does nothing in film strip mode). B undoes
 and X redoes in film strip and canvas modes.
 
@@ -521,12 +522,12 @@ flowchart TD
     subgraph Modes["Mode Switching per Controller (ModeSwitcher)"]
         FSM["Film Strip Mode\n(starting mode)"]
         CM["Canvas Mode"]
-        SLM["Slider Modes\nR, then G, then B"]
+        SLM["Slider Modes\nA, then R, G, B"]
 
         FSM -->|"L2"| CM
         CM -->|"L2"| SLM
         SLM -->|"L2 on B"| FSM
-        SLM -->|"R2 on R"| CM
+        SLM -->|"R2 on A"| CM
         CM -->|"R2"| FSM
     end
 

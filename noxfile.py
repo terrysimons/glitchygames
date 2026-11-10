@@ -4,7 +4,9 @@ import contextlib
 import dataclasses
 import json
 import os
+import platform
 import re
+import secrets
 import shlex
 import shutil
 import socket
@@ -14,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import nox
+from nox.command import CommandFailed
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -21,6 +24,10 @@ if TYPE_CHECKING:
 # Use uv as the venv backend so nox sessions get their own isolated venvs
 # managed by uv, without touching the project's .venv.
 nox.options.default_venv_backend = 'uv'
+
+# The docs site's configuration, named on every mkdocs command line: mkdocs.yml is a link to it,
+# which Windows may check out as a one-line text file (tests/test_workspace_config.py)
+_DOCS_CONFIGURATION = 'zensical.yml'
 
 _CODE_DIRS = [
     'noxfile.py',
@@ -32,6 +39,7 @@ _CODE_DIRS = [
     'src/games/drawing-fire',
     'src/demos/dt-demo',
     'src/demos/joystick-demo',
+    'src/demos/sound-board-demo',
     'src/demos/text-input-demo',
     'src/apps/bitmappy',
     'scripts',
@@ -53,6 +61,7 @@ _SOURCE_PACKAGE_DIRS = [
     'src/games/drawing-fire/src/drawing_fire',
     'src/demos/dt-demo/src/dt_demo',
     'src/demos/joystick-demo/src/joystick_demo',
+    'src/demos/sound-board-demo/src/sound_board_demo',
     'src/demos/text-input-demo/src/text_input_demo',
     'src/apps/bitmappy/src/bitmappy',
 ]
@@ -67,6 +76,7 @@ _MEMBER_DISTRIBUTIONS = [
     'drawing-fire',
     'dt-demo',
     'joystick-demo',
+    'sound-board-demo',
     'text-input-demo',
     'bitmappy',
 ]
@@ -121,8 +131,21 @@ def _format_code(session: nox.Session) -> None:
         session.run('ruff', 'format', target)
 
 
+def _taplo_has_no_wheel() -> bool:
+    """Whether this is Linux on ARM, where pyproject.toml's marker leaves taplo uninstalled.
+
+    Returns:
+        True on Linux ARM: taplo has no wheel there and its sdist fails to build.
+
+    """
+    return sys.platform == 'linux' and platform.machine() == 'aarch64'
+
+
 def _format_toml(session: nox.Session) -> None:
     """Format TOML files with taplo."""
+    if _taplo_has_no_wheel():
+        session.log('taplo has no Linux ARM wheel; skipping TOML formatting.')
+        return
     session.run('taplo', 'format', external=True)
 
 
@@ -133,7 +156,7 @@ def _lint_code(session: nox.Session) -> None:
 
 def _lint_docs(session: nox.Session) -> None:
     """Lint documentation with mkdocs strict build."""
-    session.run('mkdocs', 'build', '--strict')
+    session.run('mkdocs', 'build', '--strict', '--config-file', _DOCS_CONFIGURATION)
 
 
 def _lint_yaml(session: nox.Session) -> None:
@@ -168,6 +191,9 @@ def _lint_github_actions(session: nox.Session) -> None:
 
 def _lint_toml(session: nox.Session) -> None:
     """Lint TOML files with taplo."""
+    if _taplo_has_no_wheel():
+        session.log('taplo has no Linux ARM wheel; skipping TOML lint.')
+        return
     session.run('taplo', 'lint', external=True)
 
 
@@ -298,6 +324,43 @@ def replay_metrics(session: nox.Session) -> None:
     _glitchygames(session, 'measure', *session.posargs)
 
 
+@nox.session(venv_backend='none', name='measure-on-raspberry-pi', default=False)
+def measure_on_raspberry_pi(session: nox.Session) -> None:
+    """Measure HEAD's replays on the Raspberry Pi too, and stage the rows it sends back here.
+
+    The pre-push hook ``raspberry-pi-replay-metrics`` runs this, on what is being pushed. The rows
+    land in quality/replay-ledger/ (scripts/measure_on_raspberry_pi.py has the rules).
+
+    Usage:
+        nox -s measure-on-raspberry-pi   # Measure there, unless the Pi already has
+        git commit                       # The rows it staged
+    """
+    session.run(
+        'uv', 'run', '--locked', 'python', '-m', 'scripts.measure_on_raspberry_pi', external=True
+    )
+
+
+@nox.session(venv_backend='none', name='measure-staged', default=False)
+def measure_staged(session: nox.Session) -> None:
+    """Measure the replays on the staged code, and stage the rows for the commit to carry.
+
+    The pre-commit hook ``replay-metrics`` runs this; run it by hand after updating a branch, or on
+    a machine without the hook, then commit. This, not ``replay-metrics`` (the local pending file),
+    is what puts a machine on the Performance page: the page shows quality/replay-ledger/ rows that
+    landed on main (scripts/measure_staged_replays.py has the rules). ``--locked``: a stale uv.lock
+    fails saying so, where a plain uv run would rewrite the lock, and pre-commit would then fail
+    the hook for modifying files.
+
+    Usage:
+        git add ...                  # What the commit will hold
+        nox -s measure-staged        # Measure it, unless this machine already has
+        git commit
+    """
+    session.run(
+        'uv', 'run', '--locked', 'python', '-m', 'scripts.measure_staged_replays', external=True
+    )
+
+
 @nox.session(python=['3.14'], reuse_venv=False, name='docs-deploy', default=False)
 def docs_deploy(session: nox.Session) -> None:
     """Measure the replays, build the docs strictly and publish them to GitHub Pages.
@@ -350,9 +413,9 @@ def docs_deploy(session: nox.Session) -> None:
     # The browser games, published with the docs as play/ (scripts/mkdocs_hooks.py)
     session.run('python', '-m', 'scripts.build_browser_bundle', 'all')
     if build_only:
-        session.run('mkdocs', 'build', '--strict')
+        session.run('mkdocs', 'build', '--strict', '--config-file', _DOCS_CONFIGURATION)
         return
-    session.run('mkdocs', 'gh-deploy', '--strict')
+    session.run('mkdocs', 'gh-deploy', '--strict', '--config-file', _DOCS_CONFIGURATION)
     _glitchygames(session, 'clear-published')
 
 
@@ -370,7 +433,9 @@ def docs_serve(session: nox.Session) -> None:
         nox -s docs-serve -- --dev-addr 127.0.0.1:8001  # Another address
     """
     _install_from_lockfile(session)
-    session.run('mkdocs', 'serve', '--strict', *session.posargs)
+    session.run(
+        'mkdocs', 'serve', '--strict', '--config-file', _DOCS_CONFIGURATION, *session.posargs
+    )
 
 
 @nox.session(venv_backend='none', name='lint-yaml', default=False)
@@ -488,9 +553,11 @@ def _usable_cpu_count() -> int:
 def test(session: nox.Session) -> None:
     """Run tests."""
     # The installed copy is built (not editable), so it has no git checkout: the stamp gives it
-    # HEAD's commit, which the replay-metrics tests' child rebaselines record and compare
-    with _build_stamp(session):
-        _install_from_lockfile(session)
+    # HEAD's commit, which the replay-metrics tests' child rebaselines record and compare. It is
+    # written into the installed copy, never the checkout, so a build running alongside neither
+    # loses its stamp to this session's removal nor packages this one (BUGS.md #224.47)
+    _install_from_lockfile(session)
+    _stamp_installed_engine(session)
 
     # The SDL drivers are left to the suite (tests/sdl_defaults.py defaults both to dummy, and
     # outside CI tests/driver_comparison.py also runs the native driver and compares the
@@ -521,6 +588,66 @@ def test(session: nox.Session) -> None:
     # Run tests with coverage: pytest-cov (pyproject.toml addopts) prints the terminal report
     # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion.
     session.run('pytest', *args)
+
+
+# pytest-randomly, turned on for a shuffled run (pyproject.toml's addopts block it everywhere
+# else, so CI and every other run keep the files' order): reorder only, with random.seed() left
+# as each test sets it, so a shuffled run differs from the others in its order alone
+RANDOM_ORDER_PYTEST_ARGUMENTS = ('-p', 'randomly', '--randomly-dont-reset-seed')
+# The seeds pytest-randomly takes (it seeds numpy's generator, whose seeds are 32-bit)
+RANDOM_ORDER_SEED_LIMIT = 2**32
+
+
+@nox.session(venv_backend='none', name='test-random', default=False)
+def test_random(session: nox.Session) -> None:
+    """Run the suite in a shuffled order (pytest-randomly): the pre-push hook's order check.
+
+    Each run shuffles the tests with a new seed (``-- SEED`` reuses one), so a test that passes
+    only after, or only before, another fails in some run long before CI's fixed order meets it
+    (BUGS.md: a named custom event type took FPSEVENT's id only after a pygame.quit()). It runs
+    in the project's environment (``uv run``, as a developer's ``uv run pytest``) on every core,
+    under the dummy drivers only and without coverage (CI enforces coverage), so it costs a push
+    a few minutes, not a full CI run. A failure names its seed and the command that replays
+    that order in one process (``-n 0``: across workers the seed fixes the order but not which
+    worker runs which test).
+    """
+    if session.posargs:
+        seed = int(session.posargs[0])
+    else:
+        seed = secrets.randbelow(RANDOM_ORDER_SEED_LIMIT)
+    try:
+        session.run(
+            'uv',
+            'run',
+            '--frozen',
+            'pytest',
+            *RANDOM_ORDER_PYTEST_ARGUMENTS,
+            f'--randomly-seed={seed}',
+            '-n',
+            'auto',
+            '--no-cov',
+            '--log-cli-level=WARNING',
+            '--junitxml=test-results/junit-random.xml',
+            env={'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'},
+            external=True,
+        )
+    except CommandFailed:
+        replay = shlex.join([
+            'uv',
+            'run',
+            'pytest',
+            *RANDOM_ORDER_PYTEST_ARGUMENTS,
+            f'--randomly-seed={seed}',
+            '-n',
+            '0',
+            '--no-cov',
+        ])
+        session.error(
+            f'A shuffled run failed (seed {seed}): an order-dependent test, or a plain failure. '
+            f'Replay this order in one process: SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy '
+            f'{replay}  (or the same run: nox -s test-random -- {seed}). '
+            f'SKIP=test-random git push skips the check; file what it found in BUGS.md'
+        )
 
 
 # The Linux X11 test image and the X server it draws on (XQuartz's display :0, over TCP)
@@ -1170,6 +1297,11 @@ _COMPARE_DRIVERS_OUTPUT = Path('test-results/driver-comparison/nox')
 # failed comparison's runs are then kept in the failed folder for a look (BUGS.md #192)
 _COMPARE_DRIVERS_PREVIOUS = Path('test-results/driver-comparison/nox-previous')
 _COMPARE_DRIVERS_FAILED = Path('test-results/driver-comparison/nox-failed')
+# Held by the one compare-drivers running (a filelock lock, released when its process ends,
+# however it ends): every comparison sets the last one aside and writes the same folders, so a
+# second one at the same time (one by hand during a push's hook) deleted the first's runs under
+# it (a FileNotFoundError in its fingerprints) and was itself wrecked
+_COMPARE_DRIVERS_LOCK = Path('test-results/driver-comparison/compare-drivers.lock')
 _COMPARE_DRIVERS_WORKERS = 4
 _COMPARE_DRIVERS_SEED = 20261023
 _FRAME_FINGERPRINTS_PLUGIN = 'glitchygames.testing.frame_fingerprints'
@@ -1177,18 +1309,24 @@ _FRAME_FINGERPRINTS_PLUGIN = 'glitchygames.testing.frame_fingerprints'
 # failure on one configuration is a finding, reported with the frames)
 _PYTEST_FINISHED_CODES = [0, 1]
 _DRIVERS_OPTION = '--drivers'
+# compare-drivers fails, after its report is written, when a test presents different frames on
+# two configurations (the pre-push hook passes it; by hand it only reports)
+_FAIL_ON_DIFFERENCE_OPTION = '--fail-on-difference'
 _SOUND_OPTION = '--sound'
 
 
-def _compare_drivers_arguments(session: nox.Session) -> tuple[str | None, bool, list[str]]:
-    """Read compare-drivers' arguments: ``--drivers A,B``, ``--sound`` and the test selection.
+def _compare_drivers_arguments(
+    session: nox.Session,
+) -> tuple[str | None, bool, bool, list[str]]:
+    """Read compare-drivers' arguments: ``--drivers A,B``, ``--sound``, ``--fail-on-difference``.
 
     Args:
         session: The nox session (its posargs).
 
     Returns:
         The configurations asked for (None: every available one), whether the container plays
-        sound through PulseAudio, and the remaining arguments (test paths; none: the suite).
+        sound through PulseAudio, whether a driver difference fails the session, and the
+        remaining arguments (test paths; none: the suite).
 
     """
     arguments = list(session.posargs)
@@ -1207,7 +1345,10 @@ def _compare_drivers_arguments(session: nox.Session) -> tuple[str | None, bool, 
     sound = _SOUND_OPTION in arguments
     if sound:
         arguments.remove(_SOUND_OPTION)
-    return drivers, sound, arguments
+    fail_on_difference = _FAIL_ON_DIFFERENCE_OPTION in arguments
+    if fail_on_difference:
+        arguments.remove(_FAIL_ON_DIFFERENCE_OPTION)
+    return drivers, sound, fail_on_difference, arguments
 
 
 def _run_fingerprinted_tests(
@@ -1445,7 +1586,9 @@ def compare_drivers(session: nox.Session) -> None:
     test-results/driver-comparison/nox/matrix.md, has each run's time, a summary per pair, the
     patterns of agreement and a table per test (first differing frame, differing pixels,
     linked images); the summary is printed at the end. It reports; it does not fail on a
-    difference.
+    difference, unless given `--fail-on-difference` (the pre-push hook, with `--drivers native`:
+    dummy and every native driver available here): then a test presenting different frames on
+    two configurations fails the session, after the report is written.
 
     It fails when a run recorded no test (pytest ran none: `-- --help` or `--collect-only`
     reach every run and exit 0), naming the run, rather than report that every configuration
@@ -1461,29 +1604,73 @@ def compare_drivers(session: nox.Session) -> None:
     run`), as a developer's `uv run pytest` does; each names its driver, so none starts a
     comparison of its own.
     """
-    drivers, sound, selection = _compare_drivers_arguments(session)
+    drivers, sound, fail_on_difference, selection = _compare_drivers_arguments(session)
     output = _COMPARE_DRIVERS_OUTPUT
-    _set_aside_previous_comparison(output=output, previous=_COMPARE_DRIVERS_PREVIOUS)
+    with _only_comparison(session, lock_path=_COMPARE_DRIVERS_LOCK):
+        _set_aside_previous_comparison(output=output, previous=_COMPARE_DRIVERS_PREVIOUS)
+        try:
+            differing_tests = _compare_driver_configurations(
+                session, output=output, drivers=drivers, sound=sound, selection=selection
+            )
+        except BaseException:
+            # Whatever ended it (a failed command, a refusal, Ctrl-C), the last complete
+            # comparison stays the report
+            _restore_previous_comparison(
+                session,
+                output=output,
+                previous=_COMPARE_DRIVERS_PREVIOUS,
+                failed=_COMPARE_DRIVERS_FAILED,
+            )
+            raise
+        shutil.rmtree(_COMPARE_DRIVERS_PREVIOUS, ignore_errors=True)
+    # A completed comparison: its report stays the last one, whatever this decides
+    if fail_on_difference and differing_tests:
+        session.error(
+            f'{len(differing_tests)} test(s) presented different frames on two driver '
+            f'configurations: {", ".join(differing_tests)}. Report and difference images: '
+            f'{output / "matrix.md"}. A driver dependence is a bug (BUGS.md); a test whose frames '
+            'vary by design takes @pytest.mark.frames_vary(reason=...). '
+            'SKIP=compare-drivers git push skips the check'
+        )
+
+
+@contextlib.contextmanager
+def _only_comparison(session: nox.Session, *, lock_path: Path) -> Generator[None]:
+    """Hold compare-drivers' lock for the comparison inside; refuse when another holds it.
+
+    Refused at once, not waited for: a comparison takes minutes, and the one running (a push's
+    hook, or one by hand) is the one to let finish.
+
+    Args:
+        session: The nox session (for the refusal).
+        lock_path: The lock file (its folder is made if missing).
+
+    Yields:
+        Nothing; the comparison runs inside, holding the lock.
+
+    """
+    # Imported here: the dev extra has filelock (compare-drivers runs in the project's
+    # environment, `uv run --extra dev nox`); CI's nox, a uv tool, never imports it
+    from filelock import FileLock, Timeout
+
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock = FileLock(lock_path)
     try:
-        _compare_driver_configurations(
-            session, output=output, drivers=drivers, sound=sound, selection=selection
+        lock.acquire(timeout=0)
+    except Timeout:
+        session.error(
+            f'Another compare-drivers is running (it holds {lock_path}): both would write '
+            f'{_COMPARE_DRIVERS_OUTPUT} and wreck each other. Let it finish, then run this again'
         )
-    except BaseException:
-        # Whatever ended it (a failed command, a refusal, Ctrl-C), the last complete comparison
-        # stays the report
-        _restore_previous_comparison(
-            session,
-            output=output,
-            previous=_COMPARE_DRIVERS_PREVIOUS,
-            failed=_COMPARE_DRIVERS_FAILED,
-        )
-        raise
-    shutil.rmtree(_COMPARE_DRIVERS_PREVIOUS, ignore_errors=True)
+    try:
+        yield
+    finally:
+        lock.release()
 
 
 def _compare_driver_configurations(
     session: nox.Session, *, output: Path, drivers: str | None, sound: bool, selection: list[str]
-) -> None:
+) -> list[str]:
     """Run compare-drivers' comparison into its (empty) folder: see ``compare_drivers``.
 
     Args:
@@ -1492,6 +1679,10 @@ def _compare_driver_configurations(
         drivers: The configurations asked for (None: every available one).
         sound: The container plays its sound through the Mac's PulseAudio.
         selection: More pytest arguments (the test selection).
+
+    Returns:
+        The tests whose frames differ between configurations (nondeterministic and
+        ``frames_vary`` tests left out), by node id; none when every configuration agrees.
 
     """
     configurations = _plan_driver_configurations(session, drivers=drivers, output=output)
@@ -1529,7 +1720,7 @@ def _compare_driver_configurations(
     differing_tests = list(json.loads(request.read_text(encoding='utf-8'))['positions_by_test'])
     if not differing_tests:
         session.log(f'No driver differences: nothing to re-run\n{summary}')
-        return
+        return []
     # One node id per line, passed as @FILE: node ids may hold spaces
     tests_file = output / 'differing-tests.txt'
     tests_file.write_text('\n'.join(differing_tests) + '\n', encoding='utf-8')
@@ -1552,6 +1743,7 @@ def _compare_driver_configurations(
         ),
         external=True,
     )
+    return differing_tests
 
 
 @nox.session(venv_backend='none', name='browser', default=False)
@@ -1599,6 +1791,15 @@ def timer_report(session: nox.Session) -> None:
     session.run('python', 'scripts/timer_report.py')
 
 
+# The only places with tests that take pytest-benchmark's ``benchmark`` fixture. performance-test
+# collects just these: given the whole suite, --benchmark-only collected every test and skipped
+# all the others. tests/test_benchmark_paths.py fails if a benchmark is added anywhere else
+_BENCHMARK_PATHS = [
+    'tests/benchmarks',
+    'src/apps/bitmappy/tests/test_bitmappy_benchmarks.py',
+]
+
+
 @nox.session(python=['3.14'], reuse_venv=False, name='performance-test', default=False)
 def performance_test(session: nox.Session) -> None:
     """Run performance benchmarks."""
@@ -1614,6 +1815,7 @@ def performance_test(session: nox.Session) -> None:
         'no:xdist',
         '--benchmark-only',
         '--benchmark-save=baseline',
+        *_BENCHMARK_PATHS,
     )
 
 
@@ -1741,6 +1943,10 @@ def _build_stamp(session: nox.Session) -> Generator[None]:
     stale stamp reaches a later build. Written before the session installs the package
     (``--no-editable`` builds it), so the installed copy PyInstaller collects has it too.
 
+    A stamp already in the checkout fails the write (another build's, or a killed one's: BUGS.md
+    #224.47); the write runs before the ``try``, so that failure never removes the other build's
+    stamp.
+
     Args:
         session: The nox session building.
 
@@ -1761,6 +1967,30 @@ def _build_stamp(session: nox.Session) -> Generator[None]:
             '--remove',
             external=True,
         )
+
+
+def _stamp_installed_engine(session: nox.Session) -> None:
+    """Write the build stamp into the session's installed engine (this checkout's revision).
+
+    The package is found without importing it (``find_spec`` of a top-level package runs none
+    of it), so nothing it imports, pygame's banner included, reaches the output read here.
+
+    Args:
+        session: The nox session whose installed engine to stamp.
+
+    """
+    installed_directory = session.run(
+        'python',
+        '-c',
+        'import importlib.util; '
+        "print(importlib.util.find_spec('glitchygames').submodule_search_locations[0])",
+        silent=True,
+    )
+    if not isinstance(installed_directory, str):
+        session.error('Could not find the installed glitchygames package to stamp')
+    # The session's own python, not `uv run`: inside a session uv targets the session's
+    # environment and would sync it again (editable), replacing the installed copy being stamped
+    session.run('python', 'scripts/write_build_stamp.py', '--into', installed_directory.strip())
 
 
 def _build_binary(session: nox.Session) -> None:
@@ -1829,16 +2059,17 @@ def build_all(session: nox.Session) -> None:
 
 @nox.session(python=['3.14'], reuse_venv=False, name='code-complexity', default=False)
 def code_complexity(session: nox.Session) -> None:
-    """Analyze code complexity with wily and generate optional HTML graphs.
+    """Analyze code complexity with wily and optionally generate the docs' complexity explorer data.
 
     Tools: complexity_report.py (wily: the working tree's changes against HEAD, the history measured
     in a temporary worktree so the working tree is never checked out over), and
-    generate_complexity_graphs.py (the docs' graphs, generated in a temporary worktree from the
-    whole history into docs/quality/graphs/, which git ignores; every mkdocs build does too)
+    generate_complexity_graphs.py (the docs' complexity explorer data, generated in a temporary
+    worktree from the whole history into docs/quality/graphs/, which git ignores; every mkdocs
+    build does too)
 
     Usage:
         nox -s code-complexity              # The working tree's changes against HEAD
-        nox -s code-complexity -- --graphs  # Also generate the docs' complexity graphs
+        nox -s code-complexity -- --graphs  # Also generate the docs' complexity explorer data
         nox -s code-complexity -- --rank    # Show files ranked by complexity
     """
     _install_from_lockfile(session)

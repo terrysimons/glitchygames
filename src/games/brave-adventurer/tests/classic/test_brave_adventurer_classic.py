@@ -21,6 +21,7 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine, command_line
 from glitchygames.scenes import SceneManager
 from glitchygames.world import CoordinateSpace, position_world_sprites
+from tests.display_canvas import show_canvas_on_new_display
 
 FRAME_SECONDS = 1 / 60
 # The member's golden replays: golden-classic.jsonl.gz, golden-papyrus.jsonl.gz
@@ -34,8 +35,13 @@ SCREEN_SIZE = (800, 480)
 def _start_display():
     if not pygame.get_init():
         pygame.init()
-    if pygame.display.get_surface() is None:
-        set_display_mode(size=SCREEN_SIZE)
+    # Reopen a display of another size too: the scenes size the pit floor from it, and under
+    # pytest another test may have left any size (BUGS.md #211 item 7)
+    display_surface = pygame.display.get_surface()
+    if display_surface is None or display_surface.get_size() != SCREEN_SIZE:
+        # The harness's canvas pattern on it: a new display is black, which its black-frame
+        # guard fails
+        show_canvas_on_new_display(size=SCREEN_SIZE)
 
 
 def _surface_bytes(surface):
@@ -187,6 +193,26 @@ class TestVoiceAssistantMicButton:
         )
 
         voice_assistant.stop_listening_and_respond.assert_called_once_with()
+
+    @pytest.mark.parametrize('input_mode', ['auto', 'joystick', 'controller'])
+    def test_the_mic_is_each_layers_own_button_only(self, input_mode):
+        """Controller-layer 15 and raw 16 are the mic; raw 15 is not, in any mode (#178.26)."""
+        actions = BraveAdventurerScene._create_action_map(options={'input_mode': input_mode})
+
+        if input_mode != 'joystick':
+            assert (
+                actions.get_action(
+                    _controller_button_event(pygame.CONTROLLERBUTTONDOWN, MIC_BUTTON_CONTROLLER)
+                )
+                == 'mic_toggle'
+            )
+        assert (
+            actions.get_action(_joystick_button_event(pygame.JOYBUTTONDOWN, MIC_BUTTON_JOYSTICK))
+            == 'mic_toggle'
+        )
+        assert 'mic_toggle' not in actions.get_actions(
+            _joystick_button_event(pygame.JOYBUTTONDOWN, MIC_BUTTON_CONTROLLER)
+        )
 
     def test_mic_button_without_an_assistant_does_nothing(self, brave_scene):
         """No controller with a microphone was found: the mic button is ignored."""
@@ -346,3 +372,33 @@ class TestRunningOffALedgeFalls:
         player.state_machine.evaluate(RUNNING_OFF_A_LEDGE_CONTEXT)
 
         assert player.state_machine.current_state == Player.FALLING
+
+
+class TestLandingSound:
+    """Touching down after a fall plays the landing sound once (BUGS.md #229)."""
+
+    def _settle_on_the_ground(self, scene):
+        for _ in range(30):
+            scene.dt_tick(FRAME_SECONDS)
+        assert scene.player.on_ground
+
+    def test_landing_after_a_fall_plays_land_once(self, brave_scene):
+        self._settle_on_the_ground(brave_scene)
+        brave_scene.sounds.reset_mock()
+        brave_scene.player.velocity_y = 0.0
+        brave_scene.player.world_y -= 40  # Lift into the air
+
+        for _ in range(60):
+            brave_scene.dt_tick(FRAME_SECONDS)
+
+        assert brave_scene.player.on_ground
+        assert brave_scene.sounds.play_land.call_count == 1
+
+    def test_standing_still_never_plays_land(self, brave_scene):
+        self._settle_on_the_ground(brave_scene)
+        brave_scene.sounds.reset_mock()
+
+        for _ in range(60):
+            brave_scene.dt_tick(FRAME_SECONDS)
+
+        brave_scene.sounds.play_land.assert_not_called()

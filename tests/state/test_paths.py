@@ -48,6 +48,11 @@ class TestValidateAppName:
         with pytest.raises(ValueError, match='Invalid app_name'):
             validate_app_name('my/game')
 
+    def test_trailing_newline_raises(self) -> None:
+        """A trailing newline raises ValueError (``$`` alone matches before a final newline)."""
+        with pytest.raises(ValueError, match='Invalid app_name'):
+            validate_app_name('game\n')
+
     def test_dot_prefix_raises(self) -> None:
         """Leading dot raises ValueError (would create hidden directory)."""
         with pytest.raises(ValueError, match='Invalid app_name'):

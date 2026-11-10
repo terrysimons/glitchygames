@@ -23,11 +23,6 @@ dependencies = [
   "tomli-w",
   "pygame-ce",
   "pyperclip",
-  # Every aisuite provider but `google` (its Vertex AI shim, vertexai 1.71.1, is no longer
-  # published and pins google-cloud-aiplatform to 1.71.1[all], an extra that release lacks).
-  # Google's models stay reachable through the `gemini` provider. The model is a run-time
-  # setting ('provider:model'), so every other provider stays installable as with [all]
-  "aisuite[anthropic,aws,cerebras,cohere,deepgram,deepseek,gemini,groq,lmstudio,mcp,mistral,ollama,openai,watsonx]>=0.1.14",
   "numpy",
   "miniaudio",
   "speechrecognition",
@@ -35,7 +30,9 @@ dependencies = [
   "fastapi",
   "uvicorn",
   "pydantic",
-  "httpx",
+  "httpx2",
+  # The live link to the local AI service, loaded only by a run that has one (ai_link.py)
+  "websockets",
   "apng",
   "pillow",
   "hidapi>=0.15.0",
@@ -66,7 +63,8 @@ glitchygames = "glitchygames.__main__:main"
 
 [project.optional-dependencies]
 docs = [
-  "mkdocs",
+  # Below 2.0: the site is built with mkdocs 1.x and Material (zensical.yml; mkdocs.yml is a link)
+  "mkdocs<2.0",
   "mkdocstrings[crystal,python]",
   "mkdocs-material",
   "mkdocs-gen-files",
@@ -87,6 +85,9 @@ dev = [
   "pytest-xdist",
   "pytest-benchmark",
   "pytest-mock",
+  # Shuffled test order, only where asked for (addopts blocks it; nox -s test-random, the
+  # pre-push hook, turns it on): order-dependent tests surface before CI's fixed order hides them
+  "pytest-randomly",
   # bandit scans our code; the dependencies' CVEs and licenses are scanned by syft and grype,
   # system binaries outside this environment (nox -s security-scan, .grype.yaml,
   # scripts/check_licenses.py). safety and pip-audit were dropped for them (the owner,
@@ -103,7 +104,8 @@ dev = [
   "deptry>=0.25.1",
   "vulture>=2.15",
   "hypothesis>=6.151.9",
-  "taplo>=0.9.3",
+  # No Linux ARM wheel, and its sdist fails to build (noxfile.py skips taplo there)
+  "taplo>=0.9.3; sys_platform != 'linux' or platform_machine != 'aarch64'",
   "yamllint>=1.38.0",
   # wily 2 is an alpha (2.0.0a1) that drops radon; the complexity graphs run both
   "wily>=1.25.0,<2",
@@ -129,7 +131,7 @@ games = [
   "paddleslap",
   "drawing-fire",
 ]
-demos = ["dt-demo", "joystick-demo", "text-input-demo"]
+demos = ["dt-demo", "joystick-demo", "sound-board-demo", "text-input-demo"]
 apps = ["bitmappy"]
 
 [tool.uv.workspace]
@@ -143,6 +145,7 @@ members = [
   "src/games/drawing-fire",
   "src/demos/dt-demo",
   "src/demos/joystick-demo",
+  "src/demos/sound-board-demo",
   "src/demos/text-input-demo",
   "src/apps/bitmappy",
 ]
@@ -156,6 +159,7 @@ paddleslap = { workspace = true }
 drawing-fire = { workspace = true }
 dt-demo = { workspace = true }
 joystick-demo = { workspace = true }
+sound-board-demo = { workspace = true }
 text-input-demo = { workspace = true }
 bitmappy = { workspace = true }
 
@@ -172,6 +176,7 @@ dev = [
   "drawing-fire",
   "dt-demo",
   "joystick-demo",
+  "sound-board-demo",
   "text-input-demo",
   "bitmappy",
 ]
@@ -189,7 +194,7 @@ packages = ["src/glitchygames"]
 # The engine's recording, replay and measurement tools read this project's layout from here
 # (glitchygames/replay/tools/settings.py; a project without this table gets the defaults there)
 [tool.glitchygames]
-# Every workspace member's console script: the five games, the three demos and Bitmappy
+# Every workspace member's console script: the five games, the four demos and Bitmappy
 games = [
   "bitmappy",
   "brave-adventurer",
@@ -199,6 +204,7 @@ games = [
   "joystick-demo",
   "mr-muncher",
   "paddleslap",
+  "sound-board-demo",
   "text-input-demo",
 ]
 # Each member's golden replays, directly in its tests/fixtures/replays/ (src/<layer>/<member>/)
@@ -255,6 +261,7 @@ testpaths = [
   "src/games/drawing-fire/tests",
   "src/demos/dt-demo/tests",
   "src/demos/joystick-demo/tests",
+  "src/demos/sound-board-demo/tests",
   "src/demos/text-input-demo/tests",
   "src/apps/bitmappy/tests",
 ]
@@ -283,13 +290,11 @@ norecursedirs = [
   ".hypothesis",
   "__pycache__",
 ]
-addopts = "--import-mode=importlib -n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=dt_demo --cov=joystick_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+addopts = "--import-mode=importlib -p no:randomly -n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=dt_demo --cov=joystick_demo --cov=sound_board_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
   "ignore:aifc was removed:DeprecationWarning",
-  # Third-party: docstring_parser uses deprecated ast nodes (via aisuite)
-  "ignore:ast\\..* is deprecated:DeprecationWarning",
   # pytest-benchmark warns when xdist is active (benchmarks auto-disabled)
   "ignore:Benchmarks are automatically disabled:pytest_benchmark.logger.PytestBenchmarkWarning",
 ]
@@ -308,6 +313,7 @@ source = [
   "drawing_fire",
   "dt_demo",
   "joystick_demo",
+  "sound_board_demo",
   "text_input_demo",
   "bitmappy",
 ]
@@ -362,6 +368,10 @@ joystick_demo = [
   "src/demos/joystick-demo/src/joystick_demo",
   "*/site-packages/joystick_demo",
 ]
+sound_board_demo = [
+  "src/demos/sound-board-demo/src/sound_board_demo",
+  "*/site-packages/sound_board_demo",
+]
 text_input_demo = [
   "src/demos/text-input-demo/src/text_input_demo",
   "*/site-packages/text_input_demo",
@@ -407,6 +417,7 @@ src = [
   "src/games/drawing-fire/src",
   "src/demos/dt-demo/src",
   "src/demos/joystick-demo/src",
+  "src/demos/sound-board-demo/src",
   "src/demos/text-input-demo/src",
   "src/apps/bitmappy/src",
   "src/apps/bitmappy/tests",
@@ -420,6 +431,7 @@ include = [
   "src/games/drawing-fire/**/*.py",
   "src/demos/dt-demo/**/*.py",
   "src/demos/joystick-demo/**/*.py",
+  "src/demos/sound-board-demo/**/*.py",
   "src/demos/text-input-demo/**/*.py",
   "src/apps/bitmappy/**/*.py",
   "tests/**/*.py",
@@ -439,6 +451,7 @@ namespace-packages = [
   "src/games/drawing-fire/tests",
   "src/demos/dt-demo/tests",
   "src/demos/joystick-demo/tests",
+  "src/demos/sound-board-demo/tests",
   "src/demos/text-input-demo/tests",
   "src/apps/bitmappy/tests",
 ]
@@ -646,6 +659,11 @@ fixable = ["ALL"]
   # in the package itself (docs/architecture/game_packages.md, "A game that is one module")
   "RUF067",
 ]
+"src/demos/sound-board-demo/src/sound_board_demo/__init__.py" = [
+  # The demo is one module: its logical name is demos.sound_board_demo:Game, so Game stays defined
+  # in the package itself (docs/architecture/game_packages.md, "A game that is one module")
+  "RUF067",
+]
 "src/demos/text-input-demo/src/text_input_demo/__init__.py" = [
   # The demo is one module: its logical name is demos.text_input_demo:Game, so Game stays defined
   # in the package itself (docs/architecture/game_packages.md, "A game that is one module")
@@ -685,6 +703,7 @@ known-first-party = [
   "drawing_fire",
   "dt_demo",
   "joystick_demo",
+  "sound_board_demo",
   "text_input_demo",
   "bitmappy",
 ]
@@ -705,6 +724,7 @@ root = [
   "src/games/drawing-fire/src",
   "src/demos/dt-demo/src",
   "src/demos/joystick-demo/src",
+  "src/demos/sound-board-demo/src",
   "src/demos/text-input-demo/src",
   "src/apps/bitmappy/src",
 ]
@@ -720,6 +740,7 @@ include = [
   "src/games/drawing-fire",
   "src/demos/dt-demo",
   "src/demos/joystick-demo",
+  "src/demos/sound-board-demo",
   "src/demos/text-input-demo",
   "src/apps/bitmappy",
   "scripts",
@@ -753,14 +774,18 @@ severity = "medium"
 confidence = "medium"
 
 [tool.deptry]
-# pygame-ce installs as the 'pygame' module
-package_module_name_map = { "pygame-ce" = "pygame" }
 # Not this package's code: the pygame-ce submodule (its own project), browser/, which runs
 # in Pyodide on its runtime modules (js, pyodide) and its own files, and the workspace members
 # under src/games, src/demos and src/apps (projects of their own, each declaring its dependencies:
-# tests/test_workspace_config.py, test_every_member_declares_what_it_imports), and infra/ (the
-# website's CDK app: its own uv project with its own lock, declaring aws-cdk-lib and boto3)
+# tests/test_workspace_config.py, test_every_member_declares_what_it_imports), and
+# .claude/worktrees, where Claude Code checks out other branches of this repository. Also infra/
+# (the website's CDK app: its own uv project with its own lock, declaring aws-cdk-lib and boto3),
+# the AI service (services/), a project of its own with its own lock file, and ansible/, whose
+# scripts run under the sidecar's Python or Ansible's, never this project's
 extend_exclude = [
+  ".claude/worktrees",
+  "ansible",
+  "services",
   "third_party",
   "browser",
   "src/games",
@@ -768,23 +793,34 @@ extend_exclude = [
   "src/apps",
   "infra",
 ]
-# The engine's own package, under src/, and the workspace members' packages scripts/ imports
-# (deptry guesses first-party modules from the root's direct children only)
-known_first_party = [
-  "glitchygames",
-  "mr_muncher",
+# The engine's own package, under src/ (deptry guesses first-party modules from the root's direct
+# children only). The members' packages are not first party: the root's extras (games, demos,
+# apps) declare their distributions, and scripts/ imports the games, so deptry checks each import
+# against them (a game dropped from its extra is reported, DEP004; first party, it never was)
+known_first_party = ["glitchygames"]
+
+# pygame-ce installs as the 'pygame' module; each workspace member as its import packages. nox
+# (`uv sync --no-editable`) installs the members as wheels, whose metadata names their packages;
+# the editable dev venv (`uv run deptry .`) records only a .pth file, so without this map deptry
+# could not tie the imports to the members there. Kept equal to the workspace by
+# tests/test_workspace_config.py
+[tool.deptry.package_module_name_map]
+"pygame-ce" = "pygame"
+"mr-muncher" = ["mr_muncher"]
+"brave-adventurer" = [
   "brave_adventurer_core",
   "brave_adventurer",
   "brave_adventurer_papyrus",
   "brave_adventurer_modes",
-  "clockwork_keep",
-  "paddleslap",
-  "drawing_fire",
-  "dt_demo",
-  "joystick_demo",
-  "text_input_demo",
-  "bitmappy",
 ]
+"clockwork-keep" = ["clockwork_keep"]
+"paddleslap" = ["paddleslap"]
+"drawing-fire" = ["drawing_fire"]
+"dt-demo" = ["dt_demo"]
+"joystick-demo" = ["joystick_demo"]
+"sound-board-demo" = ["sound_board_demo"]
+"text-input-demo" = ["text_input_demo"]
+"bitmappy" = ["bitmappy"]
 
 [tool.deptry.per_rule_ignores]
 # numpy is used indirectly via pygame.surfarray (array3d/array4d) which requires it at runtime
@@ -792,9 +828,14 @@ known_first_party = [
 # bokeh is kept deliberately for future plotting tools (the user, 2026-10-22); nothing imports it yet
 # The demos layer's members are in the root's `demos` extra, but nothing deptry scans imports them
 # (scripts/ imports the games, not the demos; a demo's tests are its member's, under src/demos)
+# pydantic_core is pydantic's own core, installed at the exact version pydantic pins: the sound
+# file schema (src/glitchygames/audio/assets.py) raises its PydanticCustomError, which pydantic
+# does not re-export
+DEP003 = ["pydantic_core"]
 DEP002 = [
   "dt-demo",
   "joystick-demo",
+  "sound-board-demo",
   "text-input-demo",
   "numpy",
   "bokeh",
@@ -812,6 +853,7 @@ DEP002 = [
   "pytest-xdist",
   "pytest-benchmark",
   "pytest-mock",
+  "pytest-randomly",
   "bandit",
   "ruff",
   "pre-commit",
@@ -825,11 +867,6 @@ DEP002 = [
   "wily",
   "radon",
 ]
-
-[tool.uv]
-# aisuite pins docstring-parser<0.16, but 0.16+ is needed for Python 3.14
-# (ast.NameConstant removed). Override until aisuite loosens the pin.
-override-dependencies = ["docstring-parser>=0.16"]
 
 [build-system]
 requires = ["hatchling"]

@@ -289,15 +289,46 @@ def statm_resident_reader(
 
     """
     try:
-        path.read_text(encoding='ascii')
+        _read_ascii(path)
     except OSError:
         return None
     page_size = page_bytes()
 
     def read_resident_bytes() -> int:
-        return int(path.read_text(encoding='ascii').split()[STATM_RESIDENT_FIELD]) * page_size
+        return int(_read_ascii(path).split()[STATM_RESIDENT_FIELD]) * page_size
 
     return read_resident_bytes
+
+
+# How much of a /proc or cgroup file the guard reads at a time (each is a line or a few dozen)
+READ_CHUNK_BYTES = 4096
+
+
+def _read_ascii(path: Path) -> str:
+    """Read a small kernel file through the OS itself, never through pathlib or ``open``.
+
+    The guard samples from its own thread while tests run, and a test may patch
+    ``pathlib.Path.open`` or ``builtins.open`` for the whole process: the guard then read the
+    test's fake file and failed the run (a ``ValueError`` parsing sprite TOML as a number, on
+    Linux CI). ``os.open`` and ``os.read`` are what no test patches.
+
+    Args:
+        path: The file.
+
+    A file that cannot be read raises ``OSError``, as ``Path.read_text`` did.
+
+    Returns:
+        Its text.
+
+    """
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        chunks: list[bytes] = []
+        while chunk := os.read(descriptor, READ_CHUNK_BYTES):
+            chunks.append(chunk)
+    finally:
+        os.close(descriptor)
+    return b''.join(chunks).decode('ascii')
 
 
 def _cgroup_statistics(*, directory: Path) -> dict[str, int]:
@@ -310,8 +341,7 @@ def _cgroup_statistics(*, directory: Path) -> dict[str, int]:
     return {
         name: int(value)
         for name, value in (
-            line.split()
-            for line in (directory / 'memory.stat').read_text(encoding='ascii').splitlines()
+            line.split() for line in _read_ascii(directory / 'memory.stat').splitlines()
         )
     }
 
@@ -324,7 +354,7 @@ def _cgroup_unreclaimable_bytes(*, directory: Path) -> int:
         counts as file but cannot be reclaimed without swap).
 
     """
-    current = int((directory / 'memory.current').read_text(encoding='ascii'))
+    current = int(_read_ascii(directory / 'memory.current'))
     statistics = _cgroup_statistics(directory=directory)
     return current - statistics['file'] + statistics['shmem']
 
@@ -365,7 +395,7 @@ def cgroup_memory_reader(*, directory: Path = CGROUP_DIRECTORY) -> Callable[[], 
 
     """
     try:
-        limit = (directory / 'memory.max').read_text(encoding='ascii').strip()
+        limit = _read_ascii(directory / 'memory.max').strip()
         _cgroup_unreclaimable_bytes(directory=directory)
     except OSError, KeyError, ValueError:
         return None

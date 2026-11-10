@@ -15,10 +15,7 @@ from brave_adventurer_papyrus.constants import (
     LAYER_COLLECTIBLES,
     SPRITES_DIR,
 )
-from brave_adventurer_papyrus.sprite_utils import (
-    apply_transparency_and_scale,
-    prepare_papyrus_sprite,
-)
+from brave_adventurer_papyrus.sprite_utils import prepare_papyrus_sprite
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.world import CoordinateSpace
 
@@ -79,8 +76,8 @@ class PapyrusGoldScarab(AnimatedSprite):
         self.dt = dt
         self.bob_timer += dt
         self.world_y = self.base_world_y + math.sin(self.bob_timer * 3.0) * 4.0
+        # Its image is the drawn frame, which the engine redraws as the frame changes
         AnimatedSprite.update(self, dt)
-        apply_transparency_and_scale(self)
 
     @override
     def update(self: Self, dt: float = 0.016) -> None:

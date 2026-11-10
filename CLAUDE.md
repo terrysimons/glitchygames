@@ -124,6 +124,7 @@ nox -s static-analysis-ty           # Run ty only
 
 # --- Testing ---
 nox -s test                # Run tests with coverage
+nox -s test-random         # The suite in a shuffled order (pytest-randomly, a new seed each run; `-- SEED` repeats one): the pre-push hook. Dummy drivers, no coverage; a failure prints the seed and the one-process command that replays it. Every other run keeps the files' order (addopts: -p no:randomly)
 nox -s performance-test    # Run performance benchmarks (every testpath: the engine's and each member's)
 # tests/benchmarks/test_logging_cost.py (only under --benchmark-only): every golden and bundled demo at
 # --log-level warning, info and debug; the chattiest loggers and the cost per frame (docs/quality/performance.md)
@@ -131,7 +132,7 @@ nox -s timer-report        # Report this machine's timer accuracy: VM?, CPU shar
 nox -s replay-metrics      # (the project's editable install) Rebaseline every golden replay + bundled demo headless; append run-ledger rows to test-results/replay-metrics/pending.jsonl (skips this commit+machine; `-- --force`, `-- --allow-dirty`, `-- --only TEXT`)
 nox -s test-linux-x11      # Tests on Linux in Docker: X11 windows on XQuartz, sound on the Mac's PulseAudio (starts it; `pulseaudio --kill` stops it; macOS)
 nox -s test-linux-ci       # Tests as CircleCI's Linux job runs them, in Docker: its amd64 image, 2 GB without swap, 1 CPU, serial, CI=true, the RSS guard (read from .circleci/config.yml); results in test-results/linux-ci/
-nox -s compare-drivers     # On demand N-way matrix: dummy x2, native, x11-macos, x11-linux (whatever runs here); `-- --drivers a,b`, `-- tests/x`; report test-results/driver-comparison/nox/matrix.md
+nox -s compare-drivers     # N-way matrix: dummy x2, native, x11-macos, x11-linux (whatever runs here), each its own run; `-- --drivers a,b` (`native`: every native driver here), `-- tests/x`; report test-results/driver-comparison/nox/matrix.md. A pre-push hook runs `-- --drivers native --fail-on-difference`: a driver difference stops the push (BUGS.md #254)
 nox -s build-sdl-x11       # Build SDL with x11 for macOS (cached in ~/Library/Caches/glitchygames/sdl-x11; SDL_DYNAMIC_API loads it) and check it on XQuartz
 
 # --- Code quality ---
@@ -158,9 +159,11 @@ nox -s bandit-scan         # Run bandit only
 nox -s build               # Build binary (PyInstaller) + wheel
 nox -s build-binary        # Build standalone Bitmappy binary only
 nox -s build-wheel         # Build the wheel (.whl) of every workspace package (uv build --all-packages), only
-# build, build-wheel, build-binary and test stamp the engine's commit into the package first
-# (src/glitchygames/_build_info.json, removed after; src/glitchygames/build_info.py): test's installed
-# copy is not editable, so the stamp is how it names its commit
+# build, build-wheel and build-binary stamp the engine's commit into the package first
+# (src/glitchygames/_build_info.json, removed after; refused while another build's is there;
+# src/glitchygames/build_info.py). test stamps its installed copy instead (write_build_stamp.py
+# --into, with the session's python): that copy is not editable, so the stamp is how it names
+# its commit, and the checkout never holds a test run's stamp (BUGS.md #224.47)
 
 # --- Docs ---
 nox -s docs-deploy         # Fetch gh-pages, replay-metrics (--skip-dirty), build, publish to https://terrysimons.github.io/glitchygames/ (pushes gh-pages, then clears published pending rows; `-- --build-only`: no push)
@@ -199,6 +202,34 @@ nox -s site-publish        # Upload src/website (or `-- --source DIR`) and inval
 # (requires deploy-docs and test-infra: it publishes after the docs), signing in with the job's OIDC token
 # (the role's ARN is the CircleCI project environment variable SITE_DEPLOY_ROLE_ARN, kept out of the
 # public config because it names the AWS account; no AWS keys are stored)
+=======
+### Local AI Service (Ansible; plans/lucid-circuit.md)
+```bash
+# llama.cpp from source with Metal, the Bonsai 2 and Qwen models, per-user launchd agents and the
+# unsigned .pkg, everything created by the playbook. No root. macOS on Apple Silicon, with Xcode and
+# CMake already installed. First run downloads 14.57 GB; running it again changes nothing
+uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml
+# Only hosts whose ai_enabled is true get it (ansible/inventory.yml: on by default, off on the
+# Raspberry Pis); the playbook's first play sorts the hosts without connecting to any
+# Nothing runs until asked: ai-service.sh start loads Bonsai 2B (ai_service_default_bonsai_size;
+# config/selection.env or AI_BONSAI_SIZE picks another) when free memory allows. A model
+# unloads after 30 idle minutes (ai_service_sleep_idle_seconds)
+"$HOME/Library/Application Support/GlitchyGames/AI/bin/ai-service.sh" select   # or start, stop, status
+# ...one piece: --tags llama_cpp, ai_models, ai_sidecar, ai_service or ai_package
+# The service is its own project, outside the workspace, sharing no code with the engine. A game
+# reaches it only over a socket (127.0.0.1:23231: WebSocket /v1/session, REST /v1/*, docs at /docs)
+(cd services/ai-service && uv run pytest)   # its own tests, lock file and 100% coverage
+# Games connect to it by default: --ai (on), --no-ai. Never with --headless, in a replay or browser,
+# or without the service installed: those runs build plain HostSources and never import
+# websockets. src/glitchygames/ai_link.py (the link, on its own thread) and ai_host.py (a
+# HostSources subclass; host.py doesn't change). The harness sets GLITCHYGAMES_AI_INSTALL_ROOT
+# to nowhere, so no test can reach the real service
+# In any game with AI the ` key opens the read-only console (src/glitchygames/ai_console.py, its
+# docstring the rules): /ask, /inspect, /ai, /cancel, /history, /copy, /paste, /clear, /help. Its keys reach
+# neither the game nor a recording. A scene may say more with describe_for_ai()
+# Check every model on Metal (speed, memory, layers on the GPU), or remove the service
+uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_validate
+uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_uninstall
 ```
 
 ### Running Bitmappy (Pixel Art Editor)
@@ -238,6 +269,8 @@ uv run glitchygames verify --game paddleslap --only rally  # one game's, filtere
 uv run glitchygames unmeasured                             # what measure would measure on this machine
 uv run glitchygames measure --game paddleslap              # measure into the pending ledger
 uv run glitchygames performance-pages <directory>          # the ledger and graph pages
+uv run glitchygames sound-render sounds/pickups.toml#coin --sound-output coin.wav  # offline WAV
+uv run glitchygames sound-migrate sounds/recipes.toml      # v0 recipes -> sounds/recipes.v1.toml
 # A scripted session (PaddleSlap's golden: 622 frames, with its controls tail and quit)
 uv run glitchygames record-session paddleslap out.jsonl.gz --headless \
     --input-script scripts.golden_inputs:paddleslap_script --frame-count 600 \
@@ -248,12 +281,17 @@ uv run glitchygames record-session paddleslap out.jsonl.gz --headless \
 ```
 
 ### Example Games
+**Always use the sprite classes when creating new games** (the owner, 2026-11-07): every game object is a sprite in
+the scene's groups, never drawn straight onto the screen. Sprites are the robust objects the AI works with: stable ids
+that are never recycled, sprite comparison in replays, debug-overlay hitboxes and the AI's introspection tools. Drawing
+Fire predates this and draws without sprites (converting it is in plans/future-work.md).
+
 Every game is its own workspace package under `src/games/` (Part 2 of
 plans/2026-10-24-workspace-packages.md; the recipe is docs/architecture/game_packages.md), with
 its code, tests and golden replay; the engine has no examples package. The `demos` layer
-(`src/demos/<demo>/src/<package>/`, Part 3) holds the three demos, each a workspace member with
-its own console script: `uv run dt-demo`, `uv run joystick-demo`, `uv run text-input-demo` (or
-`python -m dt_demo`, `joystick_demo`, `text_input_demo`); demos get no browser build. A demos-layer
+(`src/demos/<demo>/src/<package>/`, Part 3) holds the four demos, each a workspace member with
+its own console script: `uv run dt-demo`, `uv run joystick-demo`, `uv run sound-board-demo`, `uv run text-input-demo`
+(or `python -m dt_demo`, `joystick_demo`, `sound_board_demo`, `text_input_demo`); demos get no browser build. A demos-layer
 member is not a game's bundled demo recording (`<package>/demos/*.jsonl.gz`, package data).
 (Bitmappy is an app, its own package in the apps layer, `src/apps/bitmappy/`: Part 4 of the same
 plan). `uv run paddleslap` (its own workspace package `src/games/paddleslap/`, one module: `Game` is
@@ -342,8 +380,10 @@ games.
   exit codes). A watched replay runs through `run_watched_replay_async`
   (`src/glitchygames/replay/viewer.py`: one viewer tick per awaited tick, `ticks_externally`, steps
   until `SceneManager.last_step_was_held`); a headless replay raises RuntimeError. Replay
-  restarts need a new process, so in a browser they only show a message (`RESTARTS_AVAILABLE`). `_prepare_run()` is everything up to the first
-  frame
+  restarts need a new process, so in a browser they only show a message (`RESTARTS_AVAILABLE`). Both
+  starts share everything up to the first frame: `_begin_run()`, the CRT power-on (its sound from
+  `_power_on_sound_cues()`, handed back by `_hand_back_power_on`) and `_build_game()`; `_run_game`
+  runs them blocking, `start_async` awaiting the power-on's ticks
 
 **Exit Codes** (`src/glitchygames/exit_codes.py`; `ExitCode` IntEnum, re-exported by
 `glitchygames.engine`; never write the number in code or tests)
@@ -622,7 +662,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `glitchygames unmeasured [--code-tree TREE] [--rows-directory DIR] [--pending PATH] [--game GAME
   ...]`, `glitchygames clear-published [--pending PATH]`,
   `glitchygames report PATH [--threshold PERCENT] [--minimum-ms MS] [--spans N]`,
-  `glitchygames performance-pages DIRECTORY [--published]`, each with
+  `glitchygames performance-pages DIRECTORY [--published]`,
+  `glitchygames sound-render SOURCE --sound-output PATH [--sample-format int16|float32]`,
+  `glitchygames sound-migrate FILE [--migrated-output PATH]` (`replay/tools/sound_tools.py`:
+  offline render through `glitchygames.audio.render_to_file`; v0 recipes to a v1 sound file,
+  refusing what v1 cannot say yet), each with
   `--project-root DIR`; arguments after a bare `--` go to the game). `--game` is the one
   command-only option (`COMMAND_ONLY_FLAGS` in `tests/replay/tools/test_registry.py`): a game needs
   none, it is the game. `verify` (`verify.py`) replays each recording headless in a child (no
@@ -813,9 +857,17 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `src/glitchygames/replay/controls.py`: once per press; `.` repeats after 300 ms at 10/s) and
   presents the latest frame with a status bar (`EngineSources.draws_overlay`/`draw_overlay`,
   never in screenshots or traces); the INNER recorded game runs N full frames per tick from an
-  accumulator (real time x speed, consumed by recorded dt, at most `MAX_INNER_FRAMES_PER_TICK`
-  and `INNER_FRAME_BUDGET_SECONDS` per tick, never owing more than one tick's worth; the status
-  bar shows the real speed when it cannot keep up),
+  accumulator (real time x speed, consumed by recorded dt, within `INNER_FRAME_BUDGET_SECONDS` per
+  tick, the owed time capped at `MAX_OWED_INNER_FRAMES` and a half frames, never below a frame plus
+  a 60 Hz tick plus the tick paid for, in inner time; at every speed the work budget is the only
+  per-tick limit (no frame count), so an uncapped recording whose frames cost what they did live may
+  not keep up on a real machine, and "can't keep up" then means exactly that; up to 1x a tick runs
+  at most one unless behind, owing that frame plus a whole tick, so a long live frame and its short
+  catch-up frame are each presented, the replay then staying about a tick behind real time (a
+  constant lag a pause resets), and a recording faster than 60 FPS still runs several a tick,
+  presenting the last; above 1x the same limit follows a frame lasting at least a tick of inner time
+  at that speed (shorter frames run several a tick, fast-forward) (rule 2 of `viewer.py`); the
+  status bar shows the real speed when it cannot keep up),
   unpresented (`EngineSources.presents_frames` False). It drives the loop through
   `EngineSources.hold_frame` (held = present an outer frame, run nothing, consume no recorded
   batch). It holds at a "Press Spacebar to Start Game Replay" screen after frame 0 (the pause
@@ -1130,11 +1182,13 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   their scenes (the tests' `COUNTER_SLOT` only tests the class)
 - `with context.active():` switches (a `contextvars.ContextVar`: per thread and asyncio task;
   nests; restores on exceptions). Slots today: the default snap mode, the default background,
-  the polled input, the random streams, the doors with the frame clock and observers, and the
-  `SceneManager` singleton; each has an isolation check in `tests/test_engine_context.py`
+  the polled input, the random streams, the game-frame clock, the doors with the frame clock
+  and observers, the `SceneManager` singleton, the wave registry and the audio engine (the table in
+  `docs/architecture/engine_context.md` lists each one's functions); each has an isolation check in `tests/test_engine_context.py`
   (`ISOLATION_CHECKS`), and a slot without one fails the suite
 - The harness fails a test that leaves another context current
-  (`every_test_ends_in_the_default_engine_context`). A new autouse fixture that resets engine
+  (`every_test_ends_in_the_default_engine_context`): a switch entered by hand and still held. A
+  switch abandoned unexited unwinds itself when collected and is not reported. A new autouse fixture that resets engine
   state must join a group (`per_context_state_resets` or `engine_service_resets` in
   `tests/harness.py`) that the leak check requests, or be listed in
   `PROCESS_STATE_AUTOUSE_FIXTURES` (`tests/test_engine_context.py`) with its reason; a guard
@@ -1168,12 +1222,78 @@ revision: a game outside this repository names its own commit. Here both are one
   joystick modes
 - `--screen-shake-intensity`, `--rumble-intensity` (0.0-1.0)
 
-**Sound Synthesis** (`src/glitchygames/audio/synth.py`, `recipes.py`, `live.py`)
-- Toolkit: oscillators (PolyBLEP square/saw), pitch curves via easing, envelopes, FIR filters,
-  mixing, `to_sound()`
-- Recipes: `Tone`/`SoundRecipe` (TOML-loadable) played through `SoundBank`
-- Live voices: `scene_manager.live_audio.create_voice(owner=...)`, streamed in 100 ms chunks on
-  a channel pool reserved at startup (`--live-voice-pool`, default 4)
+**Sound Synthesis** (`src/glitchygames/audio/`; user docs `docs/architecture/sound.md`, specs
+`docs/specs/2026-11-02-sound-engine-feature-spec.md` and `...-implementation-spec.md`; M1 built,
+M2 next)
+- One call: `scene_manager.audio` is the context's `AudioEngine` (`audio/engine.py`, slot
+  `AUDIO_ENGINE_SLOT`). `audio.sound(source, *, pitch, notes, chord, length, transpose)` returns
+  a compiled `Sound`: the first request for an identity compiles, later ones hit the cache, and
+  getting never plays. `Sound.play(volume=, pan=, bus=, priority=, loop=, persist=)` returns a
+  `SoundHandle` (`stop`, `cancel`, `release`, `set_volume`, `set_pan`, `is_playing`: False once
+  ended, never touching a later voice); `audio.play(...)` and `audio.beep(...)` are shorthands.
+  Request sounds in `setup()`: a gameplay compile is counted, logged and shown in red
+- Sources: a short name, looked up in the scene's `SOUND_DIRECTORY` (`'sounds'`, relative to the
+  scene's package directory; a TOML `[sounds.*]` name or a `.wav`/`.ogg` stem; a name in two
+  files raises naming both), a path (`'sounds/pickups.toml#coin'`) or an `Instrument` (waves,
+  noise, up to four sources, envelope, filter, drive). Pitches: note names, `Hz`, `Midi`,
+  `Scale(root, kind).step(n)` (`audio/pitch.py`); named waves, mixes, blends, points and
+  harmonics (`audio/waves.py`, a per-context registry). Sound files are TOML version 1
+  (`audio/assets.py`, `audio/spec.py`); version 0 recipe files load and sound as before
+- Cache (`--sound-cache`, replay-local): `ram` (default; least recently played idle sounds go
+  above `--sound-cache-memory`, 256 MB) or `none` (every play compiles in its frame; the CRT
+  power-on's sounds, the engine's own, are compiled once per process and exempt); `disk`
+  arrives in M3 and is refused (`OPTIONS_REFUSED`) until then. A sound's `length`, `peak` and
+  `sample_rate` never depend on the cache, and eviction keeps them. Under `none` getting a sound
+  renders or decodes nothing (5 plays, 5 compiles): a synthesized sound's `length` is derived
+  exactly as the compile sizes it (`render.rendered_frame_count`, `SoundRecipe.frame_count`);
+  every `peak`, and a recorded file's `length` and rate, come from one counted compile on first
+  read (a play's compile counts as that read), then are kept
+- Channels: partitioned once at startup: the live pool (`--live-voice-pool`, 4), the library
+  (`--sound-channels`, 32), then pygame's 8 for legacy `Sound.play()` callers. The voice table
+  (`audio/voices.py`) steals by priority (`Channel.fadeout(10)`; the stealer waits a frame for
+  the stolen channel, a delayed play), drops and counts; `is_playing` and voice ends follow
+  played time (the served `dt`), never the device, so replays see the same answers.
+  `FrameSilencer`'s stops (rebuild, fast-forward) only quiet the channels
+  (`AudioEngine.silenced`): the voices, their ends and steals go on by frame time. Owners are
+  compared by identity. Buses
+  (`audio/buses.py`): `master` over `music`, `effects`, `ui`, `ambience` and `dialogue` (`ui`
+  and `music` reserve two channels each). A scene's voices fade over 50 ms when it is switched
+  away from (unless `persist=True`) and pause behind a pause screen
+- Measured (`tests/audio/test_channel_fades.py`, SDL's disk driver): SDL_mixer changes a
+  channel's level only between 512-frame chunks (11.6 ms), so `Channel.fadeout` of 10 or 20 ms
+  is a plateau or two and a halt, a per-frame volume or bus fade steps once per chunk, and
+  `play` straight after `fadeout` cuts the fade (why steals wait a frame). Short fades can click:
+  the owner's listening check and decision (impl spec risks R4 and R5; strict xfails hold the
+  unmet criterion)
+- Accounting (`audio/accounting.py`): each compile, decode and cache read is timed; a frame's
+  work reaches the doors, and so recordings, as `audio_seconds` and `audio_work` (at most 32
+  entries); `audio.diagnostics()` totals compiles (setup and gameplay), steals, delayed and
+  dropped plays and the cache's hits, misses and bytes; the debug overlay's Audio panel shows
+  them per frame
+- Offline: `glitchygames.audio.render_to_file(sound, path, ...)` (`audio/offline.py`) writes a
+  sound (plus `OfflineEvent`s, loops, stems) to a WAV file with no audio device; alone it is the
+  compiled int16 buffer bit for bit (never cut); with `events`, the tail stops 100 ms into
+  -90 dBFS after the last nominal end (an instrument sound's last release), or at `tail_seconds`.
+  The `glitchygames sound-render` and `sound-migrate` (v0 recipes to v1) tools use it
+- The Sound Board (`uv run sound-board-demo`) plays every built-in wave and noise by note, hertz
+  and scale step, with the Audio panel open
+- Instrument catalog (`audio/instruments/`): `instruments.get('violin')` is an ordinary
+  `Instrument` (built once per process), `instruments.entry(name)` its title, family and range
+  (`lowest`/`highest`, sounding; None for unpitched drums, whose fixed tones ignore the pitch
+  given). 624 entries in 23 `Family`s (every size of each family, voices soprano to basso
+  profundo on five vowels; `Tag.MECHANICAL` marks mechanical ones, `names(tag=...)` lists them;
+  `ALIASES` (read-only, as `CATALOG` is) maps 35 other names to catalog names, resolved by
+  `get`/`entry`; a sound-alike is its own entry sharing a parent's build via `sounds_like`, with
+  optional sourced `sound_changes`), each built by a shape in `timbres.py` (`blown`, `plucked`, `struck`, `rubbed`,
+  `drum`, `with_drones`) from overtone series (`falling_series`, `plucked_series`,
+  `formant_series`); `tests/audio/test_instrument_catalog.py` renders every entry across its
+  range and checks each harmonic one's pitch. `scripts/make_instrument_demos.py` writes WAVs
+- The older toolkit, kept until M2 moves the games over and removes `SoundBank`, `load_sound`
+  and `live_audio`: oscillators (PolyBLEP square/saw), pitch curves via easing, envelopes, FIR
+  filters, mixing and `to_sound()` (`synth.py`, still the renderer's building blocks);
+  `Tone`/`SoundRecipe` (TOML-loadable) played through `SoundBank` (`recipes.py`); live voices,
+  `scene_manager.live_audio.create_voice(owner=...)`, streamed in 100 ms chunks on the live pool
+  (`live.py`)
 - Mixer: 44100 Hz, signed 16-bit, stereo, 512-sample buffer (started by `pygame.init()`)
 - GIL: the engine sets `sys.setswitchinterval(GIL_SWITCH_INTERVAL_SECONDS)` (0.5 ms, `timing.py`) so the
   mixer callback can queue the next chunk; check with `uv run python scripts/audio_glitch_probe.py`
@@ -1188,7 +1308,10 @@ SceneManager services
 (collision hitboxes by layer, physics velocities and ground state, camera panel with world edges
 and mouse world position (bounds clamp the camera's top-left, so right/bottom edges are max +
 screen size - 1), performance HUD with FPS, frame time, 1% low and a frame-time graph with a target
-line). Drawn in `SceneManager._present_frame`, never in screenshots, with the bundled Bitstream
+line), and an Audio panel after Performance (cache mode, mixer, voices, an audio-time graph stacked by
+kind of work, channel strip, bus meters, compile log; under All only its header; `--sound-diagnostics`
+opens on it; built from `AudioEngine.snapshot()` only while the overlay is visible and the engine
+already exists), then an AI panel (the link, models and requests, from the AI console). Drawn in `SceneManager._present_frame`, never in screenshots, with the bundled Bitstream
 Vera Sans font on translucent cached backings. Scenes or sprites can add annotations with
 `debug_draw(surface, camera)`. `Scene.debug_subject` names the scene to inspect (normally the scene
 itself; `PauseScene` returns the paused game, so its hitboxes line up with the frozen picture and
@@ -1205,7 +1328,23 @@ engine display is painted with the default before the first frame. Then, before 
 that canvas (`src/glitchygames/crt_power_on.py`): a dot, a line, the picture opening, warm-up flicker
 from fixed tables (no randomness), settling on exactly that default; any key or button skips it, a
 window closed during it quits the game. `--crt-power-on auto` (default) skips it on SDL's dummy
-driver (`--headless`, every test) and before a replay, audit, rebaseline or recording
+driver (`--headless`, every test) and before a replay, audit, rebaseline or recording. Its sound
+(`src/glitchygames/crt_power_on_sound.py`, feature spec 12.1) plays with the picture, unless
+`--crt-power-on-sound off`: a power click and a 60 Hz degauss thump at the switch, a flyback whine
+(`FLYBACK_WHINE_HZ`, owner-tunable) from the dot, static as the picture opens, then the bars' 1 kHz
+tone (or channel 3's hiss), all `Instrument`s through `audio.sound(...)`, cued by the frames'
+progress through `play_power_on(sound_cues=...)` (`PowerOnSoundCues`: `crt_power_on.py` stays a
+leaf with no audio import). They are requested through `audio.engine_sound(...)` and compile once
+per process (the owner, 2026-11-02): the engine's process-wide `ENGINE_SOUND_CACHE`
+(`audio/library.py`) keeps their read-only samples by identity key (mixer rate and tuning
+included), so every later power-on and engine context (the Arcade) compiles nothing; each context
+gets its own `Sound` over the shared samples. It is exempt from the memory limit and from
+`--sound-cache none`; the first compile is counted where it happens, reuses are cache hits; tests
+start empty (`tests/harness.py` `empty_engine_sound_cache`). Its voices are the audio engine's `SYSTEM_OWNER`'s; the engine is made
+before the power-on with the game engine's options and partition (`SceneManager.audio_for`), the
+one the game's `scene_manager.audio` returns. A skip fades every voice over 20 ms; the tail loops
+into the game and fades over 500 ms from frame 0's first audio update
+(`AudioEngine.fade_out_at_next_update`)
 
 **Pixel snapping** (`src/glitchygames/pixel_snap.py`): `PixelSnapMode` and `snap_to_pixel` convert
 sub-pixel world positions to drawn whole pixels (NEAREST_HALF_UP for smooth-motion games, FLOOR
@@ -1262,7 +1401,7 @@ display before every present. The test guard judges what the window shows
 **Hitboxes** (`src/glitchygames/collision/`): default to the image's visible pixels (alpha/colorkey
 trimmed, `collision/bounds.py`, measured every query so redrawn images are fine);
 `TRIM_TRANSPARENT_HITBOX = False` opts out and TOML hitboxes win (native pixels times
-`AnimatedSprite.hitbox_scale`; `hitbox_flip_x = True` mirrors them for a sprite drawn facing
+`AnimatedSprite.scale`; `hitbox_flip_x = True` mirrors them for a sprite drawn facing
 left). `AnimatedSprite.common_hitbox_x_range()` is the x-span every frame shares (use it for
 standing support so a wider frame cannot catch a ledge), and
 `collision.layers.collision_rect_offset(sprite)` places a sprite so its collision rect is flush
@@ -1299,7 +1438,7 @@ scene's logical name, which recordings hold, is `apps.bitmappy.editor:BitmapEdit
 engine never imports it. Its sprite library (71 sprites, also the AI's training data) is package
 data in `src/apps/bitmappy/src/bitmappy/resources/sprites/` (`bitmappy.SPRITE_CONFIG_DIR`), beside
 its window icon and `bitmappy.cfg`. Its tests are in `src/apps/bitmappy/tests/`, and its
-`pyproject.toml` declares what it imports (the engine, aisuite, numpy, pydantic, pygame-ce,
+`pyproject.toml` declares what it imports (the engine, numpy, pydantic, pygame-ce,
 tenacity). The Load and Save dialogs open the file name as typed (whitespace trimmed): there is
 no `example:` prefix, so a sprite in the library is opened by its path.
 
@@ -1309,7 +1448,7 @@ Features:
 - Multi-controller support (`MultiControllerManager`)
 - Collision visualization (`VisualCollisionManager`)
 - TOML file format for sprites
-- AI integration via aisuite, behind the feature flag `AI_FEATURES_ENABLED`
+- AI integration via the local AI service, behind the feature flag `AI_FEATURES_ENABLED`
   (`src/apps/bitmappy/src/bitmappy/constants.py`; off in WebAssembly builds for now: the AI worker is a separate
   process, which a browser cannot start). `tenacity` is imported only when an AI request is made
   (`src/apps/bitmappy/src/bitmappy/ai_worker.py` `_create_ai_retry_decorator`), so Bitmappy imports without it
@@ -1457,6 +1596,8 @@ Features:
   it reports every pair in `test-results/driver-comparison/nox/matrix.md` without failing on a
   difference; it fails, keeping the last complete report, when a run recorded no test
   (`docs/quality/driver_comparison.md`)
+  On a real driver the test windows are hidden, so the machine's pointer and keys never reach a
+  test (`tests/hidden_test_windows.py`, BUGS.md #225; `GLITCHYGAMES_SHOW_TEST_WINDOWS=1` shows them)
   After each test the variables, display and mixer a test moved off the run's drivers (a
   constructed `--headless` engine moves them to `dummy`) are put back, the display showing the
   canvas (`tests/sdl_driver_isolation.py`; a few microseconds when nothing changed)
@@ -1538,7 +1679,7 @@ alpha = 127  # 0-254 for transparency, omit for opaque
 - Onion skinning ('O' key, right-click frames)
 - TOML/PNG drag-and-drop support
 - Undo/redo system for canvas and film strip operations
-- AI sprite generation via aisuite
+- AI sprite generation via the local AI service
 - Voice recognition support
 - ASCII renderer with transparency support
 
@@ -1574,5 +1715,16 @@ alpha = 127  # 0-254 for transparency, omit for opaque
 - **Documentation**: Architecture details in `docs/architecture/` (the mkdocs site) and root .md files
   (ANIMATION_README.md, LOADER_README.md, etc.). The engine's API reference pages are written by
   hand (`docs/glitchygames/`); each workspace member package's (`mr_muncher/index.md`) is
-  generated in the build by `scripts/gen_ref_pages.py` (mkdocs-gen-files), and mkdocs.yml's nav
-  names it (`tests/test_workspace_config.py` checks every member's)
+  generated in the build by `scripts/gen_ref_pages.py` (mkdocs-gen-files), and zensical.yml's nav
+  names it (`tests/test_workspace_config.py` checks every member's). The site is mkdocs 1.x
+  (`mkdocs<2.0`) with the Material theme; its configuration is `zensical.yml`, and `mkdocs.yml` is a
+  link to it (`test_mkdocs_yml_is_a_link_to_zensical_yml`). Code reads `zensical.yml` by name:
+  Windows may check the link out as a text file. `docs/requirements.md` is the requirements page:
+  its pickers and tables are `docs/js/requirements.js` over `docs/data/requirements.json`
+  (each measured machine's ranges from the replay ledger, regenerated when they are re-measured).
+  Replay Performance and Code Complexity are explorers too: `docs/js/performance.js` over the
+  build's `quality/metrics/performance-explorer.json` (`scripts/generate_performance_graphs.py`:
+  the engine's chart traces per recording) and `docs/js/complexity.js` over
+  `quality/graphs/complexity-explorer.json` (`scripts/generate_complexity_graphs.py`: every
+  module's and package's wily history); both load plotly.js only on their page, and all three
+  share `docs/css/explorer.css`

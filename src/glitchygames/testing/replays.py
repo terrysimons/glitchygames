@@ -202,11 +202,17 @@ class ReplayFile(pytest.File):
             raise pytest.Collector.CollectError(message) from None
         name = self.path.name.removesuffix(RECORDING_SUFFIX)
         make_item = cast('ReplayItemFactory', ReplayItem.from_parent)
-        yield make_item(parent=self, name=f'{console_script}/{name}')
+        item = make_item(parent=self, name=f'{console_script}/{name}')
+        item.console_script = console_script
+        yield item
 
 
 class ReplayItem(pytest.Item):
     """Replays one recording headless in a child process; passes on ``ExitCode.SUCCESS``."""
+
+    # The game's console script, which replays the recording: found by ReplayFile.collect and
+    # set on the item there, so runtest does not look it up again
+    console_script: str
 
     @override
     def runtest(self: Self) -> None:
@@ -218,15 +224,9 @@ class ReplayItem(pytest.Item):
 
         """
         # Imported here, as in ReplayFile.collect (which has imported it already)
-        from glitchygames.replay.tools.children import (
-            recording_console_script,
-            replay_recording_headless,
-        )
+        from glitchygames.replay.tools.children import replay_recording_headless
 
-        # ReplayFile.collect has checked the recording has a console script
-        finished = replay_recording_headless(
-            console_script=recording_console_script(path=self.path), path=self.path
-        )
+        finished = replay_recording_headless(console_script=self.console_script, path=self.path)
         if finished.returncode == ExitCode.SUCCESS:
             return
         unusable = (

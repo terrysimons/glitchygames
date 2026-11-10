@@ -5,9 +5,18 @@ each game's `tests/fixtures/replays/` and the demos bundled with the games), com
 measurement replays a recording headless and unpaced on one machine (`--rebaseline`, which times
 each frame's work without the pacing sleep), so a line moves only when the code got faster or
 slower, or the machine changed. Times compare only on one machine: each machine (its CPU model)
-and kind of run is its own line.
+and kind of run is its own line. [Requirements](../requirements.md) turns these measurements into a
+verdict per game for each measured machine.
+
+Until a build generates them, this page has only this text.
+
+--8<-- "docs/quality/metrics/performance_graphs.md"
 
 ## What the graphs show
+
+The explorer above draws one chart at a time: pick the recording (grouped by game), the chart,
+the statistics (p50, p99, max) and the machines to compare. Each recording's own page, linked
+under it, shows every chart at once with the slowest-frame heatmaps.
 
 - **Processing time per frame**: the median (p50), the 99th percentile (p99) and the slowest
   frame (max) of one replay, in milliseconds, by commit (oldest on the left, labelled with the
@@ -40,6 +49,9 @@ print the same FPS beside the milliseconds.
 
 Hover a point for the commit's date and when it was measured.
 
+The game of the recording picked goes in the page's address (`?game=mr-muncher`), so a view can
+be linked: the link opens on that game's first recording.
+
 Measurements made on a checkout with uncommitted changes (a trial: `nox -s replay-metrics --
 --allow-dirty`) are never published: the published site leaves them out, while a local build
 (`mkdocs build`, `mkdocs serve`, `nox -s docs-serve`) shows them, labelled "uncommitted
@@ -54,13 +66,26 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    has not measured that code yet, it measures every golden replay and bundled demo on it and
    adds one small file per recording to the commit, under `quality/replay-ledger/`. A docs commit
    after a measured one is instant; code that arrived by a merge from `main` or a rebase is
-   measured by the next commit (or by hand: `uv run python -m scripts.measure_staged_replays`,
-   then commit). `SKIP=replay-metrics git commit ...` skips it.
+   measured by the next commit (or by hand: `nox -s measure-staged`, then commit, which also
+   adds a machine without the hook). `SKIP=replay-metrics git commit ...` skips it.
+   A pre-push hook (`scripts/measure_on_raspberry_pi.py`) measures the same way on the Raspberry
+   Pis (a Pi 4 and a Pi 5, `ansible/inventory.yml`'s `raspberry_pis`), both at once, and copies
+   their row files here, staged. A push that brings rows stops so they can be committed, and the
+   next one goes through; a Pi that cannot be reached stops the push before any Pi measures (by
+   hand: `nox -s measure-on-raspberry-pi`; `SKIP=raspberry-pi-replay-metrics git push ...` skips
+   it).
 2. **The site shows what landed on `main`.** Every docs build reads the repository's row files
-   and keeps those whose code tree is the code tree of a commit that added rows: on `main`, the
-   squash merge, so each is shown under the commit its code landed in. Rows of a branch's
-   intermediate commits match none and are left out. A local build shows a branch's rows before
-   it merges; only `main` is ever published (`nox -s docs-deploy` refuses anything else).
+   and keeps each row whose code tree is the code tree of the commit that added its file: on
+   `main`, the squash merge, so each is shown under the commit its code landed in (code that
+   returns to an earlier tree is shown under the commit that brought it back). Rows of a
+   branch's intermediate commits name another tree and are left out. Each commit's tree is
+   taken with the measured paths its own `pyproject.toml` names, so changing them later never
+   drops earlier rows. A local build shows a branch's rows before
+   it merges, each as its own point labelled `<commit> unlanded` (the commit it was measured on
+   top of); only `main` is ever published (`nox -s docs-deploy` refuses anything else).
+   This needs squash merges: a merge commit brings its branch's commits into `main`'s history,
+   and each that added rows would land its own (intermediate) code tree, so pull requests are
+   squash-merged only.
    After each merge to `main`, CircleCI deploys the site with them; CI never measures (its
    machines vary).
 3. The history measured before this (rows naming their commit) was moved into the repository
@@ -81,7 +106,7 @@ uv run glitchygames performance-pages <directory>   # the ledger and one graph p
 
 (`<game> --measure`, `--unmeasured` and `--performance-pages <directory>` are the same tools as
 the game's own flags.) Our docs build makes these pages through `scripts/mkdocs_hooks.py` and
-`scripts/generate_performance_graphs.py`, which only add our docs paths and the snippet below.
+`scripts/generate_performance_graphs.py`, which only add our docs paths and the snippet above.
 
 A recording holds its own last ten runs too; `uv run glitchygames report PATH` (or
 `<game> --report PATH`) prints them, which frames got slower or faster between runs (only frames that did the same
@@ -126,7 +151,3 @@ At `warning` no recording should emit an INFO or DEBUG record (the startup optio
 CRITICAL record a run): a logger that does has a level set behind the command line's back
 (BUGS.md #236), which `tests/replay/test_replays_log_quietly.py`
 and `tests/test_logger_levels_at_import.py` fail on in the ordinary test run.
-
-Until a build generates them, this page has only this text.
-
---8<-- "docs/quality/metrics/performance_graphs.md"

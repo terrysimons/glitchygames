@@ -138,6 +138,7 @@ from glitchygames import clock
 from glitchygames.debug.overlay import load_debug_font
 from glitchygames.debug.panels import HUD_MARGIN, HUD_TEXT_COLOR, blit_text
 from glitchygames.exit_codes import ExitCode
+from glitchygames.fonts import FontManager
 from glitchygames.process import (
     STOP_GRACE_SECONDS,
     TimeoutExpired,
@@ -926,7 +927,9 @@ class OnionSkin:
         self.label = text
         if self._font is None:
             self._font = load_debug_font()
-        text_surface = self._font.render(text, antialias=True, color=HUD_TEXT_COLOR)
+        text_surface = self._font.render(
+            text, antialias=FontManager.antialias(), color=HUD_TEXT_COLOR
+        )
         blit_text(
             surface=surface,
             text_surface=text_surface,

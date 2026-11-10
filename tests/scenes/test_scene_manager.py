@@ -475,7 +475,9 @@ class TestSceneManagerInternals:
         self.scene_manager.switch_to_scene(Scene())
         assert self.scene_manager.rumble.sustained_levels == (0.0, 0.0)
         self.scene_manager.rumble.update(shakers=[], dt=0.0, devices=lambda: [device])
-        device.rumble.assert_called_once_with(1.0, 0.6, 800)
+        device.rumble.assert_called_once_with(
+            low_frequency=1.0, high_frequency=0.6, duration_milliseconds=800
+        )
 
     def test_frame_services_advance_screen_shake(self):
         """Test the per-frame services advance the screen shake by the frame time."""
@@ -514,13 +516,13 @@ class TestSceneManagerInternals:
         ]
 
     def test_frame_services_rumble_active_scene_camera_shake(self, mocker):
-        """Test a camera shake's rumble reaches the engine's controllers."""
+        """Test a camera shake's rumble reaches the engine's input devices."""
         from glitchygames.camera import Camera2D
         from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle
 
         device = mocker.Mock()
         engine = mocker.Mock()
-        engine.controller_manager.controllers = {0: device}
+        engine.input_devices = [device]
         self.scene_manager._game_engine = engine
         scene = Scene()
         scene.camera = Camera2D(screen_width=100, screen_height=100)
@@ -551,6 +553,27 @@ class TestSceneManagerInternals:
         assert live_audio.update.call_args.kwargs['active_transitions'][1] is pending
         manager._pending_transition = None
         manager._live_audio = None
+
+
+class TestSceneManagerLiveAudio:
+    """The scene manager's live synth voices."""
+
+    def setup_method(self):
+        """Set up a fresh scene manager (centralized mocks handle pygame)."""
+        SceneManager._reset()
+        self.scene_manager = SceneManager()
+
+    def teardown_method(self):
+        """Reset the scene manager singleton."""
+        SceneManager._reset()
+
+    def test_live_audio_is_created_once_and_then_reused(self, mocker):
+        """The first access creates LiveAudio; later accesses return the same one."""
+        live_audio_class = mocker.patch('glitchygames.audio.live.LiveAudio')
+        first = self.scene_manager.live_audio
+        second = self.scene_manager.live_audio
+        assert first is second is live_audio_class.return_value
+        live_audio_class.assert_called_once()
 
 
 class TestSceneManagerEngineAndQuit:
@@ -750,6 +773,29 @@ def test_each_engine_context_has_its_own_scene_manager():
     assert SceneManager() is default_manager
     assert default_manager.frame_number == 7
     assert default_manager._initialized
+
+
+def test_a_subclass_made_in_one_context_is_not_another_contexts_scene_manager():
+    """A subclass's manager made in one context is never SceneManager() in another (BUGS.md #228).
+
+    Item 16: the per-class entries are per context, so the other context makes its own.
+    """
+    first = EngineContext(name='first')
+    second = EngineContext(name='second')
+
+    with first.active():
+        subclass_manager = SubclassedSceneManager()
+        assert type(subclass_manager) is SubclassedSceneManager
+
+    with second.active():
+        second_manager = SceneManager()
+        assert second_manager is not subclass_manager
+        assert type(second_manager) is SceneManager
+        # With no entry of its own here, the subclass answers with this context's base manager
+        assert SubclassedSceneManager() is second_manager
+
+    with first.active():
+        assert SubclassedSceneManager() is subclass_manager
 
 
 def test_a_scene_manager_subclass_keeps_the_singleton_rules_of_the_class_attribute():

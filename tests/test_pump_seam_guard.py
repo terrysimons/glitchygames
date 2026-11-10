@@ -165,7 +165,11 @@ def test_pump_seam_is_the_only_place_the_engine_reads_sdl_queue():
 
 
 def test_every_pump_seam_still_reads_the_queue():
-    """Each allowed seam exists and reads the queue (the allow list cannot go stale)."""
+    """Each allowed seam exists and reads the queue (the allow list cannot go stale).
+
+    Only the engine package is walked: every seam in _PUMP_SEAMS is an engine file (members
+    read events through the engine's seams, never the queue).
+    """
     package_root = Path(recording.__file__).parent
     for relative_path, qualified_name in _PUMP_SEAMS:
         source_path = package_root / relative_path

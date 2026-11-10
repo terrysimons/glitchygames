@@ -296,13 +296,37 @@ OTHER_COLOR = (200, 100, 50, 255)
 BLUE = (0, 0, 255)
 
 
+class RecordingFrameCoordinator:
+    """A film strip coordinator stand-in that keeps the frame insertions it is told about."""
+
+    def __init__(self) -> None:
+        """Start with no frame insertions."""
+        self.inserted_frames: list[tuple[str, int]] = []
+
+    def on_frame_inserted(self, animation: str, frame_index: int) -> None:
+        """Keep a frame insertion notification.
+
+        Args:
+            animation: The animation the frame was inserted into.
+            frame_index: Where it was inserted.
+
+        """
+        self.inserted_frames.append((animation, frame_index))
+
+
 class RecordingParentScene:
     """A parent scene stand-in that keeps the colour it is sent."""
 
     def __init__(self) -> None:
         """Start with no slider values and no frame insertions."""
         self.slider_values: dict[str, int] = {}
-        self.inserted_frames: list[tuple[str, int]] = []
+        # The film strip tells the editor's coordinator about insertions (BUGS.md #119)
+        self.film_strip_coordinator = RecordingFrameCoordinator()
+
+    @property
+    def inserted_frames(self) -> list[tuple[str, int]]:
+        """The frame insertions the coordinator was told about."""
+        return self.film_strip_coordinator.inserted_frames
 
     def apply_color(self, *, red: int, green: int, blue: int, alpha: int) -> None:
         """Keep the color sent, by slider name.
@@ -315,16 +339,6 @@ class RecordingParentScene:
 
         """
         self.slider_values = {'R': red, 'G': green, 'B': blue, 'A': alpha}
-
-    def on_frame_inserted(self, animation: str, frame_index: int) -> None:
-        """Keep a frame insertion notification.
-
-        Args:
-            animation: The animation the frame was inserted into.
-            frame_index: Where it was inserted.
-
-        """
-        self.inserted_frames.append((animation, frame_index))
 
 
 class RecordingCanvas:
@@ -582,88 +596,6 @@ class TestFilmStripSpriteColorSampling:
             sprite._sample_color_from_frame('idle', 0, frame_layout.x + 5, frame_layout.y + 5)
 
         assert 'Error sampling color from frame' not in caplog.text
-
-
-class TestFilmStripSpriteCopyPasteKeys:
-    """Test Ctrl+C and Ctrl+V on the film strip sprite.
-
-    film_strip_sprite.py reads the modifiers with ``event.get('mod', 0)``; these tests use real
-    HashableEvents, whose ``get`` raised AttributeError before BUGS.md #88 was fixed.
-    """
-
-    def test_real_hashable_ctrl_c_event_copies_the_frame(self, real_film_strip_sprite):
-        """A real Ctrl+C HashableEvent copies the current frame."""
-        sprite = real_film_strip_sprite
-        assert sprite.film_strip_widget is not None
-        sprite.film_strip_widget.current_frame = 0
-
-        handled = sprite.on_key_down_event(
-            events.HashableEvent(0, key=pygame.K_c, mod=pygame.KMOD_CTRL),
-        )
-
-        assert handled is True
-        assert sprite.film_strip_widget.copied_frame is not None
-
-    def test_keys_are_ignored_without_a_widget(self, real_film_strip_sprite):
-        """A sprite whose widget is gone does not handle keys."""
-        sprite = real_film_strip_sprite
-        sprite.film_strip_widget = None
-
-        handled = sprite.on_key_down_event(
-            events.HashableEvent(0, key=pygame.K_c, mod=pygame.KMOD_CTRL),
-        )
-
-        assert handled is None
-
-    def test_ctrl_c_then_ctrl_v_copies_one_frame_over_another(self, real_film_strip_sprite):
-        """Ctrl+C copies the current frame and Ctrl+V pastes it over the current frame."""
-        sprite = real_film_strip_sprite
-        widget = sprite.film_strip_widget
-        assert widget is not None
-        assert widget.animated_sprite is not None
-        frames = widget.animated_sprite.animations['idle']
-        frames[1].set_pixel_data([OTHER_COLOR] * 4)
-        widget.current_frame = 0
-
-        copied = sprite.on_key_down_event(
-            events.HashableEvent(0, key=pygame.K_c, mod=pygame.KMOD_CTRL),
-        )
-        widget.current_frame = 1
-        pasted = sprite.on_key_down_event(
-            events.HashableEvent(0, key=pygame.K_v, mod=pygame.KMOD_CTRL),
-        )
-
-        assert copied is True
-        assert pasted is True
-        assert frames[1].get_pixel_data()[0] == TOP_LEFT_COLOR
-
-    def test_failed_copy_and_paste_are_still_handled(self, real_film_strip_sprite):
-        """Ctrl+C and Ctrl+V with nothing to copy or paste are consumed and change nothing."""
-        sprite = real_film_strip_sprite
-        widget = sprite.film_strip_widget
-        assert widget is not None
-        widget.current_frame = 99
-
-        copied = sprite.on_key_down_event(
-            events.HashableEvent(0, key=pygame.K_c, mod=pygame.KMOD_CTRL),
-        )
-        pasted = sprite.on_key_down_event(
-            events.HashableEvent(0, key=pygame.K_v, mod=pygame.KMOD_CTRL),
-        )
-
-        assert copied is True
-        assert pasted is True
-        assert widget.copied_frame is None
-
-    def test_other_keys_are_not_handled(self, real_film_strip_sprite):
-        """A key that is not Ctrl+C or Ctrl+V is not handled."""
-        sprite = real_film_strip_sprite
-
-        handled = sprite.on_key_down_event(
-            events.HashableEvent(0, key=pygame.K_c, mod=0),
-        )
-
-        assert handled is False
 
 
 class TestFilmStripSpriteHover:

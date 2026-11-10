@@ -24,7 +24,6 @@ from .commands import (
     ControllerPositionCommand,
     FloodFillCommand,
     FrameAddCommand,
-    FrameCopyCommand,
     FrameDeleteCommand,
     FrameReorderCommand,
     FrameSelectionCommand,
@@ -364,6 +363,8 @@ class FilmStripOperationTracker:
             LOG.debug('Frame selection unchanged: %s[%s]', animation, frame)
             return
 
+        # Only a fresh editor has no current frame (a load sets it: BUGS.md #211 item 5), and a
+        # fresh editor starts on frame 0 of 'strip_1', so this is the frame undo goes back to
         if previous_animation is None or previous_frame is None:
             previous_animation, previous_frame = 'strip_1', 0
 
@@ -380,86 +381,6 @@ class FilmStripOperationTracker:
         # Update current frame tracking
         self.undo_redo_manager.current_frame = (animation, frame)
         LOG.debug('Tracked frame selection: %s', command.description)
-
-
-class CrossAreaOperationTracker:
-    """Tracks cross-area operations (copy/paste between frames/animations)."""
-
-    def __init__(self, undo_redo_manager: UndoRedoManager, *, editor: EditorContext) -> None:
-        """Initialize the cross-area operation tracker.
-
-        Args:
-            undo_redo_manager: The undo/redo manager to push commands onto.
-            editor: The editor context (needed by command objects).
-
-        """
-        self.undo_redo_manager = undo_redo_manager
-        self.editor = editor
-        LOG.debug('CrossAreaOperationTracker initialized')
-
-    def add_frame_copied(
-        self,
-        source_frame: int,
-        source_animation: str,
-        frame_data: dict[str, Any],
-    ) -> None:
-        """Track when a frame is copied.
-
-        Args:
-            source_frame: Index of the source frame.
-            source_animation: Name of the source animation.
-            frame_data: Data about the copied frame.
-
-        """
-        command = FrameCopyCommand(
-            editor=self.editor,
-            source_frame=source_frame,
-            source_animation=source_animation,
-            frame_data=frame_data,
-        )
-
-        self.undo_redo_manager.push_command(command)
-        LOG.debug('Tracked frame copy: %s', command.description)
-
-    def add_frame_pasted(
-        self,
-        target_frame: int,
-        target_animation: str,
-        frame_data: dict[str, Any],
-    ) -> None:
-        """Track when a frame is pasted.
-
-        Args:
-            target_frame: Index of the target frame.
-            target_animation: Name of the target animation.
-            frame_data: Data about the pasted frame.
-
-        """
-        # NOTE: Frame paste is now handled via FramePasteCommand created
-        # directly by the editor. This method is kept for backward compatibility
-        # with code that calls it, but it uses the legacy add_operation path.
-        undo_data = {
-            'target_frame': target_frame,
-            'target_animation': target_animation,
-            'action': 'paste',
-        }
-
-        redo_data = {
-            'target_frame': target_frame,
-            'target_animation': target_animation,
-            'action': 'paste',
-            'frame_data': frame_data,
-        }
-
-        description = f"Pasted frame to {target_frame} in '{target_animation}'"
-        self.undo_redo_manager.add_operation(
-            operation_type=OperationType.FRAME_PASTE,
-            description=description,
-            undo_data=undo_data,
-            redo_data=redo_data,
-        )
-
-        LOG.debug('Tracked frame paste: %s', description)
 
 
 class ControllerPositionOperationTracker:

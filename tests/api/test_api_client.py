@@ -6,7 +6,7 @@ import binascii
 import logging
 from pathlib import Path
 
-import httpx
+import httpx2
 import pytest
 
 from glitchygames.api.client import (
@@ -149,7 +149,7 @@ class TestGenerateSprite:
         mock_client_instance.__enter__ = mocker.Mock(return_value=mock_client_instance)
         mock_client_instance.__exit__ = mocker.Mock(return_value=False)
 
-        mocker.patch('glitchygames.api.client.httpx.Client', return_value=mock_client_instance)
+        mocker.patch('glitchygames.api.client.httpx2.Client', return_value=mock_client_instance)
 
         result = generate_sprite(
             server_url='http://localhost:8000',
@@ -172,7 +172,7 @@ class TestGenerateSprite:
         mock_client_instance.__enter__ = mocker.Mock(return_value=mock_client_instance)
         mock_client_instance.__exit__ = mocker.Mock(return_value=False)
 
-        mocker.patch('glitchygames.api.client.httpx.Client', return_value=mock_client_instance)
+        mocker.patch('glitchygames.api.client.httpx2.Client', return_value=mock_client_instance)
 
         output_path = str(tmp_path / 'output')
         generate_sprite(
@@ -211,7 +211,7 @@ class TestGenerateSprite:
         mock_client_instance.__enter__ = mocker.Mock(return_value=mock_client_instance)
         mock_client_instance.__exit__ = mocker.Mock(return_value=False)
 
-        mocker.patch('glitchygames.api.client.httpx.Client', return_value=mock_client_instance)
+        mocker.patch('glitchygames.api.client.httpx2.Client', return_value=mock_client_instance)
 
         generate_sprite(
             server_url='http://localhost:8000/',
@@ -245,7 +245,7 @@ class TestExtractApngFrames:
         mock_client_instance.__enter__ = mocker.Mock(return_value=mock_client_instance)
         mock_client_instance.__exit__ = mocker.Mock(return_value=False)
 
-        mocker.patch('glitchygames.api.client.httpx.Client', return_value=mock_client_instance)
+        mocker.patch('glitchygames.api.client.httpx2.Client', return_value=mock_client_instance)
 
         result = extract_apng_frames(
             server_url='http://localhost:8000',
@@ -529,12 +529,12 @@ class TestMainCli:
     )
     def test_main_server_that_cannot_be_reached_is_unavailable(self, mocker, transport_error):
         """Any failure to reach the server or hear back from it exits as unavailable."""
-        import httpx
+        import httpx2
 
         error = (
-            httpx.ConnectTimeout('timed out connecting')
+            httpx2.ConnectTimeout('timed out connecting')
             if transport_error == 'connect timeout'
-            else httpx.ReadTimeout('timed out reading')
+            else httpx2.ReadTimeout('timed out reading')
         )
         mocker.patch('glitchygames.api.client.generate_sprite', side_effect=error)
 
@@ -554,17 +554,17 @@ class TestMainCli:
     @pytest.mark.parametrize(
         ('request_error_factory', 'expected_exit_code'),
         [
-            (lambda: httpx.InvalidURL('bad url'), ExitCode.OPTIONS_REFUSED),
-            (lambda: httpx.UnsupportedProtocol('ftp is not http'), ExitCode.OPTIONS_REFUSED),
-            (lambda: httpx.TooManyRedirects('loop'), ExitCode.UNUSABLE_INPUT),
-            (lambda: httpx.DecodingError('bad gzip'), ExitCode.UNUSABLE_INPUT),
+            (lambda: httpx2.InvalidURL('bad url'), ExitCode.OPTIONS_REFUSED),
+            (lambda: httpx2.UnsupportedProtocol('ftp is not http'), ExitCode.OPTIONS_REFUSED),
+            (lambda: httpx2.TooManyRedirects('loop'), ExitCode.UNUSABLE_INPUT),
+            (lambda: httpx2.DecodingError('bad gzip'), ExitCode.UNUSABLE_INPUT),
         ],
         ids=['invalid url', 'unsupported scheme', 'redirect loop', 'undecodable body'],
     )
     def test_main_request_errors_never_escape(
         self, mocker, request_error_factory, expected_exit_code
     ):
-        """Every httpx error maps to a named code (nothing escapes as Python's 1)."""
+        """Every httpx2 error maps to a named code (nothing escapes as Python's 1)."""
         mocker.patch('glitchygames.api.client.generate_sprite', side_effect=request_error_factory())
 
         assert main(['test prompt']) == expected_exit_code
@@ -581,7 +581,7 @@ class TestMainCli:
         mock_response = mocker.Mock(status_code=status_code, text='busy')
         mocker.patch(
             'glitchygames.api.client.generate_sprite',
-            side_effect=httpx.HTTPStatusError(
+            side_effect=httpx2.HTTPStatusError(
                 'status', request=mocker.Mock(), response=mock_response
             ),
         )
@@ -603,7 +603,7 @@ class TestMainCli:
         http_client.post.return_value = http_response
         http_client.__enter__ = mocker.Mock(return_value=http_client)
         http_client.__exit__ = mocker.Mock(return_value=False)
-        mocker.patch('glitchygames.api.client.httpx.Client', return_value=http_client)
+        mocker.patch('glitchygames.api.client.httpx2.Client', return_value=http_client)
         apng_file = tmp_path / 'in.apng'
         apng_file.write_bytes(b'\x89PNG\r\n\x1a\n')
         arguments = (
@@ -620,11 +620,11 @@ class TestMainCli:
 
     def test_main_connection_error(self, mocker):
         """Test handling of connection errors."""
-        import httpx
+        import httpx2
 
         mocker.patch(
             'glitchygames.api.client.generate_sprite',
-            side_effect=httpx.ConnectError('connection refused'),
+            side_effect=httpx2.ConnectError('connection refused'),
         )
 
         result = main(['test prompt'])
@@ -632,7 +632,7 @@ class TestMainCli:
 
     def test_main_http_error(self, mocker):
         """Test handling of HTTP errors."""
-        import httpx
+        import httpx2
 
         mock_response = mocker.Mock()
         mock_response.status_code = 500
@@ -640,7 +640,7 @@ class TestMainCli:
 
         mocker.patch(
             'glitchygames.api.client.generate_sprite',
-            side_effect=httpx.HTTPStatusError(
+            side_effect=httpx2.HTTPStatusError(
                 'Server Error',
                 request=mocker.Mock(),
                 response=mock_response,
@@ -1122,13 +1122,13 @@ class TestHandleExtractFrames:
 
     def test_extraction_connection_error(self, mocker):
         """Test handling of connection error during extraction."""
-        import httpx
+        import httpx2
 
         parsed_args = self._make_parsed_args(mocker)
 
         mocker.patch(
             'glitchygames.api.client.extract_apng_frames',
-            side_effect=httpx.ConnectError('connection refused'),
+            side_effect=httpx2.ConnectError('connection refused'),
         )
 
         result = _handle_extract_frames(parsed_args)
@@ -1137,7 +1137,7 @@ class TestHandleExtractFrames:
 
     def test_extraction_http_status_error(self, mocker):
         """Test handling of HTTP status error during extraction."""
-        import httpx
+        import httpx2
 
         parsed_args = self._make_parsed_args(mocker)
 
@@ -1147,7 +1147,7 @@ class TestHandleExtractFrames:
 
         mocker.patch(
             'glitchygames.api.client.extract_apng_frames',
-            side_effect=httpx.HTTPStatusError(
+            side_effect=httpx2.HTTPStatusError(
                 'Server Error',
                 request=mocker.Mock(),
                 response=mock_response,

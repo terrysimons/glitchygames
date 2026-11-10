@@ -204,6 +204,24 @@ class TestInputBoxFunctionality:
         assert box.text == 'name'
         assert _interior_text_pixel_count(box) > 0
 
+    def test_inputbox_with_a_parent_sits_at_its_own_position(self):
+        """A parent elsewhere on screen moves the box nowhere (BUGS.md #165: no parent offset)."""
+        parent = pygame.Rect(300, 200, 400, 300)
+
+        box = InputBox(
+            x=TEST_INPUT_X_POS,
+            y=TEST_INPUT_Y_POS,
+            width=TEST_INPUT_WIDTH,
+            height=TEST_INPUT_HEIGHT,
+            name='ParentedInputBox',
+            parent=parent,
+        )
+
+        assert box.rect == pygame.Rect(
+            TEST_INPUT_X_POS, TEST_INPUT_Y_POS, TEST_INPUT_WIDTH, TEST_INPUT_HEIGHT
+        )
+        assert box.parent is parent
+
     def test_inputbox_has_no_length_limit(self, input_box):
         """The box keeps every character typed (it has no maximum length)."""
         input_box.activate()

@@ -74,11 +74,7 @@ class TestGetPreviewAtPosition:
 class TestRefresh:
     """Test FilmStripWidget.refresh, which commands call after changing the animations."""
 
-    @pytest.mark.parametrize('recalculate_layout', [False, True])
-    def test_a_frame_added_behind_the_widget_gets_its_layout_tabs_and_a_redraw(
-        self,
-        recalculate_layout,
-    ):
+    def test_a_frame_added_behind_the_widget_gets_its_layout_tabs_and_a_redraw(self):
         """After refresh, a frame added straight to the sprite is laid out, tabbed and drawn."""
         film_strip = make_film_strip()
         film_strip.update_layout()
@@ -88,8 +84,18 @@ class TestRefresh:
         film_strip.animated_sprite.add_frame('idle', SpriteFrame(surface, duration=0.5))
         film_strip.force_redraw = False
 
-        film_strip.refresh(recalculate_layout=recalculate_layout)
+        film_strip.refresh()
 
         assert ('idle', 1) in film_strip.frame_layouts
         assert len(film_strip.film_tabs) > tab_count_for_one_frame
         assert film_strip.force_redraw is True
+
+    def test_refresh_lays_out_and_tabs_once(self, mocker):
+        """One layout calculation and one set of film tabs per refresh (BUGS.md #178 item 24)."""
+        film_strip = make_film_strip()
+        calculate_layout = mocker.spy(film_strip.layout, 'calculate_layout')
+        create_film_tabs = mocker.spy(film_strip.layout, 'create_film_tabs')
+
+        film_strip.refresh()
+
+        assert (calculate_layout.call_count, create_film_tabs.call_count) == (1, 1)

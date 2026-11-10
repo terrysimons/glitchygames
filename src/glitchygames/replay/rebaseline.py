@@ -84,7 +84,12 @@ from pydantic import BaseModel, ConfigDict
 
 from glitchygames.logical_names import logical_name
 from glitchygames.output_files import partial_path
-from glitchygames.recording import GameplayRecorder, RecordingSources
+from glitchygames.recording import (
+    CUSTOM_EVENT_TYPES_HEADER_FIELD,
+    GameplayRecorder,
+    RecordingSources,
+    custom_event_types_header,
+)
 from glitchygames.recording_history import (
     MEASUREMENT_RUNS_HEADER_FIELD,
     MeasurementRun,
@@ -314,6 +319,9 @@ def rebaseline_header(
     header[GAME_CLASS_HEADER_FIELD] = game_class.__name__
     header[GAME_MODULE_HEADER_FIELD] = game_class.__module__
     header[GAME_HEADER_FIELD] = logical_name(scene_class=game_class)
+    # NEW records the events the replay served and the code posted, both in this process's
+    # engine custom event ids (the replay moved OLD's: BUGS.md #211.1), not OLD's
+    header[CUSTOM_EVENT_TYPES_HEADER_FIELD] = custom_event_types_header()
     # Each run's provenance, newest first; NEW's frames stack this run's histories the same way,
     # as glitchygames/recording_history.py describes
     for unreleased_field in UNRELEASED_HEADER_FIELDS:

@@ -43,7 +43,12 @@ from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 PACKAGE_DIRECTORY = Path(__file__).resolve().parent
 ARCHIVE_FILE_NAME = '_git_archival.txt'
 BUILD_STAMP_FILE_NAME = '_build_info.json'
-GIT_TIMEOUT_SECONDS = 5.0
+# How long each git call may take before the checkout counts as unknown. A run only looks its
+# revision up to record or measure (once per process), so waiting costs a player nothing, and
+# an unknown commit fails the measurement: 5 s was too short for a loaded Windows CI runner,
+# whose game lookup took about 10 s (BUGS.md #260). It is the same wait the engine's other
+# git lookups allow, in the code tree and measure modules
+GIT_TIMEOUT_SECONDS = 60.0
 # What git archive leaves in place of a placeholder it did not expand (a checkout's copy)
 UNEXPANDED_PLACEHOLDER_PREFIX = '$Format:'
 ARCHIVE_COMMIT_KEY = 'commit'
@@ -289,13 +294,20 @@ def engine_source_revision() -> SourceRevision:
     return source_revision()
 
 
-def write_build_stamp(*, package_directory: Path, built_at: str) -> SourceRevision:
+def write_build_stamp(
+    *, package_directory: Path, built_at: str, stamp_directory: Path | None = None
+) -> SourceRevision:
     """Write the build stamp for a package built from a checkout (or an archive).
 
     Args:
-        package_directory: The package's directory.
+        package_directory: The package's directory (in the checkout or archive the revision is
+            read from).
         built_at: The build's time (ISO 8601; the caller reads the clock, so the package never
             does outside the engine's doors).
+        stamp_directory: Where the stamp is written (None: ``package_directory``). An installed
+            copy of the package (``nox -s test``'s) has no checkout to read: it is stamped with
+            its checkout's revision without a stamp ever appearing in the checkout (BUGS.md
+            #224.47).
 
     Returns:
         The revision written (source ``BUILD_STAMP``).
@@ -312,7 +324,8 @@ def write_build_stamp(*, package_directory: Path, built_at: str) -> SourceRevisi
     })
     stamp_fields = stamp.to_json()
     del stamp_fields['source']
-    (package_directory / BUILD_STAMP_FILE_NAME).write_text(
+    written_directory = package_directory if stamp_directory is None else stamp_directory
+    (written_directory / BUILD_STAMP_FILE_NAME).write_text(
         json.dumps(stamp_fields, indent=2, sort_keys=True) + '\n', encoding='utf-8'
     )
     return stamp

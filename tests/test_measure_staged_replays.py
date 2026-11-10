@@ -204,6 +204,19 @@ def test_a_code_commit_is_measured_and_its_rows_staged_with_it(mocker, repositor
     }
 
 
+def test_a_row_file_written_now_is_staged_once(mocker, repository):
+    """A file just written is also one of the tree's row files: git add is given it once."""
+    stand_in_measurement(mocker, repository=repository)
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 4\n')
+    stage = mocker.spy(measure_staged_replays, '_stage')
+
+    assert run_hook(repository=repository) == ExitCode.SUCCESS
+
+    staged_paths = stage.call_args.kwargs['paths']
+    assert len(staged_paths) == MEASURED_RECORDING_COUNT
+    assert len(set(staged_paths)) == len(staged_paths)
+
+
 def test_history_rows_the_measurement_wrote_are_staged_with_the_commit(mocker, repository):
     """A run a recording held, written as a history row file, joins the commit too."""
     stand_in_measurement(mocker, repository=repository, history_recording='older/run.jsonl.gz')
@@ -354,7 +367,7 @@ def test_the_hook_is_configured_to_run_before_each_commit():
     )
 
     assert 'id: replay-metrics' in configuration
-    assert 'python -m scripts.measure_staged_replays' in configuration
+    assert 'entry: uv run --locked --extra dev nox -s measure-staged\n' in configuration
     assert 'stages: [pre-commit]' in configuration
 
 
@@ -431,3 +444,19 @@ def test_the_hooks_command_lines_are_the_engines_own(tmp_path):
     assert measuring.rows_directory == str(rows_directory)
     assert measuring.project_root == tmp_path
     assert measuring.game is None
+
+
+def test_the_nox_session_runs_this_script_with_the_lock_checked(mocker):
+    """``nox -s measure-staged``, the hook's and a person's way in, runs the script.
+
+    ``--locked``: a stale uv.lock fails it, where a plain uv run would rewrite the lock.
+    """
+    import noxfile
+
+    session = mocker.Mock()
+
+    noxfile.measure_staged(session)
+
+    session.run.assert_called_once_with(
+        'uv', 'run', '--locked', 'python', '-m', 'scripts.measure_staged_replays', external=True
+    )

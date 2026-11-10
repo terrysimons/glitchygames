@@ -10,7 +10,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 import math
-from typing import assert_never
+from typing import TYPE_CHECKING, assert_never
 
 import numpy as np
 import numpy.typing as npt
@@ -19,6 +19,9 @@ import pygame
 from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.effects.easing import get_easing
 from glitchygames.randomness import numpy_stream
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 FloatArray = npt.NDArray[np.float64]
 
@@ -420,11 +423,23 @@ def mix(
             message = f'offset must be >= 0, got {offset}'
             raise ValueError(message)
         placements.append((samples, sample_count(offset, rate)))
-    total = max((start + len(samples) for samples, start in placements), default=0)
+    total = mixed_frame_count((start, len(samples)) for samples, start in placements)
     result = np.zeros(total)
     for samples, start in placements:
         result[start : start + len(samples)] += samples
     return result
+
+
+def mixed_frame_count(placements: Iterable[tuple[int, int]]) -> int:
+    """How long ``mix`` makes its result: long enough for the last layer to end.
+
+    Args:
+        placements: Each layer's (start frame, frame count).
+
+    Returns:
+        The frame count (0 for no layers).
+    """
+    return max((start + frames for start, frames in placements), default=0)
 
 
 def concatenate(*arrays: FloatArray) -> FloatArray:
@@ -461,7 +476,9 @@ def normalize(samples: FloatArray, peak: float = 0.9) -> FloatArray:
         message = f'peak must be in (0, 1], got {peak}'
         raise ValueError(message)
     loudest = float(np.max(np.abs(samples))) if len(samples) else 0.0
-    if loudest <= 0.0:
+    # A denormal loudest sample is silence: peak / loudest would overflow to infinity and
+    # samples * infinity is NaN (and warns), so a signal that small is returned unchanged
+    if loudest < np.finfo(np.float64).tiny:
         return samples.copy()
     return samples * (peak / loudest)
 
@@ -498,6 +515,6 @@ def to_sound(samples: FloatArray, *, volume: float = 0.5) -> pygame.mixer.Sound:
     frames = pcm if channel_count == 1 else np.repeat(pcm[:, np.newaxis], channel_count, axis=1)
     frames = np.ascontiguousarray(frames)
     # pygame.sndarray.make_sound has incomplete type stubs for its ndarray parameter
-    sound: pygame.mixer.Sound = pygame.sndarray.make_sound(frames)  # pyright: ignore[reportUnknownMemberType]
+    sound: pygame.mixer.Sound = pygame.sndarray.make_sound(frames)
     sound.set_volume(volume)
     return sound

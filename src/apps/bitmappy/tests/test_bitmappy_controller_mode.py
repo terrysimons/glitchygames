@@ -59,9 +59,14 @@ class TestControllerModeState:
     def test_initial_state(self):
         """Test initial state of ControllerModeState."""
         assert self.mode_state.current_mode == ControllerMode.FILM_STRIP
-        assert (
-            len(self.mode_state.mode_positions) == 5
-        )  # FILM_STRIP, CANVAS, R_SLIDER, G_SLIDER, B_SLIDER
+        assert list(self.mode_state.mode_positions) == [
+            ControllerMode.FILM_STRIP,
+            ControllerMode.CANVAS,
+            ControllerMode.A_SLIDER,
+            ControllerMode.R_SLIDER,
+            ControllerMode.G_SLIDER,
+            ControllerMode.B_SLIDER,
+        ]
         assert len(self.mode_state.mode_history) == 1  # Initial mode is added to history
 
     def test_no_mode_switch_yet_is_long_ago(self):
@@ -292,11 +297,16 @@ class TestModeSwitcher:
     def test_initial_state(self):
         """Test initial state of ModeSwitcher."""
         assert len(self.mode_switcher.controller_modes) == 0
-        assert len(self.mode_switcher.l2_cycle) == 5
-        assert len(self.mode_switcher.r2_cycle) == 5
-        assert ControllerMode.FILM_STRIP in self.mode_switcher.l2_cycle
-        assert ControllerMode.CANVAS in self.mode_switcher.l2_cycle
-        assert ControllerMode.R_SLIDER in self.mode_switcher.l2_cycle
+        # The sliders in screen order, alpha above red (BUGS.md #153); R2 is L2 reversed
+        assert self.mode_switcher.l2_cycle == [
+            ControllerMode.FILM_STRIP,
+            ControllerMode.CANVAS,
+            ControllerMode.A_SLIDER,
+            ControllerMode.R_SLIDER,
+            ControllerMode.G_SLIDER,
+            ControllerMode.B_SLIDER,
+        ]
+        assert self.mode_switcher.r2_cycle == list(reversed(self.mode_switcher.l2_cycle))
 
     def test_register_controller(self):
         """Test registering a controller."""
@@ -352,11 +362,11 @@ class TestModeSwitcher:
 
         self.mode_switcher.register_controller(controller_id, ControllerMode.CANVAS)
 
-        # L2 press should go to next mode in L2 cycle (R_SLIDER)
+        # L2 press should go to next mode in L2 cycle (A_SLIDER, the top slider)
         new_mode = self.mode_switcher.handle_trigger_input(controller_id, 1.0, 0.0, current_time)
 
-        assert new_mode == ControllerMode.R_SLIDER
-        assert self.mode_switcher.get_controller_mode(controller_id) == ControllerMode.R_SLIDER
+        assert new_mode == ControllerMode.A_SLIDER
+        assert self.mode_switcher.get_controller_mode(controller_id) == ControllerMode.A_SLIDER
 
     def test_handle_trigger_input_r2_press(self):
         """Test handling R2 trigger press (next mode)."""
@@ -402,7 +412,7 @@ class TestModeSwitcher:
         self.mode_switcher.register_controller(controller_id, ControllerMode.FILM_STRIP)
 
         # Cycle through all modes using L2 cycle:
-        # FILM_STRIP -> CANVAS -> R_SLIDER -> G_SLIDER -> B_SLIDER
+        # FILM_STRIP -> CANVAS -> A_SLIDER -> R_SLIDER -> G_SLIDER -> B_SLIDER
         # FILM_STRIP -> CANVAS (L2 press: 0.0 -> 1.0)
         new_mode = self.mode_switcher.handle_trigger_input(controller_id, 1.0, 0.0, current_time)
         assert new_mode == ControllerMode.CANVAS
@@ -410,26 +420,26 @@ class TestModeSwitcher:
         # Release L2 (1.0 -> 0.0) to reset trigger state
         self.mode_switcher.handle_trigger_input(controller_id, 0.0, 0.0, current_time + 0.1)
 
-        # CANVAS -> R_SLIDER (L2 press: 0.0 -> 1.0)
+        # CANVAS -> A_SLIDER (L2 press: 0.0 -> 1.0)
         new_mode = self.mode_switcher.handle_trigger_input(
             controller_id,
             1.0,
             0.0,
             current_time + 0.2,
         )
-        assert new_mode == ControllerMode.R_SLIDER
+        assert new_mode == ControllerMode.A_SLIDER
 
         # Release L2 (1.0 -> 0.0) to reset trigger state
         self.mode_switcher.handle_trigger_input(controller_id, 0.0, 0.0, current_time + 0.3)
 
-        # R_SLIDER -> G_SLIDER (L2 press: 0.0 -> 1.0)
+        # A_SLIDER -> R_SLIDER (L2 press: 0.0 -> 1.0)
         new_mode = self.mode_switcher.handle_trigger_input(
             controller_id,
             1.0,
             0.0,
             current_time + 0.4,
         )
-        assert new_mode == ControllerMode.G_SLIDER
+        assert new_mode == ControllerMode.R_SLIDER
 
     def test_save_controller_position(self):
         """Test saving controller position."""

@@ -48,6 +48,8 @@ import pygame
 from glitchygames.input.input_devices import InputMode
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from glitchygames.events.base import HashableEvent
 
 log: logging.Logger = logging.getLogger('game.input.action_map')
@@ -57,6 +59,14 @@ _SDL_AXIS_MAX: float = 32767.0
 
 # Default deadzone for analog sticks (industry standard)
 DEFAULT_DEADZONE: float = 0.15
+
+# The to_dict key holding the map's settings, not bindings (BUGS.md #184.6, #184.7): a dict, never
+# a list, so a loader that predates it skips it as it skips any non-list value; an action cannot
+# be named this
+SETTINGS_KEY: str = '__settings__'
+# The settings it holds: the input mode the map was made in and its stick deadzone
+INPUT_MODE_SETTING: str = 'input_mode'
+DEADZONE_SETTING: str = 'deadzone'
 
 
 def normalized_axis_value(*, event_type: int, value: float) -> float:
@@ -89,6 +99,8 @@ class Binding:
         instance_id: Controller instance filter (None accepts any controller).
         is_scancode: True for a physical key position (``bind(scancode=...)``), matched
             against the event's ``scancode``; False for a key code, matched against ``key``.
+        controller_layer_only: True for a ``bind(controller_layer_button=...)`` binding (the
+            controller layer only, in every input mode; saved with its flag so it loads so).
 
     """
 
@@ -97,6 +109,7 @@ class Binding:
     input_code: int
     instance_id: int | None = None
     is_scancode: bool = False
+    controller_layer_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -179,6 +192,36 @@ class ActionMap:
         self._just_released: set[str] = set()
         self._axis_values: dict[str, float] = {}
 
+    @property
+    def input_mode(self) -> InputMode:
+        """Which gamepad event families the map binds (the constructor's ``input_mode``)."""
+        return self._input_mode
+
+    @property
+    def deadzone(self) -> float:
+        """The analog stick deadzone (the constructor's ``deadzone``)."""
+        return self._deadzone
+
+    @classmethod
+    def from_engine_options(cls, options: Mapping[str, Any]) -> ActionMap:
+        """Make an empty map in the engine's input settings, as every game's map should be.
+
+        Reads ``input_mode`` (``--input-mode``, default 'auto') and ``axis_deadzone``
+        (``--axis-deadzone``, default ``DEFAULT_DEADZONE``), so a game that builds its map here
+        follows both, and any input setting added later.
+
+        Args:
+            options: The engine's options (``GameEngine.OPTIONS``, a scene's ``options``).
+
+        Returns:
+            The map, with no bindings.
+
+        """
+        return cls(
+            deadzone=options.get('axis_deadzone', DEFAULT_DEADZONE),
+            input_mode=options.get('input_mode', InputMode.AUTO),
+        )
+
     # --- Binding API ---
 
     def bind(  # ruff: ignore[too-many-arguments]
@@ -190,6 +233,7 @@ class ActionMap:
         controller_button: int | None = None,
         controller_axis: tuple[int, float] | None = None,
         joystick_button: int | None = None,
+        controller_layer_button: int | None = None,
         instance_id: int | None = None,
     ) -> None:
         """Bind physical inputs to a named action.
@@ -211,12 +255,25 @@ class ActionMap:
                 JOYBUTTONDOWN/UP regardless of input_mode. Use for
                 non-standard buttons (e.g. DualSense mic mute) on the raw
                 joystick API. In 'auto' mode the engine dispatches a mapped
-                pad's controller events only, so bind its controller_button
-                too (as Brave Adventurer's mic does: CONTROLLER_BUTTON 15).
+                pad's controller events only, so bind the button's controller-layer
+                number too, with controller_layer_button (as Brave Adventurer's mic does:
+                15 there, 16 raw).
+            controller_layer_button: A gamepad button constant bound on the controller layer
+                only (CONTROLLERBUTTONDOWN/UP), in every input_mode: the counterpart of
+                joystick_button, for a button whose raw index differs from its
+                controller-layer number. controller_button would bind the raw button with the
+                same number too in 'joystick' and 'auto' mode (BUGS.md #178.26). Never fires
+                in 'joystick' mode, which dispatches no controller-layer events.
             instance_id: Controller instance filter for button/axis
                 bindings. None accepts any controller.
 
+        Raises:
+            ValueError: If the action is named ``SETTINGS_KEY`` (a saved map's settings).
+
         """
+        if action == SETTINGS_KEY:
+            message = f"{SETTINGS_KEY!r} names a saved map's settings, not an action"
+            raise ValueError(message)
         if keyboard is not None:
             self._add_binding(
                 Binding(
@@ -244,28 +301,6 @@ class ActionMap:
                     )
                 )
 
-        if controller_button is not None:
-            # Register the event families of the input mode:
-            # 'joystick' → JOYBUTTONDOWN/UP, 'controller' → CONTROLLERBUTTONDOWN/UP (SDL Game
-            # Controller API), 'auto' → both (each device dispatches one of them)
-            for down_type, up_type in self._button_event_types:
-                self._add_binding(
-                    Binding(
-                        action=action,
-                        event_type=down_type,
-                        input_code=controller_button,
-                        instance_id=instance_id,
-                    )
-                )
-                self._add_binding(
-                    Binding(
-                        action=action,
-                        event_type=up_type,
-                        input_code=controller_button,
-                        instance_id=instance_id,
-                    )
-                )
-
         if controller_axis is not None:
             axis_constant, threshold = controller_axis
             axis_binding = AxisBinding(
@@ -276,26 +311,37 @@ class ActionMap:
             )
             self._axis_bindings.append(axis_binding)
 
-        if joystick_button is not None:
-            # Always use JOYBUTTONDOWN/UP regardless of input_mode.
-            # For non-standard buttons (mic mute, etc.) that only
-            # arrive through the raw joystick API.
-            self._add_binding(
-                Binding(
-                    action=action,
-                    event_type=pygame.JOYBUTTONDOWN,
-                    input_code=joystick_button,
-                    instance_id=instance_id,
-                )
-            )
-            self._add_binding(
-                Binding(
-                    action=action,
-                    event_type=pygame.JOYBUTTONUP,
-                    input_code=joystick_button,
-                    instance_id=instance_id,
-                )
-            )
+        # Gamepad buttons: each keyword's button, the (down, up) event types it binds, and
+        # whether it is a controller-layer-only binding
+        button_bindings: list[tuple[int | None, tuple[tuple[int, int], ...], bool]] = [
+            # The input mode's families: 'joystick' → JOYBUTTONDOWN/UP, 'controller' →
+            # CONTROLLERBUTTONDOWN/UP (SDL Game Controller API), 'auto' → both (each device
+            # dispatches one of them)
+            (controller_button, self._button_event_types, False),
+            # The controller layer only, whatever the input mode's families (BUGS.md #178.26)
+            (
+                controller_layer_button,
+                ((pygame.CONTROLLERBUTTONDOWN, pygame.CONTROLLERBUTTONUP),),
+                True,
+            ),
+            # The raw joystick layer only, whatever the input mode: for non-standard buttons
+            # (mic mute, etc.) that only arrive through the raw joystick API
+            (joystick_button, ((pygame.JOYBUTTONDOWN, pygame.JOYBUTTONUP),), False),
+        ]
+        for button, event_type_pairs, controller_layer_only in button_bindings:
+            if button is None:
+                continue
+            for event_type_pair in event_type_pairs:
+                for event_type in event_type_pair:
+                    self._add_binding(
+                        Binding(
+                            action=action,
+                            event_type=event_type,
+                            input_code=button,
+                            instance_id=instance_id,
+                            controller_layer_only=controller_layer_only,
+                        )
+                    )
 
     def unbind(self, action: str) -> None:
         """Remove all bindings for an action.
@@ -484,10 +530,16 @@ class ActionMap:
         suitable for JSON or TOML serialization.
 
         Returns:
-            A dict mapping action names to lists of binding dicts.
+            A dict mapping action names to lists of binding dicts, and ``SETTINGS_KEY`` to the
+            map's settings: its input mode and deadzone (BUGS.md #184.6, #184.7).
 
         """
-        result: dict[str, list[dict[str, Any]]] = {}
+        result: dict[str, Any] = {
+            SETTINGS_KEY: {
+                INPUT_MODE_SETTING: self._input_mode.value,
+                DEADZONE_SETTING: self._deadzone,
+            }
+        }
 
         # Digital bindings (only DOWN events, UP is derived); a key position is stored as
         # 'scancode', a key code or button as 'code'. A joystick button (JOYBUTTONDOWN: a
@@ -509,6 +561,8 @@ class ActionMap:
                 }
                 if binding.instance_id is not None:
                     entry['instance_id'] = binding.instance_id
+                if binding.controller_layer_only:
+                    entry['controller_layer_only'] = True
                 result[binding.action].append(entry)
 
         # Axis bindings
@@ -531,25 +585,59 @@ class ActionMap:
         cls,
         data: dict[str, Any],
         defaults: ActionMap | None = None,
+        input_mode: str | None = None,
+        deadzone: float | None = None,
     ) -> ActionMap:
         """Deserialize bindings from a dict.
 
         If defaults is provided, actions not in data use the default
         bindings. Actions in data override defaults completely.
 
+        The two settings (``SETTINGS_KEY``) come from different places first (BUGS.md #184.6,
+        #184.7), since the input mode is how the game runs now and the deadzone is the
+        player's:
+
+        - input mode: ``input_mode`` when given (a game passes the mode it runs in), else the
+          defaults', else the saved one, else 'auto';
+        - deadzone: ``deadzone`` when given, else the saved one (a player's setting), else the
+          defaults', else ``DEFAULT_DEADZONE``.
+
+        A saved mode this engine does not know, or a saved deadzone that is not a number of 0
+        or more, is logged and skipped.
+
         Args:
             data: Binding data from SaveManager/serializer.
             defaults: Optional ActionMap with default bindings.
+            input_mode: The input mode to build the map in, or None (above).
+            deadzone: The deadzone to build the map with, or None (above).
 
         Returns:
             A new ActionMap with the loaded bindings.
 
         """
-        action_map = cls()
+        settings = data.get(SETTINGS_KEY)
+        saved: dict[str, Any] = (
+            cast('dict[str, Any]', settings) if isinstance(settings, dict) else {}
+        )
+        if input_mode is None:
+            input_mode = (
+                defaults.input_mode
+                if defaults is not None
+                else cls._saved_input_mode(saved=saved.get(INPUT_MODE_SETTING))
+            )
+        if deadzone is None:
+            saved_deadzone = cls._saved_deadzone(saved=saved.get(DEADZONE_SETTING))
+            if saved_deadzone is not None:
+                deadzone = saved_deadzone
+            elif defaults is not None:
+                deadzone = defaults.deadzone
+            else:
+                deadzone = DEFAULT_DEADZONE
+        action_map = cls(deadzone=deadzone, input_mode=input_mode)
         loaded_actions: set[str] = set()
 
         for action_name, binding_list in data.items():
-            if not isinstance(binding_list, list):
+            if action_name == SETTINGS_KEY or not isinstance(binding_list, list):
                 continue
             loaded_actions.add(action_name)
             for entry in cast('list[Any]', binding_list):
@@ -565,6 +653,38 @@ class ActionMap:
             cls._merge_defaults(action_map, defaults, loaded_actions)
 
         return action_map
+
+    @staticmethod
+    def _saved_input_mode(*, saved: object) -> InputMode:
+        """Return the input mode a saved map names, or 'auto' for none or an unknown one.
+
+        Returns:
+            The mode.
+
+        """
+        if saved is None:
+            return InputMode.AUTO
+        try:
+            return InputMode(saved)
+        except ValueError:
+            log.warning('The saved action map names an unknown input mode %r; using auto', saved)
+            return InputMode.AUTO
+
+    @staticmethod
+    def _saved_deadzone(*, saved: object) -> float | None:
+        """Return the deadzone a saved map names, or None for none or an unusable one.
+
+        Returns:
+            The deadzone, or None.
+
+        """
+        if saved is None:
+            return None
+        # bool is an int: True is no deadzone
+        if isinstance(saved, bool) or not isinstance(saved, int | float) or saved < 0:
+            log.warning('The saved action map names an unusable deadzone %r; skipping it', saved)
+            return None
+        return float(saved)
 
     @staticmethod
     def _load_binding_entry(
@@ -611,6 +731,14 @@ class ActionMap:
 
         if event_type == pygame.KEYDOWN:
             action_map.bind(action_name, keyboard=int(code))
+        elif (
+            event_type == pygame.CONTROLLERBUTTONDOWN and entry.get('controller_layer_only') is True
+        ):
+            action_map.bind(
+                action_name,
+                controller_layer_button=int(code),
+                instance_id=instance_id,
+            )
         elif event_type == pygame.CONTROLLERBUTTONDOWN:
             action_map.bind(
                 action_name,

@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
-"""Full glitchygames scene demo script that loads foo.toml and displays animated sprite."""
+"""Full glitchygames scene demo script that loads animated.toml and displays animated sprite."""
 
 from __future__ import annotations
 
 import logging
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
-
-# Add the parent directory to the path so we can import glitchygames
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
@@ -24,6 +20,12 @@ if TYPE_CHECKING:
 # Its level is the command line's (--log-level; debug shows this demo's debug lines): never
 # set here, where at import it reached every game.* logger of a process importing it (BUGS.md #236)
 LOG = logging.getLogger('game')
+
+# The sprite the demo shows: scripts/animated.toml, next to this script (it was foo.toml, a
+# static sprite with no palette that drew nothing, BUGS.md #244). The demos looked for it in
+# the repository root, where there is none, so they always stopped with MISSING_INPUT
+# (BUGS.md #245).
+SPRITE_PATH = Path(__file__).parent / 'animated.toml'
 
 
 class AnimationGame(Scene):
@@ -88,7 +90,7 @@ class AnimationGame(Scene):
             self.animated_sprite.set_frame(1)
 
     def _load_animated_sprite(self: Self) -> None:
-        """Load the animated sprite from foo.toml.
+        """Load the animated sprite from animated.toml.
 
         Raises:
             FileNotFoundError: If the animation TOML file is not found.
@@ -96,10 +98,10 @@ class AnimationGame(Scene):
             RuntimeError: If the animation system fails to initialize.
 
         """
-        foo_toml_path = Path(__file__).parent.parent / 'foo.toml'
+        sprite_path = SPRITE_PATH
 
         try:
-            self.animated_sprite = AnimatedSprite(str(foo_toml_path), groups=self.all_sprites)
+            self.animated_sprite = AnimatedSprite(str(sprite_path), groups=self.all_sprites)
         except FileNotFoundError, ValueError, RuntimeError:
             self.log.exception('Failed to load animation')
             raise

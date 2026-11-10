@@ -454,39 +454,6 @@ class FilmStripSprite(BitmappySprite):
 
         return red, green, blue, alpha
 
-    @override
-    def on_key_down_event(self, event: events.KeyEvent) -> bool | None:  # type: ignore[override] # ty: ignore[invalid-method-override]
-        """Handle keyboard events for copy/paste functionality.
-
-        Returns:
-            bool | None: True if the event was handled, False if not, None if not applicable.
-
-        """
-        if not self.film_strip_widget:
-            return None
-
-        # Check for Ctrl+C (copy)
-        if event.key == pygame.K_c and (event.get('mod', 0) & pygame.KMOD_CTRL):
-            LOG.debug('FilmStripSprite: Ctrl+C detected - copying current frame')
-            success = self.film_strip_widget.copy_current_frame()
-            if success:
-                LOG.debug('FilmStripSprite: Frame copied successfully')
-            else:
-                LOG.debug('FilmStripSprite: Failed to copy frame')
-            return True
-
-        # Check for Ctrl+V (paste)
-        if event.key == pygame.K_v and (event.get('mod', 0) & pygame.KMOD_CTRL):
-            LOG.debug('FilmStripSprite: Ctrl+V detected - pasting to current frame')
-            success = self.film_strip_widget.paste_to_current_frame()
-            if success:
-                LOG.debug('FilmStripSprite: Frame pasted successfully')
-            else:
-                LOG.debug('FilmStripSprite: Failed to paste frame')
-            return True
-
-        return False
-
     def set_parent_canvas(self, canvas: AnimatedCanvasSprite) -> None:
         """Set the parent canvas for frame changes."""
         self.parent_canvas = canvas
@@ -718,8 +685,8 @@ class FilmStripSprite(BitmappySprite):
         # The image has an alpha channel by now. pygame-ce has no surfarray.array4d
         # (BUGS.md #87), so read the colour and alpha planes separately; both are
         # indexed [x, y], and the pixel list is row-major (y outer, x inner).
-        color_planes: Any = pygame.surfarray.array3d(image)  # type: ignore[reportUnknownMemberType]
-        alpha_plane: Any = pygame.surfarray.array_alpha(image)  # type: ignore[reportUnknownMemberType]
+        color_planes: Any = pygame.surfarray.array3d(image)
+        alpha_plane: Any = pygame.surfarray.array_alpha(image)
         pixels: list[tuple[int, ...]] = []
         for y in range(canvas_height):
             for x in range(canvas_width):
@@ -837,13 +804,11 @@ class FilmStripSprite(BitmappySprite):
         # Mark as dirty for redraw
         self.film_strip_widget.mark_dirty()
 
-        # Notify the parent scene about the frame insertion
-        if (
-            hasattr(self, 'parent_scene')
-            and self.parent_scene
-            and hasattr(self.parent_scene, 'on_frame_inserted')
-        ):
-            self.parent_scene.on_frame_inserted(current_animation, insert_index)  # type: ignore[reportPrivateUsage] # ty: ignore[call-non-callable]
+        # Tell the editor's film strip coordinator about the insertion (asking the scene, which
+        # has no on_frame_inserted, never reached it: BUGS.md #119)
+        coordinator = getattr(getattr(self, 'parent_scene', None), 'film_strip_coordinator', None)
+        if coordinator is not None:
+            coordinator.on_frame_inserted(current_animation, insert_index)
 
         # Select the newly created frame
         self.film_strip_widget.set_current_frame(current_animation, insert_index)

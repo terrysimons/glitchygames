@@ -24,9 +24,17 @@ from glitchygames.sprites import (
     BitmappySprite,
     SpriteFactory,
 )
-from glitchygames.sprites.animated import AnimatedSprite, FrameAnchor
+from glitchygames.sprites import animated as animated_module
+from glitchygames.sprites import pixel_utils as pixel_utils_module
+from glitchygames.sprites.animated import (
+    AnimatedSprite,
+    FrameAnchor,
+    frame_tables_in_load_order,
+)
 from glitchygames.sprites.frame import SpriteFrame
 from glitchygames.sprites.pixel_utils import (
+    OPAQUE_FRAME_DEPTH,
+    OPAQUE_FRAME_MASKS,
     convert_pixels_to_rgb_if_possible,
     convert_pixels_to_rgba_if_needed,
     create_alpha_surface,
@@ -1660,14 +1668,14 @@ class TestAnimatedSpriteBuildColorMap:
         assert alpha_values['#'] == 128
 
     def test_build_color_map_with_explicit_opaque_alpha(self):
-        """Test _build_color_map with alpha=255 (treated as indexed)."""
+        """Alpha = 255 is opaque, as no alpha is: a plain RGB color (BUGS.md #200 item 4)."""
         data = {
             'colors': {
                 '#': {'red': 0, 'green': 0, 'blue': 0, 'alpha': 255},
             },
         }
         color_map, _color_order, alpha_values = AnimatedSprite.build_color_map(data)
-        assert color_map['#'] == (0, 0, 0, 255)
+        assert color_map['#'] == (0, 0, 0)
         assert '#' not in alpha_values
 
     def test_build_color_map_empty(self):
@@ -1822,6 +1830,85 @@ pixels = \"\"\"
         # Second frame should have 0.8 duration
         frame1 = sprite.get_frame('blink', 1)
         assert abs(frame1.duration - 0.8) < 1e-9
+
+
+# Two 1x1 frames whose frame_index keys run against the file's order: '#' (black) is written
+# first but is frame 1, '.' (white) second but frame 0
+OUT_OF_ORDER_FRAMES_SPRITE = """[sprite]
+name = "out_of_order"
+
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+
+[colors."."]
+red = 255
+green = 255
+blue = 255
+
+[[animation]]
+namespace = "blink"
+
+[[animation.frame]]
+frame_index = 1
+pixels = \"\"\"
+#
+\"\"\"
+
+[[animation.frame]]
+frame_index = 0
+pixels = \"\"\"
+.
+\"\"\"
+"""
+
+
+class TestFrameIndexOrder:
+    """The loader places frames by their frame_index keys (BUGS.md #232)."""
+
+    def test_frames_load_in_frame_index_order(self, tmp_path):
+        sprite_file = tmp_path / 'out_of_order.toml'
+        sprite_file.write_text(OUT_OF_ORDER_FRAMES_SPRITE, encoding='utf-8')
+
+        sprite = AnimatedSprite()
+        sprite.load(str(sprite_file))
+
+        assert sprite.get_frame('blink', 0).get_pixel_data()[0][:3] == (255, 255, 255)
+        assert sprite.get_frame('blink', 1).get_pixel_data()[0][:3] == (0, 0, 0)
+
+    def test_a_save_writes_the_frames_in_load_order(self, tmp_path):
+        sprite_file = tmp_path / 'out_of_order.toml'
+        sprite_file.write_text(OUT_OF_ORDER_FRAMES_SPRITE, encoding='utf-8')
+        sprite = AnimatedSprite()
+        sprite.load(str(sprite_file))
+        saved_file = tmp_path / 'saved.toml'
+
+        sprite.save(str(saved_file), 'toml')
+
+        saved_frames = tomllib.loads(saved_file.read_text(encoding='utf-8'))['animation'][0][
+            'frame'
+        ]
+        assert [frame['frame_index'] for frame in saved_frames] == [0, 1]
+        assert [frame['pixels'].strip() for frame in saved_frames] == ['.', '#']
+
+    def test_a_table_without_an_index_counts_as_its_file_position(self):
+        frame_tables = [
+            {'name': 'a', 'frame_index': 2},
+            {'name': 'b'},
+            {'name': 'c', 'frame_index': 0},
+        ]
+
+        ordered_tables = frame_tables_in_load_order(frame_tables)
+
+        assert [frame_table['name'] for frame_table in ordered_tables] == ['c', 'b', 'a']
+
+    def test_equal_indexes_keep_the_file_order(self):
+        frame_tables = [{'name': 'a', 'frame_index': 1}, {'name': 'b'}]
+
+        ordered_tables = frame_tables_in_load_order(frame_tables)
+
+        assert [frame_table['name'] for frame_table in ordered_tables] == ['a', 'b']
 
 
 class TestLookupRgbaPixelChar:
@@ -2069,6 +2156,18 @@ class TestAnimatedSpriteDebugFrameInfo:
         sprite.frame_manager._current_frame = 99
         sprite._debug_frame_info([frame])
 
+    def test_debug_frame_info_logs_the_image_size(self, caplog):
+        """The frame dump logs the frame's image size (BUGS.md #178 item 20)."""
+        sprite = AnimatedSprite()
+        frame = SpriteFrame(pygame.Surface((3, 2)))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+
+        with caplog.at_level(logging.DEBUG, logger=sprite.log.name):
+            sprite._debug_frame_info([frame])
+
+        assert 'image_size=(3, 2)' in caplog.text
+
     def test_debug_frame_info_with_pixels(self):
         """Test _debug_frame_info with frame that has pixel data."""
         sprite = AnimatedSprite()
@@ -2095,6 +2194,18 @@ class TestAnimatedSpriteDebugFrameInfo:
         sprite._debug_frame_pixel_data(mock_frame)
 
 
+# One frame of two opaque colors (red, blue), as a single-frame and as an animated sprite
+TWO_COLORS = (
+    '[colors."a"]\nred = 255\ngreen = 0\nblue = 0\n\n[colors."b"]\nred = 0\ngreen = 0\nblue = 255\n'
+)
+SINGLE_FRAME_TWO_COLORS_TOML = '[sprite]\nname = "single"\npixels = """\nab\n"""\n\n' + TWO_COLORS
+ANIMATED_TWO_COLORS_TOML = (
+    '[sprite]\nname = "animated"\n\n[[animation]]\nnamespace = "idle"\n\n'
+    '[[animation.frame]]\nnamespace = "idle"\nframe_index = 0\npixels = """\nab\n"""\n\n'
+    + TWO_COLORS
+)
+
+
 class TestAnimatedSpriteCreateSurfaceFromTomlPixels:
     """Test AnimatedSprite._create_surface_from_toml_pixels."""
 
@@ -2110,6 +2221,76 @@ class TestAnimatedSpriteCreateSurfaceFromTomlPixels:
             [(255, 0, 0), (0, 255, 0)],
             [(0, 0, 255), (128, 128, 128)],
         ]
+
+    def test_an_opaque_frame_has_one_format_whatever_the_display(self):
+        """32-bit RGB, no alpha channel, magenta keyed: never the display's format (#254).
+
+        A surface made without an explicit format takes the display's, which has an alpha
+        channel on cocoa and none on dummy; a faded blit (set_alpha) of it then blended 1-2
+        levels apart per driver (Papyrus's respawn fade: 764 pixels of the player). The suite
+        runs on dummy, so the format itself is what is checked here; ``nox -s compare-drivers``
+        checks the pixels on each driver.
+        """
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0), (255, 0, 255), (0, 0, 255), (9, 9, 9)])
+
+        surface = AnimatedSprite._create_surface_from_toml_pixels(2, 2, pixels)
+
+        assert surface.get_bitsize() == OPAQUE_FRAME_DEPTH
+        assert surface.get_masks() == OPAQUE_FRAME_MASKS
+        assert not surface.get_flags() & pygame.SRCALPHA
+        assert surface.get_colorkey() == (255, 0, 255, 255)
+
+    def test_a_faded_opaque_frame_blends_as_a_fixed_rgb_surface_does(self):
+        """The faded blit's pixels are a fixed-format surface's, the same on every display."""
+        pixels = cast(
+            'list[tuple[int, ...]]', [(200, 100, 50), (255, 0, 255), (10, 20, 30), (90, 90, 90)]
+        )
+        reference = pygame.Surface((2, 2), 0, OPAQUE_FRAME_DEPTH, OPAQUE_FRAME_MASKS)
+        reference.set_colorkey((255, 0, 255))
+        for index, pixel in enumerate(pixels):
+            reference.set_at((index % 2, index // 2), pixel)
+        engine_surface = AnimatedSprite._create_surface_from_toml_pixels(2, 2, pixels)
+
+        def faded_over_sand(surface: pygame.Surface) -> list[tuple[int, ...]]:
+            faded = surface.copy()
+            faded.set_alpha(41)
+            canvas = pygame.Surface((2, 2), 0, OPAQUE_FRAME_DEPTH, OPAQUE_FRAME_MASKS)
+            canvas.fill((210, 186, 134))
+            canvas.blit(faded, (0, 0))
+            return [tuple(canvas.get_at((x, y)))[:3] for y in range(2) for x in range(2)]
+
+        assert faded_over_sand(engine_surface) == faded_over_sand(reference)
+        # The keyed pixel is never written: the sand shows through it
+        assert faded_over_sand(engine_surface)[1] == (210, 186, 134)
+
+    @pytest.mark.parametrize(
+        'toml_text',
+        [SINGLE_FRAME_TWO_COLORS_TOML, ANIMATED_TWO_COLORS_TOML],
+        ids=['single-frame', 'animated'],
+    )
+    def test_a_loaded_frames_own_image_has_the_opaque_format(self, tmp_path, mocker, toml_text):
+        """Each loader makes a frame's image in the opaque format, not the display's (#253).
+
+        The suite's dummy display already has that format, so the format alone cannot tell a
+        bare pygame.Surface from opaque_surface here: the loaders are checked to make it there
+        (the native driver's pixels are compare-drivers' to check).
+        """
+        path = tmp_path / 'sprite.toml'
+        path.write_text(toml_text, encoding='utf-8')
+        made = [
+            mocker.spy(animated_module, 'opaque_surface'),
+            mocker.spy(pixel_utils_module, 'opaque_surface'),
+        ]
+
+        sprite = AnimatedSprite(str(path))
+
+        assert any(call.args[:2] == (2, 1) for spy in made for call in spy.call_args_list)
+        (frames,) = sprite._animations.values()
+        image = frames[0].image
+
+        assert image.get_bitsize() == OPAQUE_FRAME_DEPTH
+        assert image.get_masks() == OPAQUE_FRAME_MASKS
+        assert _rgb_rows(image) == [[(255, 0, 0), (0, 0, 255)]]
 
     def test_rgba_pixels(self):
         """Test surface creation from RGBA pixel data."""
@@ -2250,7 +2431,10 @@ class TestConvertStaticSpriteInconsistentWidths:
     """Test AnimatedSprite._convert_static_sprite with inconsistent row widths."""
 
     def test_inconsistent_widths_pads_rows(self, tmp_path):
-        """Test loading a static sprite with inconsistent row widths pads them."""
+        """A short row in a static sprite is padded with transparent pixels, not a color.
+
+        The old rule filled with the most common glyph, so this sprite drew solid black.
+        """
         toml_content = """[sprite]
 name = "inconsistent"
 pixels = \"\"\"
@@ -2269,7 +2453,9 @@ blue = 0
         sprite = AnimatedSprite()
         sprite.load(str(toml_file))
         assert sprite.name == 'inconsistent'
-        assert sprite.animation_count >= 1
+        frame = sprite.get_current_frame()
+        assert frame is not None
+        assert frame.pixels == [(0, 0, 0), (0, 0, 0), (0, 0, 0), (255, 0, 255)]
 
 
 class TestAnimatedSpriteLoadEdgeCases:
@@ -2493,12 +2679,36 @@ class TestAnimatedSpriteVisiblePixelHitbox:
 
         assert sprite.hitbox == pygame.Rect(0, 0, 5, 6)
 
-    def test_hitbox_scale_defaults_to_one(self):
+    def test_scale_defaults_to_one(self):
         """Unscaled sprites keep native-pixel hitboxes."""
         sprite = AnimatedSprite()
-        assert sprite.hitbox_scale == 1
+        assert sprite.scale == 1
 
-    def test_hitbox_scale_multiplies_explicit_frame_hitbox(self):
+    def test_scale_draws_every_frame_larger(self):
+        """Image and rect stay scaled across frame changes, not just after setting scale (#144)."""
+        sprite = AnimatedSprite()
+        first = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        second = self._frame_with_visible_box(pygame.Rect(0, 0, 16, 24))
+        sprite.add_animation('idle', [first, second])
+        sprite.set_animation('idle')
+        sprite.scale = 2
+        assert sprite.image.get_size() == sprite.rect.size == (32, 48)
+
+        sprite.set_frame(1)
+
+        assert sprite.image.get_size() == sprite.rect.size == (32, 48)
+        assert sprite.drawn_frame_surface().get_size() == (32, 48)
+        assert second.image.get_size() == (16, 24)  # the frame itself stays native
+
+    @pytest.mark.parametrize('bad_scale', [0, -1, 1.5, True])
+    def test_scale_must_be_a_positive_integer(self, bad_scale):
+        """A scale that is not a positive int is refused and the old scale kept."""
+        sprite = AnimatedSprite()
+        with pytest.raises(ValueError, match='positive integer'):
+            sprite.scale = bad_scale
+        assert sprite.scale == 1
+
+    def test_scale_multiplies_explicit_frame_hitbox(self):
         """A sprite drawn at 2x gets its per-frame TOML hitbox at 2x offset and size."""
         sprite = AnimatedSprite()
         frame = self._frame_with_visible_box(
@@ -2506,7 +2716,7 @@ class TestAnimatedSpriteVisiblePixelHitbox:
         )
         sprite.add_animation('idle', [frame])
         sprite.set_animation('idle')
-        sprite.hitbox_scale = 2
+        sprite.scale = 2
 
         assert sprite.hitbox == pygame.Rect(6, 0, 22, 54)
         assert frame.hitbox == pygame.Rect(3, 0, 11, 27)  # the frame's own hitbox is untouched
@@ -2514,25 +2724,25 @@ class TestAnimatedSpriteVisiblePixelHitbox:
             106, 200, 22, 54
         )
 
-    def test_hitbox_scale_multiplies_default_hitbox(self):
+    def test_scale_multiplies_default_hitbox(self):
         """The sprite-level default hitbox is scaled too."""
         sprite = AnimatedSprite()
         frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
         sprite.add_animation('idle', [frame])
         sprite.set_animation('idle')
         sprite.default_hitbox = pygame.Rect(1, 2, 12, 20)
-        sprite.hitbox_scale = 2
+        sprite.scale = 2
 
         assert sprite.hitbox == pygame.Rect(2, 4, 24, 40)
         assert sprite.default_hitbox == pygame.Rect(1, 2, 12, 20)
 
-    def test_hitbox_scale_multiplies_trimmed_fallback(self):
+    def test_scale_multiplies_trimmed_fallback(self):
         """The visible-pixel fallback, measured on the native frame, is scaled too."""
         sprite = AnimatedSprite()
         frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
         sprite.add_animation('idle', [frame])
         sprite.set_animation('idle')
-        sprite.hitbox_scale = 3
+        sprite.scale = 3
 
         assert sprite.hitbox == pygame.Rect(9, 12, 30, 54)
 
@@ -2548,7 +2758,7 @@ class TestAnimatedSpriteVisiblePixelHitbox:
         )
         sprite.add_animation('idle', [frame])
         sprite.set_animation('idle')
-        sprite.hitbox_scale = 2
+        sprite.scale = 2
         sprite.hitbox_flip_x = True
 
         # Drawn (6, 0, 22, 54) mirrored in 16 * 2 = 32 px: x = 32 - (6 + 22) = 4
@@ -2580,7 +2790,7 @@ class TestAnimatedSpriteVisiblePixelHitbox:
         sprite.set_animation('idle')
 
         assert sprite.common_hitbox_x_range() == (3, 10)
-        sprite.hitbox_scale = 2
+        sprite.scale = 2
         assert sprite.common_hitbox_x_range() == (6, 20)
         sprite.hitbox_flip_x = True  # mirrored in 16 * 2 = 32 px
         assert sprite.common_hitbox_x_range() == (12, 26)
@@ -2820,7 +3030,7 @@ class TestAnimatedSpriteFrameAnchor:
         pygame.Rect(0, 5, 19, 19),
     )
 
-    def _sprite(self, frame_anchor, *, hitbox_scale=1, hitbox_flip_x=False):
+    def _sprite(self, frame_anchor, *, scale=1, hitbox_flip_x=False):
         """A three-frame sprite in one animation, anchored as given.
 
         Returns:
@@ -2836,7 +3046,7 @@ class TestAnimatedSpriteFrameAnchor:
         sprite.add_animation('cycle', frames)
         sprite.set_animation('cycle')
         sprite.frame_anchor = frame_anchor
-        sprite.hitbox_scale = hitbox_scale
+        sprite.scale = scale
         sprite.hitbox_flip_x = hitbox_flip_x
         return sprite
 
@@ -2882,7 +3092,7 @@ class TestAnimatedSpriteFrameAnchor:
             )
             # Where the frame's visible pixels land when drawn at rect = position + draw_offset
             visible = frame.image.get_bounding_rect()
-            scale = sprite.hitbox_scale
+            scale = sprite.scale
             drawn_x = visible.x * scale
             if sprite.hitbox_flip_x:
                 drawn_x = frame.rect.width * scale - (drawn_x + visible.width * scale)
@@ -2902,7 +3112,7 @@ class TestAnimatedSpriteFrameAnchor:
     )
     def test_anchor_point_is_identical_for_every_frame(self, frame_anchor):
         """The anchor point of every frame's hitbox and drawing lands on the reference's."""
-        sprite = self._sprite(frame_anchor, hitbox_scale=2)
+        sprite = self._sprite(frame_anchor, scale=2)
         reference = self.FRAME_HITBOXES[0].unionall(self.FRAME_HITBOXES[1:])
         scaled_reference = pygame.Rect(
             reference.x * 2, reference.y * 2, reference.width * 2, reference.height * 2
@@ -2924,7 +3134,7 @@ class TestAnimatedSpriteFrameAnchor:
     )
     def test_edge_anchors_leave_the_other_axis_as_authored(self, frame_anchor, free_axis):
         """TOP/BOTTOM never move a frame in x; LEFT/RIGHT never move it in y."""
-        sprite = self._sprite(frame_anchor, hitbox_scale=2)
+        sprite = self._sprite(frame_anchor, scale=2)
         for frame_index in range(len(self.FRAME_HITBOXES)):
             sprite.set_frame(frame_index)
             assert sprite.draw_offset[free_axis] == 0
@@ -2978,7 +3188,7 @@ class TestAnimatedSpriteFrameAnchor:
         sprite.add_animation('cycle', frames)
         sprite.set_animation('cycle')
         sprite.frame_anchor = frame_anchor
-        sprite.hitbox_scale = 2
+        sprite.scale = 2
         sprite.hitbox_flip_x = True
 
         hitbox_points, drawn_points = self._points_per_frame(sprite)
@@ -3607,7 +3817,7 @@ class TestAnimatedSpriteWithoutUsableFrames:
     def test_hitbox_without_a_frame_is_the_unscaled_sprite_rect(self):
         """With no frame the hitbox is the sprite's own rect, already in drawn pixels."""
         sprite = AnimatedSprite()
-        sprite.hitbox_scale = 3
+        sprite.scale = 3
         assert sprite.hitbox == pygame.Rect(0, 0, sprite.rect.width, sprite.rect.height)
 
     def test_draw_offset_without_a_frame_is_zero(self):
@@ -3680,6 +3890,36 @@ class TestAnimatedSpriteAnimationEditing:
         assert sprite.animation_order == ['strike', 'idle']
         assert 'strike' not in sprite._loop_flags
         assert 'strike' not in sprite._animation_frame_intervals
+
+    def test_rename_keeps_other_cached_surfaces_and_the_current_animation(self):
+        """Renaming an animation that is not playing drops only its own cached surfaces."""
+        sprite = AnimatedSprite()
+        sprite.add_animation('walk', [self._solid_frame((255, 0, 0))])
+        sprite.add_animation('run', [self._solid_frame((0, 255, 0))])
+        sprite.set_animation('run')
+        cached_surface = pygame.Surface((1, 1))
+        sprite._surface_cache = {'walk_0': cached_surface, 'run_0': cached_surface}
+
+        sprite.rename_animation(old_name='walk', new_name='stroll')
+
+        assert sprite._surface_cache == {'run_0': cached_surface}
+        assert sprite.current_animation == 'run'
+
+    def test_restore_on_a_sprite_never_loaded_sets_its_loop_flag_and_interval(self):
+        """Without a file's order, restoring sets the position, loop flag and frame interval."""
+        sprite = AnimatedSprite()
+        walk_frames = [self._solid_frame((255, 0, 0))]
+        sprite.add_animation('walk', walk_frames)
+        sprite.add_animation('run', [self._solid_frame((0, 255, 0))])
+        sprite.remove_animation('walk')
+        sprite.add_animation('walk', walk_frames)
+
+        sprite.restore_animation_settings('walk', position=0, loop_flag=False, frame_interval=0.25)
+
+        assert list(sprite.animation_data) == ['walk', 'run']
+        assert not sprite.has_own_animation_order
+        assert sprite._loop_flags['walk'] is False
+        assert sprite._animation_frame_intervals['walk'] == pytest.approx(0.25)
 
     def test_a_sprite_never_loaded_orders_its_animations_as_added(self):
         """Without a file's order, animation_order follows the animations, through edits."""
@@ -3843,21 +4083,26 @@ class TestTomlLoadingFallbacks:
         assert len(sprite.animation_data['walk']) == 1
         assert sprite.animation_data['walk'][0].pixels == [(0, 0, 0)]
 
-    def test_ragged_rows_are_normalized_to_the_most_common_width(self, tmp_path, caplog):
-        """Short rows are padded with their last glyph and long rows are cut, with a warning."""
+    def test_ragged_rows_widen_to_the_longest_with_transparent_padding(self, tmp_path, caplog):
+        """Short rows are padded with transparent pixels to the longest, and nothing is cut.
+
+        The repair is logged. The old rule cut the long row and padded with each row's last
+        glyph.
+        """
         with caplog.at_level(logging.WARNING):
             sprite = self._load(tmp_path, RAGGED_FRAME_TOML)
         frame = sprite.get_current_frame()
         assert frame is not None
-        assert frame.image.get_size() == (3, 4)
-        black, white = (0, 0, 0), (255, 255, 255)
-        assert frame.pixels == [
-            black, white, white,
-            black, white, white,
-            black, white, white,
-            black, white, white,
+        assert frame.image.get_size() == (4, 4)
+        black, white, clear = (0, 0, 0), (255, 255, 255), (255, 0, 255)
+        # A frame with a transparent pixel stores RGBA (needs_alpha_channel), so compare colors
+        assert [pixel[:3] for pixel in frame.pixels] == [
+            black, white, white, clear,
+            black, white, clear, clear,
+            black, white, white, clear,
+            black, white, white, black,
         ]  # fmt: skip
-        assert 'Inconsistent line lengths' in caplog.text
+        assert 'pixel rows repaired' in caplog.text
 
 
 EXPLICIT_OPAQUE_ALPHA_TOML = """[sprite]
@@ -3894,6 +4139,27 @@ class TestSaveKeepsLoadedGlyphs:
         saved = tomllib.loads(saved_file.read_text(encoding='utf-8'))
         assert saved['colors']['Z'] == {'red': 10, 'green': 20, 'blue': 30}
         assert saved['sprite']['pixels'].strip() == 'Z.'
+
+    def test_magenta_written_with_an_alpha_keeps_its_glyph(self, tmp_path):
+        """Magenta with alpha = 0 is still the transparency key: its pixels save under its glyph.
+
+        Beside a translucent color, so the sprite saves in per-pixel alpha mode.
+        """
+        import tomllib
+
+        source_file = tmp_path / 'keyed.toml'
+        source_file.write_text(
+            '[sprite]\nname = "keyed"\npixels = """\nkG\n"""\n\n'
+            '[colors."k"]\nred = 255\ngreen = 0\nblue = 255\nalpha = 0\n\n'
+            '[colors."G"]\nred = 0\ngreen = 255\nblue = 0\nalpha = 128\n',
+            encoding='utf-8',
+        )
+        saved_file = tmp_path / 'saved.toml'
+        AnimatedSprite(str(source_file)).save(str(saved_file), 'toml')
+
+        saved = tomllib.loads(saved_file.read_text(encoding='utf-8'))
+        assert saved['sprite']['pixels'].strip() == 'kG'
+        assert saved['colors']['G']['alpha'] == 128
 
     def test_new_color_gets_a_glyph_the_loaded_file_did_not_use(self, tmp_path):
         """A color added after loading skips glyphs the file already assigned."""
@@ -4169,3 +4435,178 @@ class TestFrameDumpOnlyWithDebugLogging:
 
         assert not sprite.is_playing
         assert 'Animation ended, stopped at frame 1' in caplog.text
+
+
+# The palette of the "Before and after" table in the pixel-rows design, found at
+# docs/specs/2026-10-30-unified-pixel-rows-design.md
+TABLE_PALETTE = {
+    'x': (200, 10, 10),
+    'a': (10, 200, 10),
+    'b': (10, 10, 200),
+    'c': (200, 200, 10),
+    'd': (10, 200, 200),
+}
+TABLE_COLORS_TOML = ''.join(
+    f'[colors."{glyph}"]\nred = {red}\ngreen = {green}\nblue = {blue}\n\n'
+    for glyph, (red, green, blue) in TABLE_PALETTE.items()
+)
+
+
+def _static_sprite_toml(pixels: str, colors_toml: str = TABLE_COLORS_TOML) -> str:
+    return f'[sprite]\nname = "rows"\npixels = """\n{pixels}\n"""\n\n{colors_toml}'
+
+
+def _animated_sprite_toml(pixels: str, colors_toml: str = TABLE_COLORS_TOML) -> str:
+    return (
+        '[sprite]\nname = "rows"\n\n[[animation]]\nnamespace = "walk"\nframe_interval = 1\n\n'
+        f'[[animation.frame]]\nframe_index = 0\npixels = """\n{pixels}\n"""\n\n{colors_toml}'
+    )
+
+
+def _drawn_rows(sprite: AnimatedSprite) -> list[str]:
+    """Read the first frame back as glyphs of TABLE_PALETTE, '·' for a transparent pixel.
+
+    Returns:
+        list[str]: One string per row.
+
+    """
+    frame = sprite.get_current_frame()
+    assert frame is not None
+    width, height = frame.image.get_size()
+    glyphs_by_color: dict[tuple[int, ...], str] = {
+        color: glyph for glyph, color in TABLE_PALETTE.items()
+    }
+    return [
+        ''.join(
+            glyphs_by_color.get(tuple(frame.pixels[row * width + column][:3]), '·')
+            for column in range(width)
+        )
+        for row in range(height)
+    ]
+
+
+class TestOnePixelRowRule:
+    """Static sprites and animation frames load through normalize_pixel_rows."""
+
+    @staticmethod
+    def _load(tmp_path: Path, toml_content: str, name: str = 'rows.toml') -> AnimatedSprite:
+        toml_file = tmp_path / name
+        toml_file.write_text(toml_content, encoding='utf-8')
+        return AnimatedSprite(str(toml_file))
+
+    # Each case is the pixel text and what both layers now draw, from the spec's "Before and
+    # after" table
+    @pytest.mark.parametrize(
+        ('pixels', 'drawn'),
+        [
+            ('x\nxxxx\nx\nx', ['x···', 'xxxx', 'x···', 'x···']),
+            ('abcd\nab\nab', ['abcd', 'ab··', 'ab··']),
+            ('xxxx\nxxx\nxxxx', ['xxxx', 'xxx·', 'xxxx']),
+            ('ab\n\nab', ['ab', '··', 'ab']),
+            ('  ab\nab\nab', ['··ab', 'ab··', 'ab··']),
+            ('  x\n xxx\nxxxxx', ['··x··', '·xxx·', 'xxxxx']),
+            ('ab\nabc', ['ab·', 'abc']),
+        ],
+        ids=[
+            'sword',
+            'one long row',
+            'short row in a tile',
+            'blank line between rows',
+            'one indented row',
+            'space pyramid',
+            'tie in widths',
+        ],
+    )
+    def test_before_and_after_table(self, tmp_path, pixels, drawn):
+        """Each case draws the table's "New" column as a static sprite and as an animation."""
+        static_sprite = self._load(tmp_path, _static_sprite_toml(pixels), 'static.toml')
+        animated_sprite = self._load(tmp_path, _animated_sprite_toml(pixels), 'animated.toml')
+        assert _drawn_rows(static_sprite) == drawn
+        assert _drawn_rows(animated_sprite) == drawn
+
+    def test_static_short_row_pads_transparent(self, tmp_path):
+        """A static sprite's short row ends in magenta, and the repair is recorded."""
+        sprite = self._load(tmp_path, _static_sprite_toml('ab\na'))
+        frame = sprite.get_current_frame()
+        assert frame is not None
+        assert frame.pixels[3] == (255, 0, 255)
+        assert len(sprite.pixel_row_repairs) == 1
+        assert sprite.pixel_row_repairs[0].startswith('sprite: row widths differ')
+
+    def test_animated_sword_keeps_its_crossguard(self, tmp_path):
+        """The crossguard row widens the frame instead of being cut to the shaft's width."""
+        sprite = self._load(tmp_path, _animated_sprite_toml('x\nxxxx\nx\nx'))
+        frame = sprite.get_current_frame()
+        assert frame is not None
+        assert frame.image.get_size() == (4, 4)
+        assert _drawn_rows(sprite)[1] == 'xxxx'
+        assert sprite.pixel_row_repairs[0].startswith('walk frame 0: row widths differ')
+
+    def test_animated_blank_interior_line_is_kept(self, tmp_path):
+        """A blank line between rows stays, as a transparent row."""
+        sprite = self._load(tmp_path, _animated_sprite_toml('ab\n\nab'))
+        assert _drawn_rows(sprite) == ['ab', '··', 'ab']
+
+    def test_static_and_animated_agree(self, tmp_path):
+        """The same ragged text draws the same pixels as a static sprite and as a frame."""
+        pixels = '  ab\nabcd\n\na'
+        static_sprite = self._load(tmp_path, _static_sprite_toml(pixels), 'static.toml')
+        animated_sprite = self._load(tmp_path, _animated_sprite_toml(pixels), 'animated.toml')
+        static_frame = static_sprite.get_current_frame()
+        animated_frame = animated_sprite.get_current_frame()
+        assert static_frame is not None
+        assert animated_frame is not None
+        # A static sprite stores RGB and a frame with a transparent pixel RGBA (a storage
+        # difference older than this rule), so compare the colors drawn
+        assert [pixel[:3] for pixel in static_frame.pixels] == [
+            pixel[:3] for pixel in animated_frame.pixels
+        ]
+
+    def test_blank_frame_is_skipped(self, tmp_path):
+        """A frame whose pixels are only blank lines has nothing to draw and is left out."""
+        toml_content = _animated_sprite_toml('ab').replace(
+            '[[animation.frame]]',
+            '[[animation.frame]]\nframe_index = 0\npixels = """\n\n  \n"""\n\n[[animation.frame]]',
+            1,
+        )
+        sprite = self._load(tmp_path, toml_content)
+        assert len(sprite.animation_data['walk']) == 1
+        assert sprite.pixel_row_repairs == []
+
+    def test_blank_static_sprite_has_no_frame(self, tmp_path):
+        """A static sprite whose pixels are only blank lines has no animation, as a blank frame."""
+        sprite = self._load(tmp_path, _static_sprite_toml('\n  \n'))
+        assert sprite.animation_data == {}
+        assert sprite.pixel_row_repairs == []
+
+    def test_palette_key_u0000_is_dropped_and_reported(self, tmp_path):
+        """A palette key U+0000 can't color the padding: it is dropped and reported."""
+        colors_toml = TABLE_COLORS_TOML + '[colors."\\u0000"]\nred = 255\ngreen = 0\nblue = 0\n'
+        sprite = self._load(tmp_path, _animated_sprite_toml('a\naa', colors_toml))
+        frame = sprite.get_current_frame()
+        assert frame is not None
+        assert frame.pixels[1][:3] == (255, 0, 255)
+        assert any(repair.startswith('palette: ') for repair in sprite.pixel_row_repairs)
+
+    def test_repairs_are_logged_once_per_block(self, tmp_path, caplog):
+        """Each repaired block logs one warning naming the file; clean blocks log nothing."""
+        toml_content = (
+            '[sprite]\nname = "rows"\n\n[[animation]]\nnamespace = "walk"\nframe_interval = 1\n\n'
+            '[[animation.frame]]\nframe_index = 0\npixels = """\nab\na\n"""\n\n'
+            '[[animation.frame]]\nframe_index = 1\npixels = """\nab\nab\n"""\n\n'
+            '[[animation.frame]]\nframe_index = 2\npixels = """\nab\n\nab\n"""\n\n'
+            f'{TABLE_COLORS_TOML}'
+        )
+        with caplog.at_level(logging.WARNING):
+            self._load(tmp_path, toml_content, 'logged.toml')
+        warnings = [record for record in caplog.records if 'pixel rows repaired' in record.message]
+        assert len(warnings) == 2
+        assert all('logged.toml' in record.message for record in warnings)
+
+    def test_clean_sprite_has_no_repairs(self):
+        """A repo sprite loads with nothing repaired."""
+        sprite_file = (
+            Path(__file__).parents[2]
+            / 'src/apps/bitmappy/src/bitmappy/resources/sprites/small_heart.toml'
+        )
+        assert AnimatedSprite(str(sprite_file)).pixel_row_repairs == []

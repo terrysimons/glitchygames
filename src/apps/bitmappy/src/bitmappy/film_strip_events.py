@@ -9,7 +9,6 @@ and frame removal.
 from __future__ import annotations
 
 import logging
-from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
 import pygame
@@ -160,8 +159,10 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         if preview_click:
             return preview_click
 
-        # Check if clicking on the parent strip itself (outside of frames, labels, and preview)
-        if self.widget.rect.collidepoint(pos):
+        # Check if clicking on the parent strip itself (outside of frames, labels, and preview).
+        # pos is strip-local, so it is tested against the strip's own size, not its screen rect
+        # (BUGS.md #168)
+        if pygame.Rect((0, 0), self.widget.rect.size).collidepoint(pos):
             # Click is within the film strip widget but not on any specific element
             # This means the user clicked on the parent strip itself
             strip_animation = (
@@ -412,170 +413,6 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
             self.widget.parent_scene.canvas.force_redraw()
             LOG.debug('Forced canvas redraw for onion skinning toggle')
 
-    def copy_current_frame(self) -> bool:
-        """Copy the currently selected frame to the clipboard.
-
-        Returns:
-            True if copy was successful, False otherwise
-
-        """
-        LOG.debug('FilmStripWidget: [FILM STRIP COPY] copy_current_frame called')
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP COPY] animated_sprite: %s',
-            self.widget.animated_sprite,
-        )
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP COPY] current_animation: %s',
-            self.widget.current_animation,
-        )
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP COPY] current_frame: %s',
-            self.widget.current_frame,
-        )
-
-        if not self.widget.animated_sprite or not self.widget.current_animation:
-            LOG.debug(
-                'FilmStripWidget: [FILM STRIP COPY] No animation selected for copying',
-            )
-            return False
-
-        if self.widget.current_animation not in self.widget.animated_sprite.animations:
-            LOG.debug(
-                "FilmStripWidget: [FILM STRIP COPY] Animation '%s' not found",
-                self.widget.current_animation,
-            )
-            return False
-
-        frames = self.widget.animated_sprite.animations[self.widget.current_animation]
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP COPY] Animation has %s frames',
-            len(frames),
-        )
-        if self.widget.current_frame >= len(frames):
-            LOG.debug(
-                'FilmStripWidget: [FILM STRIP COPY] Frame %s out of range (max: %s)',
-                self.widget.current_frame,
-                len(frames) - 1,
-            )
-            return False
-
-        # Get the current frame
-        current_frame = frames[self.widget.current_frame]
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP COPY] Got frame object: %s',
-            current_frame,
-        )
-
-        # Create a deep copy of the frame data
-        self.widget.copied_frame = deepcopy(current_frame)
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP COPY] Created deep copy, stored in copied_frame',
-        )
-
-        LOG.debug(
-            "FilmStripWidget: [FILM STRIP COPY] Successfully copied frame %s from animation '%s'",
-            self.widget.current_frame,
-            self.widget.current_animation,
-        )
-        return True
-
-    def paste_to_current_frame(self) -> bool:
-        """Paste the copied frame to the currently selected frame.
-
-        Returns:
-            True if paste was successful, False otherwise
-
-        """
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP PASTE] paste_to_current_frame called',
-        )
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP PASTE] copied_frame: %s',
-            self.widget.copied_frame,
-        )
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP PASTE] animated_sprite: %s',
-            self.widget.animated_sprite,
-        )
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP PASTE] current_animation: %s',
-            self.widget.current_animation,
-        )
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP PASTE] current_frame: %s',
-            self.widget.current_frame,
-        )
-
-        if not self.widget.copied_frame:
-            LOG.debug(
-                'FilmStripWidget: [FILM STRIP PASTE] No frame in clipboard to paste',
-            )
-            return False
-
-        if not self.widget.animated_sprite or not self.widget.current_animation:
-            LOG.debug(
-                'FilmStripWidget: [FILM STRIP PASTE] No animation selected for pasting',
-            )
-            return False
-
-        if self.widget.current_animation not in self.widget.animated_sprite.animations:
-            LOG.debug(
-                "FilmStripWidget: [FILM STRIP PASTE] Animation '%s' not found",
-                self.widget.current_animation,
-            )
-            return False
-
-        frames = self.widget.animated_sprite.animations[self.widget.current_animation]
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP PASTE] Animation has %s frames',
-            len(frames),
-        )
-        if self.widget.current_frame >= len(frames):
-            LOG.debug(
-                'FilmStripWidget: [FILM STRIP PASTE] Frame %s out of range (max: %s)',
-                self.widget.current_frame,
-                len(frames) - 1,
-            )
-            return False
-
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP PASTE] Replacing frame %s with copied frame',
-            self.widget.current_frame,
-        )
-        # Replace the current frame with the copied frame
-        frames[self.widget.current_frame] = deepcopy(self.widget.copied_frame)
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP PASTE] Frame replacement completed',
-        )
-
-        LOG.debug(
-            'FilmStripWidget: [FILM STRIP PASTE] Successfully pasted frame to '
-            'frame %s in animation '
-            "'%s'",
-            self.widget.current_frame,
-            self.widget.current_animation,
-        )
-
-        # Mark as dirty to trigger redraw
-        self.widget.mark_dirty()
-        LOG.debug('FilmStripWidget: [FILM STRIP PASTE] Marked as dirty')
-
-        # Notify parent scene if available
-        if hasattr(self.widget, 'parent_scene') and self.widget.parent_scene:
-            LOG.debug(
-                'FilmStripWidget: [FILM STRIP PASTE] Notifying parent scene',
-            )
-            if hasattr(self.widget.parent_scene, '_on_frame_pasted'):
-                self.widget.parent_scene._on_frame_pasted(
-                    self.widget.current_animation, self.widget.current_frame
-                )
-        else:
-            LOG.debug(
-                'FilmStripWidget: [FILM STRIP PASTE] No parent scene to notify',
-            )
-
-        return True
-
     def set_frame_index(self, frame_index: int) -> None:
         """Set the current frame and update the canvas."""
         if not self.widget.animated_sprite:
@@ -774,9 +611,13 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         # if it was previously a single-frame animation
         self.widget.animation.initialize_preview_animations()
 
-        # Notify the parent scene about the frame insertion
-        if hasattr(self.widget.parent_scene, 'on_frame_inserted'):
-            self.widget.parent_scene.on_frame_inserted(current_animation, insert_index)
+        # Tell the editor's film strip coordinator about the insertion (it made the blank frame
+        # above, so it is there). The editor scene has no on_frame_inserted of its own, so
+        # asking the scene never reached it and the editor's selected frame was never updated
+        # (BUGS.md #119)
+        self.widget.parent_scene.film_strip_coordinator.on_frame_inserted(
+            current_animation, insert_index
+        )
 
         # Select the newly created frame so the user can immediately start editing it
         LOG.debug(
@@ -1028,9 +869,11 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         # Ensure the current frame is within bounds after deletion
         self.clamp_animated_sprite_frame(animation_name, frames)
 
-        # Notify the parent scene about the frame removal
-        if hasattr(self.widget.parent_scene, 'on_frame_removed'):
-            self.widget.parent_scene.on_frame_removed(animation_name, frame_index)
+        # Tell the editor's film strip coordinator about the removal, so it adjusts the
+        # editor's selected frame (asking the scene never reached it: BUGS.md #119)
+        coordinator = getattr(self.widget.parent_scene, 'film_strip_coordinator', None)
+        if coordinator is not None:
+            coordinator.on_frame_removed(animation_name, frame_index)
 
         # CRITICAL: Reinitialize preview animations after frame removal
         # This ensures the preview animation system is updated with the new frame count

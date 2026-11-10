@@ -31,6 +31,9 @@ from glitchygames.input.input_devices import (
     InputDeviceChanges,
     InputDevices,
     InputMode,
+    RecordedDevices,
+    recorded_devices,
+    scene_start_devices_record,
 )
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.live_sources import LiveSources
@@ -241,6 +244,21 @@ class TestSynchronize:
             joysticks={5: stick}, controllers={9: pad}
         ) == InputDeviceChanges(added=(), removed=())
 
+    def test_complete_controllers_leave_the_door_unasked(self, mocker):
+        """An instant replay's adopted devices say which are game controllers (#184.3)."""
+        registry = _install()
+        stick = registry.adopt_device(descriptor=STICK)
+        assert isinstance(stick, ReplayJoystick)
+        is_controller = mocker.spy(registry, 'is_controller')
+        devices = InputDevices(input_mode=InputMode.AUTO)
+
+        changes = devices.synchronize(
+            joysticks={STICK.instance_id: stick}, controllers={}, controllers_complete=True
+        )
+
+        assert [device.instance_id for device in changes.added] == [STICK.instance_id]
+        is_controller.assert_not_called()
+
     def test_a_mapped_pad_waits_for_its_controller_and_is_added_once(self):
         """JOYDEVICEADDED comes before CONTROLLERDEVICEADDED: the pad is added at the second."""
         registry = _install(is_controller_answers={1: True})
@@ -359,6 +377,75 @@ class TestSynchronize:
 
         assert changes.added == ()
         assert 'is_controller' not in caplog.text
+
+
+class TestAdoptDevice:
+    """A playback scope adopts an instant replay's devices as stand-ins (#184.3)."""
+
+    def test_a_game_controller_is_adopted_as_a_controller(self):
+        registry = ReplayDeviceRegistry(descriptors=[], enumeration_answers=[])
+
+        pad = registry.adopt_device(descriptor=PAD)
+
+        assert isinstance(pad, ReplayController)
+        assert registry.joystick_for_instance(instance_id=PAD.instance_id) is pad.as_joystick()
+        assert registry.descriptor_for_instance(instance_id=PAD.instance_id) == PAD
+
+    def test_a_joystick_is_adopted_as_a_joystick(self):
+        registry = ReplayDeviceRegistry(descriptors=[], enumeration_answers=[])
+
+        stick = registry.adopt_device(descriptor=STICK)
+
+        assert isinstance(stick, ReplayJoystick)
+        assert registry.joystick_for_instance(instance_id=STICK.instance_id) is stick
+
+
+class TestRecordedDevices:
+    """How a playback scope opens its recording's devices, read from its header (#184.3)."""
+
+    def test_a_journals_devices_and_mode_are_adopted(self):
+        recorded = recorded_devices(
+            options={'input_mode': 'controller'},
+            scene_start_devices={'input_mode': 'joystick', 'devices': [STICK.to_json()]},
+        )
+
+        assert recorded == RecordedDevices(
+            input_mode=InputMode.JOYSTICK, scene_start_devices=(STICK,)
+        )
+
+    def test_a_recording_files_mode_comes_from_its_options(self):
+        recorded = recorded_devices(options={'input_mode': 'joystick'}, scene_start_devices=None)
+
+        assert recorded == RecordedDevices(input_mode=InputMode.JOYSTICK, scene_start_devices=None)
+
+    def test_no_mode_is_auto(self):
+        assert recorded_devices(options=None, scene_start_devices=None) == RecordedDevices(
+            input_mode=InputMode.AUTO, scene_start_devices=None
+        )
+        assert recorded_devices(options={}, scene_start_devices=None).input_mode is InputMode.AUTO
+
+    def test_an_unknown_mode_is_auto_and_logged(self, caplog):
+        with caplog.at_level('WARNING', logger='game.input.input_devices'):
+            recorded = recorded_devices(options={'input_mode': 'paddle'}, scene_start_devices=None)
+
+        assert recorded.input_mode is InputMode.AUTO
+        assert "unknown input mode 'paddle'" in caplog.text
+
+    def test_the_journals_record_reads_back_as_the_live_devices(self):
+        """scene_start_devices_record and recorded_devices round-trip the live devices."""
+        registry = _install(is_controller_answers={0: False})
+        stick, pad = _opened(registry)
+        live = InputDevices(input_mode=InputMode.AUTO)
+        live.synchronize(
+            joysticks={STICK.instance_id: stick, PAD.instance_id: pad.as_joystick()},
+            controllers={PAD.instance_id: pad},
+        )
+
+        record = scene_start_devices_record(input_devices=live)
+
+        assert recorded_devices(options=None, scene_start_devices=record) == RecordedDevices(
+            input_mode=InputMode.AUTO, scene_start_devices=(PAD, STICK)
+        )
 
 
 class TestDispatch:

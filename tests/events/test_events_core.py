@@ -37,7 +37,13 @@ from glitchygames.events import (
     supported_events,
     unhandled_event,
 )
-from glitchygames.events.base import pygame_event_names
+from glitchygames.events import base as events_base
+from glitchygames.events.base import (
+    NAMED_CUSTOM_EVENT_TYPES,
+    CustomEventNameTakenError,
+    named_custom_event_type,
+    pygame_event_names,
+)
 from glitchygames.events.mouse import MouseEventManager
 from glitchygames.process import OutputCapture, run_command
 from glitchygames.tracing import TraceFormatError
@@ -1160,6 +1166,92 @@ class TestCustomEventTypes:
         )
 
         assert engine_types == [user_event + 1, user_event + 2, user_event + 3]
+
+    def test_the_engine_types_are_registered_by_name(self):
+        """FPSEVENT, GAMEEVENT and MENUEVENT are named, so a recording's header can name them."""
+        assert {'FPSEVENT': FPSEVENT, 'GAMEEVENT': GAMEEVENT, 'MENUEVENT': MENUEVENT}.items() <= (
+            NAMED_CUSTOM_EVENT_TYPES.items()
+        )
+
+    def test_a_game_registers_its_own_named_type(self, mocker):
+        """A named type is allocated from pygame (none of the engine's) and registered."""
+        mocker.patch.dict(events_base._NAMED_CUSTOM_EVENT_TYPES)
+
+        level_up = named_custom_event_type('TEST_LEVEL_UP')
+
+        assert NAMED_CUSTOM_EVENT_TYPES['TEST_LEVEL_UP'] == level_up
+        assert level_up not in {FPSEVENT, GAMEEVENT, MENUEVENT}
+
+    def test_a_name_registered_after_pygame_quit_gets_a_free_id(self):
+        """pygame.quit() restarts pygame's custom ids at USEREVENT + 1: taken ids are skipped.
+
+        Found by CI: in the full suite (pygame quit many times first) a registration got 32866,
+        FPSEVENT's id.
+        """
+        level_up, engine_types = self._answer_from_a_fresh_interpreter(
+            code=(
+                'import json, pygame\n'
+                'from glitchygames.events import FPSEVENT, GAMEEVENT, MENUEVENT\n'
+                'from glitchygames.events.base import named_custom_event_type\n'
+                'pygame.init()\n'
+                'pygame.quit()\n'
+                "level_up = named_custom_event_type('TEST_LEVEL_UP')\n"
+                'print(json.dumps([level_up, [FPSEVENT, GAMEEVENT, MENUEVENT]]))\n'
+            )
+        )
+
+        assert level_up not in engine_types
+
+    def test_an_id_a_name_already_holds_is_skipped_in_this_process(self, mocker):
+        """The skip above, in this process: pygame handing out FPSEVENT's id is passed over.
+
+        The fresh-interpreter test proves the cause; this one runs the skip where coverage sees
+        it, whatever order the suite runs in (pygame hands out a taken id only after a quit, which
+        only some test orders do before a registration).
+        """
+        mocker.patch.dict(events_base._NAMED_CUSTOM_EVENT_TYPES)
+        # Asked until free: after a quit, pygame's next id can itself be one a name holds
+        free_id = pygame.event.custom_type()
+        while free_id in NAMED_CUSTOM_EVENT_TYPES.values():
+            free_id = pygame.event.custom_type()
+        mocker.patch('pygame.event.custom_type', side_effect=[FPSEVENT, free_id])
+
+        level_up = named_custom_event_type('TEST_LEVEL_UP')
+
+        assert level_up == free_id
+        assert NAMED_CUSTOM_EVENT_TYPES['TEST_LEVEL_UP'] == free_id
+
+    def test_a_name_is_registered_once(self, mocker):
+        """Two registrations of one name would share an id: the second is refused."""
+        mocker.patch.dict(events_base._NAMED_CUSTOM_EVENT_TYPES)
+
+        with pytest.raises(CustomEventNameTakenError, match="'FPSEVENT' is already registered"):
+            named_custom_event_type('FPSEVENT')
+
+    def test_a_shifted_process_moves_a_legacy_recordings_types(self):
+        """custom_type() called before glitchygames: the legacy ids move to this process's.
+
+        BUGS.md #211.1: a recording made with USEREVENT + 1..3 (no header field) names FPSEVENT
+        as 32866; here FPSEVENT is 32867, so the remap moves each id one up.
+        """
+        remap, engine_types, user_event = self._answer_from_a_fresh_interpreter(
+            code=(
+                'import json, pygame\n'
+                'pygame.event.custom_type()\n'
+                'from glitchygames.events import FPSEVENT, GAMEEVENT, MENUEVENT\n'
+                'from glitchygames.recording import custom_event_type_remap\n'
+                'remap = custom_event_type_remap(header={})\n'
+                'print(json.dumps([{str(recorded): now for recorded, now in remap.items()},\n'
+                '                  [FPSEVENT, GAMEEVENT, MENUEVENT], pygame.USEREVENT]))\n'
+            )
+        )
+
+        assert engine_types == [user_event + 2, user_event + 3, user_event + 4]
+        assert remap == {
+            str(user_event + 1): user_event + 2,
+            str(user_event + 2): user_event + 3,
+            str(user_event + 3): user_event + 4,
+        }
 
 
 class TestEventSystemUtilities:

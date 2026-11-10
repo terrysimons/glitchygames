@@ -259,7 +259,8 @@ def test_a_contexts_first_live_doors_take_that_contexts_master_seed():
     with second.active():
         seed_engine_random(seed=SECOND_DOORS_SEED)
         assert active_sources().random_seed == SECOND_DOORS_SEED
-        reset_sources()
+        # Not reset here: shared doors would then still be the second context's, seeded 22,
+        # and the assertion below tells shared from per-context (BUGS.md #228 item 11)
 
     assert active_sources().random_seed == DEFAULT_DOORS_SEED
 

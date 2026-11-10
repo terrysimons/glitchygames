@@ -25,9 +25,11 @@ from glitchygames.audio.synth import (
     high_pass,
     low_pass,
     mix,
+    mixed_frame_count,
     mixer_sample_rate,
     normalize,
     oscillator,
+    sample_count,
     to_sound,
     tremolo,
 )
@@ -85,6 +87,17 @@ class Tone:
             message = f'volume must be >= 0, got {self.volume}'
             raise ValueError(message)
 
+    def frame_count(self, *, sample_rate: int) -> int:
+        """How many frames ``render`` gives, without rendering.
+
+        The oscillator makes ``sample_count(duration)`` frames, and every later stage
+        (distortion, filters, tremolo, envelope, volume) keeps the count.
+
+        Returns:
+            The frame count.
+        """
+        return sample_count(self.duration, sample_rate)
+
     def render(self, *, sample_rate: int) -> FloatArray:
         """Render this tone (without its offset).
 
@@ -133,6 +146,20 @@ class SoundRecipe:
     tones: tuple[Tone, ...]
     volume: float = 0.5
     peak: float = 0.9
+
+    def frame_count(self, *, sample_rate: int) -> int:
+        """How many frames ``render`` gives at a rate, without rendering (cache ``none``'s length).
+
+        ``mix`` sizes its result with ``mixed_frame_count`` from each tone's start
+        (``sample_count(offset)``) and length (``Tone.frame_count``); normalizing keeps it.
+
+        Returns:
+            The frame count.
+        """
+        return mixed_frame_count(
+            (sample_count(tone.offset, sample_rate), tone.frame_count(sample_rate=sample_rate))
+            for tone in self.tones
+        )
 
     def render(self, *, sample_rate: int | None = None) -> FloatArray:
         """Mix every tone at its offset and normalize to peak.

@@ -206,22 +206,10 @@ class TestSlideTransition:
         slide.start(old, new)
         assert slide.update(0.9) is True
 
-    def test_unknown_direction_draws_nothing(self, surfaces: tuple) -> None:
-        """A direction the slide does not know leaves the screen untouched.
-
-        Unlike WipeTransition (which falls back to a full reveal), SlideTransition draws
-        neither scene for an unknown direction.
-        """
-        old, new, screen = surfaces
-        old.fill((255, 0, 0))
-        new.fill((0, 0, 255))
-        screen.fill((0, 255, 0))
-        slide = SlideTransition(direction='diagonal', duration=1.0, easing='linear')
-        slide.start(old, new)
-        slide.update(0.25)
-        slide.render(screen)
-        for corner in ((0, 0), (199, 0), (0, 149), (199, 149)):
-            assert screen.get_at(corner)[:3] == (0, 255, 0)
+    def test_unknown_direction_is_refused(self) -> None:
+        """A direction the slide does not know raises ValueError (#138.4)."""
+        with pytest.raises(ValueError, match="'diagonal'"):
+            SlideTransition(direction='diagonal')
 
     def test_slide_up_for_elevator(self, surfaces: tuple) -> None:
         """Slide up (elevator transition) works without error."""
@@ -245,18 +233,10 @@ class TestWipeTransition:
             wipe.update(0.25)
             wipe.render(screen)
 
-    def test_unknown_direction_reveals_the_whole_new_scene(self, surfaces: tuple) -> None:
-        """A direction the wipe does not know shows the new scene in full at once."""
-        old, new, screen = surfaces
-        old.fill((255, 0, 0))
-        new.fill((0, 0, 255))
-        screen.fill((0, 255, 0))
-        wipe = WipeTransition(direction='diagonal', duration=1.0, easing='linear')
-        wipe.start(old, new)
-        wipe.update(0.25)
-        wipe.render(screen)
-        for corner in ((0, 0), (199, 0), (0, 149), (199, 149)):
-            assert screen.get_at(corner)[:3] == (0, 0, 255)
+    def test_unknown_direction_is_refused(self) -> None:
+        """A direction the wipe does not know raises ValueError (#138.4)."""
+        with pytest.raises(ValueError, match="'diagonal'"):
+            WipeTransition(direction='diagonal')
 
     def test_completes_in_duration(self, surfaces: tuple) -> None:
         """Wipe completes after the specified duration."""

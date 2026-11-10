@@ -23,6 +23,7 @@ from scripts.build_browser_bundle import (
     PACKAGE_DIRECTORY,
     PYSCRIPT_RELEASE,
     REPOSITORY_DIRECTORY,
+    TAB_ICON_LINK,
     TOUCH_LAYOUTS,
     BundleRequestHandler,
     PortUnavailableError,
@@ -219,6 +220,24 @@ class TestGeneratedFiles:
             './mr_muncher.zip' not in tomllib.loads(pyscript_config(wheel_name=WHEEL_NAME))['files']
         )
 
+    def test_a_games_browser_modules_are_served_beside_the_engines(self):
+        """A game's own page modules are listed next to the engine's BROWSER_MODULES."""
+        files = tomllib.loads(
+            pyscript_config(wheel_name=WHEEL_NAME, browser_modules=('masterhub_bridge.py',))
+        )['files']
+
+        assert files['./masterhub_bridge.py'] == './masterhub_bridge.py'
+        assert './browser_storage.py' in files  # the engine's own page modules are still there
+        assert (
+            './masterhub_bridge.py'
+            not in tomllib.loads(pyscript_config(wheel_name=WHEEL_NAME))['files']
+        )  # a bundle that names none does not list it
+
+    def test_only_bitmappy_names_a_browser_module(self):
+        """The MasterHUB bridge ships only in bitmappy's bundle; no other game names one."""
+        assert GAMES['bitmappy'].browser_modules == ('masterhub_bridge.py',)
+        assert [name for name, game in GAMES.items() if game.browser_modules] == ['bitmappy']
+
     def test_the_engine_archive_holds_no_examples(self):
         """The engine's examples package is gone: no game, demo or sound is under examples/."""
         files = bundled_package_files(package_directory=PACKAGE_DIRECTORY)
@@ -303,6 +322,24 @@ class TestGeneratedFiles:
             'brave_adventurer_core.zip',
             'brave_adventurer_papyrus.zip',
         ]
+
+    def test_a_member_package_no_member_holds_is_refused_by_name(self, tmp_path, mocker):
+        """A game naming a member package the workspace lacks fails, naming it (#224 item 37)."""
+        game = dataclasses.replace(GAMES['mr-muncher'], member_packages=('no_such_package',))
+        mocker.patch.dict(GAMES, {'missing-package-game': game})
+        mocker.patch.object(build_browser_bundle, 'write_engine_archive', return_value=0)
+        wheel_path = tmp_path / WHEEL_NAME
+        wheel_path.write_bytes(b'')
+
+        with pytest.raises(
+            LookupError, match=r'^No workspace member holds the package no_such_package$'
+        ):
+            build_browser_bundle.write_bundle(
+                game='missing-package-game',
+                output_directory=tmp_path / 'site',
+                wheel_path=wheel_path,
+                arguments=[],
+            )
 
     def test_the_bundle_report_counts_every_archives_files(self, tmp_path, mocker, capsys):
         """The engine's files and each member package's are counted, each archive named."""
@@ -392,7 +429,11 @@ class TestReusableWheel:
         directory.mkdir(parents=True, exist_ok=True)
         wheel = directory / WHEEL_NAME
         wheel.write_bytes(b'wheel')
-        info = {'wheel': WHEEL_NAME, 'source_commit': COMMIT, 'uncommitted_tracked_changes': 0}
+        info: dict[str, object] = {
+            'wheel': WHEEL_NAME,
+            'source_commit': COMMIT,
+            'uncommitted_tracked_changes': 0,
+        }
         info.update(info_overrides)
         (directory / 'build-info.json').write_text(json.dumps(info))
         return wheel
@@ -447,7 +488,11 @@ class TestMain:
         ]
         assert (output / 'wheels' / WHEEL_NAME).read_bytes() == b'wheel'
         assert json.loads((output / 'boot_config.json').read_text())['arguments'] == ['-x']
-        assert '<title>Paddle Slap</title>' in (output / 'index.html').read_text()
+        page = (output / 'index.html').read_text()
+        assert '<title>Paddle Slap</title>' in page
+        # The tab icon is inline: the page asks for no /favicon.ico, which the bundle lacks
+        assert TAB_ICON_LINK in page
+        assert '$' not in TAB_ICON_LINK
         with zipfile.ZipFile(output / 'glitchygames.zip') as archive:
             names = set(archive.namelist())
         assert 'glitchygames/host.py' in names
@@ -464,6 +509,7 @@ class TestMain:
         assert status == 0
         assert sorted(path.name for path in output.iterdir()) == sorted([*GAMES, 'index.html'])
         index = (output / 'index.html').read_text()
+        assert TAB_ICON_LINK in index
         for game, specification in GAMES.items():
             assert (output / game / 'index.html').is_file()
             assert f'<a href="{game}/">{specification.title}</a>' in index

@@ -583,6 +583,32 @@ class TestPanningGesturesInTheRealEditor:
         real_editor.handle_undo()
         assert frame_pixels(real_editor) == first_frame_before
 
+    def test_redo_pressed_mid_pan_finishes_the_pan_first(self, real_editor):
+        """Redo with an arrow still held records the pan and finds nothing to redo (BUGS.md #152).
+
+        It used to apply the redo inside the gesture, with the redo stack kept until the keys
+        came up. A pan is a new edit, so it clears the redo stack like any other.
+        """
+        # Something to move: panning a frame of one color changes nothing and records nothing
+        paint_pixel(real_editor, x=5, y=5, color=PAINT_RED)
+        before_any_pan = frame_pixels(real_editor)
+        shown_frame = (real_editor.canvas.current_animation, real_editor.canvas.current_frame)
+        press_key(real_editor, key=pygame.K_RIGHT, modifiers=CONTROL_AND_SHIFT)
+        release_key(real_editor, key=pygame.K_RIGHT, modifiers=CONTROL_AND_SHIFT)
+        real_editor.handle_undo()
+        assert frame_pixels(real_editor) == before_any_pan
+        assert real_editor.undo_redo_manager.can_redo_frame(*shown_frame) is True
+
+        press_key(real_editor, key=pygame.K_DOWN, modifiers=CONTROL_AND_SHIFT)
+        panned_down = frame_pixels(real_editor)
+        real_editor.handle_redo()
+
+        assert real_editor.canvas.pan_session is None
+        assert frame_pixels(real_editor) == panned_down
+        assert real_editor.undo_redo_manager.can_redo_frame(*shown_frame) is False
+        real_editor.handle_undo()
+        assert frame_pixels(real_editor) == before_any_pan
+
     def test_releasing_another_key_does_not_end_the_pan(self, real_editor):
         """A key outside Ctrl+Shift+Arrow coming up leaves the gesture going."""
         press_key(real_editor, key=pygame.K_RIGHT, modifiers=CONTROL_AND_SHIFT)

@@ -507,8 +507,6 @@ class FramePasteCommand(_ApplyingUndoRedoGuard):
             and hasattr(self.editor.canvas, 'pixels')
         ):
             self.editor.canvas.pixels = pixels.copy()
-            if hasattr(self.editor.canvas, 'dirty_pixels'):
-                self.editor.canvas.dirty_pixels = [True] * len(pixels)
             if hasattr(self.editor.canvas, 'dirty'):
                 self.editor.canvas.dirty = 1
 
@@ -879,7 +877,7 @@ class FrameReorderCommand:
 
         # Refresh the film strip widget
         if hasattr(self.editor, 'film_strip_widget') and self.editor.film_strip_widget:
-            self.editor.film_strip_widget.refresh(recalculate_layout=False)
+            self.editor.film_strip_widget.refresh()
 
         LOG.debug("Reordered frame %s -> %s in '%s'", source, destination, self.animation_name)
         return True
@@ -898,7 +896,7 @@ def _refresh_film_strip_widgets(editor: EditorContext) -> None:
 
     """
     if hasattr(editor, 'film_strip_widget') and editor.film_strip_widget:
-        editor.film_strip_widget.refresh(recalculate_layout=False)
+        editor.film_strip_widget.refresh()
 
     if hasattr(editor, 'film_strip_sprites') and editor.film_strip_sprites:
         for film_strip_sprite in editor.film_strip_sprites.values():
@@ -906,7 +904,7 @@ def _refresh_film_strip_widgets(editor: EditorContext) -> None:
                 hasattr(film_strip_sprite, 'film_strip_widget')
                 and film_strip_sprite.film_strip_widget
             ):
-                film_strip_sprite.film_strip_widget.refresh(recalculate_layout=True)
+                film_strip_sprite.film_strip_widget.refresh()
                 film_strip_sprite.dirty = 1
 
 

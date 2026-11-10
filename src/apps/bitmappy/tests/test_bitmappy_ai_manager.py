@@ -53,6 +53,12 @@ ANIMATED_SPRITE_TOML = (
     '[colors."."]\nred = 255\ngreen = 255\nblue = 255\n'
 )
 
+# A static sprite whose second row is short: valid TOML that needs a pixel-row repair
+RAGGED_SPRITE_TOML = (
+    '[sprite]\nname = "ball"\npixels = """\n##\n#\n"""\n\n'
+    '[colors."#"]\nred = 255\ngreen = 0\nblue = 0\n'
+)
+
 DEFAULT_PROMPT_TEXT = 'Enter a description of the sprite you want to create:'
 
 
@@ -168,12 +174,16 @@ class FakeCanvas:
         self.animated_sprite = None
         self.current_animation = None
         self.loaded_paths: list[str] = []
+        # Each loaded file's text, read at load time: the manager deletes an AI response's
+        # temp file once it is loaded (BUGS.md #178 item 9)
+        self.loaded_contents: list[str] = []
         self.dirty = 0
         self.redraw_count = 0
 
     def on_load_file_event(self, event: object) -> None:
         """Load the event's file as the canvas sprite."""
         self.loaded_paths.append(event.text)  # type: ignore[attr-defined]
+        self.loaded_contents.append(Path(event.text).read_text(encoding='utf-8'))  # type: ignore[attr-defined]
         self.animated_sprite = SpriteFactory.load_sprite(filename=event.text)  # type: ignore[attr-defined]
 
     def force_redraw(self) -> None:
@@ -312,6 +322,47 @@ class TestSetup:
             None,
         )
         assert manager not in ai_manager_module._RUNNING_AI_MANAGERS
+
+    def test_start_failure_closes_both_queues(self, mocker, fake_process_class):
+        """A worker that cannot start closes the two queues it made (BUGS.md #178 item 10)."""
+        fake_process_class.start_error = OSError('no fork')
+        created_queues: list[FakeQueue] = []
+
+        def recording_queue() -> FakeQueue:
+            created_queue = FakeQueue()
+            created_queues.append(created_queue)
+            return created_queue
+
+        mocker.patch.object(ai_manager_module.multiprocessing, 'Queue', recording_queue)
+        manager = AIManager(_editor())  # type: ignore[arg-type]
+
+        manager.setup()
+
+        assert [created_queue.closed for created_queue in created_queues] == [True, True]
+
+    def test_a_queue_that_cannot_be_made_closes_the_one_that_was(self, mocker, fake_process_class):
+        """The second queue failing (out of file descriptors): only the first exists to close."""
+        created_queues: list[FakeQueue] = []
+
+        def queue_then_failure() -> FakeQueue:
+            if created_queues:
+                message = 'too many open files'
+                raise OSError(message)
+            created_queue = FakeQueue()
+            created_queues.append(created_queue)
+            return created_queue
+
+        mocker.patch.object(ai_manager_module.multiprocessing, 'Queue', queue_then_failure)
+        manager = AIManager(_editor())  # type: ignore[arg-type]
+
+        manager.setup()
+
+        assert [created_queue.closed for created_queue in created_queues] == [True]
+        assert (manager.ai_request_queue, manager.ai_response_queue, manager.ai_process) == (
+            None,
+            None,
+            None,
+        )
 
     def test_outside_the_main_process_nothing_starts(self, mocker, fake_process_class):
         """A manager created in a child process does not start a worker."""
@@ -755,16 +806,16 @@ class TestProcessAiResponse:
 
         assert len(canvas.loaded_paths) == 1
         assert canvas.animated_sprite.description == 'a red ball'
-        loaded_data = tomllib.loads(Path(canvas.loaded_paths[0]).read_text(encoding='utf-8'))
+        loaded_data = tomllib.loads(canvas.loaded_contents[0])
         assert loaded_data['sprite']['description'] == 'a red ball'
         # The rewrite keeps the pixel block exactly as the answer had it (BUGS.md #110 item 7)
         assert loaded_data['sprite']['pixels'] == '#.\n.#\n'
         assert canvas.animated_sprite.animations[canvas.animated_sprite.current_animation][
             0
         ].image.get_size() == (2, 2)
-        assert manager.last_successful_sprite_content == Path(canvas.loaded_paths[0]).read_text(
-            encoding='utf-8',
-        )
+        assert manager.last_successful_sprite_content == canvas.loaded_contents[0]
+        # The loaded response's temp file is removed (BUGS.md #178 item 9)
+        assert not Path(canvas.loaded_paths[0]).exists()
         assert manager.last_conversation_history == [
             *history,
             {'role': 'user', 'content': 'a red ball'},
@@ -787,7 +838,7 @@ class TestProcessAiResponse:
 
         assert not manager.ai_request_queue.items  # type: ignore[union-attr]
         assert len(canvas.loaded_paths) == 1
-        loaded_data = tomllib.loads(Path(canvas.loaded_paths[0]).read_text(encoding='utf-8'))
+        loaded_data = tomllib.loads(canvas.loaded_contents[0])
         assert loaded_data['sprite']['pixels'] == '#.\n.#\n'
         assert manager.pending_ai_requests == {}
 
@@ -877,6 +928,80 @@ class TestProcessAiResponse:
         assert 'anyway' not in caplog.text
         assert manager.pending_ai_requests == {}
 
+    def test_bitmappy_retries_ragged_rows(self):
+        """Rows that need repair are retried with the equal-widths correction."""
+        editor = _editor()
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(original_prompt='a red ball')
+
+        manager._process_ai_response('request-1', AIResponse(content=RAGGED_SPRITE_TOML))
+
+        retry_request = manager.ai_request_queue.items[0]  # type: ignore[union-attr]
+        assert 'every row of a frame must have the same number of characters' in str(
+            retry_request.messages
+        )
+        assert manager.pending_ai_requests['request-1'].retry_count == 1
+
+    def test_bitmappy_loads_ragged_rows_after_last_retry(self):
+        """Out of retries, rows that need repair load repaired instead of being thrown away."""
+        canvas = FakeCanvas()
+        editor = _editor(canvas=canvas)
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(
+            original_prompt='a red ball',
+            retry_count=AI_VALIDATION_MAX_RETRIES,
+        )
+
+        manager._process_ai_response('request-1', AIResponse(content=RAGGED_SPRITE_TOML))
+
+        assert not manager.ai_request_queue.items  # type: ignore[union-attr]
+        assert len(canvas.loaded_paths) == 1
+        frame = canvas.animated_sprite.get_current_frame()
+        assert frame.image.get_size() == (2, 2)
+        assert canvas.animated_sprite.pixel_row_repairs
+        assert manager.pending_ai_requests == {}
+
+    def test_ai_load_with_repairs_shows_the_notice(self):
+        """After the AI manager puts the prompt back, the repair notice is still below it."""
+        canvas = FakeCanvas()
+        editor = _editor(canvas=canvas)
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(
+            original_prompt='a red ball',
+            retry_count=AI_VALIDATION_MAX_RETRIES,
+        )
+
+        manager._process_ai_response('request-1', AIResponse(content=RAGGED_SPRITE_TOML))
+
+        assert editor.debug_text.text == (
+            'a red ball\nRepaired the pixel rows of 1 block(s) while loading (details in the '
+            'log). Saving writes the repaired rows.'
+        )
+
+    def test_row_check_skips_a_response_that_is_not_toml(self):
+        """Content that isn't TOML has no rows to check; loading reports what's wrong with it."""
+        manager = _manager_with_queues(_editor())
+
+        assert not manager._ai_pixel_row_problems('request-1', '[sprite]\nname = = "x"\n')
+
+    def test_bitmappy_still_discards_other_failures(self):
+        """Out of retries, any other failure is still not loaded."""
+        canvas = FakeCanvas()
+        editor = _editor(canvas=canvas)
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(
+            original_prompt='a red ball',
+            retry_count=AI_VALIDATION_MAX_RETRIES,
+        )
+
+        manager._process_ai_response(
+            'request-1',
+            AIResponse(content='[sprite]\nname = "x"\npixels = """\n#\n#.\n"""\n'),
+        )
+
+        assert canvas.loaded_paths == []
+        assert 'The sprite was not loaded.' in editor.debug_text.text
+
 
 class TestLoadAiSprite:
     """Test AIManager._load_ai_sprite error handling."""
@@ -930,6 +1055,34 @@ class TestLoadAiSprite:
             f'\n\n--- AI Response ---\n{ANIMATED_SPRITE_TOML}'
         )
         assert 'request-1' in manager.pending_ai_requests
+
+    def test_a_response_that_fails_to_load_keeps_its_temp_file(
+        self, temporary_files_in_tmp_path, caplog
+    ):
+        """The refused response's file stays, and its path is logged, for inspection (#178.9)."""
+
+        class FailingCanvas(FakeCanvas):
+            def on_load_file_event(self, event: object) -> None:
+                msg = 'bad sprite'
+                raise ValueError(msg)
+
+        manager = _manager_with_queues(_editor(canvas=FailingCanvas()))
+
+        with caplog.at_level(logging.INFO):
+            manager._load_ai_sprite('request-1', ANIMATED_SPRITE_TOML)
+
+        (kept_file,) = temporary_files_in_tmp_path.iterdir()
+        assert str(kept_file) in caplog.text
+
+    def test_a_temp_file_that_cannot_be_removed_only_warns(self, mocker, caplog):
+        """A failed delete of a loaded response's file is a warning, not a load failure."""
+        manager = _manager_with_queues(_editor())
+        mocker.patch.object(Path, 'unlink', side_effect=PermissionError('in use'))
+
+        with caplog.at_level(logging.WARNING):
+            manager._remove_temp_file('/no/such/response.toml')
+
+        assert 'Could not remove the AI response temp file /no/such/response.toml' in caplog.text
 
     def test_load_failure_without_a_prompt_or_debug_text(self):
         """Without a pending prompt the error omits it; without a text box nothing is shown."""
@@ -1028,6 +1181,23 @@ class TestConstructTomlWithPreservedFormatting:
         ]
         assert reparsed['colors'] == data['colors']
 
+    def test_the_ais_tags_are_kept_in_their_one_spelling(self):
+        """Tags the AI wrote survive the rewrite (it used to keep only name and description)."""
+        data = tomllib.loads(STATIC_SPRITE_TOML)
+        data['sprite']['tags'] = ['Ball ', 'TOY', 'ball']
+
+        content = AIManager(_editor())._construct_toml_with_preserved_formatting(data)  # type: ignore[arg-type]
+
+        assert tomllib.loads(content)['sprite']['tags'] == ['ball', 'toy']
+
+    def test_an_untagged_sprite_is_written_without_tags(self):
+        """No tags from the AI, no tags line."""
+        content = AIManager(_editor())._construct_toml_with_preserved_formatting(  # type: ignore[arg-type]
+            tomllib.loads(STATIC_SPRITE_TOML)
+        )
+
+        assert 'tags' not in tomllib.loads(content)['sprite']
+
     def test_rewriting_twice_adds_no_blank_lines_to_pixel_blocks(self):
         """A rewrite of a rewrite keeps every pixel block unchanged (BUGS.md #110 item 7)."""
         manager = AIManager(_editor())  # type: ignore[arg-type]
@@ -1054,6 +1224,54 @@ class TestConstructTomlWithPreservedFormatting:
         )
 
         assert content == '[sprite]\n'
+
+    def test_ai_rewrite_accepts_a_non_string_name(self):
+        """An AI that writes name = 5 still gets a rewrite, as it did before escaping."""
+        content = AIManager(_editor())._construct_toml_with_preserved_formatting(  # type: ignore[arg-type]
+            {'sprite': {'name': 5}},
+        )
+
+        assert tomllib.loads(content)['sprite']['name'] == '5'
+
+    def test_ai_rewrite_keeps_alpha(self):
+        """A color's alpha is written back, so a see-through color stays see-through."""
+        data = tomllib.loads(STATIC_SPRITE_TOML)
+        first_glyph = next(iter(data['colors']))
+        data['colors'][first_glyph]['alpha'] = 128
+
+        content = AIManager(_editor())._construct_toml_with_preserved_formatting(data)  # type: ignore[arg-type]
+
+        assert tomllib.loads(content)['colors'][first_glyph]['alpha'] == 128
+
+    def test_ai_rewrite_escapes_name_description_and_rows(self):
+        """Text and rows with TOML's own characters parse back to the same values."""
+        data = {
+            'sprite': {
+                'name': 'a "quoted" \\ name',
+                'description': 'draw """ a \\ thing',
+                'pixels': 'b\\\nbb\n',
+            },
+            'animation': [
+                {
+                    'namespace': 'walk',
+                    'frame_interval': 0.5,
+                    'loop': True,
+                    'frame': [{'frame_index': 0, 'pixels': '"b\nb\\\n'}],
+                }
+            ],
+            'colors': {
+                '\\': {'red': 1, 'green': 2, 'blue': 3},
+                '"': {'red': 4, 'green': 5, 'blue': 6},
+                'b': {'red': 7, 'green': 8, 'blue': 9},
+            },
+        }
+
+        content = AIManager(_editor())._construct_toml_with_preserved_formatting(data)  # type: ignore[arg-type]
+
+        reparsed = tomllib.loads(content)
+        assert reparsed['sprite'] == data['sprite']
+        assert reparsed['animation'][0]['frame'][0]['pixels'] == '"b\nb\\\n'
+        assert reparsed['colors'] == data['colors']
 
 
 class TestTemporaryFilesAndStaticLoad:
@@ -1288,13 +1506,14 @@ class TestLoadTempTomlAsExample:
     """Test AIManager._load_temp_toml_as_example."""
 
     def test_example_keeps_pixel_newlines_and_removes_the_file(self, tmp_path):
-        """The example has the sprite's name, raw pixel rows and colors; the file is deleted."""
+        """The example has the sprite's name, tags, raw pixel rows and colors; the file goes."""
         sprite_path = _write_sprite(tmp_path=tmp_path, name='e.toml', content=STATIC_SPRITE_TOML)
 
         example = AIManager(_editor())._load_temp_toml_as_example(sprite_path)  # type: ignore[arg-type]
 
         assert example == {
             'name': 'ball',
+            'tags': [],
             'sprite_type': 'static',
             'pixels': '#.\n.#',
             'colors': {

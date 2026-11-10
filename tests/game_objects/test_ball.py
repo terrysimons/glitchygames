@@ -54,6 +54,26 @@ def _assert_within_spawn_area(ball: BallSprite) -> None:
     assert margin <= visible_rect.top <= visible_rect.bottom <= ball.screen_height - margin
 
 
+# A sound the code under test starts must still be playing when the test checks: the real bounce
+# sound lasts 39 ms, and a paused CI runner (Windows, build 2739) outlasted it between play() and
+# the check (BUGS.md #258). A real sound of silence this long cannot end in between.
+STILL_PLAYING_SOUND_SECONDS = 10
+
+
+def _still_playing_when_checked() -> pygame.mixer.Sound:
+    """Return a real sound long enough to still be playing when a test checks it.
+
+    Returns:
+        pygame.mixer.Sound: STILL_PLAYING_SOUND_SECONDS of silence in the mixer's format.
+
+    """
+    mixer = pygame.mixer.get_init()
+    assert mixer is not None
+    frequency, size, channels = mixer
+    bytes_per_second = frequency * (abs(size) // 8) * channels
+    return pygame.mixer.Sound(buffer=bytes(bytes_per_second * STILL_PLAYING_SOUND_SECONDS))
+
+
 class TestBallSpriteInitialization:
     """Test BallSprite initialization and basic properties."""
 
@@ -156,6 +176,25 @@ class TestBallSpriteColor:
         assert tuple(ball.image.get_at((10, 10)))[:3] == (255, 255, 255)
         assert ball.image.get_bounding_rect() == pygame.Rect(5, 5, 10, 10)
 
+    def test_the_radius_sizes_the_visible_ball(self):
+        """BallSprite(radius=10) fills its 20x20 image; the hitbox is the visible pixels (#172)."""
+        ball = BallSprite(radius=10)
+
+        assert ball.image.get_bounding_rect() == pygame.Rect(0, 0, 20, 20)
+        assert get_sprite_collision_rect(ball).size == (20, 20)
+
+    def test_the_default_radius_is_unchanged_for_a_larger_image(self):
+        """A bigger image alone does not grow the ball: radius 5 stays centred (PaddleSlap's)."""
+        ball = BallSprite(width=40, height=40)
+
+        assert ball.image.get_bounding_rect() == pygame.Rect(15, 15, 10, 10)
+
+    @pytest.mark.parametrize('radius', [0, -1, 11])
+    def test_a_radius_that_does_not_fit_the_image_is_refused(self, radius):
+        """A circle wider than the image would be clipped without a word: refuse it."""
+        with pytest.raises(ValueError, match=f'A radius-{radius} ball does not fit a 20x20 image'):
+            BallSprite(radius=radius)
+
 
 class TestBallSpriteBounce:
     """Test BallSprite bounce functionality."""
@@ -163,7 +202,7 @@ class TestBallSpriteBounce:
     def test_do_bounce_top_wall(self):
         """Test ball bounces off top wall."""
         ball = BallSprite()
-        ball.snd = load_sound(SFX.BOUNCE)
+        ball.snd = _still_playing_when_checked()
         limits = _playfield_limits(ball)
         ball.world_y = limits.minimum_y - 5.0  # visible edge 5 px above the screen
         ball.speed.y = -2
@@ -181,7 +220,7 @@ class TestBallSpriteBounce:
         ball = BallSprite()
         ball.screen_height = 600
         ball.height = 20
-        ball.snd = load_sound(SFX.BOUNCE)
+        ball.snd = _still_playing_when_checked()
         limits = _playfield_limits(ball)
         ball.world_y = limits.maximum_y + 10.0  # visible edge 10 px below the screen
         ball.speed.y = 2
@@ -838,6 +877,9 @@ class TestBallSpriteIntegration:
     def test_ball_with_sound_integration(self):
         """Test ball with sound integration."""
         ball = BallSprite(collision_sound=SFX.BOUNCE)
+        # It loaded its bounce sound; a long one is played instead, so it is still playing when
+        # checked (BUGS.md #258)
+        ball.snd = _still_playing_when_checked()
         # Trigger top wall bounce: the visible circle 5 px above the screen
         ball.world_y = _playfield_limits(ball).minimum_y - 5.0
         ball.speed.y = -2
@@ -1052,7 +1094,7 @@ class TestBallBoundaryCollisions:
     def test_left_collision_with_sound(self):
         """Test left collision plays sound (line 708)."""
         ball = self._create_ball_with_left_right_bounce()
-        ball.snd = load_sound(SFX.BOUNCE)
+        ball.snd = _still_playing_when_checked()
         ball.speed.x = -100.0
         ball.speed.y = 50.0
 
@@ -1083,7 +1125,7 @@ class TestBallBoundaryCollisions:
     def test_right_collision_with_sound(self):
         """Test right collision plays sound (line 736)."""
         ball = self._create_ball_with_left_right_bounce()
-        ball.snd = load_sound(SFX.BOUNCE)
+        ball.snd = _still_playing_when_checked()
         ball.speed.x = 100.0
         ball.speed.y = 50.0
 
@@ -1202,6 +1244,22 @@ class TestDtTickMovementMismatch:
         drawn_x, drawn_y = drawn_position(ball)
         assert drawn_x != original_x or drawn_y != original_y
 
+    def test_dt_tick_records_where_the_frame_started(self):
+        """None before any tick; then the world position each tick moved from (BUGS.md #174)."""
+        ball = BallSprite(x=100, y=100)
+        ball.speed.x = 60.0
+        ball.speed.y = 0.0
+        assert ball.frame_start_world_position is None
+        before_first_tick = (ball.world_x, ball.world_y)
+
+        ball.dt_tick(0.5)
+        assert ball.frame_start_world_position == before_first_tick
+        before_second_tick = (ball.world_x, ball.world_y)
+        ball.dt_tick(0.5)
+
+        assert ball.frame_start_world_position == before_second_tick
+        assert before_second_tick[0] == pytest.approx(before_first_tick[0] + 30.0)
+
 
 def _speed_cap_paddle(*, x):
     """A real VerticalPaddle at (x, 90), 20x100, with no collision sound."""
@@ -1262,7 +1320,7 @@ class TestPaddleCollisionSpeedCap:
         """Test paddle collision plays paddle's sound."""
         ball = BallSprite(x=100, y=100, width=20, height=20)
         paddle = _speed_cap_paddle(x=120)
-        paddle.snd = load_sound(SFX.SLAP)
+        paddle.snd = _still_playing_when_checked()
 
         ball.speed.x = 100.0
         ball.speed.y = 50.0

@@ -1,7 +1,6 @@
 """Tests for bitmappy tool functionality and coverage."""
 
 import logging
-import os
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,11 +11,7 @@ import pytest
 
 from bitmappy import editor as bitmappy
 from bitmappy.ai_worker import (
-    _check_ollama_model_status,
-    _create_ollama_config,
-    _get_provider_timeout_value,
     _initialize_ai_client,
-    _set_ollama_env_timeout,
     run_ai_worker,
 )
 from bitmappy.alpha import parse_toml_sprite_data
@@ -618,361 +613,6 @@ class TestLoadAiTrainingData:
 
 
 # ---------------------------------------------------------------------------
-# TestCheckOllamaModelStatus
-# ---------------------------------------------------------------------------
-
-
-class TestCheckOllamaModelStatus:
-    """Tests for _check_ollama_model_status function."""
-
-    def test_non_ollama_model(self, mock_logger):
-        """Non-ollama model returns downloaded=True."""
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'anthropic:claude-sonnet-4-5'
-        result = _check_ollama_model_status(mock_logger)
-        assert result['downloaded'] is True
-        assert result['reason'] == 'not_ollama'
-        ai_worker_module.AI_MODEL = original
-
-    def test_ollama_model_api_error(self, mock_logger, mocker):
-        """Non-OK HTTP status returns downloaded=False with api_error reason.
-
-        The function uses urllib.request.urlopen; we mock the response's
-        status attribute to simulate a non-200 response.
-        """
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        mock_response = mocker.MagicMock()
-        mock_response.status = 500
-        mock_response.read.return_value = b'{}'
-        mock_response.__enter__ = mocker.MagicMock(return_value=mock_response)
-        mock_response.__exit__ = mocker.MagicMock(return_value=False)
-        mocker.patch('urllib.request.urlopen', return_value=mock_response)
-        result = _check_ollama_model_status(mock_logger)
-        assert result['downloaded'] is False
-        assert result['reason'] == 'api_error'
-        ai_worker_module.AI_MODEL = original
-
-    def test_ollama_model_already_downloaded(self, mock_logger, mocker):
-        """Model found in local list returns downloaded=True.
-
-        The function uses urllib.request.urlopen and reads JSON via
-        response.read().decode().
-        """
-        import json
-
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        response_data = json.dumps({'models': [{'name': 'testmodel:latest'}]}).encode()
-        mock_response = mocker.MagicMock()
-        mock_response.status = 200
-        mock_response.read.return_value = response_data
-        mock_response.__enter__ = mocker.MagicMock(return_value=mock_response)
-        mock_response.__exit__ = mocker.MagicMock(return_value=False)
-        mocker.patch('urllib.request.urlopen', return_value=mock_response)
-        result = _check_ollama_model_status(mock_logger)
-        assert result['downloaded'] is True
-        assert result['reason'] == 'already_downloaded'
-        ai_worker_module.AI_MODEL = original
-
-    def test_ollama_model_needs_download(self, mock_logger, mocker):
-        """Model not found in local list returns needs_download.
-
-        The function uses urllib.request.urlopen and reads JSON via
-        response.read().decode().
-        """
-        import json
-
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:newmodel'
-        response_data = json.dumps({'models': [{'name': 'othermodel:latest'}]}).encode()
-        mock_response = mocker.MagicMock()
-        mock_response.status = 200
-        mock_response.read.return_value = response_data
-        mock_response.__enter__ = mocker.MagicMock(return_value=mock_response)
-        mock_response.__exit__ = mocker.MagicMock(return_value=False)
-        mocker.patch('urllib.request.urlopen', return_value=mock_response)
-        result = _check_ollama_model_status(mock_logger)
-        assert result['downloaded'] is False
-        assert result['reason'] == 'needs_download'
-        ai_worker_module.AI_MODEL = original
-
-    def test_ollama_connection_error(self, mock_logger, mocker):
-        """Connection error (OSError) returns check_failed.
-
-        The function catches OSError from urllib.request.urlopen.
-        """
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        mocker.patch('urllib.request.urlopen', side_effect=OSError('connection refused'))
-        result = _check_ollama_model_status(mock_logger)
-        assert result['downloaded'] is False
-        assert result['reason'] == 'check_failed'
-        ai_worker_module.AI_MODEL = original
-
-    def test_ollama_import_error(self, mock_logger, mocker):
-        """ValueError from urllib returns check_failed.
-
-        The function catches (OSError, ValueError, KeyError), so we use
-        ValueError since ImportError is not in the exception list and
-        urllib is a stdlib module that cannot fail to import.
-        """
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        mocker.patch('urllib.request.urlopen', side_effect=ValueError('bad url'))
-        result = _check_ollama_model_status(mock_logger)
-        assert result['downloaded'] is False
-        assert result['reason'] == 'check_failed'
-        ai_worker_module.AI_MODEL = original
-
-
-# ---------------------------------------------------------------------------
-# TestSetOllamaEnvTimeout
-# ---------------------------------------------------------------------------
-
-
-class TestSetOllamaEnvTimeout:
-    """Tests for _set_ollama_env_timeout function."""
-
-    def test_non_ollama_model_no_env_set(self, mock_logger, mocker):
-        """Non-ollama model does not set environment variable."""
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'anthropic:claude-sonnet-4-5'
-        _set_ollama_env_timeout(mock_logger)
-        # Should not set OLLAMA_TIMEOUT for non-ollama models
-        ai_worker_module.AI_MODEL = original
-
-    def test_ollama_model_sets_env(self, mock_logger, mocker):
-        """Ollama model sets OLLAMA_TIMEOUT environment variable."""
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        mocker.patch(
-            'bitmappy.ai_worker._check_ollama_model_status',
-            return_value={'downloaded': True, 'reason': 'already_downloaded'},
-        )
-        _set_ollama_env_timeout(mock_logger)
-        assert 'OLLAMA_TIMEOUT' in os.environ
-        # Clean up
-        del os.environ['OLLAMA_TIMEOUT']
-        ai_worker_module.AI_MODEL = original
-
-    def test_ollama_model_not_downloaded_uses_longer_timeout(self, mock_logger, mocker):
-        """Ollama model needing download uses longer timeout."""
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        mocker.patch(
-            'bitmappy.ai_worker._check_ollama_model_status',
-            return_value={'downloaded': False, 'reason': 'needs_download'},
-        )
-        _set_ollama_env_timeout(mock_logger)
-        assert os.environ.get('OLLAMA_TIMEOUT') == str(ai_worker_module.AI_MODEL_DOWNLOAD_TIMEOUT)
-        del os.environ['OLLAMA_TIMEOUT']
-        ai_worker_module.AI_MODEL = original
-
-
-# ---------------------------------------------------------------------------
-# TestCreateOllamaConfig
-# ---------------------------------------------------------------------------
-
-
-class TestCreateOllamaConfig:
-    """Tests for _create_ollama_config function."""
-
-    def test_non_ollama_model_returns_empty(self, mock_logger):
-        """Non-ollama model returns empty config."""
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'anthropic:claude-sonnet-4-5'
-        result = _create_ollama_config(mock_logger)
-        assert result == {}
-        ai_worker_module.AI_MODEL = original
-
-    def test_ollama_model_downloaded(self, mock_logger, mocker):
-        """Ollama model already downloaded uses normal timeout."""
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        mocker.patch(
-            'bitmappy.ai_worker._check_ollama_model_status',
-            return_value={'downloaded': True},
-        )
-        result = _create_ollama_config(mock_logger)
-        assert 'ollama' in result
-        assert result['ollama']['timeout'] == ai_worker_module.AI_TIMEOUT
-        ai_worker_module.AI_MODEL = original
-
-    def test_ollama_model_needs_download(self, mock_logger, mocker):
-        """Ollama model needing download uses longer timeout."""
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        mocker.patch(
-            'bitmappy.ai_worker._check_ollama_model_status',
-            return_value={'downloaded': False},
-        )
-        result = _create_ollama_config(mock_logger)
-        assert result['ollama']['timeout'] == ai_worker_module.AI_MODEL_DOWNLOAD_TIMEOUT
-        ai_worker_module.AI_MODEL = original
-
-
-# ---------------------------------------------------------------------------
-# TestGetProviderTimeoutValue
-# ---------------------------------------------------------------------------
-
-
-class TestGetProviderTimeoutValue:
-    """Tests for _get_provider_timeout_value function."""
-
-    def test_non_ollama_returns_default(self, mock_logger):
-        """Non-ollama model returns AI_TIMEOUT."""
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'anthropic:claude-sonnet-4-5'
-        result = _get_provider_timeout_value(mock_logger)
-        assert result == ai_worker_module.AI_TIMEOUT
-        ai_worker_module.AI_MODEL = original
-
-    def test_ollama_downloaded_returns_default(self, mock_logger, mocker):
-        """Downloaded ollama model returns AI_TIMEOUT."""
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        mocker.patch(
-            'bitmappy.ai_worker._check_ollama_model_status',
-            return_value={'downloaded': True},
-        )
-        result = _get_provider_timeout_value(mock_logger)
-        assert result == ai_worker_module.AI_TIMEOUT
-        ai_worker_module.AI_MODEL = original
-
-    def test_ollama_not_downloaded_returns_download_timeout(self, mock_logger, mocker):
-        """Not-downloaded ollama model returns AI_MODEL_DOWNLOAD_TIMEOUT."""
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        mocker.patch(
-            'bitmappy.ai_worker._check_ollama_model_status',
-            return_value={'downloaded': False},
-        )
-        result = _get_provider_timeout_value(mock_logger)
-        assert result == ai_worker_module.AI_MODEL_DOWNLOAD_TIMEOUT
-        ai_worker_module.AI_MODEL = original
-
-
-# ---------------------------------------------------------------------------
-# TestProviderConfigTimeouts
-# ---------------------------------------------------------------------------
-
-
-def _real_client_provider_configs(log: logging.Logger) -> dict[str, dict[str, object]]:
-    """Build the real aisuite Client _initialize_ai_client makes and read its provider configs.
-
-    aisuite creates each provider lazily from these configs on the first request, so they are
-    what gives the providers their timeouts. Nothing is sent.
-
-    Returns:
-        The client's provider configurations.
-
-    """
-    import aisuite
-
-    client = _initialize_ai_client(log)
-    assert isinstance(client, aisuite.Client)
-    assert client.providers == {}
-    return client.provider_configs
-
-
-class TestProviderConfigTimeouts:
-    """The real aisuite Client gets each provider's timeout in its provider configuration."""
-
-    @pytest.fixture(autouse=True)
-    def restore_the_environment(self, mocker):
-        """Keep the OLLAMA_TIMEOUT that _initialize_ai_client sets for ollama out of later tests."""
-        mocker.patch.dict(os.environ)
-
-    def test_hosted_model_configures_only_the_anthropic_timeout(self, mock_logger, mocker):
-        """With a hosted model, Anthropic gets the AI timeout and no ollama provider is set up."""
-        mocker.patch('bitmappy.ai_worker.AI_MODEL', 'anthropic:claude-sonnet-4-5')
-
-        provider_configs = _real_client_provider_configs(mock_logger)
-
-        assert provider_configs == {'anthropic': {'timeout': AI_TIMEOUT}}
-
-    def test_ollama_model_keeps_the_anthropic_timeout(self, mock_logger, mocker):
-        """The ollama configuration leaves the Anthropic provider's timeout as it was."""
-        mocker.patch('bitmappy.ai_worker.AI_MODEL', 'ollama:testmodel')
-        mocker.patch(
-            'bitmappy.ai_worker._check_ollama_model_status',
-            return_value={'downloaded': True},
-        )
-
-        provider_configs = _real_client_provider_configs(mock_logger)
-
-        assert provider_configs['anthropic'] == {'timeout': AI_TIMEOUT}
-
-    def test_ollama_model_needing_download_gets_the_download_timeout(self, mock_logger, mocker):
-        """An ollama model that must be downloaded first gets the longer download timeout."""
-        import bitmappy.ai_worker as ai_worker_module
-
-        mocker.patch('bitmappy.ai_worker.AI_MODEL', 'ollama:testmodel')
-        mocker.patch(
-            'bitmappy.ai_worker._check_ollama_model_status',
-            return_value={'downloaded': False},
-        )
-
-        provider_configs = _real_client_provider_configs(mock_logger)
-
-        assert provider_configs['ollama'] == {
-            'timeout': ai_worker_module.AI_MODEL_DOWNLOAD_TIMEOUT,
-        }
-
-    def test_ollama_config_holds_only_keys_the_openai_client_accepts(self, mock_logger, mocker):
-        """The ollama config has no request_timeout or read_timeout.
-
-        aisuite's OllamaProvider passes its config to openai.OpenAI, which raised TypeError on
-        those keys, so every ollama request failed when the provider was created.
-        """
-        import inspect
-
-        import openai
-
-        mocker.patch('bitmappy.ai_worker.AI_MODEL', 'ollama:testmodel')
-        mocker.patch(
-            'bitmappy.ai_worker._check_ollama_model_status',
-            return_value={'downloaded': True},
-        )
-
-        provider_configs = _real_client_provider_configs(mock_logger)
-
-        accepted_keys = set(inspect.signature(openai.OpenAI).parameters)
-        assert set(provider_configs['ollama']) <= accepted_keys
-
-
-# ---------------------------------------------------------------------------
 # TestInitializeAiClient
 # ---------------------------------------------------------------------------
 
@@ -980,64 +620,34 @@ class TestProviderConfigTimeouts:
 class TestInitializeAiClient:
     """Tests for _initialize_ai_client function."""
 
-    def test_aisuite_not_available(self, mock_logger, mocker):
-        """Returns None when aisuite is not available."""
-        mocker.patch('bitmappy.ai_worker.ai', None)
+    def test_service_not_installed(self, mock_logger, mocker):
+        """Returns None when the local AI service is not installed."""
+        from glitchygames.ai.local_service import LocalAIServiceNotInstalledError
+
+        mocker.patch(
+            'glitchygames.ai.local_service.create_chat_client',
+            side_effect=LocalAIServiceNotInstalledError('not installed'),
+        )
         result = _initialize_ai_client(mock_logger)
         assert result is None
 
-    def test_aisuite_available(self, mock_logger, mocker):
-        """Returns client when aisuite is available."""
-        mock_ai = mocker.MagicMock()
+    def test_service_installed(self, mock_logger, mocker):
+        """Returns the local service's client when it is installed."""
         mock_client = mocker.MagicMock()
-        mock_ai.Client.return_value = mock_client
-        mocker.patch('bitmappy.ai_worker.ai', mock_ai)
-        mocker.patch('bitmappy.ai_worker._set_ollama_env_timeout')
-        mocker.patch(
-            'bitmappy.ai_worker._create_ollama_config',
-            return_value={},
-        )
+        mocker.patch('glitchygames.ai.local_service.create_chat_client', return_value=mock_client)
         result = _initialize_ai_client(mock_logger)
         assert result == mock_client
 
-    def test_aisuite_with_provider_config(self, mock_logger, mocker):
-        """Passes provider config to aisuite Client when present."""
-        mock_ai = mocker.MagicMock()
-        mock_client = mocker.MagicMock()
-        mock_ai.Client.return_value = mock_client
-        mocker.patch('bitmappy.ai_worker.ai', mock_ai)
-        mocker.patch('bitmappy.ai_worker._set_ollama_env_timeout')
-        provider_config = {'ollama': {'timeout': 600}}
-        mocker.patch(
-            'bitmappy.ai_worker._create_ollama_config',
-            return_value=provider_config,
-        )
-        result = _initialize_ai_client(mock_logger)
-        mock_ai.Client.assert_called_once_with({
-            'anthropic': {'timeout': AI_TIMEOUT},
-            'ollama': {'timeout': 600},
-        })
-        assert result == mock_client
-
-    def test_anthropic_client_gets_explicit_timeout(self, mock_logger, mocker):
-        """Passes an explicit Anthropic timeout so large non-streaming requests are allowed.
-
-        anthropic>=0.40 raises "Streaming is required for operations that may take longer
-        than 10 minutes" for non-streaming requests with large max_tokens unless the client
-        has a non-default timeout. aisuite creates providers lazily, so the timeout has to
-        be supplied through the Client's provider config up front.
-        """
-        mock_ai = mocker.MagicMock()
-        mocker.patch('bitmappy.ai_worker.ai', mock_ai)
-        mocker.patch('bitmappy.ai_worker._set_ollama_env_timeout')
-        mocker.patch(
-            'bitmappy.ai_worker._create_ollama_config',
-            return_value={},
+    def test_client_gets_explicit_timeout(self, mock_logger, mocker):
+        """The client is created with AI_TIMEOUT so large non-streaming requests are allowed."""
+        create_chat_client = mocker.patch(
+            'glitchygames.ai.local_service.create_chat_client',
+            return_value=mocker.MagicMock(),
         )
 
         _initialize_ai_client(mock_logger)
 
-        mock_ai.Client.assert_called_once_with({'anthropic': {'timeout': AI_TIMEOUT}})
+        create_chat_client.assert_called_once_with(timeout_seconds=AI_TIMEOUT)
 
 
 # ---------------------------------------------------------------------------
@@ -1095,7 +705,7 @@ class TestAiWorker:
         mocker.patch('bitmappy.ai_worker._setup_ai_worker_logging')
         mocker.patch(
             'bitmappy.ai_worker._initialize_ai_client',
-            side_effect=ImportError('no aisuite'),
+            side_effect=ImportError('no tenacity'),
         )
         request_queue = mocker.MagicMock()
         response_queue = mocker.MagicMock()

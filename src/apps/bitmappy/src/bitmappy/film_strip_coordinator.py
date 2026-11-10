@@ -16,7 +16,6 @@ from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 from .constants import (
     LOG,
-    MIN_FILM_STRIPS_FOR_PANEL_POSITIONING,
 )
 from .film_strip import FilmStripWidget
 from .film_strip_sprite import FilmStripSprite
@@ -943,59 +942,23 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         self.editor.selected_animation = new_animation
         self.editor.selected_frame = target_frame
 
+        # The film strips were rebuilt with the scroll offset from before the delete, which can
+        # now pass the last strip: clamp it, then scroll the selected strip into view
+        # (BUGS.md #170)
+        max_scroll_offset = max(0, len(remaining_animations) - self.editor.max_visible_strips)
+        self.editor.film_strip_scroll_offset = min(
+            self.editor.film_strip_scroll_offset, max_scroll_offset
+        )
+        self.scroll_to_current_animation()
+        self.update_film_strip_visibility()
+        self.update_scroll_arrows()
+
         self.log.info(
             "Selected frame %s in animation '%s' after deleting '%s'",
             target_frame,
             new_animation,
             deleted_animation_name,
         )
-
-    def _handle_no_remaining_animations(
-        self,
-        remaining_animations: list[str],
-        all_animations: list[str],
-        deleted_index: int,
-    ) -> None:
-        """Handle post-deletion state when no animations remain (or updating scroll).
-
-        Args:
-            remaining_animations: List of remaining animation names (may be empty)
-            all_animations: List of all animation names before deletion
-            deleted_index: Index of the deleted animation in the original list
-
-        """
-        self.log.info('No remaining animations after deletion')
-        self.editor.selected_animation = None
-        self.editor.selected_frame = None
-
-        # Force update of all film strip widgets to ensure they reflect the deletion
-        if hasattr(self.editor, 'film_strip_sprites') and self.editor.film_strip_sprites:
-            for film_strip_sprite in self.editor.film_strip_sprites.values():
-                if (
-                    hasattr(film_strip_sprite, 'film_strip_widget')
-                    and film_strip_sprite.film_strip_widget
-                ):
-                    # Force the film strip widget to update its layout
-                    film_strip_sprite.film_strip_widget.update_layout()
-                    film_strip_sprite.film_strip_widget._create_film_tabs()  # type: ignore[reportPrivateUsage]
-                    film_strip_sprite.film_strip_widget.mark_dirty()
-                    film_strip_sprite.dirty = 1
-
-        # Ensure we show up to 2 strips after deletion
-        if len(remaining_animations) <= MIN_FILM_STRIPS_FOR_PANEL_POSITIONING:
-            # If we have 2 or fewer strips, show them all starting from index 0
-            self.editor.film_strip_scroll_offset = 0
-        # If we deleted the last strip, show the previous 2 strips
-        elif deleted_index == len(all_animations) - 1:
-            # We deleted the last strip, show the previous 2 strips
-            self.editor.film_strip_scroll_offset = max(0, len(remaining_animations) - 2)
-        else:
-            # We deleted a strip that wasn't the last, show current and one more
-            self.editor.film_strip_scroll_offset = max(0, deleted_index - 1)
-
-        # Update visibility and scroll arrows
-        self.update_film_strip_visibility()
-        self.update_scroll_arrows()
 
     def _show_delete_animation_confirmation(self, animation_name: str) -> None:
         """Show confirmation dialog before deleting an animation.
@@ -1311,7 +1274,6 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
                     self.editor.canvas.pixels = [
                         (255, 0, 255, 255)
                     ] * pixel_count  # Magenta background
-                    self.editor.canvas.dirty_pixels = [True] * pixel_count
                     self.log.debug(
                         'Canvas pixels initialized: len=%s',
                         len(self.editor.canvas.pixels),
@@ -1440,24 +1402,15 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         ):
             return
 
-        # Rename in the widget's sprite
-        widget_frames = strip_widget.animated_sprite._animations[old_name]  # type: ignore[reportPrivateUsage]
-        del strip_widget.animated_sprite._animations[old_name]  # type: ignore[reportPrivateUsage]
-        strip_widget.animated_sprite._animations[new_name] = widget_frames  # type: ignore[reportPrivateUsage]
-
-        # Update animation order
-        if strip_widget.animated_sprite.has_own_animation_order:
-            strip_widget.animated_sprite._animation_order = [new_name]  # type: ignore[reportPrivateUsage]
-
-            # Update frame manager
-            if strip_widget.animated_sprite.frame_manager.current_animation == old_name:
-                strip_widget.animated_sprite.frame_manager.current_animation = new_name
-
-            self.log.debug(
-                "Updated FilmStripWidget's internal sprite: '%s' -> '%s'",
-                old_name,
-                new_name,
-            )
+        # The sprite's own rename keeps every other animation and the order's place, and moves
+        # the current animation whatever the order: the hand-written rename set the order to
+        # [new_name], dropping the strip's other animations (BUGS.md #178 item 21)
+        strip_widget.animated_sprite.rename_animation(old_name=old_name, new_name=new_name)
+        self.log.debug(
+            "Updated FilmStripWidget's internal sprite: '%s' -> '%s'",
+            old_name,
+            new_name,
+        )
 
     def _update_film_strip_layout_after_rename(
         self,
@@ -1721,9 +1674,8 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             for strip_name, strip_widget in self.editor.film_strips.items():
                 if strip_name == animation:
                     # Update the selected_frame in the film strip widget. The editor's
-                    # selected_frame is None when no animations remain (see
-                    # _handle_no_remaining_animations); the widget needs an int, so fall back
-                    # to frame 0 in that case.
+                    # selected_frame can be None (nothing selected); the widget needs an int,
+                    # so fall back to frame 0 in that case.
                     editor_selected_frame = self.editor.selected_frame
                     strip_widget.selected_frame = (
                         editor_selected_frame if editor_selected_frame is not None else 0
@@ -1744,100 +1696,6 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
                 # Mark the animated sprite as dirty to ensure animation updates
                 if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
                     strip_widget.animated_sprite.dirty = 1
-
-    def _copy_current_frame(self) -> bool:
-        """Copy the currently selected frame from the active film strip.
-
-        Returns:
-            bool: True if the condition is met, False otherwise.
-
-        """
-        LOG.debug('BitmapEditorScene: [SCENE COPY] _copy_current_frame called')
-
-        if not hasattr(self.editor, 'film_strips') or not self.editor.film_strips:
-            LOG.debug('BitmapEditorScene: [SCENE COPY] No film strips available for copying')
-            return False
-
-        LOG.debug(
-            f'BitmapEditorScene: [SCENE COPY] Found {len(self.editor.film_strips)} film strips',
-        )
-        LOG.debug(
-            'BitmapEditorScene: [SCENE COPY] Looking for animation:'
-            f' {getattr(self.editor, "selected_animation", "None")}',
-        )
-
-        # Find the active film strip (the one with the current animation)
-        active_film_strip = None
-        if hasattr(self.editor, 'selected_animation') and self.editor.selected_animation:
-            for strip_name, film_strip in self.editor.film_strips.items():
-                LOG.debug(
-                    f"BitmapEditorScene: [SCENE COPY] Checking film strip '{strip_name}' with"
-                    f" animation '{getattr(film_strip, 'current_animation', 'None')}'",
-                )
-                if (
-                    hasattr(film_strip, 'current_animation')
-                    and film_strip.current_animation == self.editor.selected_animation
-                ):
-                    active_film_strip = film_strip
-                    LOG.debug(
-                        f"BitmapEditorScene: [SCENE COPY] Found active film strip: '{strip_name}'",
-                    )
-                    break
-
-        if not active_film_strip:
-            LOG.debug('BitmapEditorScene: [SCENE COPY] No active film strip found for copying')
-            return False
-
-        LOG.debug('BitmapEditorScene: [SCENE COPY] Calling film strip copy method')
-        # Call the film strip's copy method
-        return active_film_strip.copy_current_frame()
-
-    def _paste_to_current_frame(self) -> bool:
-        """Paste the copied frame to the currently selected frame in the active film strip.
-
-        Returns:
-            bool: True if the condition is met, False otherwise.
-
-        """
-        LOG.debug('BitmapEditorScene: [SCENE PASTE] _paste_to_current_frame called')
-
-        if not hasattr(self.editor, 'film_strips') or not self.editor.film_strips:
-            LOG.debug('BitmapEditorScene: [SCENE PASTE] No film strips available for pasting')
-            return False
-
-        LOG.debug(
-            f'BitmapEditorScene: [SCENE PASTE] Found {len(self.editor.film_strips)} film strips',
-        )
-        LOG.debug(
-            'BitmapEditorScene: [SCENE PASTE] Looking for animation:'
-            f' {getattr(self.editor, "selected_animation", "None")}',
-        )
-
-        # Find the active film strip (the one with the current animation)
-        active_film_strip = None
-        if hasattr(self.editor, 'selected_animation') and self.editor.selected_animation:
-            for strip_name, film_strip in self.editor.film_strips.items():
-                LOG.debug(
-                    f"BitmapEditorScene: [SCENE PASTE] Checking film strip '{strip_name}' with"
-                    f" animation '{getattr(film_strip, 'current_animation', 'None')}'",
-                )
-                if (
-                    hasattr(film_strip, 'current_animation')
-                    and film_strip.current_animation == self.editor.selected_animation
-                ):
-                    active_film_strip = film_strip
-                    LOG.debug(
-                        f"BitmapEditorScene: [SCENE PASTE] Found active film strip: '{strip_name}'",
-                    )
-                    break
-
-        if not active_film_strip:
-            LOG.debug('BitmapEditorScene: [SCENE PASTE] No active film strip found for pasting')
-            return False
-
-        LOG.debug('BitmapEditorScene: [SCENE PASTE] Calling film strip paste method')
-        # Call the film strip's paste method
-        return active_film_strip.paste_to_current_frame()
 
     def update_film_strip_selection_state(self) -> None:
         """Update the selection state of all film strips based on current selection."""

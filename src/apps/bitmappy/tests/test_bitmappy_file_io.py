@@ -71,7 +71,6 @@ class FakeMiniView:
     def __init__(self) -> None:
         """Start with no pixels and no redraws."""
         self.pixels: list[tuple[int, ...]] = []
-        self.dirty_pixels: list[bool] = []
         self.dirty = 0
         self.redraw_count = 0
 
@@ -103,7 +102,6 @@ class FakeCanvasSprite:
         self.mini_view = mini_view
         self.loaded_paths: list[str] = []
         self.pixels: list[tuple[int, ...]] = []
-        self.dirty_pixels: list[bool] = []
         self.dirty = 0
         self.redraw_count = 0
         self.border_updates = 0
@@ -596,7 +594,6 @@ class TestLoadConvertedSprite:
         expected_pixels = [(255, 0, 255, 255), (255, 0, 0, 255)]
         assert canvas_sprite.loaded_paths == ['sprite.toml']
         assert canvas_sprite.pixels == expected_pixels
-        assert canvas_sprite.dirty_pixels == [True, True]
         assert canvas_sprite.border_updates == 1
         assert canvas_sprite.dirty == 1
         assert mini_view.pixels == expected_pixels

@@ -110,6 +110,32 @@ def read_boot_config() -> dict[str, object]:
     return json.loads(BOOT_CONFIG_PATH.read_text(encoding='utf-8'))
 
 
+def install_masterhub_bridge() -> None:
+    """Register bitmappy's MasterHUB web-hub bridge, when this bundle ships it (bitmappy only).
+
+    The bridge (masterhub_bridge.py) and bitmappy.masterhub ship only in the bitmappy bundle, so a
+    missing ``masterhub_bridge`` module just means "not this game" and is skipped. Any other import
+    error -- a real break inside the bridge or the seam -- propagates instead of being swallowed
+    into a silent no-op (the failure mode that once hid a bug), and each path logs one line.
+
+    Raises:
+        ModuleNotFoundError: If importing the bridge or the seam fails for any reason other than
+            the bridge module simply not being shipped in this bundle.
+
+    """
+    try:
+        import masterhub_bridge
+
+        from bitmappy.masterhub import install_masterhub
+    except ModuleNotFoundError as error:
+        if error.name != 'masterhub_bridge':
+            raise
+        LOG.info('No MasterHUB bridge in this bundle; the hub mirror is off')
+        return
+    install_masterhub(installer=masterhub_bridge.install)
+    LOG.info('MasterHUB bridge registered; the hub mirror is active')
+
+
 async def main() -> None:
     """Boot the configured game and run it until it ends."""
     # Standard output reaches only the browser console; PyScript shows anything written to
@@ -140,6 +166,7 @@ async def main() -> None:
     install_user_files(
         user_files=browser_user_files.BrowserUserFiles(directory=OPENED_FILES_DIRECTORY)
     )
+    install_masterhub_bridge()  # bitmappy's hub mirror (skipped in bundles without the bridge)
 
     set_status(f'{config["title"]}: click to play')
     await wait_for_click()

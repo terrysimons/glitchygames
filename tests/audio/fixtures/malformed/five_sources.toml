@@ -1,0 +1,18 @@
+[glitchygames]
+kind = "sounds"
+version = 1
+
+[instruments.pickup]
+[instruments.pickup.sources.s0]
+wave = "sine"
+[instruments.pickup.sources.s1]
+wave = "sine"
+[instruments.pickup.sources.s2]
+wave = "sine"
+[instruments.pickup.sources.s3]
+wave = "sine"
+[instruments.pickup.sources.s4]
+wave = "sine"
+[sounds.coin]
+instrument = "pickup"
+pitch = "C5"
