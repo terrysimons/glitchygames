@@ -22,11 +22,11 @@ from glitchygames.audio.instruments.keyboards import (
 )
 from glitchygames.audio.instruments.noise_makers import NOISE_MAKERS
 from glitchygames.audio.instruments.percussion import TUNED_PERCUSSION
+from glitchygames.audio.instruments.plucked_strings import PLUCKED_STRINGS
 from glitchygames.audio.instruments.sound_effects import SOUND_EFFECTS
 from glitchygames.audio.instruments.strings import (
     BOWED_STRINGS,
     HARPS,
-    PLUCKED_STRINGS,
     STRUCK_STRINGS,
 )
 from glitchygames.audio.instruments.voices import CHOIRS, VOICES
