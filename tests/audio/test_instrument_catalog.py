@@ -524,7 +524,15 @@ def sound_alike_table(*extra: CatalogEntry) -> dict[str, CatalogEntry]:
     plain = CatalogEntry(
         'test plain', 'Test plain', Family.DRUMS_AND_PERCUSSION, None, None, plain_drum
     )
-    return catalog_from([(parent, plain, *extra)])
+    pitched_parent = CatalogEntry(
+        'test pitched parent',
+        'Test pitched parent',
+        Family.PLUCKED_STRINGS,
+        'C3',
+        'C5',
+        plain_drum,
+    )
+    return catalog_from([(parent, plain, pitched_parent, *extra)])
 
 
 def unpitched_drum(name: str, **fields) -> CatalogEntry:
@@ -552,6 +560,34 @@ def test_an_entrys_sound_changes_are_read_only():
         alike.sound_changes['noise'] = 0.2  # pyright: ignore[reportIndexIssue] # ty: ignore[invalid-assignment] - the write is the point
 
 
+def test_a_pitched_sound_alike_keeps_its_own_range():
+    """A sound-alike of a pitched entry builds its parent's sound over its own sourced range."""
+    parent = CatalogEntry(
+        'test pitched parent',
+        'Test pitched parent',
+        Family.PLUCKED_STRINGS,
+        'C3',
+        'C5',
+        plain_drum,
+    )
+    alike = CatalogEntry(
+        'test alike',
+        'Test alike',
+        Family.PLUCKED_STRINGS,
+        'E3',
+        'E5',
+        sounds_like='test pitched parent',
+    )
+
+    assembled = sound_alikes_from({parent.name: parent, alike.name: alike})
+
+    assert (assembled['test alike'].lowest, assembled['test alike'].highest) == ('E3', 'E5')
+    alike_build = assembled['test alike'].build
+    assert alike_build is not None
+    assert parent.build is not None
+    assert alike_build() == parent.build()
+
+
 def test_the_sound_alikes_are_refused_when_they_are_wrong():
     """A bad sound-alike fails when the catalog is assembled, naming the entry."""
     refusals = [
@@ -573,7 +609,18 @@ def test_the_sound_alikes_are_refused_when_they_are_wrong():
                 'C5',
                 sounds_like='test parent',
             ),
-            "test alike: its range must be that of 'test parent'",
+            "test alike: pitched exactly when 'test parent' is",
+        ),
+        (
+            CatalogEntry(
+                'test alike',
+                'Test alike',
+                Family.PLUCKED_STRINGS,
+                None,
+                None,
+                sounds_like='test pitched parent',
+            ),
+            "test alike: pitched exactly when 'test pitched parent' is",
         ),
         (
             unpitched_drum('test alike', build=plain_drum, sound_changes={'noise': 0.9}),
@@ -623,7 +670,13 @@ def test_a_changed_sound_alike_builds_the_changed_instrument():
     assert changed_build() != parent_build()
     assert same_build() == parent_build()
     # The entries keep their own names and order, and the rest of the table is unchanged
-    assert list(assembled) == ['test parent', 'test plain', 'test same', 'test changed']
+    assert list(assembled) == [
+        'test parent',
+        'test plain',
+        'test pitched parent',
+        'test same',
+        'test changed',
+    ]
     assert assembled['test changed'].sound_changes == {'noise': 0.9}
 
 
