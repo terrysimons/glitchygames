@@ -5,9 +5,11 @@ and push each item on its own branch). The request: `plans/future-work.md`, "Doc
 scrub". Done last, after the run's other branches land, since they change docs too (#178.26,
 #190, #225/#227, #251, #256, sprite tags, solid collision).
 
-The site's Material formatting (the owner, 2026-11-09) rides on this scrub:
+The site's Material formatting (the owner, 2026-11-09) goes first, page by page:
 `plans/2026-11-09-docs-material-formatting.md`. Its conventions (which passages become
-admonitions, tabs, collapsible blocks or titled code) apply as each page is read here.
+admonitions, tabs, collapsible blocks or titled code) hold for every page this scrub edits.
+#145 landed the Material theme, the explorers and this plan before the reading pass below; the
+reading pass is its own branch.
 
 ## Design
 

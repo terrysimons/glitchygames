@@ -276,6 +276,13 @@ def test_mkdocs_yml_is_a_link_to_zensical_yml():
     assert (exit_code, mode, target) == (0, GIT_SYMLINK_MODE, DOCS_CONFIGURATION)
 
 
+def test_the_docs_site_shows_our_favicon():
+    """Material shows its own icon unless the theme names ours (mkdocs' theme found it alone)."""
+    favicon = mkdocs_configuration()['theme']['favicon']
+
+    assert (PROJECT_ROOT / 'docs' / favicon).is_file()
+
+
 def navigation_pages(*, entries: list[Any]) -> set[str]:
     """Every page a mkdocs nav names, at any depth."""
     pages: set[str] = set()

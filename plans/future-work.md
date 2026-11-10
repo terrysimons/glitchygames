@@ -937,12 +937,30 @@ drafted issue text. Not posted yet:
   status, named functions and classes still existing), fix or remove it, and keep American
   spellings. Finish with `mkdocs build --strict` and the docs guard tests. Plan it as its own
   branch (design, then plan), split by area so each piece is reviewable.
-- **Format the docs site in Material** (the owner, 2026-11-09; on the scrub's branch, #145).
-  The pages stay markdown, written with Material's markdown conventions (admonitions, content
-  tabs, titled and annotated code blocks, collapsible reference sections), and the theme's
-  configuration turns on what is off (light/dark palette, code copy buttons, search suggestions,
-  edit links, footer navigation, a glossary of abbreviations). Material stays, with mkdocs
-  pinned below 2.0. Plan: `plans/2026-11-09-docs-material-formatting.md`.
+  **Where it stands (2026-11-09):** #145 landed the scrub's design and plan
+  (`plans/2026-11-02-whole-stack-docs-scrub.md`), `scripts/docs_claims.py` with its worklist, the
+  `game_packages.md` recipe, the stale member counts, the Material theme and the explorers. Left:
+  the plan's steps 3-7 (root files keep/fold/retire; `docs/` by area; audio; member READMEs and
+  module docstrings; promoting the cheap checks to tests; the closing build and suite), after the
+  Material formatting below.
+- **Format the docs site in Material** (the owner, 2026-11-09: goes first, page by page, ahead of
+  the scrub's reading pass). The pages stay markdown, written with Material's markdown
+  conventions (admonitions, content tabs, titled and annotated code blocks, collapsible
+  reference sections), and the theme's configuration turns on what is off (light/dark palette,
+  code copy buttons, search suggestions, edit links, footer navigation, last-updated dates, a
+  glossary of abbreviations). Material stays, with mkdocs pinned below 2.0. Plan:
+  `plans/2026-11-09-docs-material-formatting.md`.
+- **Smaller docs items left from #145** (2026-11-09):
+  - `docs/index.md` says the engine "aims to support 20-25FPS minimum games on Raspberry Pi",
+    while the requirements page's minimum is a typical p99 under 16.7 ms (60 FPS). The owner
+    decides which holds; the other is reworded.
+  - The event system diagrams' click links (`js/mermaid-config.js` sets Mermaid's `loose` security
+    level so they work under Material) were checked to render, not clicked: click one on the
+    published site.
+  - The explorers' JavaScript has no automated test (the browser test under Performance and
+    pacing).
+  - The requirements page and its claude.ai doc copy are re-measured later (under Performance and
+    pacing).
 - **Move the docs site to Zensical** (the owner, 2026-11-09: later, after the Material
   formatting). Material for MkDocs reaches end of life on 2027-05-05; Zensical is its successor
   from the same team and reads the same markdown and configuration (`zensical.yml` is already
