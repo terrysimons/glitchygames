@@ -287,6 +287,40 @@ def test_the_docs_site_shows_our_favicon():
     assert (PROJECT_ROOT / 'docs' / favicon).is_file()
 
 
+def plugin_options(*, configuration: dict[str, Any], section: str) -> dict[str, Any]:
+    """A configuration list of plugins or extensions, each by name with its options ({} if none)."""
+    return {
+        name: options
+        for entry in configuration[section]
+        for name, options in (entry.items() if isinstance(entry, dict) else [(entry, {})])
+    }
+
+
+def test_the_docs_site_keeps_the_material_features_the_formatting_plan_turned_on():
+    """The Material features plans/2026-11-09-docs-material-formatting.md's Part 1 turned on.
+
+    The palette's two schemes following the reader's system setting, code copy buttons, edit
+    links, footer navigation, the glossary and the last-updated dates.
+    """
+    configuration = mkdocs_configuration()
+    theme = configuration['theme']
+    extensions = plugin_options(configuration=configuration, section='markdown_extensions')
+    plugins = plugin_options(configuration=configuration, section='plugins')
+    glossary = extensions['pymdownx.snippets']['auto_append']
+
+    assert [(entry['media'], entry['scheme']) for entry in theme['palette']] == [
+        ('(prefers-color-scheme: light)', 'default'),
+        ('(prefers-color-scheme: dark)', 'slate'),
+    ]
+    assert {'content.code.copy', 'content.action.edit', 'navigation.footer'} <= set(
+        theme['features']
+    )
+    assert configuration['edit_uri'] == 'edit/main/docs/'
+    assert {'abbr', 'def_list', 'footnotes'} <= set(extensions)
+    assert [(PROJECT_ROOT / path).is_file() for path in glossary] == [True]
+    assert plugins['git-revision-date-localized']['fallback_to_build_date'] is True
+
+
 HOME_PAGE = PROJECT_ROOT / 'docs' / 'index.md'
 # The home page's example: the first python fence after its "# Example Game" heading
 HOME_PAGE_EXAMPLE = re.compile(
