@@ -572,7 +572,7 @@ jobs:
           command: |
             set -euo pipefail
             export PATH="$HOME/.local/bin:$PATH"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s infra-test
+            nox -s infra-test
       - save-uv-cache-posix
 
   # Publishes play.glitchy.games after a merge to main: the website (src/website) to the
@@ -608,7 +608,7 @@ jobs:
             printf '%s' "$CIRCLE_OIDC_TOKEN_V2" > "$token_file"
             export AWS_ROLE_ARN="$role_arn"
             export AWS_WEB_IDENTITY_TOKEN_FILE="$token_file"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s site-publish
+            nox -s site-publish
       - save-uv-cache-posix
 
 # Invoke jobs via workflows
