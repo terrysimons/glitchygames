@@ -274,7 +274,11 @@ class GameOptionsProvider(Protocol):
     options: dict[str, Any]
 
 
-_unhandled_event_types: set[int] = set()
+# The event types --debug-events has logged as unhandled, per engine context
+# (glitchygames.engine_context; audit C17): a second game in the process logs its own, once each
+UNHANDLED_EVENT_TYPES_SLOT: ContextSlot[set[int]] = ContextSlot(
+    name='glitchygames.events.base.unhandled_event_types', factory=set
+)
 
 
 def unhandled_event(
@@ -287,7 +291,7 @@ def unhandled_event(
 
     This method is called when an event is not handled by
     any of the event handlers.  Each event type is only logged
-    once to avoid per-frame log spam.
+    once per engine context to avoid per-frame log spam.
 
     This is helpful for us to debug events that we haven't
     implemented yet.
@@ -327,8 +331,9 @@ def unhandled_event(
 
     # Log each unhandled event type only once
     debug_events: bool | None = options.get('debug_events')
-    if debug_events and event.type not in _unhandled_event_types:
-        _unhandled_event_types.add(event.type)
+    logged_event_types = current_context().value(slot=UNHANDLED_EVENT_TYPES_SLOT)
+    if debug_events and event.type not in logged_event_types:
+        logged_event_types.add(event.type)
         LOG.warning(
             'Unhandled Event: %s %s',
             pygame.event.event_name(event.type),

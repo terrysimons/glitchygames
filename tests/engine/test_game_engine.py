@@ -3127,8 +3127,6 @@ class TestDebugEventsArgument:
         options = GameEngine.initialize_arguments(EngineTestGame)
         scene = Scene(options=options)
         unhandled_event = events.HashableEvent(UNMAPPED_EVENT_TYPE)
-        # Each type is logged once per process: start this test with none logged yet
-        mocker.patch.object(events_base, '_unhandled_event_types', set())
 
         with caplog.at_level(logging.WARNING, logger=events.LOG.name):
             events.unhandled_event(game=scene, event=unhandled_event)

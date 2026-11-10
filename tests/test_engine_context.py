@@ -15,7 +15,7 @@ import re
 import sys
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, cast, override
+from typing import TYPE_CHECKING, Any, cast, override
 
 import numpy as np
 import pygame
@@ -50,7 +50,8 @@ from glitchygames.engine_context import (
     declared_context_slots,
     default_context,
 )
-from glitchygames.events import ResourceManager
+from glitchygames.events import HashableEvent, ResourceManager, unhandled_event
+from glitchygames.events.base import UNHANDLED_EVENT_TYPES_SLOT
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import FONT_OPTIONS_SLOT
 from glitchygames.game_frames import game_frame_clock
@@ -308,7 +309,11 @@ def test_the_harness_leak_check_is_torn_down_before_every_engine_state_reset():
 
 
 # The fixtures that only group the engine-state resets for the leak check (tests/harness.py)
-GROUPING_FIXTURE_NAMES = ('per_context_state_resets', 'engine_service_resets')
+GROUPING_FIXTURE_NAMES = (
+    'per_context_state_resets',
+    'per_context_object_resets',
+    'engine_service_resets',
+)
 
 
 def _repository_plugin_paths() -> list[Path]:
@@ -361,7 +366,7 @@ def test_only_the_harness_defines_autouse_fixtures():
 
 
 def test_the_grouping_fixtures_only_group():
-    """The two grouping fixtures hold only their docstrings (BUGS.md #228 item 5).
+    """The grouping fixtures hold only their docstrings (BUGS.md #228 item 5).
 
     Any reset they did would run outside the order the leak check sets.
     """
@@ -1105,6 +1110,31 @@ def check_singletons(*, first: EngineContext, second: EngineContext) -> None:
     assert second.value(slot=SINGLETONS_SLOT) == {Singleton: second_instance}
 
 
+class StandInDebugEventsGame:
+    """A game's options as unhandled_event reads them, with --debug-events given.
+
+    A plain class, not a frozen model: unhandled_event's GameOptionsProvider declares a
+    writable options attribute.
+    """
+
+    def __init__(self) -> None:
+        """Hold the options of a game started with --debug-events."""
+        self.options: dict[str, Any] = {'debug_events': True, 'no_unhandled_events': False}
+
+
+def check_unhandled_event_types(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own logged unhandled event types, the default context none (C17)."""
+    game = StandInDebugEventsGame()
+    with first.active():
+        unhandled_event(game, HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE))
+    with second.active():
+        unhandled_event(game, HashableEvent(pygame.MOUSEMOTION, pos=(0, 0)))
+
+    assert first.value(slot=UNHANDLED_EVENT_TYPES_SLOT) == {pygame.KEYDOWN}
+    assert second.value(slot=UNHANDLED_EVENT_TYPES_SLOT) == {pygame.MOUSEMOTION}
+    assert default_context().value(slot=UNHANDLED_EVENT_TYPES_SLOT) == set()
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -1123,6 +1153,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.events.base.shared_instances': check_shared_instances,
     'glitchygames.fonts.font_manager.options': check_font_options,
     'glitchygames.sprites.bitmappy_sprite.singletons': check_singletons,
+    'glitchygames.events.base.unhandled_event_types': check_unhandled_event_types,
 }
 
 

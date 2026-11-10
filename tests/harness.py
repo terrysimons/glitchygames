@@ -32,7 +32,7 @@ from glitchygames.clipboard import InProcessClipboard, install_clipboard
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
 from glitchygames.engine_context import current_context, default_context
-from glitchygames.events.base import SHARED_INSTANCES_SLOT
+from glitchygames.events.base import SHARED_INSTANCES_SLOT, UNHANDLED_EVENT_TYPES_SLOT
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import FONT_OPTIONS_SLOT
 from glitchygames.input.state import reset_current_input
@@ -513,6 +513,19 @@ def reset_singletons():
     _reset_all_singleton_instances()
 
 
+@pytest.fixture(autouse=True)
+def reset_engine_bookkeeping():
+    """Start and end each test with none of the engine's bookkeeping kept in the default context.
+
+    The event types --debug-events has logged as unhandled (glitchygames.events.base; audit C17)
+    are logged once per engine context; without this, a type one test logged would stay silent
+    in every later test on the worker.
+    """
+    default_context().reset_value(slot=UNHANDLED_EVENT_TYPES_SLOT)
+    yield
+    default_context().reset_value(slot=UNHANDLED_EVENT_TYPES_SLOT)
+
+
 @pytest.fixture
 def mock_game_args(mocker):
     """Create mock command line arguments for testing.
@@ -678,12 +691,26 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
 
 
 @pytest.fixture
+def per_context_object_resets(reset_singletons, reset_engine_bookkeeping):
+    """Group the resets of the objects and bookkeeping a context holds, for the leak check.
+
+    A group of its own inside per_context_state_resets, which would otherwise take more
+    arguments than the lint allows.
+
+    Args:
+        reset_singletons: Requested only to be torn down after the leak check.
+        reset_engine_bookkeeping: Requested only to be torn down after the leak check.
+
+    """
+
+
+@pytest.fixture
 def per_context_state_resets(
     fresh_random_streams,
     reset_engine_sources,
     reset_default_snap_mode,
     reset_default_background_pattern,
-    reset_singletons,
+    per_context_object_resets,
 ):
     """Group the resets of the state the engine context holds (its slots), for the leak check.
 
@@ -692,7 +719,7 @@ def per_context_state_resets(
         reset_engine_sources: Requested only to be torn down after the leak check.
         reset_default_snap_mode: Requested only to be torn down after the leak check.
         reset_default_background_pattern: Requested only to be torn down after the leak check.
-        reset_singletons: Requested only to be torn down after the leak check.
+        per_context_object_resets: Requested only to be torn down after the leak check.
 
     """
 

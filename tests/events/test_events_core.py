@@ -1374,10 +1374,6 @@ class TestEventSystemUtilities:
 
     def test_unhandled_event_debug_events_true(self, mocker):
         """Test unhandled_event with debug_events=True logs once per event type."""
-        from glitchygames.events import base as events_base
-
-        events_base._unhandled_event_types.discard(pygame.KEYDOWN)
-
         game = GameWithOptions(options={'debug_events': True, 'no_unhandled_events': False})
 
         event_to_report = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
@@ -1388,12 +1384,27 @@ class TestEventSystemUtilities:
 
         # Logs as warning (not error) with the event type name
         mock_log.warning.assert_called_once()
-        assert pygame.KEYDOWN in events_base._unhandled_event_types
 
         # Calling again with the same event type should NOT log again
         mock_log.warning.reset_mock()
         unhandled_event(game, event_to_report)
         mock_log.warning.assert_not_called()
+
+    def test_each_context_logs_an_unhandled_event_type_once(self, caplog):
+        """--debug-events logs each type once per context: a second game logs its own (C17)."""
+        game = GameWithOptions(options={'debug_events': True, 'no_unhandled_events': False})
+        event_to_report = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
+        with caplog.at_level(logging.WARNING, logger='game.events'):
+            with EngineContext(name='first').active():
+                unhandled_event(game, event_to_report)
+                unhandled_event(game, event_to_report)
+            with EngineContext(name='second').active():
+                unhandled_event(game, event_to_report)
+
+        warnings = [
+            record for record in caplog.records if record.getMessage().startswith('Unhandled Event')
+        ]
+        assert len(warnings) == 2
 
     def test_unhandled_event_debug_events_none(self, mocker):
         """Test unhandled_event with debug_events=None logs error about missing option."""
@@ -1440,10 +1451,6 @@ class TestEventSystemUtilities:
 
         Tests when debug_events=True and no_unhandled_events=False.
         """
-        from glitchygames.events import base as events_base
-
-        events_base._unhandled_event_types.discard(pygame.KEYDOWN)
-
         game = GameWithOptions(options={'debug_events': True, 'no_unhandled_events': False})
 
         event_to_report = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
