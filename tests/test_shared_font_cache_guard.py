@@ -109,9 +109,12 @@ def restyle(font, title_font, label, gravity):
     label.font.rotation += 90
 """
 
-# Built fonts are not reported (styled before anything else reads them); a built font restyled
-# after it is cached is, and so is one whose name is also bound to something else (another
-# value, a parameter) or that a nested function reaches
+# Built fonts are not reported (styled before anything else reads them; annotated ``=`` and an
+# async function's included); a built font restyled after it is cached is, and so is one whose
+# name is also bound to something else (another value, a parameter, a conditional expression,
+# ``:=``, unpacking, ``for``, ``with``, a chained or augmented assignment, ``del``, ``global``,
+# ``nonlocal``) or that a nested function or lambda reaches. Each case pins one branch of the
+# exemption: removing that branch leaves its restyle unreported
 PLANTED_FONT_BUILDS = """\
 import pygame
 
@@ -157,6 +160,89 @@ def closure(path):
 
     font.set_bold(True)
     return reader
+
+
+def chained(path, cache):
+    alias = font = pygame.font.Font(path, 12)
+    cache['vera'] = alias
+    font.set_bold(True)
+
+
+def ternary(path, fonts):
+    font = pygame.font.Font(path, 12) if path else fonts[0]
+    font.set_bold(True)
+
+
+def walrus(path, fonts):
+    font = pygame.font.Font(path, 12)
+    if font := fonts[0]:
+        font.set_bold(True)
+
+
+def unpacking(path, fonts):
+    font = pygame.font.Font(path, 12)
+    font, other = fonts
+    font.set_bold(True)
+
+
+def looped(path, fonts):
+    font = pygame.font.Font(path, 12)
+    for font in fonts:
+        font.set_bold(True)
+
+
+def borrowed(path, fonts):
+    font = pygame.font.Font(path, 12)
+    with fonts.borrow() as font:
+        font.set_bold(True)
+
+
+def augmented(path, fonts):
+    font = pygame.font.Font(path, 12)
+    font += fonts
+    font.set_bold(True)
+
+
+def deleted(path):
+    font = pygame.font.Font(path, 12)
+    del font
+    font.set_bold(True)
+
+
+def declared_global(path):
+    global font
+    font = pygame.font.Font(path, 12)
+    font.set_bold(True)
+
+
+def declared_nonlocal(path):
+    font = None
+
+    def build():
+        nonlocal font
+        font = pygame.font.Font(path, 12)
+        font.set_bold(True)
+
+    return build
+
+
+def lambda_closure(path):
+    font = pygame.font.Font(path, 12)
+    reader = lambda: font
+    font.set_bold(True)
+    return reader
+
+
+def annotated(path):
+    font: pygame.font.Font = pygame.font.Font(path, 12)
+    font.set_bold(True)
+    return font
+
+
+async def build_async(path):
+    font = pygame.font.Font(path, 12)
+    font.set_bold(True)
+    return font
 """
 
 
@@ -252,9 +338,10 @@ def _built_font_names(*, scope: ast.AST, nodes: list[ast.AST]) -> set[str]:
     """Return the local names a scope binds only to new fonts.
 
     Returns:
-        Each name every binding of which (``=``, annotated ``=``) is a font construction and
-        that nothing else binds (no parameter, ``global``, ``nonlocal``, ``for``, ``with``,
-        ``:=``, unpacking, augmented assignment or ``del``) and no nested function names.
+        Each name every binding of which (``=`` with one target, annotated ``=``) is a font
+        construction and that nothing else binds (no parameter, ``global``, ``nonlocal``,
+        ``for``, ``with``, ``:=``, unpacking, chained assignment, augmented assignment or
+        ``del``) and no nested function or lambda names.
 
     """
     constructed: set[str] = set()
@@ -275,10 +362,14 @@ def _built_font_names(*, scope: ast.AST, nodes: list[ast.AST]) -> set[str]:
     for node in nodes:
         if isinstance(node, ast.Assign | ast.AnnAssign) and node.value is not None:
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            # A chained assignment (``alias = font = Font(...)``) binds the font to every name:
+            # a read of one shares it under the others, so none is a new font's
+            is_single_target = len(targets) == 1
             for target in targets:
                 if isinstance(target, ast.Name):
                     single_bindings.add(id(target))
-                    bound = constructed if _is_font_construction(node.value) else otherwise_bound
+                    is_new_font = is_single_target and _is_font_construction(node.value)
+                    bound = constructed if is_new_font else otherwise_bound
                     bound.add(target.id)
     for node in nodes:
         if (
@@ -376,6 +467,17 @@ def test_the_font_style_scan_leaves_out_only_a_font_being_built(tmp_path):
         '26: set_bold',
         '34: set_bold',
         '43: set_bold',
+        '50: set_bold',
+        '55: set_bold',
+        '61: set_bold',
+        '67: set_bold',
+        '73: set_bold',
+        '79: set_bold',
+        '85: set_bold',
+        '91: set_bold',
+        '97: set_bold',
+        '106: set_bold',
+        '114: set_bold',
     ]
 
 
