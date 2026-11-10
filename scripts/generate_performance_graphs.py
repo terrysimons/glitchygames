@@ -42,13 +42,18 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.recording_metrics import MILLISECONDS_PER_SECOND, short_commit
+from glitchygames.recording_metrics import (
+    MILLISECONDS_PER_SECOND,
+    fps_from_seconds,
+    short_commit,
+)
 from glitchygames.replay.tools.performance_pages import build_performance_pages, write_if_changed
 from glitchygames.replay.tools.settings import ProjectSettings, load_project_settings
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from glitchygames.recording_history import RunSummary
     from glitchygames.recording_metrics import PerformanceSeries
 
 LOG = logging.getLogger(__name__)
@@ -246,6 +251,43 @@ def _cell_milliseconds(seconds: float) -> str:
     return f'{seconds * MILLISECONDS_PER_SECOND:.3f}'
 
 
+def _cell_fps(*, paced: bool, summary: RunSummary) -> str:
+    """Return a run's FPS cell: its average, then its 5% low and 5% high when it has them.
+
+    The same FPS the graphs plot (docs/quality/performance.md, "FPS by commit"): a live (paced)
+    run's achieved FPS, 1 / its frame times; a replay's headroom, 1 / its processing times.
+
+    Args:
+        paced: Whether the run paced its frames (a live recording) or not (a replay).
+        summary: The run's summary.
+
+    Returns:
+        ``110 (77-337)``, whole frames per second; the average alone when either slice is
+        unknown; empty when the average is (a live run without frame times, or from before
+        their mean).
+
+    """
+    if paced:
+        frame_time = summary.frame_time
+        if frame_time is None:
+            return ''
+        mean_seconds = frame_time.mean_seconds
+        slowest_seconds = frame_time.slowest_5_percent_mean_seconds
+        fastest_seconds = frame_time.fastest_5_percent_mean_seconds
+    else:
+        mean_seconds = summary.mean_processing_seconds
+        slowest_seconds = summary.slowest_5_percent_mean_processing_seconds
+        fastest_seconds = summary.fastest_5_percent_mean_processing_seconds
+    average = fps_from_seconds(seconds=mean_seconds)
+    if average is None:
+        return ''
+    low = fps_from_seconds(seconds=slowest_seconds)
+    high = fps_from_seconds(seconds=fastest_seconds)
+    if low is None or high is None:
+        return f'{average:.0f}'
+    return f'{average:.0f} ({low:.0f}-{high:.0f})'
+
+
 def latest_table(*, series_list: Sequence[PerformanceSeries]) -> list[str]:
     """Return the markdown table of each series' latest measurement.
 
@@ -254,8 +296,11 @@ def latest_table(*, series_list: Sequence[PerformanceSeries]) -> list[str]:
 
     """
     lines = [
-        '| Recording | Machine | Commit | Frames | p50 ms | p99 ms | Max ms | Over budget |',
-        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        (
+            '| Recording | Machine | Commit | Frames | p50 ms | p99 ms | Max ms | Over budget | '
+            'FPS (5% low-high) |'
+        ),
+        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |',
     ]
     for series in series_list:
         row = series.rows[-1]
@@ -269,7 +314,8 @@ def latest_table(*, series_list: Sequence[PerformanceSeries]) -> list[str]:
             f'| `{series.recording}` | {series.label} | `{commit}` | {summary.measured_frames} | '
             f'{_cell_milliseconds(summary.p50_processing_seconds)} | '
             f'{_cell_milliseconds(summary.p99_processing_seconds)} | '
-            f'{_cell_milliseconds(summary.max_processing_seconds)} | {over_budget} |'
+            f'{_cell_milliseconds(summary.max_processing_seconds)} | {over_budget} | '
+            f'{_cell_fps(paced=series.paced, summary=summary)} |'
         )
     return lines
 

@@ -11,6 +11,11 @@ Until a build generates them, this page has only this text.
 
 --8<-- "docs/quality/metrics/performance_graphs.md"
 
+The latest measurements table gives each line's newest run. Its **FPS** column is the FPS the
+graphs plot (**FPS by commit**, below): the average, then the 5% low and 5% high in parentheses;
+a live run's achieved FPS, a replay's headroom. A run from before the 5% figures shows its
+average alone, and a live run without frame times shows none.
+
 ## What the graphs show
 
 - **Processing time per frame**: the median (p50), the 99th percentile (p99) and the slowest

@@ -28,6 +28,7 @@ from scripts.generate_performance_graphs import (
     games_block,
     games_with_graphs,
     generate_performance_page,
+    latest_table,
     published_ledger_path,
 )
 
@@ -38,6 +39,7 @@ from glitchygames.recording_metrics import (
     FrameProfile,
     LedgerOrigin,
     LedgerRow,
+    PerformanceSeries,
     ledger_text,
     parse_ledger,
     write_row_files,
@@ -471,3 +473,77 @@ def test_the_mkdocs_hook_stops_the_build_when_the_pending_ledger_cannot_be_read(
 
     with pytest.raises(PluginError, match=f'{re.escape(str(pending))}: the ledger cannot be read'):
         mkdocs_hooks.generate_performance_graphs()
+
+
+def latest_fps_cell(*, row: LedgerRow, paced: bool) -> str:
+    """Return the FPS cell of a one-row series' line in the latest measurements table.
+
+    Returns:
+        The last cell, stripped.
+
+    """
+    series = PerformanceSeries(
+        recording=row.recording,
+        console_script=row.console_script,
+        machine='Apple M4 Pro',
+        paced=paced,
+        rows=(row,),
+    )
+    header, _alignment, line = latest_table(series_list=[series])
+    assert header.endswith('| FPS (5% low-high) |')
+    return line.split('|')[-2].strip()
+
+
+def test_a_replays_fps_is_its_headroom_with_its_5_percent_low_and_high():
+    """1 / the mean processing time, then 1 / the slowest and fastest 5% means."""
+    row = ledger_row(p50=0.002)
+    assert row.summary is not None
+    summary = row.summary.model_copy(
+        update={
+            'total_processing_seconds': 0.025,
+            'slowest_5_percent_mean_processing_seconds': 0.004,
+            'fastest_5_percent_mean_processing_seconds': 0.001,
+        }
+    )
+
+    cell = latest_fps_cell(row=row.model_copy(update={'summary': summary}), paced=False)
+
+    assert cell == '400 (250-1000)'
+
+
+def test_a_replay_from_before_the_5_percent_means_shows_its_average_alone():
+    """Summaries from before 2026-10-28 have no slices: the mean still gives the average."""
+    cell = latest_fps_cell(row=ledger_row(p50=0.002), paced=False)
+
+    assert cell == '500'
+
+
+def test_a_live_runs_fps_is_what_it_achieved_from_its_frame_times():
+    """A paced run's FPS is 1 / its frame times, not its processing times (as in the graphs)."""
+    row = live_row()
+    assert row.summary is not None
+    assert row.summary.frame_time is not None
+    frame_time = row.summary.frame_time.model_copy(
+        update={
+            'mean_seconds': 0.02,
+            'slowest_5_percent_mean_seconds': 0.025,
+            'fastest_5_percent_mean_seconds': 0.0125,
+        }
+    )
+    summary = row.summary.model_copy(update={'frame_time': frame_time})
+
+    cell = latest_fps_cell(row=row.model_copy(update={'summary': summary}), paced=True)
+
+    assert cell == '50 (40-80)'
+
+
+def test_a_live_run_without_a_mean_frame_time_has_an_empty_fps_cell():
+    """Frame times from before their mean give no FPS; processing times are not substituted."""
+    assert not latest_fps_cell(row=live_row(), paced=True)
+    row = live_row()
+    assert row.summary is not None
+    without_frame_times = row.summary.model_copy(update={'frame_time': None})
+
+    cell = latest_fps_cell(row=row.model_copy(update={'summary': without_frame_times}), paced=True)
+
+    assert not cell
