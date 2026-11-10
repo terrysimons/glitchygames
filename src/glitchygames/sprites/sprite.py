@@ -93,18 +93,18 @@ class Sprite(RootSprite, metaclass=ReadOnlyViewsABC):  # ruff: ignore[too-many-p
     ](
         read_current=lambda _owner: sprite_counters().counters,
         read_own=lambda _sprite: sprite_counters().counters,
-        write_instead='sprite_counters().counters',
+        write_instead='glitchygames.sprites.sprite.sprite_counters().counters',
     )
     # None means no breakpoints.  Empty list means all.
     SPRITE_BREAKPOINTS = ReadOnlyView[list[str] | None, list[str] | None](
         read_current=lambda _owner: sprite_counters().breakpoints,
         read_own=lambda _sprite: sprite_counters().breakpoints,
-        write_instead='sprite_counters().breakpoints',
+        write_instead='a breakpoint with Sprite.break_when(...)',
     )
     SPRITE_COUNT = ReadOnlyView[int, int](
         read_current=lambda _owner: sprite_counters().count,
         read_own=lambda _sprite: sprite_counters().count,
-        write_instead='sprite_counters().count',
+        write_instead='glitchygames.sprites.sprite.sprite_counters().count',
     )
 
     @classmethod

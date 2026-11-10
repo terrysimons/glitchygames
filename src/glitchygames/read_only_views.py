@@ -10,7 +10,9 @@ state (``GameEngine.OPTIONS``) becomes a view declared in the class body:
     )
 
 Read on the class, a view answers the current context's value (``read_current``, given the class
-read through, so a subclass answers its own); read on an instance, that object's own state
+read through, which it may use: ``SceneManager.OPTIONS`` answers the subclass's own manager, while
+the ``GameEngine`` views ignore it, so ``GoldenTraceEngine.OPTIONS`` answers whatever engine is
+current); read on an instance, that object's own state
 (``read_own``). A view stores nothing: its functions run on every read. ``ClassOnlyView`` is the
 non-data form, for a name each instance keeps as its own attribute (``engine.game``).
 

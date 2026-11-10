@@ -1526,7 +1526,9 @@ def check_sprite_count_view(
     assert reads == [[3, 3], [1, 1]]
     assert fresh_read == 0
     refuse_sprite_counter_writes(
-        name='SPRITE_COUNT', write_instead='sprite_counters().count', mocker=mocker
+        name='SPRITE_COUNT',
+        write_instead='glitchygames.sprites.sprite.sprite_counters().count',
+        mocker=mocker,
     )
 
 
@@ -1557,7 +1559,9 @@ def check_sprite_counters_view(
     assert reads[0][0] == {str(Sprite): {'count': 1, 'pixels': 2}}
     assert fresh_read == {}
     refuse_sprite_counter_writes(
-        name='SPRITE_COUNTERS', write_instead='sprite_counters().counters', mocker=mocker
+        name='SPRITE_COUNTERS',
+        write_instead='glitchygames.sprites.sprite.sprite_counters().counters',
+        mocker=mocker,
     )
 
 
@@ -1589,7 +1593,9 @@ def check_sprite_breakpoints_view(
     assert second_read == []
     assert fresh_read is None
     refuse_sprite_counter_writes(
-        name='SPRITE_BREAKPOINTS', write_instead='sprite_counters().breakpoints', mocker=mocker
+        name='SPRITE_BREAKPOINTS',
+        write_instead='a breakpoint with Sprite.break_when(...)',
+        mocker=mocker,
     )
 
 

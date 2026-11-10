@@ -77,7 +77,7 @@ class TestSceneManager:
         # Test getting game_engine
         assert scene_manager.game_engine is None
 
-        # Test setting game_engine with proper OPTIONS structure
+        # Test setting game_engine with the engine's own options it takes (engine.options)
         mock_engine = mocker.Mock()
         mock_engine.options = {
             'update_type': 'update',
@@ -209,7 +209,7 @@ class TestSceneManager:
         mock_event = mocker.Mock()
         mock_event.subtype = 'test_event'
 
-        # Set up a mock game engine with registered_events and OPTIONS
+        # Set up a mock game engine with registered_events and its options (engine.options)
         mock_engine = mocker.Mock()
         mock_engine.registered_events = {'test_event': mocker.Mock()}
         mock_engine.options = {
@@ -338,7 +338,7 @@ class TestSceneManagerInternals:
         """Test SceneManager _should_post_fps_event method."""
         scene_manager = self.scene_manager
 
-        # Set up proper OPTIONS structure
+        # Set up the manager's engine options (manager.engine_options)
         scene_manager.engine_options = {'fps_log_interval_ms': FPS_REFRESH_RATE}
 
         # Test FPS event posting logic

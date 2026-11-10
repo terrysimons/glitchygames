@@ -1432,6 +1432,20 @@ class TestEventSystemUtilities:
         mock_log.warning.assert_not_called()
         mock_log.error.assert_not_called()
 
+    def test_unhandled_event_without_debug_events_reads_no_context_slot(self, mocker):
+        """Without --debug-events (the normal case) an unhandled event reads no context slot.
+
+        The logged-types set is read only to log, so a game that leaves a common type
+        unhandled (MOUSEMOTION) pays no slot read per event.
+        """
+        game = GameWithOptions(options={'debug_events': False, 'no_unhandled_events': False})
+        event_to_report = HashableEvent(pygame.MOUSEMOTION, pos=(1, 2), rel=(0, 0), buttons=())
+        context_lookup = mocker.spy(events_base, 'current_context')
+
+        unhandled_event(game, event_to_report)
+
+        context_lookup.assert_not_called()
+
     def test_unhandled_event_no_unhandled_events_none(self, mocker):
         """Test unhandled_event logs error when no_unhandled_events is None."""
         game = GameWithOptions(options={'debug_events': False, 'no_unhandled_events': None})

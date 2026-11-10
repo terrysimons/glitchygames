@@ -830,7 +830,7 @@ class TestHistogramBucketing:
             for value in counter_values
         )
 
-    def test_distinct_dt_samples_give_distinct_values(self, mocker):
+    def test_distinct_dt_samples_give_distinct_values(self):
         """With 1/dt sampling distinct dts give distinct FPS and get_fps is never called."""
         from glitchygames.scenes.scene import SceneManager
 

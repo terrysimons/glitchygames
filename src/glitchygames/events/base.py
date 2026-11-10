@@ -329,16 +329,18 @@ def unhandled_event(
         )
         return
 
-    # Log each unhandled event type only once
+    # Log each unhandled event type only once. The logged-types slot is read only when
+    # --debug-events is on, so the normal case pays no slot read per unhandled event
     debug_events: bool | None = options.get('debug_events')
-    logged_event_types = current_context().value(slot=UNHANDLED_EVENT_TYPES_SLOT)
-    if debug_events and event.type not in logged_event_types:
-        logged_event_types.add(event.type)
-        LOG.warning(
-            'Unhandled Event: %s %s',
-            pygame.event.event_name(event.type),
-            event,
-        )
+    if debug_events:
+        logged_event_types = current_context().value(slot=UNHANDLED_EVENT_TYPES_SLOT)
+        if event.type not in logged_event_types:
+            logged_event_types.add(event.type)
+            LOG.warning(
+                'Unhandled Event: %s %s',
+                pygame.event.event_name(event.type),
+                event,
+            )
     elif debug_events is None:
         LOG.error(
             "Error: debug_events is missing from the game options. This shouldn't be possible.",

@@ -286,3 +286,22 @@ def test_two_engines_with_different_options_side_by_side_read_what_each_reads_al
 
     assert side_by_side == alone
     assert alone[0] != alone[1]
+    # C20 is a fact about each game's class, the same in every reading: it must hold
+    assert all(
+        reading.game_class_keeps_no_options for run_readings in alone for reading in run_readings
+    )
+    # The per-run fields differ between the two runs at every step, field by field, so a field
+    # that always reads the same value (state shared by both runs) cannot pass unnoticed
+    per_run_fields = (
+        'game_class_name',  # C9
+        'event_reached_own_scene',  # C10
+        'missing_events',  # C11
+        'font_system',  # C13
+        'performance_scenes',  # C14
+    )
+    for first_reading, second_reading in zip(alone[0], alone[1], strict=True):
+        assert [
+            field_name
+            for field_name in per_run_fields
+            if getattr(first_reading, field_name) == getattr(second_reading, field_name)
+        ] == []

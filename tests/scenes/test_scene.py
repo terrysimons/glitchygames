@@ -14,11 +14,13 @@ from glitchygames.backgrounds import (
     set_active_default_background_pattern,
 )
 from glitchygames.color import BLUE, RED
+from glitchygames.engine_context import EngineContext
 from glitchygames.events import ALL_EVENTS, FPSEVENT
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.interfaces import SceneInterface
 from glitchygames.opacity import OPAQUE, has_per_pixel_alpha
 from glitchygames.performance import AdaptiveClamping
+from glitchygames.performance import adaptive_clamping as adaptive_clamping_module
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.scene import JITTER_SAMPLE_BUFFER_MAX_SIZE
 from glitchygames.sources import advance_frame_clock
@@ -2077,6 +2079,27 @@ class TestTrackPerformance:
 
         recorded_fps = track_fps_from_event.call_args.args[1]
         assert recorded_fps == 0.0
+
+    def test_track_performance_reads_no_context_slot(self, mocker):
+        """The frame's tracking uses the manager the scene manager keeps: no slot read a frame."""
+        manager = SceneManager()
+        manager.dt = 0.016
+        track_fps_from_event = self._patch_performance_manager(mocker)
+        context_lookup = mocker.spy(adaptive_clamping_module, 'current_context')
+
+        manager._track_performance(processing_time=0.008)
+
+        context_lookup.assert_not_called()
+        assert track_fps_from_event.call_args.args[0] is AdaptiveClamping()
+
+    def test_each_contexts_scene_manager_keeps_that_contexts_performance_manager(self):
+        """Both are per context, so the kept manager is the one AdaptiveClamping() answers there."""
+        default_manager = SceneManager()
+        with EngineContext(name='other').active():
+            other_manager = SceneManager()
+            assert other_manager.performance_manager is AdaptiveClamping()
+        assert default_manager.performance_manager is AdaptiveClamping()
+        assert other_manager.performance_manager is not default_manager.performance_manager
 
 
 class TestSceneManagerOnFpsEvent:

@@ -83,9 +83,9 @@ or the slot's owner function instead, and so does any code that writes.
 | `GameEngine.UNIMPLEMENTED_EVENTS` | the event types no handler of the current engine took (each logged once) | `None` | the engine's own: engine.unimplemented_events |
 | `SceneManager.OPTIONS` | the current context's scene manager's copy of its engine's options (never makes a manager) | `None` | the manager's own: manager.engine_options (the game_engine setter sets it) |
 | `FontManager.OPTIONS` | the current context's font options | an empty dict | the current context's font options in place (FontManager.OPTIONS.update(...)) or FontManager.set_font_system(...) |
-| `Sprite.SPRITE_COUNTERS` | the current context's sprite counters, by sprite type | an empty dict | sprite_counters().counters |
-| `Sprite.SPRITE_BREAKPOINTS` | the current context's sprite breakpoints (`Sprite.break_when`) | `None` (no breakpoints) | sprite_counters().breakpoints |
-| `Sprite.SPRITE_COUNT` | how many sprites the current context made | `0` | sprite_counters().count |
+| `Sprite.SPRITE_COUNTERS` | the current context's sprite counters, by sprite type | an empty dict | glitchygames.sprites.sprite.sprite_counters().counters |
+| `Sprite.SPRITE_BREAKPOINTS` | the current context's sprite breakpoints (`Sprite.break_when`) | `None` (no breakpoints) | a breakpoint with Sprite.break_when(...) |
+| `Sprite.SPRITE_COUNT` | how many sprites the current context made | `0` | glitchygames.sprites.sprite.sprite_counters().count |
 | `glitchygames.performance.performance_manager` | `AdaptiveClamping()`, the current context's performance manager (made on first read) | a fresh manager, with no statistics yet | nothing: AdaptiveClamping() is the current context's manager; patch its methods |
 
 Read on an instance, a class view answers that object's own state (`engine.OPTIONS` is
@@ -147,13 +147,20 @@ best-of-five figures (slot read 61 ns, view 126 ns or 2.07 slot reads, `current_
 What they mean per frame:
 
 - Engine code reads its own objects (`self.options`, `self.event_handlers`: the dispatch runs per
-  event), so it pays nothing new.
+  event), so those reads cost no more than before. What is new per frame: two slot reads per pump
+  (the internal-post tracker, `pending_internal_posts()` and `forget_pending_posts()`, about
+  50 ns more each than the old global), and one `clock.raw_counter_seconds()` per unpaced step,
+  which is BUGS.md #268's fix, not the contexts.
 - The slot-backed state a frame reads (the doors, the random streams, the polled input, the frame
-  clock, the performance manager, the sprite counters, the internal-post tracker) costs roughly
-  1-3 µs a frame. Task 17 measured it against main before the plan (cd60bd42), on a bare frame
-  step of about 19-21 µs: the frame step about 0.6-1.7 µs more, and dispatching a batch of two
-  events about 0.3-1.2 µs more (gate (c)'s longest per-call pair, minimum to median); in the games'
-  goldens and bundled demos neither p50 nor p99 moved beyond timer noise (gate (a)).
+  clock, the sprite counters, the internal-post tracker) costs roughly 1-3 µs a frame by the
+  plan's estimate (not counted read by read). Task 17 (2026-11-10) measured it against main before
+  the plan (cd60bd42), on a bare frame step of about 19-21 µs, in one informational longer pair
+  (~70-85k rounds each, load 5.6-5.7): the frame step about 0.6-1.7 µs more, and dispatching a
+  batch of two events about 0.3-1.2 µs more (minimum to median). That frame-step figure runs
+  `paced=False`, so it includes #268's clock read. In gate (c)'s six short per-call pairs (two sets of
+  three, load 3.6-4.1), pytest-benchmark's 5% median check failed 3 of 6 for the frame step and
+  2 of 6 for event dispatch, never all three of a set, so not a regression by the gate's rule. In the games' goldens and bundled demos neither p50 nor
+  p99 moved beyond timer noise (gate (a)).
 - The Arcade pays about 0.4 µs per game per tick for switching.
 - Each game's performance report covers that game alone; an outer game's (the Arcade wrapper's)
   is the aggregate of every game it steps.
