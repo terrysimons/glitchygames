@@ -4,6 +4,65 @@ Suggested during the `feature/debug-overlay`, `feature/engine-world-space` and
 `feature/gameplay-replay` sessions (2026-10-17 to 2026-10-20) and not done yet. One line per item, with where it is detailed. Review, then promote items into
 `plans/engine-audit.md`, a plan, or BUGS.md, or delete them.
 
+## Game samples, phase 0: re-audit before planning (2026-10-28)
+
+Phase 0 of the game samples feature (plans/2026-10-25-game-samples-design.md, section 0) was to
+remove the layer crossings found by plans/2026-10-26-layer-audit.md, taken at `a97efbe9`. PR #111
+(Part 3: members' packages under `src/`, the demos as members, engine tests that borrow no member
+and import no `scripts.*`, the engine owning every replay tool in `glitchygames.replay.tools`)
+removes much of that audit and changes the ground under the rest, so the phase 0 plan waits.
+Branch `feature/samples-phase-0-layers` holds no phase 0 work yet. In order:
+
+- [x] **Land #111.** Its Windows CI job fails (Linux and macOS pass); find out why and fix it, or
+  confirm another session has it. **Done**: #111 merged 2026-10-28 (checked 2026-11-08).
+- [ ] **Rebase `feature/samples-phase-0-layers` onto `main`** once #111 is merged.
+- [ ] **Re-run the layer audit** against the new tree, and record what #111 resolved, what is
+  left and anything new, against the 2026-10-26 audit (update that file, dated, rather than
+  writing another).
+- [ ] **Write the phase 0 plan from what is left.** Expected: public controls (`_create_action_map(s)`
+  made public, a `Controls` record), the `Game` descriptor and registration by composition (section
+  5a), and each game's robot-player script moved into its game as its `cpu.scripted` player,
+  built on #111's `record-golden-trace` rather than a new harness.
+- [ ] **Coordinate the test-isolation API with engine context sub-plan 2**
+  (`feature/engine-context-2-engine-state`; since 2026-11-08 Arcade sub-plan 1, rebased onto main
+  as `arcade-1-engine-state`), which rewrites the same resets in `tests/harness.py`: one of the
+  two owns them, not both.
+- [ ] **Bring the samples design up to date with what landed meanwhile:** #111's seed rule
+  (decision 17: `--random-seed` defaults to None and a recording logs the seed it rolled) against
+  the design's fixed per-target default seed, and the player roster design
+  (`plans/2026-10-28-player-roster-design.md`, moved from `feature/player-roster` on 2026-11-08;
+  its open question on players that are not people is this item's) against the design's human
+  and ai players.
+
+Carried from the Part 2 session (#109), to settle in the re-audit or the phase 0 plan:
+
+- [ ] **Delete the multiple-console-script selection** in `recording_console_script`
+  (`glitchygames.testing.replays` then; `glitchygames.replay.tools.children` since; ruling R1 of
+  Part 2): it picks a member's command by the
+  recording's game, and nothing outside its tests uses it since the Brave Adventurer launcher
+  replaced the per-game commands. Registration by composition (design section 5a) reaches a
+  wrapped game through its wrapper, so no target needs a command of its own. Check first that #111
+  did not change or start using it.
+- [ ] **Bundled demos inside a wrapped game** need no lookup of their own: `bundled_demos()` pairs a
+  demo with the command whose module is the demo's package, so a demo in a package without a
+  command (`brave_adventurer/demos/`) would fail collection. No wrapped game ships a demo; the
+  samples catalogue (composition) replaces this lookup. Record it there, build nothing now.
+- [ ] **The moved recordings' stale module fields, and the ledger's key, in this order**: re-key the
+  run ledger by sample identity (`<target>:<kind>:<role>`, design section 5) before the samples move
+  the recordings again, so that move needs no rename lines; then convert each recording's header
+  once so it stops naming the old module (its `game_module` names the deleted examples package)
+  and the first frame stops storing the raw module, which is why every moved recording reports a one-frame
+  difference when re-measured (or stop recording the raw module: future-features #55); then move the
+  recordings into each package's `samples/`. #111 migrated 7 golden headers' stored paths: check
+  what it left.
+- [ ] **Package data for every game**: a check that each member's wheel carries the data its game
+  reads (sprites, sounds, demos, and later `samples/`). #111 added import declarations and sprite
+  round-trip checks for every member: see whether it covers this.
+- [x] **`plans/future-features.md` has two entries numbered 54 and two numbered 55** (Docs deploys and
+  Drawing Fire after the MVP; Recording naming and Swatches). Ask the user whether to renumber;
+  other documents may cite the numbers. **Done**: main has no duplicate numbers (checked
+  2026-11-08).
+
 ## Gameplay replay wrap-up (done)
 
 Merged 2026-10-22: `feature/engine-world-space` as PR #94 (`cd5e5f97`) and
@@ -621,6 +680,21 @@ only replays; Part 2 Task 1).
 
 ## Performance and pacing
 
+- **Re-measure the requirements page** (the owner, 2026-11-09). `docs/requirements.md` gives each
+  measured machine's verdict per game from runs of November 5 to 9, 2026 (Raspberry Pi 4,
+  Raspberry Pi 5, Apple M4 Max). The owner expects the numbers to improve once the in-flight work
+  lands: the Arcade's engine-context sub-plans, Lucid Circuit Stage 4b and the Raspberry Pi
+  speedups below. Then re-measure every machine, regenerate `docs/data/requirements.json` from the
+  replay ledger (the page's tables and verdicts are drawn from it), and update the page's prose
+  and dates. The page also has a claude.ai doc copy, "GlitchyGames Requirements"; update it or
+  retire it then.
+- **Test the docs explorers in a browser** (2026-11-09). The requirements, Replay Performance and
+  Code Complexity pages draw their pickers and charts in JavaScript (`docs/js/requirements.js`,
+  `performance.js`, `complexity.js`); the suite tests the data files the generators write, but the
+  pages themselves were only checked by hand in headless Chrome. A small browser test (a built
+  site, each page loaded, each picker clicked, no console error) would keep them working. The
+  frame x commit heatmaps stay on each recording's own page; they could join the performance
+  explorer as a chart of their own.
 - **A per-game AI sweep of performance bottlenecks** (the owner, 2026-11-07). For each game, have the AI
   read what our benchmarks record (the run ledger in `quality/replay-ledger/`, each recording's
   `processing_seconds` and `FrameProfile`, the slowest frames and scenes in each `RunSummary`, and
@@ -863,6 +937,39 @@ drafted issue text. Not posted yet:
   status, named functions and classes still existing), fix or remove it, and keep American
   spellings. Finish with `mkdocs build --strict` and the docs guard tests. Plan it as its own
   branch (design, then plan), split by area so each piece is reviewable.
+  **Where it stands (2026-11-09):** #145 landed the scrub's design and plan
+  (`plans/2026-11-02-whole-stack-docs-scrub.md`), `scripts/docs_claims.py` with its worklist, the
+  `game_packages.md` recipe, the stale member counts, the Material theme and the explorers. Left:
+  the plan's steps 3-7 (root files keep/fold/retire; `docs/` by area; audio; member READMEs and
+  module docstrings; promoting the cheap checks to tests; the closing build and suite), after the
+  Material formatting below. The plan's "Status and handoff (2026-11-09)" has the next step,
+  the claims left to clear and the working notes.
+- **Format the docs site in Material** (the owner, 2026-11-09: goes first, page by page, ahead of
+  the scrub's reading pass). The pages stay markdown, written with Material's markdown
+  conventions (admonitions, content tabs, titled and annotated code blocks, collapsible
+  reference sections), and the theme's configuration turns on what is off (light/dark palette,
+  code copy buttons, search suggestions, edit links, footer navigation, last-updated dates, a
+  glossary of abbreviations). Material stays, with mkdocs pinned below 2.0. Plan:
+  `plans/2026-11-09-docs-material-formatting.md`.
+- **Smaller docs items left from #145** (2026-11-09):
+  - `docs/index.md` says the engine "aims to support 20-25FPS minimum games on Raspberry Pi",
+    while the requirements page's minimum is a typical p99 under 16.7 ms (60 FPS). The owner
+    decides which holds; the other is reworded.
+  - The event system diagrams' click links (`js/mermaid-config.js` sets Mermaid's `loose` security
+    level so they work under Material) were checked to render, not clicked: click one on the
+    published site.
+  - The explorers' JavaScript has no automated test (the browser test under Performance and
+    pacing).
+  - The requirements page and its claude.ai doc copy are re-measured later (under Performance and
+    pacing).
+- **Move the docs site to Zensical** (the owner, 2026-11-09: later, after the Material
+  formatting). Material for MkDocs reaches end of life on 2027-05-05; Zensical is its successor
+  from the same team and reads the same markdown and configuration (`zensical.yml` is already
+  named for it, `mkdocs.yml` a link to it). Before moving, check that Zensical supports every
+  plugin the site uses (mkdocstrings, gen-files, macros, section-index, autorefs, search) and the
+  hook in `scripts/mkdocs_hooks.py` (the complexity and performance generation, the caches it
+  clears), then drop the `mkdocs<2.0` pin and the link, and update `CLAUDE.md`'s documentation
+  note and `tests/test_workspace_config.py`'s link test.
 
 ## Raspberry Pi speedups (user request, 2026-11-04)
 

@@ -17,7 +17,21 @@ from scripts.workspace_packages import workspace_members
 if TYPE_CHECKING:
     from collections.abc import Generator
 
+    from pytest_mock import MockerFixture
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def patch_open(*, mocker: MockerFixture, replacement: object) -> None:
+    """Replace mkdocs_gen_files.open for one test, without reading the docs configuration.
+
+    The module has no ``open`` of its own: its ``__getattr__`` makes one from the current build,
+    loading the default configuration (``mkdocs.yml``) outside a build. ``patch.object`` reads the
+    original through it, and on Windows ``mkdocs.yml`` (a link to zensical.yml) may be checked out
+    as a one-line text file, which mkdocs refuses. Setting the name in the module's namespace
+    never asks ``__getattr__``, and removing it afterwards restores the module as it was.
+    """
+    mocker.patch.dict(vars(mkdocs_gen_files), {'open': replacement})
 
 
 def test_mr_munchers_package_has_a_page_rendering_it_and_each_of_its_modules():
@@ -92,7 +106,7 @@ def test_run_as_gen_files_runs_it_the_script_writes_each_page_into_the_build(moc
         finally:
             written[name] = page_file.getvalue()
 
-    mocker.patch.object(mkdocs_gen_files, 'open', build_file)
+    patch_open(mocker=mocker, replacement=build_file)
 
     runpy.run_path(str(PROJECT_ROOT / 'scripts' / 'gen_ref_pages.py'))
 
@@ -101,7 +115,8 @@ def test_run_as_gen_files_runs_it_the_script_writes_each_page_into_the_build(moc
 
 def test_importing_the_script_writes_nothing(mocker):
     """Imported (tests, tools), it only defines; outside a build, open() would write into docs/."""
-    open_page = mocker.patch.object(mkdocs_gen_files, 'open')
+    open_page = mocker.Mock()
+    patch_open(mocker=mocker, replacement=open_page)
 
     importlib.reload(gen_ref_pages)
 

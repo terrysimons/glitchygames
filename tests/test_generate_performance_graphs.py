@@ -21,11 +21,12 @@ import pytest
 from mkdocs.exceptions import PluginError
 from scripts import mkdocs_hooks
 from scripts.generate_performance_graphs import (
+    EXPLORER_DATA_NAME,
     LEDGER_NAME,
     PROJECT_ROOT,
     PROJECT_SETTINGS,
     SNIPPET_NAME,
-    games_block,
+    explorer_data,
     games_with_graphs,
     generate_performance_page,
     latest_table,
@@ -45,6 +46,7 @@ from glitchygames.recording_metrics import (
     write_row_files,
 )
 from glitchygames.replay.tools import command
+from glitchygames.replay.tools.performance_pages import PLOTLY_JS_URL
 from glitchygames.replay.tools.settings import ProjectSettings
 from tests.ledger_repositories import clone_with_published_ledger, git
 from tests.test_code_tree import LEDGER_DIRECTORY, PATHS
@@ -155,16 +157,37 @@ def test_the_snippet_follows_the_pages_in_the_docs_tree(tmp_path):
     merged = parse_ledger(text=(metrics / LEDGER_NAME).read_text(encoding='utf-8')).rows
     assert {row.key for row in merged} == {row.key for row in rows}
     assert page.graph_pages == ('paddleslap-rally.html', 'paddleslap-golden.html')
-    assert page.written == (LEDGER_NAME, *page.graph_pages, SNIPPET_NAME)
+    assert page.written == (LEDGER_NAME, *page.graph_pages, EXPLORER_DATA_NAME, SNIPPET_NAME)
     charts = page_charts(path=metrics / 'paddleslap-golden.html')
     assert charts['commits'] == ['abc1234', 'def5678']
     snippet = (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
     assert 'Generated from 4 ledger rows (0 in the repository, 2 published, 3 pending)' in snippet
     assert '`def5678 (uncommitted changes)`' in snippet
-    assert '<iframe src="../metrics/paddleslap-golden.html"' in snippet
+    # The newer golden row: a 2 ms mean processing time is 500 FPS of headroom (no 5% slices)
+    assert '`def5678 (uncommitted changes)` | 10 | 2.000 | 4.000 | 6.000 | 0 | 500 |' in snippet
+    assert (
+        '<div class="performance-explorer" data-source="../metrics/performance-explorer.json" '
+        'data-pages="../metrics/"></div>'
+    ) in snippet
+    # The clone's games have no pyproject.toml to name them: each is named by its directory
+    assert f'- paddleslap: [`{GOLDEN}`](metrics/paddleslap-golden.html)' in snippet
+    assert '<iframe' not in snippet
     assert f'[{LEDGER_NAME}](metrics/{LEDGER_NAME})' in snippet
     assert snippet.index('paddleslap/demos/rally.jsonl.gz`') < snippet.index(
         'replays/golden.jsonl.gz`'
+    )
+    explorer = json.loads((metrics / EXPLORER_DATA_NAME).read_text(encoding='utf-8'))
+    assert explorer['plotly'] == PLOTLY_JS_URL
+    assert [entry['page'] for entry in explorer['recordings']] == list(page.graph_pages)
+    golden = explorer['recordings'][1]
+    assert golden['recording'] == GOLDEN
+    assert (golden['game'], golden['game_name']) == ('paddleslap', 'paddleslap')
+    # The golden graph page's charts, less the heatmaps (they stay on its own page)
+    assert golden['charts']['commits'] == charts['commits']
+    assert 'heatmaps' not in golden['charts']
+    # Every trace's slot names one of the recording's series
+    assert {trace['meta'] for trace in golden['charts']['processing']} == set(
+        range(len(golden['series']))
     )
 
     again = generate_performance_page(
@@ -175,6 +198,21 @@ def test_the_snippet_follows_the_pages_in_the_docs_tree(tmp_path):
         include_uncommitted_changes=True,
     )
     assert again.written == ()
+
+
+def test_the_latest_table_leaves_the_fps_empty_when_no_frame_was_measured():
+    """No measured frame, no mean: the FPS cell is empty, never a division by zero."""
+    row = ledger_row()
+    assert row.summary is not None
+    unmeasured = row.model_copy(
+        update={
+            'summary': row.summary.model_copy(
+                update={'measured_frames': 0, 'total_processing_seconds': 0.0}
+            )
+        }
+    )
+
+    assert not latest_fps_cell(row=unmeasured, paced=False)
 
 
 def test_the_docs_trees_published_build_leaves_out_rows_from_uncommitted_changes(tmp_path):
@@ -224,32 +262,29 @@ def test_recordings_are_grouped_under_their_game_by_name(tmp_path):
     assert tuple(games[0].pages.values()) == ('zebra-one.html', 'zebra-two.html')
 
 
-def test_only_the_first_game_starts_shown_and_loaded(tmp_path):
-    """Every game is an option, and each other game's frames hold their page without loading it."""
+def test_the_explorer_offers_the_recordings_game_by_game(tmp_path):
+    """Each recording names its game, and the games come in the order the picker groups them."""
     pages = {
-        'src/games/alpha/tests/golden.jsonl.gz': 'alpha.html',
         'src/games/beta/tests/classic.jsonl.gz': 'beta-classic.html',
+        'src/games/alpha/tests/golden.jsonl.gz': 'alpha.html',
         'src/games/beta/tests/papyrus.jsonl.gz': 'beta-papyrus.html',
     }
 
-    block = games_block(games=games_with_graphs(pages=pages, project_root=tmp_path))
+    data = explorer_data(
+        series_list=[], games=games_with_graphs(pages=pages, project_root=tmp_path)
+    )
 
-    assert '' not in block, 'a blank line would end the HTML block markdown leaves whole'
-    text = '\n'.join(block)
-    assert '<option value="alpha">alpha</option>' in text
-    assert '<option value="beta">beta</option>' in text
-    assert '<section data-performance-game="alpha">' in text
-    assert '<section data-performance-game="beta" hidden>' in text
-    assert text.count('<iframe src=') == 1
-    assert '<iframe src="../metrics/alpha.html" data-src="../metrics/alpha.html"' in text
-    assert '<iframe data-src="../metrics/beta-classic.html"' in text
-    assert '<iframe data-src="../metrics/beta-papyrus.html"' in text
+    assert [(entry['game'], entry['page']) for entry in data['recordings']] == [
+        ('alpha', 'alpha.html'),
+        ('beta', 'beta-classic.html'),
+        ('beta', 'beta-papyrus.html'),
+    ]
 
 
-def test_the_page_loads_the_script_that_switches_games():
-    """Without the script in mkdocs.yml the list would change nothing."""
-    script = 'js/performance-game-select.js'
-    assert script in (PROJECT_ROOT / 'mkdocs.yml').read_text(encoding='utf-8')
+def test_the_page_loads_the_script_that_draws_the_explorer():
+    """Without the script in zensical.yml the explorer would stay empty."""
+    script = 'js/performance.js'
+    assert script in (PROJECT_ROOT / 'zensical.yml').read_text(encoding='utf-8')
     assert (PROJECT_ROOT / 'docs' / script).is_file()
 
 
@@ -428,7 +463,8 @@ def test_a_deploys_pages_are_the_engines_published_build(tmp_path, mocker):
     """The hook's gh-deploy build writes what ``glitchygames performance-pages --published`` does.
 
     The same project (our settings: this repository's pyproject.toml), the same rows: a landed
-    and an unlanded row file, a clean and a trial pending row. Only the snippet is the script's.
+    and an unlanded row file, a clean and a trial pending row. Only the snippet and the
+    explorer's data are the script's.
     """
     clone, _landed, _unlanded, _commit = clone_with_measured_rows(tmp_path=tmp_path)
     shutil.copy(PROJECT_ROOT / 'pyproject.toml', clone / 'pyproject.toml')
@@ -455,7 +491,9 @@ def test_a_deploys_pages_are_the_engines_published_build(tmp_path, mocker):
     ])
 
     assert status == ExitCode.SUCCESS
-    comparison = filecmp.dircmp(tmp_path / 'deployed', tmp_path / 'tool', ignore=[SNIPPET_NAME])
+    comparison = filecmp.dircmp(
+        tmp_path / 'deployed', tmp_path / 'tool', ignore=[SNIPPET_NAME, EXPLORER_DATA_NAME]
+    )
     assert (comparison.left_only, comparison.right_only, comparison.diff_files) == ([], [], [])
     assert len(comparison.same_files) == 2
     deployed = parse_ledger(text=(tmp_path / 'deployed' / LEDGER_NAME).read_text(encoding='utf-8'))

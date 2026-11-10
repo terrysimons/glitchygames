@@ -1,4 +1,4 @@
-GlitchyGames is a wrapper around Pygame that aims to support 20-25FPS minimum games on Raspberry Pi and other low powered Linux systems.
+GlitchyGames is a wrapper around Pygame that aims to support 20-25FPS minimum games on Raspberry Pi and other low powered Linux systems. [Requirements](requirements.md) shows what each measured machine runs today.
 
 The engine is written to provide:
 

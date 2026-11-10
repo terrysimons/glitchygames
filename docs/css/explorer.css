@@ -1,0 +1,55 @@
+/* The explorers' shared pickers and chart area: the requirements page (docs/js/requirements.js),
+   Replay Performance (docs/js/performance.js) and Code Complexity (docs/js/complexity.js). */
+
+.explorer-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem 2rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+
+.explorer-picker {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.explorer-picker-label {
+  font-weight: 700;
+  margin-right: 0.2rem;
+}
+
+.explorer-picker-option {
+  border: 1px solid var(--md-primary-fg-color);
+  border-radius: 0.2rem;
+  padding: 0.2rem 0.6rem;
+  color: var(--md-primary-fg-color);
+  background: transparent;
+  cursor: pointer;
+}
+
+.explorer-picker-option[aria-pressed="true"] {
+  color: var(--md-primary-bg-color);
+  background: var(--md-primary-fg-color);
+}
+
+.explorer-picker select,
+.explorer-picker input {
+  border: 1px solid var(--md-default-fg-color--lighter);
+  border-radius: 0.2rem;
+  padding: 0.2rem 0.4rem;
+  color: var(--md-default-fg-color);
+  background: var(--md-default-bg-color);
+  font: inherit;
+}
+
+.explorer-caption {
+  color: var(--md-default-fg-color--light);
+}
+
+.explorer-chart {
+  width: 100%;
+  height: 32rem;
+}
