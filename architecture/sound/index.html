@@ -423,7 +423,7 @@ or two and a halt, as measured above). Otherwise the tail loops into the game an
 500 ms from frame 0's first audio update. <code>--crt-power-on-sound off</code> plays the picture silently;
 the sound never plays where the picture does not (<code>--headless</code>, tests, replays, recordings).</p>
 <h2 id="the-instrument-catalog">The instrument catalog<a class="headerlink" href="#the-instrument-catalog" title="Permanent link">#</a></h2>
-<p><code>glitchygames.audio.instruments</code> holds 448 ready-made instruments in 23 families. Each is an
+<p><code>glitchygames.audio.instruments</code> holds 624 ready-made instruments in 23 families. Each is an
 ordinary <code>Instrument</code>, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:</p>
@@ -537,8 +537,8 @@ and renders offline like any other:</p>
 </tr>
 <tr>
 <td><code>drums and percussion</code></td>
-<td>61</td>
-<td>kits (kicks, snares, toms, hi-hats, cymbals), hand drums, shakers, blocks</td>
+<td>237</td>
+<td>kits (kicks, snares, toms, hi-hats, cymbals), hand drums (daf, dhol, kendang, mridangam), gongs, shakers, blocks, and 131 sound-alikes</td>
 </tr>
 <tr>
 <td><code>noise makers</code></td>
@@ -573,9 +573,17 @@ and renders offline like any other:</p>
 <li><code>instruments.ALIASES</code> (read-only, as <code>instruments.CATALOG</code> is) maps another name to its
   catalog name: <code>slapstick</code> to <code>whip</code>, <code>zanza</code> to <code>mbira</code>, <code>cylinder music box</code> and <code>disc music
   box</code> to <code>music box</code>, <code>wurlitzer electronic piano</code> to <code>reed electric piano</code>, <code>hohner clavinet</code>
-  to <code>clavinet</code>, <code>rain box</code> to <code>rain machine</code> and <code>horse hooves</code> to <code>coconut shells</code> (8 in
-  all). <code>get</code> and <code>entry</code> resolve an alias, while <code>names</code> and <code>entries</code> list catalog names
-  only.</li>
+  to <code>clavinet</code>, <code>rain box</code> to <code>rain machine</code>, <code>horse hooves</code> to <code>coconut shells</code>, <code>tavil</code> to
+  <code>thavil</code> and <code>riq</code> to <code>daf</code> (35 in all). <code>get</code> and <code>entry</code> resolve an alias, while <code>names</code>
+  and <code>entries</code> list catalog names only.</li>
+<li>A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
+  (<code>bamboula</code> and <code>conga</code>, <code>tombak</code> and <code>darbuka doum</code>), so it is an entry of its own, listed by
+  <code>names</code> and <code>entries</code>, whose <code>CatalogEntry.sounds_like</code> names the parent whose build it
+  shares (<code>instruments.get('bamboula') == instruments.get('conga')</code>; the parent may be in
+  another family). <code>sound_changes</code> (empty so far) holds keyword overrides of the parent's
+  builder, for a sound-alike that a source sets apart by one trait; each needs a cited source.
+  Assembly refuses a <code>sounds_like</code> that names no entry, itself or another sound-alike. The 131
+  drum ones are in <code>drum_sound_alikes.py</code>, the family's builds in <code>drums.py</code>.</li>
 <li>Each entry has a <code>title</code>, a <code>family</code> and its playing range, <code>lowest</code> and <code>highest</code> (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (<code>pitch='A4'</code>); it does not change
