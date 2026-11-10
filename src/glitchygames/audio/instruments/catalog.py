@@ -78,8 +78,11 @@ class CatalogEntry:
         tags: Its tags, members of ``Tag`` (empty for most entries).
         sounds_like: The catalog name of the entry this one sounds like (its parent), or None.
             A sound-alike is a distinct instrument, listed under its own name, that no source
-            sets apart in sound from its parent: it builds its parent's instrument and has its
-            parent's range (another name for the same instrument is an alias instead).
+            sets apart in sound from its parent: it builds its parent's instrument. It is pitched
+            exactly when its parent is, and a pitched one gives its own sourced range (decision 8,
+            plans/2026-11-07-instrument-catalog-expansion-design.md, and
+            plans/2026-11-09-instrument-catalog-batch-4-implementation.md); another name for the
+            same instrument is an alias instead.
         sound_changes: Keyword overrides of the parent's builder (a ``functools.partial``), for
             a sound-alike that a source sets apart by a trait (a smaller head's higher tone)
             while it inherits everything else; empty for most. Each change needs a source,

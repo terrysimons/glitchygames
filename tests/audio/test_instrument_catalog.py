@@ -524,7 +524,15 @@ def sound_alike_table(*extra: CatalogEntry) -> dict[str, CatalogEntry]:
     plain = CatalogEntry(
         'test plain', 'Test plain', Family.DRUMS_AND_PERCUSSION, None, None, plain_drum
     )
-    return catalog_from([(parent, plain, *extra)])
+    pitched_parent = CatalogEntry(
+        'test pitched parent',
+        'Test pitched parent',
+        Family.PLUCKED_STRINGS,
+        'C3',
+        'C5',
+        plain_drum,
+    )
+    return catalog_from([(parent, plain, pitched_parent, *extra)])
 
 
 def unpitched_drum(name: str, **fields) -> CatalogEntry:
@@ -552,6 +560,34 @@ def test_an_entrys_sound_changes_are_read_only():
         alike.sound_changes['noise'] = 0.2  # pyright: ignore[reportIndexIssue] # ty: ignore[invalid-assignment] - the write is the point
 
 
+def test_a_pitched_sound_alike_keeps_its_own_range():
+    """A sound-alike of a pitched entry builds its parent's sound over its own sourced range."""
+    parent = CatalogEntry(
+        'test pitched parent',
+        'Test pitched parent',
+        Family.PLUCKED_STRINGS,
+        'C3',
+        'C5',
+        plain_drum,
+    )
+    alike = CatalogEntry(
+        'test alike',
+        'Test alike',
+        Family.PLUCKED_STRINGS,
+        'E3',
+        'E5',
+        sounds_like='test pitched parent',
+    )
+
+    assembled = sound_alikes_from({parent.name: parent, alike.name: alike})
+
+    assert (assembled['test alike'].lowest, assembled['test alike'].highest) == ('E3', 'E5')
+    alike_build = assembled['test alike'].build
+    assert alike_build is not None
+    assert parent.build is not None
+    assert alike_build() == parent.build()
+
+
 def test_the_sound_alikes_are_refused_when_they_are_wrong():
     """A bad sound-alike fails when the catalog is assembled, naming the entry."""
     refusals = [
@@ -573,7 +609,18 @@ def test_the_sound_alikes_are_refused_when_they_are_wrong():
                 'C5',
                 sounds_like='test parent',
             ),
-            "test alike: its range must be that of 'test parent'",
+            "test alike: pitched exactly when 'test parent' is",
+        ),
+        (
+            CatalogEntry(
+                'test alike',
+                'Test alike',
+                Family.PLUCKED_STRINGS,
+                None,
+                None,
+                sounds_like='test pitched parent',
+            ),
+            "test alike: pitched exactly when 'test pitched parent' is",
         ),
         (
             unpitched_drum('test alike', build=plain_drum, sound_changes={'noise': 0.9}),
@@ -623,7 +670,13 @@ def test_a_changed_sound_alike_builds_the_changed_instrument():
     assert changed_build() != parent_build()
     assert same_build() == parent_build()
     # The entries keep their own names and order, and the rest of the table is unchanged
-    assert list(assembled) == ['test parent', 'test plain', 'test same', 'test changed']
+    assert list(assembled) == [
+        'test parent',
+        'test plain',
+        'test pitched parent',
+        'test same',
+        'test changed',
+    ]
     assert assembled['test changed'].sound_changes == {'noise': 0.9}
 
 
@@ -701,6 +754,25 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('zills', 'finger cymbals'),
         ('cencerro', 'cowbell'),
         ('afuche', 'cabasa'),
+        ('rumbler', 'contrabass ukulele'),
+        ('u bass', 'contrabass ukulele'),
+        ('chartar', 'tar'),
+        ('chitarrone', 'theorbo'),
+        ('hawaiian steel guitar', 'lap steel guitar'),
+        ('liuyeqin', 'liuqin'),
+        ('neapolitan mandolin', 'mandolin'),
+        ('zhongruan', 'ruan'),
+        ('piccolo ukulele', 'sopranino ukulele'),
+        ('pocket ukulele', 'sopranino ukulele'),
+        ('sopranissimo', 'sopranino ukulele'),
+        ('taar', 'tar'),
+        ('tetrachordo bouzouki', 'greek bouzouki'),
+        ('baglama', 'saz'),
+        ('bozuk', 'saz'),
+        ('outi', 'oud'),
+        ('ud', 'oud'),
+        ('kanonaki', 'qanun'),
+        ('kanun', 'qanun'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -711,6 +783,8 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 3's aliases are other names for the same drum or idiophone, which may be a sound-alike
     entry (the rainstick) or in another family (the tuned gong); a distinct instrument that sounds
     like one is its own entry (``test_a_sound_alike_is_listed_and_builds_its_parents_sound``).
+    Batch 4's aliases are other names for a plucked instrument (``kanun`` for the qanun, ``bozuk``
+    for the saz).
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1240,11 +1314,143 @@ def test_no_two_drums_build_the_same_instrument():
     assert same == []
 
 
+# The 58 plucked strings that predate batch 4: their shared builds predate the anti-goal rule
+EXISTING_PLUCKED_NAMES = frozenset({
+    'classical guitar',
+    'acoustic guitar',
+    'twelve string guitar',
+    'baritone guitar',
+    'resonator guitar',
+    'jazz guitar',
+    'electric guitar',
+    'electric guitar overdrive',
+    'electric guitar distortion',
+    'lap steel guitar',
+    'pedal steel guitar',
+    'bass guitar',
+    'picked bass',
+    'slap bass',
+    'fretless bass',
+    'five string bass',
+    'six string bass',
+    'acoustic bass guitar',
+    'soprano ukulele',
+    'concert ukulele',
+    'tenor ukulele',
+    'baritone ukulele',
+    'banjo',
+    'tenor banjo',
+    'mandolin',
+    'mandola',
+    'octave mandolin',
+    'mandocello',
+    'irish bouzouki',
+    'greek bouzouki',
+    'lute',
+    'archlute',
+    'theorbo',
+    'baroque guitar',
+    'vihuela',
+    'cittern',
+    'oud',
+    'saz',
+    'sitar',
+    'tanpura',
+    'veena',
+    'sarod',
+    'koto',
+    'shamisen',
+    'pipa',
+    'guzheng',
+    'gayageum',
+    'balalaika',
+    'bass balalaika',
+    'domra',
+    'charango',
+    'cuatro',
+    'tres',
+    'appalachian dulcimer',
+    'zither',
+    'autoharp',
+    'kantele',
+    'psaltery',
+})
+# Batch 4's entries with their own build, in the sheet's order (the necked lutes and the zither)
+NEW_PLUCKED_NAMES = [
+    'angelique',
+    'banjolele',
+    'chapman stick',
+    'ruan',
+    'tar',
+    'tiple colombiano',
+    'qanun',
+]
+# Batch 4's sound-alikes and the entry each sounds like, in the sheet's order
+PLUCKED_SOUND_ALIKE_PARENTS = {
+    'bass ukulele': 'acoustic bass guitar',
+    'contrabass ukulele': 'acoustic bass guitar',
+    'bulgarian tambura': 'mandolin',
+    'electric bass vi': 'baritone guitar',
+    'gaoyin ruan': 'ruan',
+    'liuqin': 'pipa',
+    'piccolo domra': 'domra',
+    'plectrum banjo': 'tenor banjo',
+    'requinto guitar': 'classical guitar',
+    'daruan': 'ruan',
+    'sanxian': 'banjo',
+    'secunda balalaika': 'balalaika',
+    'setar': 'pipa',
+    'seven string guitar': 'electric guitar',
+    'sopranino ukulele': 'soprano ukulele',
+    'terz guitar': 'classical guitar',
+    'trichordo bouzouki': 'greek bouzouki',
+    'viola da terra': 'tiple colombiano',
+    'xiaoruan': 'ruan',
+    'alpine zither': 'zither',
+    'five string kantele': 'kantele',
+    'gusli': 'kantele',
+    'harpejji': 'chapman stick',
+    'concert kankles': 'kantele',
+    'nigenkin': 'koto',
+    'siter': 'appalachian dulcimer',
+    'yakumogoto': 'appalachian dulcimer',
+}
+
+
+def test_no_new_plucked_string_builds_another_entrys_instrument():
+    """A batch 4 build is its own sound (the anti-goal), whatever entry it is set against."""
+    names = instruments.names(family=Family.PLUCKED_STRINGS)
+    same = [
+        (new_name, other)
+        for new_name in NEW_PLUCKED_NAMES
+        for other in names
+        if other != new_name
+        and instruments.entry(other).sounds_like is None
+        and instruments.get(new_name) == instruments.get(other)
+    ]
+    assert same == []
+
+
+def test_the_new_plucked_strings_are_pitched_entries_of_their_family():
+    """Each new entry, sound-alikes included, is a plucked string with a range."""
+    for name in [*NEW_PLUCKED_NAMES, *PLUCKED_SOUND_ALIKE_PARENTS]:
+        assert instruments.entry(name).family == Family.PLUCKED_STRINGS, name
+        assert instruments.entry(name).pitched, name
+    assert set(instruments.names(family=Family.PLUCKED_STRINGS)) == (
+        EXISTING_PLUCKED_NAMES | set(NEW_PLUCKED_NAMES) | set(PLUCKED_SOUND_ALIKE_PARENTS)
+    )
+
+
 def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
-    """Each sound-alike is a drums and percussion name of its own, building its parent's sound."""
+    """Each sound-alike is a name of its own in its family, building its parent's sound."""
     listed = instruments.names(family=Family.DRUMS_AND_PERCUSSION)
     for name, parent in SOUND_ALIKE_PARENTS.items():
         assert name in listed, name
+        assert instruments.entry(name).sounds_like == parent, name
+        assert instruments.get(name) == instruments.get(parent), name
+    listed_plucked = instruments.names(family=Family.PLUCKED_STRINGS)
+    for name, parent in PLUCKED_SOUND_ALIKE_PARENTS.items():
+        assert name in listed_plucked, name
         assert instruments.entry(name).sounds_like == parent, name
         assert instruments.get(name) == instruments.get(parent), name
     every_sound_alike = [
@@ -1252,7 +1458,8 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         for catalog_entry in instruments.entries()
         if catalog_entry.sounds_like is not None
     ]
-    assert every_sound_alike == SOUND_ALIKE_NAMES
+    # The catalog lists families in table order: plucked strings come before the drums
+    assert every_sound_alike == list(PLUCKED_SOUND_ALIKE_PARENTS) + SOUND_ALIKE_NAMES
 
 
 def test_the_new_drums_are_in_their_family():
