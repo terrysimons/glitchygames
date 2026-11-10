@@ -39,6 +39,13 @@ from an existing entry (``bamboula`` and ``conga``): its own entry, listed under
 with ``CatalogEntry.sounds_like`` naming the parent whose build it shares.
 ``CatalogEntry.sound_changes`` (empty so far) would let one differ by a sourced trait.
 
+Plucked strings (92 entries) holds the family's builds in ``plucked_strings.py`` (guitars,
+basses, ukuleles, banjos, mandolins, lutes such as ``angelique``, zithers such as ``qanun``,
+``tar``, ``ruan`` and ``chapman stick``) and its sound-alikes in ``plucked_sound_alikes.py``
+(``requinto guitar`` and ``classical guitar``, ``liuqin`` and ``pipa``). The family is pitched,
+so a pitched sound-alike gives its own sourced range, a requinto's span being its own: it
+shares its parent's build, not its range.
+
 ``instruments.ALIASES`` (read-only, as ``CATALOG`` is) maps each other name (``slapstick``) to
 its catalog name (``whip``): another name for the same instrument, where a sound-alike is a
 different instrument. ``entry`` and ``get`` resolve aliases, while ``names`` and ``entries``
