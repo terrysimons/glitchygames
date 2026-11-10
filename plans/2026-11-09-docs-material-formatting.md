@@ -117,6 +117,46 @@ The Material switch and the explorers landed with #145 first (the owner: land th
 then rebase the in-flight branches onto it and audit their patches for docs updates); this plan
 and the scrub's reading pass follow on their own branches.
 
+## In-flight branches with docs changes (audit, 2026-11-09)
+
+When #145 lands on `main`, each in-flight branch merges main in. A branch whose site pages
+(`docs/`, outside `docs/specs/`) or site configuration changed must then bring those changes to
+Material: its page edits follow this plan's conventions, and an edit to `mkdocs.yml` moves to
+`zensical.yml` (`mkdocs.yml` is a link to it now). Audited: every local and remote branch not in
+`main`, its changes since it left `main`, against `main` and #145; and every worktree's
+uncommitted changes. Merged branches (by squash) were checked for commits after their merge:
+none had any.
+
+**Needs its changes migrated to Material:**
+
+- `fix/replay-fps-column` (#172, open): `docs/quality/performance.md`, a paragraph on the latest
+  measurements table's FPS column. More than formatting: #145 has its own, smaller FPS column
+  (7948cb9f, `scripts/generate_performance_graphs.py`) and replaced the page's per-recording
+  frames with the Replay Performance explorer, so #172's code and paragraph are reconciled with
+  #145's first, then the paragraph is written for the explorer page in Material's conventions.
+- `fix/steal-benchmark-and-event-id-test` (local only, no PR, 2026-11-04):
+  `docs/architecture/sound.md`, four lines on the delayed channel steal (a benchmark trial may
+  stall; the trials are reported to `test-results/`). Its two commits (844a7dae, ce97318b) are
+  not in `main`; whether the branch is still wanted is the owner's call.
+
+**No migration needed:**
+
+- Root files and dated specs only (left as written, above): `feature/glitchy-games-website`
+  (#117: `CLAUDE.md` and `docs/specs/2026-10-27-glitchy-games-website-design.md`),
+  `arcade-1-engine-state` (#171: `BUGS.md`), `feature/engine-context-2-engine-state`
+  (`BUGS.md`), `fine/validate-pyproject-toml` (#51, closed) and
+  `origin/fine/refactor-performance-patches` (2025: `README.md`).
+- Page changes already in `main` (each line found there): `feat/default-wayland` (as #167),
+  `test/compare-trace-steady-frame-times` (as #166).
+- No docs changes yet: `feat/instrument-catalog-batch-4`, `feature/samples-phase-0-layers`,
+  `feature/player-roster`, `ai-read-source-files`, `ai-behaviour-paired-runs`. A page any of them
+  adds after #145 lands is written in this plan's conventions from the start.
+- `origin/chunk/changes-1773651362945-1773651362945` (#82, closed, 2026-03): its `mkdocs.yml`
+  edits would move to `zensical.yml` only if it were revived.
+- Uncommitted: the main checkout's untracked `docs/specs/2026-10-28-*.html` (specs, not pages
+  of this plan) and `feature/test-memory-reduction`'s untracked `memory-reduction-report.md`
+  (root file).
+
 ## Plan
 
 - [x] Favicon (`theme.favicon`, `test_the_docs_site_shows_our_favicon`).
