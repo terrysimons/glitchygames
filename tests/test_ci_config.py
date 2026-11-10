@@ -245,7 +245,7 @@ def test_docs_deploy_measures_the_replays_by_default():
     commands = docs_deploy_commands(posargs=[])
 
     measuring = commands.index((*GLITCHYGAMES_IN_THE_PROJECT, 'measure', '--skip-dirty'))
-    deploying = commands.index(('mkdocs', 'gh-deploy', '--strict'))
+    deploying = commands.index(('mkdocs', 'gh-deploy', '--strict', '--config-file', 'zensical.yml'))
     clearing = commands.index((*GLITCHYGAMES_IN_THE_PROJECT, 'clear-published'))
     assert measuring < deploying < clearing
 
@@ -282,7 +282,7 @@ def test_docs_deploy_with_no_measure_measures_nothing():
 
     assert not any('measure' in command for command in commands)
     assert ('python', '-m', 'scripts.build_browser_bundle', 'all') in commands
-    assert ('mkdocs', 'gh-deploy', '--strict') in commands
+    assert ('mkdocs', 'gh-deploy', '--strict', '--config-file', 'zensical.yml') in commands
 
 
 def circleci_workflow_job(*, name: str) -> str:
@@ -605,7 +605,13 @@ def test_docs_deploy_publishes_only_from_main():
     on_main = ('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main')
 
     assert on_main in commands
-    assert commands.index(on_main) < commands.index(('mkdocs', 'gh-deploy', '--strict'))
+    assert commands.index(on_main) < commands.index((
+        'mkdocs',
+        'gh-deploy',
+        '--strict',
+        '--config-file',
+        'zensical.yml',
+    ))
     assert on_main not in docs_deploy_commands(posargs=['--build-only'])
 
 
@@ -734,6 +740,18 @@ def test_the_taplo_sessions_skip_only_linux_arm(mocker, system, machine, has_no_
 
     assert session.run.call_count == (0 if has_no_wheel else 2)
     assert session.log.call_count == (2 if has_no_wheel else 0)
+
+
+def test_taplo_leaves_the_worktrees_nested_in_this_checkout_alone():
+    """Claude Code's worktrees (.claude/worktrees/<name>/) are other checkouts inside this one.
+
+    Formatted from here, their TOML files were rewritten mid-task: their CRLF sprite fixtures
+    lost their line endings, which the fixture exclusions (this checkout's paths) don't cover
+    (BUGS.md #271).
+    """
+    configuration = tomllib.loads((PROJECT_ROOT / '.taplo.toml').read_text(encoding='utf-8'))
+
+    assert '.claude/**' in configuration['exclude']
 
 
 def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():

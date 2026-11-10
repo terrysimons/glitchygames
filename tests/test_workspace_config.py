@@ -16,6 +16,7 @@ import noxfile
 import pytest
 import yaml
 from scripts.gen_ref_pages import reference_page_path
+from scripts.git_checkout import run_git
 from scripts.workspace_packages import (
     ENGINE_PACKAGE,
     WorkspaceMember,
@@ -236,8 +237,13 @@ def test_nox_installs_and_reinstalls_every_member():
     assert [member.distribution for member in MEMBERS] == noxfile._MEMBER_DISTRIBUTIONS
 
 
+DOCS_CONFIGURATION = 'zensical.yml'
+DOCS_CONFIGURATION_LINK = 'mkdocs.yml'
+GIT_SYMLINK_MODE = '120000'
+
+
 class MkdocsConfigurationLoader(yaml.SafeLoader):
-    """Reads mkdocs.yml, its ``!!python/name:`` tags (pymdownx's fence formats) read as None."""
+    """Reads zensical.yml, its ``!!python/name:`` tags (pymdownx's fence formats) read as None."""
 
 
 MkdocsConfigurationLoader.add_multi_constructor(
@@ -246,12 +252,35 @@ MkdocsConfigurationLoader.add_multi_constructor(
 
 
 def mkdocs_configuration(*, project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
-    """mkdocs.yml."""
-    loader = MkdocsConfigurationLoader((project_root / 'mkdocs.yml').read_text(encoding='utf-8'))
+    """The docs configuration, zensical.yml (by name: Windows may check the link out as text)."""
+    loader = MkdocsConfigurationLoader(
+        (project_root / DOCS_CONFIGURATION).read_text(encoding='utf-8')
+    )
     try:
         return loader.get_single_data()
     finally:
         loader.dispose()
+
+
+def test_mkdocs_yml_is_a_link_to_zensical_yml():
+    """The mkdocs.yml mkdocs reads by default is a link to zensical.yml, the one configuration.
+
+    Asked of git's index, not the checkout: Windows may check a link out as a text file.
+    """
+    exit_code, output = run_git(
+        arguments=['ls-files', '--stage', '--', DOCS_CONFIGURATION_LINK], directory=PROJECT_ROOT
+    )
+    mode, blob, _stage_and_path = output.split(maxsplit=2)
+    _exit_code, target = run_git(arguments=['cat-file', 'blob', blob], directory=PROJECT_ROOT)
+
+    assert (exit_code, mode, target) == (0, GIT_SYMLINK_MODE, DOCS_CONFIGURATION)
+
+
+def test_the_docs_site_shows_our_favicon():
+    """Material shows its own icon unless the theme names ours (mkdocs' theme found it alone)."""
+    favicon = mkdocs_configuration()['theme']['favicon']
+
+    assert (PROJECT_ROOT / 'docs' / favicon).is_file()
 
 
 def navigation_pages(*, entries: list[Any]) -> set[str]:
@@ -762,7 +791,7 @@ def configuration_lists_naming_member_paths(
     mkdocs = mkdocs_configuration(project_root=project_root)
     configuration_lists.extend(
         (
-            'mkdocs.yml plugins mkdocstrings handlers python paths',
+            f'{DOCS_CONFIGURATION} plugins mkdocstrings handlers python paths',
             False,
             plugin['mkdocstrings']['handlers']['python']['paths'],
         )
@@ -867,7 +896,7 @@ def write_synthetic_workspace(*, project_root: Path, stale: bool) -> list[Worksp
         f'_SOURCE_PACKAGE_DIRS = ["src/glitchygames", "{derived}/fake_game", "{old}/fake_game"]\n',
         encoding='utf-8',
     )
-    (project_root / 'mkdocs.yml').write_text(
+    (project_root / DOCS_CONFIGURATION).write_text(
         'plugins:\n'
         '  - search\n'
         '  - mkdocstrings:\n'
@@ -901,7 +930,7 @@ def test_the_stale_path_guard_names_the_file_and_key_of_each_planted_flat_path(t
         'pyproject.toml [tool.coverage.paths]: src/games/fake-game/fake_game',
         'noxfile.py _SOURCE_PACKAGE_DIRS: src/games/fake-game/fake_game',
         f'{tests_extra_paths}: src/games/fake-game',
-        'mkdocs.yml plugins mkdocstrings handlers python paths: src/games/fake-game',
+        'zensical.yml plugins mkdocstrings handlers python paths: src/games/fake-game',
     ]
 
 

@@ -942,7 +942,7 @@ by the tool that writes it, or reported; it is never a traceback.
 
 | Key | Default | Ours (the root `pyproject.toml`) |
 |---|---|---|
-| `games` | the project's `[project.scripts]` | the nine members' console scripts |
+| `games` | the project's `[project.scripts]` | the ten members' console scripts |
 | `golden-globs` | `["tests/fixtures/replays/**/*.jsonl.gz"]` | `["src/*/*/tests/fixtures/replays/golden*.jsonl.gz"]` |
 | `ledger-directory` | `"replay-ledger"` | `"quality/replay-ledger"` |
 | `pending-ledger` | `".glitchygames/pending-ledger.jsonl"` | `"test-results/replay-metrics/pending.jsonl"` |

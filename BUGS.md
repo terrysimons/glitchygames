@@ -4,6 +4,25 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 272. Clockwork Keep's Quit-Key Test Presented a Different Frame on Cocoa Once
+- **Description**: The pre-push `compare-drivers` hook (#145's push, 2026-11-09, ~20:40) failed one test: `src/games/clockwork-keep/tests/test_clockwork_keep.py::TestFloorInput::test_the_quit_key_ends_the_run` presented a different frame 1 on cocoa than on the dummy driver (a pixel difference; dummy-1 and dummy-2 agreed, 25,629 tests each, 0 failed). The harness's image re-run did not reproduce it ("not reproduced": both drivers drew the same frames), and the same test passed the hook on three earlier pushes of the same code.
+- **Status**: Open (not reproduced)
+- **Priority**: Low (intermittent; fails a push's hook, which a second push passes)
+- **Ruled out so far**: window focus changes (the golden harness's `discard_environment_events` drops window events, and on a real driver every test window is hidden, `tests/hidden_test_windows.py`, BUGS.md #225); the clock face's hands (`_draw_timed_clock_background` draws `CLOCK_START_SECONDS + floor_elapsed_time`, which `dt_tick` advances by the test's fixed `manager.dt = 1 / 60`, not by measured time).
+- **Next**: find what on cocoa can change frame 1's pixels from run to run: something in the frame drawn from measured time (the frame clock, which `_finish_frame` advances by the measured `dt`), a sound or font path that differs by driver, or a test before it on the same worker leaving state behind (the cocoa run's worker order for that test).
+- **Reporter**: Claude, from the `compare-drivers` pre-push hook (`test-results/driver-comparison/nox/matrix.md`)
+- **Date Reported**: 2026-11-09
+- **Files**: `src/games/clockwork-keep/tests/test_clockwork_keep.py`, `src/games/clockwork-keep/src/clockwork_keep/game.py`
+
+### 271. Formatting TOML From the Main Checkout Rewrote the Worktrees Nested in It
+- **Description**: Claude Code puts its worktrees inside the main checkout (`.claude/worktrees/<name>/`, each another checkout on its own branch). `nox -s format` (and the pre-push hook that runs it) calls `taplo format` from the checkout's root, which walked into every nested worktree and formatted its TOML files. `.taplo.toml` excluded the QuickLook sprite fixtures by this checkout's paths (`src/quicklook/tools/fixtures/**`, `src/quicklook/Tests/SpriteCoreTests/Golden/**`), so the nested copies were not excluded: their CRLF line endings became LF outside the multi-line `pixels` strings, which would quietly stop the QuickLook tests testing CRLF files.
+- **Status**: Fixed (2026-11-09: `.taplo.toml` excludes `.claude/**`; `test_taplo_leaves_the_worktrees_nested_in_this_checkout_alone`; the four damaged fixtures in the two affected worktrees restored to their committed bytes)
+- **Priority**: Medium (silently edits other branches' working trees mid-task; failed a push's hooks with "files were modified by this hook")
+- **Root cause** (reproduced 2026-11-09): a push from the main checkout ran its `format` hook at 19:32:03; the four `crlf-*.toml` fixtures in both nested worktrees that had them (`ai-service-ansible`, on `docs-material`, and the #171 agent's) changed in that second, the main checkout's own copies did not. In a scratch tree with the main checkout's `.taplo.toml`, a fixture at the root and one at `.claude/worktrees/some-branch/...`, `taplo format` from the root left the root's alone and rewrote the nested one byte for byte as found. With `.claude/**` excluded it leaves both alone. Only taplo writes from a tree walk: ruff is given explicit directories, and the linters only read.
+- **Reporter**: Claude, from #145's push failing in `compare-drivers` ("files were modified by this hook") while another session pushed from the main checkout
+- **Date Reported**: 2026-11-09
+- **Files**: `.taplo.toml`, `tests/test_ci_config.py`
+
 ### 269. The AI Console's Past-Questions Test Covered Its Own Path Only When the Worker Was Slow
 - **Description**: `test_searching_reaches_past_runs_questions` (`tests/test_ai_console.py`) says past runs' questions are "found even if they arrive after the typing", the path `AiConsole._take_past_questions` takes when a search is under way (`src/glitchygames/ai_console.py`, the `self._find_match(before=None)` line). Ctrl-R starts the history read on the console's worker thread, and each typed key drains the worker's finished updates. When the read finished before the first key, the questions were handed over while the search was still empty, the line was skipped, and typing then found them by the ordinary path: the test passed either way, and that line was covered or not by the threads' timing
 - **Status**: Resolved (2026-11-08: the test holds the worker's read until the search is typed, checks the search finds nothing before the questions arrive, then releases it)
