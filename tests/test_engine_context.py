@@ -102,6 +102,8 @@ from glitchygames.sources import (
     stop_observing_save_store_openings,
     without_discarded_scope_posts,
 )
+from glitchygames.sprites import Singleton
+from glitchygames.sprites.bitmappy_sprite import SINGLETONS_SLOT
 from glitchygames.state import MemorySaveManager, SaveManager, open_saves
 from tests.ast_scanning import PROJECT_ROOT
 from tests.engine_source import ENGINE_DIRECTORY
@@ -1085,6 +1087,24 @@ def check_font_options(*, first: EngineContext, second: EngineContext) -> None:
     assert default_context().value(slot=FONT_OPTIONS_SLOT) == default_options
 
 
+def check_singletons(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context answers with its own singleton, and the default context its own (C15)."""
+    default_instance = Singleton()
+    with first.active():
+        first_instance = Singleton()
+    with second.active():
+        second_instance = Singleton()
+    with first.active():
+        assert Singleton() is first_instance
+
+    assert first_instance is not default_instance
+    assert second_instance is not default_instance
+    assert second_instance is not first_instance
+    assert Singleton() is default_instance
+    assert first.value(slot=SINGLETONS_SLOT) == {Singleton: first_instance}
+    assert second.value(slot=SINGLETONS_SLOT) == {Singleton: second_instance}
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -1102,6 +1122,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.performance.adaptive_clamping.managers': check_performance_managers,
     'glitchygames.events.base.shared_instances': check_shared_instances,
     'glitchygames.fonts.font_manager.options': check_font_options,
+    'glitchygames.sprites.bitmappy_sprite.singletons': check_singletons,
 }
 
 

@@ -13,7 +13,7 @@ import logging
 import tomllib
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, ClassVar, NoReturn, Self, cast, override
+from typing import TYPE_CHECKING, Any, NoReturn, Self, cast, override
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -29,6 +29,7 @@ import pygame
 import tomli_w
 
 from glitchygames.color import MAGENTA_TRANSPARENCY_KEY
+from glitchygames.engine_context import ContextSlot, current_context
 
 from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 from .pixel_utils import PADDING_GLYPH, normalize_pixel_rows
@@ -1050,10 +1051,17 @@ class BitmappySprite(Sprite):
         return renderer.render_sprite(toml_data)
 
 
+# Each engine context's singleton instances, keyed by the exact class constructed
+# (glitchygames.engine_context; audit C15): a game in another context never gets this context's
+# singletons, and a subclass never gets its base's instance
+SINGLETONS_SLOT: ContextSlot[dict[type, object]] = ContextSlot(
+    name='glitchygames.sprites.bitmappy_sprite.singletons', factory=dict
+)
+
+
 class Singleton:
     """A generic singleton class."""
 
-    __instance__: ClassVar[Singleton | None] = None
     # Per-instance values are assigned in __new__; these immutable class-level defaults only
     # exist so the attributes are declared and initialized for type checkers.
     args: tuple[object, ...] = ()
@@ -1070,13 +1078,13 @@ class Singleton:
             Singleton: The instance of the Singleton.
 
         """
-        # The isinstance check (rather than "is None") narrows the stored instance to Self
-        # and ensures a subclass never receives an instance of a different class that was
-        # found on a base class via attribute lookup.
-        instance = cls.__instance__
+        # Keyed by the exact class constructed, so a subclass never receives its base's instance;
+        # the isinstance check (rather than "is None") narrows the stored instance to Self.
+        singletons = current_context().value(slot=SINGLETONS_SLOT)
+        instance = singletons.get(cls)
         if not isinstance(instance, cls):
             instance = object.__new__(cls)
-            cls.__instance__ = instance
+            singletons[cls] = instance
         instance.args = args
         instance.kwargs = kwargs
         return instance
@@ -1087,8 +1095,6 @@ class Singleton:
 class SingletonBitmappySprite(BitmappySprite):
     """A singleton class for handling singleton sprites, like mouse pointers."""
 
-    __instance__: ClassVar[SingletonBitmappySprite | None] = None
-
     def __new__(cls, *_args: Any, **_kwargs: Any) -> Self:
         """Create a new instance of the SingletonBitmappySprite.
 
@@ -1097,10 +1103,11 @@ class SingletonBitmappySprite(BitmappySprite):
 
         """
         # See Singleton.__new__ for why this is an isinstance check rather than "is None".
-        instance = cls.__instance__
+        singletons = current_context().value(slot=SINGLETONS_SLOT)
+        instance = singletons.get(cls)
         if not isinstance(instance, cls):
             instance = object.__new__(cls)
-            cls.__instance__ = instance
+            singletons[cls] = instance
         return instance
 
     def __init__(  # ruff: ignore[too-many-arguments]
@@ -1135,8 +1142,6 @@ class SingletonBitmappySprite(BitmappySprite):
 class FocusableSingletonBitmappySprite(BitmappySprite):
     """A singleton class for handling all of the focusable sprite behaviors."""
 
-    __instance__: ClassVar[FocusableSingletonBitmappySprite | None] = None
-
     def __new__(cls, *_args: Any, **_kwargs: Any) -> Self:
         """Create a new instance of the FocusableSingletonBitmappySprite.
 
@@ -1145,10 +1150,11 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
 
         """
         # See Singleton.__new__ for why this is an isinstance check rather than "is None".
-        instance = cls.__instance__
+        singletons = current_context().value(slot=SINGLETONS_SLOT)
+        instance = singletons.get(cls)
         if not isinstance(instance, cls):
             instance = object.__new__(cls)
-            cls.__instance__ = instance
+            singletons[cls] = instance
         return instance
 
     def __init__(  # ruff: ignore[too-many-arguments]

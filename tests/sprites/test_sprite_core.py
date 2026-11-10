@@ -25,6 +25,7 @@ from typing import cast
 import pygame
 import pytest
 
+from glitchygames.engine_context import EngineContext, default_context
 from glitchygames.events.input_event_interfaces import MouseEventStubs
 from glitchygames.sprites import (
     BitmappySprite,
@@ -34,6 +35,7 @@ from glitchygames.sprites import (
     SingletonBitmappySprite,
     Sprite,
 )
+from glitchygames.sprites.bitmappy_sprite import SINGLETONS_SLOT
 from glitchygames.sprites.factory import SpriteFactory
 
 # Constants for magic values
@@ -1022,6 +1024,29 @@ class TestSingletonPattern:
         assert instance.kwargs == {'key': 'value'}  # type: ignore[unresolved-attribute]
 
 
+def test_each_context_has_its_own_singletons():
+    """A singleton is single within its context only, a subclass's too (audit C15)."""
+
+    class PanelSingleton(Singleton):
+        """A subclass, which gets its own instance, never its base's."""
+
+    first = EngineContext(name='first')
+    second = EngineContext(name='second')
+    with first.active():
+        first_base = Singleton('first')
+        first_panel = PanelSingleton()
+    with second.active():
+        second_base = Singleton('second')
+        second_panel = PanelSingleton()
+    with first.active():
+        first_again = Singleton()
+
+    assert second_base is not first_base
+    assert second_panel is not first_panel
+    assert first_panel is not first_base
+    assert first_again is first_base
+
+
 class TestBitmappySpriteInflateFromFile:
     """Test BitmappySprite inflate_from_file and load_static_only."""
 
@@ -1586,7 +1611,7 @@ class TestSingletonBitmappySpriteRealPygame:
 
     def teardown_method(self):
         """Reset singleton instance."""
-        SingletonBitmappySprite.__instance__ = None
+        default_context().reset_value(slot=SINGLETONS_SLOT)
 
     def test_singleton_bitmappy_groups_none(self):
         """Test SingletonBitmappySprite with groups=None (line 1732->1735)."""
@@ -1994,7 +2019,7 @@ class TestSingletonBitmappySpriteExistingInstance:
 
     def teardown_method(self):
         """Reset singleton instance."""
-        SingletonBitmappySprite.__instance__ = None
+        default_context().reset_value(slot=SINGLETONS_SLOT)
 
     def test_singleton_bitmappy_returns_same_instance(self):
         """Test that creating two SingletonBitmappySprite returns same instance."""
@@ -2021,7 +2046,7 @@ class TestFocusableSingletonBitmappySpriteExistingInstance:
 
     def teardown_method(self):
         """Reset singleton instance."""
-        FocusableSingletonBitmappySprite.__instance__ = None
+        default_context().reset_value(slot=SINGLETONS_SLOT)
 
     def test_focusable_singleton_returns_same_instance(self):
         """Test that creating two FocusableSingletonBitmappySprite returns same instance."""

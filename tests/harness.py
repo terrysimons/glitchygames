@@ -39,11 +39,7 @@ from glitchygames.input.state import reset_current_input
 from glitchygames.performance.adaptive_clamping import PERFORMANCE_MANAGERS_SLOT
 from glitchygames.recording import reset_internal_post_tracking
 from glitchygames.scenes import Scene, SceneManager
-from glitchygames.sprites import (
-    FocusableSingletonBitmappySprite,
-    Singleton,
-    SingletonBitmappySprite,
-)
+from glitchygames.sprites.bitmappy_sprite import SINGLETONS_SLOT
 from glitchygames.user_files import install_user_files
 from tests.ai_service_stand_in import CONTROL_SCRIPT_NAME, python_twin
 from tests.display_canvas import (
@@ -292,10 +288,8 @@ def _reset_all_singleton_instances():
 
     Scene managers live in the engine context (a slot, not a class attribute), so
     SceneManager._reset() clears the current context's managers. The default context's
-    ResourceManager instances (a slot too) and FontManager's caches are cleared next. The
-    remaining singletons keep their instance in a class attribute, __instance__, which Python
-    sets on the class that made the instance: each singleton base and each of its direct
-    subclasses is reset (BUGS.md #228 items 17, 22).
+    ResourceManager instances (a slot too) and FontManager's caches are cleared next, then the
+    default context's singleton sprites (BUGS.md #228 items 17, 22).
     """
     SceneManager._reset()
     # The context's audio engine (glitchygames/audio/engine.py) is forgotten, not closed: its
@@ -324,12 +318,8 @@ def _reset_all_singleton_instances():
     FontManager._font_cache.clear()
     FontManager.OPTIONS.clear()
 
-    # Reset all singleton base classes and their subclasses
-    for singleton_base in (Singleton, SingletonBitmappySprite, FocusableSingletonBitmappySprite):
-        singleton_base.__instance__ = None
-        for subclass in singleton_base.__subclasses__():
-            if hasattr(subclass, '__instance__'):
-                subclass.__instance__ = None
+    # The default context's singletons (glitchygames.sprites.bitmappy_sprite; audit C15)
+    default_context().reset_value(slot=SINGLETONS_SLOT)
 
 
 # What an inner pytest run (pytester) gets, whatever the outer run's options: pytest-randomly
