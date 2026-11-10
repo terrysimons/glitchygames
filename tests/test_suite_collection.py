@@ -20,6 +20,11 @@ from typing import TYPE_CHECKING
 from scripts.git_checkout import run_git
 from scripts.workspace_packages import WorkspaceMember, workspace_members
 
+from glitchygames.engine import GameEngine
+from glitchygames.fonts import FontManager
+from glitchygames.read_only_views import ViewBase
+from glitchygames.scenes import SceneManager
+from glitchygames.sprites import Sprite
 from tests.ast_scanning import (
     import_bindings,
     imported_module_names,
@@ -695,6 +700,79 @@ def test_living_documentation_writes_repository_paths_from_the_repository_root()
     keeps the paths it was written with.
     """
     assert paths_without_the_source_root() == []
+
+
+# The classes whose class attributes became read-only views (glitchygames.read_only_views;
+# plans/2026-10-27-engine-context-2-engine-state.md): writing one raises ReadOnlyViewError
+VIEW_OWNERS: tuple[type, ...] = (GameEngine, SceneManager, FontManager, Sprite)
+
+
+def _view_write_pattern() -> re.Pattern[str]:
+    """Return the pattern of a write of a read-only view, its names read from the owners."""
+    owners = '|'.join(owner.__name__ for owner in VIEW_OWNERS)
+    names = '|'.join(
+        sorted(
+            name
+            for owner in VIEW_OWNERS
+            for name, value in vars(owner).items()
+            if isinstance(value, ViewBase)
+        )
+    )
+    view = rf'\b(?:{owners})\.(?:{names})\b'
+    assignment = r'\s*(?:\*\*|//|<<|>>|[-+*/%@&|^])?=(?!=)'
+    return re.compile(
+        rf'{view}{assignment}'
+        rf'|\bdel\s+{view}'
+        rf'|\bperformance_manager{assignment}'
+        rf"""|patch\.object\(\s*(?:{owners})\s*,\s*['"](?:{names})['"]"""
+        r"""|patch\(\s*['"]glitchygames\.performance\.performance_manager['"]"""
+    )
+
+
+# A write of a read-only view: an assignment, augmented assignment or del of a view on its class,
+# an assignment of the performance package's module view, or a patch of one
+VIEW_WRITE_PATTERN: re.Pattern[str] = _view_write_pattern()
+
+
+def test_no_living_documentation_writes_to_a_read_only_view():
+    """No living document tells its reader to write a read-only view (writing one raises).
+
+    The views answer the current game's state (``GameEngine.OPTIONS``); the documentation names
+    what to write instead: the engine's own (``engine.options``), the manager's own
+    (``manager.engine_options``) or the slot's owner function (``sprite_counters()``).
+    """
+    writes = [
+        f'{relative}:{line_number}: {line.strip()}'
+        for relative, line_number, line in living_documentation_lines()
+        if VIEW_WRITE_PATTERN.search(line)
+    ]
+
+    assert writes == []
+
+
+def test_the_view_write_pattern_finds_writes_and_leaves_reads_alone():
+    """The pattern finds each kind of write and no read, comparison or longer name."""
+    writes = [
+        'GameEngine.OPTIONS = the options',
+        'SceneManager.OPTIONS = OPTIONS',
+        'Sprite.SPRITE_COUNT += 1',
+        'del GameEngine.EVENT_HANDLERS',
+        'GameEngine.game = MyScene',
+        'performance_manager = AdaptiveClamping()',
+        "mocker.patch.object(FontManager, 'OPTIONS', {})",
+        "mocker.patch('glitchygames.performance.performance_manager')",
+    ]
+    reads = [
+        "GameEngine.OPTIONS['resolution']",
+        'if GameEngine.OPTIONS == options:',
+        'engine.options = the options',
+        'GameEngine.game_class = MyScene',
+        'manager.engine_options = OPTIONS',
+        "mocker.patch.dict(FontManager.OPTIONS, {'use_freetype': False})",
+    ]
+
+    assert [line for line in writes if not VIEW_WRITE_PATTERN.search(line)] == []
+    assert [line for line in reads if VIEW_WRITE_PATTERN.search(line)] == []
 
 
 def _guard_findings(*, tmp_path: Path, claude_text: str, bugs_text: str = '') -> list[str]:

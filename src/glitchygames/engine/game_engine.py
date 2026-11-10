@@ -1084,16 +1084,16 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         diagnostics_group.add_argument(
             '--perf-trim-percent',
             type=float,
-            help='percent of frames to trim from top and bottom in global FPS report',
+            help="percent of frames to trim from top and bottom in the game's global FPS report",
             default=5.0,
         )
         diagnostics_group.add_argument(
             '--fps-histogram',
             choices=['equal-range', 'target-relative'],
             help=(
-                'FPS histogram buckets in the shutdown report: equal-range (10 equal buckets '
-                'spanning the analyzed min to max, default) or target-relative (10%% steps of '
-                'the target FPS)'
+                "FPS histogram buckets in the game's shutdown report: equal-range (10 equal "
+                'buckets spanning the analyzed min to max, default) or target-relative (10%% '
+                'steps of the target FPS)'
             ),
             default='equal-range',
         )
@@ -1924,8 +1924,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         """Log the game's title and version.
 
         Args:
-            game: The game scene class or instance. Passed in: __init__ logs this before it
-                sets GameEngine.game.
+            game: The game scene class or instance (the engine's own ``game``, which
+                __init__ sets first).
 
         """
         self.log.debug(

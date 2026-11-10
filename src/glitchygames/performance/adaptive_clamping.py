@@ -1,4 +1,9 @@
-"""Adaptive delta time adjustment based on performance."""
+"""Adaptive delta time adjustment based on performance.
+
+One performance manager per engine context: ``AdaptiveClamping()`` is the current context's,
+so each game's FPS statistics and shutdown report are its own, and an outer game's cover every
+game it steps. ``glitchygames.performance.performance_manager`` is a read-only view of it.
+"""
 
 from __future__ import annotations
 

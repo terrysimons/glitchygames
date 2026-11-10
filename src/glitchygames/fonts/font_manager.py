@@ -215,13 +215,13 @@ class FontManager(ResourceManager, metaclass=ReadOnlyViews):
         font = FontManager.get_font()
 
         # Force pygame.font
-        font = FontManager.get_font(use_freetype=False)
+        font = FontManager.get_font(font_system='pygame')
 
         # Force pygame.freetype
-        font = FontManager.get_font(use_freetype=True)
+        font = FontManager.get_font(font_system='freetype')
 
-        # Change default system
-        FontManager.set_font_system(use_freetype=True)
+        # Change the current engine context's default system
+        FontManager.set_font_system(font_system='freetype')
         font = FontManager.get_font()  # Now uses freetype by default
 
         # Check current system
@@ -302,6 +302,8 @@ class FontManager(ResourceManager, metaclass=ReadOnlyViews):
         font_options['use_freetype'] = font_system == 'freetype'
         log.info('Font system initialized: %s', font_system)
 
+        # pygame's one default resolution per process, not this context's: the last
+        # FontManager made sets it (audit S8, plans/2026-10-25-engine-context.md)
         pygame.freetype.set_default_resolution(font_options['font_dpi'])
 
         # Ideas:

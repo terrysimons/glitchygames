@@ -251,6 +251,14 @@ arc was lost. What follows is left.
   2026-10-29). Sub-plan 2's Task 17 gate (a) compares each recording's p50 and p99 processing
   times, base against branch; it could later also compare the mean and the "5% low"/"5% high"
   slice means #116 added to `RunSummary` (`src/glitchygames/recording_history.py`).
+- **Process-wide state sub-plan 2 left open** (Task 16, 2026-11-10; the audit in
+  `plans/2026-10-25-engine-context.md`). S20: `_warned_hertz_values`
+  (`src/glitchygames/audio/pitch.py:79`) is not yet per context, so a second context never warns
+  about a frequency the first did; it has no owning sub-plan yet. S3: `release_channels`
+  (`src/glitchygames/audio/voices.py:149`) clears the mixer's partition when any one context
+  shuts down (sub-plan 5's, sound). S8: `FontManager.__init__` sets pygame's one default font
+  resolution from its context's `--font-dpi`, so the last `FontManager` made wins (sub-plan 7's,
+  the inner engine, which keeps an inner context off the process services).
 
 ## Engine tools after Stage D (2026-10-27, workspace packages part 3)
 

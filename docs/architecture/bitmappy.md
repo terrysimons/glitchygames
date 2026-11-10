@@ -82,7 +82,7 @@ sequenceDiagram
         SM->>BES: _update_scene() (Scene.dt_tick: logic and collision)
         SM->>GE: _process_events()
         GE->>GE: _pump_events() (active_sources().pump_events(): live, pygame.event.get())
-        GE->>SM: EVENT_HANDLERS[event.type](event)
+        GE->>SM: event_handlers[event.type](event)
         SM->>BES: on_*_event(event)
         SM->>SM: _run_supervisor_slot() (supervisors, e.g. a recording's)
         SM->>SM: _update_frame_services() (shake, rumble)
@@ -189,7 +189,7 @@ falls to is the engine's):
 flowchart TD
     SDL["SDL Event"] --> GE
     subgraph ENGINE_BITMAPPY_EVENT_FLOW["Engine"]
-        GE["GameEngine\nO#40;1#41; EVENT_HANDLERS lookup"]
+        GE["GameEngine\nO#40;1#41; event_handlers lookup"]
         GE --> MGR["Event Manager\ne.g. MouseEventManager"]
         MGR -->|"updates state,\nsynthesizes events"| SM["SceneManager\nforwards to active_scene"]
         STUB["No handler?\nThe stub calls unhandled_event#40;#41;"]
@@ -245,7 +245,7 @@ flowchart TD
 
 How pygame events propagate through the system: from `GameEngine._pump_events()` (live:
 `pygame.event.get()`) through
-the `EVENT_HANDLERS` dispatch table, into specialized event managers, through the
+the engine's own `event_handlers` dispatch table, into specialized event managers, through the
 scene manager, and finally into Bitmappy's scene and sprite handlers. The top Engine box is the
 dispatch every game gets, the Bitmappy box is the editor's handlers, and the bottom Engine box is
 the engine's UI widgets (`glitchygames.ui`) the editor's clicks reach.
@@ -254,7 +254,7 @@ the engine's UI widgets (`glitchygames.ui`) the editor's clicks reach.
 flowchart TD
     subgraph ENGINE_BITMAPPY_DISPATCH["Engine"]
         PG["GameEngine._pump_events()\nactive_sources().pump_events()"] --> GE["GameEngine.process_events()"]
-        GE --> EH{"EVENT_HANDLERS[event.type]"}
+        GE --> EH{"event_handlers[event.type]"}
 
         EH -->|KEYDOWN| KEM["KeyboardEventManager"]
         EH -->|MOUSEBUTTONDOWN| MEM["MouseEventManager"]
@@ -386,7 +386,7 @@ flowchart TD
     subgraph ENGINE_BITMAPPY_FRAME["Engine"]
         BEGIN["1. camera.begin_frame()\nclear the camera's update and shake-advance flags"] --> LOGIC
         LOGIC["2. _update_scene()\nScene.dt_tick(dt): logic, animation, collision\n(dt capped by MAX_FRAME_SECONDS when set)"] --> EVENTS
-        EVENTS["3. _process_events(), then _run_supervisor_slot()\nEVENT_HANDLERS dict - O(1) lookup\nBitmapEditorScene handlers modify sprites"] --> SERVICES
+        EVENTS["3. _process_events(), then _run_supervisor_slot()\nthe engine's event_handlers dict - O(1) lookup\nBitmapEditorScene handlers modify sprites"] --> SERVICES
         SERVICES["4. _update_frame_services()\nshake and rumble"] --> AIM
         AIM["5. _aim_active_camera()\ncamera_target() / follow target\n(skipped when the scene was switched mid-frame)"] --> POSITION
         POSITION["6. _position_active_world_sprites()\nworld sprites' rect from the camera, culling\n(screen-space sprites untouched)"] --> RENDER

@@ -8,6 +8,11 @@ slower, or the machine changed. Times compare only on one machine: each machine 
 and kind of run is its own line. [Requirements](../requirements.md) turns these measurements into a
 verdict per game for each measured machine.
 
+These measurements replay one game alone in its process. When several games share a process
+(the Arcade), each keeps its own FPS statistics and shutdown report, the outer game's covering
+the whole tick; the [engine context page's "Performance" section](../architecture/engine_context.md#performance)
+says what contexts cost and how each game's report stays its own.
+
 Until a build generates them, this page has only this text.
 
 --8<-- "docs/quality/metrics/performance_graphs.md"

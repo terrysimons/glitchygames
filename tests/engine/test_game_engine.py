@@ -548,9 +548,9 @@ class TestGameEngineInitializeEventHandlers:
     """Test GameEngine event handler initialization."""
 
     def test_event_handlers_populated(self, mocker):
-        """Test that initialize_event_handlers populates EVENT_HANDLERS dict."""
+        """Test that initialize_event_handlers populates the engine's event_handlers dict."""
         engine = _make_engine(mocker)
-        # After initialization, EVENT_HANDLERS should have entries
+        # After initialization, event_handlers should have entries
         assert len(engine.event_handlers) > 0
 
     def test_input_event_handlers_include_all_types(
@@ -1259,7 +1259,7 @@ class TestProcessEvents:
         self,
         mocker,
     ):
-        """Test process_events routes events through EVENT_HANDLERS."""
+        """Test process_events routes events through the engine's event_handlers."""
         engine = _make_engine(mocker)
         engine._active_scene = mocker.Mock(spec=[])  # No process_event
 
@@ -1343,7 +1343,7 @@ class TestProcessEvents:
         assert result is True
 
     def test_process_events_unmapped_type_after_handled_event_is_unhandled(self, mocker):
-        """An event type missing from EVENT_HANDLERS never inherits the previous result."""
+        """A type missing from the engine's event_handlers never inherits the previous result."""
         engine = _make_engine(mocker)
         engine._active_scene = mocker.Mock(spec=[])  # No process_event
         unmapped_event_type = OTHER_UNMAPPED_EVENT_TYPE

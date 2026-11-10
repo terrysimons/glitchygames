@@ -25,6 +25,7 @@ from glitchygames import events
 from glitchygames.engine import GameEngine, current_engine
 from glitchygames.engine_context import EngineContext
 from glitchygames.fonts import FontManager
+from glitchygames.performance import WRITE_INSTEAD as PERFORMANCE_WRITE_INSTEAD
 from glitchygames.performance import AdaptiveClamping
 from glitchygames.read_only_views import (
     ClassOnlyView,
@@ -32,6 +33,7 @@ from glitchygames.read_only_views import (
     ReadOnlyViewError,
     ReadOnlyViews,
     ReadOnlyViewsABC,
+    ViewBase,
     ViewReadError,
 )
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
@@ -41,6 +43,7 @@ from glitchygames.sources import reset_sources
 from glitchygames.sprites import Sprite
 from glitchygames.sprites.sprite import sprite_counters
 from tests.ast_scanning import PROJECT_ROOT, qualified_name
+from tests.benchmarks.test_engine_context_benchmarks import READ_RATIO_LIMITS
 from tests.engine_source import ENGINE_DIRECTORY
 
 if TYPE_CHECKING:
@@ -1663,3 +1666,102 @@ def test_each_view_answers_per_context(view_name, mocker):
     VIEW_CHECKS[view_name](
         first=EngineContext(name='first'), second=EngineContext(name='second'), mocker=mocker
     )
+
+
+# --- The engine context page (docs/architecture/engine_context.md) ---
+
+ENGINE_CONTEXT_PAGE = PROJECT_ROOT / 'docs' / 'architecture' / 'engine_context.md'
+VIEWS_SECTION = '## Read-only views'
+PERFORMANCE_SECTION = '## Performance'
+SLOT_READ_ROW = 'slot read'
+# The classes that declare views, by name (each view in VIEW_CHECKS is 'Owner.NAME' or a module's)
+VIEW_OWNER_CLASSES: dict[str, type] = {
+    owner.__name__: owner for owner in (GameEngine, SceneManager, FontManager, Sprite)
+}
+# A module view's write_instead, by its module
+MODULE_VIEW_WRITE_INSTEAD = {'glitchygames.performance': PERFORMANCE_WRITE_INSTEAD}
+# A cost cell's nanoseconds: the first number before 'ns'
+NANOSECONDS = re.compile(r'(?P<nanoseconds>\d+(?:\.\d+)?) ns')
+
+
+def page_section_table_rows(*, heading: str) -> list[list[str]]:
+    """Return the cells of each table row in one section of the engine context page.
+
+    Args:
+        heading: The section's heading line (``'## Performance'``).
+
+    Returns:
+        Each row's cells, stripped, the header row included and the separator left out; no rows
+        when the page has no such section.
+
+    """
+    lines = ENGINE_CONTEXT_PAGE.read_text(encoding='utf-8').splitlines()
+    if heading not in lines:
+        return []
+    rows: list[list[str]] = []
+    for line in lines[lines.index(heading) + 1 :]:
+        if line.startswith('## '):
+            break
+        if line.startswith('|') and not set(line) <= set('|-: '):
+            rows.append([cell.strip() for cell in line.strip().strip('|').split('|')])
+    return rows
+
+
+def view_write_instead(*, view_name: str) -> str:
+    """Return what a view's refusal tells its writer to write instead.
+
+    Args:
+        view_name: The view, as ``VIEW_CHECKS`` names it.
+
+    Returns:
+        The view's ``write_instead`` text.
+
+    """
+    owner_name, _, name = view_name.rpartition('.')
+    if owner_name in MODULE_VIEW_WRITE_INSTEAD:
+        return MODULE_VIEW_WRITE_INSTEAD[owner_name]
+    view = vars(VIEW_OWNER_CLASSES[owner_name])[name]
+    assert isinstance(view, ViewBase)
+    return view.write_instead
+
+
+def test_the_engine_context_page_lists_every_view_and_where_to_write():
+    """The page's views table has a row per view, naming what its refusal says to write instead."""
+    rows = {row[0]: row for row in page_section_table_rows(heading=VIEWS_SECTION)}
+    undocumented = sorted(
+        view_name
+        for view_name in VIEW_CHECKS
+        if f'`{view_name}`' not in rows
+        or view_write_instead(view_name=view_name) not in rows[f'`{view_name}`'][-1]
+    )
+
+    assert undocumented == []
+
+
+def documented_read_costs() -> dict[str, float]:
+    """Return the nanoseconds the page's "Performance" table gives each read, by its row label.
+
+    Returns:
+        Each labelled row's cost (its second cell's first number), by the label without
+        backticks.
+
+    """
+    costs: dict[str, float] = {}
+    for row in page_section_table_rows(heading=PERFORMANCE_SECTION):
+        match = NANOSECONDS.search(row[1]) if len(row) > 1 else None
+        if match is not None:
+            costs[row[0].strip('`')] = float(match.group('nanoseconds'))
+    return costs
+
+
+def test_the_documented_read_costs_stay_within_the_gate():
+    """Each documented read costs no more slot reads than the gate allows (READ_RATIO_LIMITS)."""
+    costs = documented_read_costs()
+
+    assert {SLOT_READ_ROW, *READ_RATIO_LIMITS} <= set(costs)
+    over_the_gate = {
+        label: costs[label] / costs[SLOT_READ_ROW]
+        for label, limit in READ_RATIO_LIMITS.items()
+        if costs[label] / costs[SLOT_READ_ROW] > limit
+    }
+    assert over_the_gate == {}
