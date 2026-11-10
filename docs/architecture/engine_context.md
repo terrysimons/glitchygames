@@ -98,7 +98,7 @@ Read on an instance, a class view answers that object's own state (`engine.OPTIO
   (`glitchygames.audio`'s lazy `VoiceAssistant`) is not a view.
 - Writing or deleting a view, on its class, an instance or its module, raises
   `ReadOnlyViewError` naming where to write instead (the last column).
-- A class-level read costs about twice a slot read (Performance, below), so engine code never
+- A class-level read costs about 2.3 slot reads (Performance, below), so engine code never
   reads a view: it reads its own objects (`self.options`, `self.event_handlers`), a slot once per
   function into a local, or the owner function (`sprite_counters()`, `AdaptiveClamping()`).
 
@@ -124,20 +124,25 @@ outer game that steps others (the Arcade's wrapper) reports the aggregate of eve
 
 ## Performance
 
-What each kind of read costs (Apple M4 Max, Python 3.14, `timeit` with `python -I`):
+What each kind of read costs (Apple M4 Max, Python 3.14):
 
 | Read | Cost per read | Measured |
 |---|---|---|
-| `attribute read` | 12 ns | a class or instance attribute; the owner, 2026-10-28 |
-| `instance property` | 19 ns | the owner, 2026-10-28 |
-| `slot read` | 61 ns | `current_context().value(slot=...)`; Task 1, 2026-10-29 (60.5 and 61.4 ns) |
-| `read-only view` | 126 ns | a class-level view in the `GameEngine` views' shape; Task 1, 2026-10-29 (122 and 131 ns) |
-| `current_engine()` | 79 ns | Task 16, 2026-11-10 (three runs, 78-79 ns; slot reads 59-60 ns in the same runs) |
-| `context switch` | 430 ns | `with context.active():` entered and left; the owner, 2026-10-28 |
+| `attribute read` | 30 ns | `engine.options`; Task 17, 2026-11-10, median (0.33 slot reads) |
+| `instance property` | 19 ns | `timeit`; the owner, 2026-10-28 |
+| `slot read` | 90 ns | `current_context().value(slot=...)`; Task 17, 2026-11-10, median (the reference) |
+| `read-only view` | 210 ns | `GameEngine.OPTIONS` with an engine running; Task 17, 2026-11-10, median (2.32 slot reads) |
+| `current_engine()` | 113 ns | Task 17, 2026-11-10, median (1.25 slot reads) |
+| `context switch` | 430 ns | `with context.active():` entered and left; `timeit`; the owner, 2026-10-28 |
 
-Task 1's and Task 16's figures are `timeit`'s best of five per run
-(`plans/2026-10-27-engine-context-2-engine-state.md`, Task 1 Step 5b); Task 17 replaces the read
-figures with its benchmarks' medians.
+The four Task 17 rows are the medians of gate (c)'s per-read benchmarks
+(`tests/benchmarks/test_engine_context_benchmarks.py`, `-k reading`, pytest-benchmark, one run on
+2026-11-10, the machine's one-minute load 5.2). Each benchmarked function makes one read, so each
+of those four medians includes the same one Python function call (about 18 ns: the attribute
+read's 30 ns here against 12 ns under `timeit`): they compare with each other, not with the two
+`timeit` rows, which have no call around the read. They replace Task 1's and Task 16's `timeit`
+best-of-five figures (slot read 61 ns, view 126 ns or 2.07 slot reads, `current_engine()` 79 ns or
+1.30 slot reads, attribute 12 ns).
 
 What they mean per frame:
 
@@ -145,7 +150,10 @@ What they mean per frame:
   event), so it pays nothing new.
 - The slot-backed state a frame reads (the doors, the random streams, the polled input, the frame
   clock, the performance manager, the sprite counters, the internal-post tracker) costs roughly
-  1-3 µs a frame.
+  1-3 µs a frame. Task 17 measured it against main before the plan (cd60bd42), on a bare frame
+  step of about 19-21 µs: the frame step about 0.6-1.7 µs more, and dispatching a batch of two
+  events about 0.3-1.2 µs more (gate (c)'s longest per-call pair, minimum to median); in the games'
+  goldens and bundled demos neither p50 nor p99 moved beyond timer noise (gate (a)).
 - The Arcade pays about 0.4 µs per game per tick for switching.
 - Each game's performance report covers that game alone; an outer game's (the Arcade wrapper's)
   is the aggregate of every game it steps.
