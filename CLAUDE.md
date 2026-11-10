@@ -179,8 +179,12 @@ nox -s docs-serve          # Serve the docs locally (same strict build, graphs i
 ```
 
 ### Website (`infra/`: https://play.glitchy.games)
-Design `docs/specs/2026-10-27-glitchy-games-website-design.md`, plan
-`plans/2026-10-28-glitchy-games-website-implementation.md`. `infra/` is its own uv project with
+How to sign in, bring it up from nothing, deploy, publish, check it and troubleshoot:
+`infra/README.md`. Design `docs/specs/2026-10-27-glitchy-games-website-design.md`, plan
+`plans/2026-10-28-glitchy-games-website-implementation.md` (Task 8 records the first go-live).
+Credentials: `aws login --profile <profile>`; pass `--profile <profile>` after `--` to
+`infra-diff`/`infra-deploy` (keys exported in the shell beat `AWS_PROFILE`, and stale ones stop
+the app with `KeyError: 'CDK_DEFAULT_ACCOUNT'`). `infra/` is its own uv project with
 its own `uv.lock` (its own workspace root, not a member: the engine's lock never holds the CDK):
 the CDK app (`glitchy_site.app`: stacks `GlitchyGamesDnsZones`, `GlitchyGamesSite`,
 `GlitchyGamesAiRedirect`, `GlitchyGamesSiteDeployRole`, `GlitchyGamesBudget`, all us-east-1), the
@@ -195,8 +199,8 @@ of this project on `main` (the OIDC token's `vcs-ref`). The site itself is `src/
 measures no replay).
 ```bash
 nox -s infra-test          # pytest infra/tests (CDK templates built with infra/cdk.json's feature flags) + node --test infra/tests/functions
-nox -s infra-diff          # cdk diff (needs AWS credentials and GLITCHY_SITE_BUDGET_EMAIL, never written in the repo)
-nox -s infra-deploy        # cdk deploy --all (or `-- GlitchyGamesDnsZones` first); the owner's Mac only
+nox -s infra-diff -- --profile P     # cdk diff (needs AWS credentials and GLITCHY_SITE_BUDGET_EMAIL, never written in the repo)
+nox -s infra-deploy -- --profile P   # cdk deploy --all (or `-- GlitchyGamesDnsZones --profile P` first); the owner's Mac only
 nox -s site-publish        # Upload src/website (or `-- --source DIR`) and invalidate; `-- --dry-run` changes nothing
 # CircleCI: test-infra on every branch (cimg/python -node image); deploy-site after a merge to main
 # (requires deploy-docs and test-infra: it publishes after the docs), signing in with the job's OIDC token
