@@ -163,8 +163,8 @@ def test_the_snippet_follows_the_pages_in_the_docs_tree(tmp_path):
     snippet = (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
     assert 'Generated from 4 ledger rows (0 in the repository, 2 published, 3 pending)' in snippet
     assert '`def5678 (uncommitted changes)`' in snippet
-    # The newer golden row: a 2 ms mean processing time is 500 FPS of headroom
-    assert '`def5678 (uncommitted changes)` | 10 | 500 | 2.000 |' in snippet
+    # The newer golden row: a 2 ms mean processing time is 500 FPS of headroom (no 5% slices)
+    assert '`def5678 (uncommitted changes)` | 10 | 2.000 | 4.000 | 6.000 | 0 | 500 |' in snippet
     assert (
         '<div class="performance-explorer" data-source="../metrics/performance-explorer.json" '
         'data-pages="../metrics/"></div>'
@@ -211,18 +211,8 @@ def test_the_latest_table_leaves_the_fps_empty_when_no_frame_was_measured():
             )
         }
     )
-    series = PerformanceSeries(
-        recording=GOLDEN,
-        console_script='paddleslap',
-        machine='a machine',
-        paced=False,
-        rows=(unmeasured,),
-    )
 
-    lines = latest_table(series_list=[series])
-
-    assert lines[0].split(' | ')[4] == 'FPS'
-    assert not lines[2].split(' | ')[4]
+    assert not latest_fps_cell(row=unmeasured, paced=False)
 
 
 def test_the_docs_trees_published_build_leaves_out_rows_from_uncommitted_changes(tmp_path):
@@ -521,3 +511,77 @@ def test_the_mkdocs_hook_stops_the_build_when_the_pending_ledger_cannot_be_read(
 
     with pytest.raises(PluginError, match=f'{re.escape(str(pending))}: the ledger cannot be read'):
         mkdocs_hooks.generate_performance_graphs()
+
+
+def latest_fps_cell(*, row: LedgerRow, paced: bool) -> str:
+    """Return the FPS cell of a one-row series' line in the latest measurements table.
+
+    Returns:
+        The last cell, stripped.
+
+    """
+    series = PerformanceSeries(
+        recording=row.recording,
+        console_script=row.console_script,
+        machine='Apple M4 Pro',
+        paced=paced,
+        rows=(row,),
+    )
+    header, _alignment, line = latest_table(series_list=[series])
+    assert header.endswith('| FPS (5% low-high) |')
+    return line.split('|')[-2].strip()
+
+
+def test_a_replays_fps_is_its_headroom_with_its_5_percent_low_and_high():
+    """1 / the mean processing time, then 1 / the slowest and fastest 5% means."""
+    row = ledger_row(p50=0.002)
+    assert row.summary is not None
+    summary = row.summary.model_copy(
+        update={
+            'total_processing_seconds': 0.025,
+            'slowest_5_percent_mean_processing_seconds': 0.004,
+            'fastest_5_percent_mean_processing_seconds': 0.001,
+        }
+    )
+
+    cell = latest_fps_cell(row=row.model_copy(update={'summary': summary}), paced=False)
+
+    assert cell == '400 (250-1000)'
+
+
+def test_a_replay_from_before_the_5_percent_means_shows_its_average_alone():
+    """Summaries from before 2026-10-28 have no slices: the mean still gives the average."""
+    cell = latest_fps_cell(row=ledger_row(p50=0.002), paced=False)
+
+    assert cell == '500'
+
+
+def test_a_live_runs_fps_is_what_it_achieved_from_its_frame_times():
+    """A paced run's FPS is 1 / its frame times, not its processing times (as in the graphs)."""
+    row = live_row()
+    assert row.summary is not None
+    assert row.summary.frame_time is not None
+    frame_time = row.summary.frame_time.model_copy(
+        update={
+            'mean_seconds': 0.02,
+            'slowest_5_percent_mean_seconds': 0.025,
+            'fastest_5_percent_mean_seconds': 0.0125,
+        }
+    )
+    summary = row.summary.model_copy(update={'frame_time': frame_time})
+
+    cell = latest_fps_cell(row=row.model_copy(update={'summary': summary}), paced=True)
+
+    assert cell == '50 (40-80)'
+
+
+def test_a_live_run_without_a_mean_frame_time_has_an_empty_fps_cell():
+    """Frame times from before their mean give no FPS; processing times are not substituted."""
+    assert not latest_fps_cell(row=live_row(), paced=True)
+    row = live_row()
+    assert row.summary is not None
+    without_frame_times = row.summary.model_copy(update={'frame_time': None})
+
+    cell = latest_fps_cell(row=row.model_copy(update={'summary': without_frame_times}), paced=True)
+
+    assert not cell

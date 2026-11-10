@@ -10,10 +10,12 @@
   done: see `plans/2026-11-08-instrument-catalog-batch-2-implementation.md` and
   `plans/data/instrument-audit/batch-2.tsv`. Batch 3 (drums and percussion) is done: see
   `plans/2026-11-08-instrument-catalog-batch-3-implementation.md` and
-  `plans/data/instrument-audit/batch-3.tsv`. The later batches are not yet planned.
+  `plans/data/instrument-audit/batch-3.tsv`. Batch 4 (plucked strings) is done: see
+  `plans/2026-11-09-instrument-catalog-batch-4-implementation.md` and
+  `plans/data/instrument-audit/batch-4.tsv`. The later batches are not yet planned.
 - **Depends on:** the instrument catalog (`src/glitchygames/audio/instruments/`, 431 instruments
   in 18 families when this was written, shipped with the sound engine M1; 439 in 21 after batch
-  1, 448 in 23 after batch 2, 624 after batch 3), its range audit, and the engine's four sources per instrument
+  1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4), its range audit, and the engine's four sources per instrument
   (`src/glitchygames/audio/instrument.py`).
 - **Tracked as:** `plans/future-features.md` #70.
 
@@ -213,7 +215,11 @@ its real name or a qualified one. Each feature's design lists the instruments it
    have if we find a source that indicates we should." So `sound_changes` (keyword overrides of
    the parent's builder, empty by default) lets a sound-alike differ by a sourced trait. This is
    an explicit exception to the anti-goal against bulk entries: sound-alikes add names, not
-   builds. Any entry with its own build must still sound different from every other (the
+   builds. A pitched sound-alike gives its own sourced range rather than its parent's (a
+   requinto plays another span than the classical guitar whose build it shares); it is pitched
+   exactly when its parent is. This is the batch 4 plan's call, which the owner approved with
+   the plan (2026-11-09; `plans/2026-11-09-instrument-catalog-batch-4-implementation.md`). Any
+   entry with its own build must still sound different from every other (the
    rule-7 test), and a sound-alike with changes counts as its own build.
 
 ## Open questions

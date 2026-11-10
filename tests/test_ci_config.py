@@ -189,7 +189,13 @@ class RecordingSession:
         self.commands: list[tuple[str, ...]] = []
         # Each command's environment overrides (``env=``), by command
         self.environments: dict[tuple[str, ...], object] = {}
+        # What the session logged (``session.log``), in order
+        self.logs: list[str] = []
         self.virtualenv = type('Virtualenv', (), {'location': '.nox/docs-deploy'})()
+
+    def log(self, message: str) -> None:
+        """Record a message the session logs."""
+        self.logs.append(message)
 
     def run(self, *command: str, **options: object) -> str | None:
         """Record a command the session runs, and its environment overrides.
@@ -236,18 +242,93 @@ def docs_deploy_commands(*, posargs: list[str]) -> list[tuple[str, ...]]:
     return session.commands
 
 
-def test_docs_deploy_measures_the_replays_by_default():
+def pending_ledger(*, mocker, tmp_path: Path, text: str | None) -> Path:
+    """Point the docs deploy at a pending ledger in tmp_path holding ``text`` (None: no file).
+
+    Returns:
+        The pending ledger's path.
+
+    """
+    import noxfile
+
+    path = tmp_path / 'pending.jsonl'
+    if text is not None:
+        path.write_text(text, encoding='utf-8')
+    mocker.patch.object(noxfile, '_pending_ledger_path', return_value=path)
+    return path
+
+
+def test_docs_deploy_measures_the_replays_by_default(mocker, tmp_path):
     """A deploy from a person's machine measures this commit's replays first, then clears.
 
     Both through the engine's command: ``glitchygames measure --skip-dirty`` before the build,
-    ``glitchygames clear-published`` after the push.
+    ``glitchygames clear-published`` after the push (the measured rows wait in the pending
+    ledger).
     """
+    pending_ledger(mocker=mocker, tmp_path=tmp_path, text='{"recording": "a row"}\n')
+
     commands = docs_deploy_commands(posargs=[])
 
     measuring = commands.index((*GLITCHYGAMES_IN_THE_PROJECT, 'measure', '--skip-dirty'))
     deploying = commands.index(('mkdocs', 'gh-deploy', '--strict', '--config-file', 'zensical.yml'))
     clearing = commands.index((*GLITCHYGAMES_IN_THE_PROJECT, 'clear-published'))
     assert measuring < deploying < clearing
+
+
+@pytest.mark.parametrize('text', [None, '', '\n  \n'])
+def test_docs_deploy_without_pending_rows_clears_nothing(mocker, tmp_path, text):
+    """No pending rows (CircleCI's fresh checkout): no ``clear-published``, so no member builds.
+
+    ``uv run --all-packages`` there first built every member from PyPI, and a network blink
+    failed a deploy that had already published (CircleCI build 3138).
+    """
+    import noxfile
+
+    path = pending_ledger(mocker=mocker, tmp_path=tmp_path, text=text)
+    session = RecordingSession(posargs=['--no-measure'])
+
+    noxfile.docs_deploy(session)
+
+    assert ('mkdocs', 'gh-deploy', '--strict', '--config-file', 'zensical.yml') in session.commands
+    assert not any('clear-published' in command for command in session.commands)
+    assert session.logs == [f'No pending rows in {path}: nothing published to clear.']
+
+
+def test_docs_deploy_with_no_measure_still_clears_rows_measured_before(mocker, tmp_path):
+    """Rows measured earlier (``nox -s replay-metrics``) are published, so they are cleared."""
+    pending_ledger(mocker=mocker, tmp_path=tmp_path, text='{"recording": "a row"}\n')
+
+    commands = docs_deploy_commands(posargs=['--no-measure'])
+
+    assert commands[-1] == (*GLITCHYGAMES_IN_THE_PROJECT, 'clear-published')
+
+
+def test_the_pending_ledger_is_the_projects_setting_or_the_engines_default(tmp_path, monkeypatch):
+    """Read from pyproject.toml; a project without the key gets the engine's own default."""
+    import noxfile
+
+    from glitchygames.replay.tools.settings import ProjectSettings
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / 'pyproject.toml').write_text('[project]\nname = "a-game"\n', encoding='utf-8')
+    default = noxfile._pending_ledger_path()
+    (tmp_path / 'pyproject.toml').write_text(
+        '[tool.glitchygames]\npending-ledger = "measured/pending.jsonl"\n', encoding='utf-8'
+    )
+
+    assert default == Path(ProjectSettings().pending_ledger)
+    assert noxfile._pending_ledger_path() == Path('measured/pending.jsonl')
+
+
+def test_this_repositorys_pending_ledger_is_its_setting():
+    """Ours is the [tool.glitchygames] pending-ledger in the root pyproject.toml."""
+    import noxfile
+
+    settings = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
+
+    assert noxfile._pending_ledger_path() == Path(
+        settings['tool']['glitchygames']['pending-ledger']
+    )
 
 
 def test_replay_metrics_runs_on_the_editable_install_of_every_package():
