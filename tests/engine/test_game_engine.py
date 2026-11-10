@@ -42,7 +42,6 @@ import os
 import platform
 import re
 import sys
-from collections import OrderedDict
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
@@ -2879,6 +2878,10 @@ class TestGameEngineInvalidUpdateType:
         assert engine.screen is pygame.display.get_surface()
 
 
+# How many sprites the teardown report test makes (each 2 x 1 pixels)
+TEARDOWN_REPORT_SPRITES = 3
+
+
 class TestGameEngineTeardownReports:
     """The sprite counts are reported by the teardown, never by a finaliser (BUGS.md #188)."""
 
@@ -2886,13 +2889,14 @@ class TestGameEngineTeardownReports:
         """_shutdown logs the total sprite count, then each sprite type's counters."""
         from glitchygames.sprites import Sprite
 
+        class TeardownReportSprite(Sprite):
+            """A sprite type only this test makes."""
+
         engine = _make_engine(mocker)
         mocker.patch('pygame.display.quit')
         mocker.patch('pygame.quit')
-        mocker.patch.object(Sprite, 'SPRITE_COUNT', 5)
-        mocker.patch.object(
-            Sprite, 'SPRITE_COUNTERS', OrderedDict({'TestSprite': {'count': 3, 'pixels': 2}})
-        )
+        for _ in range(TEARDOWN_REPORT_SPRITES):
+            TeardownReportSprite(x=0, y=0, width=2, height=1)
 
         with caplog.at_level('INFO', logger='game.engine'):
             engine._shutdown()
@@ -2900,9 +2904,10 @@ class TestGameEngineTeardownReports:
         engine_messages = [
             record.getMessage() for record in caplog.records if record.name == 'game.engine'
         ]
-        assert 'Sprite Count: 5' in engine_messages
-        assert 'TestSprite Sprite count: 3' in engine_messages
-        assert 'TestSprite Sprite pixels: 2' in engine_messages
+        sprite_type = str(TeardownReportSprite)
+        assert f'Sprite Count: {TEARDOWN_REPORT_SPRITES}' in engine_messages
+        assert f'{sprite_type} Sprite count: {TEARDOWN_REPORT_SPRITES}' in engine_messages
+        assert f'{sprite_type} Sprite pixels: {2 * TEARDOWN_REPORT_SPRITES}' in engine_messages
 
     def test_the_engine_has_no_finaliser(self):
         """No __del__: a finaliser that logs can fail mid-write to the log's stream."""

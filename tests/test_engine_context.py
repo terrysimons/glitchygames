@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import collections
 import contextvars
 import importlib.util
 import random
@@ -103,8 +104,9 @@ from glitchygames.sources import (
     stop_observing_save_store_openings,
     without_discarded_scope_posts,
 )
-from glitchygames.sprites import Singleton
+from glitchygames.sprites import Singleton, Sprite
 from glitchygames.sprites.bitmappy_sprite import SINGLETONS_SLOT
+from glitchygames.sprites.sprite import SPRITE_COUNTERS_SLOT, SpriteCounters
 from glitchygames.state import MemorySaveManager, SaveManager, open_saves
 from tests.ast_scanning import PROJECT_ROOT
 from tests.engine_source import ENGINE_DIRECTORY
@@ -1135,6 +1137,34 @@ def check_unhandled_event_types(*, first: EngineContext, second: EngineContext) 
     assert default_context().value(slot=UNHANDLED_EVENT_TYPES_SLOT) == set()
 
 
+def check_sprite_counters(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context counts its own sprites and keeps its own breakpoints, the default none (C18)."""
+
+    class CountedInFirst(Sprite):
+        """The sprite type the first context makes."""
+
+    class CountedInSecond(Sprite):
+        """The sprite type the second context makes."""
+
+    with first.active():
+        CountedInFirst(x=0, y=0, width=2, height=1)
+        CountedInFirst(x=0, y=0, width=2, height=1)
+        Sprite.break_when(sprite_type=CountedInFirst)
+    with second.active():
+        CountedInSecond(x=0, y=0, width=3, height=1)
+
+    assert first.value(slot=SPRITE_COUNTERS_SLOT) == SpriteCounters(
+        counters=collections.OrderedDict({str(CountedInFirst): {'count': 2, 'pixels': 4}}),
+        breakpoints=[str(CountedInFirst)],
+        count=2,
+    )
+    assert second.value(slot=SPRITE_COUNTERS_SLOT) == SpriteCounters(
+        counters=collections.OrderedDict({str(CountedInSecond): {'count': 1, 'pixels': 3}}),
+        count=1,
+    )
+    assert default_context().value(slot=SPRITE_COUNTERS_SLOT) == SpriteCounters()
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -1154,6 +1184,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.fonts.font_manager.options': check_font_options,
     'glitchygames.sprites.bitmappy_sprite.singletons': check_singletons,
     'glitchygames.events.base.unhandled_event_types': check_unhandled_event_types,
+    'glitchygames.sprites.sprite.counters': check_sprite_counters,
 }
 
 

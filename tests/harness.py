@@ -40,6 +40,7 @@ from glitchygames.performance.adaptive_clamping import PERFORMANCE_MANAGERS_SLOT
 from glitchygames.recording import reset_internal_post_tracking
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites.bitmappy_sprite import SINGLETONS_SLOT
+from glitchygames.sprites.sprite import SPRITE_COUNTERS_SLOT
 from glitchygames.user_files import install_user_files
 from tests.ai_service_stand_in import CONTROL_SCRIPT_NAME, python_twin
 from tests.display_canvas import (
@@ -519,11 +520,15 @@ def reset_engine_bookkeeping():
 
     The event types --debug-events has logged as unhandled (glitchygames.events.base; audit C17)
     are logged once per engine context; without this, a type one test logged would stay silent
-    in every later test on the worker.
+    in every later test on the worker. The sprite counters and breakpoints
+    (glitchygames.sprites.sprite; audit C18) likewise: a breakpoint one test registered would
+    stop every later test's sprites in the debugger.
     """
     default_context().reset_value(slot=UNHANDLED_EVENT_TYPES_SLOT)
+    default_context().reset_value(slot=SPRITE_COUNTERS_SLOT)
     yield
     default_context().reset_value(slot=UNHANDLED_EVENT_TYPES_SLOT)
+    default_context().reset_value(slot=SPRITE_COUNTERS_SLOT)
 
 
 @pytest.fixture

@@ -166,7 +166,7 @@ from glitchygames.sources import (
     reset_sources,
     take_redelivered_events,
 )
-from glitchygames.sprites import Sprite
+from glitchygames.sprites.sprite import sprite_counters
 from glitchygames.state.sandbox import save_namespace_snapshot
 from glitchygames.supervision import BREAKPOINT_KIND
 from glitchygames.timing import (
@@ -4831,8 +4831,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         does, possibly in the middle of a write to the stream the log goes to, where a second
         write raises ``RuntimeError: reentrant call`` (BUGS.md #188).
         """
-        self.log.info('Sprite Count: %s', Sprite.SPRITE_COUNT)
-        for sprite_type, counters in Sprite.SPRITE_COUNTERS.items():
+        counters_of_this_context = sprite_counters()
+        self.log.info('Sprite Count: %s', counters_of_this_context.count)
+        for sprite_type, counters in counters_of_this_context.counters.items():
             for counter_name, counter_value in counters.items():
                 self.log.info('%s Sprite %s: %s', sprite_type, counter_name, counter_value)
 

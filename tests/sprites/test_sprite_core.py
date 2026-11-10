@@ -37,6 +37,7 @@ from glitchygames.sprites import (
 )
 from glitchygames.sprites.bitmappy_sprite import SINGLETONS_SLOT
 from glitchygames.sprites.factory import SpriteFactory
+from glitchygames.sprites.sprite import sprite_counters
 
 # Constants for magic values
 SPRITE_X = 10
@@ -205,6 +206,23 @@ class TestSpriteCounters:
         assert counters['pixels'] == (
             SPRITE_WIDTH * SPRITE_HEIGHT + SPRITE_WIDTH_100 * SPRITE_HEIGHT_50
         )
+
+    def test_each_context_counts_its_own_sprites(self):
+        """Sprites made in one context are never counted in another's report (audit C18)."""
+        first = EngineContext(name='first')
+        second = EngineContext(name='second')
+        with first.active():
+            Sprite(x=0, y=0, width=SPRITE_WIDTH, height=SPRITE_HEIGHT)
+            Sprite.break_when(sprite_type=Sprite)
+        with second.active():
+            second_count = Sprite.SPRITE_COUNT
+            second_breakpoints = Sprite.SPRITE_BREAKPOINTS
+        with first.active():
+            first_count = Sprite.SPRITE_COUNT
+
+        assert first_count == 1
+        assert second_count == 0
+        assert second_breakpoints is None
 
 
 class TestSpriteProperties:
@@ -718,19 +736,13 @@ class TestSpriteStr:
 class TestSpriteBreakWhen:
     """Test Sprite.break_when class method."""
 
-    def teardown_method(self):
-        """Reset SPRITE_BREAKPOINTS after each test."""
-        Sprite.SPRITE_BREAKPOINTS = None
-
     def test_break_when_none_initializes_list(self):
         """Test break_when with None initializes SPRITE_BREAKPOINTS list."""
-        Sprite.SPRITE_BREAKPOINTS = None
         Sprite.break_when(sprite_type=None)
         assert Sprite.SPRITE_BREAKPOINTS == []
 
     def test_break_when_specific_type_appends(self):
         """Test break_when with specific type appends to the list."""
-        Sprite.SPRITE_BREAKPOINTS = None
         Sprite.break_when(sprite_type=Sprite)
         assert Sprite.SPRITE_BREAKPOINTS is not None
         assert len(Sprite.SPRITE_BREAKPOINTS) == 1
@@ -1696,20 +1708,18 @@ class TestRootSpriteGroupsNone:
 class TestSpriteBreakWhenAlreadyInitialized:
     """Test Sprite.break_when when SPRITE_BREAKPOINTS already initialized (line 100->104)."""
 
-    def teardown_method(self):
-        """Reset SPRITE_BREAKPOINTS after each test."""
-        Sprite.SPRITE_BREAKPOINTS = None
-
     def test_break_when_already_initialized_appends_type(self):
         """Test break_when with already-initialized list appends sprite type."""
-        Sprite.SPRITE_BREAKPOINTS = []
+        sprite_counters().breakpoints = []
         Sprite.break_when(sprite_type=Sprite)
+        assert Sprite.SPRITE_BREAKPOINTS is not None
         assert len(Sprite.SPRITE_BREAKPOINTS) == 1
 
     def test_break_when_already_initialized_none_type(self):
         """Test break_when with already-initialized list and None type does nothing extra."""
-        Sprite.SPRITE_BREAKPOINTS = []
+        sprite_counters().breakpoints = []
         Sprite.break_when(sprite_type=None)
+        assert Sprite.SPRITE_BREAKPOINTS is not None
         # With None type, it just logs, doesn't append
         assert len(Sprite.SPRITE_BREAKPOINTS) == 0
 

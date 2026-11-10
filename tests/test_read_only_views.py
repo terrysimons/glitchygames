@@ -38,6 +38,8 @@ from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.scene import SCENE_MANAGERS_SLOT
 from glitchygames.sources import reset_sources
+from glitchygames.sprites import Sprite
+from glitchygames.sprites.sprite import sprite_counters
 from tests.ast_scanning import PROJECT_ROOT, qualified_name
 from tests.engine_source import ENGINE_DIRECTORY
 
@@ -1466,6 +1468,129 @@ def check_font_options_view(
 
 
 VIEW_CHECKS['FontManager.OPTIONS'] = check_font_options_view
+
+
+def sprite_counter_view_reads(*, name: str) -> list[object]:
+    """Read a Sprite counter view as the view checks do: on the class, then on a fresh sprite.
+
+    Args:
+        name: The view's name (``'SPRITE_COUNT'``).
+
+    Returns:
+        The class read, then the instance read (the sprite is made first, so both count it).
+
+    """
+    sprite = Sprite(x=0, y=0, width=2, height=1)
+    return [getattr(Sprite, name), getattr(sprite, name)]
+
+
+def refuse_sprite_counter_writes(*, name: str, write_instead: str, mocker: MockerFixture) -> None:
+    """Writing, deleting or patching a Sprite counter view raises, naming where to write.
+
+    Args:
+        name: The view's name.
+        write_instead: What the refusal names to write instead.
+        mocker: The test's mocker.
+
+    """
+    sprite = Sprite(x=0, y=0, width=2, height=1)
+    for write in (
+        lambda: setattr(Sprite, name, None),
+        lambda: setattr(sprite, name, None),
+        lambda: delattr(Sprite, name),
+        lambda: mocker.patch.object(Sprite, name, None),
+    ):
+        with pytest.raises(ReadOnlyViewError, match=re.escape(f'write {write_instead}')):
+            write()
+
+
+def check_sprite_count_view(
+    *, first: EngineContext, second: EngineContext, mocker: MockerFixture
+) -> None:
+    """Sprite.SPRITE_COUNT: how many sprites the current context made (audit C18).
+
+    Read on the class or on a sprite, the current context's count (``0`` in a fresh context).
+    """
+    reads: list[list[object]] = []
+    for context, sprites_before in ((first, 2), (second, 0)):
+        with context.active():
+            for _ in range(sprites_before):
+                Sprite(x=0, y=0, width=2, height=1)
+            reads.append(sprite_counter_view_reads(name='SPRITE_COUNT'))
+    with EngineContext(name='fresh').active():
+        fresh_read = Sprite.SPRITE_COUNT
+
+    assert reads == [[3, 3], [1, 1]]
+    assert fresh_read == 0
+    refuse_sprite_counter_writes(
+        name='SPRITE_COUNT', write_instead='sprite_counters().count', mocker=mocker
+    )
+
+
+VIEW_CHECKS['Sprite.SPRITE_COUNT'] = check_sprite_count_view
+
+
+def check_sprite_counters_view(
+    *, first: EngineContext, second: EngineContext, mocker: MockerFixture
+) -> None:
+    """Sprite.SPRITE_COUNTERS: each sprite type's counters in the current context (audit C18).
+
+    Read on the class or on a sprite, the current context's counters (empty in a fresh one).
+    """
+    reads: list[list[object]] = []
+    owned: list[object] = []
+    for context in (first, second):
+        with context.active():
+            reads.append(sprite_counter_view_reads(name='SPRITE_COUNTERS'))
+            owned.append(sprite_counters().counters)
+    with EngineContext(name='fresh').active():
+        fresh_read = Sprite.SPRITE_COUNTERS
+
+    assert [[read is owned[index] for read in pair] for index, pair in enumerate(reads)] == [
+        [True, True],
+        [True, True],
+    ]
+    assert owned[0] is not owned[1]
+    assert reads[0][0] == {str(Sprite): {'count': 1, 'pixels': 2}}
+    assert fresh_read == {}
+    refuse_sprite_counter_writes(
+        name='SPRITE_COUNTERS', write_instead='sprite_counters().counters', mocker=mocker
+    )
+
+
+VIEW_CHECKS['Sprite.SPRITE_COUNTERS'] = check_sprite_counters_view
+
+
+def check_sprite_breakpoints_view(
+    *, first: EngineContext, second: EngineContext, mocker: MockerFixture
+) -> None:
+    """Sprite.SPRITE_BREAKPOINTS: the current context's sprite breakpoints (audit C18).
+
+    Read on the class or on a sprite, the current context's breakpoints (``None`` in a fresh
+    context: no breakpoints).
+    """
+    with first.active():
+        Sprite.break_when(sprite_type=EngineContext)
+        # A sprite of another type than the breakpoint's: made without stopping
+        first_reads = [
+            Sprite.SPRITE_BREAKPOINTS,
+            Sprite(x=0, y=0, width=2, height=1).SPRITE_BREAKPOINTS,
+        ]
+    with second.active():
+        sprite_counters().breakpoints = []
+        second_read = Sprite.SPRITE_BREAKPOINTS
+    with EngineContext(name='fresh').active():
+        fresh_read = Sprite.SPRITE_BREAKPOINTS
+
+    assert first_reads == [[str(EngineContext)], [str(EngineContext)]]
+    assert second_read == []
+    assert fresh_read is None
+    refuse_sprite_counter_writes(
+        name='SPRITE_BREAKPOINTS', write_instead='sprite_counters().breakpoints', mocker=mocker
+    )
+
+
+VIEW_CHECKS['Sprite.SPRITE_BREAKPOINTS'] = check_sprite_breakpoints_view
 
 
 def check_performance_manager_view(
