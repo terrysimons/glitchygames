@@ -104,36 +104,49 @@ Both x11 configurations draw on XQuartz, a real X server with a window manager, 
 see what a real desktop does and the dummy driver never shows (measured 2026-10-23, SDL 2.32.10,
 XQuartz 2.8):
 
-- **Slow windows**: creating a window on XQuartz takes about 0.75 s, so `x11-macos` ran the
-  suite in 872 s (dummy 46 s, cocoa 110 s) and `x11-linux`, over TCP, in 552 s.
-- **Smallest window**: XQuartz's window manager widens a window narrower than 72 pixels (a
-  64x48 window becomes 72x48), so pygame warns "Requested window was forcibly resized by the
-  OS" (an error in this suite). Tests open windows at least 96 pixels wide.
-- **Late resizes**: resizing an existing window is asynchronous on x11. SDL waits 100 ms for
-  the window manager, then keeps the old size (pygame warns as above) and the new size arrives
-  on a later pump. On a loaded machine every resize came late (over TCP from the container, 8
-  processes resizing at once: 0.8-3.4 s), so a window changed from 800x600 to 800x480 reported
-  the old size. The engine and the tests set the display mode through
-  `glitchygames.display_mode.set_display_mode`, which pumps until the size changes and warns
-  only if the window ends at another size than the requested one.
-- **Real window events**: the X server sends focus, exposure and move events for the real
-  window; a recording made on x11 holds them, and tests that assume only the dummy driver's
-  window events see them. Its raw messages (pygame's `SYSWMEVENT`) stay blocked unless a game
-  opts in (`NATIVE_WINDOW_MESSAGES`); before 2026-10-23 the engine's allow-all enabled them,
-  filling queues, recordings and instant-replay journals.
-- **No OpenGL** (`x11-macos`): with OpenGL, SDL on macOS marks every window OpenGL, loading
-  XQuartz's libGL and Apple's Xplugin into the process, and draws window surfaces through an
-  OpenGL texture. Under load that ended pytest workers without a traceback (`GLXBadContext` in
-  `X_GLXMakeCurrent` through Xlib's default error handler; a crash in SkyLight on Xplugin's event
-  thread). The build leaves OpenGL out (`--disable-video-opengl`), so window surfaces are drawn
-  in software, as in the container, which has no libGL.
-- **Root in the container** (`x11-linux`): the container runs as root, who can read a file
-  without read permission, so `tests/templates/test_template_errors.py`'s permission test is
-  skipped there (an outcome difference, not a failure). It runs with an init process (`docker
-  run --init`) that reaps orphaned processes, as on a real system.
-- **Pixels**: no passing test drew different pixels on x11 than on dummy or cocoa; every x11
-  difference was a window size or a test's outcome (the two x11 configurations' pixels differed
-  only in the final frames of tests that had already failed on the widened window).
+Slow windows
+:   Creating a window on XQuartz takes about 0.75 s, so `x11-macos` ran the
+    suite in 872 s (dummy 46 s, cocoa 110 s) and `x11-linux`, over TCP, in 552 s.
+
+Smallest window
+:   XQuartz's window manager widens a window narrower than 72 pixels (a
+    64x48 window becomes 72x48), so pygame warns "Requested window was forcibly resized by the
+    OS" (an error in this suite). Tests open windows at least 96 pixels wide.
+
+Late resizes
+:   Resizing an existing window is asynchronous on x11. SDL waits 100 ms for
+    the window manager, then keeps the old size (pygame warns as above) and the new size arrives
+    on a later pump. On a loaded machine every resize came late (over TCP from the container, 8
+    processes resizing at once: 0.8-3.4 s), so a window changed from 800x600 to 800x480 reported
+    the old size. The engine and the tests set the display mode through
+    `glitchygames.display_mode.set_display_mode`, which pumps until the size changes and warns
+    only if the window ends at another size than the requested one.
+
+Real window events
+:   The X server sends focus, exposure and move events for the real
+    window; a recording made on x11 holds them, and tests that assume only the dummy driver's
+    window events see them. Its raw messages (pygame's `SYSWMEVENT`) stay blocked unless a game
+    opts in (`NATIVE_WINDOW_MESSAGES`); before 2026-10-23 the engine's allow-all enabled them,
+    filling queues, recordings and instant-replay journals.
+
+No OpenGL (`x11-macos`)
+:   With OpenGL, SDL on macOS marks every window OpenGL, loading
+    XQuartz's libGL and Apple's Xplugin into the process, and draws window surfaces through an
+    OpenGL texture. Under load that ended pytest workers without a traceback (`GLXBadContext` in
+    `X_GLXMakeCurrent` through Xlib's default error handler; a crash in SkyLight on Xplugin's event
+    thread). The build leaves OpenGL out (`--disable-video-opengl`), so window surfaces are drawn
+    in software, as in the container, which has no libGL.
+
+Root in the container (`x11-linux`)
+:   The container runs as root, who can read a file
+    without read permission, so `tests/templates/test_template_errors.py`'s permission test is
+    skipped there (an outcome difference, not a failure). It runs with an init process (`docker
+    run --init`) that reaps orphaned processes, as on a real system.
+
+Pixels
+:   No passing test drew different pixels on x11 than on dummy or cocoa; every x11
+    difference was a window size or a test's outcome (the two x11 configurations' pixels differed
+    only in the final frames of tests that had already failed on the widened window).
 
 ## Linux in Docker: `nox -s test-linux-x11`
 

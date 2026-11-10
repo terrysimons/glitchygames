@@ -359,22 +359,27 @@ all moved into members by 2026-10-26 (Part 3). The plans record each move step b
 (`plans/2026-10-24-workspace-packages.md` and its parts; Mr. Muncher's, the first, is
 `plans/2026-10-24-workspace-packages-1-foundation.md`, Task 9). What still matters:
 
-- **Logical names**: a game moved from the examples package kept its logical name, so no
-  recording changed. Bitmappy, which was not in a layer, did not: its scene's logical name was
-  its module path (glitchygames.bitmappy.editor:BitmapEditorScene) and is now
-  `apps.bitmappy.editor:BitmapEditorScene`. A plain replay refuses a recording made before the
-  move, naming the remedy, and `--replay-trace OLD --rebaseline NEW --headless` converts it (a
-  rebaseline compares the game and each scene by qualified name alone and writes the current
-  logical names: [gameplay replay](gameplay_replay.md)).
-- **Moved recordings keep their history**: the root `pyproject.toml`'s
-  `[tool.glitchygames.recording-renames]` maps each moved recording's old path to its new one,
-  so its run-ledger rows stay connected (each moved member's `_recording_history.py` test
-  checks its lines). Each lookup is one step: a recording moved twice needs a line from each of
-  its old paths.
-- **Old checkouts**: a checkout from before the moves can hold ignored leftovers (their
-  `__pycache__`) in the old places, src/glitchygames/examples, src/glitchygames/bitmappy and
-  tests/examples, which resolve as namespace packages in an editable install. The moved
-  members' `test_the_old_example_module_is_gone` (PaddleSlap's and the demos'), Bitmappy's
-  `test_the_old_engine_package_is_gone` and the engine's
-  `test_the_engines_examples_directory_is_gone` fail on them, naming the leftover; the remedy is
-  `rm -rf src/glitchygames/examples src/glitchygames/bitmappy tests/examples`.
+Logical names
+:   A game moved from the examples package kept its logical name, so no
+    recording changed. Bitmappy, which was not in a layer, did not: its scene's logical name was
+    its module path (glitchygames.bitmappy.editor:BitmapEditorScene) and is now
+    `apps.bitmappy.editor:BitmapEditorScene`. A plain replay refuses a recording made before the
+    move, naming the remedy, and `--replay-trace OLD --rebaseline NEW --headless` converts it (a
+    rebaseline compares the game and each scene by qualified name alone and writes the current
+    logical names: [gameplay replay](gameplay_replay.md)).
+
+Moved recordings keep their history
+:   The root `pyproject.toml`'s
+    `[tool.glitchygames.recording-renames]` maps each moved recording's old path to its new one,
+    so its run-ledger rows stay connected (each moved member's `_recording_history.py` test
+    checks its lines). Each lookup is one step: a recording moved twice needs a line from each of
+    its old paths.
+
+Old checkouts
+:   A checkout from before the moves can hold ignored leftovers (their
+    `__pycache__`) in the old places, src/glitchygames/examples, src/glitchygames/bitmappy and
+    tests/examples, which resolve as namespace packages in an editable install. The moved
+    members' `test_the_old_example_module_is_gone` (PaddleSlap's and the demos'), Bitmappy's
+    `test_the_old_engine_package_is_gone` and the engine's
+    `test_the_engines_examples_directory_is_gone` fail on them, naming the leftover; the remedy is
+    `rm -rf src/glitchygames/examples src/glitchygames/bitmappy tests/examples`.

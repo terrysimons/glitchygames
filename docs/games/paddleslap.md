@@ -96,17 +96,22 @@ stateDiagram-v2
     GameOver --> [*] : Q, Esc, B or Back
 ```
 
-- **Pause and game over switch at the end of the frame.** Both set `next_scene` instead of
-  switching at once, so the scene manager switches after the frame renders. Pausing during event
-  processing would otherwise freeze the previous frame's picture (the comment on `Scene.pause()`).
-  `PauseScene` shows `previous_scene.screenshot`; `resume()` switches back to the same `Game`
-  object, so the rally goes on where it was.
-- **A new game is always a `Game`.** `GameOverScene.resume()` restarts the type of the scene
-  manager's `previous_scene`, which a playback scope can change (BUGS.md #81), so
-  `PaddleSlapGameOverScene.resume()` names `Game` explicitly.
-- **Rebuilding the game-over screen.** `PaddleSlapGameOverScene.replay_arguments()` returns
-  `final_score` and a copy of `high_scores`, so a recording that starts on this screen can rebuild
-  it (scene starts, in [Gameplay Recording and Replay](../architecture/gameplay_replay.md)).
+Pause and game over switch at the end of the frame
+:   Both set `next_scene` instead of
+    switching at once, so the scene manager switches after the frame renders. Pausing during event
+    processing would otherwise freeze the previous frame's picture (the comment on `Scene.pause()`).
+    `PauseScene` shows `previous_scene.screenshot`; `resume()` switches back to the same `Game`
+    object, so the rally goes on where it was.
+
+A new game is always a `Game`
+:   `GameOverScene.resume()` restarts the type of the scene
+    manager's `previous_scene`, which a playback scope can change (BUGS.md #81), so
+    `PaddleSlapGameOverScene.resume()` names `Game` explicitly.
+
+Rebuilding the game-over screen
+:   `PaddleSlapGameOverScene.replay_arguments()` returns
+    `final_score` and a copy of `high_scores`, so a recording that starts on this screen can rebuild
+    it (scene starts, in [Gameplay Recording and Replay](../architecture/gameplay_replay.md)).
 
 ### The attract-mode demo
 
@@ -284,21 +289,30 @@ in `Game.dt_tick`. `HorizontalPaddle` is not used by PaddleSlap; it is shown bec
 | `VerticalPaddle` ×2 | Screen (no `COORDINATE_SPACE`) | 20×100 white rectangle; left at x = 0, right at x = screen width − 20, vertically centred | The paddle itself: `dt_tick` rounds its float `_sub_pixel_y` into `rect.y`, then clamps it to the screen (stopping it at an edge) |
 | `BallSprite` | World (`CoordinateSpace.WORLD`) | 20×20 image with colour key 0 and a filled circle of radius 5 in the middle; colour set through the `color` property, which redraws the circle | The engine: each frame `position_world_sprites` writes `rect` from the snapped `world_x`/`world_y` |
 
-- **The camera never moves.** `Game` sets no follow target and no `camera_target()`, so the
-  camera stays at the origin: world and screen coordinates are the same and the balls are drawn
-  exactly where their logic left them (`TestWorldBallsInTheFrame` in
-  `tests/world/test_frame_integration.py`). The balls are world sprites anyway, so the engine is
-  the only writer of their `rect`: game logic reads `world_x`/`world_y`, `drawn_center()` or the
-  collision rect, never `rect` (which holds where the ball was last drawn).
-- **Pixel snapping.** The ball's own `pixel_snap_mode` (default `NEAREST_HALF_UP`, the scene's
-  default too) rounds its sub-pixel position for drawing and for collision alike.
-- **Background.** The court is `BLACK`, named on purpose: a scene that sets no background shows
-  the engine's test pattern.
-- **Dirty rendering.** All sprites live in one `pygame.sprite.LayeredDirty` (`all_sprites`). The
-  ball sets `dirty = 2` (always redrawn); paddles set `dirty = 1` every tick.
-- **Pose.** Neither sprite changes its image with its state (a ball's image changes only when its
-  colour is set), so the pose rule has nothing to order here. Collision resolution, the other half
-  of that rule, runs in `dt_tick` (below).
+The camera never moves
+:   `Game` sets no follow target and no `camera_target()`, so the
+    camera stays at the origin: world and screen coordinates are the same and the balls are drawn
+    exactly where their logic left them (`TestWorldBallsInTheFrame` in
+    `tests/world/test_frame_integration.py`). The balls are world sprites anyway, so the engine is
+    the only writer of their `rect`: game logic reads `world_x`/`world_y`, `drawn_center()` or the
+    collision rect, never `rect` (which holds where the ball was last drawn).
+
+Pixel snapping
+:   The ball's own `pixel_snap_mode` (default `NEAREST_HALF_UP`, the scene's
+    default too) rounds its sub-pixel position for drawing and for collision alike.
+
+Background
+:   The court is `BLACK`, named on purpose: a scene that sets no background shows
+    the engine's test pattern.
+
+Dirty rendering
+:   All sprites live in one `pygame.sprite.LayeredDirty` (`all_sprites`). The
+    ball sets `dirty = 2` (always redrawn); paddles set `dirty = 1` every tick.
+
+Pose
+:   Neither sprite changes its image with its state (a ball's image changes only when its
+    colour is set), so the pose rule has nothing to order here. Collision resolution, the other half
+    of that rule, runs in `dt_tick` (below).
 
 ### Hitboxes
 
@@ -409,15 +423,18 @@ overlapping `balls`/`balls` pairs. `_on_ball_ball_collision` handles each pair:
 
 After the pass, two game rules apply to every pair that collided this frame:
 
-- **`_keep_collided_balls_playable`**: exact physics can leave a ball almost stopped, almost
-  vertical (it bounces between the walls and never reaches a paddle) or flat (it slides along a
-  wall). The ball's angle from horizontal is moved into its `ServeSettings` band (15° to 60°) and
-  its speed raised to at least the serve speed, keeping each component's sign (a zero component
-  points away from the partner). This is deliberately not physics and not part of
-  `_apply_elastic_collision`, whose physics the collision tests check.
-- **`_spawn_new_balls_for_ball_collisions`**: one spawn attempt per pair, if ball-ball hits are a
-  spawn trigger; the speed check uses the pair's faster ball. It runs outside the collision
-  manager's pass, so spawned balls never join it.
+`_keep_collided_balls_playable`
+:   Exact physics can leave a ball almost stopped, almost
+    vertical (it bounces between the walls and never reaches a paddle) or flat (it slides along a
+    wall). The ball's angle from horizontal is moved into its `ServeSettings` band (15° to 60°) and
+    its speed raised to at least the serve speed, keeping each component's sign (a zero component
+    points away from the partner). This is deliberately not physics and not part of
+    `_apply_elastic_collision`, whose physics the collision tests check.
+
+`_spawn_new_balls_for_ball_collisions`
+:   One spawn attempt per pair, if ball-ball hits are a
+    spawn trigger; the speed check uses the pair's faster ball. It runs outside the collision
+    manager's pass, so spawned balls never join it.
 
 ### Serves and speed-ups
 
@@ -531,20 +548,29 @@ flowchart TB
     pause -- "not a pause key" --> base
 ```
 
-- **Movement is frame-driven.** Handlers only update the ActionMaps; the paddles are moved by
-  `_process_paddle_input` at the top of `dt_tick`, from the held state.
-- **Input mode.** The ActionMaps take the engine's `--input-mode` (default `auto`: a mapped pad's
-  controller events and any other device's joystick events, each press once) and its
-  `--axis-deadzone` (`ActionMap.from_engine_options`). PaddleSlap handles both families, so a pad
-  works in every mode.
-- **Instance ids, not player slots.** SDL numbers devices in the order they appear, so the first
-  pad connected drives the left paddle; a pad that is unplugged and plugged back in gets a new
-  instance id and no longer matches its binding.
-- **Key repeat.** PaddleSlap leaves SDL's key repeat off: movement reads held state and pause
-  acts on the release, so nothing needs repeated key-downs (they would only fill event batches
-  and recordings).
-- **Polling.** PaddleSlap never polls pygame: everything it knows about input comes through
-  events, which recordings hold, so a replay serves the same input.
+Movement is frame-driven
+:   Handlers only update the ActionMaps; the paddles are moved by
+    `_process_paddle_input` at the top of `dt_tick`, from the held state.
+
+Input mode
+:   The ActionMaps take the engine's `--input-mode` (default `auto`: a mapped pad's
+    controller events and any other device's joystick events, each press once) and its
+    `--axis-deadzone` (`ActionMap.from_engine_options`). PaddleSlap handles both families, so a pad
+    works in every mode.
+
+Instance ids, not player slots
+:   SDL numbers devices in the order they appear, so the first
+    pad connected drives the left paddle; a pad that is unplugged and plugged back in gets a new
+    instance id and no longer matches its binding.
+
+Key repeat
+:   PaddleSlap leaves SDL's key repeat off: movement reads held state and pause
+    acts on the release, so nothing needs repeated key-downs (they would only fill event batches
+    and recordings).
+
+Polling
+:   PaddleSlap never polls pygame: everything it knows about input comes through
+    events, which recordings hold, so a replay serves the same input.
 
 ## Sound
 

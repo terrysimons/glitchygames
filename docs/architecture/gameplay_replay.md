@@ -112,9 +112,11 @@ Read time from `src/glitchygames/clock.py` or `Scene.game_time`, never from `tim
 decides the same way both times; such timers advance once per frame. In a recorded run (and its
 replay) `wall_clock_time()` is the recording's start time (`recorded_at`) plus the frame clock,
 so a timestamp the game shows replays exactly; live play without recording reads the real wall
-clock. `measured_seconds()` is real
-monotonic time and is never replayed: never let its value change what is drawn, played or
-recorded.
+clock.
+
+!!! warning "`measured_seconds()` never changes what is drawn, played or recorded"
+    It is real monotonic time and is never replayed: a value read from it differs in a replay,
+    so anything it decides diverges.
 
 Text-widget cursor blinks use the frame clock, not `Scene.game_time`. A paused scene's widgets
 are neither updated nor drawn, so a blink cannot be seen advancing while the game is paused.
@@ -205,9 +207,11 @@ the same time are listed by name, so `list_slots()` gives the same order everywh
   `pygame.event.custom_type()`) included. The rule: input of an SDL type posted during a demo
   or instant replay counts as the player's; everything else reaches the game (after the
   demo or instant replay, if one is playing), live and replayed alike.
-- Draw random numbers from the seeded named streams in `src/glitchygames/randomness.py`
-  (`random_stream('name')`, `numpy_stream('name')`), never from the global `random` functions,
-  `secrets` or an unseeded numpy generator.
+
+!!! warning "Draw random numbers only from the seeded named streams"
+    Use `random_stream('name')` or `numpy_stream('name')` from `src/glitchygames/randomness.py`,
+    never the global `random` functions, `secrets` or an unseeded numpy generator: a replay
+    serves the recorded seed only to the streams.
 
 ## The supervisor hook and control events
 
@@ -529,22 +533,31 @@ Without `--replay-trace`, `--compare-trace OLD [--compare-alpha PERCENT]` lets y
 live, with real input, while OLD's frame of the same number is drawn over each frame you see.
 OLD is replayed by the same headless child as above.
 
-- **Pausing freezes the ghost.** Frames are paired by game frames: the frames a game's own
-  logic ran in, not its pause screen's. While you are paused, OLD's frame stays where it was,
-  and it moves on when the game does. OLD's own pauses are skipped the same way, so your game
-  frame N meets OLD's game frame N. A replay pairs frames the same way, so
-  `--record-trace NEW --compare-trace OLD`, and later `--replay-trace NEW --compare-trace OLD`,
-  show the same pairs. Recordings themselves still count every frame.
-- **The seed:** the game plays under OLD's recorded seed, so the ghost starts in the same world,
-  unless `--random-seed N` is given. The log names the seed either way.
-- **OLD shorter than your play:** OLD's last frame stays, labelled `OLD ended at frame N`, and
-  play goes on. The child is stopped when the game quits, fails or is interrupted.
-- **Refused before anything runs:** with `--headless` (exit 64), an OLD that is missing (66) or
-  not a readable recording (65; a header without its seed counts), or one recorded at another
-  screen size than the game's window (65). `--record-trace NEW` may be given too, and records the
-  seed played. There is no step back in live play, and this is a game flag only.
-- **Not in a browser:** OLD's child is a separate process, which a browser page cannot start, so
-  `--compare-trace` (live or with a replay) is refused there before anything starts (exit 64).
+Pausing freezes the ghost
+:   Frames are paired by game frames: the frames a game's own
+    logic ran in, not its pause screen's. While you are paused, OLD's frame stays where it was,
+    and it moves on when the game does. OLD's own pauses are skipped the same way, so your game
+    frame N meets OLD's game frame N. A replay pairs frames the same way, so
+    `--record-trace NEW --compare-trace OLD`, and later `--replay-trace NEW --compare-trace OLD`,
+    show the same pairs. Recordings themselves still count every frame.
+
+The seed
+:   The game plays under OLD's recorded seed, so the ghost starts in the same world,
+    unless `--random-seed N` is given. The log names the seed either way.
+
+OLD shorter than your play
+:   OLD's last frame stays, labelled `OLD ended at frame N`, and
+    play goes on. The child is stopped when the game quits, fails or is interrupted.
+
+Refused before anything runs
+:   With `--headless` (exit 64), an OLD that is missing (66) or
+    not a readable recording (65; a header without its seed counts), or one recorded at another
+    screen size than the game's window (65). `--record-trace NEW` may be given too, and records the
+    seed played. There is no step back in live play, and this is a game flag only.
+
+Not in a browser
+:   OLD's child is a separate process, which a browser page cannot start, so
+    `--compare-trace` (live or with a replay) is refused there before anything starts (exit 64).
 
 ### `--replay-fps {recorded,real}`
 

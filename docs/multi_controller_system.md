@@ -6,12 +6,23 @@ The Multi-Controller System enables up to 4 simultaneous controllers to navigate
 
 ## Features
 
-- **Multi-Controller Support**: Up to 4 simultaneous controllers
-- **Independent Navigation**: Each controller navigates film strips and frames independently
-- **Visual Distinction**: A unique color for each controller (Red, Green, Blue, Yellow): triangles on the film strips, squares on the canvas, circles on the sliders
-- **Smart Positioning**: Automatic collision avoidance when multiple controllers select the same spot
-- **State Preservation**: Controllers maintain their selection state when switching between them
-- **Hotplug Support**: Controllers can be connected/disconnected during operation
+Multi-Controller Support
+:   Up to 4 simultaneous controllers
+
+Independent Navigation
+:   Each controller navigates film strips and frames independently
+
+Visual Distinction
+:   A unique color for each controller (Red, Green, Blue, Yellow): triangles on the film strips, squares on the canvas, circles on the sliders
+
+Smart Positioning
+:   Automatic collision avoidance when multiple controllers select the same spot
+
+State Preservation
+:   Controllers maintain their selection state when switching between them
+
+Hotplug Support
+:   Controllers can be connected/disconnected during operation
 
 ## Architecture
 
@@ -29,10 +40,17 @@ The button and trigger bindings are listed in `CONTROLLER_CONTROLS_README.md` at
 
 `MultiControllerManager.CONTROLLER_COLORS`, indexed by controller ID. In Bitmappy, activating a controller (Start) gives it the next color in activation order (`assign_color_to_controller`), so the first controller activated is red:
 
-- **Controller 0**: Red (255, 0, 0)
-- **Controller 1**: Green (0, 255, 0)  
-- **Controller 2**: Blue (0, 0, 255)
-- **Controller 3**: Yellow (255, 255, 0)
+Controller 0
+:   Red (255, 0, 0)
+
+Controller 1
+:   Green (0, 255, 0)  
+
+Controller 2
+:   Blue (0, 0, 255)
+
+Controller 3
+:   Yellow (255, 255, 0)
 
 ## Usage Examples
 
