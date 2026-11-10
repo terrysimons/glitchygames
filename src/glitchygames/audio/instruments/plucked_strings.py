@@ -598,6 +598,35 @@ _PLUCKED_BUILDS: Final[tuple[CatalogEntry, ...]] = (
             pick=0.04,
         ),
     ),
+    # Sound: https://en.wikipedia.org/wiki/Qanun_(instrument) ("Kanuns manufactured in Turkey
+    # generally feature 26 courses of strings, with three strings per course in the case of all
+    # regional variants. Contemporary Arabic designs use Nylon or PVF strings that are stretched
+    # over the bridge poised on fish-skins"; "by plucking the strings with two tortoise-shell
+    # picks (one for each hand) or with fingernails") and
+    # https://www.geidai.ac.jp/labs/koizumi/english/gcato/html-text/223.html ("strings: 24
+    # courses(22 triple courses and 2 double courses), nylon"; "The instrument's characteristic
+    # clear, resonant tone results because the bridges are placed directly on top of a membrane
+    # stretched over the right-hand side of the resonator"). Range from the Qanun page ("has a
+    # standard range of three and a half octaves from A2 to E6"). Unison triple courses (two
+    # extra strings, detuned a little either way), nylon (a softer top than the steel zithers),
+    # a skin-borne bridge and picks (pick); every number is sound design. The mandals retune a
+    # course between notes, so they are not modelled
+    CatalogEntry(
+        'qanun',
+        'Qanun (kanun)',
+        Family.PLUCKED_STRINGS,
+        'A2',
+        'E6',
+        partial(
+            _plucked,
+            ring_seconds=2.0,
+            low_pass=5000.0,
+            slope=5.5,
+            position=0.12,
+            courses=(Course(cents=3.0), Course(cents=-3.0)),
+            pick=0.06,
+        ),
+    ),
 )
 
 # The family: its builds, then the sound-alikes that share them (``plucked_sound_alikes.py``)

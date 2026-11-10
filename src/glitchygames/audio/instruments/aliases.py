@@ -183,4 +183,10 @@ ALIASES: Final[dict[str, str]] = {
     # https://en.wikipedia.org/wiki/Oud: "The oud (Arabic, romanized: ʿūd";
     # another spelling of the oud
     'ud': 'oud',
+    # https://en.wikipedia.org/wiki/Qanun_(instrument): "The qanun, kanun, ganoun or kanoon (Arabic:
+    # qanun; ... Greek: kanonaki"; the Greek name of the qanun
+    'kanonaki': 'qanun',
+    # https://en.wikipedia.org/wiki/Kanun (redirects to the Qanun page): "The qanun, kanun, ganoun
+    # or kanoon"; another spelling of the qanun
+    'kanun': 'qanun',
 }

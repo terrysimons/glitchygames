@@ -288,4 +288,126 @@ PLUCKED_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
         'A6',
         sounds_like='ruan',
     ),
+    # Sound-alike of the zither (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Zither ("The Alpine zither has 42 strings, and differs from the
+    # concert zither primarily in requiring the addition of an extension to the body of the
+    # instrument to support both the longer additional contrabass strings and their tuners"; "Alpine
+    # zithers are tuned in a similar manner to the concert zither"; melody strings "plucked with a
+    # plectrum on the right thumb"). Range derived from the page's tuning chart and
+    # https://austria-forum.org/af/AEIOU/Zither/Zither_english ("5 melody strings across a
+    # chromatic finger-board arranged in 29 frets"): lowest F1 (string 42), highest A4 + 29 frets
+    # = D7. The longer contrabass strings are a range, not a sound trait
+    CatalogEntry(
+        'alpine zither',
+        'Alpine zither',
+        Family.PLUCKED_STRINGS,
+        'F1',
+        'D7',
+        sounds_like='zither',
+    ),
+    # Sound-alike of the kantele (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Kantele ("The most typical and traditional tuning of the
+    # five-string small kantele is just intonation arrived at via five-limit tuning, often in D
+    # major or D minor"). Range from https://www.researchcatalogue.net/view/3968595/4045085 ("Most
+    # small kanteles currently made in Finland are designed for D tuning, with the tonic (string 1)
+    # tuned to D4") and https://www.researchcatalogue.net/view/3968595/3976467 ("the first five
+    # notes of the D major scale"): open strings D4 E4 F#4 G4 A4, no frets, so the tuning is the
+    # range
+    CatalogEntry(
+        'five string kantele',
+        'Five-string kantele',
+        Family.PLUCKED_STRINGS,
+        'D4',
+        'A4',
+        sounds_like='kantele',
+    ),
+    # Sound-alike of the kantele (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Gusli ("the oldest East Slavic multi-string plucked instrument,
+    # belonging to the zither family"; "Folk Gusli have from eleven to thirty-six gut or metal
+    # strings, tuned diatonically"; "strumming all the strings with his right hand"). A Baltic
+    # psaltery with the kantele (https://en.wikipedia.org/wiki/Kantele). Range from the infobox
+    # ("Russian traditional tuning: E3 A3 H3 C4 D4 E4 F4 G4 A4", H is B): open strings only, so the
+    # tuning is the range
+    CatalogEntry(
+        'gusli',
+        'Gusli',
+        Family.PLUCKED_STRINGS,
+        'E3',
+        'A4',
+        sounds_like='kantele',
+    ),
+    # Sound-alike of the Chapman Stick (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Harpejji ("an electric 12-to-24-stringed musical instrument";
+    # "primarily played with a two-handed tapping technique. It differs from other tapping
+    # instruments, such as the Chapman Stick, by way of the orientation of the instrument to the
+    # player"). Range: "the G16, a smaller 16-string model with a four-octave range (from C2 to
+    # C6)", the G16's; the 24-string models' range is not given
+    CatalogEntry(
+        'harpejji',
+        'Harpejji',
+        Family.PLUCKED_STRINGS,
+        'C2',
+        'C6',
+        sounds_like='chapman stick',
+    ),
+    # Sound-alike of the kantele (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Kankles ("Concert kanklės, with an expanded range of more
+    # than four octaves (29 strings, C3-C7) and added chromaticism, provided by means of metal
+    # levers at the side of the instrument"; "played with the fingers or with a pick made of bone
+    # or quill"). A Baltic psaltery like the kantele (https://en.wikipedia.org/wiki/Kantele); the
+    # levers are not a sound trait. Range C3-C7 as stated
+    CatalogEntry(
+        'concert kankles',
+        'Concert kanklės',
+        Family.PLUCKED_STRINGS,
+        'C3',
+        'C7',
+        sounds_like='kantele',
+    ),
+    # Sound-alike of the koto (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Ichigenkin ("An open-backed two string version, called the
+    # azuma-ryu nigenkin (Eastern school two string zither)") and
+    # https://www.geidai.ac.jp/labs/koizumi/english/gcato/html-text/207.html ("strings: 2, silk";
+    # "range :e-a#''; tuning : e-e; scale;chromatic"; "plucks either one of two strings at a time
+    # with the nail of the right hand index finger"). Range e-a#'' (Helmholtz) is E3-A#5. Silk
+    # strings plucked with the nail, as the koto
+    CatalogEntry(
+        'nigenkin',
+        'Azuma-ryū nigenkin',
+        Family.PLUCKED_STRINGS,
+        'E3',
+        'A#5',
+        sounds_like='koto',
+    ),
+    # Sound-alike of the appalachian dulcimer (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Siter ("The siter and celempung each have between 11 and 13
+    # pairs of strings"; "played with the thumbnails") and
+    # https://www.geidai.ac.jp/labs/koizumi/english/gcato/html-text/225.html ("strings: 12 double
+    # courses, steel"; "range: Ca. 2 oct.form d"). Range: from d (Helmholtz, D3) about two
+    # octaves, D3-D5, approximate as the record says, the gamelan scales not being equal-tempered.
+    # Paired steel strings on a box zither: the catalog's only paired-course plucked zither
+    CatalogEntry(
+        'siter',
+        'Siter',
+        Family.PLUCKED_STRINGS,
+        'D3',
+        'D5',
+        sounds_like='appalachian dulcimer',
+    ),
+    # Sound-alike of the appalachian dulcimer (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Ichigenkin ("A two-string version called a yakumogoto (eight
+    # cloud zither) was developed in 1820 by Nakayama Kotonushi. This instrument had a closed back
+    # resonant body") and
+    # https://www.geidai.ac.jp/labs/koizumi/english/gcato/html-text/206.html ("range :e-a#''; tuning
+    # : e-e; scale;chromatic"; "Both strings are plucked simultaneously with a ryuso (pick)"). Range
+    # e-a#'' (Helmholtz) is E3-A#5. Two strings tuned alike plucked with a pick is a unison pair, as
+    # the appalachian dulcimer; no source names the string material
+    CatalogEntry(
+        'yakumogoto',
+        'Yakumogoto',
+        Family.PLUCKED_STRINGS,
+        'E3',
+        'A#5',
+        sounds_like='appalachian dulcimer',
+    ),
 )

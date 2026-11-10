@@ -771,6 +771,8 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('bozuk', 'saz'),
         ('outi', 'oud'),
         ('ud', 'oud'),
+        ('kanonaki', 'qanun'),
+        ('kanun', 'qanun'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -1379,6 +1381,7 @@ NEW_PLUCKED_NAMES = [
     'ruan',
     'tar',
     'tiple colombiano',
+    'qanun',
 ]
 # Batch 4's sound-alikes and the entry each sounds like, in the sheet's order
 PLUCKED_SOUND_ALIKE_PARENTS = {
@@ -1401,6 +1404,14 @@ PLUCKED_SOUND_ALIKE_PARENTS = {
     'trichordo bouzouki': 'greek bouzouki',
     'viola da terra': 'tiple colombiano',
     'xiaoruan': 'ruan',
+    'alpine zither': 'zither',
+    'five string kantele': 'kantele',
+    'gusli': 'kantele',
+    'harpejji': 'chapman stick',
+    'concert kankles': 'kantele',
+    'nigenkin': 'koto',
+    'siter': 'appalachian dulcimer',
+    'yakumogoto': 'appalachian dulcimer',
 }
 
 
