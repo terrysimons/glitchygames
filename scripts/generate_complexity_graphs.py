@@ -63,7 +63,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from operator import itemgetter
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 from filelock import FileLock, Timeout
 from pydantic import BaseModel, ConfigDict
@@ -430,10 +430,14 @@ def measurement(
 
     """
     operator, key = metric.split('.', maxsplit=1)
-    entry = operator_data.get(operator, {}).get(path)
+    # wily's JSON: each level is a dict of strings to whatever wily wrote, checked as it is read
+    entry: object = operator_data.get(operator, {}).get(path)
     if not isinstance(entry, dict):
         return None
-    value = entry.get('total', {}).get(key)
+    totals: object = cast('dict[str, object]', entry).get('total')
+    if not isinstance(totals, dict):
+        return None
+    value: object = cast('dict[str, object]', totals).get(key)
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     return round(float(value), MEASUREMENT_DECIMAL_PLACES)
