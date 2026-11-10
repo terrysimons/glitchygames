@@ -52,11 +52,16 @@ One commit, no page changes:
   FPS, p99, CI ... explained on hover everywhere), `pymdownx.emoji` with Material's icon index
   (`:material-...:`, `:octicons-...:`), `pymdownx.highlight` with `line_spans` and
   `pygments_lang_class` (needed by annotations).
-- **Logo and favicon**: a sprite of ours drawn as a PNG/SVG (the owner picks which; a Bitmappy
-  library sprite or a game's hero), `theme.logo` and `theme.favicon`.
-- Left out unless the owner wants them: last-updated dates (the `git-revision-date-localized`
-  plugin: a new dependency, and every build walks git history per page), social cards (need
-  Cairo), blog, tags.
+- **Favicon**: ours, `docs/img/favicon.ico` (the owner: it is the right image). mkdocs' own theme
+  found it by default; Material shows its own unless `theme.favicon` names it, so the switch to
+  Material lost it until `theme.favicon: img/favicon.ico` (fixed before #145 landed, with a test).
+  The header logo stays Material's default unless the owner wants the favicon's image there.
+- **Last-updated dates** (the owner, 2026-11-09: yes): `mkdocs-git-revision-date-localized-plugin`
+  in the `docs` extra, `type: date`, `fallback_to_build_date: true` (the generated pages, the
+  members' API pages and the explorer snippets, are not in git, and the strict build fails on its
+  warning otherwise). CircleCI's `deploy-docs` checks out the whole history (`checkout` is a full
+  clone, and the complexity explorer already needs every commit), so each page gets its own date.
+- Left out: social cards (need Cairo), blog, tags.
 
 ### Part 2: the pages
 
@@ -101,17 +106,22 @@ Order (the most read first, each page one commit or a few):
 - The scrub plan's `scripts/docs_claims.py` runs unchanged: admonitions and tabs keep their text
   in the markdown, so its claims are still found.
 
-## Decisions for the owner
+## Decisions (the owner, 2026-11-09)
 
-1. The logo and favicon: which sprite.
-2. Last-updated dates: worth a plugin and a slower build?
-3. Whether the content pass waits for the scrub's reading pass (one visit per page, slower to
-   start) or goes first page by page (sooner, but each page is opened twice).
+1. Favicon: ours, already in the repository (`docs/img/favicon.ico`); fixed in the configuration.
+2. Last-updated dates: yes.
+3. Formatting goes first, page by page, ahead of the scrub's reading pass (each page may be
+   opened twice: once to format, once to check its claims).
+
+The Material switch and the explorers landed with #145 first (the owner: land the theme change,
+then rebase the in-flight branches onto it and audit their patches for docs updates); this plan
+and the scrub's reading pass follow on their own branches.
 
 ## Plan
 
-- [ ] Part 1: the configuration commit; dark-mode check of every explorer and Mermaid; the
-      configuration test.
+- [x] Favicon (`theme.favicon`, `test_the_docs_site_shows_our_favicon`).
+- [ ] Part 1: the configuration commit (with the last-updated dates); dark-mode check of every
+      explorer and Mermaid; the configuration test.
 - [ ] The glossary file (`docs/includes/abbreviations.md`).
 - [ ] Part 2, in the order above; each page's commit names the conventions it applied.
 - [ ] `CLAUDE.md`'s documentation note: the formatting conventions, one line pointing here.

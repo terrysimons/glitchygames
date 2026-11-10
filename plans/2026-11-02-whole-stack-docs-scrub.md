@@ -5,9 +5,11 @@ and push each item on its own branch). The request: `plans/future-work.md`, "Doc
 scrub". Done last, after the run's other branches land, since they change docs too (#178.26,
 #190, #225/#227, #251, #256, sprite tags, solid collision).
 
-The site's Material formatting (the owner, 2026-11-09) rides on this scrub:
+The site's Material formatting (the owner, 2026-11-09) goes first, page by page:
 `plans/2026-11-09-docs-material-formatting.md`. Its conventions (which passages become
-admonitions, tabs, collapsible blocks or titled code) apply as each page is read here.
+admonitions, tabs, collapsible blocks or titled code) hold for every page this scrub edits.
+#145 landed the Material theme, the explorers and this plan before the reading pass below; the
+reading pass is its own branch.
 
 ## Design
 
@@ -135,8 +137,9 @@ Where the scrub stands, for whoever picks it up (the session that did steps 1-2 
 - **Since then on the branch** (another session, 2026-11-09): main merged in, the Material
   theme with `zensical.yml` (`mkdocs.yml` a link to it), the Replay Performance and Code
   Complexity explorers, and `plans/2026-11-09-docs-material-formatting.md`, whose conventions
-  apply as each page is read in steps 3-5. Check which session owns the branch before writing
-  to it: two writers on it collide.
+  apply as each page is read in steps 3-5. That work was done on a local branch,
+  `docs-material`, tracking this one, and merged back here. #145 lands as it stands; steps 3-7
+  are a branch of their own, after the Material formatting (see the top of this plan).
 - **The claims report at 270aa294: 4 claims, from the explorer work; none is a stale claim:**
   - `CLAUDE.md:1701` `quality/metrics/performance-explorer.json`, `CLAUDE.md:1703`
     `quality/graphs/complexity-explorer.json` and `docs/quality/complexity.md:19`
@@ -152,7 +155,7 @@ Where the scrub stands, for whoever picks it up (the session that did steps 1-2 
     `](...)` link target in a page under `docs/` (mkdocs checks those, `--strict`), with a test
     in `tests/test_docs_claims.py`.
   The report must be empty again before step 6 makes it a test.
-- **Next: step 3, the root files.** Decide with the owner, per file, keep, fold into `docs/` or
+- **Next, on the reading pass's branch: step 3, the root files.** Decide with the owner, per file, keep, fold into `docs/` or
   retire: `ANIMATION_README.md`, `API_README.md`, `BITMAPPY_ARCHITECTURE.md`,
   `CONTROLLER_CONTROLS_README.md`, `LOADER_README.md` (`README.md` and `CLAUDE.md` stay; read
   them in full). Not yet read; bring a recommendation per file. Then step 4 (`docs/` by area,
@@ -163,8 +166,8 @@ Where the scrub stands, for whoever picks it up (the session that did steps 1-2 
   `tests/test_suite_collection.py`), step 7.
 - **Open question for the owner:** read steps 3-5 in sequence (the default so far) or as
   parallel agents, one per area.
-- **When the scrub closes:** update `plans/future-work.md`'s "Documentation scrub" item (it
-  still lists `TEST_UPDATE_PLAN.md`, now removed) and mark it done; take #145 out of draft.
+- **When the reading pass closes:** update `plans/future-work.md`'s "Documentation scrub" item
+  (its scope still lists `TEST_UPDATE_PLAN.md`, now removed) and mark it done.
 - **Working notes:**
   - `uv run python -m scripts.docs_claims` (as a module: it imports `scripts.*`);
     `--kind path` and so on narrow it. Exit 1 means claims found.

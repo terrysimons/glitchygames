@@ -121,6 +121,8 @@ validation:
 
 theme:
   name: material
+  # Our icon: mkdocs' own theme read docs/img/favicon.ico by default, Material shows its own unless told
+  favicon: img/favicon.ico
   features:
     - content.tabs.link
     - navigation.expand
