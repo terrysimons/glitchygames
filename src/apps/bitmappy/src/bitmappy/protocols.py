@@ -67,7 +67,11 @@ class EditorContext(Protocol):
     # ── Canvas & sprites ─────────────────────────────────────────────────
 
     canvas: AnimatedCanvasSprite
-    all_sprites: pygame.sprite.LayeredDirty[Any]
+
+    @property
+    def all_sprites(self) -> pygame.sprite.LayeredDirty[Any]:
+        """The scene's sprite group (a Scene property: its setter pins dirty-rect drawing)."""
+        ...
 
     # ── UI components ────────────────────────────────────────────────────
 

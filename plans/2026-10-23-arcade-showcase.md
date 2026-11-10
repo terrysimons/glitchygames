@@ -269,6 +269,10 @@ sprite being drawn; the joystick demo's shows its readout answering a recorded p
   "for each game" rule stays exceptionless). It depends on every game, demo and app it shows,
   kept equal to the layers by a test, and discovers them by entry point. Where it appears in the
   showcase (first on the play page) is presentation, not its directory.
+- **Open:** Papyrus's tile. #109 (2026-10-26) folded Brave Adventurer: Papyrus into the
+  `brave-adventurer` package (one distribution, both editions) and removed the
+  `brave-adventurer-papyrus` console script: show Papyrus as its own tile (the package then
+  declares two games for the Arcade's discovery) or one Brave Adventurer tile for both editions.
 - **Open:** the tile count. The grid was drawn as 3x3 for nine (five games, Bitmappy, three
   demos); Drawing Fire makes ten. To decide before the screen sub-plan: a 4x3 grid with two
   empty cells, a scrolling grid, or which entries get a tile.

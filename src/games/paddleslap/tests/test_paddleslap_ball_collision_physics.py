@@ -9,6 +9,7 @@ import math
 
 import pytest
 
+import paddleslap
 from glitchygames.collision.layers import CollisionManager
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.movement import Speed
@@ -360,26 +361,24 @@ class TestBallCollisionSweepMovingPair:
 
 # Head-on pairs closing at 10 px a frame (300 px/s each at 60 FPS), the visible circles' whole
 # collision distance (10). Aimed to meet exactly on a frame, the frame before has them just
-# touching (distance 10, no AABB overlap), the meeting frame has their centres on the same
-# pixel (no contact normal, skipped) and the frame after has them touching on the far side:
-# they pass through each other untouched.
+# touching (distance 10, no AABB overlap) and the meeting frame has their centres on the same
+# pixel (no contact normal): the end-of-frame check sees no collision on any frame, and they
+# passed through each other until the swept check (BUGS.md #174)
 FRAME_ALIGNED_HEAD_ON_ANGLES_DEGREES = (0, 15, 45, 90)
 FRAME_ALIGNED_HEAD_ON_SPEED = 300.0
+# PaddleSlap's speed cap (Game._cap_ball_speeds): two balls at it close about 16.7 px a frame, so
+# from 11 px apart they end crossed and overlapping on the wrong sides (5.7 px), where the
+# end-of-frame check computes a reversed contact direction
+CAPPED_SPEED = 500.0
+PARTLY_CROSSING_START_X = (394.5, 405.5)
+# Faster than the cap (a ball's speed-ups can pass it; the cap applies after ball collisions):
+# 23.3 px a frame closing, so from 11 px apart they end 12.3 px apart on the far side
+OVER_CAP_SPEED = 700.0
 
 
 class TestBallCollisionSweepFrameAlignedMeeting:
-    """Balls whose centres would coincide on a frame must still collide (they do not)."""
+    """Balls whose centres coincide on a frame still collide (the swept check, BUGS.md #174)."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'Production bug: PaddleSlap ball-ball collision is sampled once per frame '
-            '(Game._handle_ball_collisions, no swept test), so balls closing at the collision '
-            'distance (10 px, the visible radius-5 circles) or more per frame can skip from '
-            'touching to coincident centres (skipped: no normal) to touching on the far side, '
-            'and pass through each other'
-        ),
-    )
     @pytest.mark.parametrize(
         'first_angle', FRAME_ALIGNED_HEAD_ON_ANGLES_DEGREES, ids='first{:03d}deg'.format
     )
@@ -390,3 +389,123 @@ class TestBallCollisionSweepFrameAlignedMeeting:
             second_velocity=_velocity_from_angle(first_angle + 180, FRAME_ALIGNED_HEAD_ON_SPEED),
             meet_on_frame=True,
         )
+
+
+def _ticked_pair(
+    *, first_start: tuple[float, float], second_start: tuple[float, float], velocity: float
+) -> tuple[_CollisionSweepHarness, BallSprite, BallSprite]:
+    """Return a harness with two head-on balls on the x axis, placed and ticked one frame.
+
+    Returns:
+        The harness and its two balls, each at its frame's end with its frame start recorded.
+
+    """
+    harness = _CollisionSweepHarness((velocity, 0.0), (-velocity, 0.0))
+    first_ball, second_ball = harness.first_ball, harness.second_ball
+    place_ball_center(first_ball, center_x=first_start[0], center_y=first_start[1])
+    place_ball_center(second_ball, center_x=second_start[0], center_y=second_start[1])
+    first_ball.dt_tick(SWEEP_FRAME_DT)
+    second_ball.dt_tick(SWEEP_FRAME_DT)
+    return harness, first_ball, second_ball
+
+
+class TestSweptBallCollision:
+    """The swept check catches only what the end-of-frame check cannot (BUGS.md #174)."""
+
+    @pytest.mark.parametrize(
+        ('speed', 'end_state'),
+        [(CAPPED_SPEED, 'overlapping-crossed'), (OVER_CAP_SPEED, 'apart-again')],
+        ids=['overlapping-crossed', 'apart-again'],
+    )
+    def test_a_pair_that_crossed_within_the_frame_collides_where_it_touched(
+        self, speed, end_state, mocker
+    ):
+        """Crossed by the frame's end: put back where it touched, bounced back, with its sound."""
+        harness, first_ball, second_ball = _ticked_pair(
+            first_start=(PARTLY_CROSSING_START_X[0], 240.0),
+            second_start=(PARTLY_CROSSING_START_X[1], 240.0),
+            velocity=speed,
+        )
+        first_ball.snd = mocker.Mock()
+        _dx, _dy, end_distance, collision_distance = Game._calculate_ball_distance(
+            first_ball, second_ball
+        )
+        assert first_ball.world_x > second_ball.world_x  # crossed
+        assert (end_distance > collision_distance) is (end_state == 'apart-again')
+
+        harness.game._ball_collision_pairs = []
+        harness.game._handle_ball_collisions()
+
+        assert harness.game._ball_collision_pairs == [(first_ball, second_ball)]
+        assert first_ball.speed.x < 0 < second_ball.speed.x  # bounced back, not on through
+        assert first_ball.world_x < second_ball.world_x  # back on its own side
+        first_ball.snd.play.assert_called_once_with()
+
+    def test_an_overlap_that_did_not_cross_is_the_end_checks(self):
+        """Closing into an overlap without crossing: the end check collides it, as before."""
+        harness, first_ball, second_ball = _ticked_pair(
+            first_start=(384.0, 240.0), second_start=(398.0, 240.0), velocity=300.0
+        )
+
+        assert Game._swept_contact(first_ball, second_ball) is None
+        harness.game._ball_collision_pairs = []
+        harness.game._handle_ball_collisions()
+        assert harness.game._ball_collision_pairs == [(first_ball, second_ball)]
+
+    def test_a_pair_touching_only_at_the_frames_end_is_left_to_the_next_frame(self):
+        """Exactly touching at the end, as before the swept check: the next frame collides it."""
+        closing_per_frame = 2 * 300.0 * SWEEP_FRAME_DT
+        harness, first_ball, _second_ball = _ticked_pair(
+            first_start=(390.0 - closing_per_frame / 2 - 5.0, 240.0),
+            second_start=(390.0 + closing_per_frame / 2 + 5.0, 240.0),
+            velocity=300.0,
+        )
+
+        harness.game._ball_collision_pairs = []
+        harness.game._collide_balls_that_met_within_the_frame()
+
+        assert harness.game._ball_collision_pairs == []
+        assert first_ball.speed.x > 0
+
+    def test_a_ball_that_never_ticked_is_not_swept(self):
+        """No frame start yet (a ball added this frame): nothing to follow."""
+        harness = _CollisionSweepHarness((CAPPED_SPEED, 0.0), (-CAPPED_SPEED, 0.0))
+
+        assert harness.first_ball.frame_start_world_position is None
+        assert Game._swept_contact(harness.first_ball, harness.second_ball) is None
+
+    def test_a_pair_in_cooldown_is_not_swept_again(self):
+        """A pair that just collided waits out its cooldown, whichever way its key was written."""
+        harness, first_ball, second_ball = _ticked_pair(
+            first_start=(PARTLY_CROSSING_START_X[0], 240.0),
+            second_start=(PARTLY_CROSSING_START_X[1], 240.0),
+            velocity=CAPPED_SPEED,
+        )
+        harness.game._ball_collision_cooldowns = {(second_ball, first_ball): 5}
+
+        harness.game._ball_collision_pairs = []
+        harness.game._collide_balls_that_met_within_the_frame()
+
+        assert harness.game._ball_collision_pairs == []
+
+
+class TestFirstContactFraction:
+    """When in a frame a closing pair first touches (paddleslap.first_contact_fraction)."""
+
+    @pytest.mark.parametrize(
+        ('start', 'motion', 'expected'),
+        [
+            ((20.0, 0.0), (-20.0, 0.0), 0.5),  # touches halfway
+            ((8.0, 0.0), (-8.0, 0.0), 0.0),  # already touching (closer) at the start
+            ((20.0, 0.0), (20.0, 0.0), None),  # separating
+            ((20.0, 0.0), (0.0, 0.0), None),  # not moving
+            ((20.0, 20.0), (-20.0, 0.0), None),  # passes wide
+            ((20.0, 0.0), (-10.0, 0.0), None),  # touches exactly at the frame's end
+            ((40.0, 0.0), (-20.0, 0.0), None),  # touches after the frame
+        ],
+        ids=['halfway', 'at-start', 'separating', 'still', 'wide', 'at-end', 'after'],
+    )
+    def test_the_fraction(self, start, motion, expected):
+        assert paddleslap.first_contact_fraction(
+            start=start, motion=motion, contact_distance=10.0
+        ) == (None if expected is None else pytest.approx(expected))

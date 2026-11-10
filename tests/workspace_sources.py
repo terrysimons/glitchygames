@@ -39,10 +39,14 @@ def scanned_source_files(*, project_root: Path) -> list[tuple[str, Path]]:
         ``(allowlist key, path)`` for each file, in scan order.
 
     """
-    engine_directory = project_root / ENGINE_DIRECTORY
+    # Resolved on both sides, so a package directory spelled through another path (a symlink, a
+    # relative root) is still recognized as the engine and keyed relative to it
+    resolved_root = project_root.resolve()
+    engine_directory = (resolved_root / ENGINE_DIRECTORY).resolve()
     scanned: list[tuple[str, Path]] = []
-    for package_directory in source_package_directories(project_root=project_root):
-        key_base = engine_directory if package_directory == engine_directory else project_root
+    for listed_directory in source_package_directories(project_root=project_root):
+        package_directory = listed_directory.resolve()
+        key_base = engine_directory if package_directory == engine_directory else resolved_root
         scanned.extend(
             (source_path.relative_to(key_base).as_posix(), source_path)
             for source_path in sorted(package_directory.rglob('*.py'))
@@ -64,6 +68,8 @@ def write_project_with_member_module(*, project_root: Path, source: str) -> str:
         The key the guards' allowlists would spell the member module by.
 
     """
+    # The engine's package is always scanned (source_package_directories lists it first); left
+    # empty, so the member module is the only file the guard reads
     (project_root / ENGINE_DIRECTORY).mkdir(parents=True)
     (project_root / 'pyproject.toml').write_text(
         '[tool.uv.workspace]\nmembers = ["src/games/space-game"]\n', encoding='utf-8'

@@ -25,8 +25,9 @@ Two commands:
             differing pixels magenta) in ``--output``, with the count of differing pixels.
 
 Both print a plain-text report and exit ``ExitCode.SUCCESS``: they report, they do not judge.
-A missing run directory exits ``MISSING_INPUT``, an unreadable record or request
-``UNUSABLE_INPUT``, an output that cannot be written ``CANNOT_WRITE_OUTPUT``.
+A missing run directory exits ``MISSING_INPUT``; an unreadable record or request, or a run that
+recorded no test (nothing to compare: it would report agreement, BUGS.md #256),
+``UNUSABLE_INPUT``; an output that cannot be written ``CANNOT_WRITE_OUTPUT``.
 
 Usage:
     uv run python scripts/compare_driver_frames.py compare dummy=RUN1 dummy=RUN2 cocoa=RUN3 \\
@@ -52,7 +53,7 @@ from glitchygames.testing.frame_comparison import (
     image_request_for,
     images_report,
 )
-from glitchygames.testing.frame_fingerprints import FrameImageRequest
+from glitchygames.testing.frame_fingerprints import FrameImageRequest, read_recorded_frames
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -141,11 +142,18 @@ def run(*, arguments: Sequence[str]) -> ExitCode:
     except pydantic.ValidationError as error:
         sys.stderr.write(f'unusable record or request: {error}\n')
         return ExitCode.UNUSABLE_INPUT
+    except NoTestsRecordedError as error:
+        sys.stderr.write(f'{error}\n')
+        return ExitCode.UNUSABLE_INPUT
     except OSError as error:
         sys.stderr.write(f'cannot write the output: {error}\n')
         return ExitCode.CANNOT_WRITE_OUTPUT
     sys.stdout.write(report)
     return ExitCode.SUCCESS
+
+
+class NoTestsRecordedError(Exception):
+    """Some run recorded no test: there is nothing to compare (BUGS.md #256, as #192)."""
 
 
 def run_compare(*, runs: Sequence[LabelledRun], image_request_path: Path | None) -> str:
@@ -158,7 +166,19 @@ def run_compare(*, runs: Sequence[LabelledRun], image_request_path: Path | None)
     Returns:
         The report.
 
+    Raises:
+        NoTestsRecordedError: A run recorded no test (pytest ran none: an empty comparison
+            would report that every driver agrees).
+
     """
+    empty_runs = [run for run in runs if not read_recorded_frames(directory=run.directory)]
+    if empty_runs:
+        named_runs = ', '.join(f'{run.label} ({run.directory})' for run in empty_runs)
+        message = (
+            f'Nothing compared: {named_runs} recorded no test (did pytest run the suite and '
+            'record frames?)'
+        )
+        raise NoTestsRecordedError(message)
     repeats, drivers = compare_labelled_runs(runs=runs)
     if image_request_path is not None:
         image_request_path.parent.mkdir(parents=True, exist_ok=True)

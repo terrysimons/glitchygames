@@ -25,6 +25,8 @@ from scripts.generate_performance_graphs import (
     PROJECT_ROOT,
     PROJECT_SETTINGS,
     SNIPPET_NAME,
+    games_block,
+    games_with_graphs,
     generate_performance_page,
     published_ledger_path,
 )
@@ -193,6 +195,60 @@ def test_the_docs_trees_published_build_leaves_out_rows_from_uncommitted_changes
     snippet = (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
     assert 'uncommitted changes' not in snippet
     assert 'Generated from 3 ledger rows' in snippet
+
+
+def test_recordings_are_grouped_under_their_game_by_name(tmp_path):
+    """A game names itself; one with no description to read, or no game at all, is still listed."""
+    game_directory = tmp_path / 'src' / 'games' / 'zebra-chase'
+    game_directory.mkdir(parents=True)
+    (game_directory / 'pyproject.toml').write_text(
+        '[project]\ndescription = "A Zebra Chase: stripes, built on GlitchyGames"\n',
+        encoding='utf-8',
+    )
+    pages = {
+        'src/games/zebra-chase/tests/golden-one.jsonl.gz': 'zebra-one.html',
+        'src/games/no-package/tests/golden.jsonl.gz': 'no-package.html',
+        'src/games/zebra-chase/tests/golden-two.jsonl.gz': 'zebra-two.html',
+        'tests/fixtures/replays/loose.jsonl.gz': 'loose.html',
+    }
+
+    games = games_with_graphs(pages=pages, project_root=tmp_path)
+
+    assert [(game.slug, game.name) for game in games] == [
+        ('zebra-chase', 'A Zebra Chase'),
+        ('no-package', 'no-package'),
+        ('other-recordings', 'Other recordings'),
+    ]
+    assert tuple(games[0].pages.values()) == ('zebra-one.html', 'zebra-two.html')
+
+
+def test_only_the_first_game_starts_shown_and_loaded(tmp_path):
+    """Every game is an option, and each other game's frames hold their page without loading it."""
+    pages = {
+        'src/games/alpha/tests/golden.jsonl.gz': 'alpha.html',
+        'src/games/beta/tests/classic.jsonl.gz': 'beta-classic.html',
+        'src/games/beta/tests/papyrus.jsonl.gz': 'beta-papyrus.html',
+    }
+
+    block = games_block(games=games_with_graphs(pages=pages, project_root=tmp_path))
+
+    assert '' not in block, 'a blank line would end the HTML block markdown leaves whole'
+    text = '\n'.join(block)
+    assert '<option value="alpha">alpha</option>' in text
+    assert '<option value="beta">beta</option>' in text
+    assert '<section data-performance-game="alpha">' in text
+    assert '<section data-performance-game="beta" hidden>' in text
+    assert text.count('<iframe src=') == 1
+    assert '<iframe src="../metrics/alpha.html" data-src="../metrics/alpha.html"' in text
+    assert '<iframe data-src="../metrics/beta-classic.html"' in text
+    assert '<iframe data-src="../metrics/beta-papyrus.html"' in text
+
+
+def test_the_page_loads_the_script_that_switches_games():
+    """Without the script in mkdocs.yml the list would change nothing."""
+    script = 'js/performance-game-select.js'
+    assert script in (PROJECT_ROOT / 'mkdocs.yml').read_text(encoding='utf-8')
+    assert (PROJECT_ROOT / 'docs' / script).is_file()
 
 
 def test_an_empty_ledger_says_how_to_measure(tmp_path):

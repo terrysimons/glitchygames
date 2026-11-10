@@ -261,17 +261,28 @@ class TestBitmappyMultiControllerEnhancements:
 class TestBitmappyMultiControllerPerformance:
     """Tests for BitmappyMultiControllerEnhancements performance metrics and position caching."""
 
-    def test_update_performance_metrics(self, enhancements):
-        """Test performance metrics tracking."""
+    def test_update_performance_metrics_first_reading_reports_no_duration(self, enhancements):
+        """The first reading only starts the clock: a reading is not a duration (BUGS.md #72)."""
         enhancements._update_performance_metrics('test_op', 1000.0)
-        assert 'test_op' in enhancements.performance_metrics
-        assert enhancements.performance_metrics['test_op'] == pytest.approx(1000.0)
+        assert 'test_op' not in enhancements.performance_metrics
 
     def test_update_performance_metrics_calculates_diff(self, enhancements):
         """Test that subsequent calls calculate time difference."""
         enhancements._update_performance_metrics('test_op', 1000.0)
         enhancements._update_performance_metrics('test_op', 1001.5)
         assert enhancements.performance_metrics['test_op'] == pytest.approx(1.5)
+
+    def test_update_performance_metrics_measures_each_interval(self, enhancements):
+        """Every later reading is measured from the previous reading (BUGS.md #72).
+
+        Before the fix the third reading subtracted the stored duration from a timestamp.
+        """
+        enhancements._update_performance_metrics('test_op', 1000.0)
+        enhancements._update_performance_metrics('test_op', 1001.5)
+        enhancements._update_performance_metrics('test_op', 1002.0)
+        assert enhancements.performance_metrics['test_op'] == pytest.approx(0.5)
+        enhancements._update_performance_metrics('test_op', 1004.0)
+        assert enhancements.performance_metrics['test_op'] == pytest.approx(2.0)
 
     def test_calculate_enhanced_position(self, enhancements):
         """Test position calculation for visual indicators."""

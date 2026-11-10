@@ -1,0 +1,80 @@
+---
+# One model file: nothing happens if it's already here and correct. Otherwise it downloads to
+# FILE.part, resuming whatever an interrupted run left, and only a file with the right SHA-256 gets
+# the real name, so a partial file never looks finished.
+- name: "Check what's here: {{ model_file.file }}"
+  ansible.builtin.stat:
+    path: "{{ ai_models_directory }}/{{ model_file.file }}"
+    checksum_algorithm: sha256
+  register: ai_models_existing
+
+- name: "Fetch it: {{ model_file.file }}"
+  when: >-
+    not ai_models_existing.stat.exists
+    or ai_models_existing.stat.checksum != model_file.sha256
+  block:
+    - name: "Look for a partial download: {{ model_file.file }}"
+      ansible.builtin.stat:
+        path: "{{ ai_models_directory }}/{{ model_file.file }}.part"
+        get_checksum: false
+      register: ai_models_partial
+
+    # curl, not get_url: Python tries each address in turn and waits out the timeout on each, so a
+    # network whose IPv6 doesn't reach the CDN looks hung for many minutes, where curl falls back to
+    # IPv4 by itself. It also resumes, which a 7.6 GB file on a player's connection needs. A
+    # finished .part is skipped, since asking to resume past the end is an error.
+    - name: "Download: {{ model_file.file }}"
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --fail
+          - --location
+          - --silent
+          - --show-error
+          - --continue-at
+          - "-"
+          - --connect-timeout
+          - "30"
+          - --speed-time
+          - "60"
+          - --speed-limit
+          - "1024"
+          - --retry
+          - "5"
+          - --retry-delay
+          - "5"
+          - --retry-all-errors
+          - --output
+          - "{{ ai_models_directory }}/{{ model_file.file }}.part"
+          - "{{ ai_models_base_url }}/{{ model_file.repository }}/resolve/{{ model_file.revision }}/{{ model_file.file }}"
+      when: >-
+        not ai_models_partial.stat.exists
+        or ai_models_partial.stat.size != model_file.bytes
+      changed_when: true
+
+    - name: "Hash the download: {{ model_file.file }}"
+      ansible.builtin.stat:
+        path: "{{ ai_models_directory }}/{{ model_file.file }}.part"
+        checksum_algorithm: sha256
+      register: ai_models_downloaded
+
+    - name: "Discard a download with the wrong hash: {{ model_file.file }}"
+      ansible.builtin.file:
+        path: "{{ ai_models_directory }}/{{ model_file.file }}.part"
+        state: absent
+      when: ai_models_downloaded.stat.checksum != model_file.sha256
+
+    - name: "Refuse a download with the wrong hash: {{ model_file.file }}"
+      ansible.builtin.assert:
+        that: ai_models_downloaded.stat.checksum == model_file.sha256
+        fail_msg: >-
+          {{ model_file.file }} hashed to {{ ai_models_downloaded.stat.checksum }}, not
+          {{ model_file.sha256 }}. It was discarded; run this again to download it afresh
+
+    - name: "Put it in place: {{ model_file.file }}"
+      ansible.builtin.command:
+        argv:
+          - mv
+          - "{{ ai_models_directory }}/{{ model_file.file }}.part"
+          - "{{ ai_models_directory }}/{{ model_file.file }}"
+      changed_when: true

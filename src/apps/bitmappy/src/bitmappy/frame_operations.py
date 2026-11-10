@@ -239,8 +239,10 @@ class FrameOperationManager:
         )
         paste_command.execute()
 
-        # Push onto the undo stack
-        self.editor.undo_redo_manager.push_command(paste_command)
+        # The paste replaces one frame's pixels and duration, as paint does, so it goes on that
+        # frame's own stack: on the global stack, undo (which tries the frame's stack first)
+        # undid a paint made before the paste ahead of the paste (BUGS.md #151)
+        self.editor.undo_redo_manager.push_frame_command(animation, frame, paste_command)
 
         # Update canvas display
         if hasattr(self.editor.canvas, 'force_redraw'):

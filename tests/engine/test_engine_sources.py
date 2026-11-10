@@ -38,6 +38,7 @@ from glitchygames.supervision import BREAKPOINT_KIND
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
+    from glitchygames.audio.accounting import AudioFrameAccount
     from glitchygames.supervision import ControlEvent
 
 SCRIPTED_KEY = pygame.K_x
@@ -83,7 +84,7 @@ class ScriptedSources(LiveSources):
             ]
         return []
 
-    def end_frame(
+    def end_frame(  # ruff: ignore[too-many-arguments] - the EngineSources door's signature
         self: Self,
         *,
         frame_number: int,
@@ -91,6 +92,7 @@ class ScriptedSources(LiveSources):
         scene: Scene | None,
         control_events: list[ControlEvent],
         processing_seconds: float | None = None,
+        audio_frame: AudioFrameAccount | None = None,
     ) -> None:
         self.ended_frames.append(frame_number)
 

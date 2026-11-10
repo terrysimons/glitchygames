@@ -121,7 +121,7 @@ def screen_position_for(*, sprite: object, camera: Camera2D) -> tuple[int, int]:
         )
         raise TypeError(message)
 
-    mode = resolve_snap_mode(sprite)
+    mode = resolve_snap_mode(sprite=sprite)
     # The WORLD shake offset is read, never advanced here: the camera's update or aim, or the
     # engine's still-camera step (SceneManager._advance_still_camera_shake), advances it
     shake_x, shake_y = camera.shake_effect.offset

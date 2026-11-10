@@ -211,7 +211,6 @@ class TestAnimatedCanvasInterfaceSetPixelAtFullPath:
         canvas_sprite.pixels_across = CANVAS_SIZE
         canvas_sprite.pixels_tall = CANVAS_SIZE
         canvas_sprite.pixels = [MAGENTA] * PIXEL_COUNT
-        canvas_sprite.dirty_pixels = [False] * PIXEL_COUNT
         canvas_sprite.dirty = 0
         canvas_sprite.parent_scene = None  # No undo tracking
 
@@ -243,7 +242,6 @@ class TestAnimatedCanvasInterfaceSetPixelAtFullPath:
         canvas_sprite.pixels_across = CANVAS_SIZE
         canvas_sprite.pixels_tall = CANVAS_SIZE
         canvas_sprite.pixels = [MAGENTA] * PIXEL_COUNT
-        canvas_sprite.dirty_pixels = [False] * PIXEL_COUNT
         canvas_sprite.dirty = 0
         canvas_sprite.parent_scene = None
 
@@ -275,7 +273,6 @@ class TestAnimatedCanvasInterfaceSetPixelAtFullPath:
         canvas_sprite.pixels_across = CANVAS_SIZE
         canvas_sprite.pixels_tall = CANVAS_SIZE
         canvas_sprite.pixels = [MAGENTA] * PIXEL_COUNT
-        canvas_sprite.dirty_pixels = [False] * PIXEL_COUNT
         canvas_sprite.dirty = 0
         canvas_sprite.parent_scene = None
         canvas_sprite.on_pixel_update_event = mocker.Mock()
@@ -305,7 +302,6 @@ class TestAnimatedCanvasInterfaceSetPixelAtFullPath:
         canvas_sprite.pixels_across = CANVAS_SIZE
         canvas_sprite.pixels_tall = CANVAS_SIZE
         canvas_sprite.pixels = [MAGENTA] * PIXEL_COUNT
-        canvas_sprite.dirty_pixels = [False] * PIXEL_COUNT
         canvas_sprite.dirty = 0
         canvas_sprite.parent_scene = None
         del canvas_sprite.animated_sprite
@@ -442,7 +438,6 @@ class TestStaticCanvasInterfaceSetPixelAtDeeper:
         sprite.pixels_across = CANVAS_SIZE
         sprite.pixels_tall = CANVAS_SIZE
         sprite.dirty = 0
-        sprite.dirty_pixels = [False] * PIXEL_COUNT
         sprite.image = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
 
         interface = StaticCanvasInterface(sprite)
@@ -457,14 +452,12 @@ class TestStaticCanvasInterfaceSetPixelAtDeeper:
         sprite.pixels_across = CANVAS_SIZE
         sprite.pixels_tall = CANVAS_SIZE
         sprite.dirty = 0
-        sprite.dirty_pixels = [False] * PIXEL_COUNT
         sprite.image = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
 
         interface = StaticCanvasInterface(sprite)
         interface.set_pixel_at(2, 3, BLUE)
         pixel_index = 3 * CANVAS_SIZE + 2
         assert sprite.pixels[pixel_index] == BLUE
-        assert sprite.dirty_pixels[pixel_index] is True
         assert sprite.dirty == 1
 
 

@@ -30,6 +30,7 @@ MEMBER_LAYERS: dict[str, str] = {
     'bitmappy': 'apps',
     'dt_demo': 'demos',
     'joystick_demo': 'demos',
+    'sound_board_demo': 'demos',
     'text_input_demo': 'demos',
 }
 

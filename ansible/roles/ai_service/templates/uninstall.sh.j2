@@ -1,0 +1,44 @@
+#!/bin/sh
+# Removes the local AI service for this user: uninstall.sh [--remove-models]
+# Models stay unless asked for, since they're large and slow to download again.
+set -u
+
+remove_models=false
+if [ "${1:-}" = "--remove-models" ]; then
+    remove_models=true
+fi
+
+install_root="$HOME/Library/Application Support/GlitchyGames/AI"
+launch_agents="$HOME/Library/LaunchAgents"
+domain="gui/$(id -u)"
+
+# Every label this service may have installed, running or not: the models' agents, and the package's
+# setup job, or anything an older install left in LaunchAgents
+for plist in "$install_root"/agents/*.plist "$launch_agents"/{{ ai_service_label_prefix }}.*.plist; do
+    [ -e "$plist" ] || continue
+    label=$(basename "$plist" .plist)
+    launchctl bootout "$domain/$label" 2>/dev/null
+    launchctl enable "$domain/$label" 2>/dev/null
+    rm -f "$plist"
+done
+
+rm -rf "$install_root/agents" "$install_root/runtime" "$install_root/sidecar"
+rm -rf "$install_root/config" "$install_root/share"
+rm -rf "$HOME/Library/Logs/GlitchyGames/AI"
+rm -rf "$HOME/Library/Caches/GlitchyGames/AI"
+pkgutil --volume "$HOME" --forget {{ ai_package_identifier }} >/dev/null 2>&1
+
+if [ "$remove_models" = true ]; then
+    rm -rf "$install_root/models"
+fi
+
+# Last: this script is in here
+rm -rf "$install_root/bin"
+rmdir "$install_root" 2>/dev/null
+rmdir "$HOME/Library/Application Support/GlitchyGames" 2>/dev/null
+
+echo "Removed the GlitchyGames local AI service."
+if [ "$remove_models" = false ] && [ -d "$install_root/models" ]; then
+    echo "The models are still in $install_root/models (uninstall.sh --remove-models removes them)."
+fi
+exit 0

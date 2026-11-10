@@ -113,9 +113,10 @@ def mock_editor(mocker):  # ruff: ignore[too-many-statements]
     editor.canvas.active_color = (128, 64, 32, 255)
     editor.canvas.canvas_interface = mocker.Mock()
     editor.canvas.pixels = [(255, 0, 255)] * (32 * 32)
-    editor.canvas.dirty_pixels = [False] * (32 * 32)
     editor.canvas.current_animation = 'default'
     editor.canvas.current_frame = 0
+    # No pan gesture in progress, as on a real canvas (a Mock attribute would look like one)
+    editor.canvas.pan_session = None
     editor.canvas.pixel_width = 10
     editor.canvas.pixel_height = 10
     editor.canvas.rect = pygame.Rect(0, 24, 320, 320)
@@ -314,7 +315,6 @@ class TestResetCanvasForNewFile:
         assert mock_editor.canvas.pixel_height == 20
         assert len(mock_editor.canvas.pixels) == 256
         assert all(p == (255, 0, 255, 255) for p in mock_editor.canvas.pixels)
-        assert all(mock_editor.canvas.dirty_pixels)
 
     def test_ends_the_pan_in_progress(self, mock_editor):
         """Ends the old canvas's pan gesture."""
@@ -1834,7 +1834,7 @@ class TestSetCanvasPixel:
         mock_editor.controller_handler.canvas._set_canvas_pixel(1, 1, (255, 0, 0))
         expected_idx = 1 * 32 + 1
         assert mock_editor.canvas.pixels[expected_idx] == (255, 0, 0)
-        assert mock_editor.canvas.dirty_pixels[expected_idx] is True
+        assert mock_editor.canvas.dirty == 1
 
 
 class TestBrushStrokeCommandUndoRedo:
@@ -1919,50 +1919,6 @@ class TestFrameSelectionCommandUndoRedo:
 # ===========================================================================
 # 21. Film Strip Selection and Update Helpers
 # ===========================================================================
-
-
-class TestCopyCurrentFrame:
-    """Tests for _copy_current_frame."""
-
-    def test_no_film_strips_returns_false(self, mock_editor):
-        """No film strips returns False."""
-        mock_editor.film_strips = {}
-        assert mock_editor.film_strip_coordinator._copy_current_frame() is False
-
-    def test_no_selected_animation_returns_false(self, mock_editor, mocker):
-        """No matching film strip returns False."""
-        strip = mocker.Mock()
-        strip.current_animation = 'other'
-        mock_editor.film_strips = {'other': strip}
-        mock_editor.selected_animation = 'nonexistent'
-        assert mock_editor.film_strip_coordinator._copy_current_frame() is False
-
-    def test_active_strip_copies(self, mock_editor, mocker):
-        """Active film strip copy_current_frame is called."""
-        strip = mocker.Mock()
-        strip.current_animation = 'default'
-        strip.copy_current_frame.return_value = True
-        mock_editor.film_strips = {'default': strip}
-        mock_editor.selected_animation = 'default'
-        assert mock_editor.film_strip_coordinator._copy_current_frame() is True
-
-
-class TestPasteToCurrentFrame:
-    """Tests for _paste_to_current_frame."""
-
-    def test_no_film_strips_returns_false(self, mock_editor):
-        """No film strips returns False."""
-        mock_editor.film_strips = {}
-        assert mock_editor.film_strip_coordinator._paste_to_current_frame() is False
-
-    def test_active_strip_pastes(self, mock_editor, mocker):
-        """Active film strip paste_to_current_frame is called."""
-        strip = mocker.Mock()
-        strip.current_animation = 'default'
-        strip.paste_to_current_frame.return_value = True
-        mock_editor.film_strips = {'default': strip}
-        mock_editor.selected_animation = 'default'
-        assert mock_editor.film_strip_coordinator._paste_to_current_frame() is True
 
 
 class TestUpdateFilmStripSelectionState:

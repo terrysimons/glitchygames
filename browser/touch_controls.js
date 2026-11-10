@@ -1,6 +1,6 @@
 // On-screen touch controls for a GlitchyGames browser game (touch devices only).
 //
-// python -m scripts.build_browser_bundle writes the game's layout into boot_config.json (TOUCH_LAYOUTS):
+// The bundle builder (`python -m scripts.build_browser_bundle`) writes the game's layout into boot_config.json (TOUCH_LAYOUTS):
 // a left, center and right cluster of rows of buttons, each naming the key it presses. A held
 // button holds its key down: its key events are dispatched on the canvas, from where they reach
 // the document, where SDL listens. So the game, its action maps, recordings and replays see

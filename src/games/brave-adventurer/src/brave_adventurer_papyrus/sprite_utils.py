@@ -38,12 +38,12 @@ def _convert_to_alpha_surface(surface: pygame.Surface) -> pygame.Surface:
 
 
 def prepare_papyrus_sprite(sprite: AnimatedSprite, scale_factor: int = SPRITE_SCALE) -> None:
-    """Convert all animation frames from colorkey to per-pixel alpha.
+    """Convert all animation frames from colorkey to per-pixel alpha, and set the draw scale.
 
     Call this immediately after AnimatedSprite.__init__() loads the TOML file.
     Replaces every frame surface with an SRCALPHA version where magenta
-    pixels are fully transparent, and sets the sprite's hitbox_scale to the
-    scale it will be drawn at, so its hitboxes are scaled from construction on
+    pixels are fully transparent, and sets the sprite's scale to the scale it is
+    drawn at, so its image, rect and hitboxes are scaled from construction on
     (before its first dt_tick).
 
     Args:
@@ -51,52 +51,27 @@ def prepare_papyrus_sprite(sprite: AnimatedSprite, scale_factor: int = SPRITE_SC
         scale_factor: Integer scale the sprite is drawn at.
 
     """
-    # TOML hitboxes are in native pixels; the sprite is drawn scale_factor times larger
-    sprite.hitbox_scale = scale_factor
-
     for frames in sprite.animation_data.values():
         for frame in frames:
             frame.image = _convert_to_alpha_surface(frame.image)
 
-    sprite.clear_surface_cache()
-
-    current_frame = sprite.get_current_frame()
-    if current_frame is not None:
-        sprite.image = current_frame.image
+    # Clears the surface cache and redraws the current frame at the new scale; image, rect,
+    # hitboxes and draw_offset all follow it (BUGS.md #144)
+    sprite.scale = scale_factor
 
 
-def apply_transparency_and_scale(
-    sprite: AnimatedSprite,
-    scale_factor: int = SPRITE_SCALE,
-) -> None:
-    """Scale from the original frame surface with proper alpha transparency.
+def refresh_drawn_image(sprite: AnimatedSprite) -> None:
+    """Reset the sprite's image to its current frame, as the engine draws it.
 
-    Always reads from the current animation frame's source surface
-    (not self.image) to prevent cumulative double-scaling.
-    The SRCALPHA format set by prepare_papyrus_sprite() is preserved
-    through pygame.transform.scale(). Also sets the sprite's hitbox_scale,
-    so its native-pixel TOML hitboxes match the scaled image.
+    The engine only redraws image when the frame changes, so a sprite that flips its image
+    each tick resets it first, or the flips would stack up. The image is the engine's cached
+    surface, not a copy: ``pygame.transform.flip`` returns a new surface, so a flip never
+    reaches the cache, and a change made in place (``set_alpha``) must copy first, as the
+    player's fade does. A sprite that never changes its image needs no refresh: the engine's
+    own redraw is enough. (Copying here every tick made 51 surfaces a frame, BUGS.md #270.)
 
     Args:
-        sprite: The sprite to process.
-        scale_factor: Integer scale multiplier.
+        sprite: The sprite to refresh.
 
     """
-    # TOML hitboxes are in native pixels; the sprite is drawn scale_factor times larger
-    sprite.hitbox_scale = scale_factor
-
-    frame = sprite.get_current_frame()
-    if frame is None:
-        return
-
-    source_surface = frame.image
-
-    if scale_factor > 1:
-        scaled_width = source_surface.get_width() * scale_factor
-        scaled_height = source_surface.get_height() * scale_factor
-        sprite.image = pygame.transform.scale(
-            source_surface,
-            (scaled_width, scaled_height),
-        )
-    else:
-        sprite.image = source_surface.copy()
+    sprite.image = sprite.drawn_frame_surface()

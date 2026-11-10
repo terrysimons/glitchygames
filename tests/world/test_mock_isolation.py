@@ -60,16 +60,31 @@ def test_a_patched_test_does_not_leak_into_a_later_real_test(pytester, monkeypat
 
     # A fresh interpreter, so nothing earlier on this worker has already loaded the lazy modules.
     # The project's pytest settings apply (warnings are errors) without its addopts (xdist,
-    # coverage, junit); the project conftest is loaded as a plugin so its fixtures and resets apply
+    # coverage, junit); the project conftest is loaded as a plugin so its fixtures and resets apply.
+    # The rootdir and the confcutdir are the test's own directory, not the project's (where -c
+    # alone would put them). Collection builds a directory node for every parent of the test file
+    # inside the confcutdir, which defaults to the config file's directory, and a parent counts as
+    # inside unless it is an ancestor of the project's: so the system temp directory was listed
+    # (pytest's _pytest/main.py, Session.collect), and on Windows another worker's temporary
+    # directory (replay-metrics-*) vanished between the listing and its lstat (FileNotFoundError
+    # while collecting, CircleCI build 2730; BUGS.md #259). The rootdir alone did not stop it
     result = pytester.runpytest_subprocess(
         '-c',
         str(PROJECT_ROOT / 'pyproject.toml'),
+        '--rootdir',
+        str(pytester.path),
+        '--confcutdir',
+        str(pytester.path),
         '-p',
         'tests.harness',
         '-p',
         'no:cacheprovider',
         '-p',
         'no:xdist',
+        # The inner tests run in their written order: a patched test, then real ones after it
+        # (pytest-randomly is blocked by the project's addopts, which -o addopts= clears)
+        '-p',
+        'no:randomly',
         '-o',
         'addopts=',
         str(pytester.path / 'test_patched_then_real.py'),

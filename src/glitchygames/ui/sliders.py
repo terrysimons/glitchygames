@@ -7,12 +7,14 @@ and the one formatter and parser for the text typed into a slider's text box.
 from __future__ import annotations
 
 import logging
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 from pygame import Rect
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE, RGBA_COMPONENT_COUNT
+from glitchygames.fonts import FontManager
 from glitchygames.opacity import make_opaque
 from glitchygames.sprites import (
     BitmappySprite,
@@ -50,6 +52,19 @@ MAX_COLOR_TEXT_INPUT_LENGTH = 3
 DECIMAL_INPUT_FORMAT = '%d'
 HEX_INPUT_FORMAT = '%X'
 HEX_DIGIT_LETTERS = 'abcdef'
+
+
+class ColorChannel(StrEnum):
+    """A color slider's channel; the value is the slider's name and its events' name.
+
+    A StrEnum, so a member equals its letter ('R' == ColorChannel.RED) and events and
+    recordings carry the same letters as before (BUGS.md #155 item 3).
+    """
+
+    RED = 'R'
+    GREEN = 'G'
+    BLUE = 'B'
+    ALPHA = 'A'
 
 
 def format_channel(value: int, input_format: str) -> str:
@@ -353,11 +368,11 @@ class SliderSprite(BitmappySprite):
         """Draw the slider's gradient on its image, column by column, and keep a copy of it."""
         for x in range(int(self.width)):
             intensity = int((x / self.width) * 255)
-            if self.name == 'R':
+            if self.name == ColorChannel.RED:
                 color = (intensity, 0, 0)
-            elif self.name == 'G':
+            elif self.name == ColorChannel.GREEN:
                 color = (0, intensity, 0)
-            elif self.name == 'B':
+            elif self.name == ColorChannel.BLUE:
                 color = (0, 0, intensity)
             else:
                 color = (intensity, intensity, intensity)
@@ -572,6 +587,9 @@ class TabControlSprite(BitmappySprite):
         self.inactive_color = (100, 100, 100)
         self.text_color = (0, 0, 0)
 
+        # Built on the first draw and kept: the tab labels never change size (BUGS.md #155 item 2)
+        self._tab_font: pygame.font.Font | None = None
+
     @override
     def on_left_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle left mouse button down event.
@@ -587,7 +605,8 @@ class TabControlSprite(BitmappySprite):
 
             if 0 <= clicked_tab < len(self.tabs):
                 self.active_tab = clicked_tab
-                self.dirty = 2  # Force redraw
+                # Redraw once: dirty 2 redrew the tabs every frame after (BUGS.md #155 item 2)
+                self.dirty = 1
                 self.log.info('Tab control: Switched to tab %s', self.tabs[self.active_tab])
 
                 # Notify parent if it has a tab change handler
@@ -616,8 +635,11 @@ class TabControlSprite(BitmappySprite):
 
                 # Draw tab text
                 try:
-                    font = pygame.font.Font(None, 16)
-                    text_surface = font.render(tab_text, True, self.text_color)  # ruff: ignore[boolean-positional-value-in-call]
+                    if self._tab_font is None:
+                        self._tab_font = pygame.font.Font(None, 16)
+                    text_surface = self._tab_font.render(
+                        tab_text, FontManager.antialias(), self.text_color
+                    )
                     text_rect = text_surface.get_rect(center=tab_rect.center)
                     self.image.blit(text_surface, text_rect)
                 except pygame.error, AttributeError:

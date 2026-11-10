@@ -55,6 +55,9 @@ REPOSITORY_LOCATION_VARIABLES = (
 ARCHIVAL_TEMPLATE = 'commit: $Format:%H$\ncommitted: $Format:%cI$\n'
 BUILT_AT = '2026-10-23T12:00:00+00:00'
 MODULE_FILE_NAME = 'module.py'
+# How long the slowest git seen answering took: a game's lookup on a loaded Windows CI runner
+# (CircleCI build 2767, BUGS.md #260)
+SLOW_GIT_SECONDS = 10.0
 
 
 def _git(*arguments: str, directory: Path) -> str:
@@ -224,6 +227,30 @@ class TestGitCheckout:
 
         assert git_checkout_revision(package_directory=package_directory) is None
 
+    def test_a_slow_git_that_answers_still_names_the_commit(self, tmp_path, mocker):
+        """A git that answers within the timeout is waited for, however busy the machine.
+
+        Each git call is made to take ``SLOW_GIT_SECONDS`` (the 10 s a loaded Windows runner
+        took, BUGS.md #260) without sleeping: a call whose timeout is shorter raises
+        TimeoutExpired, as ``run_command`` would; a longer one runs the real git.
+        """
+        package_directory = _repository_with_package(tmp_path)
+        real_run_command = build_info.run_command
+
+        def run_command_taking_slow_git_seconds(**keywords):
+            if keywords['timeout_seconds'] < SLOW_GIT_SECONDS:
+                raise TimeoutExpired(cmd='git', timeout=keywords['timeout_seconds'])
+            return real_run_command(**keywords)
+
+        mocker.patch.object(
+            build_info, 'run_command', side_effect=run_command_taking_slow_git_seconds
+        )
+
+        revision = git_checkout_revision(package_directory=package_directory)
+
+        assert revision is not None
+        assert revision.commit == _git('rev-parse', 'HEAD', directory=tmp_path)
+
     def test_a_repository_without_commits_is_no_answer(self, tmp_path):
         package_directory = tmp_path / 'package'
         package_directory.mkdir()
@@ -322,6 +349,19 @@ class TestBuildStamp:
         stamp_fields = json.loads((packaged / BUILD_STAMP_FILE_NAME).read_text(encoding='utf-8'))
         assert 'source' not in stamp_fields
 
+    def test_a_stamp_directory_gets_the_package_directorys_revision(self, tmp_path):
+        package_directory = _repository_with_package(tmp_path / 'repository')
+        installed = tmp_path / 'site-packages' / 'package'
+        installed.mkdir(parents=True)
+
+        written = write_build_stamp(
+            package_directory=package_directory, built_at=BUILT_AT, stamp_directory=installed
+        )
+
+        assert written.commit == _git('rev-parse', 'HEAD', directory=package_directory)
+        assert stamped_revision(package_directory=installed) == written
+        assert not (package_directory / BUILD_STAMP_FILE_NAME).exists()
+
     def test_a_build_from_an_archive_stamps_the_archived_commit(self, tmp_path):
         (tmp_path / ARCHIVE_FILE_NAME).write_text('commit: abc123\n', encoding='utf-8')
 
@@ -377,6 +417,49 @@ class TestWriteBuildStampScript:
         assert write_build_stamp_script.main(['--remove']) == 0
         assert f'Wrote {stamp_path}: commit {stamped.commit}' in output.getvalue()
         assert f'Removed {stamp_path}' in output.getvalue()
+
+    def test_a_stamp_already_in_the_checkout_is_refused_not_overwritten(self, tmp_path, mocker):
+        package_directory = _repository_with_package(tmp_path)
+        mocker.patch.object(write_build_stamp_script, 'PACKAGE_DIRECTORY', package_directory)
+        mocker.patch.object(write_build_stamp_script.sys, 'stdout', new=io.StringIO())
+        errors = mocker.patch.object(write_build_stamp_script.sys, 'stderr', new=io.StringIO())
+        stamp_path = package_directory / BUILD_STAMP_FILE_NAME
+        other_builds_stamp = json.dumps({'commit': 'another build'})
+        stamp_path.write_text(other_builds_stamp, encoding='utf-8')
+
+        assert write_build_stamp_script.main([]) == 1
+
+        assert stamp_path.read_text(encoding='utf-8') == other_builds_stamp
+        assert f'{stamp_path} already exists' in errors.getvalue()
+        assert 'write_build_stamp.py --remove' in errors.getvalue()
+
+    def test_into_stamps_an_installed_copy_and_leaves_the_checkout_alone(self, tmp_path, mocker):
+        package_directory = _repository_with_package(tmp_path / 'repository')
+        installed = tmp_path / 'site-packages' / 'package'
+        installed.mkdir(parents=True)
+        mocker.patch.object(write_build_stamp_script, 'PACKAGE_DIRECTORY', package_directory)
+        output = mocker.patch.object(write_build_stamp_script.sys, 'stdout', new=io.StringIO())
+
+        assert write_build_stamp_script.main(['--into', str(installed)]) == 0
+        # A second run (a reused session venv) restamps it: only the checkout's stamp is refused
+        assert write_build_stamp_script.main(['--into', str(installed)]) == 0
+
+        stamped = stamped_revision(package_directory=installed)
+        assert stamped is not None
+        assert stamped.commit == _git('rev-parse', 'HEAD', directory=package_directory)
+        assert not (package_directory / BUILD_STAMP_FILE_NAME).exists()
+        assert f'Wrote {installed / BUILD_STAMP_FILE_NAME}' in output.getvalue()
+
+    def test_the_revision_comes_from_the_checkout_the_script_is_in(self):
+        """Not the imported package: under nox -s test's python that is the installed copy."""
+        assert write_build_stamp_script.PACKAGE_DIRECTORY == CHECKOUT_ENGINE_DIRECTORY
+        assert (write_build_stamp_script.PACKAGE_DIRECTORY / 'build_info.py').is_file()
+
+    def test_into_and_remove_are_one_or_the_other(self, tmp_path, mocker):
+        mocker.patch.object(write_build_stamp_script.sys, 'stderr', new=io.StringIO())
+
+        with pytest.raises(SystemExit):
+            write_build_stamp_script.main(['--remove', '--into', str(tmp_path)])
 
 
 class TestEngineSourceRevision:

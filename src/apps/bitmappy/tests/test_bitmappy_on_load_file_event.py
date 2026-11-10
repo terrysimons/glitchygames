@@ -240,10 +240,8 @@ class TestOnLoadFileEvent:
             self.canvas.on_load_file_event(load_file_event(filename=invalid_file))
 
         error_messages = [record.getMessage() for record in caplog.records]
-        assert any(
-            'Error in on_load_file_event for animated sprite' in message
-            for message in error_messages
-        )
+        # Logged once, with its traceback, not three times (BUGS.md #178 item 5)
+        assert error_messages == ['Error in on_load_file_event for animated sprite']
         assert self.scene.debug_text.text.startswith('Error loading sprite')
         assert self.canvas.animated_sprite is sprite_before
 
@@ -321,6 +319,29 @@ class TestOnLoadFileEvent:
         assert self.scene.debug_text.text == (
             'Enter a description of the sprite you want to create:'
         )
+
+    def test_a_load_records_no_frame_selection(self, tmp_path, mocker):
+        """A load selects its first frame without an undo step (BUGS.md #211 item 5).
+
+        The next selection goes back to the loaded sprite's frame, not the previous sprite's.
+        """
+        sprite_file = self._write_sprite_file(
+            directory=tmp_path,
+            file_name='test_sprite.toml',
+            content=sprite_file_content(
+                sprite_name='test_sprite',
+                animations={'walk': [BORDERED_FRAME_ROWS, SOLID_RED_FRAME_ROWS]},
+            ),
+        )
+        add_frame_selection = mocker.spy(
+            self.scene.film_strip_operation_tracker, 'add_frame_selection'
+        )
+
+        self.canvas.on_load_file_event(load_file_event(filename=sprite_file))
+
+        add_frame_selection.assert_not_called()
+        assert self.canvas._loading_sprite is False
+        assert self.scene.undo_redo_manager.current_frame == ('walk', 0)
 
     def test_string_event_parameter(self, tmp_path):
         """The method also takes the file name as a plain string instead of an event."""

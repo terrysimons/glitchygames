@@ -158,7 +158,6 @@ class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
         self.removal_button_layouts: dict[tuple[str, int], pygame.Rect] = {}
 
         # External references (initialized by layout delegate)
-        self.copied_frame: Any = None
         self.parent_canvas: Any = None
         self.parent_scene: Any = None
         self.film_strip_sprite: Any = None
@@ -275,18 +274,14 @@ class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
         if hasattr(self, 'film_strip_sprite') and self.film_strip_sprite:
             self.film_strip_sprite.dirty = 1
 
-    def refresh(self, *, recalculate_layout: bool) -> None:
+    def refresh(self) -> None:
         """Rebuild the previews, layout and film tabs after the animations changed, and redraw.
 
-        Args:
-            recalculate_layout: Recalculate the frame layout before updating it.
-
+        update_layout calculates the layout and creates the film tabs once each: refresh used
+        to do both again around it (BUGS.md #178 item 24).
         """
         self._initialize_preview_animations()
-        if recalculate_layout:
-            self._calculate_layout()
         self.update_layout()
-        self._create_film_tabs()
         self.mark_dirty()
 
     # ---- Forwarding methods for backward compatibility ----
@@ -363,24 +358,6 @@ class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
     def set_frame_index(self, frame_index: int) -> None:
         """Set the current frame and update the canvas."""
         self.event_handler.set_frame_index(frame_index)
-
-    def copy_current_frame(self) -> bool:
-        """Copy the currently selected frame to the clipboard.
-
-        Returns:
-            True if copy was successful.
-
-        """
-        return self.event_handler.copy_current_frame()
-
-    def paste_to_current_frame(self) -> bool:
-        """Paste the copied frame to the currently selected frame.
-
-        Returns:
-            True if paste was successful.
-
-        """
-        return self.event_handler.paste_to_current_frame()
 
     def reset_all_tab_states(self) -> None:
         """Reset click and hover states for all tabs."""

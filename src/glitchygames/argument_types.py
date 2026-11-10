@@ -1,11 +1,11 @@
 """Argparse value types shared by the engine's command line and its tools' command.
 
-``non_negative_int``, ``non_negative_percent`` and ``percent_from_zero_to_one_hundred`` check
-option values on a game's own command line (``GameEngine.args``,
+``non_negative_int``, ``non_negative_percent``, ``percent_from_zero_to_one_hundred`` and
+``unit_interval`` check option values on a game's own command line (``GameEngine.args``,
 glitchygames/engine/game_engine.py) and on the ``glitchygames`` command's
 (glitchygames/replay/tools/registry.py), which describe the replay tools' options once. They live
 here, a leaf module, because the registry is imported by the engine and so cannot
-import it back.
+import it back (nor can the event managers, whose options the engine collects).
 """
 
 from __future__ import annotations
@@ -81,5 +81,29 @@ def non_negative_int(value: str) -> int:
         raise argparse.ArgumentTypeError(message) from error
     if number < 0:
         message = f'{value!r} must be >= 0'
+        raise argparse.ArgumentTypeError(message)
+    return number
+
+
+def unit_interval(value: str) -> float:
+    """Argparse type: a float from 0.0 to 1.0 inclusive.
+
+    Args:
+        value: The command-line text.
+
+    Returns:
+        The parsed float.
+
+    Raises:
+        argparse.ArgumentTypeError: If the text is not a number in 0.0-1.0.
+
+    """
+    try:
+        number = float(value)
+    except ValueError as error:
+        message = f'{value!r} is not a number'
+        raise argparse.ArgumentTypeError(message) from error
+    if not 0.0 <= number <= 1.0:  # Also rejects NaN, which fails every comparison
+        message = f'{value!r} must be between 0.0 and 1.0'
         raise argparse.ArgumentTypeError(message)
     return number

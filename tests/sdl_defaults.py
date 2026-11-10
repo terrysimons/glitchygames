@@ -15,8 +15,9 @@ def default_sdl_drivers_to_dummy() -> tuple[str, ...]:
     """Default each SDL driver variable to 'dummy', keeping any value already set.
 
     Every test run, in CI or local, gets the dummy drivers so the suite opens no windows and makes
-    no sound. Keeping an existing value means `SDL_VIDEODRIVER=cocoa uv run pytest ...` still shows
-    a real window.
+    no sound. Keeping an existing value means `SDL_VIDEODRIVER=cocoa uv run pytest ...` still draws
+    on the real driver (its windows hidden unless GLITCHYGAMES_SHOW_TEST_WINDOWS=1:
+    tests/hidden_test_windows.py).
 
     Returns:
         The names of the variables this call defaulted (the ones that were not already set).

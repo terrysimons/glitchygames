@@ -25,6 +25,7 @@ from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from clockwork_keep.game import ClockworkKeepScene
 from drawing_fire import players as drawing_fire_players
 from drawing_fire.game import DrawingFireScene
+from glitchygames.input.action_map import SETTINGS_KEY
 from glitchygames.scenes.builtin_scenes.gamepad_choice import GamepadChoice, GamepadChoiceButtons
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from mr_muncher.game import MrMuncherScene
@@ -182,6 +183,9 @@ def _controls_from_action_maps(*, scene: type, action_maps: dict[str, ActionMap]
     controls: list[Control] = []
     for prefix, action_map in action_maps.items():
         for action, entries in action_map.to_dict().items():
+            # The map's settings (input mode, deadzone) ride along under SETTINGS_KEY: no binding
+            if action == SETTINGS_KEY:
+                continue
             for entry in entries:
                 is_key = entry['type'] == pygame.event.event_name(pygame.KEYDOWN)
                 attribute = next(name for name in ('scancode', 'code', 'axis') if name in entry)
@@ -201,7 +205,7 @@ def _controls_from_action_maps(*, scene: type, action_maps: dict[str, ActionMap]
 
 def _paddleslap_action_maps(input_mode: str) -> dict[str, ActionMap]:
     player1_actions, player2_actions, pause_actions = paddleslap.Game._create_action_maps(
-        input_mode=input_mode
+        options={'input_mode': input_mode}
     )
     return {'player1 ': player1_actions, 'player2 ': player2_actions, '': pause_actions}
 
@@ -211,23 +215,29 @@ def _paddleslap_action_maps(input_mode: str) -> dict[str, ActionMap]:
 GAMEPLAY_ACTION_MAPS: dict[str, tuple[type, Callable[[str], dict[str, ActionMap]]]] = {
     'brave_adventurer': (
         BraveAdventurerScene,
-        lambda input_mode: {'': BraveAdventurerScene._create_action_map(input_mode=input_mode)},
+        lambda input_mode: {
+            '': BraveAdventurerScene._create_action_map(options={'input_mode': input_mode})
+        },
     ),
     'brave_adventurer_papyrus': (
         PapyrusBraveAdventurerScene,
         lambda input_mode: {
-            '': PapyrusBraveAdventurerScene._create_action_map(input_mode=input_mode)
+            '': PapyrusBraveAdventurerScene._create_action_map(options={'input_mode': input_mode})
         },
     ),
     'clockwork_keep': (
         ClockworkKeepScene,
-        lambda input_mode: {'': ClockworkKeepScene._create_action_map(input_mode=input_mode)},
+        lambda input_mode: {
+            '': ClockworkKeepScene._create_action_map(options={'input_mode': input_mode})
+        },
     ),
     # Drawing Fire binds no ActionMap: DRAWING_FIRE_CONTROLS lists what it reads from the snapshot
     'drawing_fire': (DrawingFireScene, lambda _input_mode: {}),
     'mr_muncher': (
         MrMuncherScene,
-        lambda input_mode: {'': MrMuncherScene._create_action_map(input_mode=input_mode)},
+        lambda input_mode: {
+            '': MrMuncherScene._create_action_map(options={'input_mode': input_mode})
+        },
     ),
     'paddleslap': (paddleslap.Game, _paddleslap_action_maps),
 }

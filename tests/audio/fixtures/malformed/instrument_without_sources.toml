@@ -1,0 +1,9 @@
+[glitchygames]
+kind = "sounds"
+version = 1
+
+[instruments.pickup]
+envelope = "pluck"
+[sounds.coin]
+instrument = "pickup"
+pitch = "C5"

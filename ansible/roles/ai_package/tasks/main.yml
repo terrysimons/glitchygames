@@ -1,0 +1,164 @@
+---
+# Builds the .pkg from what the other roles installed. It holds no model: those are downloaded after
+# install by the setup job this role renders. Rebuilt only when something in it changed.
+- name: Find the installed build, and fix where the agents' files stage
+  ansible.builtin.set_fact:
+    ai_package_runtime_name: "{{ llama_cpp_install_directory | basename }}"
+    # Resolved now: the tasks below set ai_home to a placeholder, which would move this path too
+    ai_package_agents_stage: "{{ ai_package_stage_root }}/share/agents"
+
+- name: Start from an empty stage when the build changed
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ ai_package_scripts }}"
+    - "{{ ai_package_stage_root }}/bin"
+    - "{{ ai_package_stage_root }}/share/agents"
+    - "{{ ai_package_stage_root }}/runtime/{{ ai_package_runtime_name }}/bin"
+    - "{{ ai_package_stage_root }}/runtime/{{ ai_package_runtime_name }}/notices"
+
+- name: Stage llama-server
+  ansible.builtin.copy:
+    src: "{{ llama_cpp_install_directory }}/bin/llama-server"
+    dest: "{{ ai_package_stage_root }}/runtime/{{ ai_package_runtime_name }}/bin/llama-server"
+    mode: "0755"
+  notify: Build the package
+
+- name: Stage llama.cpp's license
+  ansible.builtin.copy:
+    src: "{{ llama_cpp_install_directory }}/notices/llama.cpp-LICENSE"
+    dest: "{{ ai_package_stage_root }}/runtime/{{ ai_package_runtime_name }}/notices/llama.cpp-LICENSE"
+    mode: "0644"
+  notify: Build the package
+
+# The service's own Python and packages, using nothing outside themselves
+- name: Stage the sidecar
+  ansible.builtin.command:
+    argv:
+      - rsync
+      - -a
+      - --delete
+      - --itemize-changes
+      - --exclude=__pycache__/
+      - "{{ ai_sidecar_directory }}/"
+      - "{{ ai_package_stage_root }}/sidecar/"
+  register: ai_package_sidecar_stage
+  changed_when: ai_package_sidecar_stage.stdout | length > 0
+  notify: Build the package
+
+# Apache-2.0: the license and notice travel with the software that downloads the weights
+- name: Stage each Bonsai size's license and notice
+  ansible.builtin.copy:
+    src: "{{ ai_models_directory }}/notices/"
+    dest: "{{ ai_package_stage_root }}/share/notices/"
+    mode: preserve
+  notify: Build the package
+
+# These render with the home directory replaced by a placeholder, which setup.sh fills in on the
+# player's Mac. Setting ai_home here moves every path built from it
+- name: Stage what renders with a player's home
+  vars:
+    ai_home: "{{ ai_package_home_placeholder }}"
+    llama_cpp_install_directory: "{{ ai_install_root }}/runtime/{{ ai_package_runtime_name }}"
+  block:
+    - name: Stage the service's settings
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/roles/ai_service/templates/service.json.j2"
+        dest: "{{ ai_package_agents_stage }}/service.json.template"
+        mode: "0644"
+      notify: Build the package
+
+    - name: Stage each agent's settings
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/roles/ai_service/templates/agent.env.j2"
+        dest: "{{ ai_package_agents_stage }}/{{ agent.label }}.env.template"
+        mode: "0644"
+      loop: "{{ ai_service_agents }}"
+      loop_control:
+        loop_var: agent
+        label: "{{ agent.label }}"
+      notify: Build the package
+
+    - name: Stage each agent's plist
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/roles/ai_service/templates/agent.plist.j2"
+        dest: "{{ ai_package_agents_stage }}/{{ agent.label }}.plist.template"
+        mode: "0644"
+        validate: plutil -lint %s
+      loop: "{{ ai_service_agents }}"
+      loop_control:
+        loop_var: agent
+        label: "{{ agent.label }}"
+      notify: Build the package
+
+- name: Stage the scripts the agents and player use
+  ansible.builtin.template:
+    src: "{{ item.source }}"
+    dest: "{{ ai_package_stage_root }}/bin/{{ item.name }}"
+    mode: "0755"
+    validate: sh -n %s
+  loop:
+    - {source: "{{ playbook_dir }}/roles/ai_service/templates/run-llama-server.sh.j2", name: run-llama-server.sh}
+    - {source: "{{ playbook_dir }}/roles/ai_service/templates/ai-service.sh.j2", name: ai-service.sh}
+    - {source: "{{ playbook_dir }}/roles/ai_service/templates/uninstall.sh.j2", name: uninstall.sh}
+    - {source: setup.sh.j2, name: setup.sh}
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Build the package
+
+- name: Render the postinstall script
+  ansible.builtin.template:
+    src: postinstall.sh.j2
+    dest: "{{ ai_package_scripts }}/postinstall"
+    mode: "0755"
+    validate: sh -n %s
+  notify: Build the package
+
+- name: Render the package's description
+  ansible.builtin.template:
+    src: distribution.xml.j2
+    dest: "{{ ai_package_distribution }}"
+    mode: "0644"
+    validate: xmllint --noout %s
+  notify: Build the package
+
+- name: Look for the package
+  ansible.builtin.stat:
+    path: "{{ ai_package_output }}"
+    get_checksum: false
+  register: ai_package_existing
+
+- name: Ask for a build if there's no package yet
+  ansible.builtin.command:
+    argv: ["true"]
+  when: not ai_package_existing.stat.exists
+  changed_when: true
+  notify: Build the package
+
+- name: Build it now if anything changed
+  ansible.builtin.meta: flush_handlers
+
+- name: List what's in the package
+  ansible.builtin.command:
+    argv: [pkgutil, --payload-files, "{{ ai_package_output }}"]
+  register: ai_package_payload
+  changed_when: false
+
+- name: Check the package holds the server and its notices, and no model
+  ansible.builtin.assert:
+    that:
+      - ai_package_payload.stdout is search('bin/llama-server')
+      - ai_package_payload.stdout is search('llama.cpp-LICENSE')
+      - ai_package_payload.stdout is search('NOTICE.txt')
+      - ai_package_payload.stdout is search('bin/setup.sh')
+      - ai_package_payload.stdout is search('sidecar/python/bin/python3.14')
+      - ai_package_payload.stdout is search('sidecar/site/glitchygames_ai_service/app.py')
+      - ai_package_payload.stdout is search('sidecar/scalar.js')
+      - ai_package_payload.stdout is not search('\.gguf')
+    fail_msg: "{{ ai_package_payload.stdout }}"
+
+- name: Say where the package is
+  ansible.builtin.debug:
+    msg: "{{ ai_package_output }}"

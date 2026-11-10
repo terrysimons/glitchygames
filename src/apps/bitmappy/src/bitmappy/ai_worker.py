@@ -7,17 +7,16 @@ and selecting training examples.
 
 from __future__ import annotations
 
-import inspect
-import json
 import logging
 import operator
 import signal
-import urllib.request
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 from glitchygames import clock
 from glitchygames.ai import get_sprite_size_hint
+from glitchygames.ai.sprite_generator import PIXEL_ROWS_ERROR_PREFIX
+from glitchygames.sprites.pixel_utils import normalize_pixel_rows
 
 from .constants import (
     AI_BASE_DELAY,
@@ -29,91 +28,20 @@ from .constants import (
     AI_MAX_RETRIES,
     AI_MAX_TRAINING_EXAMPLES,
     AI_MODEL,
-    AI_MODEL_DOWNLOAD_TIMEOUT,
     AI_TIMEOUT,
-    MODEL_DOWNLOAD_TIME_THRESHOLD_SECONDS,
     RETRYABLE_CLIENT_ERROR_STATUS_CODES,
     SPRITE_ASPECT_RATIO_TOLERANCE,
     ai_training_state,
 )
 from .models import AIRequest, AIResponse
 
-# Try to import aisuite, but don't fail if it's not available.
-# Catch AttributeError too — docstring_parser (an aisuite transitive dependency)
-# uses ast.NameConstant which was removed in Python 3.14.
-try:
-    import aisuite as ai
-except ImportError, AttributeError:  # pragma: no cover - aisuite is an optional package
-    ai = None
-
 if TYPE_CHECKING:
     import multiprocessing
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable
 
     import tenacity
 
-
-# aisuite ships no type information, so these protocols name exactly what this module calls
-# on its client (aisuite.Client) and reads from its responses (ChatCompletionResponse).
-
-
-class AIChatMessage(Protocol):
-    """A response choice's message (aisuite.framework.message.Message)."""
-
-    @property
-    def content(self) -> str | None:
-        """The message text, or None when the model returned none."""
-        ...
-
-
-class AIChatChoice(Protocol):
-    """One choice of a chat completion (aisuite.framework.choice.Choice)."""
-
-    @property
-    def message(self) -> AIChatMessage:
-        """The choice's message."""
-        ...
-
-
-class AIChatCompletion(Protocol):
-    """A chat completion response (aisuite.framework.ChatCompletionResponse)."""
-
-    @property
-    def choices(self) -> Sequence[AIChatChoice]:
-        """The response's choices."""
-        ...
-
-
-class AIChatCompletions(Protocol):
-    """The chat completions endpoint (``client.chat.completions``)."""
-
-    def create(
-        self,
-        *,
-        model: str,
-        messages: list[dict[str, str]],
-        **arguments: object,
-    ) -> AIChatCompletion:
-        """Send the messages to the model and return its completion."""
-        ...
-
-
-class AIChat(Protocol):
-    """The chat API (``client.chat``)."""
-
-    @property
-    def completions(self) -> AIChatCompletions:
-        """The chat completions endpoint."""
-        ...
-
-
-class AIClient(Protocol):
-    """The AI client (aisuite.Client): the chat completions API is all this module uses."""
-
-    @property
-    def chat(self) -> AIChat:
-        """The chat API."""
-        ...
+    from glitchygames.ai.local_service import ChatClient, ChatResponse
 
 
 def _setup_ai_worker_logging() -> logging.Logger:
@@ -137,156 +65,27 @@ def _setup_ai_worker_logging() -> logging.Logger:
     return log
 
 
-def _create_ollama_config(log: logging.Logger) -> dict[str, dict[str, object]]:
-    """Create the ollama provider's configuration: its timeout.
-
-    aisuite's OllamaProvider passes its configuration to ``openai.OpenAI``, which takes a
-    single ``timeout`` (``request_timeout`` or ``read_timeout`` would make the provider raise
-    ``TypeError`` when the first request creates it).
+def _initialize_ai_client(log: logging.Logger) -> ChatClient | None:
+    """Initialize the client for the local AI service.
 
     Returns:
-        ``{'ollama': {'timeout': seconds}}`` for an ollama model, else an empty dict.
+        The AI client, or None when the service isn't installed here.
 
     """
-    if not AI_MODEL.startswith('ollama:'):
-        return {}
-
-    timeout_value = _get_provider_timeout_value(log)
-    log.info('Created ollama config with %ss timeout', timeout_value)
-    return {'ollama': {'timeout': timeout_value}}
-
-
-def _set_ollama_env_timeout(log: logging.Logger) -> None:
-    """Set the OLLAMA_TIMEOUT environment variable based on model download status.
-
-    Args:
-        log: Logger instance.
-
-    """
-    import os
-
-    if not AI_MODEL.startswith('ollama:'):
-        return
-
-    model_status = _check_ollama_model_status(log)
-    if model_status['downloaded']:
-        ollama_timeout = AI_TIMEOUT
-        log.info('Model already downloaded, using %ss timeout', ollama_timeout)
-    else:
-        ollama_timeout = AI_MODEL_DOWNLOAD_TIMEOUT
-        log.info('Model needs download, using %ss timeout (30 minutes)', ollama_timeout)
-
-    os.environ['OLLAMA_TIMEOUT'] = str(ollama_timeout)
-    log.info('Set OLLAMA_TIMEOUT environment variable to %s seconds', ollama_timeout)
-
-
-def _get_provider_timeout_value(log: logging.Logger) -> int:
-    """Get the appropriate timeout value based on model status.
-
-    Args:
-        log: Logger instance.
-
-    Returns:
-        The timeout value in seconds: longer for an ollama model that must be downloaded first.
-
-    """
-    if AI_MODEL.startswith('ollama:'):
-        model_status = _check_ollama_model_status(log)
-        if not model_status['downloaded']:
-            log.info(
-                'Model needs download, using %ss timeout (30 minutes)', AI_MODEL_DOWNLOAD_TIMEOUT
-            )
-            return AI_MODEL_DOWNLOAD_TIMEOUT
-        log.info('Model already downloaded, using %ss timeout', AI_TIMEOUT)
-    return AI_TIMEOUT
-
-
-def _initialize_ai_client(log: logging.Logger) -> AIClient | None:
-    """Initialize AI client.
-
-    Returns:
-        The AI client, or None when aisuite is not available.
-
-    """
-    if ai is None:
-        log.error('aisuite not available - AI features disabled')
-        return None
-
-    log.info('aisuite is available')
-    log.debug('aisuite version: %s', getattr(ai, '__version__', 'unknown'))
-
-    _set_ollama_env_timeout(log)
+    # Imported here, not with the module: a browser build, which has no AI, never needs it
+    from glitchygames.ai.local_service import (
+        LocalAIServiceNotInstalledError,
+        create_chat_client,
+    )
 
     log.info('Initializing AI client...')
-    # aisuite creates a provider only when the first request needs it (Client.providers is
-    # empty until then), passing it the provider's entry of this configuration, so the
-    # timeouts must be configured here, up front.
-    # anthropic>=0.40 refuses non-streaming requests whose max_tokens implies more than
-    # 10 minutes ("Streaming is required...") unless the client has a non-default timeout.
-    # See https://github.com/anthropics/anthropic-sdk-python#long-requests
-    # aisuite only instantiates the provider named in AI_MODEL, so unused entries are inert.
-    provider_config: dict[str, dict[str, object]] = {
-        'anthropic': {'timeout': AI_TIMEOUT},
-        **_create_ollama_config(log),
-    }
-
-    log.info('Initializing client with provider config: %s', provider_config)
-    client = ai.Client(provider_config)
-    log.info('AI client initialized')
-
-    log.debug('Client type: %s', type(client))
-    return client
-
-
-def _check_ollama_model_status(log: logging.Logger) -> dict[str, Any]:
-    """Check if the ollama model is already downloaded and ready.
-
-    Returns:
-        dict: The result.
-
-    """
-    if not AI_MODEL.startswith('ollama:'):
-        return {'downloaded': True, 'reason': 'not_ollama'}
-
-    # The local ollama server may be down or answer with anything: every failure of the
-    # query (connection, HTTP read, JSON) means the status is unknown
     try:
-        return _query_ollama_model_status(log)
-    except (OSError, ValueError, KeyError) as e:
-        log.warning('Could not check ollama model status: %s', e)
-        return {'downloaded': False, 'reason': 'check_failed'}
-
-
-def _query_ollama_model_status(log: logging.Logger) -> dict[str, Any]:
-    """Ask the local ollama server whether AI_MODEL is downloaded (_check_ollama_model_status).
-
-    Args:
-        log: Logger instance.
-
-    Returns:
-        The status: whether the model is downloaded, and why.
-
-    """
-    # Extract model name from ollama:model_name format
-    model_name = AI_MODEL.split(':', 1)[1]
-
-    # Check if model exists locally
-    request = urllib.request.Request('http://localhost:11434/api/tags')
-    # URL is constructed from hardcoded http://localhost for local ollama API only
-    with urllib.request.urlopen(request, timeout=10) as response:  # ruff: ignore[suspicious-url-open-usage] # nosec B310 -- hardcoded http://localhost URL
-        if response.status != HTTPStatus.OK:
-            log.warning('Could not check model status: HTTP %s', response.status)
-            return {'downloaded': False, 'reason': 'api_error'}
-        data = json.loads(response.read().decode())
-
-    models = data.get('models', [])
-    for model in models:
-        if model_name in model.get('name', ''):
-            log.info('Model %s is already downloaded', model_name)
-            return {'downloaded': True, 'reason': 'already_downloaded'}
-
-    log.info('Model %s needs to be downloaded', model_name)
-    return {'downloaded': False, 'reason': 'needs_download'}
+        client = create_chat_client(timeout_seconds=AI_TIMEOUT)
+    except LocalAIServiceNotInstalledError:
+        log.exception('AI features disabled')
+        return None
+    log.info('AI client initialized')
+    return client
 
 
 def _log_capabilities_dump(log: logging.Logger, **fields: object) -> None:
@@ -355,7 +154,7 @@ def _parse_capabilities_response(log: logging.Logger, content: str) -> dict[str,
     return {'max_tokens': None, 'raw_response': content}
 
 
-def _query_model_capabilities(log: logging.Logger, client: AIClient) -> dict[str, Any]:
+def _query_model_capabilities(log: logging.Logger, client: ChatClient) -> dict[str, Any]:
     """Send a test request to query model capabilities.
 
     Args:
@@ -380,7 +179,6 @@ def _query_model_capabilities(log: logging.Logger, client: AIClient) -> dict[str
     ]
 
     log.info('Querying model capabilities...')
-    log.info('This may take a while if the model needs to be downloaded first...')
 
     start_time = clock.measured_seconds()
     response = client.chat.completions.create(
@@ -391,8 +189,6 @@ def _query_model_capabilities(log: logging.Logger, client: AIClient) -> dict[str
     duration = clock.measured_seconds() - start_time
 
     log.info('Model capability query completed in %.2f seconds', duration)
-    if duration > MODEL_DOWNLOAD_TIME_THRESHOLD_SECONDS:
-        log.info('Model was likely downloaded during this request')
 
     if hasattr(response, 'choices') and response.choices:
         content = response.choices[0].message.content
@@ -412,20 +208,6 @@ def _get_model_capabilities(log: logging.Logger) -> dict[str, Any]:  # type: ign
         dict: The model capabilities.
 
     """
-    # _check_ollama_model_status reports its own failures (OSError, ValueError, KeyError) as
-    # a status, so only the client and the query below can raise
-    model_status = _check_ollama_model_status(log)
-
-    if not model_status['downloaded']:
-        log.info('Model needs to be downloaded: %s', model_status['reason'])
-        log.info('\n%s', '=' * 60)
-        log.info('MODEL DOWNLOAD DETECTED')
-        log.info('=' * 60)
-        log.info('Model: %s', AI_MODEL)
-        log.info('Status: Model needs to be downloaded')
-        log.info('This may take several minutes depending on model size...')
-        log.info('%s\n', '=' * 60)
-
     try:
         client = _initialize_ai_client(log)
 
@@ -444,8 +226,8 @@ def _get_model_capabilities(log: logging.Logger) -> dict[str, Any]:  # type: ign
 def _is_non_retryable_ai_error(error: BaseException) -> bool:
     """Decide whether an AI request error should stop the retry loop immediately.
 
-    HTTP 4xx errors from provider SDKs (bad request, billing, auth, not found) will
-    fail the same way every time, so retrying them only delays the error message.
+    HTTP 4xx errors from the service (bad request, auth, not found) will fail the same way
+    every time, so retrying them only delays the error message.
     Request timeouts (408), conflicts (409), and rate limits (429) are transient and
     are still retried.
 
@@ -538,9 +320,9 @@ def _create_ai_retry_decorator(
 
 def _make_ai_api_call(
     request: AIRequest,
-    client: AIClient,
+    client: ChatClient,
     log: logging.Logger,
-) -> AIChatCompletion:
+) -> ChatResponse:
     """Make the actual API call to the AI service.
 
     Returns:
@@ -556,15 +338,15 @@ def _make_ai_api_call(
     start_time = clock.measured_seconds()
 
     # Only logs the failure (with its duration) and re-raises it: the retry decorator and
-    # _process_ai_request decide what happens to any provider SDK error
+    # _process_ai_request decide what happens to any error
     try:
-        api_arguments = _build_ai_api_arguments(request=request, client=client, log=log)
+        api_arguments = _build_ai_api_arguments(request=request, log=log)
         response = client.chat.completions.create(**api_arguments)
     except Exception:
         end_time = clock.measured_seconds()
         duration = end_time - start_time
+        # One record with the traceback, not two (BUGS.md #178 item 8)
         log.exception('API call failed after %.2f seconds', duration)
-        log.exception('API call failed with exception')
         raise
 
     end_time = clock.measured_seconds()
@@ -574,54 +356,22 @@ def _make_ai_api_call(
     return response
 
 
-def _build_ai_api_arguments(
-    *,
-    request: AIRequest,
-    client: AIClient,
-    log: logging.Logger,
-) -> dict[str, Any]:
-    """Build the keyword arguments of the API call, with a timeout if the client takes one.
+def _build_ai_api_arguments(*, request: AIRequest, log: logging.Logger) -> dict[str, Any]:
+    """Build the keyword arguments of the API call.
 
     Args:
         request: The AI request.
-        client: The AI client.
         log: Logger instance.
 
     Returns:
         The keyword arguments for ``client.chat.completions.create``.
 
     """
-    # Try to pass timeout parameters directly to the API call
     api_kwargs: dict[str, Any] = {
         'model': AI_MODEL,
         'messages': request.messages,
         'max_tokens': AI_MAX_OUTPUT_TOKENS,  # Use OUTPUT token limit for AI response
     }
-
-    # Add timeout parameters if the client supports them
-    if hasattr(client.chat.completions, 'create'):
-        # Check if the create method accepts timeout parameters
-        signature = inspect.signature(client.chat.completions.create)
-
-        # Try multiple timeout parameter names
-        timeout_params = ['timeout', 'request_timeout', 'client_timeout', 'api_timeout']
-        timeout_added = False
-
-        for param_name in timeout_params:
-            if param_name in signature.parameters:
-                # Use longer timeout for ollama models
-                timeout_value = (
-                    AI_MODEL_DOWNLOAD_TIMEOUT if AI_MODEL.startswith('ollama:') else AI_TIMEOUT
-                )
-                api_kwargs[param_name] = timeout_value
-                log.debug('Added %s=%s to API call', param_name, timeout_value)
-                timeout_added = True
-                break
-
-        if not timeout_added:
-            log.warning('No timeout parameter found in API call signature')
-            log.debug('Available parameters: %s', list(signature.parameters.keys()))
-
     # Diagnostics (the whole request, prompt included), not an event of any severity
     log.debug('API call kwargs: %s', api_kwargs)
     return api_kwargs
@@ -629,7 +379,7 @@ def _build_ai_api_arguments(
 
 def _process_ai_request(
     request: AIRequest,
-    client: AIClient | None,
+    client: ChatClient | None,
     log: logging.Logger,
 ) -> AIResponse:
     """Process a single AI request with retry logic.
@@ -655,9 +405,9 @@ def _process_ai_request(
         response = _retryable_api_call()
         return _extract_response_content(response, log)
     except Exception as error:
-        # Provider SDKs raise their own exception types (anthropic.BadRequestError,
-        # openai.APIError, httpx errors, ...). Re-raising them would escape the worker
-        # loop's except clause, kill the worker process, and leave the UI waiting forever,
+        # LocalAIServiceError and whatever else a request raises. Re-raising it would escape
+        # the worker loop's except clause, kill the worker process, and leave the UI waiting
+        # forever,
         # so report the failure back to the UI as an error response instead.
         log.exception('AI request failed permanently')
         return AIResponse(content=None, error=f'{type(error).__name__}: {error}')
@@ -692,6 +442,10 @@ def _score_size_match(requested_size: tuple[int, int], example: dict[str, Any]) 
         return 1
     return 0
 
+
+# What a request word that is one of an example's tags (or a word of one) adds to its score:
+# more than a word of its name (+5), since a tag says what the example is
+TAG_WORD_SCORE = 8
 
 _ANIMATED_KEYWORDS = frozenset(['animated', 'animation', 'frame', 'walk', 'run', 'idle'])
 _STATIC_KEYWORDS = frozenset(['static', 'single', 'one'])
@@ -744,6 +498,11 @@ def _score_training_example(
     # Size matching
     if requested_size:
         score += _score_size_match(requested_size, example)
+
+    # Tag matching (+8 per request word that is a tag or a word of one): a tag says what the
+    # example is, so it counts before a word of its name (sprites/tags.py; tags are lowercase)
+    tag_words = {word for tag in example.get('tags', []) for word in tag.split()}
+    score += len(user_words & tag_words) * TAG_WORD_SCORE
 
     # Name keyword matching (+5 per matching word)
     score += len(user_words & set(name.split())) * 5
@@ -817,11 +576,7 @@ def _extract_example_size(example: dict[str, Any]) -> tuple[int, int] | None:
     if 'pixels' in example:
         pixels = example['pixels']
         if isinstance(pixels, str) and '\n' in pixels:
-            # str.split always returns at least one line
-            lines = pixels.strip().split('\n')
-            height = len(lines)
-            width = len(lines[0])
-            return (width, height)
+            return _pixel_grid_size(pixels)
 
     # Try to get size from first animation frame
     if example.get('animations'):
@@ -831,13 +586,64 @@ def _extract_example_size(example: dict[str, Any]) -> tuple[int, int] | None:
             if 'pixels' in first_frame:
                 pixels = first_frame['pixels']
                 if isinstance(pixels, str) and '\n' in pixels:
-                    # str.split always returns at least one line
-                    lines = pixels.strip().split('\n')
-                    height = len(lines)
-                    width = len(lines[0])
-                    return (width, height)
+                    return _pixel_grid_size(pixels)
 
     return None
+
+
+def _pixel_grid_size(pixels: str) -> tuple[int, int] | None:
+    """Return the (width, height) the loader gives a pixels block (normalize_pixel_rows).
+
+    The palette doesn't change the size, so none is passed.
+
+    Returns:
+        tuple[int, int] | None: The block's width and height, or None when it has no rows (the
+            loader skips it, and a 0x0 size would divide by zero in _score_size_match).
+
+    """
+    normalized = normalize_pixel_rows(pixels, ())
+    if not normalized.rows:
+        return None
+    return (normalized.width, normalized.height)
+
+
+# The repair kinds normalize_pixel_rows and palette_key_problems report, each with its
+# correction for the retry prompt
+PIXEL_ROWS_CORRECTIONS = (
+    (
+        'row widths differ',
+        (
+            'CRITICAL: every row of a frame must have the same number of characters, one '
+            'palette glyph per pixel. Count each row.'
+        ),
+    ),
+    (
+        'blank line between rows',
+        'CRITICAL: no blank lines inside a frame; every line between the quotes is a row.',
+    ),
+    (
+        'glyphs not in the palette',
+        'CRITICAL: define every glyph you use in [colors], including the transparent one.',
+    ),
+    (
+        'palette keys that are not one code point',
+        'CRITICAL: every [colors] key must be exactly one character.',
+    ),
+)
+
+
+def _pixel_rows_corrections(error_lower: str) -> str:
+    """Return one correction per kind of pixel-row repair named in the error.
+
+    Returns:
+        str: The corrections, one per line.
+
+    """
+    return '\n'.join(
+        correction
+        for repair_kind, correction in PIXEL_ROWS_CORRECTIONS
+        if repair_kind in error_lower
+    )
 
 
 def build_retry_prompt(original_prompt: str, validation_error: str) -> str:
@@ -857,7 +663,9 @@ def build_retry_prompt(original_prompt: str, validation_error: str) -> str:
     # Add specific corrections based on error type
     error_lower = validation_error.lower()
 
-    if 'missing [sprite] section' in error_lower:
+    if PIXEL_ROWS_ERROR_PREFIX.lower() in error_lower:
+        retry_prompt += _pixel_rows_corrections(error_lower)
+    elif 'missing [sprite] section' in error_lower:
         retry_prompt += 'CRITICAL: You must include a [sprite] section at the beginning.'
     elif 'missing [colors] section' in error_lower:
         retry_prompt += (
@@ -943,13 +751,15 @@ def _serve_ai_requests(
     *,
     request_queue: multiprocessing.Queue[AIRequest | None],
     response_queue: multiprocessing.Queue[tuple[str, AIResponse]],
-    client: AIClient | None,
+    client: ChatClient | None,
     log: logging.Logger,
 ) -> None:
     """Answer requests until the shutdown message (None) arrives.
 
     A request that fails with ValueError, KeyError, AttributeError or OSError is answered
-    with an error response and the worker goes on; any other error ends the worker.
+    with an error response and the worker goes on; any other error ends the worker. A failed
+    read of the request queue also ends it: a closed or broken queue never recovers, and
+    retrying it logged the same error forever (BUGS.md #178 item 7).
 
     Args:
         request_queue: Queue to receive requests from
@@ -960,60 +770,48 @@ def _serve_ai_requests(
     """
     request_count = 0
     while True:
-        # Reset every time: a failed get must not answer the previous request a second time
-        request = None
         try:
             request = request_queue.get()
-            request_count += 1
-            keep_serving = _answer_ai_request(
+        except ValueError, OSError, EOFError:
+            log.exception('The AI request queue cannot be read; stopping the AI worker')
+            break
+        request_count += 1
+        log.info('Processing AI request #%s', request_count)
+        if request is None:  # Shutdown signal
+            log.info('Received shutdown signal, closing AI worker')
+            break
+        try:
+            _answer_ai_request(
                 request=request,
-                request_number=request_count,
                 response_queue=response_queue,
                 client=client,
                 log=log,
             )
         except (ValueError, KeyError, AttributeError, OSError) as e:
             log.exception('Error processing AI request')
-            if request:
-                response_queue.put((request.request_id, AIResponse(content=None, error=str(e))))
-            continue
-
-        if not keep_serving:
-            break
+            response_queue.put((request.request_id, AIResponse(content=None, error=str(e))))
 
 
 def _answer_ai_request(
     *,
-    request: AIRequest | None,
-    request_number: int,
+    request: AIRequest,
     response_queue: multiprocessing.Queue[tuple[str, AIResponse]],
-    client: AIClient | None,
+    client: ChatClient | None,
     log: logging.Logger,
-) -> bool:
+) -> None:
     """Process one request and send its response.
 
     Args:
-        request: The request, or None (the shutdown message).
-        request_number: How many messages the worker has received, this one included.
+        request: The request (the shutdown message, None, never reaches here).
         response_queue: Queue to send the response to.
         client: The AI client, or None when AI is unavailable.
         log: Logger instance.
 
-    Returns:
-        False for the shutdown message, True once a request is answered.
-
     """
-    log.info('Processing AI request #%s', request_number)
-
-    if request is None:  # Shutdown signal
-        log.info('Received shutdown signal, closing AI worker')
-        return False
-
     ai_response = _process_ai_request(request, client, log)
     response_data = (request.request_id, ai_response)
     response_queue.put(response_data)
     log.info('Response sent successfully')
-    return True
 
 
 def run_ai_worker(
@@ -1027,7 +825,7 @@ def run_ai_worker(
         response_queue: Queue to send responses to
 
     Raises:
-        ImportError: If aisuite cannot be imported.
+        ImportError: If the AI client cannot be imported.
         ValueError: If the AI request contains invalid data.
         KeyError: If a required key is missing from the request or response.
         AttributeError: If an expected attribute is missing from an object.
@@ -1045,7 +843,7 @@ def run_ai_worker(
             log=log,
         )
     except ImportError:
-        log.exception('Failed to import aisuite')
+        log.exception('Failed to import the AI client')
         raise
     except OSError, ValueError, KeyError, AttributeError:
         log.exception('Fatal error in AI worker process')

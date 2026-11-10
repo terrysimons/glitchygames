@@ -23,10 +23,12 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, cast, 
 import pygame
 
 from glitchygames import clock, events
-from glitchygames.argument_types import non_negative_int
+from glitchygames.ai_link import AiLink, create_link
+from glitchygames.argument_types import non_negative_int, unit_interval
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
     BackgroundPattern,
+    active_default_background_pattern,
     paint_default_background,
     set_active_default_background_pattern,
 )
@@ -56,7 +58,13 @@ from glitchygames.exit_codes import BUG_REPORT_HINT, ExitCode
 from glitchygames.fonts import FontManager
 from glitchygames.host import GameHost, HostSources
 from glitchygames.input.device_listing import list_input_devices
-from glitchygames.input.input_devices import InputDevices, InputMode
+from glitchygames.input.devices import ReplayController
+from glitchygames.input.input_devices import (
+    InputDeviceChanges,
+    InputDevices,
+    InputMode,
+    RecordedDevices,
+)
 from glitchygames.input.state import current_input, reset_current_input, set_current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.logical_names import logical_name
@@ -64,6 +72,7 @@ from glitchygames.machine_state import current_machine_state
 from glitchygames.output_files import output_refusal, partial_path
 from glitchygames.randomness import seed_engine_random
 from glitchygames.recording import (
+    CUSTOM_EVENT_TYPES_HEADER_FIELD,
     DEVICE_ENUMERATION_FIELD,
     DEVICES_HEADER_FIELD,
     RECORDED_AT_HEADER_FIELD,
@@ -72,6 +81,7 @@ from glitchygames.recording import (
     RecordingSources,
     RecordingWriteError,
     TraceRecordingAlreadyStartedError,
+    custom_event_types_header,
     forget_pending_posts,
     json_safe_value,
     pending_internal_posts,
@@ -162,6 +172,10 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Generator, Sequence
     from types import FrameType
 
+    from glitchygames.ai_console import AiConsole
+    from glitchygames.audio.voices import ChannelPartition
+    from glitchygames.crt_power_on_sound import CrtPowerOnSound
+    from glitchygames.input.devices import OpenedController, ReplayDeviceRegistry
     from glitchygames.input.state import InputSnapshot
 
 LOG: logging.Logger = logging.getLogger('game.engine')
@@ -192,10 +206,21 @@ MISSING_ATTRIBUTE_MSG = "'{cls}' object has no attribute '{attr}'"
 DEFAULT_SCREEN_SHAKE_INTENSITY = 1.0
 DEFAULT_RUMBLE_INTENSITY = 1.0
 DEFAULT_LIVE_VOICE_POOL = 4
+# The sound options' choices (sound engine impl spec 10.2; glitchygames/audio/engine.py holds the
+# channel and memory defaults)
+CRT_POWER_ON_SOUND_ON = 'on'
+CRT_POWER_ON_SOUND_OFF = 'off'
+CRT_POWER_ON_SOUND_CHOICES = (CRT_POWER_ON_SOUND_ON, CRT_POWER_ON_SOUND_OFF)
+DEFAULT_CRT_POWER_ON_SOUND = CRT_POWER_ON_SOUND_ON
 # The SDL video and audio driver --headless runs on (no window, no sound)
 HEADLESS_SDL_DRIVER = 'dummy'
 # The environment variables that choose SDL's video and audio drivers (--headless sets both)
 SDL_DRIVER_VARIABLES = ('SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')
+# What a Linux Wayland session runs on when nothing chose a driver: alone, SDL picks x11 there
+# whenever DISPLAY is also set (seen on Ubuntu 26.10), which goes through XWayland and cost a
+# fullscreen window about 25% on a Raspberry Pi 4. SDL tries a list in order, so x11 still starts
+# when Wayland cannot
+WAYLAND_FIRST_VIDEO_DRIVERS = 'wayland,x11'
 # SDL's hint that turns its own SIGINT/SIGTERM handlers off (the engine owns the signals)
 SDL_NO_SIGNAL_HANDLERS_HINT = 'SDL_NO_SIGNAL_HANDLERS'
 # --video-driver's choices: SDL 2's video drivers by platform.system() name (SDL's own list,
@@ -214,6 +239,26 @@ PORTABLE_VIDEO_DRIVERS = ('offscreen', 'dummy')
 TERMINATING_SIGNAL_NAMES = ('SIGTERM', 'SIGHUP', 'SIGBREAK')
 
 
+def scene_class_of(game: type[Scene] | Scene) -> type[Scene]:
+    """Return the game's scene class, whether the engine was given the class or an instance.
+
+    The one spelling of this test: it was written two ways, and the other one returned a
+    stand-in instance that is not a Scene as if it were a class (BUGS.md #224 item 15).
+
+    Args:
+        game: The game scene class or instance.
+
+    Returns:
+        The scene class.
+
+    """
+    # Tested as a type, not as a Scene, so a stand-in that is no Scene is still never taken for a
+    # class. ty narrows the class branch to "type[Scene] | (Scene & type)" (a Scene that is also
+    # a type, a metaclass instance no game is), where basedpyright sees type[Scene] and refuses a
+    # cast as unnecessary: so ty alone is told
+    return game if isinstance(game, type) else type(game)  # ty: ignore[invalid-return-type]
+
+
 def pygame_needs_fastevents() -> bool:
     """Report whether this pygame is older than 2.2 and so reads events with pygame.fastevent.
 
@@ -221,34 +266,12 @@ def pygame_needs_fastevents() -> bool:
         True for pygame < 2.2.
 
     """
-    return (
-        pygame.version.vernum[0] < PYGAME_MIN_MAJOR_VERSION
-        and pygame.version.vernum[1] < PYGAME_MIN_MINOR_VERSION
+    # Compare (major, minor) as a pair: pygame 1.9 is older than 2.2 although its minor 9 is not
+    # below 2 (BUGS.md #75).
+    return (pygame.version.vernum[0], pygame.version.vernum[1]) < (
+        PYGAME_MIN_MAJOR_VERSION,
+        PYGAME_MIN_MINOR_VERSION,
     )
-
-
-def unit_interval(value: str) -> float:
-    """Argparse type: a float from 0.0 to 1.0 inclusive.
-
-    Args:
-        value: The command-line text.
-
-    Returns:
-        The parsed float.
-
-    Raises:
-        argparse.ArgumentTypeError: If the text is not a number in 0.0-1.0.
-
-    """
-    try:
-        number = float(value)
-    except ValueError as error:
-        message = f'{value!r} is not a number'
-        raise argparse.ArgumentTypeError(message) from error
-    if not 0.0 <= number <= 1.0:  # Also rejects NaN, which fails every comparison
-        message = f'{value!r} must be between 0.0 and 1.0'
-        raise argparse.ArgumentTypeError(message)
-    return number
 
 
 def target_fps_value(value: str) -> float:
@@ -486,6 +509,29 @@ class UnhandledEventRecord:
     count: int
     first_seen_seconds: float
     attribute_names: tuple[str, ...]
+
+
+@dataclass
+class LiveDevicesBehindScope:
+    """The live game's devices, set aside while a playback scope plays on its own (#184.3).
+
+    Attributes:
+        joysticks: ``joystick_manager.joysticks`` as the scope began.
+        controller_manager: ``GameEngine.controller_manager`` as the scope began (None in
+            joystick mode).
+        controllers: That controller manager's ``controllers`` as the scope began (None
+            without one).
+        input_devices: ``GameEngine.input_devices`` as the scope began.
+        scope_made_the_controller_manager: True when the scope made a controller manager of
+            its own (the recording had one, the live game has none): released as it ends.
+
+    """
+
+    joysticks: dict[int, JoystickEventManager.JoystickEventProxy]
+    controller_manager: ControllerEventManager | None
+    controllers: dict[int, ControllerEventManager.ControllerEventProxy] | None
+    input_devices: InputDevices
+    scope_made_the_controller_manager: bool
 
 
 # The options whose values are paths besides the tools' (the supervising replay's handoff file)
@@ -736,6 +782,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     # the teardown (_shutdown). Class defaults so they read None on an engine whose __init__
     # did not run.
     onion_skin: OnionSkin | None = None
+    # The AI's console, for a run with a link (glitchygames/ai_console.py); the debug overlay's
+    # AI panel reads it
+    ai_console: AiConsole | None = None
     frame_stream: FrameStream | None = None
     # OLD when --compare-trace OLD is played live (no --replay-trace; rule 9 of
     # glitchygames/replay/tools/compare.py), else None
@@ -816,6 +865,17 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             action=argparse.BooleanOptionalAction,
             default=True,
         )
+        # Not a tool in the registry: two tool flags at once are refused, and this is on by default
+        group.add_argument(
+            '--ai',
+            help=(
+                'connect to the local AI service if it is installed, starting its models as '
+                'the game loads; --no-ai never touches it (default: on, but never with '
+                '--headless or in a replay)'
+            ),
+            action=argparse.BooleanOptionalAction,
+            default=True,
+        )
         group.add_argument(
             '-r',
             '--resolution',
@@ -888,6 +948,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             action=argparse.BooleanOptionalAction,
             default=False,
         )
+        diagnostics_group.add_argument(
+            '--sound-diagnostics',
+            help='start with the debug overlay on, showing the Audio panel',
+            action='store_true',
+            default=False,
+        )
         # Read by events.unhandled_event (glitchygames/events/base.py); how this run is
         # diagnosed, not what the game does, so a replay keeps its own (REPLAY_LOCAL_OPTIONS)
         diagnostics_group.add_argument(
@@ -937,6 +1003,48 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             help='mixer channels reserved for real-time synth voices (default: 4)',
             default=DEFAULT_LIVE_VOICE_POOL,
         )
+        # The sound engine's options (impl spec 10.2): imported here, as the engine's start
+        # imports the audio package (its channels are reserved then)
+        from glitchygames.audio.engine import (
+            DEFAULT_CACHE_MEMORY_MEGABYTES,
+            DEFAULT_LIBRARY_CHANNELS,
+        )
+        from glitchygames.audio.library import CacheMode
+
+        group.add_argument(
+            '--sound-channels',
+            type=non_negative_int,
+            help=(
+                'mixer channels reserved for the sound library (scene_manager.audio) '
+                f'(default: {DEFAULT_LIBRARY_CHANNELS})'
+            ),
+            default=DEFAULT_LIBRARY_CHANNELS,
+        )
+        group.add_argument(
+            '--sound-cache',
+            choices=[mode.value for mode in CacheMode],
+            help=(
+                'how compiled sounds are kept: none (compiled again at every play), ram (in '
+                'memory, default) or disk (arrives in M3; refused until then)'
+            ),
+            default=CacheMode.RAM.value,
+        )
+        group.add_argument(
+            '--sound-cache-memory',
+            metavar='MB',
+            type=non_negative_int,
+            help=(
+                'megabytes the ram sound cache may hold before the least recently played idle '
+                f'sounds go (default: {DEFAULT_CACHE_MEMORY_MEGABYTES})'
+            ),
+            default=DEFAULT_CACHE_MEMORY_MEGABYTES,
+        )
+        group.add_argument(
+            '--crt-power-on-sound',
+            choices=CRT_POWER_ON_SOUND_CHOICES,
+            help='play the CRT power-on sequence with its sound (default: on)',
+            default=DEFAULT_CRT_POWER_ON_SOUND,
+        )
         group.add_argument(
             '--crt-power-on',
             choices=[mode.value for mode in CrtPowerOnMode],
@@ -967,12 +1075,13 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             *PORTABLE_VIDEO_DRIVERS,
         ]
         LOG.debug('Video Driver Choices: %s', video_driver_choices)
-        # Parsed and recorded, but never handed to SDL: nothing sets SDL_VIDEODRIVER from it
+        # Sets SDL_VIDEODRIVER before the display starts (_enter_video_driver, BUGS.md #210)
         group.add_argument(
             '--video-driver',
             help=(
-                'not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER '
-                '(or --headless) instead'
+                "SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: "
+                "SDL_VIDEODRIVER's own value, then Wayland on a Linux Wayland session, then "
+                "SDL's choice; --headless overrides it)"
             ),
             default=None,
             choices=video_driver_choices,
@@ -1044,7 +1153,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if game_target_fps is None:
             return DEFAULT_TARGET_FPS
 
-        scene_class = game if isinstance(game, type) else type(game)
+        scene_class = scene_class_of(game)
         # bool is a subclass of int, so it must be rejected explicitly.
         if isinstance(game_target_fps, bool) or not isinstance(game_target_fps, (int, float)):
             message = (
@@ -1171,13 +1280,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.initialize_icon(icon=icon)
 
         options = self.initialize_arguments(game=game)
-        # The SDL driver variables as they were before --headless set them (by name; None: the
-        # variable was not set), put back when the run ends (_restore_sdl_driver_variables);
-        # None when the run is not headless and changed nothing
-        self._sdl_driver_variables_before_headless: dict[str, str | None] | None = None
+        # The SDL driver variables as they were before --headless or --video-driver set them
+        # (by name; None: the variable was not set), put back when the run ends
+        # (_restore_sdl_driver_variables); None when the run changed neither
+        self._sdl_driver_variables_before_run: dict[str, str | None] | None = None
         # Before anything starts the display or the mixer (pygame.init() below)
-        if options.get('headless'):
-            self._enter_headless_mode()
+        self._choose_sdl_drivers(options=options)
 
         # NOTE: Game is coupled to event manager for unhandled event routing.
         # Decoupling tracked in https://glitchy-games.atlassian.net/browse/GG-22
@@ -1216,7 +1324,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                         project_root=find_project_root(start=Path.cwd()),
                     ),
                 ),
-                game_class=type(game) if isinstance(game, Scene) else game,
+                game_class=scene_class_of(game),
             )
         )
         # Set the master seed of the engine random streams before any game code runs
@@ -1278,7 +1386,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         # Initialize all of the Pygame modules.
         self.init_pass, self.init_fail = pygame.init()
-        self.print_game_info()
+        self.print_game_info(game=game)
 
         # Enable fast events for multithreaded applications on older
         # versions of pygame, or use the new event loop for newer
@@ -1306,19 +1414,20 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # A live run is hosted: the outer game (glitchygames/host.py) reads through the live
         # doors and drives the frames. A replay has no host (its viewer is its outer game)
         self.host: GameHost | None = None
+        # The run's session with the local AI service, if it has one (glitchygames/ai_link.py)
+        self.ai_link: AiLink | None = None
         if self.replay_sources is None:
+            live_sources = LiveSources(
+                random_seed=self.random_seed,
+                use_fastevents=GameEngine.USE_FASTEVENTS,
+                # A recorded run captures scene starts from its first scene on, which
+                # is built before recording starts (glitchygames/scene_start.py)
+                captures_scene_starts=options.get('record_trace') is not None,
+            )
+            self.ai_link = create_link(options=options)
             self.host = GameHost(
-                sources=HostSources(
-                    inner=LiveSources(
-                        random_seed=self.random_seed,
-                        use_fastevents=GameEngine.USE_FASTEVENTS,
-                        # A recorded run captures scene starts from its first scene on, which
-                        # is built before recording starts (glitchygames/scene_start.py)
-                        captures_scene_starts=options.get('record_trace') is not None,
-                    ),
-                    # Live play against OLD draws OLD over each presented frame
-                    overlay=self.onion_skin,
-                )
+                # Live play against OLD draws OLD over each presented frame
+                sources=self._host_sources(inner=live_sources, overlay=self.onion_skin)
             )
             install_sources(sources=self.host.sources)
         else:
@@ -1344,6 +1453,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # frames numbered from 0, as reset_sources() above restarted the frame clock, and no
         # supervision, quit request, shake or playback state left from an earlier run)
         self.scene_manager.begin_run()
+        # An earlier run's audio engine in this process (a test run, a recording and then its
+        # replay) plays on that run's partition: this run makes its own on first use
+        from glitchygames.audio.engine import discard_audio_engine
+
+        discard_audio_engine(wait_seconds=0.0)
         # A watched replay pauses at each recorded breakpoint, such as a saved bookmark (rule 16
         # of glitchygames/replay/driver.py); nobody could unpause a headless one
         if self.replay_sources is not None and not self.replay_sources.options.headless:
@@ -1360,8 +1474,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         desired_width: str = resolution_parts[0]
         desired_height: str = resolution_parts[1]
 
-        if self.windowed:
-            self.mode_flags: int = pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
+        if options.get('headless'):
+            # No window to scale or resize: SCALED asks the dummy driver for a renderer it does
+            # not have ("no fast renderer available") (BUGS.md #178 item 32)
+            self.mode_flags: int = 0
+        elif self.windowed:
+            self.mode_flags = pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
         else:
             self.mode_flags = (
                 pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
@@ -1395,6 +1513,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.app_manager: AppEventManager
         self.audio_manager: AudioEventManager
         self.live_voice_channels: tuple[int, ...] = ()
+        # The mixer's channels: live voices, the sound library's, the legacy rest (set as the
+        # event managers are made; None before)
+        self.channel_partition: ChannelPartition | None = None
         self.drop_manager: DropEventManager
         self.controller_manager: ControllerEventManager | None = None
         self.touch_manager: TouchEventManager
@@ -1408,6 +1529,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Every joystick and game controller the game sees (glitchygames/input/input_devices.py),
         # following the joystick and controller managers; built with them
         self.input_devices: InputDevices = InputDevices()
+        # The live devices while a playback scope plays on its own (enter_playback_devices)
+        self._live_devices_behind_scope: LiveDevicesBehindScope | None = None
 
     def initialize_display(self: Self) -> None:
         """Initialize the display."""
@@ -1511,7 +1634,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Looked up by name: a game need not be a Scene subclass
         native_window_messages = getattr(game, 'NATIVE_WINDOW_MESSAGES', False)
         if not isinstance(native_window_messages, bool):
-            scene_class = game if isinstance(game, type) else type(game)
+            scene_class = scene_class_of(game)
             message = (
                 f'{scene_class.__name__}.NATIVE_WINDOW_MESSAGES must be a bool, '
                 f'got {native_window_messages!r}'
@@ -1625,16 +1748,24 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.log.info('Window Manager Info: %s', pygame.display.get_wm_info())
         self.log.info('Platform Timer Resolution: %s', pygame.TIMER_RESOLUTION)
 
-    def print_game_info(self: Self) -> None:
-        """Print game information."""
+    def print_game_info(self: Self, *, game: type[Scene] | Scene) -> None:
+        """Log the game's title and version.
+
+        Args:
+            game: The game scene class or instance. Passed in: __init__ logs this before it
+                sets GameEngine.game.
+
+        """
         self.log.debug(
             'Successfully loaded %s modules and failed loading %s modules.',
             self.init_pass,
             self.init_fail,
         )
 
-        self.log.info('Game Title: %s', type(self).NAME)
-        self.log.info('Game Version: %s', type(self).VERSION)
+        # The game's name and version, not the engine's placeholder "Boilerplate Adventures"
+        # (BUGS.md #178 item 27)
+        self.log.info('Game Title: %s', game.NAME)
+        self.log.info('Game Version: %s', game.VERSION)
 
     def suggested_resolution(
         self: Self,
@@ -1749,11 +1880,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         pygame.display.set_icon(icon)
 
-        # Set the display caption.
-        pygame.display.set_caption(
-            f'{type(self).NAME} v{self.VERSION}',
-            f'{type(self).NAME} v{self.VERSION}',
-        )
+        # The game's caption until its scene sets its own, not the engine's placeholder
+        # "Boilerplate Adventures" (BUGS.md #178 item 27)
+        caption = f'{self._game_name()} v{getattr(self.game, "VERSION", self.VERSION)}'
+        pygame.display.set_caption(caption, caption)
 
         # Get captions:
         (title, icontitle) = pygame.display.get_caption()
@@ -1771,12 +1901,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.app_manager = AppEventManager(game=self.scene_manager)
         self.audio_manager = AudioEventManager(game=self.scene_manager)
 
-        # Reserve live synth voice channels now, before anything can play (see audio/live.py)
-        from glitchygames.audio.live import reserve_live_voice_pool
-
-        self.live_voice_channels = reserve_live_voice_pool(
-            int(GameEngine.OPTIONS.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL))
-        )
+        # Partition the mixer's channels now, before anything can play (sound engine impl spec
+        # 7.1), unless the game's construction already asked for audio
+        self.reserved_channel_partition()
 
         self.drop_manager = DropEventManager(game=self.scene_manager)
 
@@ -1815,8 +1942,28 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         Called once the managers are made and after every device event they handle
         (glitchygames/input/input_devices.py, rule 3).
         """
+        changes = self._follow_the_managers_devices()
+        for device in changes.removed:
+            self.scene_manager.on_input_device_removed(device=device)
+        for device in changes.added:
+            self.scene_manager.on_input_device_added(device=device)
+
+    def _follow_the_managers_devices(
+        self: Self, *, controllers_complete: bool = False
+    ) -> InputDeviceChanges:
+        """Bring ``input_devices`` in line with the devices the managers hold, telling no scene.
+
+        Args:
+            controllers_complete: True when the controller manager holds every game controller
+                (``InputDevices.synchronize``): an instant replay's adopted devices.
+
+        Returns:
+            The devices added and removed.
+
+        """
         controller_manager = self.controller_manager
-        changes = self.input_devices.synchronize(
+        return self.input_devices.synchronize(
+            controllers_complete=controllers_complete,
             joysticks={
                 proxy.instance_id: proxy.joystick
                 for proxy in self.joystick_manager.joysticks.values()
@@ -1830,10 +1977,97 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 }
             ),
         )
-        for device in changes.removed:
-            self.scene_manager.on_input_device_removed(device=device)
-        for device in changes.added:
-            self.scene_manager.on_input_device_added(device=device)
+
+    def enter_playback_devices(
+        self: Self, *, recorded: RecordedDevices, registry: ReplayDeviceRegistry
+    ) -> None:
+        """Set the live devices aside and open the playback's own (SceneManager._enter_playback).
+
+        Called once the scope's doors are pushed, in the input mode the recording was made in,
+        so the played scene sees the devices the recorded run saw and its recorded device
+        events (JOYDEVICEADDED, ...) change only those (BUGS.md #184.3). A recording file's
+        devices are opened through the scope's devices door as the recorded engine opened them
+        at startup (the same calls, so the answers it gave are taken in order); an instant
+        replay's are adopted from its journal (``recorded.scene_start_devices``) asking the door
+        nothing, since its answers are the scene's own. The managers stay the same shared
+        instances; only the devices they hold change. No scene is told: the played scene is
+        rebuilt and reads ``input_devices`` as the recorded one did.
+
+        Args:
+            recorded: The recording's input mode and, for an instant replay, its devices.
+            registry: The scope's devices door (the played recording's).
+
+        Raises:
+            RuntimeError: If a scope's devices are already in place.
+
+        """
+        if self._live_devices_behind_scope is not None:
+            message = 'A playback scope already holds the devices'
+            raise RuntimeError(message)
+        input_mode = recorded.input_mode
+        live_controller_manager = self.controller_manager
+        self._live_devices_behind_scope = LiveDevicesBehindScope(
+            joysticks=self.joystick_manager.joysticks,
+            controller_manager=live_controller_manager,
+            controllers=(
+                None if live_controller_manager is None else live_controller_manager.controllers
+            ),
+            input_devices=self.input_devices,
+            scope_made_the_controller_manager=(
+                live_controller_manager is None and input_mode is not InputMode.JOYSTICK
+            ),
+        )
+        adopted = recorded.scene_start_devices
+        adopted_controllers: dict[int, OpenedController] = {}
+        if adopted is not None:
+            for descriptor in adopted:
+                device = registry.adopt_device(descriptor=descriptor)
+                if isinstance(device, ReplayController):
+                    adopted_controllers[descriptor.device_index] = device
+        # The controller layer first, as the engine makes its managers (_initialize_event_managers)
+        if input_mode is InputMode.JOYSTICK:
+            self.controller_manager = None
+        elif live_controller_manager is not None:
+            live_controller_manager.controllers = (
+                live_controller_manager.open_connected_controllers()
+                if adopted is None
+                else live_controller_manager.adopt_controllers(controllers=adopted_controllers)
+            )
+        else:
+            # A recording file's (an instant replay's mode is the live game's): it opens the
+            # recording's controllers as it is made. Its construction allows controller events
+            # at SDL: the live game (joystick mode) keeps them blocked, and the scope's events
+            # come from the recording, not SDL
+            self.controller_manager = ControllerEventManager(game=self.scene_manager)
+            pygame.event.set_blocked(events.CONTROLLER_EVENTS)
+        self.joystick_manager.joysticks = (
+            self.joystick_manager.open_connected_joysticks()
+            if adopted is None
+            else self.joystick_manager.adopt_joysticks(descriptors=adopted)
+        )
+        self.input_devices = InputDevices(input_mode=input_mode)
+        # The journal says which of its devices are game controllers: the door is not asked
+        self._follow_the_managers_devices(controllers_complete=adopted is not None)
+
+    def exit_playback_devices(self: Self) -> None:
+        """Put the live devices back as the scope ends (SceneManager._exit_playback; none if none).
+
+        The playback's devices are dropped (a replay's stand-ins hold no hardware). No scene is
+        told: the live scene's devices are the ones it had, and the player's device events
+        during the scope were held and are delivered after it (glitchygames/replay/playback.py,
+        rule 5).
+        """
+        live = self._live_devices_behind_scope
+        if live is None:
+            return
+        self._live_devices_behind_scope = None
+        self.joystick_manager.joysticks = live.joysticks
+        if live.scope_made_the_controller_manager:
+            ControllerEventManager.release_shared_instance()
+        self.controller_manager = live.controller_manager
+        if live.controller_manager is not None and live.controllers is not None:
+            live.controller_manager.controllers = live.controllers
+        self.input_devices = live.input_devices
 
     def _resolve_scene_name_for_error(self: Self) -> str:
         """Resolve the current or previous scene name for error reporting.
@@ -1935,6 +2169,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # glitchygames/replay/driver.py), so game code reading it replays exactly
             RECORDED_AT_HEADER_FIELD: clock.raw_wall_clock_time().isoformat(),
             'random_seed': self.random_seed,
+            # The engine's custom event ids this run allocated: a replay in a process that
+            # allocated them otherwise moves the recorded events to its own (BUGS.md #211.1)
+            CUSTOM_EVENT_TYPES_HEADER_FIELD: custom_event_types_header(),
             # Each run's provenance, newest first (glitchygames/recording_history.py): this one
             # paces its frames when it has a target FPS (0 is uncapped)
             MEASUREMENT_RUNS_HEADER_FIELD: [
@@ -2193,6 +2430,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         self._refuse_listing_input_devices_during_a_run(options=options)
         self._refuse_a_forced_power_on_during_a_run(options=options)
+        self._refuse_the_disk_sound_cache(options=options)
         replay_trace_path = options.get('replay_trace')
         if replay_trace_path is None:
             self._check_replay_options_without_a_recording(options=options)
@@ -2210,7 +2448,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         )
         if options.get('audit'):
             self._refuse_an_unsound_audit(replay_trace_path=replay_trace_path, options=options)
-        game_class = type(game) if isinstance(game, Scene) else game
+        game_class = scene_class_of(game)
         try:
             sources = start_replay(
                 path=Path(replay_trace_path),
@@ -2433,6 +2671,51 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             if options.get(option_name) is not None:
                 self.log.error('Cannot play the CRT power-on sequence with %s', flag)
                 exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+
+    def reserved_channel_partition(self: Self) -> ChannelPartition:
+        """Partition the mixer's channels once per run, and return the partition (impl 7.1).
+
+        The live voices' pool (``--live-voice-pool``), the sound library's channels
+        (``--sound-channels``), then the legacy rest for ``Sound.play()`` callers. Reserved as
+        the event managers are made, or earlier, when the game's construction asks for audio
+        (``SceneManager.audio``), so the audio engine always plays on this run's partition.
+
+        Only a partition made on a running mixer is kept (ruling R35): without a mixer the
+        empty partition is returned, and a later call (once the mixer runs) reserves.
+
+        Returns:
+            The partition (empty without a mixer).
+
+        """
+        if self.channel_partition is not None:
+            return self.channel_partition
+        from glitchygames.audio.engine import DEFAULT_LIBRARY_CHANNELS, LEGACY_CHANNELS
+        from glitchygames.audio.voices import reserve_channels
+
+        partition = reserve_channels(
+            live_pool=int(GameEngine.OPTIONS.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL)),
+            library_channels=int(
+                GameEngine.OPTIONS.get('sound_channels', DEFAULT_LIBRARY_CHANNELS)
+            ),
+            legacy_channels=LEGACY_CHANNELS,
+        )
+        self.live_voice_channels = partition.live
+        if pygame.mixer.get_init() is not None:
+            self.channel_partition = partition
+        return partition
+
+    def _refuse_the_disk_sound_cache(self: Self, *, options: dict[str, Any]) -> None:
+        """Exit with ExitCode.OPTIONS_REFUSED for ``--sound-cache disk``, which arrives in M3.
+
+        Args:
+            options: The parsed options.
+
+        """
+        from glitchygames.audio.library import DISK_CACHE_MESSAGE, CacheMode
+
+        if options.get('sound_cache') == CacheMode.DISK.value:
+            self.log.error('Cannot use --sound-cache disk: %s', DISK_CACHE_MESSAGE)
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
     def _refuse_listing_input_devices_during_a_run(self: Self, *, options: dict[str, Any]) -> None:
         """Exit with ExitCode.OPTIONS_REFUSED for --list-input-devices with a replay or recording.
@@ -2815,9 +3098,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         (``_restore_sdl_driver_variables``), so a process that goes on after a headless run
         starts pygame on its own drivers again.
         """
-        self._sdl_driver_variables_before_headless = {
-            name: os.environ.get(name) for name in SDL_DRIVER_VARIABLES
-        }
+        self._remember_sdl_driver_variables()
         for name in SDL_DRIVER_VARIABLES:
             os.environ[name] = HEADLESS_SDL_DRIVER
         restarted: list[str] = []
@@ -2854,16 +3135,87 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 ' and '.join(restarted),
             )
 
+    def _choose_sdl_drivers(self: Self, *, options: dict[str, Any]) -> None:
+        """Choose the drivers before anything starts the display or the mixer.
+
+        --headless wins: its dummy driver is the point of the run, so --video-driver is ignored
+        (with a warning). With neither, a Linux Wayland session runs on Wayland, unless
+        SDL_VIDEODRIVER already says otherwise.
+
+        Args:
+            options: The engine's options.
+
+        """
+        video_driver = options.get('video_driver')
+        if options.get('headless'):
+            if video_driver:
+                self.log.warning(
+                    '--headless runs on the %r video driver; --video-driver %s is ignored',
+                    HEADLESS_SDL_DRIVER,
+                    video_driver,
+                )
+            self._enter_headless_mode()
+        elif video_driver:
+            self._enter_video_driver(video_driver=video_driver)
+        elif self._is_on_a_wayland_session_with_no_driver_chosen():
+            self._enter_video_driver(video_driver=WAYLAND_FIRST_VIDEO_DRIVERS)
+
+    @staticmethod
+    def _is_on_a_wayland_session_with_no_driver_chosen() -> bool:
+        """Return whether this is a Linux Wayland session whose SDL_VIDEODRIVER chooses nothing.
+
+        Returns:
+            True when the engine should choose Wayland.
+
+        """
+        return (
+            platform.system() == 'Linux'
+            and bool(os.environ.get('WAYLAND_DISPLAY'))
+            and not os.environ.get('SDL_VIDEODRIVER')
+        )
+
+    def _enter_video_driver(self: Self, *, video_driver: str) -> None:
+        """Start the display on the named SDL video driver, or the first of a list that starts.
+
+        Called right after the options are read, before ``pygame.init()`` and the display, as
+        ``_enter_headless_mode`` is. A display pygame started before the engine on another driver
+        is stopped (with a warning), so ``pygame.init()`` starts it again on this one. The
+        variable's earlier value is put back when the run ends
+        (``_restore_sdl_driver_variables``).
+
+        Args:
+            video_driver: What SDL_VIDEODRIVER is set to: a driver's name, or a comma-separated
+                list of them in the order to try.
+
+        """
+        self._remember_sdl_driver_variables()
+        os.environ['SDL_VIDEODRIVER'] = video_driver
+        wanted_driver = video_driver.split(',', maxsplit=1)[0]
+        if pygame.display.get_init() and pygame.display.get_driver() != wanted_driver:
+            self.log.warning(
+                'pygame was started before the engine; restarting the display '
+                '(video driver %r) on %r',
+                pygame.display.get_driver(),
+                video_driver,
+            )
+            pygame.display.quit()
+
+    def _remember_sdl_driver_variables(self: Self) -> None:
+        """Keep the SDL driver variables' values, for _restore_sdl_driver_variables."""
+        self._sdl_driver_variables_before_run = {
+            name: os.environ.get(name) for name in SDL_DRIVER_VARIABLES
+        }
+
     def _restore_sdl_driver_variables(self: Self) -> None:
-        """Put back the SDL driver variables --headless set, as they were before it (idempotent).
+        """Put back the SDL driver variables --headless or --video-driver set (idempotent).
 
         SDL reads them only when the display or mixer starts, so this changes nothing that is
         running: it is called after ``_shutdown`` quit pygame, so a process that goes on (runs a
         headless replay, then opens a window) starts pygame on its own drivers, not the dummy
         ones. A variable that was not set before is removed.
         """
-        variables_before, self._sdl_driver_variables_before_headless = (
-            self._sdl_driver_variables_before_headless,
+        variables_before, self._sdl_driver_variables_before_run = (
+            self._sdl_driver_variables_before_run,
             None,
         )
         if variables_before is None:
@@ -2919,6 +3271,30 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # the timer holds here, not in its finaliser, which must not log (BUGS.md #188)
         if self.timer is not None:
             self.timer.close()
+        # Closes this game's session; the service stops the models once the last one has gone
+        if self.ai_console is not None:
+            self.ai_console.stop()
+        if self.ai_link is not None:
+            self.ai_link.stop()
+        # Before pygame quits: the sound library's voices fade over 50 ms, waited for at most
+        # 100 ms (sound engine impl spec 10.3), then the channel reservation is given back (SDL
+        # would keep it for a mixer started again in this process). Even when closing the audio
+        # engine fails, the reservation is given back and the rest of the teardown runs; the
+        # failure then propagates (the teardown failed: logged with its traceback, exit
+        # INTERNAL_ERROR)
+        from glitchygames.audio.engine import discard_audio_engine
+        from glitchygames.audio.voices import release_channels
+
+        try:
+            discard_audio_engine()
+        finally:
+            try:
+                release_channels()
+            finally:
+                self._finish_the_teardown()
+
+    def _finish_the_teardown(self: Self) -> None:
+        """Print the end-of-run reports (unless the replay restarts) and shut down pygame."""
         # A step back restarts the replay (glitchygames/replay/rebuild.py): not the end of the
         # run, so the end-of-run reports wait for the last replay
         if self.replay_sources is not None and self.replay_sources.result.restart_frame is not None:
@@ -3102,12 +3478,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         with self._crash_boundary(profiler=profiler):
             if self._begin_run():
                 if self._power_on_plays():
+                    sound_cues = self._power_on_sound_cues()
                     self._hand_back_power_on(
                         outcome=await play_power_on_async(
                             screen=self.screen,
                             sources=active_sources(),
                             wait_for_tick=wait_for_tick,
-                        )
+                            sound_cues=sound_cues,
+                        ),
+                        sound_cues=sound_cues,
                     )
                 self._build_game(paced_by_timer=False)
                 await run_frames()
@@ -3246,8 +3625,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if not self._begin_run():
             return
         if self._power_on_plays():
+            sound_cues = self._power_on_sound_cues()
             self._hand_back_power_on(
-                outcome=play_power_on(screen=self.screen, sources=active_sources())
+                outcome=play_power_on(
+                    screen=self.screen, sources=active_sources(), sound_cues=sound_cues
+                ),
+                sound_cues=sound_cues,
             )
         self._build_game(paced_by_timer=True)
         if self.host is not None:
@@ -3296,16 +3679,68 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             options=GameEngine.OPTIONS,
         )
 
-    def _hand_back_power_on(self: Self, *, outcome: PowerOnOutcome) -> None:
+    def _power_on_sound_cues(self: Self) -> CrtPowerOnSound | None:
+        """Make the power-on's sound, compiling it, unless ``--crt-power-on-sound off``.
+
+        Called only when the picture plays (``_power_on_plays``), so the sound keeps the
+        picture's rules: never under ``--headless`` (auto), before a replay, an audit, a
+        rebaseline or a recording (feature spec 12.1, AUD-CRT-002). The audio engine is made
+        here, before the game is built and so before ``SceneManager.game_engine`` is set, from
+        this engine's options and channel partition (``SceneManager.audio_for``): the game's
+        ``scene_manager.audio`` is then this same engine (rulings R34, R35).
+
+        Returns:
+            The cues (glitchygames/crt_power_on_sound.py), or None to play the picture silently.
+
+        """
+        sound_choice = GameEngine.OPTIONS.get('crt_power_on_sound', DEFAULT_CRT_POWER_ON_SOUND)
+        if sound_choice == CRT_POWER_ON_SOUND_OFF:
+            return None
+        from glitchygames.crt_power_on_sound import CrtPowerOnSound
+
+        return CrtPowerOnSound(
+            audio=self.scene_manager.audio_for(game_engine=self),
+            background=active_default_background_pattern(),
+        )
+
+    def _hand_back_power_on(
+        self: Self, *, outcome: PowerOnOutcome, sound_cues: CrtPowerOnSound | None
+    ) -> None:
         """Give the game what the power-on sequence ended with: a window closed during it quits.
+
+        Its sound's tail (the bars tone or the hiss) is carried into the game, fading from
+        frame 0 (impl spec 10.1); after a skip everything is already fading.
 
         Args:
             outcome: How the sequence ended.
+            sound_cues: The sequence's sound, or None when it played silently.
 
         """
         self.log.debug('CRT power-on sequence: %s', outcome)
+        if sound_cues is not None:
+            sound_cues.carry_tail_into_the_game()
         if outcome is PowerOnOutcome.QUIT:
             post_input_event(event=pygame.event.Event(pygame.QUIT))
+
+    def _host_sources(self: Self, *, inner: LiveSources, overlay: OnionSkin | None) -> HostSources:
+        """Build the host's doors: the AI's subclass only for a run that has a link.
+
+        Args:
+            inner: The live doors.
+            overlay: Drawn over each presented frame, or None.
+
+        Returns:
+            The doors.
+
+        """
+        if self.ai_link is None:
+            return HostSources(inner=inner, overlay=overlay)
+        # Imported here: a run without AI never loads it
+        from glitchygames.ai_host import AiHostSources
+
+        ai_sources = AiHostSources(inner=inner, link=self.ai_link, overlay=overlay)
+        self.ai_console = ai_sources.console
+        return ai_sources
 
     def _build_game(self: Self, *, paced_by_timer: bool) -> None:
         """Construct the game and its first scene, up to the first frame (inside the boundary).
@@ -3315,6 +3750,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 is then calibrated; False for ``start_async()``.
 
         """
+        # As the game loads: this returns at once, and the models load on the link's thread
+        if self.ai_link is not None:
+            self.ai_link.start()
+
         # Initialize the game instance
         self.game = self.game(options=GameEngine.OPTIONS)
 
@@ -3996,46 +4435,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         if event.type == pygame.TEXTINPUT:
             self.scene_manager.on_text_input_event(event)
-            return True
-
-        return False
-
-    def process_window_focus_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[too-many-return-statements]
-        """Process a window focus event.
-
-        Args:
-            event (events.HashableEvent): The event.
-
-        Returns:
-            bool: True if the event was handled, False otherwise.
-
-        """
-        if event.type == pygame.WINDOWSHOWN:
-            self.window_manager.on_window_shown_event(event)
-            return True
-
-        if event.type == pygame.WINDOWLEAVE:
-            self.window_manager.on_window_leave_event(event)
-            return True
-
-        if event.type == pygame.WINDOWFOCUSGAINED:
-            self.window_manager.on_window_focus_gained_event(event)
-            with contextlib.suppress(Exception):
-                pygame.event.set_grab(True)
-            return True
-
-        if event.type == pygame.WINDOWFOCUSLOST:
-            self.window_manager.on_window_focus_lost_event(event)
-            with contextlib.suppress(Exception):
-                pygame.event.set_grab(False)
-            return True
-
-        if event.type == pygame.WINDOWENTER:
-            self.window_manager.on_window_enter_event(event)
-            return True
-
-        if event.type == pygame.WINDOWTAKEFOCUS:
-            self.window_manager.on_window_take_focus_event(event)
             return True
 
         return False

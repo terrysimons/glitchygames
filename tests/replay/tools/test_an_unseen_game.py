@@ -32,6 +32,7 @@ import json
 import os
 import shutil
 import sys
+import wave
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -164,6 +165,8 @@ GIVEN_SEED = 41
 OTHER_SEED = 7
 # A child of the stand-in game ends in seconds; a hung one is killed after this long
 CHILD_TIMEOUT_SECONDS = 120.0
+# The rate a sound is rendered at with no mixer running (pygame's default mixer rate)
+SOUND_RATE = 44100
 # What the children must never import: this repository's scripts and tests, and its members
 # (by their import packages, and the layer directories an editable install leaves importable)
 FORBIDDEN_IMPORTS = frozenset({'scripts', 'tests', *LAYERS, *MEMBER_LAYERS})
@@ -922,6 +925,74 @@ def check_performance_pages(world: World, run: Run) -> None:
     assert {row.commit for row in rows} == {world.template.golden_commit}
 
 
+# sound-render's sound file and output, and sound-migrate's recipe file and the file it writes
+SOUND_FILE = 'sounds/pickups.toml'
+SOUND_FILE_TEXT = """\
+[glitchygames]
+kind = "sounds"
+version = 1
+
+[instruments.pickup.sources.tone]
+wave = "pulse_25"
+
+[sounds.coin]
+instrument = "pickup"
+notes = "B5:0.06 E6:0.18"
+"""
+RENDERED_SOUND = output_path('coin.wav')
+RECIPE_FILE = 'sounds/recipes.toml'
+RECIPE_FILE_TEXT = """\
+[recipes.zap]
+volume = 0.4
+
+[[recipes.zap.tones]]
+waveform = "sine"
+start_frequency = 880.0
+duration = 0.12
+
+[recipes.zap.tones.envelope]
+attack = 0.002
+decay = 0.02
+sustain_level = 0.6
+release = 0.03
+"""
+MIGRATED_FILE = 'sounds/recipes.v1.toml'
+
+
+def write_the_sound_file(world: World) -> None:
+    """The project has a version 1 sound file for sound-render to render."""
+    path = world.project / SOUND_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(SOUND_FILE_TEXT, encoding='utf-8')
+
+
+def write_the_recipe_file(world: World) -> None:
+    """The project has a version 0 recipe file for sound-migrate to migrate."""
+    path = world.project / RECIPE_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(RECIPE_FILE_TEXT, encoding='utf-8')
+
+
+def check_sound_render(world: World, run: Run) -> None:
+    """The coin is written as a mono 16-bit WAV at the default rate, and the run says so."""
+    assert run.status == ExitCode.SUCCESS, run.output + run.errors
+    with wave.open(str(world.project / RENDERED_SOUND), 'rb') as wave_file:
+        assert (wave_file.getnchannels(), wave_file.getsampwidth()) == (1, 2)
+        assert wave_file.getframerate() == SOUND_RATE
+        frames = wave_file.getnframes()
+    assert frames > 0
+    assert f'{frames} frames at {SOUND_RATE} Hz' in run.output, run.output
+
+
+def check_sound_migrate(world: World, run: Run) -> None:
+    """The recipe file is rewritten beside itself as a version 1 file with the same sound."""
+    assert run.status == ExitCode.SUCCESS, run.output + run.errors
+    migrated = (world.project / MIGRATED_FILE).read_text(encoding='utf-8')
+    assert 'version = 1' in migrated
+    assert '[sounds.zap]' in migrated
+    assert '1 sounds' in run.output, run.output
+
+
 SCENARIOS = (
     Scenario(
         name='record-trace',
@@ -1049,6 +1120,26 @@ SCENARIOS = (
         expected_written=page_files,
         check=check_performance_pages,
         prepare=pend_an_unpublished_row,
+    ),
+    Scenario(
+        name='sound-render',
+        tool='sound-render',
+        values=lambda _world: [f'{SOUND_FILE}#coin'],
+        options=('--sound-output', RENDERED_SOUND),
+        game_on_the_command=None,
+        expected_written=lambda _world: {RENDERED_SOUND},
+        check=check_sound_render,
+        prepare=write_the_sound_file,
+    ),
+    Scenario(
+        name='sound-migrate',
+        tool='sound-migrate',
+        values=lambda _world: [RECIPE_FILE],
+        options=(),
+        game_on_the_command=None,
+        expected_written=lambda _world: {MIGRATED_FILE},
+        check=check_sound_migrate,
+        prepare=write_the_recipe_file,
     ),
 )
 

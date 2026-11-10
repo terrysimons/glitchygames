@@ -1,7 +1,8 @@
 """Checks of a sprite file, for the engine's tests and for every package that ships sprites.
 
-Every pixel row is the same width, and a save round trip keeps a sprite's timings, hitboxes,
-pixels, metadata and transitions. The engine runs these checks on its own sprites
+Every pixel row is the same width, the tags are well formed, and a save round trip keeps a
+sprite's timings, hitboxes, pixels, metadata and transitions. The engine runs these checks on its
+own sprites
 (tests/sprites/test_engine_sprite_files.py), the repository runs them on every workspace member's
 sprites, discovered (tests/test_workspace_sprite_files.py), and a package with sprites of its own
 may run them from its own tests too (Papyrus's, and Bitmappy's sprite library)::
@@ -30,6 +31,9 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from glitchygames.sprites import AnimatedSprite
+from glitchygames.sprites.animated import frame_tables_in_load_order
+from glitchygames.sprites.pixel_utils import normalize_pixel_rows, palette_key_problems
+from glitchygames.sprites.tags import TAGS_KEY, sprite_tags_problems
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -77,19 +81,18 @@ def _pixel_blocks(*, sprite_data: SpriteData) -> list[tuple[str, str]]:
     return blocks
 
 
-def _frames_in_file_order(*, animation: SpriteData) -> list[SpriteData]:
-    """Return an animation's frames in the order the loader gives them: the file's order.
+def _frames_in_load_order(*, animation: SpriteData) -> list[SpriteData]:
+    """Return an animation's frames in the order the loader gives them.
 
-    The loader (AnimatedSprite._process_toml_animation) sorts by a ``frame_index`` attribute that
-    SpriteFrame never has, so the sort keeps the file's order and a ``frame_index`` key in the
-    file does not reorder anything. Sorting by the key here would disagree with the loader for a
-    file where only some frames carry one.
+    The loader (AnimatedSprite._process_toml_animation) orders them with
+    frame_tables_in_load_order (by ``frame_index``, a table without one at its file position),
+    so the checks compare each frame with the one the loader made from it.
 
     Returns:
-        list[SpriteData]: The ``[[animation.frame]]`` tables, in file order.
+        list[SpriteData]: The ``[[animation.frame]]`` tables, in load order.
 
     """
-    return animation.get('frame', [])
+    return frame_tables_in_load_order(animation.get('frame', []))
 
 
 def _animation_timings(*, sprite_data: SpriteData) -> list[AnimationTiming]:
@@ -97,7 +100,7 @@ def _animation_timings(*, sprite_data: SpriteData) -> list[AnimationTiming]:
 
     Returns:
         list[AnimationTiming]: (namespace, frame_interval, loop, per-frame frame_interval
-        overrides in file order, None where absent).
+        overrides in load order, None where absent).
 
     """
     return [
@@ -105,7 +108,7 @@ def _animation_timings(*, sprite_data: SpriteData) -> list[AnimationTiming]:
             animation.get('namespace', 'default'),
             animation.get('frame_interval', DEFAULT_TOML_FRAME_INTERVAL),
             animation.get('loop', True),
-            [frame.get('frame_interval') for frame in _frames_in_file_order(animation=animation)],
+            [frame.get('frame_interval') for frame in _frames_in_load_order(animation=animation)],
         )
         for animation in sprite_data.get('animation', [])
     ]
@@ -118,14 +121,14 @@ def _hitbox_sections(
 
     Returns:
         tuple[SpriteData | None, list[SpriteData | None]]: The [sprite.hitbox] table (or None) and
-        each animation frame's [animation.frame.hitbox] (None where absent), in file order with
-        frames in file order.
+        each animation frame's [animation.frame.hitbox] (None where absent), animations in file
+        order with frames in load order.
 
     """
     frame_hitboxes: list[SpriteData | None] = []
     for animation in sprite_data.get('animation', []):
         frame_hitboxes.extend(
-            frame.get('hitbox') for frame in _frames_in_file_order(animation=animation)
+            frame.get('hitbox') for frame in _frames_in_load_order(animation=animation)
         )
     return sprite_data.get('sprite', {}).get('hitbox'), frame_hitboxes
 
@@ -152,10 +155,10 @@ def _metadata(*, sprite: AnimatedSprite) -> tuple[object, ...]:
     """Return what a save must keep of a sprite besides its pixels.
 
     Returns:
-        tuple[object, ...]: The sprite's name, description, frame_anchor and hitbox.
+        tuple[object, ...]: The sprite's name, description, tags, frame_anchor and hitbox.
 
     """
-    return (sprite.name, sprite.description, sprite.frame_anchor, sprite.hitbox)
+    return (sprite.name, sprite.description, sprite.tags, sprite.frame_anchor, sprite.hitbox)
 
 
 def _save_and_reload(
@@ -175,26 +178,32 @@ def _save_and_reload(
 
 
 def check_rows_have_equal_lengths(*, sprite_file: Path) -> None:
-    """Check that every pixel row in a sprite file is the same width.
+    """Check that no pixel block in a sprite file needs the loader to repair it.
 
-    The loader pads a short row with its last character (and truncates a long one), which
-    silently changes the art, e.g. a 9-wide row in gold_scarab.toml frame 2 drew a notch.
+    Runs normalize_pixel_rows in strict mode on every block, and checks the palette's keys. The
+    loader repairs what this rejects (ragged rows, blank lines between rows, glyphs missing from
+    the palette), which changes the art, e.g. a 9-wide row in gold_scarab.toml frame 2 drew a
+    notch, and cobra.toml's second eye had no color.
 
     Args:
         sprite_file: The sprite file to check.
 
     Raises:
-        AssertionError: A pixel block has rows of more than one width; the message names the file,
-            the block and the widths.
+        AssertionError: A block or the palette needs a repair; the message names the file, the
+            block and every repair.
 
     """
     sprite_data = _read_sprite_data(sprite_file=sprite_file)
+    palette_glyphs = list(sprite_data.get('colors', {}))
+    for problem in palette_key_problems(palette_glyphs):
+        message = f'{sprite_file} palette: {problem}'
+        raise AssertionError(message)
     for label, pixels in _pixel_blocks(sprite_data=sprite_data):
-        rows = AnimatedSprite.parse_toml_pixel_lines(pixels)
-        row_lengths = {len(row) for row in rows}
-        if len(row_lengths) > 1:
-            message = f'{sprite_file} {label}: row lengths {sorted(row_lengths)}'
-            raise AssertionError(message)
+        try:
+            normalize_pixel_rows(pixels, palette_glyphs, strict=True, label=label)
+        except ValueError as error:
+            message = f'{sprite_file} {error}'
+            raise AssertionError(message) from error
 
 
 def check_animation_timings_survive_a_save_round_trip(
@@ -304,9 +313,10 @@ def check_pixels_survive_a_save_round_trip(*, sprite_file: Path, directory: Path
 
 
 def check_metadata_survives_a_save_round_trip(*, sprite_file: Path, directory: Path) -> None:
-    """Check that load -> save -> reload keeps the [sprite] name, description, frame_anchor, hitbox.
+    """Check that load -> save -> reload keeps the [sprite] metadata.
 
-    The single-frame (static) writer used to drop description.
+    Name, description, tags, frame_anchor and hitbox. The single-frame (static) writer used to
+    drop description.
 
     Args:
         sprite_file: The sprite file to check.
@@ -323,6 +333,27 @@ def check_metadata_survives_a_save_round_trip(*, sprite_file: Path, directory: P
     reloaded_metadata = _metadata(sprite=reloaded_sprite)
     if reloaded_metadata != original_metadata:
         message = f'{sprite_file}: reloaded metadata {reloaded_metadata} != {original_metadata}'
+        raise AssertionError(message)
+
+
+def check_sprite_tags_are_well_formed(*, sprite_file: Path) -> None:
+    """Check that the file's ``[sprite] tags``, if any, is an array of strings.
+
+    A malformed value loads without its bad tags (logged; glitchygames/sprites/tags.py), so a
+    shipped sprite is checked here instead.
+
+    Args:
+        sprite_file: The sprite file to check.
+
+    Raises:
+        AssertionError: The tags are malformed; the message names the file and each problem.
+
+    """
+    with sprite_file.open('rb') as file:
+        data = tomllib.load(file)
+    problems = sprite_tags_problems(data.get('sprite', {}).get(TAGS_KEY))
+    if problems:
+        message = f'{sprite_file}: {"; ".join(problems)}'
         raise AssertionError(message)
 
 

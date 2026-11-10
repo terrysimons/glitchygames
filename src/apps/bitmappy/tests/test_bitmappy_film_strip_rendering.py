@@ -237,6 +237,20 @@ class TestDecorationFailuresAreLogged:
         assert 'Font rendering failed' in caplog.text
 
 
+class TestCounterFont:
+    """The frame counters use one cached bundled font (BUGS.md #178 item 6)."""
+
+    def test_repeated_draws_build_one_font(self, film_strip_with_two_frames, mocker):
+        """Drawing two thumbnails' frame numbers builds the font once."""
+        font_constructor = mocker.spy(pygame.font, 'Font')
+        surface = pygame.Surface((32, 32), pygame.SRCALPHA)
+
+        film_strip_with_two_frames.renderer._draw_frame_number(surface, 0)
+        film_strip_with_two_frames.renderer._draw_frame_number(surface, 1)
+
+        assert font_constructor.call_count <= 1
+
+
 class TestDrawPreviewFrameIndex:
     """Test FilmStripRendering._draw_preview_frame_index."""
 

@@ -86,8 +86,8 @@ class SpriteGenerationRequest(BaseModel):
     )
     model: str | None = Field(
         default=None,
-        description="AI model override in aisuite format (e.g., 'anthropic:claude-sonnet-4-5')",
-        json_schema_extra={'example': 'anthropic:claude-sonnet-4-5'},
+        description="AI model override: a role or an exact size (e.g., 'bonsai-2-9b')",
+        json_schema_extra={'example': 'bonsai-2-9b'},
     )
 
     @field_validator('output_format')
@@ -376,7 +376,6 @@ class HealthResponse(BaseModel):
     Attributes:
         status: Service status ("healthy" or "unhealthy")
         version: API version
-        ai_provider: Configured AI provider
         ai_model: Configured AI model
         pygame_initialized: Whether pygame is initialized for rendering
 
@@ -392,15 +391,10 @@ class HealthResponse(BaseModel):
         description='API version',
         json_schema_extra={'example': '1.0.0'},
     )
-    ai_provider: str = Field(
-        ...,
-        description='Configured AI provider',
-        json_schema_extra={'example': 'anthropic'},
-    )
     ai_model: str = Field(
         ...,
         description='Configured AI model',
-        json_schema_extra={'example': 'claude-sonnet-4-5'},
+        json_schema_extra={'example': 'reasoning'},
     )
     pygame_initialized: bool = Field(
         ...,

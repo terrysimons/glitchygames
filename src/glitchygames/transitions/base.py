@@ -28,6 +28,28 @@ log: logging.Logger = logging.getLogger('game.transitions')
 # Half-width of the central difference used to estimate the easing slope
 EASING_SLOPE_STEP = 1e-3
 
+# The edges a directional transition (slide, wipe) can move toward.
+DIRECTIONS = ('left', 'right', 'up', 'down')
+
+
+def checked_direction(direction: str) -> str:
+    """Return the direction if a directional transition knows it.
+
+    Args:
+        direction: The requested direction.
+
+    Returns:
+        The direction, unchanged.
+
+    Raises:
+        ValueError: If the direction is not one of DIRECTIONS.
+
+    """
+    if direction not in DIRECTIONS:
+        message = f'Unknown transition direction {direction!r}; expected one of {DIRECTIONS}'
+        raise ValueError(message)
+    return direction
+
 
 class TransitionState(enum.Enum):
     """Lifecycle state of a transition."""

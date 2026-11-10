@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Self
 import pygame
 import pytest
 
+from glitchygames.audio.accounting import AudioFrameAccount
 from glitchygames.game_frames import restart_game_frame_clock
 from glitchygames.host import TICKS_BEFORE_LOGGING_RATE, GameHost, HostSources, TickPacer
 from glitchygames.input.state import IDLE_INPUT
@@ -151,8 +152,16 @@ class TestHostSources:
         assert host.saves(namespace='game') is inner.store
         assert host.wall_clock_time() == inner.now
         assert host.control_events_for_frame(frame_number=7) == ['control']
+        audio_frame = AudioFrameAccount(
+            audio_seconds=0.001, audio_work=(('compile', 'coin', 1000),)
+        )
         host.end_frame(
-            frame_number=7, dt=0.5, scene=None, control_events=[], processing_seconds=0.1
+            frame_number=7,
+            dt=0.5,
+            scene=None,
+            control_events=[],
+            processing_seconds=0.1,
+            audio_frame=audio_frame,
         )
 
         assert inner.calls == [
@@ -182,6 +191,7 @@ class TestHostSources:
                     'scene': None,
                     'control_events': [],
                     'processing_seconds': 0.1,
+                    'audio_frame': audio_frame,
                 },
             ),
         ]

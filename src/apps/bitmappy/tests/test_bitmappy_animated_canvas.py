@@ -210,8 +210,9 @@ class TestAnimatedCanvasSprite:
         assert self.canvas.current_animation == 'idle'
         assert self.canvas.current_frame == 1
 
-        # A click between thumbnails selects nothing
-        assert film_strip.handle_click((0, 0)) is None
+        # A click on the strip's empty area selects the strip itself at the scene's selected
+        # frame (BUGS.md #168)
+        assert film_strip.handle_click((0, 0)) == ('idle', 0)
 
     def test_keyboard_navigation(self):
         """Test keyboard navigation between frames."""
@@ -231,24 +232,6 @@ class TestAnimatedCanvasSprite:
         # Test down arrow (next animation)
         self.canvas.handle_keyboard_event(pygame.K_DOWN)
         assert self.canvas.current_animation == 'idle'
-
-    def test_copy_paste_functionality(self):
-        """Test copying and pasting between frames."""
-        # Set a pixel in current frame
-        self.canvas.canvas_interface.set_pixel_at(0, 0, (255, 255, 255))
-
-        # Copy current frame
-        self.canvas.copy_current_frame()
-
-        # Switch to another frame
-        self.canvas.show_frame('idle', 1)
-
-        # Paste the copied frame
-        self.canvas.paste_to_current_frame()
-
-        # Verify the pixel was pasted
-        pixel_color = self.canvas.canvas_interface.get_pixel_at(0, 0)
-        assert pixel_color == (255, 255, 255, 255)
 
     def test_visual_display(self):
         """Test that the canvas displays the current frame correctly."""

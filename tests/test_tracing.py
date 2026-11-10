@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import gc
 import gzip
 import json
 import types
+import weakref
 from typing import TYPE_CHECKING, Any, cast
 
 import pygame
@@ -714,6 +716,68 @@ class TestStableSpriteIds:
         assert sprite_ids.id_for(second_coin) == 'Coin#1'
         assert sprite_ids.id_for(third_coin) == 'Coin#2'
         assert sprite_ids.id_for(first_coin) == 'Coin#0'
+
+    def test_a_seen_sprite_is_not_kept_alive(self):
+        """Seeing it mustn't hold it, its image or anything else it refers to."""
+
+        class Coin:
+            pass
+
+        coin = Coin()
+        watcher = weakref.ref(coin)
+        sprite_ids = StableSpriteIds()
+        assert sprite_ids.id_for(coin) == 'Coin#0'
+
+        del coin
+        gc.collect()
+
+        assert watcher() is None
+        assert not sprite_ids._ids_by_object_id
+        assert not sprite_ids._watchers
+
+    def test_a_number_is_never_recycled_even_at_a_freed_sprites_address(self):
+        """A new sprite at a freed one's address is new: Ball#2 gone means the next is Ball#3."""
+
+        class Ball:
+            pass
+
+        sprite_ids = StableSpriteIds()
+        addresses = []
+        numbers = []
+        for _ in range(100):
+            ball = Ball()
+            addresses.append(id(ball))
+            numbers.append(sprite_ids.id_for(ball))
+            del ball
+
+        assert numbers == [f'Ball#{index}' for index in range(100)]
+        # Otherwise this proves nothing: the case is a new object where a freed one was
+        assert len(set(addresses)) < len(addresses)
+
+    def test_a_living_sprite_keeps_its_id_while_others_are_freed(self):
+        """Forgetting one forgets only that one."""
+
+        class Coin:
+            pass
+
+        kept, freed = Coin(), Coin()
+        sprite_ids = StableSpriteIds()
+        assert [sprite_ids.id_for(kept), sprite_ids.id_for(freed)] == ['Coin#0', 'Coin#1']
+
+        del freed
+        gc.collect()
+
+        assert sprite_ids.id_for(kept) == 'Coin#0'
+        assert sprite_ids.id_for(Coin()) == 'Coin#2'
+
+    def test_an_object_that_cant_be_watched_is_held_rather_than_recycled(self):
+        """With no weak reference possible, holding it is what keeps its address from reuse."""
+        sprite_ids = StableSpriteIds()
+        unwatchable = object()
+
+        assert sprite_ids.id_for(unwatchable) == 'object#0'
+        assert sprite_ids.id_for(unwatchable) == 'object#0'
+        assert sprite_ids._held_objects == [unwatchable]
 
     def test_recorded_ids_are_continued(self):
         """Ids given before (a recording's earlier frames) are never given again."""

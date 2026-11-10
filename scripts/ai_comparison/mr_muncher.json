@@ -1,0 +1,454 @@
+{
+ "scene": "Mr. Muncher",
+ "class": "MrMuncherScene",
+ "paused": false,
+ "game_time_seconds": 3.33,
+ "screen": [
+  800,
+  480
+ ],
+ "game": {},
+ "sprite_count": 267,
+ "sprites": [
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    170,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    190,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    210,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    230,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    250,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    270,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    290,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    310,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    330,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    350,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    370,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    410,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    430,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    450,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    470,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    490,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    510,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    530,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    550,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    570,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    590,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    610,
+    20,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    150,
+    40,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    250,
+    40,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    370,
+    40,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    410,
+    40,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    530,
+    40,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    630,
+    40,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    150,
+    60,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    250,
+    60,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    370,
+    60,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    410,
+    60,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    530,
+    60,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    630,
+    60,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    150,
+    80,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    170,
+    80,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    190,
+    80,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    210,
+    80,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    230,
+    80,
+    20,
+    20
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Sprocket",
+   "class": "Sprocket",
+   "rect": [
+    250,
+    80,
+    20,
+    20
+   ],
+   "visible": 1
+  }
+ ]
+}

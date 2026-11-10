@@ -99,8 +99,24 @@ class TestHealthEndpoints:
         data = response.json()
         assert data['status'] == 'healthy'
         assert 'version' in data
-        assert 'ai_provider' in data
         assert 'ai_model' in data
+
+    @pytest.mark.parametrize(
+        ('service_started_pygame', 'pygame_running', 'expected'),
+        [(True, True, True), (True, False, False), (False, True, False)],
+    )
+    def test_health_reports_whether_pygame_is_running_now(
+        self, client, mocker, service_started_pygame, pygame_running, expected
+    ):
+        """pygame_initialized is False once pygame has quit (BUGS.md #113)."""
+        from glitchygames.services import RendererService
+
+        mocker.patch.object(RendererService, 'pygame_initialized', new=service_started_pygame)
+        mocker.patch('pygame.get_init', return_value=pygame_running)
+
+        response = client.get('/health')
+
+        assert response.json()['pygame_initialized'] is expected
 
 
 class TestSpriteGenerationEndpoint:

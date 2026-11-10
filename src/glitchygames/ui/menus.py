@@ -80,16 +80,18 @@ class MenuBar(FocusableSingletonBitmappySprite):
         menu_bg_color = (WHITE[0], WHITE[1], WHITE[2], 128)  # Semi-transparent white
         border_color = (WHITE[0], WHITE[1], WHITE[2], 128)  # Semi-transparent white
 
-        # Draw with alpha
-        pygame.draw.rect(self.image, menu_bg_color, self.rect)
-        pygame.draw.rect(self.image, border_color, self.rect, self.border_width)
+        # Draw with alpha, on the bar's own image: its local rect, not self.rect (its position
+        # on the screen), or a bar away from the origin leaves part of itself undrawn
+        # (BUGS.md #164)
+        pygame.draw.rect(self.image, menu_bg_color, self.image.get_rect())
+        pygame.draw.rect(self.image, border_color, self.image.get_rect(), self.border_width)
 
         # Always refresh the menu bar.
         self.dirty = 2
 
     def add_menu(self: Self, menu: MenuItem) -> None:
         """Add a menu to the menu bar."""
-        self.menu_items[menu.name] = menu  # ty: ignore[invalid-assignment]
+        self.menu_items[menu.name] = menu
         self.log.info(
             'Before offset: menu %s at x=%s, offset=%s',
             menu.name,
@@ -138,7 +140,8 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         if self.has_focus:
             focus_color = (WHITE[0], WHITE[1], WHITE[2], 128)
-            pygame.draw.rect(self.image, focus_color, self.rect, 1)
+            # The bar's own image, not its screen rect (BUGS.md #164)
+            pygame.draw.rect(self.image, focus_color, self.image.get_rect(), 1)
 
     @override
     def on_left_mouse_drag_event(
@@ -349,6 +352,10 @@ class MenuBar(FocusableSingletonBitmappySprite):
                     self.name,
                     mouse,
                 )
+                # The item takes the release as a press on purpose: its dropdown stays open for a
+                # choice after the click that opened it. Its sub-items take the release, which is
+                # how a choice is made (BUGS.md #165: not a bug; tests/ui/test_menubar_events.py
+                # pins both)
                 sprite.on_left_mouse_button_down_event(event)
 
                 for menu_item in sprite.menu_items:
@@ -457,6 +464,9 @@ class MenuItem(BitmappySprite):
         self.menu_items: dict[str | None, MenuItem] = {}
         self.menu_offset_x: int = self.border_width
         self.menu_offset_y: int = self.border_width
+        # The item's own height: add_menu resizes self.rect to the whole dropped-down menu, so
+        # the rect's height is no longer the item's (BUGS.md #165)
+        self.item_height: int = int(self.rect.height)
         self.menu_image: pygame.Surface = pygame.Surface((0, 0))
         self.menu_rect: pygame.FRect | pygame.Rect = pygame.Rect(0, 0, 0, 0)
         self.menu_down_image: pygame.Surface = pygame.Surface((0, 0))
@@ -527,7 +537,7 @@ class MenuItem(BitmappySprite):
             menu.rect.y += self.menu_offset_y
             self.menu_offset_y += int(menu.rect.height)
 
-        self.menu_items[menu.name] = menu  # ty: ignore[invalid-assignment]
+        self.menu_items[menu.name] = menu
 
         # Now recreate the menu image for later use.
         self.menu_image = pygame.Surface((400, 300))
@@ -547,11 +557,11 @@ class MenuItem(BitmappySprite):
         ]
         width = max((r.width + 20) for r in menu_rects) * 2.5 if menu_rects else self.rect.width
         heights = [r.height for r in menu_rects]
-        height = self.rect.height
+        height = self.item_height
 
         if heights:
             self.log.debug('Heights: %s', heights)
-            heights.append(self.rect.height)
+            heights.append(self.item_height)
             self.log.debug('New Heights: %s', heights)
             height = sum(heights)
 
@@ -566,10 +576,12 @@ class MenuItem(BitmappySprite):
         self.rect.width = self.menu_down_rect.width
         self.rect.height = self.menu_down_rect.height
 
-        # Put ourselves at the top of the list.
-        self.menu_down_image.blit(self.image, (0, self.rect.y))
+        # Put ourselves at the top of the list (at the top of our own image, not at self.rect.y,
+        # our position on the screen)
+        self.menu_down_image.blit(self.image, (0, 0))
 
-        y_offset = self.rect.height
+        # The sub-items start right below the item itself (BUGS.md #165)
+        y_offset = self.item_height
         for menu_name in self.menu_items:
             menu_item = self.menu_items[menu_name]
             if menu_item.rect is None:  # pyright: ignore[reportUnnecessaryComparison]

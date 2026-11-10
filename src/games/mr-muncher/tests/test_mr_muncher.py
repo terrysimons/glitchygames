@@ -289,6 +289,15 @@ class TestStartingALevel:
 class TestInput:
     """Arrows, WASD, the D-pad, a hat and the stick steer; ESC or P pause; Q quits."""
 
+    def test_the_map_follows_the_engines_input_settings(self):
+        """--input-mode and --axis-deadzone reach the map (ActionMap.from_engine_options)."""
+        actions = MrMuncherScene._create_action_map(
+            options={'input_mode': 'joystick', 'axis_deadzone': 0.4}
+        )
+
+        assert actions.input_mode == 'joystick'
+        assert actions.deadzone == 0.4
+
     @pytest.mark.parametrize(
         ('key', 'direction'),
         [

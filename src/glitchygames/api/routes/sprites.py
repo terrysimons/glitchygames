@@ -41,6 +41,8 @@ from glitchygames.services import (
 LOG = logging.getLogger('glitchygames.api.sprites')
 
 PNG_IHDR_MINIMUM_BYTES = 24
+# The eight bytes every PNG (and so every APNG) starts with (PNG specification, section 5.2)
+PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
 
 # Base directory under which all sprite files will be saved.
 # All requested output paths are resolved relative to this directory.
@@ -516,6 +518,15 @@ def _extract_apng_frames(*, apng_base64: str) -> ApngExtractResponse:
             error=f'Invalid base64 data: {e}',
         )
 
+    # The apng package does not check the PNG signature: it parses arbitrary bytes as an APNG
+    # with no frames, which used to come back as a success (BUGS.md #137)
+    if not apng_bytes.startswith(PNG_SIGNATURE):
+        LOG.warning('Refused APNG data without the PNG signature')
+        return ApngExtractResponse(
+            success=False,
+            error='Invalid APNG file: the data does not start with the PNG signature',
+        )
+
     # Parse the APNG. The apng package reads chunk headers with struct, so data cut off inside
     # one raises struct.error (not a ValueError subclass)
     try:
@@ -525,6 +536,14 @@ def _extract_apng_frames(*, apng_base64: str) -> ApngExtractResponse:
         return ApngExtractResponse(
             success=False,
             error=f'Invalid APNG file: {e}',
+        )
+
+    # A PNG signature followed by no image data parses as an APNG with no frames (BUGS.md #137)
+    if not apng.frames:
+        LOG.warning('Refused APNG data with no frames')
+        return ApngExtractResponse(
+            success=False,
+            error='Invalid APNG file: it has no frames',
         )
 
     # Extract frames and metadata

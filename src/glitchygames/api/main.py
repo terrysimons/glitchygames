@@ -10,9 +10,8 @@ Usage:
     glitchygames-server
 
 Environment Variables:
-    SPRITE_AI_PROVIDER: AI provider (default: anthropic)
-    SPRITE_AI_MODEL: AI model (default: claude-sonnet-4-5)
-    SPRITE_AI_TIMEOUT: API timeout in seconds (default: 120)
+    SPRITE_AI_MODEL: The local AI service's model (default: reasoning)
+    SPRITE_AI_TIMEOUT: API timeout in seconds (default: 600)
     SPRITE_DEFAULT_WIDTH: Default sprite width (default: 16)
     SPRITE_DEFAULT_HEIGHT: Default sprite height (default: 16)
     SPRITE_MAX_SIZE: Maximum sprite dimension (default: 64)

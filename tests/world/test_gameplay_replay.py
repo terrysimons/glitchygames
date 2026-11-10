@@ -111,7 +111,7 @@ from glitchygames.replay.tools.golden_traces import (
     InputScript,
 )
 from glitchygames.replay.tools.scripted_sessions import record_scripted_session
-from glitchygames.replay.viewer import MAX_INNER_FRAMES_PER_TICK
+from glitchygames.replay.viewer import MAX_OWED_INNER_FRAMES
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
     active_sources,
@@ -2637,7 +2637,7 @@ class TestReplayReport:
         with pytest.raises(ValidationError):
             ReplayOptions(fps_source='sometimes')
         with pytest.raises(ValidationError):
-            ReplayOptions(no_such_option=3)
+            ReplayOptions(no_such_option=3)  # pyright: ignore[reportCallIssue] - the unknown option under test
 
     def test_the_sources_keep_the_options_they_were_given(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -3021,7 +3021,7 @@ class TestWatched:
         # The first tick owes nothing yet (no time has passed) and the run stops part way
         # through the last; exact over time
         assert set(frames_per_tick[1:-1]) <= allowed_per_tick
-        # Within one tick's worth: the owed remainder of the run's last tick
+        # Within one tick of frames: the owed remainder of the run's last tick
         assert abs(sum(frames_per_tick) - 2.0 * speed / 0.01) <= (
             speed * CONTROL_TICK_SECONDS / 0.01 + 2
         )
@@ -3036,10 +3036,12 @@ class TestWatched:
         frames_per_tick = inner_frames_per_tick(
             sources=sources, clock=clock, status_spy=status_spy, seconds=0.5
         )
-        # One tick's worth is kept and run at once; the rest is dropped
-        assert frames_per_tick[0] == MAX_INNER_FRAMES_PER_TICK
+        # The owed limit (32.5 frames of 10 ms) is kept and the rest dropped. Up to 1x the
+        # burst stops once the replay owes less than a frame plus a tick (rule 2 of
+        # glitchygames/replay/viewer.py): 30 frames run at once, 25 ms carried
+        assert frames_per_tick[0] == MAX_OWED_INNER_FRAMES - 2
         assert max(frames_per_tick[1:]) <= 2
-        assert abs(sum(frames_per_tick) - (MAX_INNER_FRAMES_PER_TICK + 0.5 / 0.01)) <= 3
+        assert abs(sum(frames_per_tick) - (MAX_OWED_INNER_FRAMES + 0.5 / 0.01)) <= 3
         assert sources.viewer.is_behind
 
     @pytest.mark.parametrize(
@@ -5645,6 +5647,54 @@ class TestRebaselinedHeader:
         assert run['rebaselined_from'] == header['rebaselined_from']
         # Outside the project (a pytest directory): its file name only (stored_path)
         assert header['rebaselined_from'] == 'old.jsonl.gz'
+
+    def test_a_rebaseline_names_this_processs_custom_event_types(self, tmp_path):
+        """NEW records the replay's events in this process's ids, not OLD's (BUGS.md #211.1)."""
+        from glitchygames.recording import (
+            CUSTOM_EVENT_TYPES_HEADER_FIELD,
+            custom_event_types_header,
+        )
+        from glitchygames.replay.rebaseline import rebaseline_header
+
+        header = rebaseline_header(
+            original_header={
+                'random_seed': 5,
+                CUSTOM_EVENT_TYPES_HEADER_FIELD: {'FPSEVENT': 40001},
+            },
+            original_path=tmp_path / 'old.jsonl.gz',
+            measurement_run=rebaseline_measurement_run(),
+            game_class=DepartureRecordedScene,
+        )
+
+        assert header[CUSTOM_EVENT_TYPES_HEADER_FIELD] == custom_event_types_header()
+
+    def test_a_replay_serves_the_recorded_events_in_this_processs_ids(self, mocker):
+        """decoded_replay_sources moves the frames' records before the sources read them."""
+        from glitchygames.events import FPSEVENT
+        from glitchygames.recording import CUSTOM_EVENT_TYPES_HEADER_FIELD, EVENT_BATCHES_FIELD
+        from glitchygames.replay import driver
+
+        made = mocker.patch.object(driver, 'ReplaySources')
+        header = {'random_seed': 5, CUSTOM_EVENT_TYPES_HEADER_FIELD: {'FPSEVENT': 40001}}
+        frames = [{EVENT_BATCHES_FIELD: [[{'type': 40001, 'attributes': {}}]]}]
+
+        driver.decoded_replay_sources(header=header, frames=frames, format_version=3)
+
+        served_frames = made.call_args.kwargs['frames']
+        assert served_frames[0][EVENT_BATCHES_FIELD] == [[{'type': FPSEVENT, 'attributes': {}}]]
+
+    def test_a_replay_refuses_malformed_custom_event_types(self):
+        """The header's field is checked like the rest of it: a format error, not a crash."""
+        from glitchygames.recording import CUSTOM_EVENT_TYPES_HEADER_FIELD
+        from glitchygames.replay import driver
+        from glitchygames.tracing import TraceFormatError
+
+        with pytest.raises(TraceFormatError, match='custom_event_types must map'):
+            driver.decoded_replay_sources(
+                header={'random_seed': 5, CUSTOM_EVENT_TYPES_HEADER_FIELD: ['FPSEVENT']},
+                frames=[],
+                format_version=3,
+            )
 
     def test_rebaselined_header_drops_the_unreleased_top_level_fields(self, tmp_path):
         """2026-10-20's unreleased format named the machine and pacing at the top level."""

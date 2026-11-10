@@ -27,7 +27,14 @@ Demos and instant replays run inside a playback scope, not a new engine run
    event timer and the scene manager's ``previous_scene`` are saved
    (``PlaybackRequest.begin_session``); the live scene is stashed without ``cleanup()``;
    ``PlaybackSources`` are pushed on top of the installed doors
-   (``push_scoped_sources``; glitchygames/sources.py); a ``playback`` control event is
+   (``push_scoped_sources``; glitchygames/sources.py); the live game's devices are set aside
+   and the recording's take their place, in the input mode it was recorded in
+   (``GameEngine.enter_playback_devices``: a recording file's are opened through the scope's
+   devices door as its engine opened them at startup, an instant replay's adopted from its
+   journal's ``scene_start_devices``), so its device events (JOYDEVICEADDED, ...) change only
+   the scope's and the live ones come back untouched as it ends (BUGS.md #184.3; a recording
+   played from a later frame than its first knows only the devices it started with); a
+   ``playback`` control event is
    recorded (a marker: replaying the session starts the scope again from the recorded input,
    so it is compared, never applied again); the scene is rebuilt (``rebuild_scene``) and made
    active as a switch would, a transition's arrival step is repeated for a scene that arrived
@@ -209,13 +216,11 @@ of a session that played a scope cannot itself be played in-game from a frame in
 that scope: a recorder writes no ``playback_answers`` or ``resume_bridge`` (only an
 instant-replay journal does), so its scene's playback requests and its resumption after the
 scope are not known (it replays exactly with ``--replay-trace``, which runs the scope again).
-Rumble in joystick mode asks the devices door for the joysticks (glitchygames/input/rumble.py);
-inside a scope each send still asks the scope's door, with a device cache of its own, and then
-sends to no device (rule 8), so the played recording's answers are taken as it gave them. The
-scope's rumble controller starts fresh, though: a rumble the live game sent before the played
-scene began, still running when it was recorded, is not known to it, so its sends (and the
-counts they ask) can fall on other frames than the recording's; that matters only when the
-played recording's joystick count changed part way.
+Rumble goes to the devices ``input_devices`` holds and asks no devices door, so a scope's
+rumble (sent to no device, rule 8) takes no answer from the played recording. Recordings made
+before that (joystick mode asked the joystick count on each send) hold per-frame counts nobody
+asks now; the played scene's own next count reads one of them instead of a later one, which
+matters only when the recording's joystick count changed part way.
 """
 
 from __future__ import annotations
@@ -264,6 +269,7 @@ if TYPE_CHECKING:
     from datetime import datetime
     from pathlib import Path
 
+    from glitchygames.audio.accounting import AudioFrameAccount
     from glitchygames.input.devices import DeviceRegistry
     from glitchygames.input.state import InputSnapshot
     from glitchygames.replay.driver import ReplaySources
@@ -838,7 +844,7 @@ class PlaybackSources:
         """
         return self.base.control_events_for_frame(frame_number=frame_number)
 
-    def end_frame(
+    def end_frame(  # ruff: ignore[too-many-arguments] - the EngineSources door's signature
         self: Self,
         *,
         frame_number: int,
@@ -846,6 +852,7 @@ class PlaybackSources:
         scene: Scene | None,
         control_events: list[ControlEvent],
         processing_seconds: float | None = None,
+        audio_frame: AudioFrameAccount | None = None,
     ) -> None:
         """Compare the frame with the recording, then let the installed doors end it (rule 5).
 
@@ -865,6 +872,7 @@ class PlaybackSources:
                 scene=scene,
                 control_events=control_events,
                 processing_seconds=processing_seconds,
+                audio_frame=audio_frame,
             )
 
     def compare_frame(
@@ -1239,7 +1247,15 @@ def _start_playback(
         is_rebaseline=manager.OPTIONS.get('rebaseline') is not None,
     )
     if scene_class is None:
-        LOG.warning('No %s: no scene class named %s is loaded', kind, start.scene_class)
+        # Name the logical name and module too: a class of that name may be loaded under
+        # another, and "no scene class named X is loaded" was then wrong (BUGS.md #224 item 46)
+        LOG.warning(
+            'No %s: no loaded scene class matches %s (logical name %s, module %s)',
+            kind,
+            start.scene_class,
+            start.scene,
+            start.scene_module,
+        )
         return False
     try:
         replay = playback_replay_sources(

@@ -19,7 +19,7 @@ messages = build_sprite_generation_messages(
     max_examples=3
 )
 
-# Send to AI API (aisuite); Bitmappy's worker passes the output limit
+# Send to the local AI service; Bitmappy's worker passes the output limit
 response = client.chat.completions.create(
     model=AI_MODEL,
     messages=messages,

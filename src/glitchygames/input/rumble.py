@@ -10,17 +10,14 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, Self
+from typing import TYPE_CHECKING, Protocol
 
 import pygame
-
-from glitchygames.sources import active_sources
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
     from glitchygames.effects.shake import ScreenShake
-    from glitchygames.input.devices import DeviceRegistry
 
 log: logging.Logger = logging.getLogger('game.input.rumble')
 
@@ -36,64 +33,17 @@ SUSTAINED_SEND_DURATION = 0.25
 
 
 class RumbleDevice(Protocol):
-    """Anything with SDL-style rumble: controller proxies and pygame joysticks."""
+    """Anything with rumble motors: an ``InputDevice`` (glitchygames/input/input_devices.py)."""
 
-    def rumble(self, low_frequency: float, high_frequency: float, duration: int) -> bool:
+    def rumble(
+        self, *, low_frequency: float, high_frequency: float, duration_milliseconds: int
+    ) -> bool:
         """Start rumble; duration in milliseconds (0 = forever)."""
         ...
 
     def stop_rumble(self) -> None:
         """Stop rumble."""
         ...
-
-
-class ConnectedRumbleDevices:
-    """Finds every device that can rumble in the current input mode (the scene manager's).
-
-    In joystick mode the joysticks are opened through the devices door
-    (glitchygames/input/devices.py) once, and the same ones are rumbled again while the door
-    reports the same joystick count: each send asks the count (one recorded answer), not every
-    joystick's open again (which a recording would hold, answer and descriptor, on every send).
-    A different count, or other doors (a playback scope's, a new run's), opens them again.
-    Limitation: a joystick swapped for another between two sends, the count unchanged, keeps the
-    first one's handle until the count changes (rumbling it fails quietly).
-    """
-
-    def __init__(self: Self) -> None:
-        """Start with nothing opened."""
-        self._registry: DeviceRegistry | None = None
-        self._joystick_count: int | None = None
-        self._joysticks: list[RumbleDevice] = []
-
-    def find(self: Self, *, controller_manager: object | None) -> list[RumbleDevice]:
-        """Return every device that can rumble now.
-
-        Args:
-            controller_manager: GameEngine.controller_manager; None in joystick mode (the
-                pygame-ce default).
-
-        Returns:
-            The devices: the controller manager's controllers, else the joysticks.
-
-        """
-        if controller_manager is not None:
-            controllers: dict[int, RumbleDevice] = getattr(controller_manager, 'controllers', {})
-            return list(controllers.values())
-        registry = active_sources().devices()
-        joystick_count = registry.joystick_count()
-        if registry is not self._registry or joystick_count != self._joystick_count:
-            self._registry = registry
-            self._joystick_count = joystick_count
-            self._joysticks = []
-            for index in range(joystick_count):
-                try:
-                    self._joysticks.append(registry.open_joystick(device_index=index))
-                except pygame.error:
-                    # Unplugged between get_count() and construction; skip it, keep the others
-                    log.debug(
-                        'Joystick %d vanished before it could be opened', index, exc_info=True
-                    )
-        return list(self._joysticks)
 
 
 @dataclass
@@ -314,8 +264,11 @@ class RumbleController:
     ) -> None:
         for device in devices():
             try:
-                # Positional: pygame's C Joystick.rumble does not take keywords
-                device.rumble(levels[0], levels[1], duration_milliseconds)
+                device.rumble(
+                    low_frequency=levels[0],
+                    high_frequency=levels[1],
+                    duration_milliseconds=duration_milliseconds,
+                )
             except pygame.error, AttributeError, OSError:
                 # A device unplugged mid-rumble must not stop the others
                 log.debug('Rumble failed on %r', device, exc_info=True)

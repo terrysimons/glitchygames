@@ -1,9 +1,17 @@
 """Audio module for GlitchyGames.
 
-Provides controller audio I/O (microphone + speaker), text-to-speech,
-and a push-to-talk AI voice assistant for game controllers.
+Provides the sound engine (``scene_manager.audio``, an ``AudioEngine``: one-call sounds from
+names, paths and instruments, with pitches, waves and noise), controller audio I/O (microphone +
+speaker), text-to-speech, and a push-to-talk AI voice assistant for game controllers.
 
 Usage:
+    coin = self.scene_manager.audio.sound('coin')   # in setup(): compiled once, cached
+    coin.play()                                     # in gameplay
+
+    from glitchygames.audio import render_to_file
+
+    render_to_file(coin, 'out/coin.wav')            # offline, no audio device
+
     from glitchygames.audio import VoiceAssistant
 
     assistant = VoiceAssistant.for_controller('DualSense Wireless Controller')
@@ -14,8 +22,18 @@ Usage:
 from typing import TYPE_CHECKING
 
 from glitchygames.audio.controller_audio import ControllerAudio
-from glitchygames.audio.exceptions import AudioUnavailableError, SoundRecipeError
+from glitchygames.audio.engine import AudioEngine
+from glitchygames.audio.exceptions import (
+    AudioUnavailableError,
+    SoundAssetError,
+    SoundRecipeError,
+    SoundRenderError,
+)
+from glitchygames.audio.instrument import Instrument, Noise
+from glitchygames.audio.library import CacheMode, Sound
 from glitchygames.audio.live import LiveAudio, LiveVoice
+from glitchygames.audio.offline import OfflineEvent, RenderReport, render_to_file
+from glitchygames.audio.pitch import Hz, Midi, Note, PitchTable, Scale, Tuning
 from glitchygames.audio.recipes import (
     SoundBank,
     SoundRecipe,
@@ -25,33 +43,57 @@ from glitchygames.audio.recipes import (
 )
 from glitchygames.audio.synth import Envelope, Waveform
 from glitchygames.audio.tts import MacOSTTS, get_tts_backend
+from glitchygames.audio.voices import SoundHandle
+from glitchygames.audio.waves import CYCLE, LEVEL, Harmonics, Wave, WavePoint
 
 if TYPE_CHECKING:
     from glitchygames.audio.voice_assistant import VoiceAssistant
 
 __all__ = [
+    'CYCLE',
+    'LEVEL',
+    'AudioEngine',
     'AudioUnavailableError',
+    'CacheMode',
     'ControllerAudio',
     'Envelope',
+    'Harmonics',
+    'Hz',
+    'Instrument',
     'LiveAudio',
     'LiveVoice',
     'MacOSTTS',
+    'Midi',
+    'Noise',
+    'Note',
+    'OfflineEvent',
+    'PitchTable',
+    'RenderReport',
+    'Scale',
+    'Sound',
+    'SoundAssetError',
     'SoundBank',
+    'SoundHandle',
     'SoundRecipe',
     'SoundRecipeError',
+    'SoundRenderError',
     'Tone',
     'Tremolo',
+    'Tuning',
     'VoiceAssistant',
+    'Wave',
+    'WavePoint',
     'Waveform',
     'get_tts_backend',
     'load_sound_recipes',
+    'render_to_file',
 ]
 
 
 def __getattr__(name: str) -> object:
     """Import ``VoiceAssistant`` when it is first asked for (a module ``__getattr__``, PEP 562).
 
-    Its module imports aisuite (about 150 ms, with the AI providers' clients), and every engine
+    Its module imports speech recognition, which is slow to import, and every engine
     run imports this package (``glitchygames.audio.live``, its live voices), every child process
     the tools start included: a run that never asks for the voice assistant no longer imports it.
     ``from glitchygames.audio import VoiceAssistant`` works as it always did.

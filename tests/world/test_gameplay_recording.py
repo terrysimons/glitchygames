@@ -1266,6 +1266,18 @@ class TestRecordingEdgeCases:
         with constructed_engine() as engine:
             assert engine.trace_recording_header()['engine_version'] is None
 
+    def test_header_names_the_custom_event_types_it_records_with(self):
+        """A replay in a process that allocated them otherwise moves them (BUGS.md #211.1)."""
+        from glitchygames.recording import (
+            CUSTOM_EVENT_TYPES_HEADER_FIELD,
+            custom_event_types_header,
+        )
+
+        with constructed_engine() as engine:
+            header = engine.trace_recording_header()
+
+        assert header[CUSTOM_EVENT_TYPES_HEADER_FIELD] == custom_event_types_header()
+
     def test_signal_handler_ignores_repeats_until_restored(self):
         """After the first SIGTERM, more SIGTERMs are ignored so teardown can finish."""
         previous_handler = signal.signal(signal.SIGTERM, game_engine_module.exit_on_signal)

@@ -32,9 +32,9 @@ def test_every_button_presses_a_key_its_game_reads():
     assert_every_button_presses_a_key_its_scenes_read(
         layout=TOUCH_LAYOUTS['brave-adventurer'],
         scene_scancodes=[
-            bound_scancodes(TitleScene._create_action_map(input_mode='auto')),
-            bound_scancodes(BraveAdventurerScene._create_action_map(input_mode='auto')),
-            bound_scancodes(PapyrusBraveAdventurerScene._create_action_map(input_mode='auto')),
+            bound_scancodes(TitleScene._create_action_map(options={})),
+            bound_scancodes(BraveAdventurerScene._create_action_map(options={})),
+            bound_scancodes(PapyrusBraveAdventurerScene._create_action_map(options={})),
         ],
     )
 
@@ -45,7 +45,7 @@ def test_the_brave_adventurer_title_screen_takes_the_games_buttons():
     Every button but those in TITLE_SCREEN_IGNORED_TOUCH_CODES is bound on the title screen, and
     every ignored code really is unbound there (a stale exemption fails too).
     """
-    title_scancodes = bound_scancodes(TitleScene._create_action_map(input_mode='auto'))
+    title_scancodes = bound_scancodes(TitleScene._create_action_map(options={}))
 
     for button in layout_buttons(TOUCH_LAYOUTS['brave-adventurer']):
         if button.code not in TITLE_SCREEN_IGNORED_TOUCH_CODES:

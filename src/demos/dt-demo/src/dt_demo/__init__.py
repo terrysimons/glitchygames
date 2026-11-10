@@ -72,19 +72,14 @@ class Game(Scene):
             parser (argparse.ArgumentParser): The argument parser.
 
         """
+        # argparse's version action prints and exits; store_true did nothing, and the demo has
+        # no balls for the old -b/--balls to count (BUGS.md #178 items 25 and 31)
         parser.add_argument(
             '-v',
             '--version',
-            action='store_true',
+            action='version',
+            version=f'{cls.NAME} {cls.VERSION}',
             help='print the game version and exit',
-        )
-
-        parser.add_argument(
-            '-b',
-            '--balls',
-            type=int,
-            help='the number of balls to start with',
-            default=1,
         )
 
     @override
@@ -117,17 +112,21 @@ class Game(Scene):
 
         countdown = self.font.render(
             'Time: ' + str(round(self.dt_timer, 2)),
-            False,  # ruff: ignore[boolean-positional-value-in-call]
+            FontManager.antialias(),
             (255, 255, 255),
         )
-        fps_text = self.font.render(f'FPS: {round(self.fps, 2)}', False, (255, 255, 255))  # ruff: ignore[boolean-positional-value-in-call]
+        fps_text = self.font.render(
+            f'FPS: {round(self.fps, 2)}', FontManager.antialias(), (255, 255, 255)
+        )
 
         self.screen.blit(countdown, (0, 0))
         self.screen.blit(fps_text, (0, 50))
 
         pygame.draw.rect(self.screen, WHITE, (self.rect_pos, (self.screen_height / 2) + 30, 40, 40))
         if self.record:
-            record_text = self.font.render(f'Time: {round(self.record, 2)}', False, (255, 255, 255))  # ruff: ignore[boolean-positional-value-in-call]
+            record_text = self.font.render(
+                f'Time: {round(self.record, 2)}', FontManager.antialias(), (255, 255, 255)
+            )
 
             self.screen.blit(record_text, (self.screen_width / 4, self.screen_height / 2))
 

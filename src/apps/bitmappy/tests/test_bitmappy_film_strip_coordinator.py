@@ -219,24 +219,6 @@ class _StripWidgetStandIn:
         """Remember each animation update."""
         self.animation_updates.append(dt)
 
-    def copy_current_frame(self):
-        """Report the copy result.
-
-        Returns:
-            bool: The configured result.
-
-        """
-        return self.copy_result
-
-    def paste_to_current_frame(self):
-        """Report the paste result.
-
-        Returns:
-            bool: The configured result.
-
-        """
-        return self.paste_result
-
 
 def _strip_sprite(*, widget=None, visible=True):
     """Create a film strip sprite stand-in.
@@ -704,47 +686,6 @@ class TestDeleteAnimation:
         assert (editor.canvas.current_animation, editor.canvas.current_frame) == ('idle', 1)
 
 
-class TestHandleNoRemainingAnimations:
-    """_handle_no_remaining_animations clears the selection and fixes the scroll."""
-
-    def test_few_strips_scroll_to_the_top(self):
-        """Two or fewer strips left: the offset returns to 0 and widgets rebuild."""
-        editor = _editor_with_strip_stand_ins(frame_counts={'idle': 1, 'walk': 1})
-        editor.film_strip_sprites['no_widget'] = _strip_sprite(widget=None)
-        editor.film_strip_scroll_offset = 3
-        editor.selected_animation = 'idle'
-        editor.selected_frame = 0
-        coordinator = FilmStripCoordinator(editor)
-
-        coordinator._handle_no_remaining_animations(['idle', 'walk'], ['idle', 'walk', 'x'], 2)
-
-        assert editor.selected_animation is None
-        assert editor.selected_frame is None
-        assert editor.film_strip_scroll_offset == 0
-        assert editor.film_strips['idle'].tab_creations == 1
-        assert editor.film_strip_sprites['idle'].dirty == 1
-
-    def test_deleting_the_last_strip_shows_the_previous_two(self):
-        """Deleting the last of five strips scrolls to show the last two left."""
-        remaining = ['a', 'b', 'c', 'd']
-        editor = _editor_with_strip_stand_ins(frame_counts=dict.fromkeys(remaining, 1))
-        coordinator = FilmStripCoordinator(editor)
-
-        coordinator._handle_no_remaining_animations(remaining, [*remaining, 'e'], 4)
-
-        assert editor.film_strip_scroll_offset == 2
-
-    def test_deleting_a_middle_strip_shows_the_one_before(self):
-        """Deleting the fourth of five strips scrolls to the third."""
-        remaining = ['a', 'b', 'c', 'e']
-        editor = _editor_with_strip_stand_ins(frame_counts=dict.fromkeys(remaining, 1))
-        coordinator = FilmStripCoordinator(editor)
-
-        coordinator._handle_no_remaining_animations(remaining, ['a', 'b', 'c', 'd', 'e'], 3)
-
-        assert editor.film_strip_scroll_offset == 2
-
-
 # ---------------------------------------------------------------------------
 # Confirmation dialogs
 # ---------------------------------------------------------------------------
@@ -1140,6 +1081,8 @@ class TestOnAnimationRename:
         assert unordered_sprite._animations == {'stroll': frames}
         assert not unordered_sprite.has_own_animation_order
         assert other_current_sprite.frame_manager.current_animation == 'idle'
+        # The other animation stays, in its place (BUGS.md #178 item 21)
+        assert other_current_sprite._animation_order == ['idle', 'stroll']
 
     def test_layout_failure_after_rename_is_logged(self):
         """A widget whose layout update fails is still marked dirty."""
@@ -1358,52 +1301,6 @@ class TestOnFrameRemoved:
 # ---------------------------------------------------------------------------
 # Copy and paste
 # ---------------------------------------------------------------------------
-
-
-class TestCopyAndPaste:
-    """_copy_current_frame and _paste_to_current_frame use the active strip."""
-
-    @pytest.mark.parametrize('method_name', ['_copy_current_frame', '_paste_to_current_frame'])
-    def test_no_strips_reports_failure(self, method_name):
-        """Without strips nothing can be copied or pasted."""
-        coordinator = FilmStripCoordinator(_EditorStandIn())
-
-        assert getattr(coordinator, method_name)() is False
-
-    @pytest.mark.parametrize('method_name', ['_copy_current_frame', '_paste_to_current_frame'])
-    def test_no_selected_animation_reports_failure(self, method_name):
-        """Without a selected animation there is no active strip."""
-        editor = _EditorStandIn()
-        editor.film_strips = {'walk': _StripWidgetStandIn()}
-        coordinator = FilmStripCoordinator(editor)
-
-        assert getattr(coordinator, method_name)() is False
-
-    @pytest.mark.parametrize('method_name', ['_copy_current_frame', '_paste_to_current_frame'])
-    def test_no_matching_strip_reports_failure(self, method_name):
-        """With no strip showing the selected animation, nothing happens."""
-        editor = _EditorStandIn()
-        widget = _StripWidgetStandIn()
-        widget.current_animation = 'idle'
-        editor.film_strips = {'idle': widget}
-        editor.selected_animation = 'walk'
-        coordinator = FilmStripCoordinator(editor)
-
-        assert getattr(coordinator, method_name)() is False
-
-    def test_active_strip_result_is_returned(self):
-        """The active strip's copy and paste results are passed back."""
-        editor = _EditorStandIn()
-        idle_widget = _StripWidgetStandIn()
-        idle_widget.current_animation = 'idle'
-        walk_widget = _StripWidgetStandIn(copy_result=True, paste_result=False)
-        walk_widget.current_animation = 'walk'
-        editor.film_strips = {'idle': idle_widget, 'walk': walk_widget}
-        editor.selected_animation = 'walk'
-        coordinator = FilmStripCoordinator(editor)
-
-        assert coordinator._copy_current_frame() is True
-        assert coordinator._paste_to_current_frame() is False
 
 
 # ---------------------------------------------------------------------------
@@ -1883,22 +1780,6 @@ class TestSelectInitialFilmStripWithoutStrips:
         coordinator._select_initial_film_strip()
 
         assert editor.selected_animation is None
-
-
-class TestNoRemainingAnimationsWithoutSprites:
-    """_handle_no_remaining_animations works with no strip sprites."""
-
-    def test_selection_is_cleared(self):
-        """The selection is cleared and the scroll returns to the top."""
-        editor = _EditorStandIn()
-        editor.selected_animation = 'walk'
-        editor.film_strip_scroll_offset = 1
-        coordinator = FilmStripCoordinator(editor)
-
-        coordinator._handle_no_remaining_animations([], ['walk'], 0)
-
-        assert editor.selected_animation is None
-        assert editor.film_strip_scroll_offset == 0
 
 
 class TestCancelWithoutStripSprites:

@@ -71,6 +71,34 @@ class _OperationTracker:
         self.global_submissions.append(list(pixels))
 
 
+class _RecordingFrameCommand:
+    """A frame command standing in for a paint stroke, counting its undos."""
+
+    description = 'Paint stand-in'
+
+    def __init__(self):
+        self.undo_count = 0
+
+    def execute(self):
+        """Redo: nothing to apply.
+
+        Returns:
+            bool: True.
+
+        """
+        return True
+
+    def undo(self):
+        """Count the undo.
+
+        Returns:
+            bool: True.
+
+        """
+        self.undo_count += 1
+        return True
+
+
 class _Editor:
     """Editor stand-in with the attributes FrameOperationManager reads."""
 
@@ -137,9 +165,28 @@ class TestCopyPasteFrame:
         assert target_frame.duration == pytest.approx(1.5)
         assert editor.canvas.redraw_count == 1
 
-        assert editor.undo_redo_manager.undo() is True
+        # The paste is on the frame's own stack, as paint is (BUGS.md #151)
+        assert editor.undo_redo_manager.undo_stack == []
+        assert editor.undo_redo_manager.undo_frame('idle', 0) is True
         assert target_frame.get_pixel_data() == [RED] * PIXEL_COUNT
         assert target_frame.duration == pytest.approx(0.5)
+
+    def test_undo_after_paint_then_paste_undoes_the_paste_first(self, editor, manager):
+        """Paint then paste on one frame: undo takes back the paste first, then the paint."""
+        paint = _RecordingFrameCommand()
+        editor.undo_redo_manager.push_frame_command('idle', 0, paint)
+        editor.selected_frame = 1
+        manager.handle_copy_frame()
+        editor.selected_frame = 0
+        manager.handle_paste_frame()
+        target_frame = editor.canvas.animated_sprite._animations['idle'][0]
+
+        assert editor.undo_redo_manager.undo_frame('idle', 0) is True
+        assert target_frame.get_pixel_data() == [RED] * PIXEL_COUNT
+        assert paint.undo_count == 0
+
+        assert editor.undo_redo_manager.undo_frame('idle', 0) is True
+        assert paint.undo_count == 1
 
     def test_copy_with_nothing_selected_keeps_clipboard_empty(self, editor, manager):
         """Copying with no selected animation leaves the clipboard empty."""
@@ -165,6 +212,7 @@ class TestCopyPasteFrame:
         manager.handle_paste_frame()
 
         assert editor.undo_redo_manager.undo_stack == []
+        assert not any(editor.undo_redo_manager.frame_undo_stacks.values())
 
     def test_copy_without_animated_sprite_keeps_clipboard_empty(self, editor, manager):
         """Copying from a canvas with no animated sprite leaves the clipboard empty."""
@@ -192,6 +240,7 @@ class TestCopyPasteFrame:
         manager.handle_paste_frame()
 
         assert editor.undo_redo_manager.undo_stack == []
+        assert not any(editor.undo_redo_manager.frame_undo_stacks.values())
 
     def test_paste_without_canvas_changes_nothing(self, editor, manager):
         """Without a canvas nothing is pasted."""
@@ -201,6 +250,7 @@ class TestCopyPasteFrame:
         manager.handle_paste_frame()
 
         assert editor.undo_redo_manager.undo_stack == []
+        assert not any(editor.undo_redo_manager.frame_undo_stacks.values())
 
     @pytest.mark.parametrize(
         ('selected_animation', 'selected_frame'),
@@ -217,6 +267,7 @@ class TestCopyPasteFrame:
         manager.handle_paste_frame()
 
         assert editor.undo_redo_manager.undo_stack == []
+        assert not any(editor.undo_redo_manager.frame_undo_stacks.values())
         assert editor.canvas.animated_sprite._animations['idle'][0].pixels == [RED] * PIXEL_COUNT
 
     def test_paste_without_animated_sprite_changes_nothing(self, editor, manager):
@@ -227,6 +278,7 @@ class TestCopyPasteFrame:
         manager.handle_paste_frame()
 
         assert editor.undo_redo_manager.undo_stack == []
+        assert not any(editor.undo_redo_manager.frame_undo_stacks.values())
 
     def test_paste_into_different_size_frame_is_refused(self, editor, manager):
         """A frame of a different size is not pasted into."""
@@ -239,6 +291,7 @@ class TestCopyPasteFrame:
         manager.handle_paste_frame()
 
         assert editor.undo_redo_manager.undo_stack == []
+        assert not any(editor.undo_redo_manager.frame_undo_stacks.values())
 
     def test_paste_into_canvas_without_redraw(self, editor, manager):
         """A canvas without force_redraw still gets the paste."""

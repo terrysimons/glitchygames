@@ -15,7 +15,12 @@ path both use:
    it, a channel still playing the sound noted at ``begin`` plays on; a channel that went idle
    or plays another sound loses its note and is stopped. A live voice
    (glitchygames/audio/live.py) queues a new chunk every 100 ms, so its channel soon plays
-   another sound and is stopped, as without sparing.
+   another sound and is stopped, as without sparing. Each stop is told to the context's audio
+   engine (``AudioEngine.silenced``: one channel, or every channel after ``pygame.mixer.stop()``),
+   which marks those channels quiet and nothing more: its voices go on by frame time, so their
+   handles' ``is_playing``, their ends and the steals are those of the frames had they been
+   heard (sound engine impl spec 7.3). The frames are compared with the recording, so a
+   silenced frame must not change what the game sees.
 3. ``finish`` stops following the music controls and resumes the music it paused, unless the
    game's last call paused it.
 
@@ -30,7 +35,8 @@ another's for the game's.
 A game that asks the mixer what is playing (``get_busy``, ``Channel.get_busy``) may get a
 different answer during silent frames than when they were recorded; audio is played, never
 compared, so a replay is unaffected unless game logic depends on it (which no recording could
-replay exactly anyway). Nothing happens without a mixer.
+replay exactly anyway). The sound library's answers (``SoundHandle.is_playing``) never ask the
+mixer, so they stay replay-safe. Nothing happens without a mixer.
 """
 
 from __future__ import annotations
@@ -51,6 +57,9 @@ class _MusicFollowing:
         self.followers: list[FrameSilencer] = []
         # pygame's own pause and unpause, captured when the first follower began
         self.pygame_controls: tuple[Callable[[], None], Callable[[], None]] | None = None
+        # The last pygame_controls captured, kept after the last follower stops: a wrapper left
+        # in place then is replaced by these, never taken for pygame's own (BUGS.md #252)
+        self.last_pygame_controls: tuple[Callable[[], None], Callable[[], None]] | None = None
         self.wrappers: tuple[Callable[[], None], Callable[[], None]] | None = None
 
     def add(self: Self, *, silencer: FrameSilencer) -> None:
@@ -64,7 +73,16 @@ class _MusicFollowing:
         if self.wrappers is not None:
             return
         music = pygame.mixer.music
-        self.pygame_controls = (music.pause, music.unpause)
+        # A wrapper of ours still in place (put back by code that saved music.unpause while the
+        # wrappers were installed) is never pygame's own: taken for it, the wrapper would call
+        # itself. pygame's own, captured by an earlier following (last_pygame_controls), stand
+        # in for it: a wrapper is only ever installed after one was captured
+        known_pause, known_unpause = self.last_pygame_controls or (music.pause, music.unpause)
+        self.pygame_controls = (
+            known_pause if self._is_own_wrapper(music.pause) else music.pause,
+            known_unpause if self._is_own_wrapper(music.unpause) else music.unpause,
+        )
+        self.last_pygame_controls = self.pygame_controls
         # The bound methods made once, so the check in remove() finds this very object
         game_pause, game_unpause = self._game_pause, self._game_unpause
         self.wrappers = (game_pause, game_unpause)
@@ -94,6 +112,17 @@ class _MusicFollowing:
         )
         self.wrappers = None
         self.pygame_controls = None
+
+    def _is_own_wrapper(self: Self, function: Callable[[], None]) -> bool:
+        """Return whether ``function`` is one of this following's wrappers (a bound method).
+
+        Returns:
+            True for its ``_game_pause`` or ``_game_unpause``, bound to it.
+
+        """
+        return getattr(function, '__self__', None) is self and getattr(
+            function, '__func__', None
+        ) in {_MusicFollowing._game_pause, _MusicFollowing._game_unpause}
 
     def pygame_pause(self: Self) -> Callable[[], None]:
         """Return pygame's own pause (never a wrapper).
@@ -145,6 +174,21 @@ def _set_music_controls(*, pause: Callable[[], None], unpause: Callable[[], None
 
 
 _MUSIC_FOLLOWING = _MusicFollowing()
+
+
+def _tell_the_audio_engine(*, channel_index: int | None) -> None:
+    """Tell the audio engine, if there is one, that a channel (None: every channel) was stopped.
+
+    Args:
+        channel_index: The channel stopped, or None after ``pygame.mixer.stop()``.
+
+    """
+    # Imported when a frame is silenced: importing the replay package never imports audio
+    from glitchygames.audio.engine import existing_audio_engine
+
+    audio_engine = existing_audio_engine()
+    if audio_engine is not None:
+        audio_engine.silenced(channel_index)
 
 
 class FrameSilencer:
@@ -212,6 +256,7 @@ class FrameSilencer:
             self._stop_unspared_channels()
         else:
             pygame.mixer.stop()
+            _tell_the_audio_engine(channel_index=None)
         if pygame.mixer.music.get_busy():
             # pygame's own pause: the silencer's, not the game's
             _MUSIC_FOLLOWING.pygame_pause()()
@@ -227,6 +272,7 @@ class FrameSilencer:
             elif spared_sound is None or channel.get_sound() is not spared_sound:
                 self._spared_sounds.pop(channel_index, None)
                 channel.stop()
+                _tell_the_audio_engine(channel_index=channel_index)
 
     def finish(self: Self) -> None:
         """End the silence: music the silencer paused plays on, unless the game paused it last."""

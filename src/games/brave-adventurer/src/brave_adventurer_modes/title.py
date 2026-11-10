@@ -31,6 +31,7 @@ from brave_adventurer.game import BraveAdventurerScene
 from brave_adventurer_core.constants import HUD_SHADOW_COLOR, HUD_TEXT_COLOR, SKY_COLOR
 from brave_adventurer_core.drawing import draw_pyramids, draw_sky
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
+from glitchygames.fonts import FontManager
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import TextSprite
@@ -38,6 +39,7 @@ from glitchygames.sprites import Sprite
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Mapping
 
     from glitchygames.events.base import ControllerButtonEvent, JoyButtonEvent, KeyEvent
 
@@ -210,10 +212,10 @@ class GameChoiceCard(Sprite):
         pygame.draw.rect(
             image, border_color, card_rect, width=border_width, border_radius=CARD_BORDER_RADIUS
         )
-        name = self._name_font.render(self.choice.title, True, name_color)  # ruff: ignore[boolean-positional-value-in-call] - pygame's antialias argument
+        name = self._name_font.render(self.choice.title, FontManager.antialias(), name_color)
         description = self._description_font.render(
             self.choice.description,
-            True,  # ruff: ignore[boolean-positional-value-in-call] - pygame's antialias argument
+            FontManager.antialias(),
             DESCRIPTION_COLOR,
         )
         image.blit(name, (CARD_PADDING, CARD_PADDING))
@@ -254,7 +256,7 @@ class TitleScene(Scene):
         super().__init__(options=options, groups=groups)
         # Named, so no part of the screen the backdrop leaves shows the test pattern
         self.background_color = SKY_COLOR
-        self.actions = self._create_action_map(input_mode=self.options.get('input_mode', 'auto'))
+        self.actions = self._create_action_map(options=self.options)
         # The chosen game (an index into GAME_CHOICES)
         self.selected_index = 0
         # A choose control's press reached this screen, so its release starts the game
@@ -300,17 +302,18 @@ class TitleScene(Scene):
         )
 
     @staticmethod
-    def _create_action_map(*, input_mode: str) -> ActionMap:
+    def _create_action_map(*, options: Mapping[str, Any]) -> ActionMap:
         """Bind the controls: keys by position, and a gamepad's D-pad, A, Start, B and Back.
 
         Args:
-            input_mode: Gamepad event family ('joystick', 'controller' or 'auto').
+            options: The engine's options: the map follows its input mode and axis deadzone
+                (``ActionMap.from_engine_options``).
 
         Returns:
             The action map.
 
         """
-        actions = ActionMap(input_mode=input_mode)
+        actions = ActionMap.from_engine_options(options)
         for action, scancodes, buttons in (
             (
                 PREVIOUS_ACTION,

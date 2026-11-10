@@ -1,5 +1,6 @@
-# Hand-written fixture: ragged rows in an animated frame (R4: per-line strip, most common length,
-# truncate, pad with the line's own last glyph), plus a glyph missing from [colors]
+# Hand-written fixture: ragged rows in an animated frame, plus a glyph missing from [colors]. The
+# one pixel-row rule (normalize_pixel_rows) keeps the first row's unshared indentation, widens to
+# the longest row and pads with transparent pixels; it used to cut to the most common length
 [[animation]]
 namespace = "wobble"
 frame_interval = 1

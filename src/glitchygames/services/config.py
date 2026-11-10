@@ -14,8 +14,7 @@ class ServiceConfig:
     """Configuration for sprite generation and rendering services.
 
     Attributes:
-        ai_provider: AI provider to use (anthropic, openai, ollama, etc.)
-        ai_model: Model identifier for the AI provider
+        ai_model: The local AI service's model: a role, or an exact size's alias
         ai_timeout: Timeout in seconds for AI API calls
         default_sprite_width: Default sprite width if not specified
         default_sprite_height: Default sprite height if not specified
@@ -24,13 +23,10 @@ class ServiceConfig:
 
     """
 
-    ai_provider: str = field(
-        default_factory=lambda: os.environ.get('SPRITE_AI_PROVIDER', 'anthropic'),
-    )
     ai_model: str = field(
-        default_factory=lambda: os.environ.get('SPRITE_AI_MODEL', 'claude-sonnet-4-5'),
+        default_factory=lambda: os.environ.get('SPRITE_AI_MODEL', 'reasoning'),
     )
-    ai_timeout: int = field(default_factory=lambda: int(os.environ.get('SPRITE_AI_TIMEOUT', '120')))
+    ai_timeout: int = field(default_factory=lambda: int(os.environ.get('SPRITE_AI_TIMEOUT', '600')))
     default_sprite_width: int = field(
         default_factory=lambda: int(os.environ.get('SPRITE_DEFAULT_WIDTH', '16')),
     )
@@ -51,12 +47,3 @@ class ServiceConfig:
 
         """
         return cls()
-
-    def get_ai_model_string(self) -> str:
-        """Get the full model string for aisuite.
-
-        Returns:
-            Model string in format "provider:model"
-
-        """
-        return f'{self.ai_provider}:{self.ai_model}'

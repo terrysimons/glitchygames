@@ -112,7 +112,7 @@ class TestTabControlSpriteFunctionality:
 
         # Assert
         assert tab_control.active_tab == 1
-        assert tab_control.dirty == TEST_TAB_COUNT
+        assert tab_control.dirty == 1  # Redrawn once (BUGS.md #155 item 2)
         assert parent.tab_changes == ['%X']
 
     def test_tab_control_click_first_tab(self):
@@ -131,7 +131,7 @@ class TestTabControlSpriteFunctionality:
 
         # Assert
         assert tab_control.active_tab == 0
-        assert tab_control.dirty == TEST_TAB_COUNT
+        assert tab_control.dirty == 1  # Redrawn once (BUGS.md #155 item 2)
         assert parent.tab_changes == ['%d']
 
     def test_tab_control_click_outside_bounds(self):
@@ -335,3 +335,17 @@ class TestTabControlSpriteWithRealSurfaces:
         tab_control.update()
 
         assert (pygame.surfarray.array_alpha(tab_control.image) == 255).all()
+
+    def test_a_click_redraws_once_with_one_font(self, mocker):
+        """A tab click redraws the tabs once; every draw reuses one font (BUGS.md #155 item 2)."""
+        tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=_TabParent())
+        font_constructor = mocker.spy(pygame.font, 'Font')
+        click = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=(10 + 75, 20 + 10))
+
+        tab_control.on_left_mouse_button_down_event(click)
+        tab_control.update()
+        tab_control.on_left_mouse_button_down_event(click)
+        tab_control.update()
+
+        assert tab_control.dirty == 1
+        assert font_constructor.call_count == 1

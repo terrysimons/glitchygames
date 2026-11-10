@@ -12,7 +12,7 @@ from glitchygames.replay.tools.golden_traces import FRAME_SECONDS
 from glitchygames.tracing import FRAMES_FIELD, read_trace_result
 from paddleslap import PADDLESLAP_DEMO_PATH, Game
 from tests.replay.playback_fixtures import step_finishing
-from tests.world.test_frame_integration import running_scene
+from tests.world.frame_harness import running_scene
 
 
 def test_the_paddleslap_demo_plays_in_game(mocker):

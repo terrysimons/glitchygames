@@ -19,5 +19,5 @@ def test_every_button_presses_a_key_its_game_reads():
     """A button whose key nothing reads would do nothing (the keys drift with the games)."""
     assert_every_button_presses_a_key_its_scenes_read(
         layout=TOUCH_LAYOUTS['paddleslap'],
-        scene_scancodes=[bound_scancodes(*PaddleSlapScene._create_action_maps())],
+        scene_scancodes=[bound_scancodes(*PaddleSlapScene._create_action_maps(options={}))],
     )

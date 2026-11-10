@@ -1,0 +1,147 @@
+[recipes.crunch_one]
+volume = 0.18
+peak = 0.9
+
+[[recipes.crunch_one.tones]]
+waveform = "noise"
+start_frequency = 0.0
+duration = 0.045
+easing = "linear"
+volume = 0.8
+offset = 0.0
+high_pass_cutoff = 1800.0
+
+[recipes.crunch_one.tones.envelope]
+attack = 0.001
+decay = 0.015
+sustain_level = 0.4
+release = 0.02
+
+[[recipes.crunch_one.tones]]
+waveform = "sine"
+start_frequency = 700.0
+duration = 0.04
+easing = "linear"
+volume = 0.6
+offset = 0.0
+end_frequency = 350.0
+
+[recipes.crunch_one.tones.envelope]
+attack = 0.001
+decay = 0.01
+sustain_level = 0.5
+release = 0.02
+
+[recipes.sugar_rush]
+volume = 0.3
+peak = 0.9
+
+[[recipes.sugar_rush.tones]]
+waveform = "noise"
+start_frequency = 0.0
+duration = 0.03
+easing = "linear"
+volume = 1.0
+offset = 0.0
+high_pass_cutoff = 1500.0
+
+[recipes.sugar_rush.tones.envelope]
+attack = 0.001
+decay = 0.01
+sustain_level = 0.3
+release = 0.01
+
+[[recipes.sugar_rush.tones]]
+waveform = "noise"
+start_frequency = 0.0
+duration = 0.03
+easing = "linear"
+volume = 1.0
+offset = 0.07
+high_pass_cutoff = 1500.0
+
+[recipes.sugar_rush.tones.envelope]
+attack = 0.001
+decay = 0.01
+sustain_level = 0.3
+release = 0.01
+
+[[recipes.sugar_rush.tones]]
+waveform = "triangle"
+start_frequency = 600.0
+duration = 0.45
+easing = "ease_out_quad"
+volume = 1.0
+offset = 0.1
+end_frequency = 1800.0
+
+[recipes.sugar_rush.tones.envelope]
+attack = 0.02
+decay = 0.1
+sustain_level = 0.6
+release = 0.2
+
+[recipes.sugar_rush.tones.tremolo]
+rate_hz = 30.0
+depth = 0.4
+
+[recipes.camera_flash]
+volume = 0.32
+peak = 0.9
+
+[[recipes.camera_flash.tones]]
+waveform = "noise"
+start_frequency = 0.0
+duration = 0.06
+easing = "linear"
+volume = 1.0
+offset = 0.0
+high_pass_cutoff = 3000.0
+
+[recipes.camera_flash.tones.envelope]
+attack = 0.001
+decay = 0.02
+sustain_level = 0.4
+release = 0.03
+
+[[recipes.camera_flash.tones]]
+waveform = "triangle"
+start_frequency = 1318.51
+duration = 0.056999999999999995
+easing = "linear"
+volume = 0.8
+offset = 0.05
+
+[recipes.camera_flash.tones.envelope]
+attack = 0.005
+decay = 0.05
+sustain_level = 0.6
+release = 0.05
+
+[[recipes.camera_flash.tones]]
+waveform = "triangle"
+start_frequency = 1567.98
+duration = 0.056999999999999995
+easing = "linear"
+volume = 0.8
+offset = 0.11
+
+[recipes.camera_flash.tones.envelope]
+attack = 0.005
+decay = 0.05
+sustain_level = 0.6
+release = 0.05
+
+[[recipes.camera_flash.tones]]
+waveform = "triangle"
+start_frequency = 2093.0
+duration = 0.15200000000000002
+easing = "linear"
+volume = 0.8
+offset = 0.16999999999999998
+
+[recipes.camera_flash.tones.envelope]
+attack = 0.005
+decay = 0.05
+sustain_level = 0.6
+release = 0.05

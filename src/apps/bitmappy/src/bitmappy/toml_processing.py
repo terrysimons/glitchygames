@@ -6,6 +6,7 @@ and TOML generation used by both the file I/O and AI integration modules.
 
 from __future__ import annotations
 
+import copy
 import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -128,6 +129,9 @@ class _RegexParserState:
         self.data: dict[str, Any] = {}
         self.section_path: list[str] = []
         self.array_path: list[str] | None = None
+        # True after a section header that could not be placed: its keys are skipped too, so
+        # they don't land in the section before it (BUGS.md #177)
+        self.skipping_section = False
         self.lines = lines
         self.line_index = 0
 
@@ -174,7 +178,7 @@ def _parse_toml_with_regex(content: str, log: logging.Logger) -> dict[str, Any]:
             continue
 
         if line.startswith('[[') and line.endswith(']]'):
-            _handle_array_of_tables(state, line)
+            _handle_array_of_tables(state, line, line_num, log)
         elif line.startswith('['):
             _handle_section_header(state, line, line_num, log)
         elif '=' in line:
@@ -185,12 +189,40 @@ def _parse_toml_with_regex(content: str, log: logging.Logger) -> dict[str, Any]:
     return state.data
 
 
-def _handle_array_of_tables(state: _RegexParserState, line: str) -> None:
-    """Handle [[array.of.tables]] headers."""
+def _handle_array_of_tables(
+    state: _RegexParserState,
+    line: str,
+    line_num: int,
+    log: logging.Logger,
+) -> None:
+    """Handle [[array.of.tables]] headers; one that cannot be placed is skipped and logged."""
     array_name = line[2:-2]
-    state.array_path = _parse_section_path(array_name)
-    _ensure_array_of_tables(state.data, state.array_path)
-    state.section_path = state.array_path
+    # An unterminated quoted key raises ValueError; a path through a value that is not a table
+    # raises TypeError. Either way the header and its keys are skipped (BUGS.md #177)
+    try:
+        array_path = _parse_section_path(array_name)
+        _ensure_array_of_tables(state.data, array_path)
+    except (ValueError, TypeError) as e:
+        _skip_section(state, line=line, line_num=line_num, log=log, error=e)
+        return
+    state.skipping_section = False
+    state.array_path = array_path
+    state.section_path = array_path
+
+
+def _skip_section(
+    state: _RegexParserState,
+    *,
+    line: str,
+    line_num: int,
+    log: logging.Logger,
+    error: Exception,
+) -> None:
+    """Skip a section header that cannot be placed, and the keys under it, logging it."""
+    log.warning('Skipped section header at line %s: %s - %s', line_num, line, error)
+    state.skipping_section = True
+    state.array_path = None
+    state.section_path = []
 
 
 def _handle_section_header(
@@ -206,17 +238,31 @@ def _handle_section_header(
         section_name = line[1:]
         log.warning('Malformed section header at line %s: %s', line_num, line)
 
-    parsed_path = _parse_section_path(section_name)
+    # An unterminated quoted key raises ValueError; a path through a value that is not a table
+    # (a key reused as a section name) raises TypeError. Either way the header and its keys
+    # are skipped (BUGS.md #177)
+    try:
+        parsed_path = _parse_section_path(section_name)
+        _place_section(state, parsed_path)
+    except (ValueError, TypeError) as e:
+        _skip_section(state, line=line, line_num=line_num, log=log, error=e)
+        return
+    state.skipping_section = False
+    state.section_path = parsed_path
 
+
+def _place_section(state: _RegexParserState, parsed_path: list[str]) -> None:
+    """Create the table a [section] header names, in the open array-of-tables entry if under it.
+
+    A path that runs through a value that is not a table raises TypeError from the lookup.
+    """
     if state.array_path and _is_sub_path(state.array_path, parsed_path):
-        state.section_path = parsed_path
         last_entry = _get_array_last_entry(state.data, state.array_path)
         sub_path = parsed_path[len(state.array_path) :]
         _ensure_nested_dict(last_entry, sub_path)
     else:
+        _ensure_nested_dict(state.data, parsed_path)
         state.array_path = None
-        state.section_path = parsed_path
-        _ensure_nested_dict(state.data, state.section_path)
 
 
 def _handle_key_value(
@@ -237,6 +283,11 @@ def _handle_key_value(
         parsed_value: str | bool | int | float | list[Any] = value
     else:
         parsed_value = _parse_toml_value(value)
+
+    # Checked after reading the value, so a multi-line string's lines are consumed with it
+    if state.skipping_section:
+        log.warning('Skipped line %s under a skipped section header: %s', line_num, line)
+        return
 
     # Remove quotes from key
     if key.startswith('"') and key.endswith('"'):
@@ -629,9 +680,11 @@ def normalize_toml_data(config_data: dict[str, Any]) -> dict[str, Any]:
         Normalized TOML data with proper string formatting
 
     """
-    # Malformed data (a sprite or animation that is not a table) is returned as it came
+    # Malformed data (a sprite or animation that is not a table) is returned as it came. A deep
+    # copy: a shallow one shared the nested sprite and animation tables, so normalizing changed
+    # the caller's data, and an error part way left it half-normalized (BUGS.md #177)
     try:
-        normalized_data = config_data.copy()
+        normalized_data = copy.deepcopy(config_data)
         _normalize_pixel_strings(normalized_data)
     except (AttributeError, KeyError, TypeError) as e:
         LOG.warning(f'Error normalizing TOML data: {e}')

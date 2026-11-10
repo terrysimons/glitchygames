@@ -14,13 +14,13 @@ from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.display_mode import set_display_mode
 from glitchygames.game_objects.ball import BallSprite, SpeedUpSettings, SpeedUpTrigger
 from glitchygames.game_objects.paddle import VerticalPaddle
+from tests.game_objects.ball_helpers import VISIBLE_SIZE, make_ball
 
 # Paddle occupies x 50..70 and y 50..150 (centre x 60).
 PADDLE_POSITION = (50, 50)
 PADDLE_SIZE = (20, 100)
 # The ball's visible circle box relative to its drawn position.
 VISIBLE_OFFSET = 5
-VISIBLE_SIZE = 10
 
 
 @pytest.fixture(autouse=True)
@@ -42,21 +42,6 @@ def paddle(mocker):
     real_paddle = VerticalPaddle('Test Paddle', PADDLE_SIZE, PADDLE_POSITION, (255, 255, 255), 400)
     real_paddle.snd = mocker.Mock()
     return real_paddle
-
-
-def make_ball(*, world_x, world_y, speed_x=100.0, speed_y=50.0, speed_up_settings=None):
-    """Build a real ball at a world position with a known velocity.
-
-    Returns:
-        BallSprite: The ball.
-
-    """
-    ball = BallSprite(speed_up_settings=speed_up_settings)
-    ball.world_x = float(world_x)
-    ball.world_y = float(world_y)
-    ball.speed.x = speed_x
-    ball.speed.y = speed_y
-    return ball
 
 
 class TestCollisionGeometry:

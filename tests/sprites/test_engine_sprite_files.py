@@ -7,6 +7,7 @@ sprite library in src/apps/bitmappy/tests/test_bitmappy_sprite_library.py).
 """
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pygame
 import pytest
@@ -14,6 +15,9 @@ import pytest
 import glitchygames
 from glitchygames.display_mode import set_display_mode
 from glitchygames.testing import sprite_files
+
+if TYPE_CHECKING:
+    from glitchygames.sprites import AnimatedSprite
 
 # The imported engine's directory (installed: never the source tree by accident)
 ENGINE_PACKAGE_DIRECTORY = Path(glitchygames.__file__).resolve().parent
@@ -133,6 +137,102 @@ def test_static_sprite_metadata_survives_a_save_round_trip(tmp_path):
         original_sprite.frame_anchor,
         original_sprite.hitbox,
     )
+
+
+@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=_sprite_file_test_id)
+def test_bundled_sprite_tags_are_well_formed(sprite_file):
+    """Every bundled sprite's [sprite] tags, if any, is an array of strings."""
+    sprite_files.check_sprite_tags_are_well_formed(sprite_file=sprite_file)
+
+
+def _two_by_two_sprite(*, frame_count: int) -> AnimatedSprite:
+    """Return a sprite of 2x2 black frames: one for the single-frame writer, two for the other.
+
+    Returns:
+        The sprite, with no name, description or tags set.
+
+    """
+    from glitchygames.sprites import AnimatedSprite, SpriteFrame
+
+    sprite = AnimatedSprite()
+    frames = [SpriteFrame(pygame.Surface((2, 2))) for _ in range(frame_count)]
+    for frame in frames:
+        frame.pixels = [(0, 0, 0)] * 4
+    sprite.add_animation('idle', frames)
+    return sprite
+
+
+@pytest.mark.usefixtures('real_display')
+@pytest.mark.parametrize('frame_count', [1, 2], ids=['single-frame-writer', 'animated-writer'])
+def test_tags_round_trip_right_after_the_description(frame_count, tmp_path):
+    """Both writers write the tags after the description; a reload has them, in order."""
+    from glitchygames.sprites import AnimatedSprite
+
+    sprite = _two_by_two_sprite(frame_count=frame_count)
+    sprite.description = 'A sword.'
+    sprite.tags = ['weapon', 'item', 'say "hi"']
+    saved_file = tmp_path / 'tagged.toml'
+
+    sprite.save(str(saved_file), 'toml')
+
+    assert AnimatedSprite(str(saved_file)).tags == ['weapon', 'item', 'say "hi"']
+    lines = saved_file.read_text(encoding='utf-8').splitlines()
+    tags_line = 'tags = ["weapon", "item", "say \\"hi\\""]'
+    assert lines.index(tags_line) == lines.index('description = """A sword."""') + 1
+
+
+@pytest.mark.usefixtures('real_display')
+@pytest.mark.parametrize('frame_count', [1, 2], ids=['single-frame-writer', 'animated-writer'])
+def test_a_sprite_without_tags_writes_no_tags(frame_count, tmp_path):
+    """A sprite with no tags is written without the key, as before tags existed."""
+    from glitchygames.sprites import AnimatedSprite
+
+    sprite = _two_by_two_sprite(frame_count=frame_count)
+    saved_file = tmp_path / 'untagged.toml'
+
+    sprite.save(str(saved_file), 'toml')
+
+    assert 'tags' not in saved_file.read_text(encoding='utf-8')
+    assert AnimatedSprite(str(saved_file)).tags == []
+
+
+@pytest.mark.usefixtures('real_display')
+def test_a_files_tags_load_in_their_one_spelling(tmp_path):
+    """Loaded tags are normalized: case, spaces and repeats."""
+    from glitchygames.sprites import AnimatedSprite
+
+    sprite_file = tmp_path / 'spelled.toml'
+    sprite_file.write_text(
+        """[sprite]
+name = "rock"
+tags = ["Stone ", "ROCK", "stone"]
+pixels = '''
+#
+'''
+
+[colors."#"]
+red = 90
+green = 90
+blue = 90
+""",
+        encoding='utf-8',
+    )
+
+    assert AnimatedSprite(str(sprite_file)).tags == ['stone', 'rock']
+
+
+@pytest.mark.parametrize(
+    ('tags_toml', 'problem'),
+    [('"rock"', "tags must be an array of strings, not 'rock'"), ('["rock", 3]', 'tag 2')],
+    ids=['not-an-array', 'not-a-string'],
+)
+def test_malformed_tags_fail_the_well_formed_check(tags_toml, problem, tmp_path):
+    """The check names the file and the problem."""
+    sprite_file = tmp_path / 'malformed.toml'
+    sprite_file.write_text(f'[sprite]\nname = "rock"\ntags = {tags_toml}\n', encoding='utf-8')
+
+    with pytest.raises(AssertionError, match=problem):
+        sprite_files.check_sprite_tags_are_well_formed(sprite_file=sprite_file)
 
 
 @pytest.mark.usefixtures('real_display')

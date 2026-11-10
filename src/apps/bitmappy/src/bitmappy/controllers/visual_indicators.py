@@ -11,7 +11,12 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
-from bitmappy.controllers.modes import ControllerMode  # ruff: ignore[typing-only-first-party-import] - used at runtime
+from bitmappy.controllers.modes import (
+    SLIDER_CHANNELS_BY_MODE_VALUE,
+    SLIDER_MODE_CHANNELS,
+    SLIDER_MODE_VALUES,
+    ControllerMode,
+)
 from bitmappy.controllers.selection import (
     ControllerSelection,  # ruff: ignore[typing-only-first-party-import] - used at runtime
 )
@@ -20,7 +25,7 @@ from glitchygames.sprites import BitmappySprite
 if TYPE_CHECKING:
     from bitmappy.controllers.event_handler import ControllerEventHandler
     from bitmappy.controllers.manager import ControllerInfo
-    from bitmappy.indicators import LocationType, VisualIndicator
+    from bitmappy.indicators import LocationType
 
 log = logging.getLogger('game.tools.bitmappy.controllers.visual_indicators')
 log.addHandler(logging.NullHandler())
@@ -162,7 +167,7 @@ class VisualIndicators:
         # Default position based on mode
         if new_mode.value == 'canvas':
             position = (0, 0)  # Start at top-left of canvas
-        elif new_mode.value in {'r_slider', 'g_slider', 'b_slider'}:
+        elif new_mode.value in SLIDER_MODE_VALUES:
             position = (0, 0)  # Start at top of slider
         else:  # film_strip
             position = (100, 100)  # Default position
@@ -378,56 +383,6 @@ class VisualIndicators:
 
         return indicator
 
-    def _update_slider_indicator(
-        self,
-        controller_id: int,
-        color: tuple[int, ...],
-    ) -> None:
-        """Update or create slider indicator for a controller."""
-        # Remove any existing indicator for this controller
-        self._remove_slider_indicator(controller_id)
-
-        # Get the controller's current mode to determine which slider
-        if hasattr(self.handler.editor, 'mode_switcher'):
-            controller_mode = self.handler.editor.mode_switcher.get_controller_mode(controller_id)
-
-            # Create indicator on the appropriate slider based on mode
-            if (
-                controller_mode
-                and controller_mode.value == 'r_slider'
-                and hasattr(self.handler.editor, 'red_slider')
-            ):
-                indicator = self._create_slider_indicator_sprite(
-                    controller_id,
-                    color,
-                    self.handler.editor.red_slider.rect,
-                )
-                self.handler.slider_indicators[controller_id] = indicator
-
-            elif (
-                controller_mode
-                and controller_mode.value == 'g_slider'
-                and hasattr(self.handler.editor, 'green_slider')
-            ):
-                indicator = self._create_slider_indicator_sprite(
-                    controller_id,
-                    color,
-                    self.handler.editor.green_slider.rect,
-                )
-                self.handler.slider_indicators[controller_id] = indicator
-
-            elif (
-                controller_mode
-                and controller_mode.value == 'b_slider'
-                and hasattr(self.handler.editor, 'blue_slider')
-            ):
-                indicator = self._create_slider_indicator_sprite(
-                    controller_id,
-                    color,
-                    self.handler.editor.blue_slider.rect,
-                )
-                self.handler.slider_indicators[controller_id] = indicator
-
     def _update_all_slider_indicators(self) -> None:
         """Update all slider indicators with collision avoidance."""
         # Clear all existing slider indicators
@@ -451,9 +406,7 @@ class VisualIndicators:
 
         """
         slider_groups: dict[str, list[dict[str, Any]]] = {
-            'r_slider': [],
-            'g_slider': [],
-            'b_slider': [],
+            slider_mode.value: [] for slider_mode in SLIDER_MODE_CHANNELS
         }
 
         selections = self.handler.editor.controller_selections
@@ -476,20 +429,17 @@ class VisualIndicators:
 
         return slider_groups
 
-    def _create_slider_indicators_with_collision_avoidance(  # ruff: ignore[complex-structure]
+    def _create_slider_indicators_with_collision_avoidance(
         self,
         slider_mode: str,
         controllers: list[dict[str, Any]],
     ) -> None:
         """Create slider indicators with collision avoidance for multiple controllers."""
-        # Get the appropriate slider
+        # Get the slider the mode names; a mode that is no slider mode has none
         slider = None
-        if slider_mode == 'r_slider' and hasattr(self.handler.editor, 'red_slider'):
-            slider = self.handler.editor.red_slider
-        elif slider_mode == 'g_slider' and hasattr(self.handler.editor, 'green_slider'):
-            slider = self.handler.editor.green_slider
-        elif slider_mode == 'b_slider' and hasattr(self.handler.editor, 'blue_slider'):
-            slider = self.handler.editor.blue_slider
+        if slider_mode in SLIDER_CHANNELS_BY_MODE_VALUE:
+            slider_attribute, _channel_name = SLIDER_CHANNELS_BY_MODE_VALUE[slider_mode]
+            slider = getattr(self.handler.editor, slider_attribute, None)
 
         if not slider:
             return
@@ -586,15 +536,46 @@ class VisualIndicators:
     # ------------------------------------------------------------------
 
     def _update_film_strip_controller_selections(self) -> None:
-        """Update film strip controller selections for all animations."""
+        """Update film strip controller selections for all animations.
+
+        A film strip draws its controller triangles only when it re-renders, and it re-renders
+        only when dirty, so each strip whose selections changed is marked dirty here: a
+        controller moving between frames used to leave its triangle behind until the strip's
+        preview next advanced (BUGS.md #154).
+        """
+        previous_selections = {
+            animation: dict(controllers)
+            for animation, controllers in self.handler.film_strip_controller_selections.items()
+        }
         self.handler.film_strip_controller_selections.clear()
 
-        if not hasattr(self.handler.editor, 'controller_selections'):
+        if hasattr(self.handler.editor, 'controller_selections'):
+            selections = self.handler.editor.controller_selections
+            for controller_id, controller_selection in selections.items():
+                self._process_film_strip_controller_selection(controller_id, controller_selection)
+
+        self._mark_film_strips_with_changed_selections_dirty(previous_selections)
+
+    def _mark_film_strips_with_changed_selections_dirty(
+        self,
+        previous_selections: dict[str, Any],
+    ) -> None:
+        """Mark dirty each film strip whose controller selections differ from the last update.
+
+        Args:
+            previous_selections: The selections by animation before this update.
+
+        """
+        if not hasattr(self.handler.editor, 'film_strips'):
             return
 
-        selections = self.handler.editor.controller_selections
-        for controller_id, controller_selection in selections.items():
-            self._process_film_strip_controller_selection(controller_id, controller_selection)
+        current_selections = self.handler.film_strip_controller_selections
+        film_strips = self.handler.editor.film_strips
+        for animation in previous_selections.keys() | current_selections.keys():
+            if previous_selections.get(animation) == current_selections.get(animation):
+                continue
+            if animation in film_strips:
+                film_strips[animation].mark_dirty()
 
     def _process_film_strip_controller_selection(
         self,
@@ -736,50 +717,3 @@ class VisualIndicators:
                 self.handler.editor.all_sprites.remove(indicator)
             # Remove from tracking
             del self.handler.slider_indicators[controller_id]
-
-    def _draw_visual_indicator(
-        self,
-        screen: pygame.Surface,
-        indicator: VisualIndicator,
-    ) -> None:
-        """Draw a single visual indicator on the screen."""
-        if not indicator.is_visible:
-            self.handler.log.debug(
-                'DEBUG: Indicator for controller %s is not visible',
-                indicator.controller_id,
-            )
-            return
-
-        # Calculate final position with offset
-        final_x = indicator.position[0] + indicator.offset[0]
-        final_y = indicator.position[1] + indicator.offset[1]
-
-        self.handler.log.debug(
-            'DEBUG: Drawing indicator for controller %s at (%s, %s) with shape %s',
-            indicator.controller_id,
-            final_x,
-            final_y,
-            indicator.shape.value,
-        )
-
-        # Draw based on shape
-        if indicator.shape.value == 'triangle':
-            # Draw triangle (film strip indicator)
-            points = [
-                (final_x, final_y - indicator.size // 2),
-                (final_x - indicator.size // 2, final_y + indicator.size // 2),
-                (final_x + indicator.size // 2, final_y + indicator.size // 2),
-            ]
-            pygame.draw.polygon(screen, indicator.color, points)
-        elif indicator.shape.value == 'square':
-            # Draw square (canvas indicator)
-            rect = pygame.Rect(
-                final_x - indicator.size // 2,
-                final_y - indicator.size // 2,
-                indicator.size,
-                indicator.size,
-            )
-            pygame.draw.rect(screen, indicator.color, rect)
-        else:
-            # Draw circle (slider indicator): CIRCLE is the only other IndicatorShape
-            pygame.draw.circle(screen, indicator.color, (final_x, final_y), indicator.size // 2)

@@ -1,19 +1,19 @@
 # GlitchyGames Sprite Generation API
 
-REST API and CLI client for generating pixel art sprites using AI via aisuite.
+REST API and CLI client for generating pixel art sprites using the local AI service.
 
 ## Overview
 
 The API consists of two components:
 
-- **`glitchygames-server`** -- A FastAPI server that accepts sprite generation requests, calls an AI provider to produce TOML sprite definitions, and optionally renders them to PNG.
+- **`glitchygames-server`** -- A FastAPI server that accepts sprite generation requests, calls the local AI service to produce TOML sprite definitions, and optionally renders them to PNG.
 - **`glitchygames-client`** -- A CLI client that talks to the server, saves output files locally, and displays colorized ASCII previews in the terminal.
 
 ## Setup
 
 ### Install Dependencies
 
-The API's dependencies (`fastapi`, `uvicorn`, `pydantic`, `httpx`, `apng`, `pillow`, `aisuite`) are part of the base install; the `api` extra is empty and kept only for compatibility:
+The API's dependencies (`fastapi`, `uvicorn`, `pydantic`, `httpx2`, `apng`, `pillow`) are part of the base install; the `api` extra is empty and kept only for compatibility:
 
 ```bash
 uv sync --all-packages
@@ -25,31 +25,16 @@ For development (running tests):
 uv sync --extra dev --all-packages
 ```
 
-### Configure AI Provider
+### Install the Local AI Service
 
-The server uses [aisuite](https://github.com/andrewyng/aisuite) to route to AI providers. Set the appropriate API key for your provider:
-
-```bash
-# Anthropic (default)
-export ANTHROPIC_API_KEY="your-key"
-
-# OpenAI
-export SPRITE_AI_PROVIDER="openai"
-export SPRITE_AI_MODEL="gpt-4o"
-export OPENAI_API_KEY="your-key"
-
-# Ollama (local)
-export SPRITE_AI_PROVIDER="ollama"
-export SPRITE_AI_MODEL="llama3"
-```
+The server gets its answers from the local AI service, and nothing leaves the machine. Install it with `ansible/macos_ai_service.yml` or its package (Apple Silicon only for now). It starts by itself on the first request.
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `SPRITE_AI_PROVIDER` | `anthropic` | AI provider name for aisuite |
-| `SPRITE_AI_MODEL` | `claude-sonnet-4-5` | Model identifier for the provider |
-| `SPRITE_AI_TIMEOUT` | `120` | API call timeout in seconds |
+| `SPRITE_AI_MODEL` | `reasoning` | A role, or an exact size such as `bonsai-2-9b` |
+| `SPRITE_AI_TIMEOUT` | `600` | API call timeout in seconds |
 | `SPRITE_DEFAULT_WIDTH` | `16` | Default sprite width (pixels) |
 | `SPRITE_DEFAULT_HEIGHT` | `16` | Default sprite height (pixels) |
 | `SPRITE_MAX_SIZE` | `64` | Maximum sprite dimension |
@@ -113,8 +98,7 @@ curl http://localhost:8000/health
 {
   "status": "healthy",
   "version": "1.0.0",
-  "ai_provider": "anthropic",
-  "ai_model": "claude-sonnet-4-5",
+  "ai_model": "reasoning",
   "pygame_initialized": true
 }
 ```
@@ -136,7 +120,7 @@ Generate a new sprite from a text prompt.
 | `output_format` | list | `["toml", "png"]` | Output formats: `"toml"`, `"png"`, or both |
 | `png_scale` | int | `1` | PNG scale factor (1-10) |
 | `output_path` | string | none | Server-side directory to save files, relative to `sprite_outputs/` in the server's working directory (absolute paths and paths that leave it are refused) |
-| `model` | string | none | AI model override (aisuite format) |
+| `model` | string | none | AI model override: a role or an exact size |
 
 When `frame_count > 1`, all animation frames are automatically rendered to PNG. There is no need for a separate flag.
 
@@ -298,8 +282,8 @@ Options:
   --extract-scale N         Scale factor for extracted frame PNGs using
                             nearest-neighbor (default: 8)
   --animation-language-model MODEL
-                            AI model override (aisuite format,
-                            e.g., "anthropic:claude-sonnet-4-5")
+                            AI model override: a role or an exact size
+                            (e.g., "bonsai-2-9b")
   --extract-frames APNG_PATH
                             Extract frames from an APNG file instead
                             of generating a sprite
@@ -405,7 +389,7 @@ Read metadata with PIL:
 ```python
 from PIL import Image
 img = Image.open("animation-0-frame-0.png")
-print(img.info["AIModel"])      # anthropic:claude-sonnet-4-5
+print(img.info["AIModel"])      # bonsai-2-9b
 print(img.info["ExtractScale"]) # 8
 ```
 
@@ -431,14 +415,14 @@ src/glitchygames/services/
   exceptions.py            # SpriteServiceError, AIProviderError,
                            #   ValidationError, RenderingError
   renderer_service.py      # RendererService (pygame headless rendering)
-  sprite_generation_service.py  # SpriteGenerationService (aisuite AI calls)
+  sprite_generation_service.py  # SpriteGenerationService (local AI service calls)
 ```
 
 ### Request Flow
 
 1. Client sends HTTP request to a route endpoint
 2. Route gets the cached service instances via `_get_services()` (`dependencies.py`)
-3. `SpriteGenerationService` calls the AI provider via aisuite to generate TOML
+3. `SpriteGenerationService` calls the local AI service to generate TOML
 4. `RendererService` parses the TOML and renders it to PNG using pygame (headless)
 5. Route returns the response with TOML, PNG, or both
 6. Client saves files locally and displays ASCII preview

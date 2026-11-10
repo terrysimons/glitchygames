@@ -6,11 +6,16 @@ Uses pytest-mock's mocker fixture for automatic patch cleanup where possible.
 
 import contextlib
 import logging
+import os
 import sys
 from pathlib import Path
 
 import pytest
 from hypothesis import settings
+
+# No test reaches the real AI service, which would load gigabytes of models on a machine that
+# has it, and only there: every client gets "not installed" unless a test names an install
+os.environ.setdefault('GLITCHYGAMES_AI_INSTALL_ROOT', '/nonexistent/glitchygames-ai-service')
 
 # Importing tests.sdl_defaults defaults the SDL drivers to dummy (keeping any value the invoker
 # set); it must come before pygame is imported/initialized in any test worker
@@ -18,7 +23,10 @@ from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip
 
 import pygame
 
-from glitchygames import engine_context, pixel_snap, randomness, sources
+from glitchygames import engine_context, pixel_snap, process, randomness, sources
+from glitchygames.audio.engine import AUDIO_ENGINE_SLOT
+from glitchygames.audio.library import ENGINE_SOUND_CACHE
+from glitchygames.audio.voices import release_channels
 from glitchygames.backgrounds import set_active_default_background_pattern
 from glitchygames.clipboard import InProcessClipboard, install_clipboard
 from glitchygames.engine import GameEngine
@@ -34,6 +42,7 @@ from glitchygames.sprites import (
     SingletonBitmappySprite,
 )
 from glitchygames.user_files import install_user_files
+from tests.ai_service_stand_in import CONTROL_SCRIPT_NAME, python_twin
 from tests.display_canvas import (
     CANVAS_PATTERN,
     TEST_DISPLAY_SIZE,
@@ -45,6 +54,8 @@ from tests.display_canvas import (
 )
 from tests.engine_source import ENGINE_DIRECTORY
 from tests.garbage_collection import process_peak_memory_collector, release_test_instance
+from tests.git_environment import clear_git_repository_variables
+from tests.hidden_test_windows import hide_test_windows
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import (
     SdlDriverState,
@@ -57,6 +68,17 @@ from tests.signal_handlers import preserved_signal_handlers
 # checkout", whichever copy of the engine is imported
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CHECKOUT_ENGINE_DIRECTORY = PROJECT_ROOT / ENGINE_DIRECTORY
+# Windows can't run the stand-in AI control script (a POSIX shell script): there,
+# stand_in_ai_control_scripts runs its Python twin
+CONTROL_SCRIPTS_RUN_THROUGH_THEIR_TWINS = sys.platform == 'win32'
+
+
+# Before any window opens: a real driver's test windows are hidden, so the machine's pointer and
+# keyboard never reach a test (tests/hidden_test_windows.py, BUGS.md #225)
+TEST_WINDOWS_HIDDEN = hide_test_windows()
+# Before any test, worker or native run: git finds repositories where tests point it, not the one a
+# git hook (pre-push) was started for (tests/git_environment.py)
+GIT_VARIABLES_CLEARED_AT_STARTUP = clear_git_repository_variables()
 
 
 def imported_engine_directory() -> Path:
@@ -263,16 +285,25 @@ def pytest_configure(config):
 
 
 def _reset_all_singleton_instances():
-    """Reset all singleton class instances to prevent test contamination.
+    """Reset every singleton and shared cache so no test sees another test's instances.
 
-    Singleton instances (SceneManager, MenuBar, etc.) persist across tests
-    and can carry stale state from mocked pygame environments into tests
-    that need real pygame. SceneManager is no longer one of those: it is
-    a slot of the engine context, so SceneManager._reset() clears the current context's
-    managers. This resets the other classes' parent and subclass __instance__ attributes
-    since Python sets cls.__instance__ on the subclass, not the parent.
+    Scene managers live in the engine context (a slot, not a class attribute), so
+    SceneManager._reset() clears the current context's managers. The ResourceManager instances
+    and FontManager's caches are cleared next. The remaining singletons keep their instance in
+    a class attribute, __instance__, which Python sets on the class that made the instance:
+    each singleton base and each of its direct subclasses is reset (BUGS.md #228 items 17, 22).
     """
     SceneManager._reset()
+    # The context's audio engine (glitchygames/audio/engine.py) is forgotten, not closed: its
+    # channels may be gone with a mixer a test restarted
+    current_context().reset_value(slot=AUDIO_ENGINE_SLOT)
+    # ...and its channel reservation is handed back and the remembered partition forgotten
+    # (ruling R45), so the next engine reserves afresh. SDL_mixer keeps a reservation across a
+    # mixer restart while the restarted mixer is back at 8 channels, so an engine's 36 reserved
+    # channels, left by a test that never ran the engine's shutdown, made a later test's
+    # Sound.play() raise "IndexError: invalid channel index" after another test restarted pygame
+    # (tests/test_logging.py). No engine outlives a test here, so nothing needs to keep one
+    release_channels()
 
     # Reset ResourceManager singleton instances (FontManager, event managers, etc.)
     ResourceManager.__instances__.clear()
@@ -287,6 +318,29 @@ def _reset_all_singleton_instances():
         for subclass in singleton_base.__subclasses__():
             if hasattr(subclass, '__instance__'):
                 subclass.__instance__ = None
+
+
+# What an inner pytest run (pytester) gets, whatever the outer run's options: pytest-randomly
+# blocked, as the project's addopts block it (an inner run reads none of them). Shuffled, an
+# inner run's tests ran in a new order every time, so the frames and state they left behind
+# changed from run to run: driver comparisons flagged them (tests/test_frame_fingerprints.py's
+# TestRecordingARun, BUGS.md #255) and tests checking inner order failed (#252)
+INNER_RUN_ADDOPTS = '-p no:randomly'
+
+
+@pytest.fixture(autouse=True)
+def inner_runs_keep_their_order(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
+    """Block pytest-randomly in every inner pytest run of a test that uses ``pytester``.
+
+    Through ``PYTEST_ADDOPTS``, which every inner run reads (in process or as a subprocess);
+    the outer run has already read it, so its own order (shuffled by ``nox -s test-random``)
+    is untouched. Set after ``pytester`` is made: making it deletes ``PYTEST_ADDOPTS``, to
+    keep the outer run's options out of inner runs.
+    """
+    if 'pytester' in request.fixturenames:
+        request.getfixturevalue('pytester')
+        outer = os.environ.get('PYTEST_ADDOPTS', '')
+        monkeypatch.setenv('PYTEST_ADDOPTS', f'{outer} {INNER_RUN_ADDOPTS}'.strip())
 
 
 @pytest.fixture(autouse=True)
@@ -314,6 +368,28 @@ def in_process_clipboard():
     install_clipboard(clipboard=None)
 
 
+@pytest.fixture
+def stand_in_ai_control_scripts(mocker):
+    """Run a stand-in install's control script on every platform (tests/ai_service_stand_in.py).
+
+    The stand-in is a POSIX shell script, which Windows can't run, so there the engine's launcher
+    runs its Python twin instead; every other command, and every other platform, is untouched.
+    """
+    if not CONTROL_SCRIPTS_RUN_THROUGH_THEIR_TWINS:
+        return
+    real_run_command = process.run_command
+
+    def run_command(*, command, environment, **options):
+        if command and Path(command[0]).name == CONTROL_SCRIPT_NAME:
+            twin = python_twin(control_script=Path(command[0]))
+            command = [sys.executable, str(twin), *command[1:]]
+            # The service's callers pass a bare environment; Windows' Python needs SYSTEMROOT
+            environment = {**environment, 'SYSTEMROOT': os.environ.get('SYSTEMROOT', '')}
+        return real_run_command(command=command, environment=environment, **options)
+
+    mocker.patch.object(process, 'run_command', side_effect=run_command)
+
+
 @pytest.fixture(autouse=True)
 def desktop_user_files():
     """Run each test the desktop's way: no user files installed (glitchygames/user_files.py)."""
@@ -332,6 +408,19 @@ def restore_gil_switch_interval():
     previous_interval = sys.getswitchinterval()
     yield
     sys.setswitchinterval(previous_interval)
+
+
+@pytest.fixture(autouse=True)
+def empty_engine_sound_cache():
+    """Start and end each test with an empty process cache of the engine's own sounds.
+
+    The CRT power-on's sounds compile once per process (glitchygames.audio.library
+    ``ENGINE_SOUND_CACHE``): without this, whether a test compiles them would depend on which
+    test ran before it on the worker.
+    """
+    ENGINE_SOUND_CACHE.clear()
+    yield
+    ENGINE_SOUND_CACHE.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -610,7 +699,10 @@ def per_context_state_resets(
 
 @pytest.fixture
 def engine_service_resets(
-    desktop_user_files, in_process_clipboard, restore_game_engine_class_state
+    desktop_user_files,
+    in_process_clipboard,
+    restore_game_engine_class_state,
+    empty_engine_sound_cache,
 ):
     """Group the resets of the engine's other installed state, for the leak check.
 
@@ -618,6 +710,7 @@ def engine_service_resets(
         desktop_user_files: Requested only to be torn down after the leak check.
         in_process_clipboard: Requested only to be torn down after the leak check.
         restore_game_engine_class_state: Requested only to be torn down after the leak check.
+        empty_engine_sound_cache: Requested only to be torn down after the leak check.
 
     """
 
@@ -636,7 +729,9 @@ def every_test_ends_in_the_default_engine_context(per_context_state_resets, engi
     ``context.active()`` entered by hand (``__enter__``) and never exited while something still
     holds it. A switch abandoned unexited unwinds itself when its generator is collected (its
     ``finally`` resets the context), so it is not reported. A caught leak would leave its
-    context current for every later test on the worker, so it is undone before the test fails.
+    context current for every later test on the worker, so it is undone before the test fails;
+    if the leaked switch is collected later, its ``finally`` can reset a later test's context,
+    which only happens after this test already failed (BUGS.md #228 item 2).
 
     Args:
         per_context_state_resets: Requested only to be torn down after this check.

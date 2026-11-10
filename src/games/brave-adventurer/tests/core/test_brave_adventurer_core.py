@@ -45,6 +45,19 @@ class TestEngineWorldSpace:
         )
         assert segment.world_y == GROUND_Y
 
+    def test_terrain_redraws_every_frame(self):
+        """Ground and walls stay drawn under a still camera on their own (BUGS.md #60).
+
+        dirty = 2: before, they were dirty = 1 and stayed on screen only because the
+        full-screen parallax layers redrew everything.
+        """
+        groups = pygame.sprite.LayeredDirty()
+        segment = GroundSegment(world_x=40.0, segment_width=100, groups=groups)
+        wall = StoneWall(world_x=200.0, wall_height=30, groups=groups)
+
+        assert segment.dirty == 2
+        assert wall.dirty == 2
+
 
 # Pixel digests of the parallax layers as drawn by the per-column / per-row drawing code these
 # functions replaced (recorded 2026-10-22 from that code, before the cached-gradient and

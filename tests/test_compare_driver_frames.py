@@ -524,6 +524,21 @@ class TestCommandLine:
         assert exit_code == ExitCode.SUCCESS
         assert capsys.readouterr().out == '\n'
 
+    def test_a_run_that_recorded_no_test_is_refused(self, tmp_path, capsys):
+        """An empty run would compare as full agreement (BUGS.md #256): refused, named."""
+        write_run(directory=tmp_path / 'dummy', records=[record()])
+        (tmp_path / 'cocoa').mkdir()
+
+        exit_code = run(
+            arguments=['compare', f'dummy={tmp_path / "dummy"}', f'cocoa={tmp_path / "cocoa"}']
+        )
+
+        assert exit_code == ExitCode.UNUSABLE_INPUT
+        captured = capsys.readouterr()
+        assert 'cocoa' in captured.err
+        assert 'recorded no test' in captured.err
+        assert not captured.out
+
     def test_images_prints_its_report(self, tmp_path, capsys):
         """The images command reads the request and both re-runs."""
         write_run(directory=tmp_path / 'dummy', records=[record()])
@@ -579,6 +594,7 @@ class TestCommandLine:
 
     def test_main_exits_with_the_exit_code(self, tmp_path, monkeypatch):
         """main() reads sys.argv and exits with run()'s code."""
+        write_run(directory=tmp_path, records=[record()])
         monkeypatch.setattr(sys, 'argv', ['compare_driver_frames.py', 'compare', f'x={tmp_path}'])
 
         with pytest.raises(SystemExit) as exit_info:

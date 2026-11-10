@@ -1,0 +1,202 @@
+[
+  {
+    "file": "ode_to_joy.abc",
+    "title": "Ode to Joy",
+    "origin": "Beethoven, 1824 (Symphony No. 9)",
+    "public_domain_reason": "Beethoven died 1827 and the symphony was published in 1826.",
+    "source_url": "https://thesession.org/tunes/15312",
+    "style": "march",
+    "suggested_instrument": "highland",
+    "suggested_tempo_quarter_bpm": 100
+  },
+  {
+    "file": "greensleeves.abc",
+    "title": "Greensleeves",
+    "origin": "English traditional, c.1580s",
+    "public_domain_reason": "16th-century English traditional melody of unknown authorship (transposed to G minor for range).",
+    "source_url": "https://thesession.org/tunes/1598",
+    "style": "air",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 90
+  },
+  {
+    "file": "amazing_grace.abc",
+    "title": "Amazing Grace (New Britain)",
+    "origin": "American traditional hymn tune, 1829",
+    "public_domain_reason": "The tune New Britain was published in 1829 (Southern Harmony 1835) by unknown composers.",
+    "source_url": "https://thesession.org/tunes/2749",
+    "style": "hymn",
+    "suggested_instrument": "highland",
+    "suggested_tempo_quarter_bpm": 84
+  },
+  {
+    "file": "auld_lang_syne.abc",
+    "title": "Auld Lang Syne",
+    "origin": "Scottish traditional, 18th century",
+    "public_domain_reason": "Traditional Scottish melody published in the 1790s, long before 1925.",
+    "source_url": "https://thesession.org/tunes/12441",
+    "style": "air",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 100
+  },
+  {
+    "file": "skye_boat_song.abc",
+    "title": "The Skye Boat Song",
+    "origin": "Scottish Gaelic traditional rowing air, published 1884",
+    "public_domain_reason": "Traditional Gaelic rowing air; the melody was published in 1884 (Songs of the North) so it is pre-1929.",
+    "source_url": "https://thesession.org/tunes/3690",
+    "style": "waltz",
+    "suggested_instrument": "highland",
+    "suggested_tempo_quarter_bpm": 90
+  },
+  {
+    "file": "loch_lomond.abc",
+    "title": "Loch Lomond",
+    "origin": "Scottish traditional, 19th century",
+    "public_domain_reason": "Traditional Scottish air first published in the 1840s.",
+    "source_url": "https://thesession.org/tunes/4952",
+    "style": "air",
+    "suggested_instrument": "highland",
+    "suggested_tempo_quarter_bpm": 80
+  },
+  {
+    "file": "campbells_are_coming.abc",
+    "title": "The Campbells Are Coming",
+    "origin": "Scottish traditional, 17th/18th century",
+    "public_domain_reason": "Traditional Scottish pipe march melody known since the 1700s.",
+    "source_url": "https://thesession.org/tunes/15641",
+    "style": "march",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 110
+  },
+  {
+    "file": "bluebells_of_scotland.abc",
+    "title": "The Blue Bells of Scotland",
+    "origin": "Scottish traditional, c.1800",
+    "public_domain_reason": "Traditional Scottish melody popularised around 1800, published well before 1925.",
+    "source_url": "https://thesession.org/tunes/14328",
+    "style": "march",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 110
+  },
+  {
+    "file": "scots_wha_hae.abc",
+    "title": "Scots Wha Hae (Hey Tuttie Taitie)",
+    "origin": "Scottish traditional, 18th century",
+    "public_domain_reason": "Traditional Scottish melody (Hey Tuttie Taitie) predating the 1793 Burns setting.",
+    "source_url": "https://thesession.org/tunes/26895",
+    "style": "march",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 100
+  },
+  {
+    "file": "minstrel_boy.abc",
+    "title": "The Minstrel Boy",
+    "origin": "Irish traditional air (Moreen), pub. 1813",
+    "public_domain_reason": "Traditional Irish air published in Moore's Irish Melodies in 1813; Moore died 1852.",
+    "source_url": "https://thesession.org/tunes/6782",
+    "style": "march",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 100
+  },
+  {
+    "file": "last_rose_of_summer.abc",
+    "title": "The Last Rose of Summer",
+    "origin": "Irish traditional air (The Groves of Blarney), pub. 1813",
+    "public_domain_reason": "Traditional Irish air published in Moore's Irish Melodies in 1813.",
+    "source_url": "https://thesession.org/tunes/6049",
+    "style": "waltz",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 80
+  },
+  {
+    "file": "rakes_of_mallow.abc",
+    "title": "The Rakes of Mallow",
+    "origin": "Irish traditional, 18th century",
+    "public_domain_reason": "Traditional Irish dance tune from the 1700s.",
+    "source_url": "https://thesession.org/tunes/85",
+    "style": "other",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 120
+  },
+  {
+    "file": "the_kesh.abc",
+    "title": "The Kesh Jig",
+    "origin": "Irish traditional jig",
+    "public_domain_reason": "Traditional Irish jig printed in O'Neill's collections of 1903 and earlier.",
+    "source_url": "https://thesession.org/tunes/55",
+    "style": "jig",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 120
+  },
+  {
+    "file": "rights_of_man.abc",
+    "title": "The Rights of Man",
+    "origin": "Irish traditional hornpipe, 18th/19th century",
+    "public_domain_reason": "Traditional Irish hornpipe from the 1790s, long in the public domain.",
+    "source_url": "https://thesession.org/tunes/83",
+    "style": "hornpipe",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 110
+  },
+  {
+    "file": "wind_that_shakes_the_barley.abc",
+    "title": "The Wind That Shakes the Barley",
+    "origin": "Irish traditional reel, 19th century",
+    "public_domain_reason": "Traditional Irish reel documented in 19th-century collections.",
+    "source_url": "https://thesession.org/tunes/116",
+    "style": "reel",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 120
+  },
+  {
+    "file": "parting_glass.abc",
+    "title": "The Parting Glass",
+    "origin": "Scottish/Irish traditional, 17th/18th century",
+    "public_domain_reason": "Traditional air known since the 1600s, published well before 1925.",
+    "source_url": "https://thesession.org/tunes/6275",
+    "style": "air",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 80
+  },
+  {
+    "file": "wearing_of_the_green.abc",
+    "title": "The Wearing of the Green",
+    "origin": "Irish traditional street ballad air, c.1780",
+    "public_domain_reason": "Traditional Irish street-ballad air from the late 18th century.",
+    "source_url": "https://thesession.org/tunes/4977",
+    "style": "march",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 100
+  },
+  {
+    "file": "planxty_irwin.abc",
+    "title": "Planxty Irwin",
+    "origin": "O'Carolan (1670-1738)",
+    "public_domain_reason": "O'Carolan died in 1738 and the piece was published in the 18th century.",
+    "source_url": "https://thesession.org/tunes/790",
+    "style": "waltz",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 100
+  },
+  {
+    "file": "londonderry_air.abc",
+    "title": "Londonderry Air",
+    "origin": "Irish traditional air, collected by Jane Ross 1851 and published by Petrie 1855",
+    "public_domain_reason": "Traditional Irish air published in 1855 (Petrie), long before 1925.",
+    "source_url": "https://thesession.org/tunes/6867",
+    "style": "air",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 66
+  },
+  {
+    "file": "garryowen.abc",
+    "title": "Garryowen",
+    "origin": "Irish traditional, late 18th century",
+    "public_domain_reason": "Traditional Irish tune from the late 1700s.",
+    "source_url": "https://thesession.org/tunes/1372",
+    "style": "jig",
+    "suggested_instrument": "uilleann",
+    "suggested_tempo_quarter_bpm": 120
+  }
+]

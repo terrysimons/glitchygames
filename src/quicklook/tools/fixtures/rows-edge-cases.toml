@@ -1,0 +1,118 @@
+# Hand-written fixture: one frame per edge case of the one pixel-row rule
+# (normalize_pixel_rows; docs/specs/2026-10-30-unified-pixel-rows-design.md)
+[[animation]]
+namespace = "edges"
+frame_interval = 1
+
+# long and short rows
+[[animation.frame]]
+frame_index = 0
+pixels = """
+x
+xxxx
+x
+"""
+
+# blank line between rows
+[[animation.frame]]
+frame_index = 1
+pixels = """
+ab
+
+ab
+"""
+
+# shared indentation
+[[animation.frame]]
+frame_index = 2
+pixels = """
+    ab
+    ab
+"""
+
+# unshared indentation
+[[animation.frame]]
+frame_index = 3
+pixels = """
+  ab
+ab
+ab
+"""
+
+# backslash and quote glyphs, written escaped
+[[animation.frame]]
+frame_index = 4
+pixels = """
+b\\
+bbb
+\"\"\"
+"""
+
+# a combining mark is its own pixel
+[[animation.frame]]
+frame_index = 5
+pixels = """
+e\u0301e
+"""
+
+# an emoji variation selector is its own pixel
+[[animation.frame]]
+frame_index = 6
+pixels = """
+\u2764\uFE0F
+"""
+
+# padding with a U+0000 palette key
+[[animation.frame]]
+frame_index = 7
+pixels = """
+a
+aa
+"""
+
+[colors."x"]
+red = 200
+green = 10
+blue = 10
+
+[colors."a"]
+red = 10
+green = 200
+blue = 10
+
+[colors."b"]
+red = 10
+green = 10
+blue = 200
+
+[colors."e"]
+red = 200
+green = 200
+blue = 10
+
+[colors."\\"]
+red = 120
+green = 60
+blue = 20
+
+[colors."\""]
+red = 20
+green = 60
+blue = 120
+
+[colors."\u2764"]
+red = 220
+green = 20
+blue = 60
+
+# Two code points (a heart and its variation selector): it can never match a pixel
+[colors."\u2764\uFE0F"]
+red = 0
+green = 0
+blue = 0
+
+# The padding glyph: dropped, so padding stays transparent
+[colors."\u0000"]
+red = 0
+green = 255
+blue = 0

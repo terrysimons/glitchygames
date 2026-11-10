@@ -737,6 +737,55 @@ class TestJoystickEventProxyDirectMethods:
         assert repr(proxy) == repr(proxy.joystick)
 
 
+_CACHED_MOTIONS = [
+    pytest.param(
+        (pygame.JOYAXISMOTION, 'on_joy_axis_motion_event', '_axes', 'axis', 'value', 0.5),
+        id='axis',
+    ),
+    pytest.param(
+        (pygame.JOYHATMOTION, 'on_joy_hat_motion_event', '_hats', 'hat', 'value', (1, 0)),
+        id='hat',
+    ),
+    pytest.param(
+        (pygame.JOYBALLMOTION, 'on_joy_ball_motion_event', '_balls', 'ball', 'rel', (2, 3)),
+        id='ball',
+    ),
+]
+
+
+class TestJoystickEventProxyCacheBounds:
+    """Axis, hat and ball events past the device's counts (BUGS.md #184 item 4)."""
+
+    @pytest.mark.parametrize('motion', _CACHED_MOTIONS)
+    def test_an_index_past_the_device_grows_its_cache(self, motion):
+        """An axis, hat or ball past the device's counts is stored, as a button is.
+
+        It raised IndexError.
+        """
+        event_type, handler_name, cache_name, index_field, value_field, value = motion
+        proxy, scene = _create_proxy()
+        past_the_device = len(getattr(proxy, cache_name)) + 2
+        event = HashableEvent(event_type, **{index_field: past_the_device, value_field: value})
+
+        getattr(proxy, handler_name)(event)
+
+        assert getattr(proxy, cache_name)[past_the_device] == value
+        assert len(_received(scene)) == 1
+
+    @pytest.mark.parametrize('motion', _CACHED_MOTIONS)
+    def test_a_negative_index_changes_nothing(self, motion):
+        """A negative axis, hat or ball is ignored, as a negative button is."""
+        event_type, handler_name, cache_name, index_field, value_field, value = motion
+        proxy, scene = _create_proxy()
+        cache_before = list(getattr(proxy, cache_name))
+        event = HashableEvent(event_type, **{index_field: -1, value_field: value})
+
+        getattr(proxy, handler_name)(event)
+
+        assert getattr(proxy, cache_name) == cache_before
+        assert _received(scene) == []
+
+
 class TestJoystickEventProxyFallbacks:
     """Test JoystickEventProxy fallback behavior for instance_id, guid, and power_level."""
 

@@ -1,0 +1,7 @@
+---
+# Where the local AI service lives, for the user running it (plans/lucid-circuit.md, section 6).
+# Nothing here is under the repository, or Dropbox would sync the models and the build tree.
+ai_home: "{{ ansible_facts['user_dir'] }}"
+ai_install_root: "{{ ai_home }}/Library/Application Support/GlitchyGames/AI"
+ai_cache_root: "{{ ai_home }}/Library/Caches/GlitchyGames/AI"
+ai_log_root: "{{ ai_home }}/Library/Logs/GlitchyGames/AI"

@@ -29,6 +29,7 @@ from glitchygames.ai import (
 from glitchygames.ai import (
     clean_ai_response as ai_clean_response,
 )
+from glitchygames.ai.sprite_generator import pixel_row_problems
 from glitchygames.color import (
     RGB_COMPONENT_COUNT,
 )
@@ -36,13 +37,21 @@ from glitchygames.sprites import (
     SPRITE_GLYPHS,
     SpriteFactory,
 )
+from glitchygames.sprites.animated import (
+    toml_basic_string,
+    toml_multiline_basic_string,
+    toml_pixel_block,
+    toml_tags_line,
+)
 from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
+from glitchygames.sprites.tags import TAGS_KEY, normalize_sprite_tags
 
 from .ai_worker import (
     build_retry_prompt,
     run_ai_worker_process,
     select_relevant_training_examples,
 )
+from .animated_canvas import pixel_row_repair_notice
 from .constants import (
     AI_FEATURES_ENABLED,
     AI_TRAINING_SINGLE_FRAME_EXAMPLE_COUNT,
@@ -173,6 +182,10 @@ class AIManager:
                 self.ai_process.start()
             except OSError, RuntimeError:
                 self.log.exception('Error initializing AI worker process')
+                # Close the queues before dropping them: each holds a pipe (BUGS.md #178 item 10)
+                for unused_queue in (self.ai_request_queue, self.ai_response_queue):
+                    if unused_queue is not None:
+                        unused_queue.close()
                 self.ai_request_queue = None
                 self.ai_response_queue = None
                 self.ai_process = None
@@ -497,47 +510,7 @@ class AIManager:
 
             # Check if we can retry
             if request_state.retry_count < AI_VALIDATION_MAX_RETRIES:
-                # Trigger retry with targeted prompt
-                request_state.retry_count += 1
-                request_state.last_error = validation_error
-
-                self.log.info(
-                    'Retrying request (attempt %s/%s)',
-                    request_state.retry_count + 1,
-                    AI_VALIDATION_MAX_RETRIES + 1,
-                )
-
-                # Build retry prompt with specific corrections
-                retry_prompt = build_retry_prompt(request_state.original_prompt, validation_error)
-
-                # Rebuild messages with retry prompt
-                messages = build_sprite_generation_messages(
-                    user_request=retry_prompt,
-                    training_examples=request_state.training_examples,
-                    max_examples=3,
-                    include_size_hint=True,
-                    include_animation_hint=True,
-                )
-
-                # Create new request with same ID
-                retry_request = AIRequest(
-                    prompt=str(messages),
-                    request_id=request_id,  # Reuse same ID
-                    messages=messages,
-                )
-
-                # Submit retry
-                assert self.ai_request_queue is not None
-                self.ai_request_queue.put(retry_request)
-
-                # Update UI
-                if hasattr(self.editor, 'debug_text'):
-                    self.editor.debug_text.text = (
-                        f'Retrying with corrections... (attempt'
-                        f' {request_state.retry_count + 1}/{AI_VALIDATION_MAX_RETRIES + 1})\n'
-                        f'Error: {validation_error}'
-                    )
-
+                self._retry_ai_request(request_id, request_state, validation_error)
                 # DON'T delete from pending_ai_requests - we're retrying
                 return
             # Max retries reached: give up without loading. This used to say "loading sprite
@@ -557,12 +530,87 @@ class AIManager:
             self._handle_ai_error_message(request_id, response.content)
             return
 
+        # Rows the loader would have to repair are retried too, but the last attempt is loaded
+        # repaired rather than thrown away (the owner, 2026-10-30): the repair only adds
+        # transparent pixels, and the load says what it repaired
+        pixel_rows_error = self._ai_pixel_row_problems(request_id, response.content)
+        if pixel_rows_error:
+            self.log.warning('AI response pixel rows need repair: %s', pixel_rows_error)
+            if request_state.retry_count < AI_VALIDATION_MAX_RETRIES:
+                self._retry_ai_request(request_id, request_state, pixel_rows_error)
+                return
+            self.log.warning(
+                'Max retries (%s) reached, loading the sprite with its pixel rows repaired',
+                AI_VALIDATION_MAX_RETRIES,
+            )
+
         # Valid response - load the sprite
         self._load_ai_sprite(request_id, response.content)
 
         # Remove from pending requests
         if request_id in self.pending_ai_requests:
             del self.pending_ai_requests[request_id]
+
+    def _ai_pixel_row_problems(self, request_id: str, content: str) -> str:
+        """Check the pixel rows of what loading this response would load.
+
+        Runs on _prepare_ai_content's result (cleaned, and rewritten when there is a prompt),
+        so the rows checked are the rows drawn.
+
+        Returns:
+            str: '' when no block needs repair or the content isn't TOML (the loader reports
+                that); otherwise the error (pixel_row_problems).
+
+        """
+        try:
+            data = tomllib.loads(self._prepare_ai_content(request_id, content))
+        except tomllib.TOMLDecodeError:
+            return ''
+        return pixel_row_problems(data)
+
+    def _retry_ai_request(
+        self, request_id: str, request_state: AIRequestState, validation_error: str
+    ) -> None:
+        """Queue the request again, under the same id, with a correction for the error."""
+        request_state.retry_count += 1
+        request_state.last_error = validation_error
+
+        self.log.info(
+            'Retrying request (attempt %s/%s)',
+            request_state.retry_count + 1,
+            AI_VALIDATION_MAX_RETRIES + 1,
+        )
+
+        # Build retry prompt with specific corrections
+        retry_prompt = build_retry_prompt(request_state.original_prompt, validation_error)
+
+        # Rebuild messages with retry prompt
+        messages = build_sprite_generation_messages(
+            user_request=retry_prompt,
+            training_examples=request_state.training_examples,
+            max_examples=3,
+            include_size_hint=True,
+            include_animation_hint=True,
+        )
+
+        # Create new request with same ID
+        retry_request = AIRequest(
+            prompt=str(messages),
+            request_id=request_id,  # Reuse same ID
+            messages=messages,
+        )
+
+        # Submit retry
+        assert self.ai_request_queue is not None
+        self.ai_request_queue.put(retry_request)
+
+        # Update UI
+        if hasattr(self.editor, 'debug_text'):
+            self.editor.debug_text.text = (
+                f'Retrying with corrections... (attempt'
+                f' {request_state.retry_count + 1}/{AI_VALIDATION_MAX_RETRIES + 1})\n'
+                f'Error: {validation_error}'
+            )
 
     def _log_ai_response_content(self, content: str) -> None:
         """Log AI response content for debugging."""
@@ -647,12 +695,10 @@ class AIManager:
                     '[[animation.frame]]',
                     f'namespace = "{animation["namespace"]}"',
                     f'frame_index = {frame["frame_index"]}',
-                    'pixels = """',
-                    # The closing quotes go on their own line, which ends the last pixel row:
-                    # keeping the parsed trailing newline too would add a blank line per
-                    # rewrite (BUGS.md #110 item 7)
-                    frame['pixels'].removesuffix('\n'),
-                    '"""',
+                    # toml_pixel_block escapes each row and drops the parsed trailing newline:
+                    # the closing quotes' line ends the last row, and keeping it too would add a
+                    # blank line per rewrite (BUGS.md #110 item 7)
+                    f'pixels = {toml_pixel_block(frame["pixels"])}',
                     '',
                 ])
         return lines
@@ -674,16 +720,20 @@ class AIManager:
             lines.append('[sprite]')
             sprite_data = data['sprite']
             if 'name' in sprite_data:
-                lines.append(f'name = "{sprite_data["name"]}"')
+                # str(): an AI can write a non-string name, which the rewrite used to accept
+                lines.append(f'name = {toml_basic_string(str(sprite_data["name"]))}')
             if 'description' in sprite_data:
-                lines.append(f'description = """{sprite_data["description"]}"""')
+                lines.append(
+                    f'description = {toml_multiline_basic_string(sprite_data["description"])}'
+                )
+            # The AI's tags (the format asks for them), in their one spelling; none, no line
+            tags_line = toml_tags_line(normalize_sprite_tags(sprite_data.get(TAGS_KEY)))
+            if tags_line:
+                lines.append(tags_line.removesuffix('\n'))
             if 'pixels' in sprite_data:
-                lines.extend((
-                    'pixels = """',
-                    # The closing quotes' line ends the last row (see _format_animation_sections)
-                    sprite_data['pixels'].removesuffix('\n'),
-                    '"""',
-                ))
+                # Escaped rows, the closing quotes' line ending the last (see
+                # _format_animation_sections)
+                lines.append(f'pixels = {toml_pixel_block(sprite_data["pixels"])}')
             lines.append('')
 
         # Add animation sections
@@ -696,14 +746,31 @@ class AIManager:
             # Dict keys are unique, so each color is written once
             for color_key, color_data in data['colors'].items():
                 lines.extend([
-                    f'[colors."{color_key}"]',
+                    f'[colors.{toml_basic_string(color_key)}]',
                     f'red = {color_data["red"]}',
                     f'green = {color_data["green"]}',
                     f'blue = {color_data["blue"]}',
-                    '',
                 ])
+                # A see-through color keeps its alpha (it used to be dropped, so it loaded opaque)
+                if 'alpha' in color_data:
+                    lines.append(f'alpha = {color_data["alpha"]}')
+                lines.append('')
 
         return '\n'.join(lines)
+
+    def _remove_temp_file(self, tmp_path: str) -> None:
+        """Delete a loaded AI response's temp file; failing to only logs a warning.
+
+        Args:
+            tmp_path: The temp file's path.
+
+        """
+        try:
+            Path(tmp_path).unlink(missing_ok=True)
+        except OSError:
+            self.log.warning('Could not remove the AI response temp file %s', tmp_path)
+        else:
+            self.log.debug('Removed the AI response temp file %s', tmp_path)
 
     def _create_temp_file_from_content(self, content: str) -> str:
         """Create temporary file from AI content and return the path.
@@ -785,7 +852,9 @@ class AIManager:
             else:
                 original_prompt = 'Enter a description of the sprite you want to create:'
 
-            self.editor.debug_text.text = original_prompt
+            # The canvas's own load notice is replaced along with its text, so it goes back too
+            canvas_sprite = getattr(getattr(self.editor, 'canvas', None), 'animated_sprite', None)
+            self.editor.debug_text.text = original_prompt + pixel_row_repair_notice(canvas_sprite)
 
     def _cleanup_ai_request(self, request_id: str) -> None:
         """Clean up pending AI request."""
@@ -1019,12 +1088,20 @@ class AIManager:
 
         # Generate color definitions using the consistent mapping (every color is an
         # RGB tuple: collect_unique_colors_from_pixels keeps three components)
+        # Past the glyph limit, build_color_to_glyph_mapping gives a color the glyph of its
+        # closest mapped color, so several colors can share a glyph: write each glyph's table
+        # once, with the color that owns it (the first in sorted order), or the TOML declares a
+        # table twice and cannot be parsed (BUGS.md #171)
         color_definitions = ''
+        defined_glyphs: set[str] = set()
         for color in sorted_colors:
+            glyph: str = color_to_glyph[color]
+            if glyph in defined_glyphs:
+                continue
+            defined_glyphs.add(glyph)
             red = int(color[0])
             green = int(color[1])
             blue = int(color[2])
-            glyph: str = color_to_glyph[color]
             color_definitions += (
                 f'[colors."{glyph}"]\nred = {red}\ngreen = {green}\nblue = {blue}\n\n'
             )
@@ -1119,6 +1196,7 @@ pixels = \"\"\"
 
         """
         sprite_name = config_data.get('sprite', {}).get('name', 'current_frame')
+        tags = normalize_sprite_tags(config_data.get('sprite', {}).get(TAGS_KEY))
         colors = config_data.get('colors', {})
 
         animations = config_data.get('animation', [])
@@ -1126,6 +1204,7 @@ pixels = \"\"\"
             pixels_data = config_data.get('sprite', {}).get('pixels', '')
             return {
                 'name': sprite_name,
+                'tags': tags,
                 'sprite_type': 'static',
                 'pixels': pixels_data.removesuffix('\n'),
                 'colors': colors,
@@ -1141,6 +1220,7 @@ pixels = \"\"\"
         ]
         return {
             'name': sprite_name,
+            'tags': tags,
             'sprite_type': 'animated',
             # Every frame's rows, one blank line between frames
             'pixels': '\n\n'.join(every_frame_pixels),
@@ -1164,11 +1244,15 @@ pixels = \"\"\"
             Tuple of (is_valid, error_message); the error is the raw content's.
 
         """
-        is_valid, error_message = validate_ai_response(content)
+        # Pixel rows are checked on what loads (_ai_pixel_row_problems), not here, so a sprite
+        # whose rows need repair is never mistaken for an error message
+        is_valid, error_message = validate_ai_response(content, check_pixel_rows=False)
         if is_valid:
             return True, ''
 
-        cleaned_is_valid, _ = validate_ai_response(self._clean_ai_response(content))
+        cleaned_is_valid, _ = validate_ai_response(
+            self._clean_ai_response(content), check_pixel_rows=False
+        )
         if cleaned_is_valid:
             return True, ''
         return False, error_message
@@ -1393,9 +1477,14 @@ pixels = \"\"\"
             AttributeError,
             pygame.error,
         ) as sprite_error:
+            # Kept: the file the loader refused is the one worth inspecting
+            self.log.info('Kept the AI response that failed to load: %s', tmp_path)
             self._handle_ai_sprite_load_error(sprite_error, request_id, content)
             return
-        # Note: Temp file is kept for debugging - remove this comment when done debugging
+
+        # Loaded: the canvas has the sprite, and the content is kept below, so the file goes
+        # (each response used to leave one in the temp directory: BUGS.md #178 item 9)
+        self._remove_temp_file(tmp_path)
 
         # Save successful sprite content for future refinements
         self.last_successful_sprite_content = cleaned_content

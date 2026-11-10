@@ -59,6 +59,7 @@ from glitchygames.debug.overlay import (
     load_debug_font,
 )
 from glitchygames.debug.panels import HUD_LINE_HEIGHT, HUD_MARGIN, HUD_TEXT_COLOR, blit_text
+from glitchygames.fonts import FontManager
 from glitchygames.ui.message_screen import MessageScreen
 
 if TYPE_CHECKING:
@@ -616,7 +617,7 @@ class ReplayControls:
         if [(text, color) for text, color, _ in self._rendered_lines] != lines:
             font = self._loaded_font()
             self._rendered_lines = [
-                (text, color, font.render(text, antialias=True, color=color))
+                (text, color, font.render(text, antialias=FontManager.antialias(), color=color))
                 for text, color in lines
             ]
         line_top = surface.get_height() - HUD_MARGIN
@@ -636,7 +637,7 @@ class ReplayControls:
         surface.fill(REBUILD_BACKGROUND_COLOR)
         text_surface = self._loaded_font().render(
             rebuild_progress_text(frame_index=self.current_frame, target_frame=target_frame),
-            antialias=True,
+            antialias=FontManager.antialias(),
             color=HUD_TEXT_COLOR,
         )
         surface.blit(

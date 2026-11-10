@@ -534,8 +534,9 @@ flowchart TB
 - **Movement is frame-driven.** Handlers only update the ActionMaps; the paddles are moved by
   `_process_paddle_input` at the top of `dt_tick`, from the held state.
 - **Input mode.** The ActionMaps take the engine's `--input-mode` (default `auto`: a mapped pad's
-  controller events and any other device's joystick events, each press once). PaddleSlap handles
-  both families, so a pad works in every mode.
+  controller events and any other device's joystick events, each press once) and its
+  `--axis-deadzone` (`ActionMap.from_engine_options`). PaddleSlap handles both families, so a pad
+  works in every mode.
 - **Instance ids, not player slots.** SDL numbers devices in the order they appear, so the first
   pad connected drives the left paddle; a pad that is unplugged and plugged back in gets a new
   instance id and no longer matches its binding.

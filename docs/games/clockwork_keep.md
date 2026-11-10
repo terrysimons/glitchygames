@@ -31,6 +31,7 @@ Every engine option applies too. The ones the game reads or depends on:
 | Option | Used for |
 |---|---|
 | `--input-mode {auto,joystick,controller}` | The gamepad event family its `ActionMap` binds (engine default `auto`) |
+| `--axis-deadzone` | Passed to its `ActionMap` (`ActionMap.from_engine_options`); the game binds no axes, so it changes nothing yet |
 | `--screen-shake-intensity` | Passed to the floor's `Camera2D` (`shake_intensity`) |
 | `--rumble-intensity` | Scales the elevator's rumble (the scene manager's `RumbleController`) |
 | `--random-seed` | Seeds the engine's `shake` stream, the only randomness in a session (the rattle shake) |

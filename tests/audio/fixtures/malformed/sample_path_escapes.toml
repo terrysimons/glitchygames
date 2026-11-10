@@ -1,0 +1,6 @@
+[glitchygames]
+kind = "sounds"
+version = 1
+
+[sounds.coin]
+file = "../../outside/slap.wav"

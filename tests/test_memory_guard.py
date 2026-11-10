@@ -40,6 +40,13 @@ THREAD_WAIT_SECONDS = 30.0
 SHORT_INTERVAL_SECONDS = 0.001
 
 
+# Every inner run: the guard plugin; pytest-randomly blocked, as the project's addopts block it
+# (an inner run reads none of them): the inner tests' order is what they check, and a stand-in
+# xdist worker has no seed for it to read; --assert=plain: this process imported the plugin
+# already, so pytest could not rewrite it (PytestAssertRewriteWarning)
+INNER_RUN_ARGUMENTS = ('-p', 'tests.memory_guard', '-p', 'no:randomly', '--assert=plain')
+
+
 def mebibytes(count: int) -> int:
     """Return ``count`` mebibytes in bytes.
 
@@ -319,7 +326,7 @@ def test_the_plugin_stops_a_run_past_the_limit_naming_its_test(pytester, monkeyp
 
     # --assert=plain: this process imported the plugin already, so pytest could not rewrite it
     # (PytestAssertRewriteWarning); it asserts nothing
-    result = pytester.runpytest_inprocess('-p', 'tests.memory_guard', '--assert=plain')
+    result = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS)
 
     result.assert_outcomes(passed=2)
     (message,) = stops.messages
@@ -346,7 +353,7 @@ def test_the_plugin_does_nothing_unset(pytester, monkeypatch):
         )
     )
 
-    result = pytester.runpytest_inprocess('-p', 'tests.memory_guard', '--assert=plain')
+    result = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS)
 
     result.assert_outcomes(passed=1)
 
@@ -400,6 +407,29 @@ def test_the_cgroup_reader_leaves_out_the_reclaimable_page_cache(tmp_path: Path)
 
     assert reader is not None
     assert reader() == mebibytes(1900 - 600 + 50)
+
+
+def test_the_readers_ignore_a_tests_patched_file_reading(tmp_path: Path, mocker):
+    """A test patching Path.open or open process-wide cannot feed the guard's thread its file.
+
+    test_sprite_factory.py patched pathlib.Path.open with fake sprite TOML; a sample taken
+    then read it and failed the Linux CI run (int() of the TOML's bytes).
+    """
+    cgroup = write_cgroup(
+        tmp_path / 'cgroup', limit='2147483648', current=mebibytes(10), file=0, shmem=0
+    )
+    statm = tmp_path / 'statm'
+    statm.write_text('1000 250 0 0 0 0 0\n', encoding='ascii')
+    cgroup_reader = cgroup_memory_reader(directory=cgroup)
+    statm_reader = statm_resident_reader(path=statm, page_bytes=lambda: 4096)
+    assert cgroup_reader is not None
+    assert statm_reader is not None
+    fake_path_open = mocker.patch('pathlib.Path.open')
+    fake_path_open.return_value.__enter__.return_value.read.return_value = b'[sprite]\n'
+    mocker.patch('builtins.open', side_effect=AssertionError('the guard used open'))
+
+    assert cgroup_reader() == mebibytes(10)
+    assert statm_reader() == 250 * 4096
 
 
 @pytest.mark.parametrize('limit', ['max', None], ids=['no limit', 'no cgroup'])
@@ -509,7 +539,7 @@ def test_an_xdist_worker_makes_no_guard(pytester, monkeypatch, tmp_path):
         )
     )
 
-    result = pytester.runpytest_inprocess('-p', 'tests.memory_guard', '--assert=plain')
+    result = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS)
 
     result.assert_outcomes(passed=1)
 
@@ -524,7 +554,7 @@ def test_the_run_summary_names_the_peak_the_guard_saw(pytester, monkeypatch, tmp
     monkeypatch.setenv(LIMIT_VARIABLE, '1600')
     pytester.makepyfile(test_inner_run=PLUGIN_RUN_TESTS)
 
-    result = pytester.runpytest_inprocess('-p', 'tests.memory_guard', '--assert=plain')
+    result = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS)
 
     result.assert_outcomes(passed=2)
     result.stdout.fnmatch_lines([f'memory guard: peak 300 MiB of {STATM_SOURCE}, limit 1600 MiB'])
@@ -618,7 +648,7 @@ def test_the_run_summary_names_the_containers_slab(pytester, monkeypatch, tmp_pa
     monkeypatch.setenv(LIMIT_VARIABLE, '1600')
     pytester.makepyfile(test_inner_run=PLUGIN_RUN_TESTS)
 
-    result = pytester.runpytest_inprocess('-p', 'tests.memory_guard', '--assert=plain')
+    result = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS)
 
     result.assert_outcomes(passed=2)
     expected = (

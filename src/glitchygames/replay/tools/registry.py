@@ -38,6 +38,7 @@ from glitchygames.argument_types import (
     non_negative_percent,
     percent_from_zero_to_one_hundred,
 )
+from glitchygames.audio.offline import SAMPLE_FORMATS
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.driver import REPLAY_FPS_CHOICES
 from glitchygames.replay.tools.children import GAME_FORMS
@@ -60,6 +61,13 @@ from glitchygames.replay.tools.report import (
     DEFAULT_THRESHOLD_PERCENT,
     report_command,
     report_on_the_game,
+)
+from glitchygames.replay.tools.sound_tools import (
+    MIGRATED_SUFFIX,
+    sound_migrate_command,
+    sound_migrate_on_the_game,
+    sound_render_command,
+    sound_render_on_the_game,
 )
 from glitchygames.replay.tools.traces import (
     record_golden_trace_command,
@@ -1091,6 +1099,35 @@ PUBLISHED_OPTION = ToolOption(
     ),
     default=False,
 )
+# sound-render's options (glitchygames/replay/tools/sound_tools.py): the WAV file it writes and
+# its samples (glitchygames.audio.offline.SAMPLE_FORMATS)
+SOUND_OUTPUT_OPTION = ToolOption(
+    flag='--sound-output',
+    kind='path',
+    metavar='PATH',
+    required=True,
+    help='with --sound-render: the WAV file to write',
+)
+SAMPLE_FORMAT_OPTION = ToolOption(
+    flag='--sample-format',
+    kind='choice',
+    choices=SAMPLE_FORMATS,
+    default=SAMPLE_FORMATS[0],
+    help=(
+        "with --sound-render: the WAV file's samples, int16 (16-bit PCM, samples beyond full "
+        'scale clipped) or float32 (kept) (default: int16)'
+    ),
+)
+# sound-migrate's option: where the version 1 file goes
+MIGRATED_OUTPUT_OPTION = ToolOption(
+    flag='--migrated-output',
+    kind='path',
+    metavar='PATH',
+    help=(
+        "with --sound-migrate: the version 1 file to write, never FILE itself (default: FILE's "
+        f'stem with {MIGRATED_SUFFIX}, beside it)'
+    ),
+)
 
 TOOLS: tuple[Tool, ...] = (
     Tool(
@@ -1278,5 +1315,42 @@ TOOLS: tuple[Tool, ...] = (
         value_metavar='DIRECTORY',
         value_help='where the pages go (created when missing)',
         project_root_use='project',
+    ),
+    Tool(
+        name='sound-render',
+        help=(
+            'render a sound offline to a WAV file, opening no audio device (the compiled '
+            f'buffer bit for bit); exits {ExitCode.SUCCESS:d}, {ExitCode.MISSING_INPUT:d} for a '
+            f'missing file, {ExitCode.UNUSABLE_INPUT:d} for a sound that cannot be read or '
+            f'compiled, {ExitCode.CANNOT_WRITE_OUTPUT:d} for an output that cannot be written; '
+            'runs no game (default: off)'
+        ),
+        options=(SOUND_OUTPUT_OPTION, SAMPLE_FORMAT_OPTION),
+        runs_game=False,
+        game_handler=sound_render_on_the_game,
+        command_handler=sound_render_command,
+        value_metavar='SOURCE',
+        value_help=(
+            'the sound: a sound file and the sound in it (sounds/pickups.toml#coin), or a WAV file'
+        ),
+        project_root_use='unused',
+    ),
+    Tool(
+        name='sound-migrate',
+        help=(
+            'rewrite a version 0 sound recipe file as a version 1 sound file, naming every '
+            f'field version 1 cannot say yet; exits {ExitCode.SUCCESS:d}, '
+            f'{ExitCode.MISSING_INPUT:d} for a missing file, {ExitCode.UNUSABLE_INPUT:d} for one '
+            f'that cannot be read or migrated, {ExitCode.OPTIONS_REFUSED:d} when it would '
+            f'overwrite FILE, {ExitCode.CANNOT_WRITE_OUTPUT:d} for an output that cannot be '
+            'written; runs no game (default: off)'
+        ),
+        options=(MIGRATED_OUTPUT_OPTION,),
+        runs_game=False,
+        game_handler=sound_migrate_on_the_game,
+        command_handler=sound_migrate_command,
+        value_metavar='FILE',
+        value_help='the version 0 recipe file ([recipes.<name>] tables)',
+        project_root_use='unused',
     ),
 )

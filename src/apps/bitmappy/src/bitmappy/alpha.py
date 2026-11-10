@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE, RGBA_COMPONENT_COUNT
+from glitchygames.sprites.tags import TAGS_KEY, normalize_sprite_tags
 
 from .constants import ai_training_state
 from .toml_processing import normalize_toml_data
@@ -182,6 +183,8 @@ def parse_toml_sprite_data(config_file: Path) -> tuple[dict[str, Any], dict[str,
 
     sprite_data = {
         'name': config_data.get('sprite', {}).get('name', 'Unknown'),
+        # What the example is: the AI's example choice scores these first (ai_worker)
+        'tags': normalize_sprite_tags(config_data.get('sprite', {}).get(TAGS_KEY)),
         'format': ai_training_state['format'],
         'sprite_type': 'animated' if 'animation' in config_data else 'static',
         'has_alpha': False,

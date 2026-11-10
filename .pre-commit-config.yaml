@@ -5,6 +5,20 @@ default_install_hook_types: [pre-commit, pre-push]
 repos:
 - repo: local
   hooks:
+    # Also measures what is being pushed on the Raspberry Pis, both at once, and copies their rows
+    # here, staged (scripts/measure_on_raspberry_pi.py, by hand: nox -s measure-on-raspberry-pi).
+    # First, and
+    # fail_fast: a push that stops for rows to commit runs the checks below once, not twice.
+    # SKIP=raspberry-pi-replay-metrics git push ... skips it
+    - id: raspberry-pi-replay-metrics
+      name: raspberry-pi-replay-metrics (measure on the Pis, copy the rows here)
+      language: system
+      entry: uv run --locked --extra dev nox -s measure-on-raspberry-pi
+      pass_filenames: false
+      always_run: true
+      fail_fast: true
+      stages: [pre-push]
+
     - id: format
       name: format (code, toml, markdown)
       language: system
@@ -50,13 +64,37 @@ repos:
       pass_filenames: false
       stages: [pre-push]
 
+    # The suite in a shuffled order (pytest-randomly, a new seed each push): order-dependent
+    # tests surface here, where CI's fixed order would hide them. A failure prints its seed and
+    # the command that replays it; SKIP=test-random git push ... skips it
+    - id: test-random
+      name: test-random (the suite, shuffled)
+      language: system
+      entry: uv run --extra dev nox -s test-random
+      pass_filenames: false
+      stages: [pre-push]
+
+    # The suite on the dummy driver (twice: frames that vary between those runs are not counted)
+    # and on every native driver here, each its own run: a test presenting different frames on
+    # a native driver than on dummy is a driver dependence (BUGS.md #254) and stops the push.
+    # The report and difference images: test-results/driver-comparison/nox/matrix.md.
+    # SKIP=compare-drivers git push ... skips it
+    - id: compare-drivers
+      name: compare-drivers (dummy vs the native driver, each its own run)
+      language: system
+      entry: uv run --extra dev nox -s compare-drivers -- --drivers native --fail-on-difference
+      pass_filenames: false
+      stages: [pre-push]
+
     # Measures the golden replays on the code being committed when it can change them, and
     # stages the rows (quality/replay-ledger/) into the same commit
-    # (scripts/measure_staged_replays.py); SKIP=replay-metrics git commit ... skips it
+    # (scripts/measure_staged_replays.py, by hand: nox -s measure-staged); SKIP=replay-metrics
+    # git commit ... skips it. --locked: a stale uv.lock fails the hook saying so, where a plain
+    # uv run would rewrite the lock and pre-commit would then fail the hook for modifying files
     - id: replay-metrics
       name: replay-metrics (measure the staged code)
       language: system
-      entry: uv run python -m scripts.measure_staged_replays
+      entry: uv run --locked --extra dev nox -s measure-staged
       pass_filenames: false
       always_run: true
       stages: [pre-commit]

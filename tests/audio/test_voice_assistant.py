@@ -1,7 +1,7 @@
 """Tests for the push-to-talk voice assistant (glitchygames/audio/voice_assistant.py).
 
-The controller's audio, speech_recognition, aisuite and the TTS backend are the boundaries
-and are replaced with fakes; the background pipeline is run synchronously.
+The controller's audio, speech_recognition, the local AI service's client and the TTS backend
+are the boundaries and are replaced with fakes; the background pipeline is run synchronously.
 """
 
 from __future__ import annotations
@@ -26,15 +26,17 @@ from glitchygames.process import OutputCapture, run_command
 HEARD_TEXT = 'how do I jump'
 AI_ANSWER = 'Press the cross button to jump.'
 SPEECH_FILE = Path('generated-speech.wav')
-# Run in a fresh interpreter: whether the engine and its live voices import aisuite, whether
-# asking the package for the voice assistant does, and whether that is the class its module defines
+# Run in a fresh interpreter: whether the engine and its live voices import the local AI
+# service's client, whether asking the package for the voice assistant does (the client loads on
+# the first request), and whether that is the class its module defines
 LAZY_IMPORT_PROBE = """\
 import json, sys
 import glitchygames.engine, glitchygames.audio.live
-before = 'aisuite' in sys.modules
+before = 'glitchygames.ai.local_service' in sys.modules
 from glitchygames.audio import VoiceAssistant
 from glitchygames.audio.voice_assistant import VoiceAssistant as Defined
-print(json.dumps([before, 'aisuite' in sys.modules, VoiceAssistant is Defined]))
+after = 'glitchygames.ai.local_service' in sys.modules
+print(json.dumps([before, after, VoiceAssistant is Defined]))
 """
 
 
@@ -69,7 +71,7 @@ class RecordedThread:
 
 
 class FakeAIClient:
-    """Stands in for aisuite.Client: answers scripted replies and records the requests.
+    """Stands in for the local service's client: answers scripted replies and records the requests.
 
     A reply may be a string, an exception to raise, or a callable run during the request (to act
     while the request is in flight) whose result is used as the reply.
@@ -146,19 +148,16 @@ def recognizer(mocker):
 
 @pytest.fixture
 def ai_replies(mocker):
-    """Install an aisuite stand-in; the test fills the replies list it answers from.
+    """Install a stand-in for the local service's client; the test fills the replies it answers.
 
     Returns:
         A namespace with the `replies` to answer and the `requests` received.
 
     """
     exchange = types.SimpleNamespace(replies=[], requests=[])
-    mocker.patch.object(
-        voice_assistant,
-        'ai',
-        types.SimpleNamespace(
-            Client=lambda: FakeAIClient(replies=exchange.replies, requests=exchange.requests)
-        ),
+    mocker.patch(
+        'glitchygames.ai.local_service.create_chat_client',
+        side_effect=lambda: FakeAIClient(replies=exchange.replies, requests=exchange.requests),
     )
     return exchange
 
@@ -201,7 +200,6 @@ def assistant(controller, tts_backend, delivered):
     """
     return VoiceAssistant(
         controller,
-        ai_provider='test-provider',
         ai_model='test-model',
         system_prompt='Be brief.',
         on_transcription=delivered.transcriptions.append,
@@ -211,22 +209,22 @@ def assistant(controller, tts_backend, delivered):
 
 
 class TestConfiguration:
-    """The AI provider and model come from arguments, then the environment, then defaults."""
+    """The AI model comes from the argument, then the environment, then the default."""
 
     def test_arguments_win(self, assistant):
-        """Explicit provider and model are used."""
-        assert assistant._ai_provider == 'test-provider'
+        """The explicit model is used."""
         assert assistant._ai_model == 'test-model'
 
     def test_environment_then_defaults(self, controller, tts_backend, monkeypatch):
-        """SPRITE_AI_PROVIDER / SPRITE_AI_MODEL apply when set, else the defaults."""
-        monkeypatch.setenv('SPRITE_AI_PROVIDER', 'env-provider')
+        """SPRITE_AI_MODEL applies when set, else the default role."""
+        monkeypatch.setenv('SPRITE_AI_MODEL', 'env-model')
+        from_environment = VoiceAssistant(controller)
         monkeypatch.delenv('SPRITE_AI_MODEL', raising=False)
 
         configured = VoiceAssistant(controller)
 
-        assert configured._ai_provider == 'env-provider'
-        assert configured._ai_model == 'claude-sonnet-4-5'
+        assert from_environment._ai_model == 'env-model'
+        assert configured._ai_model == 'reasoning'
         assert configured.is_listening is False
         assert configured.is_processing is False
 
@@ -309,7 +307,7 @@ class TestPipeline:
         assert delivered.transcriptions == [HEARD_TEXT]
         (request,) = ai_replies.requests
         assert request == {
-            'model': 'test-provider:test-model',
+            'model': 'test-model',
             'messages': [
                 {'role': 'system', 'content': 'Be brief.'},
                 {'role': 'user', 'content': HEARD_TEXT},
@@ -502,16 +500,21 @@ class TestPipeline:
         # The unanswered question is dropped from the history (BUGS.md #105)
         assert assistant._conversation == []
 
-    def test_without_aisuite(self, assistant, recognizer, mocker, delivered, caplog):
-        """No aisuite module: a warning and 'No response from AI'."""
-        mocker.patch.object(voice_assistant, 'ai', None)
+    def test_without_the_local_service(self, assistant, recognizer, mocker, delivered, caplog):
+        """The local AI service not installed: a warning and 'No response from AI'."""
+        from glitchygames.ai.local_service import LocalAIServiceNotInstalledError
+
+        mocker.patch(
+            'glitchygames.ai.local_service.create_chat_client',
+            side_effect=LocalAIServiceNotInstalledError('not installed'),
+        )
 
         with caplog.at_level(logging.WARNING, logger='game.audio.voice_assistant'):
             assistant._process_pipeline(b'')
         assistant.update()
 
         assert delivered.errors == ['No response from AI']
-        assert 'aisuite not available' in caplog.text
+        assert 'AI request failed' in caplog.text
 
     @pytest.mark.usefixtures('recognizer')
     def test_unexpected_failure_is_reported_at_the_thread_boundary(
@@ -660,10 +663,10 @@ class TestFactories:
 
 
 class TestThePackagesLazyImport:
-    """``glitchygames.audio`` imports the voice assistant (and aisuite) only when asked for it."""
+    """``glitchygames.audio`` imports the voice assistant only when asked, the AI client later."""
 
-    def test_the_engine_imports_no_aisuite_until_the_voice_assistant_is_asked_for(self):
-        """In a fresh interpreter: the engine and the live voices first, then the assistant."""
+    def test_the_engine_imports_no_ai_client_until_the_voice_assistant_is_asked_for(self):
+        """In a fresh interpreter: the engine, the live voices and the assistant do not load it."""
         completed = run_command(
             command=[sys.executable, '-c', LAZY_IMPORT_PROBE],
             environment=dict(os.environ),
@@ -672,7 +675,7 @@ class TestThePackagesLazyImport:
         )
 
         assert completed.returncode == 0, completed.stdout
-        assert json.loads(completed.stdout.strip().splitlines()[-1]) == [False, True, True]
+        assert json.loads(completed.stdout.strip().splitlines()[-1]) == [False, False, True]
 
     def test_the_package_gives_the_voice_assistant_class(self):
         """The name the package exports is the class its module defines."""

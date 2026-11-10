@@ -52,6 +52,8 @@ LOG = logging.getLogger('game.ui')
 LOG.addHandler(logging.NullHandler())
 
 CURSOR_BLINK_HALF_SECOND = 0.5
+# The input box's text color; `color` is its border and cursor (BUGS.md #178 item 30)
+INPUT_BOX_TEXT_COLOR = (255, 255, 255)
 
 
 class InputBox(Sprite):
@@ -89,10 +91,9 @@ class InputBox(Sprite):
 
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         pygame.font.init()
-        self.offset_x: int = self.parent.x if self.parent else 0
-        self.offset_y: int = self.parent.y if self.parent else 0
-        self.rect.x = x + self.offset_x
-        self.rect.y = y + self.offset_y
+        # The box sits at (x, y) on its own; a parent only receives its submit, confirm and
+        # cancel (an offset from the parent, computed here before the parent was even set and
+        # then overwritten, is gone: BUGS.md #165)
         self.rect = pygame.Rect(x, y, width, height)
         self.color = color
         # The bundled default font, loaded from its file through FontManager (cached): never a
@@ -103,10 +104,10 @@ class InputBox(Sprite):
             FontManager.pygame_font(font_config={'font_name': DEFAULT_FONT_NAME, 'font_size': 14}),
         )
         self.text = text
-        self.text_image = self.font.render(self.text, True, self.color)  # ruff: ignore[boolean-positional-value-in-call]
+        self.text_image = self.font.render(self.text, FontManager.antialias(), INPUT_BOX_TEXT_COLOR)
         self.is_active = False
-        self.image = pygame.Surface((self.width, self.height))
-        self.image.convert()
+        # Keep convert()'s result: the converted copy is the one in the display's format (#143)
+        self.image = pygame.Surface((self.width, self.height)).convert()
         self.parent = parent
         self.cursor_rect = self.text_image.get_rect()
 
@@ -134,7 +135,9 @@ class InputBox(Sprite):
         if self.parent:
             callback = getattr(self.parent, 'on_input_box_submit_event', None)
             if callback:
-                callback(event=self)
+                # The parent gets the box as `control`, the name its handlers take: `event=`
+                # raised TypeError in the dialog scene and text input demo (BUGS.md #178 item 12)
+                callback(control=self)
             else:
                 self.log.info(
                     '%s: Submitted "%s" but no parent is configured.', self.name, self.text
@@ -168,7 +171,7 @@ class InputBox(Sprite):
             screen (pygame.Surface | None): The surface to render to.
 
         """
-        self.text_image = self.font.render(self.text, True, (255, 255, 255))  # ruff: ignore[boolean-positional-value-in-call]
+        self.text_image = self.font.render(self.text, FontManager.antialias(), INPUT_BOX_TEXT_COLOR)
 
     def on_mouse_up_event(self: Self, _event: HashableEvent) -> None:
         """Handle mouse up events.
@@ -203,6 +206,11 @@ class InputBox(Sprite):
                 on_confirm = getattr(self.parent, 'on_confirm_event', None)
                 if on_confirm:
                     on_confirm(event=event, trigger=self)
+            elif event.key == pygame.K_ESCAPE:
+                # Escape cancels, as the Cancel button does (BUGS.md #165 item 6)
+                on_cancel = getattr(self.parent, 'on_cancel_event', None)
+                if on_cancel:
+                    on_cancel(event=event, trigger=self)
             else:
                 # Handle other key input
                 if event.key == pygame.K_BACKSPACE:
@@ -211,8 +219,9 @@ class InputBox(Sprite):
                 elif event.key == pygame.K_SEMICOLON and (event.mod & pygame.KMOD_SHIFT):
                     # Shift+; produces colon (:) - handle case where unicode might not be set
                     self.text += ':'
-                elif event.unicode:
-                    # Use unicode if available
+                elif event.unicode and event.unicode.isprintable():
+                    # Printable text only: control characters (Tab, Ctrl+letters) would be
+                    # invisible in a file name (BUGS.md #165 item 6)
                     self.text += event.unicode
                 self.render()
 
@@ -406,15 +415,15 @@ class InputDialog(BitmappySprite):
         self.log.info('%s Got text input from: %s: %s', self.name, control_name, control_text)
         self.on_cancel_event(event=control, trigger=control)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
-    def on_input_box_submit_event(self: Self, event: HashableEvent) -> None:
-        """Handle input box submit events.
+    def on_input_box_submit_event(self: Self, control: InputBox) -> None:
+        """Handle a submit from the dialog's input box.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            control (InputBox): The input box that was submitted.
 
         """
-        self.log.info('%s Got text input from: %s: %s', self.name, event.name, event.text)
-        self.on_confirm_event(event=event, trigger=event)
+        self.log.info('%s Got text input from: %s: %s', self.name, control.name, control.text)
+        self.on_confirm_event(event=control, trigger=control)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
     @override
     def on_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:

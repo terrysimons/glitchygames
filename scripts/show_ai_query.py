@@ -8,10 +8,6 @@ including system prompts, training examples, and user requests.
 
 import logging
 import sys
-from pathlib import Path
-
-# Add the project root to the Python path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from glitchygames.exit_codes import ExitCode
 
@@ -52,7 +48,7 @@ def construct_ai_query(
     log_separator('BITMAPPY AI QUERY CONSTRUCTION')
 
     # AI Configuration (extracted from bitmappy.py)
-    ai_model: str = 'ollama:mistral-nemo:12b'
+    ai_model: str = 'reasoning'
     ai_max_input_tokens: int = 8192
     ai_training_format: str = 'toml'
 

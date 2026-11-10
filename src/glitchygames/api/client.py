@@ -25,7 +25,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, cast
 
-import httpx
+import httpx2
 from apng import APNG, PNG
 
 from glitchygames import clock
@@ -134,7 +134,7 @@ def create_parser() -> argparse.ArgumentParser:
         metavar='MODEL',
         help=(
             'Override the AI model for generation '
-            "(aisuite format, e.g., 'anthropic:claude-sonnet-4-5')"
+            "(a role or an exact size, e.g., 'reasoning' or 'bonsai-2-9b')"
         ),
     )
 
@@ -155,7 +155,7 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _response_object(*, response: httpx.Response) -> dict[str, Any]:
+def _response_object(*, response: httpx2.Response) -> dict[str, Any]:
     """Return a successful response's JSON body, which the API always sends as an object.
 
     A body that is not JSON raises ValueError (from ``response.json()``). Both that and the
@@ -205,7 +205,7 @@ def extract_apng_frames(
 
     LOG.debug('Sending extract request to %s', url)
 
-    with httpx.Client(timeout=60.0) as client:
+    with httpx2.Client(timeout=60.0) as client:
         response = client.post(url, json=payload)
         response.raise_for_status()
         return _response_object(response=response)
@@ -238,7 +238,7 @@ def generate_sprite(  # ruff: ignore[too-many-arguments]
         film_strip_count: Number of film strips to create (optional)
         animation_duration: Duration of animation in seconds (optional)
         png_scale: Scale factor for PNG output
-        model: AI model override in aisuite format (e.g., 'anthropic:claude-sonnet-4-5')
+        model: AI model override: a role or an exact size (e.g., 'bonsai-2-9b')
 
     Returns:
         API response as a dictionary
@@ -272,7 +272,7 @@ def generate_sprite(  # ruff: ignore[too-many-arguments]
     LOG.debug('Sending request to %s', url)
     LOG.debug('Payload: %s', json.dumps(payload, indent=2))
 
-    with httpx.Client(timeout=300.0) as client:
+    with httpx2.Client(timeout=300.0) as client:
         response = client.post(url, json=payload)
         response.raise_for_status()
         return _response_object(response=response)
@@ -599,10 +599,10 @@ def save_files_locally(  # ruff: ignore[too-many-arguments]
 
 
 # What sending a request and reading its response can raise (_exit_code_for_request_error):
-# httpx's errors, its InvalidURL (not an HTTPError), an input file that cannot be read,
+# httpx2's errors, its InvalidURL (not an HTTPError), an input file that cannot be read,
 # ValueError from decoding the response's JSON, and TypeError for JSON that is not an object
 # (raised by _response_object)
-REQUEST_ERRORS = (httpx.HTTPError, httpx.InvalidURL, OSError, ValueError, TypeError)
+REQUEST_ERRORS = (httpx2.HTTPError, httpx2.InvalidURL, OSError, ValueError, TypeError)
 
 # What handling a successful response can raise (_exit_code_for_response_handling_error):
 # writing the output (OSError), and a malformed response (ValueError such as binascii.Error from
@@ -639,17 +639,17 @@ def _exit_code_for_server_error(
         error (not about the server's reachability or status).
 
     """
-    if isinstance(error, (httpx.InvalidURL, httpx.UnsupportedProtocol)):
+    if isinstance(error, (httpx2.InvalidURL, httpx2.UnsupportedProtocol)):
         LOG.error('Cannot use the server URL %r: %s', server_url, error)
         return ExitCode.OPTIONS_REFUSED
-    if isinstance(error, httpx.ConnectError):
+    if isinstance(error, httpx2.ConnectError):
         LOG.error('Could not connect to server at %s', server_url)
         LOG.error('Is the server running? Start it with: glitchygames-server')
         return ExitCode.SERVICE_UNAVAILABLE
-    if isinstance(error, httpx.TransportError):
+    if isinstance(error, httpx2.TransportError):
         LOG.error('The server at %s did not answer: %r', server_url, error)
         return ExitCode.SERVICE_UNAVAILABLE
-    if isinstance(error, httpx.HTTPStatusError):
+    if isinstance(error, httpx2.HTTPStatusError):
         LOG.error('HTTP error: %s - %s', error.response.status_code, error.response.text)
         if error.response.status_code == HTTP_SERVICE_UNAVAILABLE:
             return ExitCode.SERVICE_UNAVAILABLE

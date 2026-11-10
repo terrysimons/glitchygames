@@ -34,7 +34,6 @@ from bitmappy.constants import (
     MIN_PIXEL_DISPLAY_SIZE,
     MIN_PIXELS_ACROSS,
     MIN_PIXELS_TALL,
-    MODEL_DOWNLOAD_TIME_THRESHOLD_SECONDS,
     PIXEL_CHANGE_DEBOUNCE_SECONDS,
     PROGRESS_LOG_MIN_HEIGHT,
     SPRITE_ASPECT_RATIO_TOLERANCE,
@@ -88,9 +87,9 @@ class TestConstants:
         """Test AI-related constants have expected values."""
         assert AI_TIMEOUT == 600
         assert AI_QUEUE_SIZE == 10
-        assert AI_MAX_CONTEXT_SIZE == 65536
+        assert AI_MAX_CONTEXT_SIZE == 262144
         assert AI_MAX_INPUT_TOKENS == 8192
-        assert AI_MAX_OUTPUT_TOKENS == 64000
+        assert AI_MAX_OUTPUT_TOKENS == 262144
         assert AI_MAX_RETRIES == 5
         assert pytest.approx(1.0) == AI_BASE_DELAY
         assert pytest.approx(60.0) == AI_MAX_DELAY
@@ -131,10 +130,6 @@ class TestConstants:
     def test_pixel_change_debounce(self):
         """Test debounce timing for auto-submit."""
         assert pytest.approx(0.1) == PIXEL_CHANGE_DEBOUNCE_SECONDS
-
-    def test_model_download_time_threshold(self):
-        """Test AI model download time threshold."""
-        assert MODEL_DOWNLOAD_TIME_THRESHOLD_SECONDS == 60
 
     def test_sprite_aspect_ratio_tolerance(self):
         """Test aspect ratio tolerance for AI training matching."""

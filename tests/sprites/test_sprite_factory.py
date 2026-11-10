@@ -161,42 +161,51 @@ class TestSpriteFactory:
         with pytest.raises(FileNotFoundError):
             SpriteFactory._analyze_file('nonexistent.toml')
 
-    def test_analyze_toml_file_animation(self, mocker):
+    def test_analyze_toml_file_animation(self, tmp_path):
         """Test analyzing TOML file with animation."""
-        mock_open = mocker.patch('pathlib.Path.open')
-        mock_open.return_value.__enter__.return_value.read.return_value = b"""
+        sprite_file = tmp_path / 'test.toml'
+        sprite_file.write_text(
+            """
             [sprite]
             pixels = [1, 2, 3]
 
             [animations.walk]
             frames = [1, 2, 3]
-            """
+            """,
+            encoding='utf-8',
+        )
 
-        result = SpriteFactory._get_toml_data('test.toml')
+        result = SpriteFactory._get_toml_data(str(sprite_file))
         assert 'sprite' in result
         assert 'animations' in result
 
-    def test_analyze_toml_file_basic(self, mocker):
+    def test_analyze_toml_file_basic(self, tmp_path):
         """Test analyzing basic TOML file."""
-        mock_open = mocker.patch('pathlib.Path.open')
-        mock_open.return_value.__enter__.return_value.read.return_value = b"""
+        sprite_file = tmp_path / 'test.toml'
+        sprite_file.write_text(
+            """
             [sprite]
             pixels = [1, 2, 3]
-            """
+            """,
+            encoding='utf-8',
+        )
 
-        result = SpriteFactory._get_toml_data('test.toml')
+        result = SpriteFactory._get_toml_data(str(sprite_file))
         assert 'sprite' in result
         assert 'animations' not in result
 
-    def test_analyze_toml_file_empty_pixels(self, mocker):
+    def test_analyze_toml_file_empty_pixels(self, tmp_path):
         """Test analyzing TOML file with empty pixels."""
-        mock_open = mocker.patch('pathlib.Path.open')
-        mock_open.return_value.__enter__.return_value.read.return_value = b"""
+        sprite_file = tmp_path / 'test.toml'
+        sprite_file.write_text(
+            """
             [sprite]
             pixels = []
-            """
+            """,
+            encoding='utf-8',
+        )
 
-        result = SpriteFactory._get_toml_data('test.toml')
+        result = SpriteFactory._get_toml_data(str(sprite_file))
         assert 'sprite' in result
 
     def test_detect_file_format_default(self):
@@ -233,15 +242,18 @@ class TestSpriteFactory:
         with pytest.raises(FileNotFoundError):
             SpriteFactory.load_sprite(filename='nonexistent.toml')
 
-    def test_sprite_factory_analyze_toml_file_with_sprite_pixels(self, mocker):
+    def test_sprite_factory_analyze_toml_file_with_sprite_pixels(self, tmp_path):
         """Test analyzing TOML file with sprite pixels."""
-        mock_open = mocker.patch('pathlib.Path.open')
-        mock_open.return_value.__enter__.return_value.read.return_value = b"""
+        sprite_file = tmp_path / 'test.toml'
+        sprite_file.write_text(
+            """
             [sprite]
             pixels = [1, 2, 3, 4, 5, 6]
-            """
+            """,
+            encoding='utf-8',
+        )
 
-        result = SpriteFactory._get_toml_data('test.toml')
+        result = SpriteFactory._get_toml_data(str(sprite_file))
         assert 'sprite' in result
         assert result['sprite']['pixels'] == [1, 2, 3, 4, 5, 6]
 

@@ -26,7 +26,7 @@ from glitchygames.build_info import (
     SourceRevision,
     engine_source_revision,
 )
-from glitchygames.code_tree import LandedCommit
+from glitchygames.code_tree import LandedRowFile
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import OutputCapture, run_command
 from glitchygames.recording_history import MeasurementRun, recorded_measurement_runs
@@ -72,8 +72,12 @@ ROW_FILE_FROM_BEFORE_THE_FIELD = PROVENANCE_FIXTURES / (
 GIT_TIMEOUT_SECONDS = 30.0
 # A commit no checkout here has: what another repository's game names
 ANOTHER_REPOSITORYS_COMMIT = 'a' * 40
-LANDED_COMMIT = LandedCommit(commit='b' * 40, committed_at='2026-10-26T12:00:00+00:00')
 CODE_TREE = 'c' * 40
+# The row file the hand-built rows are in, and the commit that added it (of CODE_TREE)
+ROW_FILE = 'row.json'
+LANDED_COMMIT = LandedRowFile(
+    commit='b' * 40, committed_at='2026-10-26T12:00:00+00:00', code_tree=CODE_TREE
+)
 MACHINE = 'a machine'
 # The engine's commit in the hand-built runs
 ENGINE_COMMIT = 'e' * 40
@@ -301,14 +305,14 @@ def test_our_games_rows_are_unchanged(tmp_path):
     ) == is_measured(
         rows=before, recording='golden.jsonl.gz', commit=commit, machine=before[0].machine
     )
-    landing = {CODE_TREE: LANDED_COMMIT}
+    landing = {ROW_FILE: LANDED_COMMIT}
     landed_before = landed_rows(
-        rows=[before[0].model_copy(update={'code_tree': CODE_TREE})],
+        row_files={ROW_FILE: [before[0].model_copy(update={'code_tree': CODE_TREE})]},
         landed=landing,
         keep_unlanded=False,
     )
     landed_after = landed_rows(
-        rows=[after[0].model_copy(update={'code_tree': CODE_TREE})],
+        row_files={ROW_FILE: [after[0].model_copy(update={'code_tree': CODE_TREE})]},
         landed=landing,
         keep_unlanded=False,
     )
@@ -456,7 +460,9 @@ def test_another_repositorys_landed_row_relabels_only_the_games_revision():
         code_tree=CODE_TREE,
     )
 
-    (landed,) = landed_rows(rows=[row], landed={CODE_TREE: LANDED_COMMIT}, keep_unlanded=False)
+    (landed,) = landed_rows(
+        row_files={ROW_FILE: [row]}, landed={ROW_FILE: LANDED_COMMIT}, keep_unlanded=False
+    )
 
     assert landed.commit == LANDED_COMMIT.commit
     assert landed.run.game_source_revision == GAME_REVISION.model_copy(
@@ -476,7 +482,9 @@ def test_an_unknown_engine_revision_is_not_labelled_with_the_games_landing():
         code_tree=CODE_TREE,
     )
 
-    (landed,) = landed_rows(rows=[row], landed={CODE_TREE: LANDED_COMMIT}, keep_unlanded=False)
+    (landed,) = landed_rows(
+        row_files={ROW_FILE: [row]}, landed={ROW_FILE: LANDED_COMMIT}, keep_unlanded=False
+    )
 
     assert landed.commit == LANDED_COMMIT.commit
     assert landed.run.source_revision == UNKNOWN_REVISION

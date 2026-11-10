@@ -28,6 +28,15 @@ class TestControllerSelectionFillDirection:
 
         assert selection.get_fill_direction() == 'VERTICAL'
 
+    def test_toggle_fill_direction_switches_between_the_two(self):
+        selection = ControllerSelection(controller_id=0, instance_id=0)
+
+        assert selection.get_fill_direction() == 'HORIZONTAL'
+        assert selection.toggle_fill_direction() == 'VERTICAL'
+        assert selection.get_fill_direction() == 'VERTICAL'
+        assert selection.toggle_fill_direction() == 'HORIZONTAL'
+        assert selection.get_fill_direction() == 'HORIZONTAL'
+
     def test_set_fill_direction_invalid(self):
         """Test setting invalid fill direction does nothing."""
         selection = ControllerSelection(controller_id=0, instance_id=0)
@@ -186,36 +195,6 @@ class TestControllerSelectionActivity:
         selection = ControllerSelection(controller_id=0, instance_id=0)
 
         assert selection.get_activity_age() == float('inf')
-
-
-class TestControllerSelectionSlider:
-    """Test the slider selection."""
-
-    def test_selects_a_valid_slider(self):
-        """A valid slider name becomes the selection and counts as activity."""
-        selection = ControllerSelection(controller_id=0, instance_id=0)
-
-        selection.set_slider('G')
-
-        assert selection.get_slider() == 'G'
-        assert selection.state.last_update_time == 0.0
-
-    def test_ignores_an_invalid_slider(self):
-        """A name other than R, G or B is ignored."""
-        selection = ControllerSelection(controller_id=0, instance_id=0)
-
-        selection.set_slider('A')
-
-        assert selection.get_slider() == 'R'
-        assert selection.state.last_update_time == float('-inf')
-
-    def test_reselecting_the_same_slider_is_not_activity(self):
-        """Selecting the slider already selected changes nothing."""
-        selection = ControllerSelection(controller_id=0, instance_id=0)
-
-        selection.set_slider('R')
-
-        assert selection.state.last_update_time == float('-inf')
 
 
 class TestControllerSelectionUnchangedSelection:

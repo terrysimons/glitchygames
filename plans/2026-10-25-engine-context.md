@@ -395,8 +395,8 @@ contexts.
 3. **`ContextSlot` is internal to the engine**, not public API, until a game needs module-level
    state; games keep their state on their scenes.
 4. **Execution is subagent-driven**, every sub-plan.
-5. **The path guard.** This master plan goes on `LIVING_PLAN_FILES` when it is committed (the
-   controller adds it); the sub-plans do not.
+5. **The path guard.** This master plan is on `LIVING_PLAN_FILES`
+   (`tests/test_suite_collection.py`); the sub-plans are not.
 
 Still open: **the engine's own threads** (controller audio, voice recognition) see the default
 context unless started with a copied context: start them with `contextvars.copy_context()`, or

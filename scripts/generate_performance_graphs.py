@@ -20,7 +20,8 @@ our docs site's:
    clear-published`` removes only rows gh-pages holds;
 2. the snippet docs/quality/performance.md includes (``performance_graphs.md``,
    ``performance_snippet``): the latest measurement of each recording on each machine, then
-   each recording's graphs, framed from the page's URL.
+   a list that picks one game, whose recordings' graphs are framed from the page's URL
+   (docs/js/performance-game-select.js loads only the chosen game's).
 
 Our settings are read once, from this repository's pyproject.toml, for the docs paths; the
 functions are given them (``settings=``), never read them for another project.
@@ -33,8 +34,10 @@ Output (gitignored): docs/quality/metrics/
 
 from __future__ import annotations
 
+import html
 import logging
-from pathlib import Path
+import tomllib
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
@@ -91,6 +94,12 @@ GRAPHS_URL_FROM_PAGE = '../metrics'
 # A markdown link is resolved from the page's source (docs/quality/performance.md) instead
 LEDGER_LINK_FROM_PAGE_SOURCE = f'{METRICS_DIR.name}/{LEDGER_NAME}'
 GRAPH_FRAME_HEIGHT_PIXELS = 1550
+# A game's recordings live under src/games/<its directory>/
+GAMES_PATH_PARTS = ('src', 'games')
+# Where a recording outside that goes, so that it is still on the page
+OTHER_RECORDINGS_SLUG = 'other-recordings'
+OTHER_RECORDINGS_NAME = 'Other recordings'
+GAME_SELECT_ID = 'performance-game'
 
 
 class PerformancePage(BaseModel):
@@ -119,6 +128,118 @@ class PerformancePage(BaseModel):
     graph_pages: tuple[str, ...]
     written: tuple[str, ...]
     removed: tuple[str, ...]
+
+
+class GameGraphs(BaseModel):
+    """One game's entry in the page's list.
+
+    Attributes:
+        slug: Its directory under src/games/, which names it in the page's URL.
+        name: What the list shows.
+        pages: Each of its recordings' graph page name.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    slug: str
+    name: str
+    pages: dict[str, str]
+
+
+def _game_slug(*, recording: str) -> str:
+    parts = PurePosixPath(recording).parts
+    games_parts = len(GAMES_PATH_PARTS)
+    if parts[:games_parts] == GAMES_PATH_PARTS and len(parts) > games_parts + 1:
+        return parts[games_parts]
+    return OTHER_RECORDINGS_SLUG
+
+
+def _game_name(*, slug: str, project_root: Path) -> str:
+    """Return a game's name: its package description up to the colon, or else its directory.
+
+    Returns:
+        The name.
+
+    """
+    if slug == OTHER_RECORDINGS_SLUG:
+        return OTHER_RECORDINGS_NAME
+    pyproject = project_root.joinpath(*GAMES_PATH_PARTS, slug, 'pyproject.toml')
+    if not pyproject.is_file():
+        return slug
+    description = tomllib.loads(pyproject.read_text(encoding='utf-8'))['project']['description']
+    name, separator, _ = description.partition(':')
+    return name if separator else slug
+
+
+def games_with_graphs(*, pages: dict[str, str], project_root: Path) -> list[GameGraphs]:
+    """Return the games the recordings belong to, by name.
+
+    Args:
+        pages: Each recording's graph page name.
+        project_root: The repository, whose games name themselves.
+
+    Returns:
+        One entry per game, its recordings in the order given.
+
+    """
+    pages_by_slug: dict[str, dict[str, str]] = {}
+    for recording, page_name in pages.items():
+        pages_by_slug.setdefault(_game_slug(recording=recording), {})[recording] = page_name
+    games = [
+        GameGraphs(
+            slug=slug, name=_game_name(slug=slug, project_root=project_root), pages=game_pages
+        )
+        for slug, game_pages in pages_by_slug.items()
+    ]
+    return sorted(games, key=lambda game: game.name.casefold())
+
+
+def _game_section(*, game: GameGraphs, is_first: bool) -> list[str]:
+    """Return one game's graphs: the first is shown and loaded, the rest wait to be chosen.
+
+    Returns:
+        The section's lines of HTML.
+
+    """
+    hidden = '' if is_first else ' hidden'
+    lines = [f'<section data-performance-game="{html.escape(game.slug)}"{hidden}>']
+    for recording, page_name in game.pages.items():
+        url = html.escape(f'{GRAPHS_URL_FROM_PAGE}/{page_name}')
+        source = f'src="{url}" ' if is_first else ''
+        lines.extend((
+            f'<h3><code>{html.escape(recording)}</code></h3>',
+            (
+                f'<iframe {source}data-src="{url}" width="100%" '
+                f'height="{GRAPH_FRAME_HEIGHT_PIXELS}" frameborder="0"></iframe>'
+            ),
+        ))
+    lines.append('</section>')
+    return lines
+
+
+def games_block(*, games: Sequence[GameGraphs]) -> list[str]:
+    """Return the list of games and their graphs, one game shown at a time.
+
+    Returns:
+        The lines of HTML, with no blank line, so that markdown leaves them whole.
+
+    """
+    options = [
+        f'<option value="{html.escape(game.slug)}">{html.escape(game.name)}</option>'
+        for game in games
+    ]
+    lines = [
+        '<div>',
+        f'<p><label for="{GAME_SELECT_ID}">Game:</label>',
+        f'<select id="{GAME_SELECT_ID}">',
+        *options,
+        '</select></p>',
+    ]
+    for index, game in enumerate(games):
+        lines.extend(_game_section(game=game, is_first=index == 0))
+    lines.append('</div>')
+    return lines
 
 
 def _cell_milliseconds(seconds: float) -> str:
@@ -154,7 +275,11 @@ def latest_table(*, series_list: Sequence[PerformanceSeries]) -> list[str]:
 
 
 def performance_snippet(
-    *, page: PerformancePage, series_list: Sequence[PerformanceSeries], pages: dict[str, str]
+    *,
+    page: PerformancePage,
+    series_list: Sequence[PerformanceSeries],
+    pages: dict[str, str],
+    project_root: Path,
 ) -> str:
     """Return the markdown docs/quality/performance.md includes.
 
@@ -162,6 +287,7 @@ def performance_snippet(
         page: The generation's counts.
         series_list: Every series.
         pages: Each recording's graph page name.
+        project_root: The repository, whose games name themselves.
 
     Returns:
         The markdown.
@@ -180,17 +306,16 @@ def performance_snippet(
             'No measurements yet: `nox -s replay-metrics` measures the recordings on this machine.'
         )
         return '\n'.join(lines) + '\n'
-    lines.extend(('## Latest measurements', '', *latest_table(series_list=series_list), ''))
-    for recording, name in pages.items():
-        lines.extend((
-            f'## `{recording}`',
-            '',
-            (
-                f'<iframe src="{GRAPHS_URL_FROM_PAGE}/{name}" width="100%" '
-                f'height="{GRAPH_FRAME_HEIGHT_PIXELS}" frameborder="0"></iframe>'
-            ),
-            '',
-        ))
+    lines.extend((
+        '## Latest measurements',
+        '',
+        *latest_table(series_list=series_list),
+        '',
+        '## Graphs by game',
+        '',
+        *games_block(games=games_with_graphs(pages=pages, project_root=project_root)),
+        '',
+    ))
     return '\n'.join(lines)
 
 
@@ -237,7 +362,9 @@ def generate_performance_page(
         written=pages.written,
         removed=pages.removed,
     )
-    snippet = performance_snippet(page=counts, series_list=pages.series, pages=pages.pages)
+    snippet = performance_snippet(
+        page=counts, series_list=pages.series, pages=pages.pages, project_root=project_root
+    )
     if write_if_changed(path=metrics_directory / SNIPPET_NAME, text=snippet):
         counts = counts.model_copy(update={'written': (*pages.written, SNIPPET_NAME)})
     return counts

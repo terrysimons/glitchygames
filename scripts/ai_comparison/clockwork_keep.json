@@ -1,0 +1,313 @@
+{
+ "scene": "Clockwork Keep",
+ "class": "ClockworkKeepScene",
+ "paused": false,
+ "game_time_seconds": 3.34,
+ "screen": [
+  800,
+  480
+ ],
+ "game": {},
+ "sprite_count": 23,
+ "sprites": [
+  {
+   "name": "ParallaxLayer_0",
+   "class": "ParallaxLayer",
+   "rect": [
+    0,
+    0,
+    800,
+    480
+   ],
+   "visible": 1
+  },
+  {
+   "name": "Platform",
+   "class": "Platform",
+   "rect": [
+    100,
+    456,
+    600,
+    12
+   ],
+   "visible": 1,
+   "world_x": 100.0,
+   "world_y": 936.0
+  },
+  {
+   "name": "Platform",
+   "class": "Platform",
+   "rect": [
+    120,
+    400,
+    250,
+    12
+   ],
+   "visible": 1,
+   "world_x": 120.0,
+   "world_y": 880.0
+  },
+  {
+   "name": "Platform",
+   "class": "Platform",
+   "rect": [
+    420,
+    400,
+    260,
+    12
+   ],
+   "visible": 1,
+   "world_x": 420.0,
+   "world_y": 880.0
+  },
+  {
+   "name": "Platform",
+   "class": "Platform",
+   "rect": [
+    160,
+    330,
+    200,
+    12
+   ],
+   "visible": 1,
+   "world_x": 160.0,
+   "world_y": 810.0
+  },
+  {
+   "name": "Platform",
+   "class": "Platform",
+   "rect": [
+    320,
+    310,
+    180,
+    12
+   ],
+   "visible": 1,
+   "world_x": 320.0,
+   "world_y": 790.0
+  },
+  {
+   "name": "Platform",
+   "class": "Platform",
+   "rect": [
+    470,
+    330,
+    210,
+    12
+   ],
+   "visible": 1,
+   "world_x": 470.0,
+   "world_y": 810.0
+  },
+  {
+   "name": "Platform",
+   "class": "Platform",
+   "rect": [
+    140,
+    240,
+    520,
+    12
+   ],
+   "visible": 1,
+   "world_x": 140.0,
+   "world_y": 720.0
+  },
+  {
+   "name": "Platform",
+   "class": "Platform",
+   "rect": [
+    120,
+    160,
+    180,
+    12
+   ],
+   "visible": 1,
+   "world_x": 120.0,
+   "world_y": 640.0
+  },
+  {
+   "name": "Platform",
+   "class": "Platform",
+   "rect": [
+    500,
+    140,
+    180,
+    12
+   ],
+   "visible": 1,
+   "world_x": 500.0,
+   "world_y": 620.0
+  },
+  {
+   "name": "Platform",
+   "class": "Platform",
+   "rect": [
+    280,
+    60,
+    240,
+    12
+   ],
+   "visible": 1,
+   "world_x": 280.0,
+   "world_y": 540.0
+  },
+  {
+   "name": "Platform",
+   "class": "Platform",
+   "rect": [
+    130,
+    -20,
+    160,
+    12
+   ],
+   "visible": 1,
+   "world_x": 130.0,
+   "world_y": 460.0
+  },
+  {
+   "name": "Platform",
+   "class": "Platform",
+   "rect": [
+    510,
+    -40,
+    160,
+    12
+   ],
+   "visible": 1,
+   "world_x": 510.0,
+   "world_y": 440.0
+  },
+  {
+   "name": "Platform",
+   "class": "Platform",
+   "rect": [
+    150,
+    -120,
+    500,
+    12
+   ],
+   "visible": 0,
+   "world_x": 150.0,
+   "world_y": 360.0
+  },
+  {
+   "name": "Platform",
+   "class": "Platform",
+   "rect": [
+    350,
+    -190,
+    100,
+    12
+   ],
+   "visible": 0,
+   "world_x": 350.0,
+   "world_y": 290.0
+  },
+  {
+   "name": "Elevator",
+   "class": "Elevator",
+   "rect": [
+    370,
+    -198,
+    60,
+    8
+   ],
+   "visible": 0,
+   "world_x": 370.0,
+   "world_y": 282.0
+  },
+  {
+   "name": "Cog",
+   "class": "CogCollectible",
+   "rect": [
+    400,
+    378,
+    16,
+    16
+   ],
+   "visible": 1,
+   "world_x": 400.0,
+   "world_y": 858.35
+  },
+  {
+   "name": "Cog",
+   "class": "CogCollectible",
+   "rect": [
+    250,
+    298,
+    16,
+    16
+   ],
+   "visible": 1,
+   "world_x": 250.0,
+   "world_y": 778.35
+  },
+  {
+   "name": "Cog",
+   "class": "CogCollectible",
+   "rect": [
+    550,
+    298,
+    16,
+    16
+   ],
+   "visible": 1,
+   "world_x": 550.0,
+   "world_y": 778.35
+  },
+  {
+   "name": "Cog",
+   "class": "CogCollectible",
+   "rect": [
+    400,
+    208,
+    16,
+    16
+   ],
+   "visible": 1,
+   "world_x": 400.0,
+   "world_y": 688.35
+  },
+  {
+   "name": "Cog",
+   "class": "CogCollectible",
+   "rect": [
+    400,
+    28,
+    16,
+    16
+   ],
+   "visible": 1,
+   "world_x": 400.0,
+   "world_y": 508.35
+  },
+  {
+   "name": "Cog",
+   "class": "CogCollectible",
+   "rect": [
+    400,
+    -152,
+    16,
+    16
+   ],
+   "visible": 0,
+   "world_x": 400.0,
+   "world_y": 328.35
+  },
+  {
+   "name": "Tinker",
+   "class": "Tinker",
+   "rect": [
+    400,
+    414,
+    28,
+    44
+   ],
+   "visible": 1,
+   "world_x": 400.0,
+   "world_y": 894.0,
+   "velocity_x": 0.0,
+   "velocity_y": 0.0
+  }
+ ]
+}

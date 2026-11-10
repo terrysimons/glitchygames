@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 import pygame
 
+from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import bundled_font_path
 from glitchygames.sprites import Sprite
 from mr_muncher import drawing
@@ -74,7 +75,7 @@ def render_text(*, font: pygame.font.Font, text: str, color: Color) -> pygame.Su
         The rendered line (per-pixel alpha).
 
     """
-    return font.render(text, antialias=True, color=color)
+    return font.render(text, antialias=FontManager.antialias(), color=color)
 
 
 class Sprocket(Sprite):

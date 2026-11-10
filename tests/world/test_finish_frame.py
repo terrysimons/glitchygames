@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 
     from pytest_mock import MockerFixture
 
+    from glitchygames.audio.accounting import AudioFrameAccount
     from glitchygames.supervision import ControlEvent
 
 NANOSECONDS_PER_SECOND = 1_000_000_000
@@ -205,6 +206,7 @@ class StoppingSources(LiveSources):
         scene: object,
         control_events: list[ControlEvent],
         processing_seconds: float | None = None,
+        audio_frame: AudioFrameAccount | None = None,
     ) -> None:
         """Record the frame number."""
         self.ended_frames.append(frame_number)

@@ -424,6 +424,35 @@ class TestCanvasModeStrategyShoulderButtons:
         assert sorted(editor.canvas.canvas_interface.painted) == sorted(expected_pixels)
         assert _position_of(editor) == expected_position
 
+    def test_a_left_stick_click_turns_the_shoulder_jump_vertical(self):
+        """Clicking the left stick switches the fill direction (BUGS.md #200 item 7)."""
+        _handler, editor = _make_handler(mode=ControllerMode.CANVAS)
+        _hold_a_button(held=False)
+
+        _strategy(editor).handle_button_down(CONTROLLER_ID, pygame.CONTROLLER_BUTTON_LEFTSTICK)
+        _strategy(editor).handle_button_down(CONTROLLER_ID, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER)
+
+        assert editor.controller_selections[CONTROLLER_ID].get_fill_direction() == 'VERTICAL'
+        assert _position_of(editor) == (10, 18)
+
+    def test_a_second_left_stick_click_turns_it_back(self):
+        _handler, editor = _make_handler(mode=ControllerMode.CANVAS)
+        _hold_a_button(held=False)
+
+        _strategy(editor).handle_button_down(CONTROLLER_ID, pygame.CONTROLLER_BUTTON_LEFTSTICK)
+        _strategy(editor).handle_button_down(CONTROLLER_ID, pygame.CONTROLLER_BUTTON_LEFTSTICK)
+        _strategy(editor).handle_button_down(CONTROLLER_ID, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER)
+
+        assert _position_of(editor) == (18, 10)
+
+    def test_a_left_stick_click_without_a_selection_does_nothing(self):
+        _handler, editor = _make_handler(mode=ControllerMode.CANVAS)
+        del editor.controller_selections[CONTROLLER_ID]
+
+        _strategy(editor).handle_button_down(CONTROLLER_ID, pygame.CONTROLLER_BUTTON_LEFTSTICK)
+
+        assert _position_of(editor) == (10, 10)
+
     def test_a_controller_without_a_selection_does_nothing(self):
         """No controller selection: no fill direction, so the shoulder does nothing."""
         _handler, editor = _make_handler(mode=ControllerMode.CANVAS)

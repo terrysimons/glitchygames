@@ -22,6 +22,12 @@ random stream, frame clock or scene clock, and is never in a recording or screen
 no randomness: the flicker is a fixed table. Events are taken only through the doors and
 dropped, except that a key or button press skips the rest and a QUIT is handed back to the
 game, which then quits.
+
+Sound (feature spec 12.1, impl spec 10.1): the players take ``sound_cues``, a
+``PowerOnSoundCues`` (glitchygames/crt_power_on_sound.py's ``CrtPowerOnSound``; None plays
+silently). This module stays a leaf with no audio import: each frame tells the cues the progress
+it draws (``at_progress``), then its measured time (``frame``); a frame that ends the sequence
+with a press or a QUIT calls ``skip`` instead of ``at_progress``.
 """
 
 from __future__ import annotations
@@ -311,16 +317,41 @@ def _ending(*, events: Sequence[pygame.event.Event]) -> PowerOnOutcome | None:
     return None
 
 
-class _PowerOnFrames:
-    """The frames of one play: what to draw now, and when it is over."""
+class PowerOnSoundCues(Protocol):
+    """The power-on's sound, cued by its frames (impl spec 10.1).
 
-    def __init__(self, *, screen: pygame.Surface, sources: EventPump) -> None:
+    The sequence's progress drives both the picture and the sound, so the cues hear exactly
+    the progress each frame draws. Tests pass a recording stand-in.
+    """
+
+    def at_progress(self, progress: float) -> None:
+        """Start whatever is cued at or before ``progress`` (0 to 1) and has not started yet."""
+        ...
+
+    def frame(self, dt: float) -> None:
+        """Move the sound by a power-on frame's measured time (no game frame has run yet)."""
+        ...
+
+    def skip(self) -> None:
+        """Fade every sound the power-on started: a press (or a QUIT) ended the sequence."""
+        ...
+
+
+class _PowerOnFrames:
+    """The frames of one play: what to draw and cue now, and when it is over."""
+
+    def __init__(
+        self, *, screen: pygame.Surface, sources: EventPump, sound_cues: PowerOnSoundCues | None
+    ) -> None:
         self.screen = screen
         self.sources = sources
+        self.sound_cues = sound_cues
         self.picture = background_pattern_surface(
             pattern=active_default_background_pattern(), size=screen.get_size()
         )
         self.started = clock.measured_seconds()
+        # The elapsed time the last frame was cued at: each frame's time is the difference
+        self.cued_elapsed = 0.0
 
     def next_frame(self) -> PowerOnOutcome | None:
         """Pump the events and present the next frame.
@@ -334,13 +365,33 @@ class _PowerOnFrames:
         if ending is None and elapsed >= SEQUENCE_SECONDS:
             ending = PowerOnOutcome.FINISHED
         progress = 1.0 if ending is not None else elapsed / SEQUENCE_SECONDS
+        self._cue_the_sound(ending=ending, progress=progress, elapsed=elapsed)
         draw_power_on(surface=self.screen, picture=self.picture, progress=progress)
         pygame.display.flip()
         return ending
 
+    def _cue_the_sound(
+        self, *, ending: PowerOnOutcome | None, progress: float, elapsed: float
+    ) -> None:
+        """Cue the frame's progress (or the skip), then move the sound by the frame's time."""
+        if self.sound_cues is None:
+            return
+        if ending is PowerOnOutcome.SKIPPED or ending is PowerOnOutcome.QUIT:
+            # A press skips the picture to its end and the sound to silence; a QUIT ends the
+            # game, so its sound goes the same way
+            self.sound_cues.skip()
+        else:
+            self.sound_cues.at_progress(progress)
+        self.sound_cues.frame(elapsed - self.cued_elapsed)
+        self.cued_elapsed = elapsed
+
 
 def play_power_on(
-    *, screen: pygame.Surface, sources: EventPump, sleep: Callable[[float], None] | None = None
+    *,
+    screen: pygame.Surface,
+    sources: EventPump,
+    sleep: Callable[[float], None] | None = None,
+    sound_cues: PowerOnSoundCues | None = None,
 ) -> PowerOnOutcome:
     """Play the sequence on the game's canvas, blocking (``GameEngine.start``).
 
@@ -349,13 +400,14 @@ def play_power_on(
         sources: The installed doors (their event pump).
         sleep: Waits a frame (tests pass one that does not wait); None is glitchygames/clock.py's
             raw sleep, looked up when called so a patch on ``glitchygames.clock`` reaches it.
+        sound_cues: The sequence's sound, cued each frame; None plays it silently.
 
     Returns:
         How it ended; the settled picture is on screen either way.
 
     """
     frame_sleep = clock.raw_sleep if sleep is None else sleep
-    frames = _PowerOnFrames(screen=screen, sources=sources)
+    frames = _PowerOnFrames(screen=screen, sources=sources, sound_cues=sound_cues)
     while (ending := frames.next_frame()) is None:
         frame_sleep(FRAME_SECONDS)
     return ending
@@ -366,6 +418,7 @@ async def play_power_on_async(
     screen: pygame.Surface,
     sources: EventPump,
     wait_for_tick: Callable[[], Awaitable[float]],
+    sound_cues: PowerOnSoundCues | None = None,
 ) -> PowerOnOutcome:
     """Play the sequence one frame per outer tick (``GameEngine.start_async``, the browser).
 
@@ -373,12 +426,13 @@ async def play_power_on_async(
         screen: The game's display surface.
         sources: The installed doors (their event pump).
         wait_for_tick: Waits for the next outer tick (the next animation frame).
+        sound_cues: The sequence's sound, cued each frame; None plays it silently.
 
     Returns:
         How it ended; the settled picture is on screen either way.
 
     """
-    frames = _PowerOnFrames(screen=screen, sources=sources)
+    frames = _PowerOnFrames(screen=screen, sources=sources, sound_cues=sound_cues)
     while (ending := frames.next_frame()) is None:
         await wait_for_tick()
     return ending

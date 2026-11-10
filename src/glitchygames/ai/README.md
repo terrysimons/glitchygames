@@ -4,7 +4,7 @@ Clean, concise AI-powered sprite generation for the GlitchyGames pixel art edito
 
 ## Overview
 
-This module provides optimized prompts and utilities for generating sprites using AI models (via aisuite). It replaces verbose, inline prompt construction with a tested, reusable API.
+This module provides optimized prompts and utilities for generating sprites using AI models (via the local AI service). It replaces verbose, inline prompt construction with a tested, reusable API.
 
 ## Features
 
@@ -32,9 +32,9 @@ messages = build_sprite_generation_messages(
     max_examples=3
 )
 
-# Send to AI (using aisuite)
+# Send to the local AI service (client = glitchygames.ai.local_service.create_chat_client())
 response = client.chat.completions.create(
-    model="anthropic:claude-sonnet-4-5",
+    model="reasoning",
     messages=messages
 )
 

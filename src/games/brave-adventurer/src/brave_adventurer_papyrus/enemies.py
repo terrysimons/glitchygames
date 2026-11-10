@@ -17,8 +17,8 @@ from brave_adventurer_papyrus.constants import (
     SPRITES_DIR,
 )
 from brave_adventurer_papyrus.sprite_utils import (
-    apply_transparency_and_scale,
     prepare_papyrus_sprite,
+    refresh_drawn_image,
 )
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.world import CoordinateSpace
@@ -81,8 +81,8 @@ class PapyrusCobra(AnimatedSprite):
         assert self.state_machine is not None, 'cobra.toml declares the [[transition]]s'
         self.state_machine.evaluate({}, dt)
 
+        # Its image is the drawn frame, which the engine redraws as the frame changes
         AnimatedSprite.update(self, dt)
-        apply_transparency_and_scale(self)
 
     @override
     def update(self: Self, dt: float = 0.016) -> None:
@@ -146,8 +146,8 @@ class PapyrusScarab(AnimatedSprite):
 
         # Horizontal movement
         self.world_x += self.roll_speed * dt
+        # Its image is the drawn frame, which the engine redraws as the frame changes
         AnimatedSprite.update(self, dt)
-        apply_transparency_and_scale(self)
 
     @override
     def update(self: Self, dt: float = 0.016) -> None:
@@ -220,7 +220,7 @@ class PapyrusScorpion(AnimatedSprite):
             self.facing_right = True
 
         AnimatedSprite.update(self, dt)
-        apply_transparency_and_scale(self)
+        refresh_drawn_image(self)
 
         # Flip image when facing left, and mirror the hitbox with it
         self.hitbox_flip_x = not self.facing_right

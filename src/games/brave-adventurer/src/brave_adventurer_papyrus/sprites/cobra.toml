@@ -14,6 +14,8 @@ height = 13
 "G" = { red = 80, green = 120, blue = 60 }
 "g" = { red = 60, green = 100, blue = 40 }
 "E" = { red = 200, green = 50, blue = 50 }
+# Second eye: a darker shade of E, like g is of G
+"e" = { red = 180, green = 30, blue = 30 }
 "d" = { red = 50, green = 80, blue = 30 }
 
 # Idle animation - gentle hood sway

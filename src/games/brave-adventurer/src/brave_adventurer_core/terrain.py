@@ -56,7 +56,9 @@ class GroundSegment(Sprite):
         self.world_x: float = world_x
         self.world_y: float = float(GROUND_Y)
         self.segment_width: int = segment_width
-        self.dirty = 1
+        # Redrawn every frame: with a still camera nothing else dirties it, and it stayed on
+        # screen only because the full-screen parallax layers redraw everything (BUGS.md #60).
+        self.dirty = 2
 
 
 class StoneWall(Sprite):
@@ -100,4 +102,6 @@ class StoneWall(Sprite):
         self.world_x: float = world_x
         self.world_y: float = world_y
         self.wall_height: int = wall_height
-        self.dirty = 1
+        # Redrawn every frame: with a still camera nothing else dirties it, and it stayed on
+        # screen only because the full-screen parallax layers redraw everything (BUGS.md #60).
+        self.dirty = 2

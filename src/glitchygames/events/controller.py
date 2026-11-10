@@ -12,11 +12,13 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Mapping
 
     from glitchygames.input.devices import OpenedController
 
 import pygame
 
+from glitchygames.argument_types import unit_interval
 from glitchygames.events import (
     CONTROLLER_EVENTS,
     ControllerAxisEvent,
@@ -28,6 +30,7 @@ from glitchygames.events import (
     HashableEvent,
     ResourceManager,
 )
+from glitchygames.input.action_map import DEFAULT_DEADZONE
 from glitchygames.input.devices import sdl_controller_module
 from glitchygames.input.state import current_input
 from glitchygames.sources import active_sources
@@ -96,12 +99,20 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             pygame.CONTROLLER_BUTTON_START,
         ]
 
-        def __init__(self: Self, game: object = None, controller_id: int = -1) -> None:
+        def __init__(
+            self: Self,
+            game: object = None,
+            controller_id: int = -1,
+            controller: OpenedController | None = None,
+        ) -> None:
             """Initialize the controller proxy.
 
             Args:
                 game (object): The game object.
                 controller_id (int): The controller id.
+                controller: A controller the devices door already opened (an instant replay's
+                    adopted one: ``ControllerEventManager.adopt_controllers``), or None to open
+                    the one at ``controller_id``.
 
             """
             super().__init__(game)
@@ -109,7 +120,9 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             self._id = controller_id
             # Devices are opened only through the devices door (glitchygames/input/devices.py)
             self.controller: OpenedController = (
-                active_sources().devices().open_controller(device_index=self._id)
+                controller
+                if controller is not None
+                else active_sources().devices().open_controller(device_index=self._id)
             )
             # The snapshot (glitchygames/input/state.py) keys positions by instance id, and the
             # manager keys its controllers by it (the id every controller event carries)
@@ -372,6 +385,23 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             self.log.debug('Controller Module Inited: %s', controller_module.get_init())
 
         # Enumerated through the devices door (glitchygames/input/devices.py)
+        self.controllers = self.open_connected_controllers()
+
+        self.proxies = [self.game]
+
+    def open_connected_controllers(
+        self: Self,
+    ) -> dict[int, ControllerEventManager.ControllerEventProxy]:
+        """Open every game controller the devices door counts, as new proxies.
+
+        ``__init__`` holds what this returns; a playback scope opens its recording's
+        controllers with it, through the scope's door (``GameEngine.enter_playback_devices``).
+
+        Returns:
+            The proxies, by instance id.
+
+        """
+        controllers: dict[int, ControllerEventManager.ControllerEventProxy] = {}
         devices = active_sources().devices()
         controller_count = devices.controller_count()
         self.log.info('Enumerating %s controllers.', controller_count)
@@ -383,9 +413,9 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
             controller_proxy = ControllerEventManager.ControllerEventProxy(
                 controller_id=controller_id,
-                game=game,
+                game=self.game,
             )
-            self.controllers[controller_proxy.instance_id] = controller_proxy
+            controllers[controller_proxy.instance_id] = controller_proxy
 
             self.log.info(
                 'Controller #%d (instance %d): %s',
@@ -393,8 +423,30 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
                 controller_proxy.instance_id,
                 controller_proxy,
             )
+        return controllers
 
-        self.proxies = [self.game]
+    def adopt_controllers(
+        self: Self, *, controllers: Mapping[int, OpenedController]
+    ) -> dict[int, ControllerEventManager.ControllerEventProxy]:
+        """Make proxies for game controllers the devices door already opened, asking it nothing.
+
+        An instant replay's playback scope adopts its journal's devices into its door first
+        (``ReplayDeviceRegistry.adopt_device``; ``GameEngine.enter_playback_devices``).
+
+        Args:
+            controllers: The opened controllers, by the SDL device index each was opened at.
+
+        Returns:
+            The proxies, by instance id.
+
+        """
+        adopted: dict[int, ControllerEventManager.ControllerEventProxy] = {}
+        for device_index, controller in controllers.items():
+            proxy = ControllerEventManager.ControllerEventProxy(
+                game=self.game, controller_id=device_index, controller=controller
+            )
+            adopted[proxy.instance_id] = proxy
+        return adopted
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
@@ -417,6 +469,17 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
                 'Which gamepads the game sees (default: auto, every device; a mapped pad sends'
                 ' controller events, any other device joystick events; joystick: every device'
                 ' sends joystick events; controller: mapped pads only)'
+            ),
+        )
+        # One value for every device and both layers: a deadzone belongs to the physical stick,
+        # which --input-mode can read on either layer (ActionMap.from_engine_options)
+        group.add_argument(
+            '--axis-deadzone',
+            type=unit_interval,
+            default=DEFAULT_DEADZONE,
+            help=(
+                'Gamepad axis deadzone from 0.0 to 1.0: an axis position nearer its center reads'
+                f' as centered (default: {DEFAULT_DEADZONE})'
             ),
         )
 

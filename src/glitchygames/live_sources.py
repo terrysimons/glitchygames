@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from datetime import datetime
 
+    from glitchygames.audio.accounting import AudioFrameAccount
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
     from glitchygames.state.manager import SaveManager
@@ -221,7 +222,7 @@ class LiveSources:
         del frame_number
         return []
 
-    def end_frame(
+    def end_frame(  # ruff: ignore[too-many-arguments] - the EngineSources door's signature
         self: Self,
         *,
         frame_number: int,
@@ -229,11 +230,12 @@ class LiveSources:
         scene: Scene | None,
         control_events: list[ControlEvent],
         processing_seconds: float | None = None,
+        audio_frame: AudioFrameAccount | None = None,
     ) -> None:
         """Discard the frame's device answers and descriptors nobody took.
 
         A recorder (Task 11 of the gameplay replay plan) takes them before this runs.
         """
         # The frame itself needs nothing from live play (EngineSources signature)
-        del frame_number, dt, scene, control_events, processing_seconds
+        del frame_number, dt, scene, control_events, processing_seconds, audio_frame
         self._devices.discard_untaken()

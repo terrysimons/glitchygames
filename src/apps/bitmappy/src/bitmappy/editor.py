@@ -41,6 +41,7 @@ from .file_io import FileIOManager
 from .film_strip_coordinator import FilmStripCoordinator
 from .frame_operations import FrameOperationManager
 from .indicators.collision import VisualCollisionManager
+from .masterhub import installed_masterhub
 from .panning import PAN_GESTURE_KEYS
 from .slider_manager import SliderManager
 from .sprite_inspection import load_ai_training_data
@@ -67,10 +68,10 @@ if TYPE_CHECKING:
     from .history.operations import (
         CanvasOperationTracker,
         ControllerPositionOperationTracker,
-        CrossAreaOperationTracker,
         FilmStripOperationTracker,
     )
     from .history.undo_redo import UndoRedoManager
+    from .masterhub_push import MasterHubPush
     from .scroll_arrow import ScrollArrowSprite
 
 
@@ -103,13 +104,17 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     undo_redo_manager: UndoRedoManager
     canvas_operation_tracker: CanvasOperationTracker
     film_strip_operation_tracker: FilmStripOperationTracker
-    cross_area_operation_tracker: CrossAreaOperationTracker
     controller_position_operation_tracker: ControllerPositionOperationTracker
     current_pixel_changes: list[tuple[int, int, tuple[int, ...], tuple[int, ...]]]
     _is_drag_operation: bool
     pixel_change_timer: float | None
     applying_undo_redo: bool
     _initialized: bool
+
+    # The MasterHUB display mirror (browser only): wired lazily on the first frame, then fed the
+    # canvas each frame. None/False off the browser (there is no sibling hub to push to).
+    _masterhub_push: MasterHubPush | None = None
+    _masterhub_configured: bool = False
 
     # Set your game name/version here.
     NAME = 'Bitmappy'
@@ -343,7 +348,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self.canvas.pixel_height = pixel_size
 
         self.canvas.pixels = [(255, 0, 255, 255)] * (width * height)
-        self.canvas.dirty_pixels = [True] * len(self.canvas.pixels)
 
         # A pan gesture of the old canvas must not carry over to the new one
         self.canvas.end_panning()
@@ -388,8 +392,10 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         try:
             width, height = self._parse_canvas_dimensions(dimensions)
         except ValueError:
-            self.log.exception("Invalid dimensions format '%s'", dimensions)
-            self.log.exception("Expected format: WxH (e.g., '32x32')")
+            # One log.exception: two printed the same traceback twice
+            self.log.exception(
+                "Invalid dimensions format '%s': expected WxH (e.g., '32x32')", dimensions
+            )
         else:
             self.log.info('Parsed dimensions: %sx%s', width, height)
 
@@ -400,6 +406,16 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                 350 // width,
             )
             self.log.info('Calculated new pixel size: %s', new_pixel_size)
+
+            # A size too large for the canvas area leaves each pixel 0 screen pixels wide: a
+            # canvas that can't be seen or drawn on, so it is refused and the canvas kept
+            # (BUGS.md #176)
+            if new_pixel_size < 1:
+                self.log.error(
+                    "Invalid dimensions '%s': too large to fit the canvas area", dimensions
+                )
+                self.dirty = 1
+                return
 
             self._reset_canvas_for_new_file(width, height, new_pixel_size)
             self._create_fresh_animated_sprite(width, height, new_pixel_size)
@@ -702,6 +718,12 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         for sprite in sprites:
             sprite.on_left_mouse_button_up_event(event)
 
+        # A canvas drag released outside the canvas must still finish: flush the stroke, submit
+        # it to undo and clear _drag_active (BUGS.md #120). The canvas ignores a release when no
+        # drag is active.
+        if self.canvas not in sprites:
+            self.canvas.on_left_mouse_button_up_event(event)
+
     @override
     def on_left_mouse_drag_event(
         self: Self, event: events.MouseMotionEvent, trigger: object
@@ -877,6 +899,34 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
             # Note: Live preview functionality is now integrated into the film strip
 
+    def set_masterhub_push(self, push: MasterHubPush) -> None:
+        """Attach the display mirror's push (idempotent; the browser bridge calls this)."""
+        if self._masterhub_push is None:
+            self._masterhub_push = push
+
+    def _mirror_canvas_to_masterhub(self) -> None:
+        """In the browser, post the canvas to a MasterHUB web hub when it changes (else a no-op).
+
+        Wires the browser bridge once (lazily, on the first frame), then feeds it the canvas each
+        frame. Off the browser the bridge is absent, so nothing is wired and nothing is pushed.
+        """
+        if not self._masterhub_configured:
+            self._masterhub_configured = True
+            self._install_masterhub_mirror()
+        if self._masterhub_push is not None:
+            self._masterhub_push.push_if_changed()
+
+    def _install_masterhub_mirror(self) -> None:
+        """Wire the installed MasterHUB bridge to this scene; a no-op where none is installed.
+
+        The browser page registers the bridge installer (browser/boot.py, via bitmappy.masterhub);
+        off the browser nothing is registered, so this does nothing. Only "nothing registered" is
+        the silent case -- an error raised by the installer itself propagates, never swallowed.
+        """
+        installer = installed_masterhub()
+        if installer is not None:
+            installer(self)
+
     @override
     def update(self) -> None:
         """Update scene state."""
@@ -888,6 +938,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             and self.canvas.animated_sprite
         ):
             self._update_animated_canvas()
+            self._mirror_canvas_to_masterhub()  # browser only: push the canvas to the hub
 
         super().update()  # Call the base Scene.update() method
 
@@ -1174,11 +1225,25 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self.pixel_change_timer = None
         self.log.debug('Started a new undo history')
 
+    def _finish_pan_gesture_in_progress(self) -> None:
+        """Record a pan gesture still in progress (an arrow still held) before undo or redo.
+
+        Undo or redo applied inside the gesture left the redo stack in place until the keys
+        were released (BUGS.md #152). Finishing first makes the pan an undoable step of its
+        own, which clears the redo stack as any new edit does; holding the arrow afterwards
+        starts a new gesture.
+        """
+        canvas = getattr(self, 'canvas', None)
+        if canvas and canvas.pan_session is not None:
+            self._frame_operations.finish_canvas_panning()
+
     def handle_undo(self) -> None:
         """Handle undo operation."""
         if not hasattr(self, 'undo_redo_manager'):
             self.log.warning('Undo/redo manager not initialized')
             return
+
+        self._finish_pan_gesture_in_progress()
 
         # Get current frame information
         current_animation = None
@@ -1306,6 +1371,8 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             self.log.warning('Undo/redo manager not initialized')
             return
 
+        self._finish_pan_gesture_in_progress()
+
         # Get current frame information
         current_animation = None
         current_frame = None
@@ -1360,10 +1427,12 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             parser (argparse.ArgumentParser): The argument parser.
 
         """
+        # argparse's version action prints and exits; store_true did nothing (BUGS.md #178 item 25)
         parser.add_argument(
             '-v',
             '--version',
-            action='store_true',
+            action='version',
+            version=f'{cls.NAME} {cls.VERSION}',
             help='print the game version and exit',
         )
         parser.add_argument(
@@ -1486,6 +1555,21 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     def apply_color(self, *, red: int, green: int, blue: int, alpha: int) -> None:
         """Set the editor's color (sliders, color well and canvas) via SliderManager."""
         self._slider_manager.apply_color(red=red, green=green, blue=blue, alpha=alpha)
+
+    def set_onion_skin_transparency(self, transparency: float) -> None:
+        """Set the global onion-skin translucency (0.0 transparent .. 1.0 opaque) and redraw.
+
+        A MasterHUB fader drives this. It redraws the canvas so the new translucency shows at once,
+        the way the 'O' toggle does.
+
+        Args:
+            transparency: The onion-skin translucency, 0.0 (transparent) to 1.0 (opaque).
+
+        """
+        from .onion_skinning import get_onion_skinning_manager
+
+        get_onion_skinning_manager().set_transparency(transparency)
+        self.canvas.force_redraw()
 
     # ──────────────────────────────────────────────────────────────────────
     # Controller event delegation (methods extracted to controllers/event_handler.py)

@@ -38,7 +38,7 @@ def validate_app_name(app_name: str) -> None:
         msg = 'app_name must not be empty'
         raise ValueError(msg)
 
-    if not _APP_NAME_PATTERN.match(app_name):
+    if not _APP_NAME_PATTERN.fullmatch(app_name):
         msg = (
             f"Invalid app_name '{app_name}': must contain only "
             f'lowercase letters, digits, hyphens, and underscores'

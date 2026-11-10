@@ -190,17 +190,10 @@ class TestInitializeDimensions:
 class TestInitializePixelArrays:
     """Test _initialize_pixel_arrays method."""
 
-    def test_pixel_array_length(self, mocker):
-        """Test pixel array has correct length for canvas size."""
+    def test_the_canvas_keeps_no_dirty_pixel_list(self, mocker):
+        """The per-pixel dirty list is gone: nothing read it (BUGS.md #178 item 15)."""
         canvas, _ = _make_canvas(mocker, config=CanvasConfig(pixels_across=4, pixels_tall=4))
-        # Pixels are updated from animated sprite frame data during init,
-        # but dirty_pixels should match the expected count
-        assert len(canvas.dirty_pixels) == PIXEL_COUNT
-
-    def test_dirty_pixels_initialized_true(self, mocker):
-        """Test all dirty pixels start as True after initialization."""
-        canvas, _ = _make_canvas(mocker, config=CanvasConfig(pixels_across=4, pixels_tall=4))
-        assert all(canvas.dirty_pixels)
+        assert not hasattr(canvas, 'dirty_pixels')
 
     def test_background_color_set(self, mocker):
         """Test background color is set to gray."""
@@ -739,47 +732,6 @@ class TestHandleKeyboardEvent:
         assert animated_sprite.is_playing is False
 
 
-class TestCopyPasteFrame:
-    """Test copy_current_frame and paste_to_current_frame methods."""
-
-    def test_copy_stores_pixel_data(self, mocker):
-        """Test copy_current_frame stores pixel data in clipboard."""
-        canvas, animated_sprite = _make_canvas(mocker, config=CanvasConfig(frame_count=1))
-        frame = animated_sprite._animations['idle'][0]
-        red_rgba_pixels = cast('list[tuple[int, ...]]', [RED_RGBA] * PIXEL_COUNT)
-        frame.set_pixel_data(red_rgba_pixels)
-
-        canvas.copy_current_frame()
-        assert hasattr(canvas, '_clipboard')
-        assert len(canvas._clipboard) == PIXEL_COUNT
-
-    def test_paste_applies_clipboard_data(self, mocker):
-        """Test paste_to_current_frame applies clipboard to current frame."""
-        canvas, animated_sprite = _make_canvas(mocker, config=CanvasConfig(frame_count=2))
-        # Set frame 0 to red
-        frame_0 = animated_sprite._animations['idle'][0]
-        frame_0_pixels = cast('list[tuple[int, ...]]', [RED_RGBA] * PIXEL_COUNT)
-        frame_0.set_pixel_data(frame_0_pixels)
-
-        # Copy frame 0
-        canvas.current_frame = 0
-        canvas.copy_current_frame()
-
-        # Paste to frame 1
-        canvas.current_frame = 1
-        canvas.paste_to_current_frame()
-
-        frame_1 = animated_sprite._animations['idle'][1]
-        pasted_pixels = frame_1.get_pixel_data()
-        assert pasted_pixels[0] == RED_RGBA
-
-    def test_paste_without_clipboard_does_nothing(self, mocker):
-        """Test paste without prior copy does not crash."""
-        canvas, _ = _make_canvas(mocker)
-        # No clipboard set - should not raise
-        canvas.paste_to_current_frame()
-
-
 class TestIsSingleFrameAnimation:
     """Test _is_single_frame_animation method."""
 
@@ -845,7 +797,6 @@ class TestOnPixelUpdateEvent:
 
         canvas.on_pixel_update_event(event, trigger)
         assert canvas.pixels[5] == RED_RGBA
-        assert canvas.dirty_pixels[5] is True
         assert canvas.dirty == 1
 
     def test_pixel_update_without_pixel_number_does_nothing(self, mocker):
@@ -1240,7 +1191,7 @@ class TestNavigationWithParentScene:
         """A frame object without get_pixel_data supplies its pixels attribute instead."""
         canvas, animated_sprite = _make_real_canvas()
         frame_without_method = type('BareFrame', (), {'pixels': [GREEN_RGBA] * PIXEL_COUNT})()
-        animated_sprite._animations['idle'][1] = frame_without_method
+        animated_sprite._animations['idle'][1] = frame_without_method  # pyright: ignore[reportCallIssue] - a frame stand-in
         canvas.animated_sprite.set_frame = lambda frame_index: None
 
         canvas.show_frame('idle', 1)
@@ -1281,20 +1232,26 @@ class TestNavigationWithParentScene:
         ]
         assert switches == [('walk', 0), ('idle', 0)]
 
-    def test_switching_to_an_empty_animation_uses_frame_zero(self, mocker):
-        """An animation with no frames is entered at frame 0."""
+    def test_animation_steps_skip_an_animation_with_no_frames(self):
+        """next/previous_animation step over an animation with no frames (BUGS.md #138.6)."""
         canvas, animated_sprite = _make_real_canvas()
+        surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         animated_sprite._animations['empty'] = []
-        canvas.current_frame = 2
-        show_frame = mocker.spy(canvas, 'show_frame')
+        animated_sprite.add_animation('walk', [SpriteFrame(surface)])
+        parent_scene = ParentSceneStandIn()
+        canvas.parent_scene = parent_scene
 
         canvas.next_animation()
-        canvas.current_animation = 'empty'
-        canvas.current_frame = 2
+        assert canvas.current_animation == 'walk'
         canvas.previous_animation()
+        assert canvas.current_animation == 'idle'
 
-        assert show_frame.call_args_list[0].args == ('empty', 0)
-        assert show_frame.call_args_list[1].args == ('idle', 2)
+        switches = [
+            arguments
+            for name, arguments in parent_scene.film_strip_coordinator.notifications
+            if name == 'switch_to_film_strip'
+        ]
+        assert switches == [('walk', 0), ('idle', 0)]
 
     def test_set_frame_tells_the_undo_manager_and_resumes_playback(self):
         """Selecting a frame while playing updates the undo manager and keeps playing."""
@@ -1950,6 +1907,52 @@ class TestLoading:
 
         assert parent_scene.debug_text.text == 'A tiny red dot'
 
+    def test_load_with_repairs_shows_the_notice(self, tmp_path):
+        """A file whose pixel rows needed repair says so below the AI text box's text."""
+        canvas, _ = _make_real_canvas()
+        parent_scene = ParentSceneStandIn()
+        canvas.parent_scene = parent_scene
+        sprite_path = tmp_path / 'ragged.toml'
+        sprite_path.write_text(
+            '[sprite]\nname = "ragged"\npixels = """\n##\n#\n\n##\n"""\n\n'
+            '[colors."#"]\nred = 255\ngreen = 0\nblue = 0\n'
+        )
+
+        canvas.on_load_file_event(str(sprite_path))
+
+        assert parent_scene.debug_text.text == (
+            'Enter a description of the sprite you want to create:'
+            '\nRepaired the pixel rows of 1 block(s) while loading (details in the log). '
+            'Saving writes the repaired rows.'
+        )
+
+    def test_loading_a_blank_static_sprite_does_not_crash(self, tmp_path):
+        """A sprite with no pixels to draw is reported as a load error, not a crash."""
+        canvas, _ = _make_real_canvas()
+        parent_scene = ParentSceneStandIn()
+        canvas.parent_scene = parent_scene
+        sprite_path = tmp_path / 'blank.toml'
+        sprite_path.write_text(
+            '[sprite]\nname = "blank"\npixels = """\n\n"""\n\n'
+            '[colors."#"]\nred = 255\ngreen = 0\nblue = 0\n'
+        )
+
+        canvas.on_load_file_event(str(sprite_path))
+
+        assert parent_scene.debug_text.text.startswith('Error loading sprite:')
+
+    def test_clean_load_shows_no_notice(self, tmp_path):
+        """A file that needed no repair shows only the usual text."""
+        canvas, _ = _make_real_canvas()
+        parent_scene = ParentSceneStandIn()
+        canvas.parent_scene = parent_scene
+        sprite_path = tmp_path / 'blinker.toml'
+        sprite_path.write_text(ANIMATED_SPRITE_TOML)
+
+        canvas.on_load_file_event(str(sprite_path))
+
+        assert 'Repaired' not in parent_scene.debug_text.text
+
     def test_loading_a_different_size_resizes_the_canvas(self, tmp_path):
         """A sprite of another size resizes the canvas to fit it."""
         # The size math depends on the 800x600 display the conftest opens
@@ -2138,7 +2141,7 @@ class TestCurrentFramePixels:
     def test_frame_without_pixel_data_falls_back_to_canvas_pixels(self):
         """A frame without get_pixel_data leaves the canvas pixels as the answer."""
         canvas, animated_sprite = _make_real_canvas()
-        animated_sprite._animations['idle'][0] = object()
+        animated_sprite._animations['idle'][0] = object()  # pyright: ignore[reportCallIssue] - a frame stand-in
         canvas.pixels = [GREEN_RGBA] * PIXEL_COUNT
 
         assert canvas._get_current_frame_pixels() == [GREEN_RGBA] * PIXEL_COUNT
@@ -2152,45 +2155,6 @@ class TestCurrentFramePixels:
         canvas._copy_sprite_to_canvas()
 
         assert canvas.pixels == [GREEN_RGBA] * PIXEL_COUNT
-
-
-class TestConvertStaticToAnimated:
-    """Test _convert_static_to_animated."""
-
-    def test_pixel_data_and_name_are_kept(self):
-        """The static sprite's pixel data becomes one frame of an animation named after it."""
-        canvas, _ = _make_real_canvas()
-        static_sprite = type(
-            'StaticSprite',
-            (),
-            {'name': 'dot', 'get_pixel_data': lambda self: [RED_RGBA] * 4},
-        )()
-
-        animated_sprite = canvas._convert_static_to_animated(static_sprite, 2, 2)
-
-        assert list(animated_sprite._animations) == ['dot']
-        assert animated_sprite._animations['dot'][0].get_pixel_data() == [RED_RGBA] * 4
-
-    def test_pixels_list_and_animation_name_are_used(self):
-        """Without get_pixel_data or a name, the pixels list and animation_name are used."""
-        canvas, _ = _make_real_canvas()
-        static_sprite = type(
-            'StaticSprite',
-            (),
-            {'name': '', 'animation_name': 'idle', 'pixels': [BLUE_RGBA] * 4},
-        )()
-
-        animated_sprite = canvas._convert_static_to_animated(static_sprite, 2, 2)
-
-        assert animated_sprite._animations['idle'][0].get_pixel_data() == [BLUE_RGBA] * 4
-
-    def test_sprite_without_pixels_becomes_transparent(self):
-        """A sprite with no pixel data becomes one transparent magenta frame named idle."""
-        canvas, _ = _make_real_canvas()
-
-        animated_sprite = canvas._convert_static_to_animated(object(), 2, 2)
-
-        assert animated_sprite._animations['idle'][0].get_pixel_data() == [MAGENTA_RGB] * 4
 
 
 class TestNavigationEdges:
@@ -2218,8 +2182,8 @@ class TestNavigationEdges:
 
         assert (canvas.current_animation, canvas.current_frame) == ('idle', 1)
 
-    def test_previous_animation_without_frames_asks_for_frame_zero(self):
-        """Stepping back to an animation with no frames tells the scene to show its frame 0."""
+    def test_animation_steps_with_only_empty_others_change_nothing(self):
+        """When every other animation has no frames, stepping changes neither canvas nor strip."""
         canvas, animated_sprite = _make_real_canvas()
         animated_sprite._animations = {'empty': [], **animated_sprite._animations}
         parent_scene = ParentSceneStandIn()
@@ -2227,12 +2191,14 @@ class TestNavigationEdges:
         canvas.current_frame = 2
 
         canvas.previous_animation()
+        canvas.next_animation()
 
-        assert parent_scene.film_strip_coordinator.notifications[-1] == (
-            'switch_to_film_strip',
-            ('empty', 0),
-        )
         assert (canvas.current_animation, canvas.current_frame) == ('idle', 2)
+        assert not [
+            name
+            for name, _ in parent_scene.film_strip_coordinator.notifications
+            if name == 'switch_to_film_strip'
+        ]
 
     def test_set_frame_out_of_range_changes_nothing(self):
         """A frame index past the end of the animation is ignored."""
@@ -2243,30 +2209,6 @@ class TestNavigationEdges:
 
         assert canvas.current_frame == 1
         assert animated_sprite.current_frame == 0
-
-
-class TestCopyPasteOutOfRange:
-    """Test frame copy and paste when the current frame does not exist."""
-
-    def test_copy_of_a_missing_frame_fills_no_clipboard(self):
-        """Copying a frame index past the end leaves the clipboard empty."""
-        canvas, _ = _make_real_canvas()
-        canvas.current_frame = 9
-
-        canvas.copy_current_frame()
-
-        assert not hasattr(canvas, '_clipboard')
-
-    def test_paste_onto_a_missing_frame_changes_no_frame(self):
-        """Pasting with a frame index past the end writes nowhere."""
-        canvas, animated_sprite = _make_real_canvas()
-        canvas._clipboard = [RED_RGBA] * PIXEL_COUNT
-        canvas.current_frame = 9
-
-        canvas.paste_to_current_frame()
-
-        for frame in animated_sprite._animations['idle']:
-            assert RED_RGBA not in frame.get_pixel_data()
 
 
 class TestDragEdges:

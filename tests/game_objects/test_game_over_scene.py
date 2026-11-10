@@ -198,13 +198,17 @@ class TestGameOverSceneScoreDisplay:
         """Without a score or high scores the scene shows just GAME OVER and the key help."""
         texts = self._shown_texts(mocker, GameOverScene())
 
-        assert texts == ['GAME OVER', 'Press SPACE to restart or ESC to quit']
+        assert texts == ['GAME OVER', 'Press SPACE or START to restart, ESC or BACK to quit']
 
     def test_final_score_is_shown_under_the_title(self, mocker):
         """A final score adds a 'Score: N' line between the title and the instructions."""
         texts = self._shown_texts(mocker, GameOverScene(final_score=0))
 
-        assert texts == ['GAME OVER', 'Score: 0', 'Press SPACE to restart or ESC to quit']
+        assert texts == [
+            'GAME OVER',
+            'Score: 0',
+            'Press SPACE or START to restart, ESC or BACK to quit',
+        ]
 
     def test_high_scores_show_the_top_five_ranked(self, mocker):
         """Only the first five high scores are listed, ranked from 1; a missing score reads 0."""
@@ -222,7 +226,7 @@ class TestGameOverSceneScoreDisplay:
             '3. 700',
             '4. 600',
             '5. 500',
-            'Press SPACE to restart or ESC to quit',
+            'Press SPACE or START to restart, ESC or BACK to quit',
         ]
 
     def test_each_line_is_laid_out_below_the_one_before(self, mocker):

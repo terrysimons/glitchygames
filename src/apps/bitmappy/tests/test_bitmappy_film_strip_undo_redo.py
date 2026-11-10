@@ -16,7 +16,6 @@ import pytest
 
 from bitmappy.history.operations import (
     CanvasOperationTracker,
-    CrossAreaOperationTracker,
     FilmStripOperationTracker,
 )
 from bitmappy.history.undo_redo import UndoRedoManager
@@ -95,10 +94,6 @@ class _FilmStripMockScene:
             editor=self,
         )
         self.film_strip_operation_tracker = FilmStripOperationTracker(
-            self.undo_redo_manager,
-            editor=self,
-        )
-        self.cross_area_operation_tracker = CrossAreaOperationTracker(
             self.undo_redo_manager,
             editor=self,
         )

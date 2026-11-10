@@ -58,5 +58,6 @@ EXPECTED_ALL_CONSOLE_SCRIPTS = frozenset({
     'joystick-demo',
     'mr-muncher',
     'paddleslap',
+    'sound-board-demo',
     'text-input-demo',
 })

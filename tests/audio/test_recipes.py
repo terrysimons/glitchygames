@@ -5,6 +5,8 @@ from typing import Any
 
 import numpy as np
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from glitchygames.audio import synth
 from glitchygames.audio.exceptions import AudioUnavailableError, SoundRecipeError
@@ -242,3 +244,34 @@ class TestSoundBank:
     def test_duplicate_names_rejected(self):
         with pytest.raises(ValueError, match='ting'):
             SoundBank([_two_tone_recipe(), _two_tone_recipe()])
+
+
+fuzzed_envelopes = st.builds(
+    Envelope,
+    attack=st.floats(min_value=0.0, max_value=0.05),
+    decay=st.floats(min_value=0.0, max_value=0.05),
+    sustain_level=st.floats(min_value=0.0, max_value=1.0),
+    release=st.floats(min_value=0.0, max_value=0.05),
+)
+fuzzed_tones = st.builds(
+    Tone,
+    waveform=st.sampled_from(list(Waveform)),
+    # Under the Nyquist frequency of the lowest rate drawn (8000 Hz)
+    start_frequency=st.floats(min_value=20.0, max_value=3900.0),
+    # From under half a frame (no samples) to a quarter second
+    duration=st.floats(min_value=1e-6, max_value=0.25),
+    envelope=fuzzed_envelopes,
+    offset=st.floats(min_value=0.0, max_value=0.2),
+)
+fuzzed_recipes = st.builds(
+    SoundRecipe, name=st.just('fuzzed'), tones=st.lists(fuzzed_tones, max_size=4).map(tuple)
+)
+
+
+@settings(derandomize=True, database=None, max_examples=200)
+@given(recipe=fuzzed_recipes, sample_rate=st.sampled_from([8000, 22050, 44100, 48000]))
+def test_a_recipes_frame_count_is_its_render_length(recipe, sample_rate):
+    """``SoundRecipe.frame_count`` (a v0 sound's length without rendering) is what render gives."""
+    assert recipe.frame_count(sample_rate=sample_rate) == len(
+        recipe.render(sample_rate=sample_rate)
+    )

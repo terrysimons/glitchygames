@@ -90,6 +90,11 @@ built by the same functions (``event_batch_records``, ``recorded_frame``).
   them to the game. A rebaseline stacks its own in front of the replayed frame's; each list
   keeps ``CONTENT_HASH_HISTORY_DEPTH`` / ``PROCESSING_SECONDS_HISTORY_DEPTH`` entries (10).
   A recording's own hash for any run is derived from them (``recording_content_hash``).
+- A frame in which the audio engine did work (compiles, decodes, cache reads, live chunks;
+  glitchygames/audio/accounting.py) also holds ``audio_seconds`` (its total, to the
+  microsecond) and ``audio_work`` (``[kind, name, microseconds]`` per piece, at most 32), this
+  run's alone: measurements no hash covers, never compared or served (sound engine impl spec
+  11.0). Only the recording doors write them (``end_frame(audio_frame=...)``).
 - A frame whose active scene is a different scene object from the previous frame's is a
   keyframe, even when both scenes have the same class (two floors of one game).
 
@@ -249,9 +254,13 @@ from typing import TYPE_CHECKING, Any, Protocol, Self, TypedDict, Unpack, cast
 import numpy as np
 import pygame
 
+from glitchygames.events.base import LEGACY_CUSTOM_EVENT_TYPES, NAMED_CUSTOM_EVENT_TYPES
 from glitchygames.input.state import IDLE_INPUT, snapshot_changes
 from glitchygames.recording_history import (
+    AUDIO_SECONDS_FIELD,
+    AUDIO_WORK_FIELD,
     CONTENT_HASH_FIELD,
+    PROCESSING_SECONDS_DIGITS,
     PROCESSING_SECONDS_FIELD,
     add_frame_histories,
 )
@@ -264,10 +273,11 @@ from glitchygames.state.sandbox import save_namespace_snapshot
 from glitchygames.tracing import StableSpriteIds, TraceFormatError, TraceWriter, sample_scene_frame
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping
+    from collections.abc import Callable, Iterable, Mapping, Sequence
     from pathlib import Path
     from types import TracebackType
 
+    from glitchygames.audio.accounting import AudioFrameAccount
     from glitchygames.input.devices import DeviceRegistry
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scene_start import SceneStart
@@ -319,9 +329,23 @@ RECORDING_FORMAT_THREE_FIELDS = (
 )
 # Header fields format version 3 adds
 SAVES_HEADER_FIELD = 'saves'
+# The game class's logical name (glitchygames/logical_names.py), which replays compare. Here, not
+# in replay/driver.py, so the instant-replay journal can name it without importing the driver,
+# which scenes must not import (BUGS.md #224 item 16)
+GAME_HEADER_FIELD = 'game'
 DEVICES_HEADER_FIELD = 'devices'
+# An instant-replay journal's live devices as its scene started: {'input_mode': ..., 'devices':
+# [descriptor, ...]}, which its playback scope adopts (glitchygames/instant_replay.py, rule 10;
+# BUGS.md #184.3). A recording file has none: its scope opens the header's devices as the
+# recorded engine did
+SCENE_START_DEVICES_HEADER_FIELD = 'scene_start_devices'
 # The recording's start time (ISO 8601): the origin of a recorded or replayed run's wall clock
 RECORDED_AT_HEADER_FIELD = 'recorded_at'
+# The named custom event types the recording was made with, by name (the engine's and any a game
+# registered: ``glitchygames.events.base.NAMED_CUSTOM_EVENT_TYPES``): a replay moves its event
+# records to this process's ids (``custom_event_type_remap``; BUGS.md #211.1). A recording
+# without it was made with ``LEGACY_CUSTOM_EVENT_TYPES``
+CUSTOM_EVENT_TYPES_HEADER_FIELD = 'custom_event_types'
 
 # Event record fields and origins
 EVENT_TYPE_FIELD = 'type'
@@ -622,7 +646,7 @@ def _json_safe_scalar(value: float | str | None) -> JsonValue:
     return {FLOAT_TAG: _non_finite_float_name(value)}
 
 
-def _json_safe_number(value: numbers.Real | np.generic) -> JsonValue:
+def _json_safe_number(value: numbers.Real | np.generic[Any]) -> JsonValue:
     """Store a number that is not a Python bool, int or float (a numpy scalar) as one.
 
     ``numbers.Integral`` and ``numbers.Real`` cover numpy's integer and floating scalars;
@@ -704,7 +728,7 @@ def json_safe_value(value: object) -> JsonValue:
     if isinstance(value, (bytes, bytearray)):
         return {BYTES_TAG: bytes(value).hex()}
     if isinstance(value, (numbers.Real, np.generic)):
-        return _json_safe_number(value)
+        return _json_safe_number(cast('numbers.Real | np.generic[Any]', value))
     return _json_safe_object(value)
 
 
@@ -919,6 +943,99 @@ def event_origin(*, event: pygame.event.Event, pending: list[tuple[int, dict[str
     if post is not None or event.type >= pygame.USEREVENT:
         return INTERNAL_ORIGIN
     return EXTERNAL_ORIGIN
+
+
+def custom_event_types_header() -> dict[str, int]:
+    """Return the header's ``CUSTOM_EVENT_TYPES_HEADER_FIELD`` value for a recording made now.
+
+    Returns:
+        Every named custom event type (the engine's and the games'), as this process allocated
+        them.
+
+    """
+    return dict(NAMED_CUSTOM_EVENT_TYPES)
+
+
+def custom_event_type_remap(*, header: Mapping[str, Any]) -> dict[int, int]:
+    """Return how a recording's named custom event ids move to this process's (BUGS.md #211.1).
+
+    Something that calls ``pygame.event.custom_type()`` before glitchygames is imported (or a
+    game that registers its types in another order) shifts the ids, so a recording made in one
+    process may name FPSEVENT by another id than a replaying one does. The header names the ids
+    it was made with (``CUSTOM_EVENT_TYPES_HEADER_FIELD``; without it,
+    ``LEGACY_CUSTOM_EVENT_TYPES``). A name this process has not registered is left as recorded,
+    and so is an id allocated straight from pygame: the recording has no name for it.
+
+    Args:
+        header: The recording's header fields.
+
+    Returns:
+        Recorded id -> this process's id, for each id that differs (empty: nothing moves).
+
+    Raises:
+        TraceFormatError: If the header's field is not a mapping of names to integer ids.
+
+    """
+    recorded = header.get(CUSTOM_EVENT_TYPES_HEADER_FIELD, LEGACY_CUSTOM_EVENT_TYPES)
+    if not isinstance(recorded, dict | MappingProxyType) or not all(
+        isinstance(name, str) and type(event_type) is int
+        for name, event_type in cast('Mapping[object, object]', recorded).items()
+    ):
+        message = (
+            f'The recording header {CUSTOM_EVENT_TYPES_HEADER_FIELD} must map event names to '
+            f'integer ids, not {recorded!r}'
+        )
+        raise TraceFormatError(message)
+    recorded_types = cast('Mapping[str, int]', recorded)
+    return {
+        recorded_types[name]: event_type
+        for name, event_type in NAMED_CUSTOM_EVENT_TYPES.items()
+        if name in recorded_types and recorded_types[name] != event_type
+    }
+
+
+def remapped_event_records(
+    *, frames: Sequence[dict[str, Any]], remap: Mapping[int, int]
+) -> Sequence[dict[str, Any]]:
+    """Return the frames with their event records' types moved by ``custom_event_type_remap``.
+
+    A frame's event records are its ``EVENT_BATCHES_FIELD`` batches and its
+    ``REDELIVERED_EVENTS_FIELD``. Only a frame with a record that moves is copied (shallowly,
+    with new record lists): frames share their records (``read_trace_result``'s
+    ``share_records``), so none is changed in place.
+
+    Args:
+        frames: The recording's decoded frames.
+        remap: Recorded id -> this process's id.
+
+    Returns:
+        The frames (the same sequence when nothing moves).
+
+    """
+    if not remap:
+        return frames
+
+    def moved(record: dict[str, Any]) -> dict[str, Any]:
+        event_type = record.get(EVENT_TYPE_FIELD)
+        if type(event_type) is not int or event_type not in remap:
+            return record
+        return {**record, EVENT_TYPE_FIELD: remap[event_type]}
+
+    def frame_moved(frame: dict[str, Any]) -> dict[str, Any]:
+        batches = frame.get(EVENT_BATCHES_FIELD)
+        redelivered = frame.get(REDELIVERED_EVENTS_FIELD)
+        if not batches and not redelivered:
+            return frame
+        moved_frame = dict(frame)
+        if batches:
+            moved_frame[EVENT_BATCHES_FIELD] = [
+                [moved(record) for record in batch] for batch in batches
+            ]
+        if redelivered:
+            moved_frame[REDELIVERED_EVENTS_FIELD] = [moved(record) for record in redelivered]
+        return moved_frame
+
+    return [frame_moved(frame) for frame in frames]
 
 
 def event_batch_records(
@@ -1181,6 +1298,7 @@ class GameplayRecorder:
         scene: Scene | None,
         processing_seconds: float | None = None,
         previous_histories: Mapping[str, Any] | None = None,
+        audio_frame: AudioFrameAccount | None = None,
         **frame_fields: Unpack[RecordedFrameFields],
     ) -> None:
         """Write the frame just finished: its dt, its event batches and the scene's sprites.
@@ -1188,7 +1306,9 @@ class GameplayRecorder:
         The format-3 fields (``RecordedFrameFields``, see the module docstring) are written
         only when given and not empty, so idle frames stay small. Every frame also gets its
         histories (glitchygames/recording_history.py): its content hash and processing time,
-        in front of ``previous_histories`` (a rebaseline's: the replayed frame's).
+        in front of ``previous_histories`` (a rebaseline's: the replayed frame's). A frame
+        that did audio work gets its ``audio_seconds`` (to the microsecond) and ``audio_work``
+        measurements, which no hash covers (sound engine impl spec 11.0).
 
         Args:
             dt: The frame's raw delta time (scene logic received it capped at the scene's
@@ -1197,6 +1317,7 @@ class GameplayRecorder:
             processing_seconds: The frame's processing time, or None when not measured.
             previous_histories: The frame's earlier ``content_hash`` and ``processing_seconds``
                 histories, or None for a fresh recording.
+            audio_frame: The frame's audio work, or None when the game has no audio engine.
             **frame_fields: The frame's format-3 fields, by keyword.
 
         """
@@ -1216,6 +1337,11 @@ class GameplayRecorder:
             processing_seconds=processing_seconds,
             previous_histories=previous_histories,
         )
+        if audio_frame is not None and audio_frame.audio_work:
+            frame_record[AUDIO_SECONDS_FIELD] = round(
+                audio_frame.audio_seconds, PROCESSING_SECONDS_DIGITS
+            )
+            frame_record[AUDIO_WORK_FIELD] = [list(piece) for piece in audio_frame.audio_work]
         is_new_scene_object = self._writer.frame_count > 0 and scene is not self._previous_scene
         failure: OSError | None = None
         try:
@@ -1511,7 +1637,7 @@ class RecordingSources:
         """
         return self.inner.control_events_for_frame(frame_number=frame_number)
 
-    def end_frame(
+    def end_frame(  # ruff: ignore[too-many-arguments] - the EngineSources door's signature
         self,
         *,
         frame_number: int,
@@ -1519,6 +1645,7 @@ class RecordingSources:
         scene: Scene | None,
         control_events: list[ControlEvent],
         processing_seconds: float | None = None,
+        audio_frame: AudioFrameAccount | None = None,
     ) -> None:
         """Write the frame with everything that passed through the doors, then end it inside.
 
@@ -1563,6 +1690,7 @@ class RecordingSources:
                 # This run's own measurement, over a replay too (a rebaseline's NEW holds the
                 # current code's times in front of OLD's)
                 processing_seconds=processing_seconds,
+                audio_frame=audio_frame,
                 previous_histories=(
                     None
                     if self._replayed is None
@@ -1580,6 +1708,7 @@ class RecordingSources:
             scene=scene,
             control_events=control_events,
             processing_seconds=processing_seconds,
+            audio_frame=audio_frame,
         )
 
     def _unrecorded_scene_start(self, *, scene: Scene | None) -> SceneStart | None:

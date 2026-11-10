@@ -1,0 +1,14 @@
+[glitchygames]
+kind = "sounds"
+version = 1
+
+[instruments.pickup]
+envelope = "pluck"
+
+[instruments.pickup.sources.tone]
+noise = "lfsr"
+lfsr = { bits = 15, taps = [3, 2] }
+
+[sounds.coin]
+instrument = "pickup"
+pitch = "C5"

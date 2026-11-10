@@ -179,7 +179,7 @@ class FileIOManager:
 
         """
         image, width, height = self._load_and_resize_png(file_path)
-        pixel_array: Any = pygame.surfarray.array3d(image)  # type: ignore[reportUnknownMemberType]
+        pixel_array: Any = pygame.surfarray.array3d(image)
         self.log.info('Pixel array shape: %s', pixel_array.shape)
 
         has_transparency, original_image = self._detect_png_transparency(image, file_path)
@@ -305,7 +305,7 @@ class FileIOManager:
             return False, None
         # An alpha channel alone is not transparency (paint programs export opaque RGBA files):
         # transparent means a pixel _sample_png_colors would turn magenta
-        alpha_values: Any = pygame.surfarray.array_alpha(original_image)  # type: ignore[reportUnknownMemberType]
+        alpha_values: Any = pygame.surfarray.array_alpha(original_image)
         if alpha_values.min() >= ALPHA_TRANSPARENCY_THRESHOLD:
             return False, None
 
@@ -585,13 +585,11 @@ class FileIOManager:
 
         # Update canvas pixels
         canvas_sprite.pixels = pixel_data
-        canvas_sprite.dirty_pixels = [True] * len(pixel_data)
         self.log.info('Transferred %s pixels to canvas', len(pixel_data))
 
         # Update mini view pixels too
         if hasattr(canvas_sprite, 'mini_view') and canvas_sprite.mini_view is not None:
             canvas_sprite.mini_view.pixels = pixel_data.copy()
-            canvas_sprite.mini_view.dirty_pixels = [True] * len(pixel_data)
             self.log.info('Updated mini view pixels')
 
     def _finalize_sprite_load(self, canvas_sprite: AnimatedCanvasSprite) -> None:
@@ -610,7 +608,6 @@ class FileIOManager:
         if hasattr(canvas_sprite, 'mini_view') and canvas_sprite.mini_view is not None:
             self.log.info('Updating mini view...')
             canvas_sprite.mini_view.pixels = canvas_sprite.pixels.copy()
-            canvas_sprite.mini_view.dirty_pixels = [True] * len(canvas_sprite.pixels)
             canvas_sprite.mini_view.dirty = 1
             canvas_sprite.mini_view.force_redraw()
 

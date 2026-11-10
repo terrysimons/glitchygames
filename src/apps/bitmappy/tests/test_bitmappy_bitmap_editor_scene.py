@@ -83,7 +83,6 @@ def mock_editor(mocker):  # ruff: ignore[too-many-statements]
     editor.canvas.active_color = (128, 64, 32, 255)
     editor.canvas.canvas_interface = mocker.Mock()
     editor.canvas.pixels = [(255, 0, 255)] * (32 * 32)
-    editor.canvas.dirty_pixels = [False] * (32 * 32)
 
     # -- Multi-controller system --
     editor.multi_controller_manager = mocker.Mock()
@@ -227,28 +226,28 @@ class TestInitializeSliderValues:
     """Tests for SliderManager._initialize_slider_values()."""
 
     def test_sets_default_slider_values(self, mock_editor):
-        """Test that sliders are initialized to default values."""
+        """Every slider starts at 255: the editor's color starts as opaque white."""
         mock_editor._slider_manager._initialize_slider_values()
         assert mock_editor.alpha_slider.value == 255
-        assert mock_editor.red_slider.value == 0
-        assert mock_editor.green_slider.value == 0
-        assert mock_editor.blue_slider.value == 0
+        assert mock_editor.red_slider.value == 255
+        assert mock_editor.green_slider.value == 255
+        assert mock_editor.blue_slider.value == 255
 
     def test_updates_color_well(self, mock_editor):
         """Test that color well is synced with slider defaults."""
         mock_editor._slider_manager._initialize_slider_values()
-        assert mock_editor.color_well.active_color == (0, 0, 0, 255)
+        assert mock_editor.color_well.active_color == (255, 255, 255, 255)
 
     def test_updates_canvas_active_color(self, mock_editor):
         """Test that canvas active color is synced."""
         mock_editor._slider_manager._initialize_slider_values()
-        assert mock_editor.canvas.active_color == (0, 0, 0, 255)
+        assert mock_editor.canvas.active_color == (255, 255, 255, 255)
 
     def test_no_canvas_does_not_crash(self, mock_editor):
         """Test that missing canvas is handled gracefully."""
         mock_editor.canvas = None
         mock_editor._slider_manager._initialize_slider_values()
-        assert mock_editor.red_slider.value == 0
+        assert mock_editor.red_slider.value == 255
 
 
 # ===========================================================================
@@ -458,9 +457,8 @@ class TestTriggerValuesFromSnapshot:
 
         left_trigger, right_trigger = mock_editor.controller_handler._read_trigger_values(event, 0)
 
-        # The existing joystick conversion assumes pygame's old int scale (BUGS.md #67)
-        assert left_trigger == pytest.approx(32769.0 / 65535.0)
-        assert right_trigger == pytest.approx(32767.0 / 65535.0)
+        # pygame 2's -1.0..1.0 axis scale, as the controller path reads it (BUGS.md #67)
+        assert (left_trigger, right_trigger) == (1.0, 0.0)
         real_joystick.assert_not_called()
 
 
@@ -663,12 +661,10 @@ class TestSetCanvasPixel:
         mock_editor.canvas.pixels_across = 4
         mock_editor.canvas.pixels_tall = 4
         mock_editor.canvas.pixels = [(0, 0, 0)] * 16
-        mock_editor.canvas.dirty_pixels = [False] * 16
         mock_editor.canvas.dirty = 0
         mock_editor.controller_handler.canvas._set_canvas_pixel(1, 2, (100, 200, 50))
         # pixel_num = 2 * 4 + 1 = 9
         assert mock_editor.canvas.pixels[9] == (100, 200, 50)
-        assert mock_editor.canvas.dirty_pixels[9] is True
         assert mock_editor.canvas.dirty == 1
 
     def test_no_canvas_attr_does_nothing(self, mock_editor):
@@ -980,7 +976,8 @@ class TestTrackControllerModeChange:
 
     def test_skips_during_undo_redo(self, mock_editor, mocker):
         """Test that mode changes are not tracked during undo/redo application."""
-        mock_editor.controller_handler.applying_undo_redo = True
+        # The editor's flag, which undo and redo set (BUGS.md #178 item 22)
+        mock_editor.applying_undo_redo = True
         new_mode = mocker.Mock()
         new_mode.value = 'canvas'
         mock_editor.controller_handler._track_controller_mode_change(0, new_mode)
@@ -1294,7 +1291,6 @@ class TestResetCanvasForNewFile:
         mock_editor._reset_canvas_for_new_file(4, 4, 2)
         assert len(mock_editor.canvas.pixels) == 16
         assert all(pixel == (255, 0, 255, 255) for pixel in mock_editor.canvas.pixels)
-        assert all(dirty is True for dirty in mock_editor.canvas.dirty_pixels)
 
     def test_ends_the_pan_in_progress(self, mock_editor):
         """Test that a pan gesture of the old canvas is ended."""

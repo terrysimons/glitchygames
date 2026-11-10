@@ -836,10 +836,33 @@ class TestBuildRetryPrompt:
         assert 'IMPORTANT' in result
         assert 'cut off' in result
 
+    # ---------------------------------------------------------------------------
+    # _alpha_blend_pixel tests
+    # ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# _alpha_blend_pixel tests
-# ---------------------------------------------------------------------------
+    def test_retry_prompt_corrects_each_kind_of_repair(self):
+        """Each kind of pixel-row repair gets its own correction, and only those present."""
+        result = build_retry_prompt(
+            'p',
+            "Pixel rows need repair: walk frame 0: glyphs not in the palette: '.'; drawn "
+            'transparent; walk frame 1: blank line between rows (line 2); drawn as transparent '
+            "rows; palette: palette keys that are not one code point: 'ab'",
+        )
+        assert 'define every glyph you use in [colors]' in result
+        assert 'no blank lines inside a frame' in result
+        assert 'every [colors] key must be exactly one character' in result
+        assert 'same number of characters' not in result
+
+    def test_retry_prompt_asks_for_equal_widths(self):
+        """A pixel-row error gets its own correction, and no other one."""
+        result = build_retry_prompt(
+            'p',
+            'Pixel rows need repair: walk frame 0: row widths differ (3, 4); short rows padded '
+            'with transparent pixels to 4',
+        )
+        assert 'every row of a frame must have the same number of characters' in result
+        assert 'Previous attempt had an error' not in result
+        assert 'not an empty or error message' not in result
 
 
 class TestAlphaBlendPixel:

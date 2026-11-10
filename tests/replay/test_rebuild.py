@@ -15,7 +15,7 @@ import pytest
 from glitchygames.debug import DebugPanel
 from glitchygames.engine import GameEngine
 from glitchygames.exit_codes import ExitCode
-from glitchygames.replay import rebuild
+from glitchygames.replay import rebuild, silence
 from glitchygames.replay.rebuild import (
     REBUILD_PROGRESS_INTERVAL_SECONDS,
     REBUILD_PROGRESS_PRINT_INTERVAL_SECONDS,
@@ -624,17 +624,52 @@ class TestFrameSilencer:
         assert pygame.mixer.music.unpause is pygame_unpause
 
     def test_an_unpause_set_over_the_wrappers_is_kept_and_pause_still_restored(self, mocker):
-        """Each control is given back only while still the silencer's wrapper."""
+        """Each control is given back only while still the silencer's wrapper.
+
+        Set and put back by hand, not with mocker: mocker would put back what it replaced, the
+        silencer's wrapper, leaving it in place after the test (a later silence then took it for
+        pygame's own unpause and recursed: found by a shuffled run).
+        """
         pygame_pause, pygame_unpause = pygame.mixer.music.pause, pygame.mixer.music.unpause
         silencer = FrameSilencer()
         silencer.begin()
         game_unpause = mocker.Mock()
-        mocker.patch.object(pygame.mixer.music, 'unpause', game_unpause)
-        silencer.stop_following_music()
-        assert pygame.mixer.music.pause is pygame_pause
-        assert pygame.mixer.music.unpause is game_unpause
-        # mocker puts pygame's own unpause back after the test
-        assert pygame_unpause is not game_unpause
+        try:
+            silence._set_music_controls(pause=pygame.mixer.music.pause, unpause=game_unpause)
+            silencer.stop_following_music()
+            assert pygame.mixer.music.pause is pygame_pause
+            assert pygame.mixer.music.unpause is game_unpause
+        finally:
+            silence._set_music_controls(pause=pygame_pause, unpause=pygame_unpause)
+
+    def test_a_wrapper_left_in_place_is_never_taken_for_pygames_own(self, dummy_mixer, tmp_path):
+        """A silencer begun over a wrapper left behind still reaches pygame's own unpause.
+
+        Game code that saves music.unpause during a rebuild and puts it back after leaves the
+        wrapper in place; the next silence used to capture it as pygame's own, and its unpause
+        then called itself until the recursion limit.
+        """
+        pygame_pause, pygame_unpause = pygame.mixer.music.pause, pygame.mixer.music.unpause
+        music_path = tmp_path / 'music.wav'
+        write_silent_wave(path=music_path)
+        pygame.mixer.music.load(str(music_path))
+        pygame.mixer.music.play(loops=-1)
+        try:
+            first = FrameSilencer()
+            first.begin()
+            left_behind = (pygame.mixer.music.pause, pygame.mixer.music.unpause)
+            first.stop_following_music()
+            silence._set_music_controls(pause=left_behind[0], unpause=left_behind[1])
+
+            second = FrameSilencer()
+            second.begin()
+            second.silence_frame()
+            assert not pygame.mixer.music.get_busy()
+            second.finish()
+
+            assert pygame.mixer.music.get_busy()
+        finally:
+            silence._set_music_controls(pause=pygame_pause, unpause=pygame_unpause)
 
     def test_stacked_silencers_both_see_the_games_music_pause(self, dummy_mixer, tmp_path):
         music_path = tmp_path / 'music.wav'
