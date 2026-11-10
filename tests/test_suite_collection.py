@@ -1250,6 +1250,7 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     ),
     'tests/test_our_measured_recordings.py': "checks our games' recordings are all measured",
     'tests/test_logger_level_source_guard.py': SOURCE_GUARD_REASON,
+    'tests/test_process_state_guard.py': SOURCE_GUARD_REASON,
     'tests/test_pump_seam_guard.py': SOURCE_GUARD_REASON,
     'tests/test_suite_collection.py': (
         "the suite's own collection and import guards, over every test root"
