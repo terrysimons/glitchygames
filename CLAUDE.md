@@ -1651,4 +1651,10 @@ alpha = 127  # 0-254 for transparency, omit for opaque
   link to it (`test_mkdocs_yml_is_a_link_to_zensical_yml`). Code reads `zensical.yml` by name:
   Windows may check the link out as a text file. `docs/requirements.md` is the requirements page:
   its pickers and tables are `docs/js/requirements.js` over `docs/data/requirements.json`
-  (each measured machine's ranges from the replay ledger, regenerated when they are re-measured)
+  (each measured machine's ranges from the replay ledger, regenerated when they are re-measured).
+  Replay Performance and Code Complexity are explorers too: `docs/js/performance.js` over the
+  build's `quality/metrics/performance-explorer.json` (`scripts/generate_performance_graphs.py`:
+  the engine's chart traces per recording) and `docs/js/complexity.js` over
+  `quality/graphs/complexity-explorer.json` (`scripts/generate_complexity_graphs.py`: every
+  module's and package's wily history); both load plotly.js only on their page, and all three
+  share `docs/css/explorer.css`

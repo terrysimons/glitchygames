@@ -1986,16 +1986,17 @@ def build_all(session: nox.Session) -> None:
 
 @nox.session(python=['3.14'], reuse_venv=False, name='code-complexity', default=False)
 def code_complexity(session: nox.Session) -> None:
-    """Analyze code complexity with wily and generate optional HTML graphs.
+    """Analyze code complexity with wily and optionally generate the docs' complexity explorer data.
 
     Tools: complexity_report.py (wily: the working tree's changes against HEAD, the history measured
     in a temporary worktree so the working tree is never checked out over), and
-    generate_complexity_graphs.py (the docs' graphs, generated in a temporary worktree from the
-    whole history into docs/quality/graphs/, which git ignores; every mkdocs build does too)
+    generate_complexity_graphs.py (the docs' complexity explorer data, generated in a temporary
+    worktree from the whole history into docs/quality/graphs/, which git ignores; every mkdocs
+    build does too)
 
     Usage:
         nox -s code-complexity              # The working tree's changes against HEAD
-        nox -s code-complexity -- --graphs  # Also generate the docs' complexity graphs
+        nox -s code-complexity -- --graphs  # Also generate the docs' complexity explorer data
         nox -s code-complexity -- --rank    # Show files ranked by complexity
     """
     _install_from_lockfile(session)

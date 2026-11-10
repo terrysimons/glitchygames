@@ -653,6 +653,13 @@ only replays; Part 2 Task 1).
   replay ledger (the page's tables and verdicts are drawn from it), and update the page's prose
   and dates. The page also has a claude.ai doc copy, "GlitchyGames Requirements"; update it or
   retire it then.
+- **Test the docs explorers in a browser** (2026-11-09). The requirements, Replay Performance and
+  Code Complexity pages draw their pickers and charts in JavaScript (`docs/js/requirements.js`,
+  `performance.js`, `complexity.js`); the suite tests the data files the generators write, but the
+  pages themselves were only checked by hand in headless Chrome. A small browser test (a built
+  site, each page loaded, each picker clicked, no console error) would keep them working. The
+  frame x commit heatmaps stay on each recording's own page; they could join the performance
+  explorer as a chart of their own.
 - **Raspberry Pi hardware runners** (the user, 2026-11-02; do this on its own branch, separate from
   the sound engine work). Self-hosted CI runners on the user's Raspberry Pis, so the replay ledger
   and the sound benchmarks (`docs/specs/2026-11-02-sound-engine-implementation-spec.md` §11) are

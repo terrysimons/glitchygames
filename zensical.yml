@@ -99,6 +99,8 @@ extra_javascript:
   - js/requirements.js
   # The Replay Performance explorer (quality/performance.md): loads plotly.js only on that page
   - js/performance.js
+  # The Code Complexity explorer (quality/complexity.md): loads plotly.js only on that page
+  - js/complexity.js
 
 # The complexity and performance graphs' snippets, which quality/complexity.md and
 # quality/performance.md include (pymdownx.snippets), are not pages of their own
