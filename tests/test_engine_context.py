@@ -50,6 +50,7 @@ from glitchygames.engine_context import (
     declared_context_slots,
     default_context,
 )
+from glitchygames.events import ResourceManager
 from glitchygames.game_frames import game_frame_clock
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, EnumerationAnswer
 from glitchygames.input.state import IDLE_INPUT, current_input, set_current_input
@@ -1044,6 +1045,28 @@ def check_performance_managers(*, first: EngineContext, second: EngineContext) -
     assert default_manager._target_fps == default_target_fps
 
 
+class SharedInstanceStandIn(ResourceManager):
+    """A shared ResourceManager of the isolation check's own (no game, no proxies)."""
+
+
+def check_shared_instances(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context answers with its own shared manager, and the default context its own (C12)."""
+    default_instance = SharedInstanceStandIn(game=None)
+    with first.active():
+        first_instance = SharedInstanceStandIn(game=None)
+    with first.active():
+        assert SharedInstanceStandIn(game=None) is first_instance
+    with second.active():
+        second_instance = SharedInstanceStandIn(game=None)
+        assert second_instance is not first_instance
+        ResourceManager.release_shared_instances()
+    with first.active():
+        assert SharedInstanceStandIn(game=None) is first_instance
+    assert SharedInstanceStandIn(game=None) is default_instance
+    assert default_instance is not first_instance
+    assert default_instance is not second_instance
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -1059,6 +1082,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.engine.game_engine.current_engine': check_current_engine,
     'glitchygames.recording.internal_posts': check_internal_post_tracker,
     'glitchygames.performance.adaptive_clamping.managers': check_performance_managers,
+    'glitchygames.events.base.shared_instances': check_shared_instances,
 }
 
 

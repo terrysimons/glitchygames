@@ -67,7 +67,7 @@ from glitchygames.engine.game_engine import (
     pygame_needs_fastevents,
     scene_class_of,
 )
-from glitchygames.engine_context import EngineContext
+from glitchygames.engine_context import EngineContext, current_context
 from glitchygames.events import base as events_base
 from glitchygames.events.controller import ControllerEventManager
 from glitchygames.exit_codes import ExitCode
@@ -2420,7 +2420,9 @@ class TestPlaybackDevices:
         engine.exit_playback_devices()
 
         assert engine.controller_manager is None
-        assert ControllerEventManager not in events_base.ResourceManager.__instances__
+        assert ControllerEventManager not in current_context().value(
+            slot=events_base.SHARED_INSTANCES_SLOT
+        )
 
     def test_an_instant_replays_devices_are_adopted_asking_the_door_nothing(self, mocker):
         """The journal's devices become stand-ins: no count, open or is_controller is asked.

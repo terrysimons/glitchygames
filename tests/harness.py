@@ -32,7 +32,7 @@ from glitchygames.clipboard import InProcessClipboard, install_clipboard
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
 from glitchygames.engine_context import current_context, default_context
-from glitchygames.events import ResourceManager
+from glitchygames.events.base import SHARED_INSTANCES_SLOT
 from glitchygames.fonts import FontManager
 from glitchygames.input.state import reset_current_input
 from glitchygames.performance.adaptive_clamping import PERFORMANCE_MANAGERS_SLOT
@@ -290,10 +290,11 @@ def _reset_all_singleton_instances():
     """Reset every singleton and shared cache so no test sees another test's instances.
 
     Scene managers live in the engine context (a slot, not a class attribute), so
-    SceneManager._reset() clears the current context's managers. The ResourceManager instances
-    and FontManager's caches are cleared next. The remaining singletons keep their instance in
-    a class attribute, __instance__, which Python sets on the class that made the instance:
-    each singleton base and each of its direct subclasses is reset (BUGS.md #228 items 17, 22).
+    SceneManager._reset() clears the current context's managers. The default context's
+    ResourceManager instances (a slot too) and FontManager's caches are cleared next. The
+    remaining singletons keep their instance in a class attribute, __instance__, which Python
+    sets on the class that made the instance: each singleton base and each of its direct
+    subclasses is reset (BUGS.md #228 items 17, 22).
     """
     SceneManager._reset()
     # The context's audio engine (glitchygames/audio/engine.py) is forgotten, not closed: its
@@ -311,8 +312,9 @@ def _reset_all_singleton_instances():
     # A fresh performance manager each test (glitchygames.performance.adaptive_clamping)
     default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
 
-    # Reset ResourceManager singleton instances (FontManager, event managers, etc.)
-    ResourceManager.__instances__.clear()
+    # Reset ResourceManager singleton instances (FontManager, event managers, etc.): the default
+    # context's (glitchygames.events.base)
+    default_context().reset_value(slot=SHARED_INSTANCES_SLOT)
 
     # Reset FontManager class-level caches that may hold mock objects
     FontManager._font_cache.clear()

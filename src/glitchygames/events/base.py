@@ -29,6 +29,8 @@ from typing import (
 
 import pygame
 
+from glitchygames.engine_context import ContextSlot, current_context
+
 if TYPE_CHECKING:
     import builtins
     from collections.abc import Callable, Iterator, KeysView, ValuesView
@@ -383,6 +385,13 @@ def _initialize_once[**Parameters](
     return initialize
 
 
+# Each engine context's shared ResourceManager instances, by class (glitchygames.engine_context;
+# audit C12): a game in another context never gets this context's managers
+SHARED_INSTANCES_SLOT: ContextSlot[dict[type, Any]] = ContextSlot(
+    name='glitchygames.events.base.shared_instances', factory=dict
+)
+
+
 # Interiting from object is default in Python 3.
 # Linters complain if you do it.
 class ResourceManager:
@@ -399,11 +408,14 @@ class ResourceManager:
     you probably don't need to worry about this.
 
     Shared instances (``SHARES_INSTANCE``, True for the event managers): a class has one
-    instance, the first one constructed. Constructing it again returns that instance as it
-    is, without running ``__init__`` again (BUGS.md #198), so ``MouseEventManager()`` is the
-    manager the GameEngine made to process mouse events with. Each engine run releases them
+    instance per class per engine context (``glitchygames.engine_context``), the first one
+    constructed in that context. Constructing it again there returns that instance as it is,
+    without running ``__init__`` again (BUGS.md #198), so ``MouseEventManager()`` is the
+    manager the context's GameEngine made to process mouse events with, and a game in another
+    context gets its own (audit C12). Each engine run releases this context's
     (``release_shared_instances``) before it makes its managers, so a second engine in one
-    process (a recording, then its replay) builds its own.
+    process (a recording, then its replay) builds its own, and a game in another context
+    keeps its.
 
     A class that sets ``SHARES_INSTANCE = False`` gets a new instance at every construction:
     the proxies (a manager owns its own, and the controller manager one per controller) and
@@ -415,8 +427,6 @@ class ResourceManager:
 
     # False: every construction makes a new instance (see the class docstring)
     SHARES_INSTANCE: ClassVar[bool] = True
-
-    __instances__: ClassVar[dict[type, Any]] = {}
 
     def __init_subclass__(cls, **keyword_arguments: Any) -> None:
         """Wrap the subclass's own ``__init__`` so its shared instance is initialized once.
@@ -446,11 +456,12 @@ class ResourceManager:
         """
         if not cls.SHARES_INSTANCE:
             return object.__new__(cls)
-        if cls not in ResourceManager.__instances__:
-            ResourceManager.__instances__[cls] = object.__new__(cls)
+        shared_instances = current_context().value(slot=SHARED_INSTANCES_SLOT)
+        if cls not in shared_instances:
+            shared_instances[cls] = object.__new__(cls)
             LOG.debug('Created Resource Manager: %s', cls)
 
-        return ResourceManager.__instances__[cls]
+        return shared_instances[cls]
 
     @_initialize_once
     def __init__(self: Self, game: object) -> None:  # ruff: ignore[unused-method-argument]
@@ -465,21 +476,23 @@ class ResourceManager:
 
     @classmethod
     def release_shared_instances(cls) -> None:
-        """Forget every shared instance, so the next construction of each class makes a new one.
+        """Forget this context's shared instances, so each class's next construction is new.
 
         ``GameEngine`` calls it before it makes its event managers: a new engine run builds
-        managers of its own (opening devices through its own doors), not the earlier run's.
+        managers of its own (opening devices through its own doors), not the earlier run's. It
+        releases this context's only: a game in another engine context keeps its managers.
         """
-        ResourceManager.__instances__.clear()
+        current_context().value(slot=SHARED_INSTANCES_SLOT).clear()
 
     @classmethod
     def release_shared_instance(cls) -> None:
         """Forget this class's shared instance, so its next construction makes a new one.
 
-        A playback scope that made a controller manager the live game has none of releases it
-        as the scope ends (``GameEngine.exit_playback_devices``).
+        Only this engine context's instance is forgotten (audit C12). A playback scope that
+        made a controller manager the live game has none of releases it as the scope ends
+        (``GameEngine.exit_playback_devices``).
         """
-        ResourceManager.__instances__.pop(cls, None)
+        current_context().value(slot=SHARED_INSTANCES_SLOT).pop(cls, None)
 
     def __getattr__(self: Self, attr: str) -> Callable[..., Any]:
         """Get an attribute from the first proxy that has it.

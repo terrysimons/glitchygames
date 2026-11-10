@@ -16,6 +16,7 @@ from collections.abc import Mapping
 import pygame
 import pytest
 
+from glitchygames.engine_context import EngineContext
 from glitchygames.events import (
     ALL_EVENTS,
     EVENT_CLASSES,
@@ -1120,6 +1121,24 @@ class TestResourceManager:
 
         assert second_manager is not first_manager
         assert second_manager.proxies[0].game is second_game
+
+    def test_each_context_has_its_own_shared_managers(self):
+        """A shared manager is shared within its context only (audit C12)."""
+        first = EngineContext(name='first')
+        second = EngineContext(name='second')
+        first_game = GameWithOptions(options={})
+        second_game = GameWithOptions(options={})
+        with first.active():
+            first_manager = MouseEventManager(game=first_game)
+        with second.active():
+            second_manager = MouseEventManager(game=second_game)
+            ResourceManager.release_shared_instances()
+        with first.active():
+            first_again = MouseEventManager()
+
+        assert second_manager is not first_manager
+        assert first_again is first_manager
+        assert first_again.proxies[0].game is first_game
 
 
 class TestCustomEventTypes:
