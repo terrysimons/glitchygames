@@ -1,0 +1,580 @@
+{
+  "source": "quality/replay-ledger/",
+  "measured_from": "2026-11-05",
+  "measured_to": "2026-11-09",
+  "platforms": [
+    {
+      "slug": "raspberry-pi-4",
+      "name": "Raspberry Pi 4",
+      "os": "Ubuntu 26.10",
+      "specs": [
+        [
+          "Board",
+          "Raspberry Pi 4 Model B Rev 1.4"
+        ],
+        [
+          "Memory",
+          "4 GB"
+        ],
+        [
+          "OS",
+          "Ubuntu 26.10, kernel 7.3, Wayland"
+        ],
+        [
+          "Python, pygame-ce",
+          "3.14.8, 2.5.8"
+        ],
+        [
+          "Cooling",
+          "None added (44.8 C idle)"
+        ],
+        [
+          "Storage",
+          "SD card"
+        ]
+      ],
+      "cpu_model": "Raspberry Pi 4 Model B Rev 1.4",
+      "measurements": [
+        {
+          "recording": "src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz",
+          "name": "Brave Adventurer Classic",
+          "runs": 13,
+          "median_ms": {
+            "typical": 22.74,
+            "lowest": 20.54,
+            "highest": 23.05
+          },
+          "p99_ms": {
+            "typical": 24.47,
+            "lowest": 21.07,
+            "highest": 30.01
+          },
+          "worst_frame_ms": {
+            "lowest": 45.04,
+            "highest": 58.63
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 69.3,
+            "highest": 89.2
+          }
+        },
+        {
+          "recording": "src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz",
+          "name": "Brave Adventurer Papyrus",
+          "runs": 13,
+          "median_ms": {
+            "typical": 23.16,
+            "lowest": 21.58,
+            "highest": 24.16
+          },
+          "p99_ms": {
+            "typical": 26.77,
+            "lowest": 24.61,
+            "highest": 29.3
+          },
+          "worst_frame_ms": {
+            "lowest": 45.91,
+            "highest": 56.43
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 89.0,
+            "highest": 89.2
+          }
+        },
+        {
+          "recording": "src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz",
+          "name": "Mr. Muncher",
+          "runs": 13,
+          "median_ms": {
+            "typical": 9.17,
+            "lowest": 8.71,
+            "highest": 9.8
+          },
+          "p99_ms": {
+            "typical": 13.19,
+            "lowest": 12.55,
+            "highest": 13.8
+          },
+          "worst_frame_ms": {
+            "lowest": 36.1,
+            "highest": 42.42
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.1,
+            "highest": 0.1
+          }
+        },
+        {
+          "recording": "src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz",
+          "name": "Clockwork Keep",
+          "runs": 13,
+          "median_ms": {
+            "typical": 6.12,
+            "lowest": 5.61,
+            "highest": 6.62
+          },
+          "p99_ms": {
+            "typical": 8.73,
+            "lowest": 7.99,
+            "highest": 9.41
+          },
+          "worst_frame_ms": {
+            "lowest": 33.48,
+            "highest": 44.22
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.2,
+            "highest": 0.4
+          }
+        },
+        {
+          "recording": "src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz",
+          "name": "Drawing Fire",
+          "runs": 13,
+          "median_ms": {
+            "typical": 5.46,
+            "lowest": 5.25,
+            "highest": 5.75
+          },
+          "p99_ms": {
+            "typical": 7.12,
+            "lowest": 6.81,
+            "highest": 7.45
+          },
+          "worst_frame_ms": {
+            "lowest": 41.64,
+            "highest": 48.98
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.1,
+            "highest": 0.1
+          }
+        },
+        {
+          "recording": "src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz",
+          "name": "PaddleSlap (golden)",
+          "runs": 13,
+          "median_ms": {
+            "typical": 1.25,
+            "lowest": 1.2,
+            "highest": 1.29
+          },
+          "p99_ms": {
+            "typical": 2.27,
+            "lowest": 1.99,
+            "highest": 2.44
+          },
+          "worst_frame_ms": {
+            "lowest": 30.52,
+            "highest": 43.12
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.2,
+            "highest": 0.2
+          }
+        },
+        {
+          "recording": "src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz",
+          "name": "PaddleSlap (rally demo)",
+          "runs": 13,
+          "median_ms": {
+            "typical": 1.16,
+            "lowest": 1.1,
+            "highest": 1.18
+          },
+          "p99_ms": {
+            "typical": 1.68,
+            "lowest": 1.53,
+            "highest": 2.07
+          },
+          "worst_frame_ms": {
+            "lowest": 2.35,
+            "highest": 3.07
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.0,
+            "highest": 0.0
+          }
+        }
+      ]
+    },
+    {
+      "slug": "raspberry-pi-5",
+      "name": "Raspberry Pi 5",
+      "os": "Ubuntu 26.04 LTS",
+      "specs": [
+        [
+          "Board",
+          "Raspberry Pi 5 Model B Rev 1.1"
+        ],
+        [
+          "Memory",
+          "16 GB"
+        ],
+        [
+          "OS",
+          "Ubuntu 26.04 LTS, kernel 7.0, Wayland"
+        ],
+        [
+          "Python, pygame-ce",
+          "3.14.4, 2.5.8"
+        ],
+        [
+          "Cooling",
+          "Active cooling; the NVMe case is a large heat sink"
+        ],
+        [
+          "Storage",
+          "NVMe SSD"
+        ]
+      ],
+      "cpu_model": "Raspberry Pi 5 Model B Rev 1.1",
+      "measurements": [
+        {
+          "recording": "src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz",
+          "name": "Brave Adventurer Classic",
+          "runs": 2,
+          "median_ms": {
+            "typical": 7.6,
+            "lowest": 7.58,
+            "highest": 7.62
+          },
+          "p99_ms": {
+            "typical": 9.18,
+            "lowest": 9.02,
+            "highest": 9.35
+          },
+          "worst_frame_ms": {
+            "lowest": 19.69,
+            "highest": 21.51
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.2,
+            "highest": 0.2
+          }
+        },
+        {
+          "recording": "src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz",
+          "name": "Brave Adventurer Papyrus",
+          "runs": 2,
+          "median_ms": {
+            "typical": 7.61,
+            "lowest": 7.6,
+            "highest": 7.61
+          },
+          "p99_ms": {
+            "typical": 8.78,
+            "lowest": 8.71,
+            "highest": 8.84
+          },
+          "worst_frame_ms": {
+            "lowest": 21.35,
+            "highest": 21.42
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.2,
+            "highest": 0.2
+          }
+        },
+        {
+          "recording": "src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz",
+          "name": "Mr. Muncher",
+          "runs": 2,
+          "median_ms": {
+            "typical": 3.94,
+            "lowest": 3.89,
+            "highest": 3.98
+          },
+          "p99_ms": {
+            "typical": 5.62,
+            "lowest": 5.62,
+            "highest": 5.62
+          },
+          "worst_frame_ms": {
+            "lowest": 17.56,
+            "highest": 17.95
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.0,
+            "highest": 0.1
+          }
+        },
+        {
+          "recording": "src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz",
+          "name": "Clockwork Keep",
+          "runs": 2,
+          "median_ms": {
+            "typical": 1.75,
+            "lowest": 1.66,
+            "highest": 1.84
+          },
+          "p99_ms": {
+            "typical": 3.12,
+            "lowest": 2.82,
+            "highest": 3.41
+          },
+          "worst_frame_ms": {
+            "lowest": 14.38,
+            "highest": 16.05
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.0,
+            "highest": 0.0
+          }
+        },
+        {
+          "recording": "src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz",
+          "name": "Drawing Fire",
+          "runs": 2,
+          "median_ms": {
+            "typical": 1.5,
+            "lowest": 1.47,
+            "highest": 1.54
+          },
+          "p99_ms": {
+            "typical": 1.98,
+            "lowest": 1.94,
+            "highest": 2.03
+          },
+          "worst_frame_ms": {
+            "lowest": 13.1,
+            "highest": 13.19
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.0,
+            "highest": 0.0
+          }
+        },
+        {
+          "recording": "src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz",
+          "name": "PaddleSlap (golden)",
+          "runs": 2,
+          "median_ms": {
+            "typical": 0.26,
+            "lowest": 0.25,
+            "highest": 0.26
+          },
+          "p99_ms": {
+            "typical": 1.12,
+            "lowest": 0.89,
+            "highest": 1.36
+          },
+          "worst_frame_ms": {
+            "lowest": 11.92,
+            "highest": 13.65
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.0,
+            "highest": 0.0
+          }
+        },
+        {
+          "recording": "src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz",
+          "name": "PaddleSlap (rally demo)",
+          "runs": 2,
+          "median_ms": {
+            "typical": 0.23,
+            "lowest": 0.23,
+            "highest": 0.23
+          },
+          "p99_ms": {
+            "typical": 0.39,
+            "lowest": 0.39,
+            "highest": 0.39
+          },
+          "worst_frame_ms": {
+            "lowest": 1.51,
+            "highest": 1.53
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.0,
+            "highest": 0.0
+          }
+        }
+      ]
+    },
+    {
+      "slug": "apple-m4-max",
+      "name": "Apple M4 Max",
+      "os": "macOS 27",
+      "specs": [
+        [
+          "Chip",
+          "Apple M4 Max"
+        ],
+        [
+          "Memory",
+          "128 GB"
+        ],
+        [
+          "OS",
+          "macOS 27.0.1"
+        ]
+      ],
+      "cpu_model": "Apple M4 Max",
+      "measurements": [
+        {
+          "recording": "src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz",
+          "name": "Brave Adventurer Classic",
+          "runs": 38,
+          "median_ms": {
+            "typical": 1.7,
+            "lowest": 1.52,
+            "highest": 1.92
+          },
+          "p99_ms": {
+            "typical": 1.94,
+            "lowest": 1.77,
+            "highest": 20.24
+          },
+          "worst_frame_ms": {
+            "lowest": 3.59,
+            "highest": 48.9
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.0,
+            "highest": 1.5
+          }
+        },
+        {
+          "recording": "src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz",
+          "name": "Brave Adventurer Papyrus",
+          "runs": 38,
+          "median_ms": {
+            "typical": 1.77,
+            "lowest": 1.59,
+            "highest": 2.07
+          },
+          "p99_ms": {
+            "typical": 2.15,
+            "lowest": 1.98,
+            "highest": 19.07
+          },
+          "worst_frame_ms": {
+            "lowest": 3.54,
+            "highest": 32.42
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.0,
+            "highest": 1.5
+          }
+        },
+        {
+          "recording": "src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz",
+          "name": "Mr. Muncher",
+          "runs": 38,
+          "median_ms": {
+            "typical": 0.64,
+            "lowest": 0.61,
+            "highest": 0.8
+          },
+          "p99_ms": {
+            "typical": 0.87,
+            "lowest": 0.78,
+            "highest": 7.85
+          },
+          "worst_frame_ms": {
+            "lowest": 3.42,
+            "highest": 42.29
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.0,
+            "highest": 0.3
+          }
+        },
+        {
+          "recording": "src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz",
+          "name": "Clockwork Keep",
+          "runs": 38,
+          "median_ms": {
+            "typical": 0.42,
+            "lowest": 0.38,
+            "highest": 0.48
+          },
+          "p99_ms": {
+            "typical": 0.74,
+            "lowest": 0.67,
+            "highest": 4.98
+          },
+          "worst_frame_ms": {
+            "lowest": 2.42,
+            "highest": 16.83
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.0,
+            "highest": 0.2
+          }
+        },
+        {
+          "recording": "src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz",
+          "name": "Drawing Fire",
+          "runs": 38,
+          "median_ms": {
+            "typical": 0.4,
+            "lowest": 0.38,
+            "highest": 0.47
+          },
+          "p99_ms": {
+            "typical": 0.59,
+            "lowest": 0.55,
+            "highest": 2.9
+          },
+          "worst_frame_ms": {
+            "lowest": 4.62,
+            "highest": 24.94
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.0,
+            "highest": 0.1
+          }
+        },
+        {
+          "recording": "src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz",
+          "name": "PaddleSlap (golden)",
+          "runs": 38,
+          "median_ms": {
+            "typical": 0.09,
+            "lowest": 0.08,
+            "highest": 0.1
+          },
+          "p99_ms": {
+            "typical": 0.2,
+            "lowest": 0.17,
+            "highest": 0.43
+          },
+          "worst_frame_ms": {
+            "lowest": 2.89,
+            "highest": 3.95
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.0,
+            "highest": 0.0
+          }
+        },
+        {
+          "recording": "src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz",
+          "name": "PaddleSlap (rally demo)",
+          "runs": 38,
+          "median_ms": {
+            "typical": 0.09,
+            "lowest": 0.08,
+            "highest": 0.1
+          },
+          "p99_ms": {
+            "typical": 0.15,
+            "lowest": 0.12,
+            "highest": 0.73
+          },
+          "worst_frame_ms": {
+            "lowest": 0.28,
+            "highest": 2.09
+          },
+          "frames_over_60_fps_budget_percent": {
+            "lowest": 0.0,
+            "highest": 0.0
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,241 +1,3467 @@
-<!DOCTYPE html>
-<html class="writer-html5" lang="en" >
-<head>
-    <meta charset="utf-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/glitchygames/collision/" />
-      <link rel="shortcut icon" href="../../img/favicon.ico" />
-    <title>glitchygames.collision - GlitchyGames</title>
-    <link rel="stylesheet" href="../../css/theme.css" />
-    <link rel="stylesheet" href="../../css/theme_extra.css" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
-        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
-        <link href="../../css/full-width.css" rel="stylesheet" />
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
     
-      <script>
-        // Current page data
-        var mkdocs_page_name = "glitchygames.collision";
-        var mkdocs_page_input_path = "glitchygames/collision/index.md";
-        var mkdocs_page_url = "/glitchygames/glitchygames/collision/";
-      </script>
-    
-    <!--[if lt IE 9]>
-      <script src="../../js/html5shiv.min.js"></script>
-    <![endif]-->
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
-      <script>hljs.highlightAll();</script> 
-</head>
-
-<body class="wy-body-for-nav" role="document">
-
-  <div class="wy-grid-for-nav">
-    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
-    <div class="wy-side-scroll">
-      <div class="wy-side-nav-search">
-          <a href="../.." class="icon icon-home"> GlitchyGames
-        </a><div role="search">
-  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
-      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
-  </form>
-</div>
-      </div>
-
-      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <ul>
-                <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
-                </li>
-              </ul>
-              <ul>
-                <li class="toctree-l1"><a class="" href="https://terrysimons.github.io/glitchygames/play/">Play in the Browser</a>
-                </li>
-              </ul>
-              <p class="caption"><span class="caption-text">Documentation</span></p>
-              <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/bitmappy/">Bitmappy Architecture</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" >Games</a>
-    <ul>
-                <li class="toctree-l2"><a class="reference internal" href="../../architecture/game_packages/">Games as Their Own Packages</a>
-                </li>
-                <li class="toctree-l2"><a class="reference internal" href="../../games/paddleslap/">PaddleSlap Architecture</a>
-                </li>
-                <li class="toctree-l2"><a class="reference internal" href="../../games/brave_adventurer/">Brave Adventurer Architecture</a>
-                </li>
-                <li class="toctree-l2"><a class="reference internal" href="../../games/clockwork_keep/">Clockwork Keep Architecture</a>
-                </li>
-                <li class="toctree-l2"><a class="reference internal" href="../../games/mr_muncher/">Mr. Muncher Architecture</a>
-                </li>
-                <li class="toctree-l2"><a class="reference internal" href="../../games/drawing_fire/">Drawing Fire Architecture</a>
-                </li>
-    </ul>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/event_system/">Event System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/argument_system/">Argument System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" >Playback</a>
-    <ul>
-                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/">Gameplay Playback</a>
-                </li>
-                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/how-a-frame-runs/">How a Frame Runs</a>
-                </li>
-                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/speeds-and-timing/">Speeds and Timing</a>
-                </li>
-                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/recording-file/">The Recording File</a>
-                </li>
-                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/testing/">How We Test Playback</a>
-                </li>
-    </ul>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/engine_context/">Engine Context</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/sound/">Sound</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/upstream_issues/">Upstream Issues</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
-    <ul>
-                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
-                </li>
-                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-29-sprite-quicklook-design/">Sprite QuickLook for macOS</a>
-                </li>
-                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-30-unified-pixel-rows-design/">One Rule for Sprite Pixel Rows</a>
-                </li>
-                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-11-02-sound-engine-feature-spec/">Sound Engine Features</a>
-                </li>
-                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-11-02-sound-engine-implementation-spec/">Sound Engine Implementation</a>
-                </li>
-    </ul>
-                  </li>
-              </ul>
-                <ul><li>
-                    <a href="../" style="padding: 0; font-size: inherit; line-height: inherit">
-              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
-                    </a>
-                </li></ul>
-              <ul class="current">
-                  <li class="toctree-l1"><a class="reference internal" href="../api/">glitchygames.api</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../audio/">glitchygames.audio</a>
-                  </li>
-                  <li class="toctree-l1 current"><a class="reference internal current" href="#">glitchygames.collision</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../color/">glitchygames.color</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../effects/">glitchygames.effects</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../engine/">glitchygames.engine</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../fonts/">glitchygames.font</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../game_objects/">glitchygames.game_objects</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../input/">glitchygames.input</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../interfaces/">glitchygames.interfaces</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../movement/">glitchygames.movement</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../physics/">glitchygames.physics</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../pixels/">glitchygames.pixels</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../replay/">glitchygames.replay</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../scenes/">glitchygames.scenes</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../sprites/">glitchygames.sprites</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../state/">glitchygames.state</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../templates/">glitchygames.templates</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../tools/">glitchygames.tools</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../transitions/">glitchygames.transitions</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../ui/">glitchygames.ui</a>
-                  </li>
-              </ul>
-              <p class="caption"><span class="caption-text">Games API Reference</span></p>
-              <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_core/">brave_adventurer_core</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer/">brave_adventurer</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_papyrus/">brave_adventurer_papyrus</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_modes/">brave_adventurer_modes</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../clockwork_keep/">clockwork_keep</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
-                  </li>
-              </ul>
-              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
-              <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../sound_board_demo/">sound_board_demo</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
-                  </li>
-              </ul>
-              <p class="caption"><span class="caption-text">Apps API Reference</span></p>
-              <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
-                  </li>
-              </ul>
-      </div>
-    </div>
-    </nav>
-
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
-      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
-          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../..">GlitchyGames</a>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://terrysimons.github.io/glitchygames/glitchygames/collision/">
+      
+      
+        <link rel="prev" href="../audio/">
+      
+      
+        <link rel="next" href="../color/">
+      
+      
         
-      </nav>
-      <div class="wy-nav-content">
-        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
-  <ul class="wy-breadcrumbs">
-    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
-          <li class="breadcrumb-item"><a href="../">glitchygames API Reference</a></li>
-      <li class="breadcrumb-item active">glitchygames.collision</li>
-    <li class="wy-breadcrumbs-aside">
-          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/glitchygames/collision/index.md">Edit on glitchygames</a>
-    </li>
-  </ul>
-    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
-        <a href="../audio/" class="btn btn-neutral float-left" title="glitchygames.audio"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
-        <a href="../color/" class="btn btn-neutral float-right" title="glitchygames.color">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+      
+      
+      <link rel="icon" href="../../img/favicon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>glitchygames.collision - GlitchyGames</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../css/full-width.css">
+    
+      <link rel="stylesheet" href="../../css/explorer.css">
+    
+      <link rel="stylesheet" href="../../css/requirements.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#glitchygames.collision" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
-  <hr/>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="GlitchyGames" class="md-header__button md-logo" aria-label="GlitchyGames" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GlitchyGames
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              glitchygames.collision
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
-          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
-            <div class="section" itemprop="articleBody">
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/terrysimons/glitchygames" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    glitchygames
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  GlitchyGames Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../requirements/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Requirements
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://terrysimons.github.io/glitchygames/play/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Play in the Browser
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/bitmappy/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  glitchygames API Reference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../mr_muncher/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Games API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../dt_demo/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Demos API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../bitmappy/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Apps API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
               
-                <div class="doc doc-object doc-module">
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="GlitchyGames" class="md-nav__button md-logo" aria-label="GlitchyGames" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    GlitchyGames
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/terrysimons/glitchygames" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    glitchygames
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GlitchyGames Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../requirements/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Requirements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://terrysimons.github.io/glitchygames/play/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Play in the Browser
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/bitmappy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bitmappy Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Games
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Games
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/game_packages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Games as Their Own Packages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../games/paddleslap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PaddleSlap Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../games/brave_adventurer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Brave Adventurer Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../games/clockwork_keep/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clockwork Keep Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../games/mr_muncher/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mr. Muncher Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../games/drawing_fire/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drawing Fire Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/event_system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Event System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/argument_system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Argument System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/gameplay_replay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gameplay Recording and Replay
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../architecture/playback/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Playback
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_6" id="__nav_4_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Playback
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/playback/how-a-frame-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How a Frame Runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/playback/speeds-and-timing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Speeds and Timing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/playback/recording-file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Recording File
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/playback/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How We Test Playback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/engine_context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/sound/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sound
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../multi_controller_system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Controller System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quality/complexity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Complexity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quality/performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Replay Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quality/driver_comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver Comparison
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quality/upstream_issues/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Upstream Issues
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../galimore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Galimore Survey
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_15" id="__nav_4_15_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Designs
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_15">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Designs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/2026-10-27-glitchy-games-website-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchy.games Website on AWS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/2026-10-29-sprite-quicklook-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sprite QuickLook for macOS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/2026-10-30-unified-pixel-rows-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    One Rule for Sprite Pixel Rows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/2026-11-02-sound-engine-feature-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sound Engine Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/2026-11-02-sound-engine-implementation-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sound Engine Implementation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames API Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    glitchygames API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.api
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../audio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.audio
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.collision
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.collision
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#glitchygames.collision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        collision
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glitchygames.collision.CollisionLayer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CollisionLayer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CollisionLayer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.CollisionLayer.sprites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        sprites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.CollisionLayer.__init__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        __init__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.CollisionLayer.__len__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        __len__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.CollisionLayer.add" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.CollisionLayer.clear" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        clear
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.CollisionLayer.remove" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        remove
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glitchygames.collision.CollisionManager" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CollisionManager
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CollisionManager">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.CollisionManager.layer_names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        layer_names
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.CollisionManager.__init__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        __init__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.CollisionManager.add_layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_layer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.CollisionManager.check_overlap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        check_overlap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.CollisionManager.check_single" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        check_single
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.CollisionManager.get_layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_layer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glitchygames.collision.check_aabb_overlap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        check_aabb_overlap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glitchygames.collision.compute_push_out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        compute_push_out
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glitchygames.collision.get_collision_rect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_collision_rect
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glitchygames.collision.get_collision_rect_with_margin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_collision_rect_with_margin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glitchygames.collision.bounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bounds
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="bounds">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.bounds.opaque_bounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        opaque_bounds
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.bounds.trims_transparent_hitbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        trims_transparent_hitbox
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glitchygames.collision.detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        detection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="detection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.detection.HitboxWorldRectProvider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HitboxWorldRectProvider
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.detection.RectSprite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RectSprite
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.detection.WorldRectSprite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WorldRectSprite
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.detection.check_aabb_overlap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        check_aabb_overlap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.detection.compute_push_out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        compute_push_out
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.detection.get_collision_rect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_collision_rect
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.detection.get_collision_rect_with_margin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_collision_rect_with_margin
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.detection.is_world_rect_sprite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        is_world_rect_sprite
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.detection.provides_hitbox_world_rect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        provides_hitbox_world_rect
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.detection.snapped_world_position" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        snapped_world_position
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glitchygames.collision.layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        layers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="layers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.layers.CollisionLayer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CollisionLayer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.layers.CollisionManager" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CollisionManager
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.layers.ScreenRectSprite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScreenRectSprite
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.layers.collision_rect_offset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        collision_rect_offset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.layers.get_sprite_collision_rect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_sprite_collision_rect
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glitchygames.collision.solids" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        solids
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="solids">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.solids.entered_from_left" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        entered_from_left
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.solids.feet_land_on_surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        feet_land_on_surface
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.solids.world_x_flush_left_of" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        world_x_flush_left_of
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.collision.solids.world_x_flush_right_of" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        world_x_flush_right_of
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../color/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.color
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../effects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.effects
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fonts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.font
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../game_objects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.game_objects
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../input/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.input
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interfaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.interfaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../movement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.movement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../physics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.physics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pixels/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.pixels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../replay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.replay
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scenes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.scenes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sprites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.sprites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../state/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.state
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../templates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.templates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../transitions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.transitions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    glitchygames.ui
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../mr_muncher/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Games API Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Games API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../brave_adventurer_core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    brave_adventurer_core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../brave_adventurer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    brave_adventurer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../brave_adventurer_papyrus/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    brave_adventurer_papyrus
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../brave_adventurer_modes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    brave_adventurer_modes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../clockwork_keep/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    clockwork_keep
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../paddleslap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    paddleslap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../drawing_fire/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    drawing_fire
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../dt_demo/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demos API Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Demos API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../joystick_demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    joystick_demo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sound_board_demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    sound_board_demo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../text_input_demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    text_input_demo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../bitmappy/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Apps API Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Apps API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    GlitchyGames Getting Started
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../api/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    glitchygames API Reference
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+  <h1>glitchygames.collision</h1>
+
+<div class="doc doc-object doc-module">
 
 
 
@@ -294,36 +3520,44 @@ collisions.check_overlap('player', 'enemies', on_hit)</p>
 layer (or the same layer for intra-group collisions).</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>name</code></b>
-                  (<code><span title="str">str</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Human-readable name for this layer.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
 
 
 
-              <details class="quote">
+
+
+              <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
                 <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.collision.CollisionLayer--source--__codelineno-0-34">34</a></span>
 <span class="normal"><a href="#glitchygames.collision.CollisionLayer--source--__codelineno-0-35">35</a></span>
@@ -472,28 +3706,28 @@ layer (or the same layer for intra-group collisions).</p>
         <p>All sprites currently in this layer.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="list">list</span>[<span title="typing.Any">Any</span>]</code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>List of sprites in this layer.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
     </div>
 
 </div>
@@ -544,28 +3778,28 @@ layer (or the same layer for intra-group collisions).</p>
         <p>Number of sprites in this layer.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="int">int</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Sprite count.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -604,29 +3838,36 @@ layer (or the same layer for intra-group collisions).</p>
         <p>Add a sprite to this layer.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><span title="object">object</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite to track for collision.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -694,29 +3935,36 @@ layer (or the same layer for intra-group collisions).</p>
         <p>Remove a sprite from this layer.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><span title="object">object</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite to remove.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -749,7 +3997,6 @@ layer (or the same layer for intra-group collisions).</p>
 
     </div>
 
-
 </div>
 
 <div class="doc doc-object doc-class">
@@ -778,7 +4025,8 @@ iteration in game code.</p>
 
 
 
-              <details class="quote">
+
+              <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
                 <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.collision.CollisionManager--source--__codelineno-0-94"> 94</a></span>
 <span class="normal"><a href="#glitchygames.collision.CollisionManager--source--__codelineno-0-95"> 95</a></span>
@@ -1106,75 +4354,82 @@ iteration in game code.</p>
         <p>Create and register a named collision layer.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>name</code></b>
-                  (<code><span title="str">str</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Unique name for this layer (e.g., 'player', 'enemies').</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><a class="autorefs autorefs-internal" title="CollisionLayer (glitchygames.collision.layers.CollisionLayer)" href="#glitchygames.collision.layers.CollisionLayer">CollisionLayer</a></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The created CollisionLayer.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Raises:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="ValueError">ValueError</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>If a layer with this name already exists.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -1245,45 +4500,68 @@ callback may add or remove sprites (e.g. collect a pickup) without skipping
 pairs; a sprite removed during the pass can still be paired later in it.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>layer_a_name</code></b>
-                  (<code><span title="str">str</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>layer_a_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Name of the first layer.</p>
               </div>
-            </li>
-            <li>
-              <b><code>layer_b_name</code></b>
-                  (<code><span title="str">str</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>layer_b_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Name of the second layer.</p>
               </div>
-            </li>
-            <li>
-              <b><code>callback</code></b>
-                  (<code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>], None]</code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>callback</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>], None]</code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Called with (sprite_a, sprite_b) on each collision.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -1394,45 +4672,68 @@ pairs; a sprite removed during the pass can still be paired later in it.</p>
         <p>Check one sprite against all sprites in a layer (iterating a snapshot of it).</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><span title="object">object</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite to check.</p>
               </div>
-            </li>
-            <li>
-              <b><code>layer_name</code></b>
-                  (<code><span title="str">str</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>layer_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Name of the layer to check against.</p>
               </div>
-            </li>
-            <li>
-              <b><code>callback</code></b>
-                  (<code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>], None]</code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>callback</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>], None]</code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Called with (sprite, other) on each collision.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -1503,75 +4804,82 @@ pairs; a sprite removed during the pass can still be paired later in it.</p>
         <p>Get a collision layer by name.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>name</code></b>
-                  (<code><span title="str">str</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The layer name.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><a class="autorefs autorefs-internal" title="CollisionLayer (glitchygames.collision.layers.CollisionLayer)" href="#glitchygames.collision.layers.CollisionLayer">CollisionLayer</a></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The CollisionLayer.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Raises:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="KeyError">KeyError</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>If no layer with this name exists.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -1620,7 +4928,6 @@ pairs; a sprite removed during the pass can still be paired later in it.</p>
 
     </div>
 
-
 </div>
 
 
@@ -1638,60 +4945,75 @@ pairs; a sprite removed during the pass can still be paired later in it.</p>
         <p>Check if two axis-aligned bounding boxes overlap.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>rect_a</code></b>
-                  (<code><span title="pygame.Rect">Rect</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>rect_a</code>
+            </td>
+            <td>
+                  <code><span title="pygame.Rect">Rect</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>First rectangle.</p>
               </div>
-            </li>
-            <li>
-              <b><code>rect_b</code></b>
-                  (<code><span title="pygame.Rect">Rect</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>rect_b</code>
+            </td>
+            <td>
+                  <code><span title="pygame.Rect">Rect</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Second rectangle.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="bool">bool</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>True if the rectangles overlap.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/detection.py</code></summary>
@@ -1747,70 +5069,91 @@ If moving right, pushes mover to the left of static; if moving
 left, pushes to the right.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>mover</code></b>
-                  (<code><span title="pygame.Rect">Rect</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>mover</code>
+            </td>
+            <td>
+                  <code><span title="pygame.Rect">Rect</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The rect of the moving object.</p>
               </div>
-            </li>
-            <li>
-              <b><code>static</code></b>
-                  (<code><span title="pygame.Rect">Rect</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>static</code>
+            </td>
+            <td>
+                  <code><span title="pygame.Rect">Rect</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The rect of the static object.</p>
               </div>
-            </li>
-            <li>
-              <b><code>velocity_x</code></b>
-                  (<code><span title="float">float</span></code>, default:
-                      <code>0.0</code>
-)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>velocity_x</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Horizontal velocity of the mover (determines push direction).</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                  <code>0.0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="tuple">tuple</span>[<span title="float">float</span>, <span title="float">float</span>]</code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Tuple of (dx, dy) displacement to apply to the mover's position.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/detection.py</code></summary>
@@ -1924,68 +5267,91 @@ snapped_world_position) and covers the visible pixels of the sprite's image
 image or sets TRIM_TRANSPARENT_HITBOX = False.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><a class="autorefs autorefs-internal" title="RectSprite (glitchygames.collision.detection.RectSprite)" href="#glitchygames.collision.detection.RectSprite">RectSprite</a></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="RectSprite (glitchygames.collision.detection.RectSprite)" href="#glitchygames.collision.detection.RectSprite">RectSprite</a></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite to get a collision rect for.</p>
               </div>
-            </li>
-            <li>
-              <b><code>world_x</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>world_x</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>X position in world space.</p>
               </div>
-            </li>
-            <li>
-              <b><code>world_y</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>world_y</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Y position in world space.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="pygame.Rect">Rect</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>A pygame.Rect positioned in world coordinates.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/detection.py</code></summary>
@@ -2097,78 +5463,107 @@ image or sets TRIM_TRANSPARENT_HITBOX = False.</p>
 overlap feels unfair.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><a class="autorefs autorefs-internal" title="RectSprite (glitchygames.collision.detection.RectSprite)" href="#glitchygames.collision.detection.RectSprite">RectSprite</a></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="RectSprite (glitchygames.collision.detection.RectSprite)" href="#glitchygames.collision.detection.RectSprite">RectSprite</a></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite to get a collision rect for.</p>
               </div>
-            </li>
-            <li>
-              <b><code>world_x</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>world_x</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>X position in world space.</p>
               </div>
-            </li>
-            <li>
-              <b><code>world_y</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>world_y</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Y position in world space.</p>
               </div>
-            </li>
-            <li>
-              <b><code>margin</code></b>
-                  (<code><span title="int">int</span></code>, default:
-                      <code>0</code>
-)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>margin</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Pixels to shrink on each side (default 0).</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="pygame.Rect">Rect</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>A pygame.Rect shrunk by margin on all sides.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/detection.py</code></summary>
@@ -2290,52 +5685,59 @@ images not drawn yet) keep their area. Measured on every call: about 1 us for 20
 8 us for 64x64 and 1 ms for 800x600.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>image</code></b>
-                  (<code><span title="pygame.Surface">Surface</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>image</code>
+            </td>
+            <td>
+                  <code><span title="pygame.Surface">Surface</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite image.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="pygame.Rect">Rect</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>pygame.Rect: A new rect (callers may mutate it).</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/bounds.py</code></summary>
@@ -2398,52 +5800,59 @@ images not drawn yet) keep their area. Measured on every call: about 1 us for 20
 without it trims.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><span title="object">object</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite (only its attribute is read).</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-<b><code>bool</code></b>(                  <code><span title="bool">bool</span></code>
-)              –
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>bool</code></td>            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>True unless the sprite opts out.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/bounds.py</code></summary>
@@ -2552,7 +5961,8 @@ sprites without hitboxes collide as the visible pixels of their image
 
 
 
-              <details class="quote">
+
+              <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/glitchygames/collision/detection.py</code></summary>
                 <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.collision.detection.HitboxWorldRectProvider--source--__codelineno-0-37">37</a></span>
 <span class="normal"><a href="#glitchygames.collision.detection.HitboxWorldRectProvider--source--__codelineno-0-38">38</a></span>
@@ -2614,7 +6024,6 @@ sprites without hitboxes collide as the visible pixels of their image
 
     </div>
 
-
 </div>
 
 <div class="doc doc-object doc-class">
@@ -2644,7 +6053,8 @@ and plain rect attributes both match.</p>
 
 
 
-              <details class="quote">
+
+              <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/glitchygames/collision/detection.py</code></summary>
                 <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.collision.detection.RectSprite--source--__codelineno-0-20">20</a></span>
 <span class="normal"><a href="#glitchygames.collision.detection.RectSprite--source--__codelineno-0-21">21</a></span>
@@ -2711,7 +6121,6 @@ and plain rect attributes both match.</p>
 
     </div>
 
-
 </div>
 
 <div class="doc doc-object doc-class">
@@ -2739,7 +6148,8 @@ and plain rect attributes both match.</p>
 
 
 
-              <details class="quote">
+
+              <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/glitchygames/collision/detection.py</code></summary>
                 <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.collision.detection.WorldRectSprite--source--__codelineno-0-33">33</a></span>
 <span class="normal"><a href="#glitchygames.collision.detection.WorldRectSprite--source--__codelineno-0-34">34</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.collision.detection.WorldRectSprite--source--__codelineno-0-33" name="glitchygames.collision.detection.WorldRectSprite--source--__codelineno-0-33"></a><span class="k">class</span><span class="w"> </span><span class="nc">WorldRectSprite</span><span class="p">(</span><span class="n">RectSprite</span><span class="p">,</span> <span class="n">WorldPositioned</span><span class="p">,</span> <span class="n">Protocol</span><span class="p">):</span>
@@ -2832,7 +6242,6 @@ and plain rect attributes both match.</p>
 
     </div>
 
-
 </div>
 
 
@@ -2850,60 +6259,75 @@ and plain rect attributes both match.</p>
         <p>Check if two axis-aligned bounding boxes overlap.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>rect_a</code></b>
-                  (<code><span title="pygame.Rect">Rect</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>rect_a</code>
+            </td>
+            <td>
+                  <code><span title="pygame.Rect">Rect</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>First rectangle.</p>
               </div>
-            </li>
-            <li>
-              <b><code>rect_b</code></b>
-                  (<code><span title="pygame.Rect">Rect</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>rect_b</code>
+            </td>
+            <td>
+                  <code><span title="pygame.Rect">Rect</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Second rectangle.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="bool">bool</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>True if the rectangles overlap.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/detection.py</code></summary>
@@ -2959,70 +6383,91 @@ If moving right, pushes mover to the left of static; if moving
 left, pushes to the right.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>mover</code></b>
-                  (<code><span title="pygame.Rect">Rect</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>mover</code>
+            </td>
+            <td>
+                  <code><span title="pygame.Rect">Rect</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The rect of the moving object.</p>
               </div>
-            </li>
-            <li>
-              <b><code>static</code></b>
-                  (<code><span title="pygame.Rect">Rect</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>static</code>
+            </td>
+            <td>
+                  <code><span title="pygame.Rect">Rect</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The rect of the static object.</p>
               </div>
-            </li>
-            <li>
-              <b><code>velocity_x</code></b>
-                  (<code><span title="float">float</span></code>, default:
-                      <code>0.0</code>
-)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>velocity_x</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Horizontal velocity of the mover (determines push direction).</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                  <code>0.0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="tuple">tuple</span>[<span title="float">float</span>, <span title="float">float</span>]</code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Tuple of (dx, dy) displacement to apply to the mover's position.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/detection.py</code></summary>
@@ -3136,68 +6581,91 @@ snapped_world_position) and covers the visible pixels of the sprite's image
 image or sets TRIM_TRANSPARENT_HITBOX = False.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><a class="autorefs autorefs-internal" title="RectSprite (glitchygames.collision.detection.RectSprite)" href="#glitchygames.collision.detection.RectSprite">RectSprite</a></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="RectSprite (glitchygames.collision.detection.RectSprite)" href="#glitchygames.collision.detection.RectSprite">RectSprite</a></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite to get a collision rect for.</p>
               </div>
-            </li>
-            <li>
-              <b><code>world_x</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>world_x</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>X position in world space.</p>
               </div>
-            </li>
-            <li>
-              <b><code>world_y</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>world_y</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Y position in world space.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="pygame.Rect">Rect</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>A pygame.Rect positioned in world coordinates.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/detection.py</code></summary>
@@ -3309,78 +6777,107 @@ image or sets TRIM_TRANSPARENT_HITBOX = False.</p>
 overlap feels unfair.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><a class="autorefs autorefs-internal" title="RectSprite (glitchygames.collision.detection.RectSprite)" href="#glitchygames.collision.detection.RectSprite">RectSprite</a></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="RectSprite (glitchygames.collision.detection.RectSprite)" href="#glitchygames.collision.detection.RectSprite">RectSprite</a></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite to get a collision rect for.</p>
               </div>
-            </li>
-            <li>
-              <b><code>world_x</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>world_x</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>X position in world space.</p>
               </div>
-            </li>
-            <li>
-              <b><code>world_y</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>world_y</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Y position in world space.</p>
               </div>
-            </li>
-            <li>
-              <b><code>margin</code></b>
-                  (<code><span title="int">int</span></code>, default:
-                      <code>0</code>
-)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>margin</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Pixels to shrink on each side (default 0).</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="pygame.Rect">Rect</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>A pygame.Rect shrunk by margin on all sides.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/detection.py</code></summary>
@@ -3457,52 +6954,59 @@ overlap feels unfair.</p>
 sprite, so it has a rect too.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><span title="object">object</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Any object.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="typing.TypeIs">TypeIs</span>[<a class="autorefs autorefs-internal" title="WorldRectSprite (glitchygames.collision.detection.WorldRectSprite)" href="#glitchygames.collision.detection.WorldRectSprite">WorldRectSprite</a>]</code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>True if the sprite has both world_x and world_y attributes.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/detection.py</code></summary>
@@ -3555,52 +7059,59 @@ sprite, so it has a rect too.</p>
         <p>Whether a sprite places its own collision rect (has get_hitbox_world_rect).</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><span title="object">object</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Any object; only the presence of get_hitbox_world_rect is checked.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="typing.TypeIs">TypeIs</span>[<a class="autorefs autorefs-internal" title="HitboxWorldRectProvider (glitchygames.collision.detection.HitboxWorldRectProvider)" href="#glitchygames.collision.detection.HitboxWorldRectProvider">HitboxWorldRectProvider</a>]</code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>True if the sprite has a get_hitbox_world_rect attribute.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/detection.py</code></summary>
@@ -3651,68 +7162,91 @@ same resolution the engine positions world sprites with, so the collision rect s
 exactly where the sprite is drawn.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><span title="object">object</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite.</p>
               </div>
-            </li>
-            <li>
-              <b><code>world_x</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>world_x</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>X position in world space.</p>
               </div>
-            </li>
-            <li>
-              <b><code>world_y</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>world_y</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Y position in world space.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="tuple">tuple</span>[<span title="int">int</span>, <span title="int">int</span>]</code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The snapped (x, y) position.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/detection.py</code></summary>
@@ -3846,36 +7380,44 @@ collisions.check_overlap('player', 'enemies', on_player_hit_enemy)</p>
 layer (or the same layer for intra-group collisions).</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>name</code></b>
-                  (<code><span title="str">str</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Human-readable name for this layer.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
 
 
 
-              <details class="quote">
+
+
+              <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
                 <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.collision.layers.CollisionLayer--source--__codelineno-0-34">34</a></span>
 <span class="normal"><a href="#glitchygames.collision.layers.CollisionLayer--source--__codelineno-0-35">35</a></span>
@@ -4024,28 +7566,28 @@ layer (or the same layer for intra-group collisions).</p>
         <p>All sprites currently in this layer.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="list">list</span>[<span title="typing.Any">Any</span>]</code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>List of sprites in this layer.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
     </div>
 
 </div>
@@ -4096,28 +7638,28 @@ layer (or the same layer for intra-group collisions).</p>
         <p>Number of sprites in this layer.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="int">int</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Sprite count.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -4156,29 +7698,36 @@ layer (or the same layer for intra-group collisions).</p>
         <p>Add a sprite to this layer.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><span title="object">object</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite to track for collision.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -4246,29 +7795,36 @@ layer (or the same layer for intra-group collisions).</p>
         <p>Remove a sprite from this layer.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><span title="object">object</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite to remove.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -4301,7 +7857,6 @@ layer (or the same layer for intra-group collisions).</p>
 
     </div>
 
-
 </div>
 
 <div class="doc doc-object doc-class">
@@ -4330,7 +7885,8 @@ iteration in game code.</p>
 
 
 
-              <details class="quote">
+
+              <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
                 <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.collision.layers.CollisionManager--source--__codelineno-0-94"> 94</a></span>
 <span class="normal"><a href="#glitchygames.collision.layers.CollisionManager--source--__codelineno-0-95"> 95</a></span>
@@ -4658,75 +8214,82 @@ iteration in game code.</p>
         <p>Create and register a named collision layer.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>name</code></b>
-                  (<code><span title="str">str</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Unique name for this layer (e.g., 'player', 'enemies').</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><a class="autorefs autorefs-internal" title="CollisionLayer (glitchygames.collision.layers.CollisionLayer)" href="#glitchygames.collision.layers.CollisionLayer">CollisionLayer</a></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The created CollisionLayer.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Raises:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="ValueError">ValueError</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>If a layer with this name already exists.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -4797,45 +8360,68 @@ callback may add or remove sprites (e.g. collect a pickup) without skipping
 pairs; a sprite removed during the pass can still be paired later in it.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>layer_a_name</code></b>
-                  (<code><span title="str">str</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>layer_a_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Name of the first layer.</p>
               </div>
-            </li>
-            <li>
-              <b><code>layer_b_name</code></b>
-                  (<code><span title="str">str</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>layer_b_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Name of the second layer.</p>
               </div>
-            </li>
-            <li>
-              <b><code>callback</code></b>
-                  (<code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>], None]</code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>callback</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>], None]</code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Called with (sprite_a, sprite_b) on each collision.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -4946,45 +8532,68 @@ pairs; a sprite removed during the pass can still be paired later in it.</p>
         <p>Check one sprite against all sprites in a layer (iterating a snapshot of it).</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><span title="object">object</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite to check.</p>
               </div>
-            </li>
-            <li>
-              <b><code>layer_name</code></b>
-                  (<code><span title="str">str</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>layer_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Name of the layer to check against.</p>
               </div>
-            </li>
-            <li>
-              <b><code>callback</code></b>
-                  (<code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>], None]</code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>callback</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>], None]</code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>Called with (sprite, other) on each collision.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -5055,75 +8664,82 @@ pairs; a sprite removed during the pass can still be paired later in it.</p>
         <p>Get a collision layer by name.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>name</code></b>
-                  (<code><span title="str">str</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The layer name.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><a class="autorefs autorefs-internal" title="CollisionLayer (glitchygames.collision.layers.CollisionLayer)" href="#glitchygames.collision.layers.CollisionLayer">CollisionLayer</a></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The CollisionLayer.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Raises:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="KeyError">KeyError</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>If no layer with this name exists.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -5172,7 +8788,6 @@ pairs; a sprite removed during the pass can still be paired later in it.</p>
 
     </div>
 
-
 </div>
 
 <div class="doc doc-object doc-class">
@@ -5202,7 +8817,8 @@ its pygame.Rect result; a sprite whose rect is an FRect gets that FRect back.</p
 
 
 
-              <details class="quote">
+
+              <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
                 <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.collision.layers.ScreenRectSprite--source--__codelineno-0-220">220</a></span>
 <span class="normal"><a href="#glitchygames.collision.layers.ScreenRectSprite--source--__codelineno-0-221">221</a></span>
@@ -5269,7 +8885,6 @@ its pygame.Rect result; a sprite whose rect is an FRect gets that FRect back.</p
 
     </div>
 
-
 </div>
 
 
@@ -5291,52 +8906,59 @@ right edge on <code>wall_left</code>, and <code>world_x = wall_right - offset_x<
 <code>wall_right</code>.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><a class="autorefs autorefs-internal" title="WorldRectSprite (glitchygames.collision.detection.WorldRectSprite)" href="#glitchygames.collision.detection.WorldRectSprite">WorldRectSprite</a></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="WorldRectSprite (glitchygames.collision.detection.WorldRectSprite)" href="#glitchygames.collision.detection.WorldRectSprite">WorldRectSprite</a></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>A sprite with world_x and world_y.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="tuple">tuple</span>[<span title="int">int</span>, <span title="int">int</span>]</code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>tuple[int, int]: (offset_x, offset_y) of the collision rect's top-left.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -5401,63 +9023,78 @@ right edge on <code>wall_left</code>, and <code>world_x = wall_right - offset_x<
 sprites with only rect (UI elements).</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="pygame.Rect">Rect</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>A pygame.Rect for collision detection. Sprites with world_x/world_y</p>
               </div>
-            </li>
-            <li>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="pygame.Rect">Rect</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>get a rect in world coordinates (see get_collision_rect); sprites with</p>
               </div>
-            </li>
-            <li>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="pygame.Rect">Rect</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>only rect get a screen-space rect, trimmed to the visible pixels of</p>
               </div>
-            </li>
-            <li>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="pygame.Rect">Rect</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>their image unless they have no image or set</p>
               </div>
-            </li>
-            <li>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="pygame.Rect">Rect</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>TRIM_TRANSPARENT_HITBOX = False (then their rect, unchanged); sprites</p>
               </div>
-            </li>
-            <li>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="pygame.Rect">Rect</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>with neither get an empty rect.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/layers.py</code></summary>
@@ -5606,100 +9243,155 @@ not moving), the side of the solid's centre its own centre is on decides, so it 
 out on its own side, never through the solid.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>mover_left</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>mover_left</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The mover's left edge now.</p>
               </div>
-            </li>
-            <li>
-              <b><code>mover_right</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>mover_right</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The mover's right edge now.</p>
               </div>
-            </li>
-            <li>
-              <b><code>displacement_x</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>displacement_x</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>How far it moved in x this frame (velocity times the frame's dt).</p>
               </div>
-            </li>
-            <li>
-              <b><code>solid_left</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>solid_left</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The solid's left edge.</p>
               </div>
-            </li>
-            <li>
-              <b><code>solid_right</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>solid_right</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The solid's right edge.</p>
               </div>
-            </li>
-            <li>
-              <b><code>mover_center_x</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>mover_center_x</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The mover's centre, as the game measures it.</p>
               </div>
-            </li>
-            <li>
-              <b><code>solid_center_x</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>solid_center_x</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The solid's centre, as the game measures it.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="bool">bool</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>True to push the mover out to the solid's left, False to its right.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/solids.py</code></summary>
@@ -5800,84 +9492,123 @@ out on its own side, never through the solid.</p>
 <code>tolerance</code> below it; a rising sprite never lands (a one-way surface is jumped through).</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>velocity_y</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>velocity_y</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite's vertical velocity (positive falls).</p>
               </div>
-            </li>
-            <li>
-              <b><code>feet_now</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>feet_now</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The feet's world y now.</p>
               </div>
-            </li>
-            <li>
-              <b><code>feet_start</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>feet_start</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The feet's world y before the tick (<code>feet_now</code> when unknown).</p>
               </div>
-            </li>
-            <li>
-              <b><code>surface_top</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>surface_top</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The surface's top.</p>
               </div>
-            </li>
-            <li>
-              <b><code>tolerance</code></b>
-                  (<code><span title="float">float</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>tolerance</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>How far below the top the feet may have started and still land.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="bool">bool</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>True if the feet land on the surface.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/solids.py</code></summary>
@@ -5954,69 +9685,92 @@ out on its own side, never through the solid.</p>
         <p>Return the world x putting a sprite's collision rect flush against a solid's left side.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>solid_left</code></b>
-                  (<code><span title="int">int</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>solid_left</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The solid's left edge.</p>
               </div>
-            </li>
-            <li>
-              <b><code>collision_offset_x</code></b>
-                  (<code><span title="int">int</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>collision_offset_x</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The collision rect's x offset from the sprite's (snapped) world x
 (<code>collision_rect_offset</code>).</p>
               </div>
-            </li>
-            <li>
-              <b><code>collision_width</code></b>
-                  (<code><span title="int">int</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>collision_width</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The collision rect's width.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="float">float</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite's world x.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/solids.py</code></summary>
@@ -6071,61 +9825,76 @@ out on its own side, never through the solid.</p>
         <p>Return the world x putting a sprite's collision rect flush against a solid's right side.</p>
 
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>solid_right</code></b>
-                  (<code><span title="int">int</span></code>)
-              –
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>solid_right</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The solid's right edge.</p>
               </div>
-            </li>
-            <li>
-              <b><code>collision_offset_x</code></b>
-                  (<code><span title="int">int</span></code>)
-              –
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>collision_offset_x</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The collision rect's x offset from the sprite's (snapped) world x
 (<code>collision_rect_offset</code>).</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Returns:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="float">float</span></code>
-              –
+            </td>
+            <td>
               <div class="doc-md-description">
                 <p>The sprite's world x.</p>
               </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/collision/solids.py</code></summary>
@@ -6174,58 +9943,80 @@ out on its own side, never through the solid.</p>
     </div>
 
 </div>
-              
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
             </div>
-          </div><footer>
-    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../audio/" class="btn btn-neutral float-left" title="glitchygames.audio"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../color/" class="btn btn-neutral float-right" title="glitchygames.color">Next <span class="icon icon-circle-arrow-right"></span></a>
-    </div>
-
-  <hr/>
-
-  <div role="contentinfo">
-    <!-- Copyright etc -->
-  </div>
-
-  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
-</footer>
           
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
         </div>
-      </div>
-
-    </section>
-
-  </div>
-
-  <div class="rst-versions" role="note" aria-label="Versions">
-  <span class="rst-current-version" data-toggle="rst-current-version">
-    
-        <span>
-          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
-        </span>
-    
-    
-      <span><a href="../audio/" style="color: #fcfcfc">&laquo; Previous</a></span>
-    
-    
-      <span><a href="../color/" style="color: #fcfcfc">Next &raquo;</a></span>
-    
-  </span>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
 </div>
-    <script src="../../js/jquery-3.6.0.min.js"></script>
-    <script>var base_url = "../..";</script>
-    <script src="../../js/theme_extra.js"></script>
-    <script src="../../js/theme.js"></script>
-      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
-      <script src="../../js/mermaid-init.js"></script>
-      <script src="../../js/performance-game-select.js"></script>
-      <script src="../../search/main.js"></script>
-    <script>
-        jQuery(function () {
-            SphinxRtdTheme.Navigation.enable(true);
-        });
-    </script>
-
-</body>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link", "navigation.expand", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+        <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+      
+        <script src="../../js/mermaid-config.js"></script>
+      
+        <script src="../../js/requirements.js"></script>
+      
+        <script src="../../js/performance.js"></script>
+      
+        <script src="../../js/complexity.js"></script>
+      
+    
+  </body>
 </html>
