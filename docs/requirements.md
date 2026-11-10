@@ -32,7 +32,7 @@ measured.
 </div>
 
 The FPS column is the rate a game would run at if every frame took the measure you picked
-(1000 ÷ ms), colored from red at 15 FPS to green at 60 FPS and above; the black line on the scale
+(1000 ÷ ms), colored from red at 15 FPS to green at 60 FPS and above; the line on the scale
 marks the target. The ranges are the lowest and highest across a machine's runs.
 
 === "Raspberry Pi 4"
@@ -61,21 +61,31 @@ marks the target. The ranges are the lowest and highest across a machine's runs.
 
 ## How this was measured
 
-- **Source:** the replay ledger, `quality/replay-ledger/` ([Replay Performance](quality/performance.md)),
-  summarized in `docs/data/requirements.json`, which this page reads. Each ledger row is one
-  measured run of one golden replay or bundled demo. The pre-push hook measures both Pis for each
-  new code tree.
-- **What a number is:** each frame's processing time while the recording replays headless,
-  unpaced, on SDL's dummy driver. It is the game's own work, without drawing to a real screen.
-- **Typical:** the median across a machine's runs. Typical p99, the measure picked first, is
-  the median of each run's 99th-percentile frame. Runs are from November 5 to 9, 2026.
+Source
+:   The replay ledger, `quality/replay-ledger/` ([Replay Performance](quality/performance.md)),
+    summarized in `docs/data/requirements.json`, which this page reads. Each ledger row is one
+    measured run of one golden replay or bundled demo. The pre-push hook measures both Pis for
+    each new code tree.
 
-What the numbers leave out:
+What a number is
+:   Each frame's processing time while the recording replays headless, unpaced, on SDL's dummy
+    driver. It is the game's own work, without drawing to a real screen.
 
-- **Drawing to a real screen.** A one-off CircleCI job on the Pi 4 (build 2857) measured a
-  30.1 ms flip per frame on SDL's `wayland` driver at 2560x1440. Real-driver timing is planned,
-  not yet measured.
-- **Memory.** Not recorded in the ledger.
-- **Thermals.** The ledger doesn't record temperature on Linux. The Pi 4, with no added cooling,
-  varies about 12% across runs.
-- **Other machines.** No Windows PC, x86 Linux machine or older Mac has been measured.
+Typical
+:   The median across a machine's runs. Typical p99, the measure picked first, is the median of
+    each run's 99th-percentile frame. Runs are from November 5 to 9, 2026.
+
+!!! warning "What the numbers leave out"
+    Drawing to a real screen
+    :   A one-off CircleCI job on the Pi 4 (build 2857) measured a 30.1 ms flip per frame on
+        SDL's `wayland` driver at 2560x1440. Real-driver timing is planned, not yet measured.
+
+    Memory
+    :   Not recorded in the ledger.
+
+    Thermals
+    :   The ledger doesn't record temperature on Linux. The Pi 4, with no added cooling, varies
+        about 12% across runs.
+
+    Other machines
+    :   No Windows PC, x86 Linux machine or older Mac has been measured.

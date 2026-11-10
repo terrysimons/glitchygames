@@ -322,9 +322,9 @@ def test_the_docs_site_keeps_the_material_features_the_formatting_plan_turned_on
 
 
 HOME_PAGE = PROJECT_ROOT / 'docs' / 'index.md'
-# The home page's example: the first python fence after its "# Example Game" heading
+# The home page's example: the first python fence (a title may follow) after "# Example Game"
 HOME_PAGE_EXAMPLE = re.compile(
-    r'^# Example Game$.*?^```python\n(?P<code>.*?)^```$', re.DOTALL | re.MULTILINE
+    r'^# Example Game$.*?^```python[^\n]*\n(?P<code>.*?)^```$', re.DOTALL | re.MULTILINE
 )
 WHITE = (255, 255, 255)
 HOME_PAGE_EXAMPLE_FRAMES = 10

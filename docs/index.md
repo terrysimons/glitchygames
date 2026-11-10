@@ -16,7 +16,7 @@ Let's make a new game called Bitrot Adventures.
 
 The goal of our game will be to draw a pixel on the screen and handle key events to move the pixel around.
 
-```python
+```python title="bitrot_adventures.py"
 #!/usr/bin/env python3
 """Bitrot Adventures: a pixel on the screen that the arrow keys move."""
 
