@@ -1732,4 +1732,8 @@ alpha = 127  # 0-254 for transparency, omit for opaque
   the engine's chart traces per recording) and `docs/js/complexity.js` over
   `quality/graphs/complexity-explorer.json` (`scripts/generate_complexity_graphs.py`: every
   module's and package's wily history); both load plotly.js only on their page, and all three
-  share `docs/css/explorer.css`
+  share `docs/css/explorer.css`. Every build checks, without a browser, that their built pages
+  name only files the site has (`scripts/mkdocs_hooks.py` `missing_explorer_files`). Pages are
+  written in Material's conventions (warnings for rules, collapsed blocks for long reference
+  listings, definition lists for term lists, `!!! bug` for bug write-ups; the abbreviations'
+  glossary is `docs/includes/abbreviations.md`): plans/2026-11-09-docs-material-formatting.md

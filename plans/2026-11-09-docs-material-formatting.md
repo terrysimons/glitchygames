@@ -160,8 +160,17 @@ none had any.
 ## Plan
 
 - [x] Favicon (`theme.favicon`, `test_the_docs_site_shows_our_favicon`).
-- [ ] Part 1: the configuration commit (with the last-updated dates); dark-mode check of every
-      explorer and Mermaid; the configuration test.
-- [ ] The glossary file (`docs/includes/abbreviations.md`).
-- [ ] Part 2, in the order above; each page's commit names the conventions it applied.
-- [ ] `CLAUDE.md`'s documentation note: the formatting conventions, one line pointing here.
+- [x] Part 1: the configuration commit (with the last-updated dates); dark-mode check of every
+      explorer and Mermaid; the configuration test (2026-11-10, `docs/material-formatting`:
+      `test_the_docs_site_keeps_the_material_features_the_formatting_plan_turned_on`). Material
+      themes Mermaid for the slate scheme itself, so `js/mermaid-config.js` was left as it was;
+      the performance and complexity explorers draw again when the scheme changes.
+- [x] The glossary file (`docs/includes/abbreviations.md`).
+- [ ] Part 2, in the order above; each page's commit names the conventions it applied. Done
+      (2026-11-10): `index.md`, `requirements.md`; across the pages, the mechanical conventions
+      (every bold-term bullet list a definition list, `upstream_issues.md`'s drafts `!!! bug`,
+      `event_system.md`'s Complete Event Category Map collapsed per category) and the rules in
+      `gameplay_replay.md`'s "Rules for game code" as warnings. Left: each page's read-through
+      for the judgment conventions (warnings, notes and tips in prose, titled and annotated code
+      blocks, content tabs for per-front-end commands), best done with the scrub's reading pass.
+- [x] `CLAUDE.md`'s documentation note: the formatting conventions, one line pointing here.
