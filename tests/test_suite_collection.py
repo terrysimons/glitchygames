@@ -524,8 +524,7 @@ def test_a_bare_name_import_of_a_members_test_module_is_found(tmp_path):
 # Living documentation writes repository paths from the repository root (the engine at
 # src/glitchygames/, the workspace layers at src/games/, src/demos/ and src/apps/). Finished
 # plans (plans/*.md except the ones below) and resolved BUGS.md entries are history: they name
-# the locations as they were when written, so they are not scanned (TEST_UPDATE_PLAN.md says
-# "complete (historical)" and is among them).
+# the locations as they were when written, so they are not scanned.
 LIVING_PLAN_FILES = (
     'plans/future-features.md',
     'plans/future-work.md',
@@ -1176,6 +1175,7 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
     'tests/test_compare_driver_frames.py': ('scripts/compare_driver_frames.py',),
     'tests/test_create.py': ('scripts/create.py',),
     'tests/test_complexity_report.py': ('scripts/complexity_report.py',),
+    'tests/test_docs_claims.py': ('scripts/docs_claims.py', 'scripts/git_checkout.py'),
     'tests/test_driver_configurations.py': ('scripts/driver_configurations.py',),
     'tests/test_driver_frame_matrix.py': ('scripts/driver_frame_matrix.py',),
     'tests/test_gen_ref_pages.py': ('scripts/gen_ref_pages.py',),
@@ -1768,6 +1768,10 @@ FORMER_EXAMPLES_EXEMPT_PATHS: dict[str, str] = {
     'tests/replay/tools/test_settings.py': (
         'the recording-renames our settings must give, copied from the constant they replaced'
     ),
+    'scripts/docs_claims.py': (
+        'a recorded exception: clockwork_keep.md names the package as the one its move left '
+        'nothing of'
+    ),
     'src/demos/dt-demo/tests/test_dt_demo_install_location.py': (
         'the move out of the engine: nothing is left of the old package'
     ),
@@ -1910,7 +1914,7 @@ def test_a_reference_outside_the_exempt_paths_is_found(tmp_path):
     """Code, config and a living doc are found; history, exempt paths and other types are not."""
     files = {
         'src/engine.py': 'import glitchygames.examples\n',
-        'mkdocs.yml': 'path: src/glitchygames/examples\n',
+        'zensical.yml': 'path: src/glitchygames/examples\n',
         'docs/guide.md': 'fine\nsee glitchygames/examples/x\n',
         'plans/old.md': 'glitchygames.examples\n',
         'BUGS.md': (
@@ -1931,6 +1935,6 @@ def test_a_reference_outside_the_exempt_paths_is_found(tmp_path):
     assert former_examples_references(project_root=tmp_path) == [
         'BUGS.md:3: glitchygames.examples',
         'docs/guide.md:2: see glitchygames/examples/x',
-        'mkdocs.yml:1: path: src/glitchygames/examples',
         'src/engine.py:1: import glitchygames.examples',
+        'zensical.yml:1: path: src/glitchygames/examples',
     ]

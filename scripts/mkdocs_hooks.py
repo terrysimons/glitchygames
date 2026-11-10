@@ -1,4 +1,4 @@
-"""mkdocs hooks (mkdocs.yml ``hooks``): generate the graphs first, free the API caches after.
+"""mkdocs hooks (zensical.yml ``hooks``): generate the graphs first, free the API caches after.
 
 Every ``mkdocs build``, ``mkdocs serve`` and ``mkdocs gh-deploy`` (so ``nox -s docs-deploy``,
 ``docs-serve`` and ``lint-docs`` too) runs ``on_pre_build`` first, which:

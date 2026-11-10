@@ -4,7 +4,11 @@
 # src/quicklook: SwiftPM's own checkouts (.build/, which hold deliberately invalid TOML test
 # files), and the sprite fixtures whose exact bytes the QuickLook tests depend on (CRLF line
 # endings, ragged rows); formatting them would quietly stop those tests testing anything
+# .claude/: Claude Code's worktrees (.claude/worktrees/<name>/) are other checkouts nested in this
+# one, each on its own branch. Formatted from here they were rewritten mid-task (their CRLF
+# fixtures included: the paths above are this checkout's, not theirs) (BUGS.md #271)
 exclude = [
+  ".claude/**",
   "third_party/**",
   ".venv/**",
   ".nox/**",

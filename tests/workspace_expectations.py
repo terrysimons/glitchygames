@@ -5,7 +5,7 @@ must assert it found each one it expects, so it can never pass on zero, and so a
 recording fails. These are read from the repository on 2026-10-26 and edited deliberately when a
 game, golden, demo or console script is added or removed: ``EXPECTED_GOLDENS`` (the six goldens
 by ``(distribution, file name)``), ``EXPECTED_GAME_CONSOLE_SCRIPTS`` (the five games-layer
-console scripts), ``EXPECTED_ALL_CONSOLE_SCRIPTS`` (the nine members' console scripts: the
+console scripts), ``EXPECTED_ALL_CONSOLE_SCRIPTS`` (the ten members' console scripts: the
 games, the demos and Bitmappy) and ``EXPECTED_BUNDLED_DEMOS`` (by ``(package, name)``).
 
 What is read from the workspace (scripts/workspace_packages.py) to compare with them is in
@@ -48,7 +48,7 @@ EXPECTED_GAME_CONSOLE_SCRIPTS = frozenset({
     'mr-muncher',
     'paddleslap',
 })
-# Every member's console script, written out by hand: the five games, the three demos and Bitmappy
+# Every member's console script, written out by hand: the five games, the four demos and Bitmappy
 EXPECTED_ALL_CONSOLE_SCRIPTS = frozenset({
     'bitmappy',
     'brave-adventurer',

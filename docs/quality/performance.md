@@ -5,13 +5,18 @@ each game's `tests/fixtures/replays/` and the demos bundled with the games), com
 measurement replays a recording headless and unpaced on one machine (`--rebaseline`, which times
 each frame's work without the pacing sleep), so a line moves only when the code got faster or
 slower, or the machine changed. Times compare only on one machine: each machine (its CPU model)
-and kind of run is its own line.
+and kind of run is its own line. [Requirements](../requirements.md) turns these measurements into a
+verdict per game for each measured machine.
 
 Until a build generates them, this page has only this text.
 
 --8<-- "docs/quality/metrics/performance_graphs.md"
 
 ## What the graphs show
+
+The explorer above draws one chart at a time: pick the recording (grouped by game), the chart,
+the statistics (p50, p99, max) and the machines to compare. Each recording's own page, linked
+under it, shows every chart at once with the slowest-frame heatmaps.
 
 - **Processing time per frame**: the median (p50), the 99th percentile (p99) and the slowest
   frame (max) of one replay, in milliseconds, by commit (oldest on the left, labelled with the
@@ -44,8 +49,8 @@ print the same FPS beside the milliseconds.
 
 Hover a point for the commit's date and when it was measured.
 
-The graphs are shown one game at a time: choose it from the list above them. Only that game's
-graphs load, and the choice goes in the page's address (`?game=mr-muncher`), so it can be linked.
+The game of the recording picked goes in the page's address (`?game=mr-muncher`), so a view can
+be linked: the link opens on that game's first recording.
 
 Measurements made on a checkout with uncommitted changes (a trial: `nox -s replay-metrics --
 --allow-dirty`) are never published: the published site leaves them out, while a local build
