@@ -1,12 +1,19 @@
 """The instrument catalog: every entry builds, renders across its range and plays its pitch."""
 
+from functools import partial
+
 import numpy as np
 import pytest
 
 from glitchygames.audio import instruments
 from glitchygames.audio.instrument import Filter, Instrument
 from glitchygames.audio.instruments import CatalogEntry, Family, Tag
-from glitchygames.audio.instruments.registry import FAMILY_TABLES, aliases_from, catalog_from
+from glitchygames.audio.instruments.registry import (
+    FAMILY_TABLES,
+    aliases_from,
+    catalog_from,
+    sound_alikes_from,
+)
 from glitchygames.audio.instruments.timbres import (
     Course,
     Formant,
@@ -491,6 +498,135 @@ def test_the_alias_table_is_refused_when_it_is_wrong():
         aliases_from({'Bad Alias': 'flute'}, instruments.CATALOG)
 
 
+def plain_drum(noise: float = 0.5) -> Instrument:
+    """A stand-in builder that is a plain function, not a partial.
+
+    Returns:
+        The instrument.
+    """
+    return drum(tones=(Tone(hertz=200.0, ring_seconds=0.2),), noise=noise, tail=0.2)
+
+
+def sound_alike_table(*extra: CatalogEntry) -> dict[str, CatalogEntry]:
+    """A test-only catalog: a parent drum built by a partial, a plain-function drum, and ``extra``.
+
+    Returns:
+        Name to entry, as ``catalog_from`` assembles it.
+    """
+    parent = CatalogEntry(
+        'test parent',
+        'Test parent',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(drum, tones=(Tone(hertz=200.0, ring_seconds=0.2),), noise=0.5, tail=0.2),
+    )
+    plain = CatalogEntry(
+        'test plain', 'Test plain', Family.DRUMS_AND_PERCUSSION, None, None, plain_drum
+    )
+    return catalog_from([(parent, plain, *extra)])
+
+
+def unpitched_drum(name: str, **fields) -> CatalogEntry:
+    """An unpitched drums and percussion entry named ``name`` with ``fields``.
+
+    Returns:
+        The entry.
+    """
+    return CatalogEntry(name, name.capitalize(), Family.DRUMS_AND_PERCUSSION, None, None, **fields)
+
+
+def test_an_entry_needs_a_build_or_a_parent():
+    """An entry with neither a build nor ``sounds_like`` could make no sound."""
+    with pytest.raises(ValueError, match='test nothing: give a build, or the entry it sounds like'):
+        unpitched_drum('test nothing')
+
+
+def test_an_entrys_sound_changes_are_read_only():
+    """The changes are copied and frozen: the caller's dict cannot change the entry."""
+    changes = {'noise': 0.9}
+    alike = unpitched_drum('test alike', sounds_like='test parent', sound_changes=changes)
+    changes['noise'] = 0.1
+    assert alike.sound_changes == {'noise': 0.9}
+    with pytest.raises(TypeError):
+        alike.sound_changes['noise'] = 0.2  # pyright: ignore[reportIndexIssue] # ty: ignore[invalid-assignment] - the write is the point
+
+
+def test_the_sound_alikes_are_refused_when_they_are_wrong():
+    """A bad sound-alike fails when the catalog is assembled, naming the entry."""
+    refusals = [
+        (
+            unpitched_drum('test alike', sounds_like='test missing'),
+            "test alike: sounds like no instrument: 'test missing'",
+        ),
+        (unpitched_drum('test alike', sounds_like='test alike'), 'test alike: sounds like itself'),
+        (
+            unpitched_drum('test alike', sounds_like='test plain', build=plain_drum),
+            "test alike: a sound-alike takes the build of 'test plain', not its own",
+        ),
+        (
+            CatalogEntry(
+                'test alike',
+                'Test alike',
+                Family.DRUMS_AND_PERCUSSION,
+                'C4',
+                'C5',
+                sounds_like='test parent',
+            ),
+            "test alike: its range must be that of 'test parent'",
+        ),
+        (
+            unpitched_drum('test alike', build=plain_drum, sound_changes={'noise': 0.9}),
+            'test alike: sound changes need the entry it sounds like',
+        ),
+        (
+            unpitched_drum('test alike', sounds_like='test plain', sound_changes={'noise': 0.9}),
+            "test alike: sound changes need a functools.partial builder, and 'test plain' has none",
+        ),
+        (
+            unpitched_drum('test alike', sounds_like='test parent', sound_changes={'wobble': 1.0}),
+            r"test alike: sound changes \['wobble'\] are not keyword parameters of 'test parent'",
+        ),
+    ]
+    for alike, message in refusals:
+        with pytest.raises(ValueError, match=message):
+            sound_alikes_from(sound_alike_table(alike))
+    first = unpitched_drum('test first', sounds_like='test parent')
+    second = unpitched_drum('test second', sounds_like='test first')
+    with pytest.raises(ValueError, match="test second: sounds like 'test first', itself a sound"):
+        sound_alikes_from(sound_alike_table(first, second))
+
+
+def test_a_sound_change_cannot_replace_a_positional_argument():
+    """A parameter the parent's partial fills positionally is not a keyword it can replace."""
+    positional_parent = CatalogEntry(
+        'test tom', 'Test tom', Family.DRUMS_AND_PERCUSSION, None, None, partial(plain_drum, 0.3)
+    )
+    alike = unpitched_drum('test alike', sounds_like='test tom', sound_changes={'noise': 0.9})
+    with pytest.raises(ValueError, match=r"sound changes \['noise'\] are not keyword parameters"):
+        sound_alikes_from(catalog_from([(positional_parent, alike)]))
+
+
+def test_a_changed_sound_alike_builds_the_changed_instrument():
+    """A sound-alike with a change builds its parent's builder with that keyword replaced."""
+    plain_alike = unpitched_drum('test same', sounds_like='test parent')
+    changed_alike = unpitched_drum(
+        'test changed', sounds_like='test parent', sound_changes={'noise': 0.9}
+    )
+    assembled = sound_alikes_from(sound_alike_table(plain_alike, changed_alike))
+    parent_build = assembled['test parent'].build
+    same_build = assembled['test same'].build
+    changed_build = assembled['test changed'].build
+    assert parent_build is not None and same_build is not None and changed_build is not None
+    expected = partial(drum, tones=(Tone(hertz=200.0, ring_seconds=0.2),), noise=0.9, tail=0.2)
+    assert changed_build() == expected()
+    assert changed_build() != parent_build()
+    assert same_build() == parent_build()
+    # The entries keep their own names and order, and the rest of the table is unchanged
+    assert list(assembled) == ['test parent', 'test plain', 'test same', 'test changed']
+    assert assembled['test changed'].sound_changes == {'noise': 0.9}
+
+
 def test_an_unknown_name_suggests_aliases_too():
     """A near miss of an alias suggests it."""
     with pytest.raises(KeyError, match='did you mean slapstick'):
@@ -538,6 +674,33 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('hohner clavinet', 'clavinet'),
         ('rain box', 'rain machine'),
         ('horse hooves', 'coconut shells'),
+        ('dayereh', 'daf'),
+        ('ganrang', 'kendang'),
+        ('nagara', 'naqareh'),
+        ('paila criolla', 'high timbale'),
+        ('riq', 'daf'),
+        ('naqara', 'naqareh'),
+        ('naqqara', 'naqareh'),
+        ('tavil', 'thavil'),
+        ('chende', 'chenda'),
+        ('ganjira', 'kanjira'),
+        ('doira', 'daf'),
+        ('gran cassa', 'orchestral bass drum'),
+        ('bossed gong', 'tuned gong'),
+        ('rain stick', 'rainstick'),
+        ('sand blocks', 'sandpaper blocks'),
+        ('sleigh bells', 'jingle bells'),
+        ('chau gong', 'tam tam'),
+        ('ugly stick', 'lagerphone'),
+        ('monkey stick', 'lagerphone'),
+        ('zob stick', 'lagerphone'),
+        ('zydeco rubboard', 'frottoir'),
+        ('vest frottoir', 'frottoir'),
+        ('zatulas', 'washboard'),
+        ('zillia', 'finger cymbals'),
+        ('zills', 'finger cymbals'),
+        ('cencerro', 'cowbell'),
+        ('afuche', 'cabasa'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -545,6 +708,9 @@ def test_the_batch_aliases_resolve(alias, target):
 
     Zanza is the mbira, both music boxes the one comb, the audit's Wurlitzer and Clavinet
     spellings the catalog's, and the rain box and horse hooves the sound effects they name.
+    Batch 3's aliases are other names for the same drum or idiophone, which may be a sound-alike
+    entry (the rainstick) or in another family (the tuned gong); a distinct instrument that sounds
+    like one is its own entry (``test_a_sound_alike_is_listed_and_builds_its_parents_sound``).
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -726,22 +892,231 @@ def test_electromechanical_holds_the_electric_pianos_clavinet_and_tonewheels():
 SOUND_EFFECT_NAMES = [
     entry.name for entry in instruments.entries() if entry.family == 'sound effects'
 ]
+# Every catalog entry that a source sets apart from its parent (empty today): it is its own
+# sound, so it gets the one-shot checks as the new drums do
+CHANGED_SOUND_ALIKE_NAMES = [
+    catalog_entry.name for catalog_entry in instruments.entries() if catalog_entry.sound_changes
+]
+# Batch 3's new entries, in the sheet's order: the membranophones, then the idiophones
+NEW_DRUM_NAMES = [
+    'bendir',
+    'bombo leguero',
+    'chenda',
+    'daf',
+    'dhol',
+    'dholak',
+    'field drum',
+    'gong bass drum',
+    'janggu',
+    'kanjira',
+    'kebero',
+    'kendang',
+    'kendang ageng',
+    'ketipung',
+    'khol',
+    'lambeg drum',
+    'mridangam',
+    'naqareh',
+    'otsuzumi',
+    'pandeiro',
+    'piccolo snare',
+    'pipe band snare',
+    'thavil',
+    # The idiophones (hs starting 1), in the sheet's order
+    'agung',
+    'anvil',
+    'bak',
+    'daluo',
+    'flat ride cymbal',
+    'garamut',
+    'ghatam',
+    'gongue',
+    'guira',
+    'jing',
+    'jingle bells',
+    'karkabou',
+    'kemanak',
+    'khartal',
+    'kkwaenggwari',
+    'lagerphone',
+    'sizzle cymbal',
+    'tiger gong',
+    'tingsha',
+    'udu',
+    'washboard',
+    'xiaoluo',
+]
+# Batch 3's sound-alikes and the entry each sounds like, in the sheet's order
+SOUND_ALIKE_PARENTS = {
+    'alfaia': 'taiko',
+    'ashiko': 'djembe tone',
+    'atabaque': 'conga',
+    'atumpan': 'tumba',
+    'bamboula': 'conga',
+    'bangu': 'darbuka tek',
+    'bata drum': 'conga',
+    'bedug': 'orchestral bass drum',
+    'bougarabou': 'djembe bass',
+    'buk': 'taiko',
+    'caixa malacacheta': 'snare drum',
+    'candombe drums': 'conga',
+    'carimbo': 'tumba',
+    'concert tom': 'mid tom',
+    'cultrun': 'bodhran',
+    'dabakan': 'conga slap',
+    'damphu': 'bodhran',
+    'davul': 'dhol',
+    'dhak': 'dhol',
+    'dhimay': 'surdo',
+    'dohol': 'dhol',
+    'dollu': 'dhol',
+    'dunun': 'floor tom',
+    'fontomfrom': 'orchestral bass drum',
+    'gbedu': 'orchestral bass drum',
+    'gome': 'cajon bass',
+    'gudugudu': 'high timbale',
+    'hira daiko': 'taiko',
+    'huehuetl': 'tumba',
+    'igba': 'low bongo',
+    'jwago': 'taiko',
+    'kakko': 'high tom',
+    'kendang ciblon': 'kendang',
+    'kendang wadon': 'kendang',
+    'kenkeni': 'mid tom',
+    'klong khaek': 'kendang',
+    'kpanlogo': 'conga',
+    'kundu': 'conga',
+    'kus': 'taiko',
+    'madal': 'kendang',
+    'maddalam': 'mridangam',
+    'makuta': 'conga',
+    'marching snare': 'field drum',
+    'nagado daiko': 'taiko',
+    'ngoma': 'conga',
+    'octoban': 'high tom',
+    'okedo daiko': 'high tom',
+    'pahu': 'tumba',
+    'pakhavaj': 'mridangam',
+    'pandero jarocho': 'tambourine',
+    'parai': 'bodhran',
+    'popcorn snare': 'piccolo snare',
+    'puniu': 'high bongo',
+    'rebana': 'tambourine',
+    'repinique': 'high timbale',
+    'sabar': 'djembe tone',
+    'sakara drum': 'bodhran',
+    'samphor': 'kendang',
+    'sangban': 'low tom',
+    'shime daiko': 'high tom',
+    'tabor': 'field drum',
+    'tambora': 'conga',
+    'tamborim': 'darbuka tek',
+    'tan tan': 'surdo',
+    'tanggu': 'mid tom',
+    'taphon': 'kendang',
+    'tar drum': 'frame drum',
+    'tarol': 'snare drum',
+    'tasha': 'naqareh',
+    'tbilat': 'high bongo',
+    'thunder drum': 'orchestral bass drum',
+    'thunder tube': 'thunder sheet',
+    'tifa': 'djembe tone',
+    'tombak': 'darbuka doum',
+    'trong chau': 'darbuka tek',
+    'trong com': 'kendang',
+    'tsuri daiko': 'orchestral bass drum',
+    'uchiwa daiko': 'bodhran',
+    'urumi': 'high tom',
+    'zabumba': 'dhol',
+    'khanjani': 'daf',
+    'tabl': 'dhol',
+    'timbal': 'conga',
+    'tumbaknari': 'darbuka doum',
+    # The idiophones (hs starting 1), in the sheet's order
+    'afoxe': 'cabasa',
+    'axatse': 'cabasa',
+    'bo': 'china cymbal',
+    'bones': 'castanets',
+    'cata': 'woodblock',
+    'caxirola': 'maracas',
+    'caxixi': 'maracas',
+    'chengila': 'kkwaenggwari',
+    'chimta': 'khartal',
+    'chuk': 'cajon bass',
+    'crash ride cymbal': 'crash cymbal',
+    'ekwe': 'temple block',
+    'elathalam': 'finger cymbals',
+    'eo': 'guiro',
+    'esterilla': 'guiro',
+    'ferrinho': 'guira',
+    'frottoir': 'guira',
+    'ganza': 'shaker',
+    'ghungroo': 'jingle bells',
+    'hosho': 'maracas',
+    'hyoshigi': 'claves',
+    'ikoro': 'garamut',
+    'jam block': 'woodblock',
+    'kecer': 'finger cymbals',
+    'lummi stick': 'claves',
+    'manjira': 'finger cymbals',
+    'moktak': 'temple block',
+    'paiban': 'bak',
+    'quijada': 'vibraslap',
+    'rainstick': 'rain machine',
+    'reco reco': 'guiro',
+    'sandpaper blocks': 'snare brush',
+    'sasara': 'bak',
+    'semantron': 'garamut',
+    'shekere': 'cabasa',
+    'shishi odoshi': 'woodblock',
+    'shoko': 'kkwaenggwari',
+    'sistrum': 'tambourine',
+    'slit drum': 'garamut',
+    'spoons': 'castanets',
+    'stomp box': 'kick drum',
+    'swish cymbal': 'sizzle cymbal',
+    'teponaztli': 'garamut',
+    'triccaballacca': 'khartal',
+    'turkish crescent': 'jingle bells',
+    'txalaparta': 'garamut',
+    'guayo': 'guira',
+}
+SOUND_ALIKE_NAMES = list(SOUND_ALIKE_PARENTS)
 
 # The least measured margin is the ocean drum's: its second note's energy is 6.76 times its
-# single note's tail (the others are 17 times or more, and infinite for the three whose single
-# note is silent by 0.5 s); 3 leaves room without being near 1
+# single note's tail (the other effects are 17 times or more, and infinite for the three whose
+# single note is silent by 0.5 s; of batch 3's drums the gong bass drum, ringing 3 s, is the least
+# at 13.5 times, the lambeg drum 397 times, and most are infinite; of its idiophones the tingsha,
+# ringing 4 s, is the least at 10.5 times, the tiger gong 13.3 times, and most are infinite, the
+# jing excepted below); 3 leaves room without being near 1
 SECOND_STRIKE_FACTOR = 3.0
+# One-shots whose sourced long ring is still loud when the second note strikes, so the second
+# half's energy cannot pass SECOND_STRIKE_FACTOR; each gives its measured ring and why. They still
+# must pass the envelope check (``strikes_again``) and the held one-shot test
+LONG_RINGING_ONE_SHOTS = {
+    'jing': (
+        'a 0.5 s note rings 2.18 s to 1% of its peak (a 4 s ring, the source\'s "gentle and'
+        ' lingering sound"); at 0.5 s its 205 and 615 Hz partials are half a cycle out of phase'
+        ' with the next strike, so the two cancel: the second half holds 1952 of the 4570 energy'
+        " units an uncorrelated sum would, an energy share 2.59 times the single note's (the"
+        ' envelope check passes by 26.6 times)'
+    ),
+}
 # The envelopes are 20 ms RMS windows over the whole render, each scaled to unit length, so the
 # comparison survives each render being normalized to its own peak
 ENVELOPE_WINDOW_SECONDS = 0.02
 # Measured distances, two notes from one note plus the same note 0.5 s later against two notes
 # from one held note (P:1): thunder sheet 0.045 / 0.363, rain machine 0.022 / 0.569, ocean drum
 # 0.067 / 0.218, cannon 0.016 / 0.749, crash box 0.018 / 0.757, coconut shells 0.041 / 0.803,
-# door slam 0.012 / 0.766, giants footsteps 0.000 / 0.765. The least margin is the ocean drum's
-# (3.25 times); 2 keeps room on both sides
+# door slam 0.012 / 0.766, giants footsteps 0.000 / 0.765. Batch 3's drums are all 0.040 or less
+# against 0.454 or more (the otsuzumi's 0.040 / 0.802 is their least margin, 19.96 times), and its
+# idiophones 0.035 or less against 0.138 or more (the bak's 0.035 / 0.797 is their least margin,
+# 22.6 times; the jing's 0.005 / 0.138, 26.6 times). The least margin is the ocean drum's (3.25
+# times); 2 keeps room on both sides
 RESTRIKE_CLOSER_FACTOR = 2.0
-# Held for six seconds, every effect's ring is long over by 5 s (the longest, the ocean drum's
-# 0.8 s attack and 2.5 s ring, ends by 3.3 s); measured, every effect is exactly silent there
+# Held for six seconds, every effect's and drum's ring is long over by 5 s (the ocean drum's 0.8 s
+# attack and 2.5 s ring ends by 3.3 s; the gong bass drum's 3 s ring by 3 s; the longest, the
+# jing's and tingsha's 4 s rings, by 4 s); measured, every one is exactly silent there
 ONE_SHOT_HELD_SECONDS = 6.0
 ONE_SHOT_CHECK_SECONDS = 5.0
 
@@ -804,8 +1179,8 @@ def strikes_again(twice: np.ndarray, *, single: np.ndarray, merged: np.ndarray) 
     return bool(RESTRIKE_CLOSER_FACTOR * to_expected < to_merged)
 
 
-@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES)
-def test_a_sound_effect_strikes_again_on_each_note(name):
+@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES + NEW_DRUM_NAMES + CHANGED_SOUND_ALIKE_NAMES)
+def test_a_one_shot_strikes_again_on_each_note(name):
     """A second note adds its own strike, and is not the first note merged into a held one."""
     instrument = instruments.get(name)
     pitch = instruments.entry(name).middle_note().name
@@ -814,15 +1189,16 @@ def test_a_sound_effect_strikes_again_on_each_note(name):
     merged = render_sound(spec_for(instrument, name=name, notes=f'{pitch}:1')).samples
     length = max(len(twice), len(single))
     assert np.max(np.abs(twice)) <= 1.0, name
-    assert second_half_energy_share(twice, length=length) > SECOND_STRIKE_FACTOR * (
-        second_half_energy_share(single, length=length)
-    ), name
+    if name not in LONG_RINGING_ONE_SHOTS:
+        assert second_half_energy_share(twice, length=length) > SECOND_STRIKE_FACTOR * (
+            second_half_energy_share(single, length=length)
+        ), name
     assert strikes_again(twice, single=single, merged=merged), name
 
 
-@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES)
-def test_a_sound_effect_is_a_one_shot_however_long_it_is_held(name):
-    """Held for six seconds, an effect is far below its loudest by 5 s: none sustains."""
+@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES + NEW_DRUM_NAMES + CHANGED_SOUND_ALIKE_NAMES)
+def test_a_one_shot_stops_however_long_it_is_held(name):
+    """Held for six seconds, a one-shot is far below its loudest by 5 s: none sustains."""
     samples = render_sound(
         spec_for(instruments.get(name), name=name, pitch='A4', length=ONE_SHOT_HELD_SECONDS)
     ).samples
@@ -833,6 +1209,57 @@ def test_a_sound_effect_is_a_one_shot_however_long_it_is_held(name):
     )
     late = levels[round(ONE_SHOT_CHECK_SECONDS / 0.1)]
     assert late < 0.01 * np.max(levels), name
+
+
+def sound_group(name: str) -> str:
+    """The name an entry's sound belongs to: an unchanged sound-alike's parent, else its own.
+
+    Returns:
+        The name.
+    """
+    catalog_entry = instruments.entry(name)
+    if catalog_entry.sounds_like is not None and not catalog_entry.sound_changes:
+        return catalog_entry.sounds_like
+    return name
+
+
+def test_no_two_drums_build_the_same_instrument():
+    """Every entry in the family is its own sound (the anti-goal: no renamed copies).
+
+    Only an entry and its unchanged sound-alikes, or two unchanged sound-alikes of one parent,
+    may be equal; a sound-alike with changes must differ from every other entry.
+    """
+    names = instruments.names(family=Family.DRUMS_AND_PERCUSSION)
+    same = [
+        (first, second)
+        for index, first in enumerate(names)
+        for second in names[index + 1 :]
+        if instruments.get(first) == instruments.get(second)
+        and sound_group(first) != sound_group(second)
+    ]
+    assert same == []
+
+
+def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
+    """Each sound-alike is a drums and percussion name of its own, building its parent's sound."""
+    listed = instruments.names(family=Family.DRUMS_AND_PERCUSSION)
+    for name, parent in SOUND_ALIKE_PARENTS.items():
+        assert name in listed, name
+        assert instruments.entry(name).sounds_like == parent, name
+        assert instruments.get(name) == instruments.get(parent), name
+    every_sound_alike = [
+        catalog_entry.name
+        for catalog_entry in instruments.entries()
+        if catalog_entry.sounds_like is not None
+    ]
+    assert every_sound_alike == SOUND_ALIKE_NAMES
+
+
+def test_the_new_drums_are_in_their_family():
+    """Each new drum is a drums and percussion entry, unpitched."""
+    for name in NEW_DRUM_NAMES:
+        assert instruments.entry(name).family == Family.DRUMS_AND_PERCUSSION, name
+        assert not instruments.entry(name).pitched, name
 
 
 def test_the_pianet_settles_from_a_bright_strike():
