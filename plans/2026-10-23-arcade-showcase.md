@@ -269,8 +269,10 @@ recorded the same options; ten tiles with different games and resolutions make t
    ([2026-10-27-engine-context-2-engine-state.md](2026-10-27-engine-context-2-engine-state.md),
    branch `arcade-1-engine-state`): the engine's own state (C7-C20) per engine and context, the
    read-only views, the process-state guard, two engines with different options side by side.
-2. **Demos for every tile** (can run beside 1): a bundled demo recording for Bitmappy and the dt,
-   joystick and text-input demos (the games have theirs), each a bundled-demo test.
+2. **Demos for every tile** ([2026-11-11-arcade-2-demos.md](2026-11-11-arcade-2-demos.md),
+   branch `arcade-2-demos`): a bundled demo recording for every tile, each a bundled-demo test.
+   Only PaddleSlap had one (its rally); the other games had only their golden replays, so they
+   get theirs here beside Bitmappy and the dt, joystick and text-input demos.
 3. **A game inside the Arcade** = engine context sub-plans 3, 4, 6 and 7: an inner engine built
    from options (not `sys.argv`), drawing offscreen (a render target per context), its own event
    queue and internal-post tracker, contained errors, and nothing touching the window, SDL's
