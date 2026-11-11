@@ -235,8 +235,8 @@ The `fast` timer backend uses `time.perf_counter_ns()` with a sleep+spin hybrid 
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--log-timer-jitter` | Log frame pacing jitter statistics periodically | `False` |
-| `--perf-trim-percent` | Percent of frames to trim from FPS reporting (top and bottom) | `5.0` |
-| `--fps-histogram` | FPS histogram buckets in the shutdown report: `equal-range` or `target-relative` | `equal-range` |
+| `--perf-trim-percent` | Percent of frames to trim from the game's FPS reporting (top and bottom) | `5.0` |
+| `--fps-histogram` | FPS histogram buckets in the game's shutdown report: `equal-range` or `target-relative` | `equal-range` |
 | `--debug-overlay` | Show the debug overlay at startup (F3 toggles, F4 cycles panels) | `False` |
 | `--debug-events` | Log a warning the first time each unhandled event type arrives | `False` |
 | `--headless` | Run on SDL's dummy video and audio drivers (no window, no sound) | `False` |

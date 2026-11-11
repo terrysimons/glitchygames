@@ -203,8 +203,8 @@ class InstantReplayJournal:
 
         Args:
             scene: The opted-in scene, its start completed, before its ``setup()`` (rule 2).
-            game: The running game (``GameEngine.game``), named in the header; None without
-                an engine.
+            game: The running game's scene (the engine's ``running_game.instance``), named in
+                the header; None without an engine.
             scene_start_devices: The live devices and input mode as the scene starts
                 (``glitchygames.input.input_devices.scene_start_devices_record``), which the
                 playback scope adopts (rule 10); None without an engine.

@@ -96,7 +96,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
   plan): one screen, one process (the browser has no child processes), nine live silent tiles
   under a top frame showing the highlighted one with sound, an original chime over the bars.
   First sub-plan: the engine context (one per demo player); its sub-plan 1 (state:
-  EngineContext, the default context, six pieces of state moved) is done
+  EngineContext, the default context, six pieces of state moved) is done, and its sub-plan 2
+  (the engine's own state per context, the read-only views and the guards; the Arcade's
+  sub-plan 1) is done (PR #171, verified and through its performance gate); the Arcade's
+  sub-plan 2 (demos for every tile) is next
 - **Priority**: High (requested 2026-10-23)
 
 ### 46. Recording Metrics: History, Headroom and Gameplay Analytics — TODO

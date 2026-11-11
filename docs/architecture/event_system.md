@@ -46,8 +46,8 @@ into scenes and sprites.
 ## Event Dispatch Overview
 
 The path an event takes from SDL to your scene's handler. Every event family follows the same
-path; the `EVENT_HANDLERS` dict picks the family's method in one lookup (the table below says
-which method each event type gets). The Engine box is the same for every game; the Your game box
+path; the engine's `event_handlers` dict picks the family's method in one lookup (the table
+below says which method each event type gets). The Engine box is the same for every game; the Your game box
 is where your scene's and sprites' code runs.
 
 ```mermaid
@@ -58,7 +58,7 @@ flowchart TB
         PATH_PUMP["active_sources().pump_events()<br/>(live: pygame.event.get())"]
         PATH_PUMP --> PATH_PROCESS["GameEngine.process_events()"]
         PATH_PROCESS --> PATH_WRAP["HashableEvent.from_pygame()"]
-        PATH_WRAP --> PATH_LOOKUP{"EVENT_HANDLERS[event.type]"}
+        PATH_WRAP --> PATH_LOOKUP{"event_handlers[event.type]"}
         PATH_LOOKUP -->|"no entry, or not handled"| PATH_UNHANDLED["process_unimplemented_event()<br/>counted in unhandled_events"]
         PATH_LOOKUP --> PATH_FAMILY["GameEngine.process_family_event()<br/>(one per event family, table below)"]
         PATH_FAMILY --> PATH_MANAGER["the family's event manager"]
@@ -157,7 +157,7 @@ flowchart TD
     BLOCKED -->|"Yes"| ZERO["Filtered by SDL\nNever enters pipeline\nCost: zero"]
     BLOCKED -->|"No"| WRAP
     subgraph ENGINE_TIERS["Engine"]
-        WRAP["Wrap as HashableEvent\nO#40;1#41; EVENT_HANDLERS lookup"]
+        WRAP["Wrap as HashableEvent\nO#40;1#41; event_handlers lookup"]
         WRAP --> STUB{"Scene overrides\nthe handler?"}
         STUB -->|"No — hits stub"| UH["unhandled_event#40;#41;<br/>raises UnhandledEventError when options#91;'no_unhandled_events'#93; is set<br/>#40;the --no-unhandled-events argument#41;,<br/>else logs a warning once per event type when options#91;'debug_events'#93; is on<br/>#40;the --debug-events flag, off by default#41;"]
     end
@@ -173,7 +173,7 @@ flowchart TD
 | **Unhandled** | The scene keeps the default stub | Dispatch path + `unhandled_event()`: an options lookup, and a warning only for the type's first occurrence | `JOYAXISMOTION` when no joystick handler exists |
 | **Handled** | Scene overrides `on_*_event()` | Full dispatch path + your handler executes | `on_key_down_event()` processing a key press |
 
-The `EVENT_HANDLERS` dict lookup is O(1) for all events that reach the pipeline,
+The `event_handlers` dict lookup is O(1) for all events that reach the pipeline,
 but every unblocked event still travels the dispatch path (wrap in
 `HashableEvent`, dict lookup, proxy forwarding). To eliminate that cost entirely,
 block the event at the pygame level with `pygame.event.set_blocked()`.
@@ -345,7 +345,7 @@ and forwards calls to the game object.
 classDiagram
     direction LR
     class ResourceManager {
-        +__instances__ dict
+        +SHARED_INSTANCES_SLOT per context
         +proxies list
         +SHARES_INSTANCE bool
         +__new__() returns the shared instance
@@ -592,8 +592,9 @@ only forward events — `__getattr__` falls through to the game object.
 
 ### Shared instances
 
-`ResourceManager.__new__` maintains a class-level `__instances__` dict keyed by
-concrete class type. Constructing `MouseEventManager(game)` a second time returns
+`ResourceManager.__new__` keeps the shared instances in the current engine context
+(`SHARED_INSTANCES_SLOT`, `src/glitchygames/events/base.py`), keyed by concrete class type: one
+per class per engine context. Constructing `MouseEventManager(game)` a second time returns
 the original instance as it is: `ResourceManager.__init_subclass__` wraps each class's
 `__init__` so a shared instance is initialized once (BUGS.md #198: Python runs `__init__`
 on whatever `__new__` returns, so a second construction rebuilt the manager for
@@ -602,9 +603,10 @@ on whatever `__new__` returns, so a second construction rebuilt the manager for
 A class with `SHARES_INSTANCE = False` gets a new instance at every construction: the
 proxies (a manager owns its own; the controller manager one per controller) and
 `EventManager` (`GameEngine`, made for each run, and `SceneManager`, whose own `__new__`
-keeps its singleton). Each engine run calls `ResourceManager.release_shared_instances()`
-before it makes its managers, so a second engine in one process (a recording, then its
-replay) builds its own, opening devices through its own doors.
+keeps one per engine context). Each engine run calls
+`ResourceManager.release_shared_instances()` (the current context's) before it makes its
+managers, so a second engine in one process (a recording, then its replay) builds its own,
+opening devices through its own doors.
 
 ## HashableEvent Wrapper
 
@@ -725,7 +727,7 @@ Frame 2:  (nothing logged)
 ```
 
 Separately, `GameEngine.process_unimplemented_event` handles events that no
-`process_*_event` method dispatched (types with no `EVENT_HANDLERS` entry, or a
+`process_*_event` method dispatched (types with no `event_handlers` entry, or a
 handler that returned False): it counts each type in `GameEngine.unhandled_events`
 (count, first-seen time, attribute names) and the engine logs that table at
 teardown.
@@ -2559,7 +2561,8 @@ AXIS = [
 When an event has no handler, the stub system catches it. The behavior is
 configurable: silent, logged, or error-raising (used in tests).
 
-Both settings come from the command line, through the scene's `options` (`GameEngine.OPTIONS`):
+Both settings come from the command line, through the scene's `options` (the engine's own
+`engine.options`; `GameEngine.OPTIONS` is the current game's, read-only):
 `no_unhandled_events` is the `--no-unhandled-events` argument (Game Options), and `debug_events`
 is the `--debug-events` flag (Diagnostics Options, off by default: a run opts in to the warnings).
 A replay keeps its own `--debug-events`, never the recording's (`REPLAY_LOCAL_OPTIONS`).
@@ -2666,13 +2669,15 @@ stateDiagram-v2
 
 Every transition goes through `SceneManager.switch_to_scene()`. Dialog scenes
 (`src/glitchygames/ui/dialogs.py`) store a reference to `previous_scene` so they can
-return to the editor when the user confirms or cancels. The SceneManager itself is a singleton — there is only
+return to the editor when the user confirms or cancels. The SceneManager itself is a singleton (one per engine context) — there is only
 one `active_scene` at a time, and only that scene receives events.
 
 ## EVENT_HANDLERS Dict Construction
 
-The `EVENT_HANDLERS` dict (a class attribute of `GameEngine`) is built once during
-`GameEngine.__init__()` by `initialize_event_handlers()`. This pre-computation avoids per-event
+Each engine's own `event_handlers` dict (`engine.event_handlers`; `GameEngine.EVENT_HANDLERS` is
+the current game's, read-only) is built once during `GameEngine.__init__()` by
+`initialize_event_handlers()`, so two engines in one process (two engine contexts) never share
+one. This pre-computation avoids per-event
 if/elif chains, giving O(1) dispatch.
 
 ### How it's built
@@ -2704,13 +2709,13 @@ the type and returns whether it handled it.
 
 ```mermaid
 flowchart LR
-    EVENT["Incoming event\nevent.type = 768\n#40;KEYDOWN#41;"] --> LOOKUP["EVENT_HANDLERS#91;768#93;"]
+    EVENT["Incoming event\nevent.type = 768\n#40;KEYDOWN#41;"] --> LOOKUP["self.event_handlers#91;768#93;"]
     LOOKUP --> HANDLER["process_keyboard_event#40;event#41;"]
 ```
 
 ```py
 # What the dict looks like after construction:
-EVENT_HANDLERS = {
+self.event_handlers = {
     768: process_keyboard_event,   # KEYDOWN
     769: process_keyboard_event,   # KEYUP
     1024: process_mouse_event,     # MOUSEMOTION
@@ -2721,8 +2726,8 @@ EVENT_HANDLERS = {
 
 # Runtime dispatch in GameEngine.process_events — O(1) lookup:
 event_was_handled = False
-if event.type in GameEngine.EVENT_HANDLERS:
-    event_was_handled = bool(GameEngine.EVENT_HANDLERS[event.type](event))
+if event.type in self.event_handlers:
+    event_was_handled = bool(self.event_handlers[event.type](event))
 if not event_was_handled:
     self.process_unimplemented_event(event)
 ```

@@ -44,6 +44,7 @@ from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.opacity import OPAQUE, make_opaque
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.randomness import restore_stream_states
+from glitchygames.read_only_views import ReadOnlyView, ReadOnlyViews
 from glitchygames.recording import (
     SCENE_START_DEVICES_HEADER_FIELD,
     is_input_post,
@@ -246,7 +247,27 @@ def _scene_manager_for_class(*, scene_manager_class: type[SceneManager]) -> Scen
     return None
 
 
-class SceneManager(SceneInterface, events.EventManager):
+def _current_engine_options(owner: type) -> dict[str, Any] | None:
+    """Return the current context's manager's engine options (``SceneManager.OPTIONS`` on a class).
+
+    Looked up along the class's MRO (``_scene_manager_for_class``), so reading never makes a
+    manager.
+
+    Args:
+        owner: The class read through: SceneManager or a subclass, as the view is declared in
+            SceneManager's body.
+
+    Returns:
+        The manager's ``engine_options``, or None when the context has no manager of the class.
+
+    """
+    manager = _scene_manager_for_class(scene_manager_class=cast('type[SceneManager]', owner))
+    if manager is None:
+        return None
+    return manager.engine_options
+
+
+class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews):
     """Glitchy Games Scene Manager.
 
     The scene manager is responsible for managing the active scene,
@@ -254,7 +275,15 @@ class SceneManager(SceneInterface, events.EventManager):
     """
 
     log: ClassVar[logging.Logger] = LOG
-    OPTIONS: ClassVar[dict[str, Any]] = {}
+    # The engine's options, one per manager (audit C7: the game_engine setter sets
+    # engine_options, so a second context's engine never replaces the first's); a read-only
+    # view of engine_options. Read on the class, the current context's manager of the class
+    # read through, never making one (None when there is none)
+    OPTIONS = ReadOnlyView[dict[str, Any] | None, dict[str, Any]](
+        read_current=_current_engine_options,
+        read_own=lambda manager: manager.engine_options,
+        write_instead="the manager's own: manager.engine_options (the game_engine setter sets it)",
+    )
     # True once __init__ ran: SceneManager() returns the singleton, whose __init__ runs again
     _initialized: bool = False
 
@@ -279,6 +308,9 @@ class SceneManager(SceneInterface, events.EventManager):
         # None until the display is initialized (set later); get_surface() never raises
         self.screen = pygame.display.get_surface()
         self.update_type: str = 'update'
+        # The engine's options (the game_engine setter sets them: the engine's own dict);
+        # empty until an engine is set
+        self.engine_options: dict[str, Any] = {}
         self.fps_log_interval_ms: int = 1000
         self.target_fps: float = 0.0
         self.dt: float = 0.0
@@ -318,6 +350,12 @@ class SceneManager(SceneInterface, events.EventManager):
         # The live game's rumble controller while a playback scope plays on its own
         self._live_rumble_behind_scope: RumbleController | None = None
         self._live_audio: LiveAudio | None = None
+        # This context's performance manager (glitchygames.performance.adaptive_clamping): the
+        # scene manager and it are both per engine context, so it is looked up once here and
+        # every frame's tracking skips the slot read (AdaptiveClamping() is a slot read)
+        from glitchygames.performance import AdaptiveClamping
+
+        self.performance_manager: AdaptiveClamping = AdaptiveClamping()
 
         # Jitter tracking attributes
         self._jitter_samples: list[int] = []
@@ -400,16 +438,16 @@ class SceneManager(SceneInterface, events.EventManager):
     def game_engine(self: Self, new_engine: GameEngine | None) -> None:
         self._game_engine = new_engine
         if self._game_engine:
-            SceneManager.OPTIONS = self._game_engine.OPTIONS  # pyright: ignore[reportConstantRedefinition]
-            self.update_type = self.OPTIONS['update_type']
-            self.fps_log_interval_ms = self.OPTIONS['fps_log_interval_ms']
-            self.target_fps = self.OPTIONS.get('target_fps', DEFAULT_TARGET_FPS)
-            self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
-            self.rumble.intensity = self.OPTIONS.get('rumble_intensity', 1.0)
+            self.engine_options = self._game_engine.options
+            self.update_type = self.engine_options['update_type']
+            self.fps_log_interval_ms = self.engine_options['fps_log_interval_ms']
+            self.target_fps = self.engine_options.get('target_fps', DEFAULT_TARGET_FPS)
+            self.screen_shake.intensity = self.engine_options.get('screen_shake_intensity', 1.0)
+            self.rumble.intensity = self.engine_options.get('rumble_intensity', 1.0)
             # --sound-diagnostics opens the overlay too (its Audio panel: sound engine impl 10.5)
-            sound_diagnostics = bool(self.OPTIONS.get('sound_diagnostics', False))
+            sound_diagnostics = bool(self.engine_options.get('sound_diagnostics', False))
             self.debug_overlay.is_visible = bool(
-                self.OPTIONS.get('debug_overlay', False) or sound_diagnostics
+                self.engine_options.get('debug_overlay', False) or sound_diagnostics
             )
             if sound_diagnostics:
                 self.debug_overlay.panel = DebugPanel.AUDIO
@@ -418,10 +456,8 @@ class SceneManager(SceneInterface, events.EventManager):
         self.log.info('Target FPS: %s', self.target_fps)
 
         # Configure performance manager with the same log interval and target FPS
-        from glitchygames.performance import performance_manager
-
-        performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
-        performance_manager.set_target_fps(self.target_fps)
+        self.performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
+        self.performance_manager.set_target_fps(self.target_fps)
 
     @property
     def input_devices(self: Self) -> InputDevices:
@@ -654,7 +690,7 @@ class SceneManager(SceneInterface, events.EventManager):
         game_engine = self.game_engine
         self._instant_replay_journal = InstantReplayJournal(
             scene=scene,
-            game=game_engine.game if game_engine is not None else None,
+            game=game_engine.running_game.instance if game_engine is not None else None,
             scene_start_devices=scene_start_devices_record(input_devices=self.input_devices),
         )
 
@@ -1353,7 +1389,7 @@ class SceneManager(SceneInterface, events.EventManager):
             if game_engine is None
             else game_engine.reserved_channel_partition()
         )
-        options: Mapping[str, Any] = {} if game_engine is None else game_engine.OPTIONS
+        options: Mapping[str, Any] = {} if game_engine is None else game_engine.options
         return install_audio_engine(
             engine=AudioEngine(
                 partition=partition,
@@ -1610,10 +1646,10 @@ class SceneManager(SceneInterface, events.EventManager):
             scene: The scene made active.
 
         """
-        from glitchygames.performance import performance_manager
+        from glitchygames.performance import AdaptiveClamping
 
         if scene:  # Only track performance for real scenes, not None
-            performance_manager.set_current_scene(scene.NAME)
+            AdaptiveClamping().set_current_scene(scene.NAME)
 
     def _clear_outgoing_scene_pending_switch(self: Self) -> None:
         """Clear the pending switch of the scene being switched away from.
@@ -1754,7 +1790,7 @@ class SceneManager(SceneInterface, events.EventManager):
             # 16.67 ms cadence would be measured as 17, 17, 16 ms (58.8, 58.8, 62.5 FPS).
             # _finish_frame measures with raw_counter_seconds() instead (BUGS.md #26).
             # Optional jitter logging
-            if self.OPTIONS.get('log_timer_jitter', False):
+            if self.engine_options.get('log_timer_jitter', False):
                 self._log_jitter_stats(timer, wake_ns, deadline_ns)
         elif timer is not None and paced_seconds is not None:
             # A positive paced period shorter than half a nanosecond rounds to a 0 ns period:
@@ -1776,8 +1812,6 @@ class SceneManager(SceneInterface, events.EventManager):
             processing_time: Actual processing time in seconds
 
         """
-        from glitchygames.performance import performance_manager
-
         # Deliberately NOT self.pacing_fallback_clock.get_fps(). pygame's Clock.get_fps():
         #   1. recomputes only every 10 tick() calls, so each value repeats for 10 frames,
         #   2. is 10000 / (milliseconds for the last 10 ticks), so values are quantized
@@ -1789,7 +1823,7 @@ class SceneManager(SceneInterface, events.EventManager):
         # (_performance_frame_seconds).
         performance_frame_seconds = self._performance_frame_seconds()
         current_fps = (1.0 / performance_frame_seconds) if performance_frame_seconds > 0 else 0.0
-        performance_manager.track_fps_from_event(current_fps, processing_time)
+        self.performance_manager.track_fps_from_event(current_fps, processing_time)
 
     def start(self: Self) -> None:
         """Start the scene manager.
@@ -1877,10 +1911,14 @@ class SceneManager(SceneInterface, events.EventManager):
                 else round(paced_seconds * 1_000_000_000)
             )
 
+        # The frame's work starts here. A paced frame starts where the last one closed (after
+        # its pacing sleep); an unpaced one now: the outer driver's wait since the last step's
+        # closing reading is this frame's pacing, in its dt but never in its processing time
+        work_start_seconds = frame_start_seconds if paced else clock.raw_counter_seconds()
         self._run_frame()
 
         # The frame's processing time: its work, without the pacing sleep that follows
-        processing_seconds = clock.raw_counter_seconds() - frame_start_seconds
+        processing_seconds = clock.raw_counter_seconds() - work_start_seconds
 
         return self._finish_frame(
             frame_start_seconds=frame_start_seconds,
@@ -2303,7 +2341,7 @@ class SceneManager(SceneInterface, events.EventManager):
             kind=PLAYBACK_KIND, data={'source': request.kind, 'frames': request.frame_count}
         )
         scene = rebuild_scene(
-            start=request.start, scene_class=request.scene_class, options=self.OPTIONS
+            start=request.start, scene_class=request.scene_class, options=self.engine_options
         )
         self._clear_frame_effects()
         # Made active by the steps a switch takes (the live scene is stashed, not cleaned up)
@@ -2777,7 +2815,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         # Update FPS measurements at half the log interval for better accuracy
         # but still log at the specified interval
-        update_interval_ms = float(self.OPTIONS['fps_log_interval_ms']) / 2.0
+        update_interval_ms = float(self.engine_options['fps_log_interval_ms']) / 2.0
         return (current_time - previous_fps_time) * 1000 >= update_interval_ms
 
     def _post_fps_event(self) -> None:
@@ -2976,7 +3014,7 @@ class SceneManager(SceneInterface, events.EventManager):
         assert self.active_scene is not None
         # Command line FPS takes precedence over scene FPS
         # Set the scene's target_fps to match the scene manager's target_fps
-        # (which comes from OPTIONS)
+        # (which comes from the engine's options)
         self.active_scene.target_fps = self.target_fps
 
     def _log_scene_rendering_info(self) -> None:
@@ -3014,7 +3052,7 @@ class SceneManager(SceneInterface, events.EventManager):
     def _apply_scene_fps(self) -> None:
         """Apply scene-specific FPS configuration."""
         # Don't override the scene manager's target_fps with the scene's target_fps
-        # The scene manager's target_fps comes from OPTIONS and should be maintained
+        # The scene manager's target_fps comes from the engine's options and should be maintained
         # The scene's target_fps is already set by _configure_scene_fps()
 
 

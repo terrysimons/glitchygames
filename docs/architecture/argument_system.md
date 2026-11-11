@@ -35,7 +35,7 @@ sequenceDiagram
     Note over GAME: Layer 3<br/>-v, -s
     INIT->>PARSER: parse_args()
     PARSER-->>INIT: the parsed options
-    Note over INIT: GameEngine.OPTIONS = the options<br/>target_fps resolved<br/>game.options = OPTIONS
+    Note over INIT: engine.options = the options<br/>target_fps resolved
 ```
 
 Every option each layer adds is listed in the [Complete Flag Reference](#complete-flag-reference).
@@ -128,25 +128,28 @@ game arguments appear under their own heading in `--help` output.
 ## OPTIONS Dictionary Flow
 
 After parsing, the `Namespace` is converted to a plain dict and propagated to
-every component that needs it.
+every component that needs it. Each engine keeps its own (`engine.options`), and its scene
+manager its own copy (`manager.engine_options`), so two games in one process (two engine
+contexts) never share options; `GameEngine.OPTIONS` and `SceneManager.OPTIONS` are read-only
+views of the current game's ([Engine Context](engine_context.md#read-only-views)). The game's
+class keeps none: it is shared by every context.
 
 ```mermaid
 flowchart TD
     PARSE["parser.parse_args()"] --> VARS["vars(args)\nNamespace -> dict"]
-    VARS --> OPT["GameEngine.OPTIONS (class var)"]
+    VARS --> OPT["engine.options (the engine's own)"]
 
-    OPT --> FPS["OPTIONS['target_fps'] resolved\n(--target-fps, else the game's TARGET_FPS, else 60.01)"]
-    FPS --> BACKPROP["game.options = OPTIONS"]
-    BACKPROP --> SM_OPT["SceneManager.OPTIONS = OPTIONS"]
-    SM_OPT --> SCENE_INIT["Scene.__init__(options=OPTIONS)"]
-    SCENE_INIT --> SELF_OPT["self.options = OPTIONS"]
+    OPT --> FPS["options['target_fps'] resolved\n(--target-fps, else the game's TARGET_FPS, else 60.01)"]
+    FPS --> SM_OPT["manager.engine_options = engine.options\n(the game_engine setter)"]
+    SM_OPT --> SCENE_INIT["Scene.__init__(options=engine.options)"]
+    SCENE_INIT --> SELF_OPT["self.options = options"]
 
     subgraph Access["Runtime Access"]
         A1["self.options['target_fps']"]
         A2["self.options['font_name']"]
         A3["self.options['log_level']"]
         A4["self.options['debug_events']"]
-        A5["GameEngine.OPTIONS['resolution']"]
+        A5["engine.options['resolution']"]
     end
 
     SELF_OPT --> Access
@@ -233,8 +236,8 @@ replay are described in [Gameplay Recording and Replay](gameplay_replay.md). Two
 from `--help`: the watched replay's restart internals.
 
 - `--log-timer-jitter` (`store_true`, default `False`): log frame pacing jitter statistics periodically
-- `--perf-trim-percent PERF_TRIM_PERCENT` (`float`, default `5.0`): percent of frames to trim from top and bottom in global FPS report
-- `--fps-histogram {equal-range,target-relative}` (`choice`, default `equal-range`): FPS histogram buckets in the shutdown report: equal-range (10 equal buckets spanning the analyzed min to max, default) or target-relative (10% steps of the target FPS)
+- `--perf-trim-percent PERF_TRIM_PERCENT` (`float`, default `5.0`): percent of frames to trim from top and bottom in the game's global FPS report
+- `--fps-histogram {equal-range,target-relative}` (`choice`, default `equal-range`): FPS histogram buckets in the game's shutdown report: equal-range (10 equal buckets spanning the analyzed min to max, default) or target-relative (10% steps of the target FPS)
 - `--debug-overlay, --no-debug-overlay` (`bool`, default `False`): show the debug overlay at startup (F3 toggles, F4 cycles panels)
 - `--sound-diagnostics` (`store_true`, default `False`): start with the debug overlay on, showing the Audio panel (replay-local)
 - `--debug-events` (`store_true`, default `False`): log a warning the first time each unhandled event type arrives (--no-unhandled-events raises on one instead)

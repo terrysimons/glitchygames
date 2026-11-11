@@ -623,6 +623,12 @@ fixable = ["ALL"]
   # the package itself (docs/architecture/game_packages.md, "A game that is one module")
   "RUF067",
 ]
+"src/glitchygames/performance/__init__.py" = [
+  # The module-view mark (READ_ONLY_MODULE_VIEWS) and the write-refusing module class must live
+  # in the package module whose names they guard (glitchygames.read_only_views;
+  # plans/2026-10-27-engine-context-2-engine-state.md, Task 4; the owner, 2026-10-29)
+  "RUF067",
+]
 "src/demos/dt-demo/src/dt_demo/__init__.py" = [
   # The demo is one module: its logical name is demos.dt_demo:Game, so Game stays defined in the
   # package itself (docs/architecture/game_packages.md, "A game that is one module")

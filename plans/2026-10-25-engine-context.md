@@ -1,8 +1,19 @@
 # Engine Context (master plan)
 
-Status: sub-plan 1 implemented and verified on feature/engine-context-state (commits
+Status: **folded into the Arcade's master plan on 2026-11-08** (the owner: "Rewrite the plan
+order"): each remaining sub-plan is now part of the Arcade sub-plan that needs it
+([2026-10-23-arcade-showcase.md](2026-10-23-arcade-showcase.md), Sub-plans: sub-plan 2 is Arcade
+1; 3, 4, 6 and 7 are Arcade 3; 5 is Arcade 4; 8 goes with Arcade 5; sub-plan 3's browser and
+thread rules with Arcade 8). This file stays as the reference for the audit table and the
+decisions. Sub-plan 1 implemented and verified on feature/engine-context-state (commits
 9d3a162e^..364f4910, the documentation commits included; whole-branch verification in its
-Task 10). Sub-plans 2-8 are not started. Sub-plan 1 has a full implementation plan; sub-plans 2-8 are one line each below and get
+Task 10), merged as #108. Sub-plan 2
+([2026-10-27-engine-context-2-engine-state.md](2026-10-27-engine-context-2-engine-state.md),
+begun on `feature/engine-context-2-engine-state`, rebased onto main as `arcade-1-engine-state`):
+done (Tasks 1-17, commits 597d028f through the final-review fixes, 2026-11-10; PR #171), rows
+C7-C15 and C17-C20 below in the context, the read-only views, the process-state guard and the
+font-cache guard; the whole-branch verification and the performance gate passed. Sub-plans 1 and 2 have full
+implementation plans; sub-plans 3-8 are one line each below and get
 their plans when each starts, written against how the one before turned out. Execution is
 subagent-driven (superpowers:subagent-driven-development), for every sub-plan. This file is
 listed in `LIVING_PLAN_FILES` in `tests/test_suite_collection.py` (it passes the
@@ -50,9 +61,14 @@ Treatments:
 - **read-only**: constants, declarations, or caches of values computed only from their keys,
   which nobody writes after making them; sharing them cannot leak anything.
 
-Line numbers are as of commit 53869ac4.
+Line numbers are as of commit 53869ac4, except where a row says otherwise: sub-plan 2
+(2026-11-10) marked its rows done, corrected C16's and S3's locations, and added C20, S16-S20
+and R15-R17, their locations as of 95042b8c. `tests/test_process_state_guard.py` is this audit
+as a guard (sub-plan 2, Task 13): it scans the engine and every member for module- and
+class-level state, and each piece it finds is a slot or is listed in its `PROCESS_STATE` with
+the row below that covers it and why.
 
-### Per context (19)
+### Per context (20)
 
 | # | State | Where | What it holds | Sub-plan |
 |---|---|---|---|---|
@@ -62,19 +78,27 @@ Line numbers are as of commit 53869ac4.
 | C4 | `_STATE` (`EngineRandomState`) | `src/glitchygames/randomness.py:71-79` | the master seed and every named `random`/numpy stream | 1 |
 | C5 | `_REGISTRY` (`_SourcesRegistry`) | `src/glitchygames/sources.py:243-265` | the installed and scoped doors, `frames_started`, the frame clock, redelivered events, discarded scope posts, the save-store and device-answer observers | 1 |
 | C6 | `SceneManager._instance` (with `__new__`, `_reset`) | `src/glitchygames/scenes/scene.py:191, 197-201, 305-317` | the scene manager and everything on it: active scene, frame number, supervision, playback scope, instant-replay journal, debug overlay, SCREEN shake, rumble, live audio, pacing clock and deadlines | 1 |
-| C7 | `SceneManager.OPTIONS` | `src/glitchygames/scenes/scene.py:193` | the engine's options, copied on by the `game_engine` setter | 2 |
-| C8 | `GameEngine.OPTIONS` | `src/glitchygames/engine/game_engine.py:407` | the run's parsed options | 2 |
-| C9 | `GameEngine.game` | `src/glitchygames/engine/game_engine.py:398` | the running game | 2 |
-| C10 | `GameEngine.EVENT_HANDLERS` | `src/glitchygames/engine/game_engine.py:420` | event type to bound methods of one engine instance | 2 |
-| C11 | `GameEngine.LAST_EVENT_MISS`, `MISSING_EVENTS`, `UNIMPLEMENTED_EVENTS` | `src/glitchygames/engine/game_engine.py:409-411` | per-run event bookkeeping | 2 |
-| C12 | `ResourceManager.__instances__` | `src/glitchygames/events/base.py:344` | the shared event managers (keyboard, mouse, joystick, controller, ...) and the `FontManager` | 2 |
-| C13 | `FontManager.OPTIONS` | `src/glitchygames/fonts/font_manager.py:137` | the font options of the run | 2 |
-| C14 | `performance_manager` (`AdaptiveClamping._instance`) | `src/glitchygames/performance/adaptive_clamping.py:78, 925` | FPS statistics and the per-scene shutdown reports | 2 |
-| C15 | `Singleton`, `SingletonBitmappySprite`, `FocusableSingletonBitmappySprite` `__instance__` | `src/glitchygames/sprites/bitmappy_sprite.py:1019, 1053, 1101` | one-per-process widgets | 2 |
-| C16 | `MultiControllerManager._instance` | `src/glitchygames/bitmappy/controllers/manager.py:69` (Bitmappy's; moves with it to `src/apps/bitmappy/`) | Bitmappy's controllers (a Bitmappy demo tile and a launched Bitmappy each need theirs) | 2 |
-| C17 | `_unhandled_event_types` | `src/glitchygames/events/base.py:200` | the event types already logged under `--debug-events` (log once each) | 2 |
-| C18 | `Sprite.SPRITE_COUNTERS`, `SPRITE_BREAKPOINTS` | `src/glitchygames/sprites/sprite.py:45-46` | sprite creation counters and breakpoints of the run | 2 |
-| C19 | `_INTERNAL_POSTS` (`InternalEventPosts`) | `src/glitchygames/recording.py:414` | code-posted events awaiting their pump, their owners, live-game and input posts | 2 |
+| C7 | `SceneManager.OPTIONS` | `src/glitchygames/scenes/scene.py:193` | the engine's options, copied on by the `game_engine` setter | 2, done (6e0eaa4d): on the scene manager (`manager.engine_options`), the old name a read-only view (answers 1, 2) |
+| C8 | `GameEngine.OPTIONS` | `src/glitchygames/engine/game_engine.py:407` | the run's parsed options | 2, done (6e0eaa4d): on the engine (`engine.options`), the old name a read-only view (answers 1, 2) |
+| C9 | `GameEngine.game` | `src/glitchygames/engine/game_engine.py:398` | the running game | 2, done (95721b56, 9e9bd512): on the engine (`engine.game`, the class; `engine.running_game`, the scene it built), the old name a read-only view (answers 1, 2) |
+| C10 | `GameEngine.EVENT_HANDLERS` | `src/glitchygames/engine/game_engine.py:420` | event type to bound methods of one engine instance | 2, done (91baf38c): on the engine (`engine.event_handlers`), the old name a read-only view (answers 1, 2) |
+| C11 | `GameEngine.LAST_EVENT_MISS`, `MISSING_EVENTS`, `UNIMPLEMENTED_EVENTS` | `src/glitchygames/engine/game_engine.py:409-411` | per-run event bookkeeping | 2, done (95721b56): on the engine (`engine.last_event_miss`, `missing_events`, `unimplemented_events`), the old names read-only views (answers 1, 2) |
+| C12 | `ResourceManager.__instances__` | `src/glitchygames/events/base.py:344` | the shared event managers (keyboard, mouse, joystick, controller, ...) and the `FontManager` | 2, done (deaf3740): one per class per engine context (`SHARED_INSTANCES_SLOT`) |
+| C13 | `FontManager.OPTIONS` | `src/glitchygames/fonts/font_manager.py:137` | the font options of the run | 2, done (4bbc3bb3): a slot, `FontManager.OPTIONS` a read-only view of it |
+| C14 | `performance_manager` (`AdaptiveClamping._instance`) | `src/glitchygames/performance/adaptive_clamping.py:78, 925` | FPS statistics and the per-scene shutdown reports | 2, done (f1482825): a slot, `performance_manager` a read-only module view; an outer game's report is the aggregate (answer 3) |
+| C15 | `Singleton`, `SingletonBitmappySprite`, `FocusableSingletonBitmappySprite` `__instance__` | `src/glitchygames/sprites/bitmappy_sprite.py:1019, 1053, 1101` | one-per-process widgets | 2, done (a42cc82e): one per class per engine context |
+| C16 | `MultiControllerManager._instance` | `src/apps/bitmappy/src/bitmappy/controllers/manager.py:69` | Bitmappy's controllers (a Bitmappy demo tile and a launched Bitmappy each need theirs) | the player roster (`plans/2026-10-28-player-roster-design.md`, `feature/player-roster`; the owner, 2026-10-28) |
+| C17 | `_unhandled_event_types` | `src/glitchygames/events/base.py:200` | the event types already logged under `--debug-events` (log once each) | 2, done (4aab9d4b) |
+| C18 | `Sprite.SPRITE_COUNTERS`, `SPRITE_BREAKPOINTS`, `SPRITE_COUNT` | `src/glitchygames/sprites/sprite.py:45-46` (`SPRITE_COUNT` `:49`) | sprite creation counters, breakpoints and count of the run | 2, done (fa69f8ff): a slot (`sprite_counters()`), the old names read-only views |
+| C19 | `_INTERNAL_POSTS` (`InternalEventPosts`) | `src/glitchygames/recording.py:414` | code-posted events awaiting their pump, their owners, live-game and input posts | 2, done (7eb16f94, a62f2570) |
+| C20 | `<GameClass>.options` (found by sub-plan 2's review) | `src/glitchygames/engine/game_engine.py:1129` (`initialize_arguments` set the game's options on its scene class) | the run's options, on a class every context shares | 2, done (0d98b33f): removed; each engine keeps its own and the scene gets them at construction |
+
+Beside C16, `tests/test_process_state_guard.py` lists Bitmappy's two other pieces of process
+state under it: its onion-skinning manager (`onion_skinning_manager`,
+`src/apps/bitmappy/src/bitmappy/onion_skinning.py`) and its AI training state
+(`ai_training_state`, `src/apps/bitmappy/src/bitmappy/constants.py`). Neither has an owning plan
+yet (`plans/future-work.md`, Engine context); each needs one before a Bitmappy runs in more than
+one engine context.
 
 C19 moves into the context in sub-plan 2 with the other engine state; where a context's posts
 go (today `pygame.event.post` into SDL's one queue, item S5) is sub-plan 6's. The 15 lines of
@@ -82,18 +106,18 @@ go (today `pygame.event.post` into SDL's one queue, item S5) is sub-plan 6's. Th
 `events.base._unhandled_event_types` (C17), are rewritten by sub-plan 2 under the rule for
 tests of moved state (Decisions, 1).
 
-### Shared (15)
+### Shared (20)
 
 | # | State | Where | What it holds | How a context that does not own it is kept off it | Sub-plan |
 |---|---|---|---|---|---|
 | S1 | the display surface | `pygame.display`; opened by `GameEngine.initialize_display` and `src/glitchygames/display_mode.py:66`; 13 readers of `pygame.display.get_surface()` in the engine | the one window | only the presenting context presents; an inner context renders into a surface of its own (its render target) at its own resolution and never calls `set_mode` | 4 |
 | S2 | window services | caption (`src/glitchygames/engine/game_engine.py:1510`, `src/glitchygames/scenes/scene.py:2741`), icon (`game_engine.py:401-403, 1507`, the class attribute `GameEngine.icon`), cursor (`game_engine.py:1488`), grab (`game_engine.py:3353-3359`), key repeat and text input (`src/glitchygames/ui/text_widgets.py:1153-1197`, `src/glitchygames/ui/inputs.py:192`), mouse visibility (Bitmappy) | what the window does | set only from the presenting context; an inner context's calls are dropped (it gets no real input, so repeat and text input mean nothing to it) | 4 |
-| S3 | the mixer and its channels | `game_engine.py:2267-2276`; the reserved live-voice pool `src/glitchygames/audio/live.py:51, 77-79` (`_pool_grown_mixer_channel_counts`) | sound output | a context has an audio route: audible (the mixer) or silent (its sounds and live voices never reach the mixer); the pool belongs to the audible context | 5 |
+| S3 | the mixer and its channels | `game_engine.py:2267-2276`; the mixer's channel partition (the live pool, the library, the reserved channels) `src/glitchygames/audio/voices.py:81` (`_partitioned_mixer`, which replaced `audio/live.py`'s `_pool_grown_mixer_channel_counts`); `release_channels` (`audio/voices.py:149-157`) clears it when any one context shuts down, so a second context still running loses its partition (open, sub-plan 5) | sound output | a context has an audio route: audible (the mixer) or silent (its sounds and live voices never reach the mixer); the pool belongs to the audible context | 5 |
 | S4 | the music stream | `pygame.mixer.music`; `src/glitchygames/replay/silence.py:147` (`_MUSIC_FOLLOWING`, which replaces `pygame.mixer.music.pause`/`unpause`) | one music track | music only from the audible context; a silent context's music calls are dropped | 5 |
 | S5 | SDL's event queue | read by `GameEngine._pump_events` through the live doors; written by `pygame.event.post` (`src/glitchygames/recording.py:596`) | real input and posted events | only the presenting context pumps it; an inner context gets its events from its doors (a recording) and its posts go to a queue of its own | 6 |
 | S6 | SDL's blocked and allowed event types | `src/glitchygames/events/base.py` (`allow_every_event_type`), `src/glitchygames/replay/input_blocking.py:142-151`, every event manager's `set_allowed` | which types SDL queues | an inner context never blocks or allows (its doors never read SDL) | 6 |
 | S7 | the joystick subsystem | `src/glitchygames/input/devices.py` (`LiveDeviceRegistry`), `pygame.joystick.init` (`src/glitchygames/events/joystick.py`) | real pads | an inner context's devices are replay stand-ins (`ReplayJoystick`, `ReplayController`); it never rumbles | 6 |
-| S8 | process services | signal handlers (`game_engine.py:1798-1808`), `pygame.register_quit` (`:999`), `sys.setswitchinterval` (`:1037`), the SDL environment variables (`SDL_DRIVER_VARIABLES` `:173`, `SDL_NO_SIGNAL_HANDLERS` `:1033`), `pygame.init()` (`:1041`), `pygame.fastevent` (`:1049`) | the process | set only by the outer (process-owning) engine; an inner engine never touches them | 7 |
+| S8 | process services | signal handlers (`game_engine.py:1798-1808`), `pygame.register_quit` (`:999`), `sys.setswitchinterval` (`:1037`), the SDL environment variables (`SDL_DRIVER_VARIABLES` `:173`, `SDL_NO_SIGNAL_HANDLERS` `:1033`), `pygame.init()` (`:1041`), `pygame.fastevent` (`:1049`); `GameEngine.PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS` (`game_engine.py:902`, rebound at `:1404, 1409`: whether this process's pygame started with SDL's signal handlers, in no context; the controller's ruling, 2026-10-29); `pygame.freetype.set_default_resolution` (`src/glitchygames/fonts/font_manager.py:307`, in `FontManager.__init__`: pygame's one default font resolution, set from the making context's `--font-dpi`, so the last `FontManager` made wins; a call, which `tests/test_process_state_guard.py` cannot see) | the process | set only by the outer (process-owning) engine; an inner engine never touches them | 7 |
 | S9 | the clipboard registry | `src/glitchygames/clipboard.py:133` | the player's clipboard (the browser page installs its own) | stays shared: it is the player's; an inner context gets no real input, so never pastes | none |
 | S10 | the user-files registry | `src/glitchygames/user_files.py:56` | the browser's file picker and downloads | stays shared: the player's | none |
 | S11 | the disk-save change observers | `src/glitchygames/state/manager.py:55` | the browser's IndexedDB flush | stays shared: demo contexts use `MemorySaveManager` and never call it | none |
@@ -101,8 +125,13 @@ tests of moved state (Decisions, 1).
 | S13 | `HashableEvent._hashing_ids`, `_comparing_ids` | `src/glitchygames/events/base.py:892, 924` | recursion guards, empty between calls | stays shared: empty whenever a switch can happen | none |
 | S14 | `_scenes_warned_about_double_update` | `src/glitchygames/world.py:23` | scenes already warned (weak) | stays shared: keyed by scene, so it is per context in effect | none |
 | S15 | Bitmappy's `_RUNNING_AI_MANAGERS`, `_AI_REQUEST_COUNTER` | `src/glitchygames/bitmappy/ai_manager.py:79, 83` | running AI workers (weak), request ids | stays shared: unique ids and shutdown bookkeeping across the process (AI features are off in the browser) | none |
+| S16 | `RendererService.pygame_initialized` | `src/glitchygames/services/renderer_service.py:79` | whether the sprite API server's renderer started pygame | stays shared: the process's pygame, and the API server's, not a game's | none |
+| S17 | the recording tools' temporary module-function swaps | `src/glitchygames/replay/tools/scripted_sessions.py:182, 186` (`setattr(live_sources, ...)`: `glitchygames.live_sources.capture_live_snapshot`, `polled_input_follows`); `src/glitchygames/replay/tools/golden_traces.py:389-396` (a loop over pairs, which the guard's scan cannot see) | a module function replaced while a tool records, restored in a `finally` | stays shared: `record-session` and `record-golden-trace` record one game in their own process, never inside a game or an inner context | none |
+| S18 | `_NAMED_CUSTOM_EVENT_TYPES` | `src/glitchygames/events/base.py:151` | pygame's custom event types by name | stays shared: pygame allocates them once per process, and each name is registered once, at its module's import | none |
+| S19 | Bitmappy's MasterHUB `_REGISTRY` | `src/apps/bitmappy/src/bitmappy/masterhub.py:28` | the MasterHUB installer the browser page registers | stays shared: the player's, as S9 and S10 are | none |
+| S20 | `_warned_hertz_values` | `src/glitchygames/audio/pitch.py:79` | the out-of-range frequencies already warned about (each warned once) | **open: not yet per context**: a second context never warns about a value the first did | none yet |
 
-### Read-only (14)
+### Read-only (17)
 
 | # | State | Where | Why sharing it is safe |
 |---|---|---|---|
@@ -120,8 +149,15 @@ tests of moved state (Decisions, 1).
 | R12 | class declarations and defaults | `Scene.TARGET_FPS` and the other scene declarations (`src/glitchygames/scenes/scene.py:2802-2824`), `GameEngine.USE_FASTEVENTS` (`game_engine.py:412`, decided by the pygame version), the class defaults `GameEngine.trace_recorder`/`replay_sources`/`rebaseline`/`recording_write_failed` (`game_engine.py:425-435`, overridden on the instance), `SceneManager._initialized` | declarations; each instance sets its own |
 | R13 | the declared context slots (new in sub-plan 1) | `src/glitchygames/engine_context.py` (`_DECLARED_SLOTS`) | written once per slot, at import |
 | R14 | the games' own module-level caches and tables | Brave Adventurer's gradient and pose caches, Drawing Fire's cached drawings, Clockwork Keep's floor tables | values computed from their keys or constants; sub-plan 2's guard keeps it that way for every member |
+| R15 | the engine's event-type tables | `src/glitchygames/events/base.py`: `AUDIO_EVENTS` … `GAME_EVENTS`, `FPSEVENT`, `GAMEEVENT`, `MENUEVENT`, and `pygame_event_names` (`:59`, `functools.cache`, #114, behind `supported_events`) | computed from pygame at import (`pygame_event_names`: pygame's compiled event names, scanned once per process), never written; one pygame per process, so the same in every context (the controller's ruling, 2026-10-29, for `pygame_event_names`) |
+| R16 | values immutable though the guard's rules cannot prove it | the instrument catalog's builds (`functools.partial` of a module function with constant arguments) and harmonic series (tuples computed at import), `src/glitchygames/audio/instruments/`; tuples a function returns (`VOICES`, `CHOIRS`, `SCALAR_CONVERSIONS`, ...); `Path.home()`-based paths (`src/glitchygames/ai_link.py` `DEFAULT_INSTALL_ROOT`); identity sentinels (`src/glitchygames/audio/engine.py` `SYSTEM_OWNER`) | partials, tuples, paths and sentinels, never written; 51 listings in `tests/test_process_state_guard.py`, each with its reason. A future mutable value of these kinds would be caught only by review |
+| R17 | process-wide caches of values computed from their keys alone | `ENGINE_SOUND_CACHE` (`src/glitchygames/audio/library.py`: the engine's own sounds, one cache per process by design, the owner, 2026-11-02), the sound-asset caches (`src/glitchygames/audio/assets.py` `_CACHE`, `_DEFINITIONS_CACHE`: frozen values by path, reloaded when the file changes), the render kernels (`src/glitchygames/audio/render.py` `_lfsr_sequence`, `_anti_alias_kernel`), the instrument catalog's `_built` (`src/glitchygames/audio/instruments/registry.py`: each instrument built once per process) | read-only values by key; sharing them leaks nothing |
 
-Totals: 19 per context (6 in sub-plan 1, 13 in sub-plan 2), 15 shared, 14 read-only. Instance attributes (a `GameEngine`'s, a `GameHost`'s `TickPacer`, an
+Totals: 20 per context (6 in sub-plan 1; 13 in sub-plan 2, done: C7-C15 and C17-C20; C16 to the
+player roster), 20 shared (S20 open), 17 read-only. Every listing of each row is in
+`tests/test_process_state_guard.py` (`PROCESS_STATE`), which also holds pieces the earlier rows
+already cover (more colour constants under R2, `code_tree.py`'s landed-commit cache under R6,
+more class defaults under R12, the games' tables under R14). Instance attributes (a `GameEngine`'s, a `GameHost`'s `TickPacer`, an
 `InputDevices` registry, a `Scene`'s `game_time` and camera) are not in the table: an object
 belongs to the context that made it.
 
@@ -324,9 +360,14 @@ its own is the playback core's decision.
   lookup (tens of nanoseconds); the commits' replay-metrics rows (the pre-commit hook) show any
   slowdown per golden replay, and sub-plan 7 measures ten contexts in one frame.
 - **State nobody listed**: a module- or class-level mutable added later bypasses the contexts.
-  Sub-plan 2 turns the audit table into a guard (an AST scan of the engine and every member,
-  like the doors guard's allowlist), so a new one fails the suite until it is a slot or listed
-  as shared or read-only with its reason.
+  `tests/test_process_state_guard.py` (sub-plan 2, Task 13) is the audit table as a guard (an
+  AST scan of the engine and every member, like the doors guard's allowlist), so a new one fails
+  the suite until it is a slot or listed as shared or read-only with its audit row and reason.
+  What its scan cannot see: calls that change process-wide
+  settings (`pygame.freetype.set_default_resolution`, S8), `setattr` on a receiver known only at
+  run time (`golden_traces.py`'s swaps, S17), writes through an alias bound to a class by
+  assignment, and writes outside the scanned files (`scripts/` setting `BitmappySprite.DEBUG`);
+  review covers those.
 - **Games' own module state**: a game with gameplay state in a module global would leak between
   its demo tile and its launched copy. The same guard scans the members; `ContextSlot` is
   internal to the engine (Decisions, 3), so a game keeps its state on its scenes, and the guard
@@ -346,9 +387,13 @@ its own is the playback core's decision.
    full implementation plan): `EngineContext`, `ContextSlot`, the default context,
    `current_context()` and `with context.active():`; audit rows C1-C6 moved into slots one by
    one; a test running two contexts in one process proving none of them leaks.
-2. **The engine's own state**: rows C7-C19 (GameEngine and SceneManager class state, the shared
+2. **The engine's own state**
+   ([2026-10-27-engine-context-2-engine-state.md](2026-10-27-engine-context-2-engine-state.md),
+   full implementation plan; Tasks 1-16 done, Task 17 left): rows C7-C20 but C16
+   (GameEngine and SceneManager class state, the shared
    event managers and `FontManager`, the performance manager, the singletons, the debug-events
-   log set, sprite counters, the internal-post tracker), with the test lines that reach C17 and
+   log set, sprite counters, the internal-post tracker, the game class's options), the old
+   class-level names kept as read-only views, with the test lines that reach C17 and
    C19 rewritten under Decisions, 1; the guard test that nothing changes a cached font's style
    in place (R9, Decisions, 2); and the process-state guard (the audit as an allowlist scan of
    the engine and every member).

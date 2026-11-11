@@ -145,12 +145,10 @@ class TestGameOverIntegration:
 
     def test_game_over_scene_gets_game_engine_reference(self, mocker):
         """Switching to a Game Over scene hands it the scene manager's game engine."""
-        # Setting a scene's engine copies the engine's OPTIONS onto the SceneManager class
-        mocker.patch.object(SceneManager, 'OPTIONS', SceneManager.OPTIONS)
         scene_manager = SceneManager()
         # A stand-in engine holding only the options a scene reads from it
         game_engine = types.SimpleNamespace(
-            OPTIONS={
+            options={
                 'update_type': 'dirty',
                 'fps_refresh_rate': 1,
                 'target_fps': 60,

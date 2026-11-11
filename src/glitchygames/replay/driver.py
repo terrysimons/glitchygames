@@ -3063,7 +3063,7 @@ def apply_recorded_options(*, options: dict[str, Any], recorded: dict[str, Any])
     """Put every recorded option except ``REPLAY_LOCAL_OPTIONS`` into ``options``.
 
     Args:
-        options: The run's options (``GameEngine.OPTIONS``), changed in place.
+        options: The run's options (the engine's ``options``), changed in place.
         recorded: The header's ``options`` (JSON-safe; read back with ``value_from_json``).
 
     """
