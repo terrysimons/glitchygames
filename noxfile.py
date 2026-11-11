@@ -12,6 +12,7 @@ import shutil
 import socket
 import sys
 import time
+import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -28,6 +29,9 @@ nox.options.default_venv_backend = 'uv'
 # The docs site's configuration, named on every mkdocs command line: mkdocs.yml is a link to it,
 # which Windows may check out as a one-line text file (tests/test_workspace_config.py)
 _DOCS_CONFIGURATION = 'zensical.yml'
+# The engine's pending ledger when [tool.glitchygames] names none (glitchygames/replay/tools/
+# settings.py: ProjectSettings.pending_ledger; tests/test_ci_config.py keeps the two equal)
+_DEFAULT_PENDING_LEDGER = '.glitchygames/pending-ledger.jsonl'
 
 _CODE_DIRS = [
     'noxfile.py',
@@ -303,6 +307,35 @@ def _glitchygames(session: nox.Session, *arguments: str) -> None:
     )
 
 
+def _pending_ledger_path() -> Path:
+    """Return where measured rows wait to be published: ``[tool.glitchygames] pending-ledger``.
+
+    Read from pyproject.toml here, not through the engine's settings: the noxfile runs outside
+    the project's environment. A project without the key gets the engine's default
+    (``_DEFAULT_PENDING_LEDGER``, glitchygames/replay/tools/settings.py ``pending_ledger``).
+
+    Returns:
+        The pending ledger's path, relative to the repository (nox runs from there).
+
+    """
+    configuration = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))
+    settings = configuration.get('tool', {}).get('glitchygames', {})
+    return Path(settings.get('pending-ledger', _DEFAULT_PENDING_LEDGER))
+
+
+def _ledger_has_rows(*, path: Path) -> bool:
+    """Return whether a ledger file exists and holds a line that is not blank.
+
+    Returns:
+        True when there is at least one row to look at.
+
+    """
+    if not path.is_file():
+        return False
+    with path.open(encoding='utf-8', errors='replace') as ledger:
+        return any(line.strip() for line in ledger)
+
+
 @nox.session(venv_backend='none', name='replay-metrics', default=False)
 def replay_metrics(session: nox.Session) -> None:
     """Measure every golden replay and bundled demo on this machine into the run ledger.
@@ -374,7 +407,9 @@ def docs_deploy(session: nox.Session) -> None:
     when they were made from another commit: about a minute, and the performance graphs from the
     published run ledger plus the pending rows, which it publishes with the site), commits it to
     gh-pages and pushes it. Only after that succeeded are the now-published pending rows
-    removed. Before the docs, every game's browser build (``python -m scripts.build_browser_bundle
+    removed (``glitchygames clear-published``), and only when the pending ledger holds rows: a
+    deploy without any (CircleCI's) skips it, and so the editable install it would build first.
+    Before the docs, every game's browser build (``python -m scripts.build_browser_bundle
     all``: the pygame-ce wheel is built first when the submodule changed) goes into the site as
     play/. Run it from what should be published (usually main after a merge); a warning stops
     it before anything is pushed.
@@ -416,7 +451,15 @@ def docs_deploy(session: nox.Session) -> None:
         session.run('mkdocs', 'build', '--strict', '--config-file', _DOCS_CONFIGURATION)
         return
     session.run('mkdocs', 'gh-deploy', '--strict', '--config-file', _DOCS_CONFIGURATION)
-    _glitchygames(session, 'clear-published')
+    # Only rows waiting here can have been published. Without any (CircleCI's deploy: a fresh
+    # checkout that never measures) there is nothing to clear, and ``uv run`` would first build
+    # every member from PyPI for nothing, failing a deploy that already published when the
+    # network blinks (CircleCI build 3138)
+    pending_ledger = _pending_ledger_path()
+    if _ledger_has_rows(path=pending_ledger):
+        _glitchygames(session, 'clear-published')
+    else:
+        session.log(f'No pending rows in {pending_ledger}: nothing published to clear.')
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='docs-serve', default=False)

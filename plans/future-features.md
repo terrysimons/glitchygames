@@ -96,7 +96,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
   plan): one screen, one process (the browser has no child processes), nine live silent tiles
   under a top frame showing the highlighted one with sound, an original chime over the bars.
   First sub-plan: the engine context (one per demo player); its sub-plan 1 (state:
-  EngineContext, the default context, six pieces of state moved) is done
+  EngineContext, the default context, six pieces of state moved) is done, and its sub-plan 2
+  (the engine's own state per context, the read-only views and the guards; the Arcade's
+  sub-plan 1) is done (PR #171, verified and through its performance gate); the Arcade's
+  sub-plan 2 (demos for every tile) is next
 - **Priority**: High (requested 2026-10-23)
 
 ### 46. Recording Metrics: History, Headroom and Gameplay Analytics — TODO
@@ -1745,9 +1748,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 3 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 4 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
-  batch 1, 448 in 23 after batch 2, 624 after batch 3) toward every instrument a game might want, in one verified
+  batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4) toward every instrument a game might want, in one verified
   batch per family. Adversarial audits (2026-11-07) found 1,303 candidates, only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
   makers, sound effects, and electromechanical, which takes the electric pianos, Clavinet and
@@ -1768,7 +1771,17 @@ This document tracks planned future features for the GlitchyGames project. Featu
   unconsulted, truncated Wikipedia lists, Korean, Cuban, Oceanian, Indigenous American and
   Eastern European names never searched) are a later pass over this family. `agung`, `tingsha`
   and `teponaztli` also have tuned-percussion audit rows (`merged.tsv`) and shipped here under
-  those names, so the tuned percussion batch must not ship them again. Next: plucked strings
+  those names, so the tuned percussion batch must not ship them again.
+  Batch 4 (plucked strings) is done: of its 284 sheet rows 7 shipped (their own builds), 27
+  became sound-alikes (each giving its own sourced range), 215 wait (166 for a sourced range, 21
+  for engine features and 28 because their target waits), 19 became aliases and 16 were dropped;
+  the family grew from 58 to 92 entries. Most rows wait because the owner ruled the range rule
+  stays strict (2026-11-09, asked directly: "Keep it strict"): an instrument with no sourced
+  range waits. A later pass can range them from maker or museum sources, since each WAIT row's
+  notes record what was searched. The audit's "Gaps you could not close"
+  (`plans/data/instrument-audit/plucked-strings.md`) are a later pass too. Next: tuned
+  percussion, which must not ship `agung`, `tingsha` and `teponaztli` again (drums and
+  percussion shipped them in batch 3)
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
@@ -1776,7 +1789,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sheet `plans/data/instrument-audit/batch-2.tsv`
 - **Plan (batch 3)**: `plans/2026-11-08-instrument-catalog-batch-3-implementation.md`; audit
   sheet `plans/data/instrument-audit/batch-3.tsv`
-- **Status**: Batches 1, 2 and 3 done (requested by the owner 2026-11-06)
+- **Plan (batch 4)**: `plans/2026-11-09-instrument-catalog-batch-4-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-4.tsv`
+- **Status**: Batches 1, 2, 3 and 4 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
@@ -1817,7 +1832,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: TODO
 - **Priority**: Medium (before batch 3 builds on the family boundaries)
 
-### 72. Sound Engine: The Owner's Checks on Instrument Catalog Batch 3 — TODO
+### 73. Sound Engine: The Owner's Checks on Instrument Catalog Batch 3 — TODO
 - **Goal**: confirm or overturn the calls made while batch 3 of #70 ran, and listen to its new
   instruments (drums and percussion, 61 to 237 entries; the owner, 2026-11-08: "I want them to
   all show up")
@@ -1951,6 +1966,139 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Found**: batch 3's reviews (2026-11-08)
 - **Status**: TODO
 - **Priority**: Medium (before the plucked strings batch builds on the same catalog)
+
+### 74. Sound Engine: The Owner's Checks on Instrument Catalog Batch 4 — TODO
+- **Goal**: confirm or overturn the calls made while batch 4 of #70 ran, and listen to its new
+  instruments (plucked strings, 58 to 92 entries; the owner, 2026-11-08: "I want them to all
+  show up"). Most of the audit's candidates wait, because the owner ruled the range rule stays
+  strict (2026-11-09, asked directly: "Keep it strict"): an instrument with no sourced range
+  waits. See "Calls to confirm" for what a later pass could do about that
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+  every level, filter, ring and pick click is sound design, not sourced; the folder is
+  `build/instruments/plucked strings/`). The 7 new builds come first, then the sound-alikes;
+  each group below is a parent with the sound-alikes that share its build, which must sound
+  alike by design. The ranges differ within a group, since each sound-alike gives its own:
+  - [ ] The 7 new builds: `angelique`, `banjolele`, `chapman stick`, `qanun`, `ruan`, `tar`,
+    `tiple colombiano`: each distinct from the 58 already there and from each other (the
+    anti-goal; the rule-7 test only catches equal builds)
+  - [ ] Near pairs to hear side by side: `angelique` and `lute`, `banjolele` and `soprano ukulele`,
+    `ruan` and `pipa`
+  - [ ] The sound-alikes, 27 in 19 groups (each is its parent's sound):
+  - [ ] `bass ukulele`, `contrabass ukulele` of `acoustic bass guitar`
+  - [ ] `siter`, `yakumogoto` of `appalachian dulcimer`
+  - [ ] `secunda balalaika` of `balalaika`
+  - [ ] `sanxian` of `banjo`
+  - [ ] `electric bass vi` of `baritone guitar`
+  - [ ] `harpejji` of `chapman stick`
+  - [ ] `requinto guitar`, `terz guitar` of `classical guitar`
+  - [ ] `piccolo domra` of `domra`
+  - [ ] `seven string guitar` of `electric guitar`
+  - [ ] `trichordo bouzouki` of `greek bouzouki`
+  - [ ] `five string kantele`, `gusli`, `concert kankles` of `kantele`
+  - [ ] `nigenkin` of `koto`
+  - [ ] `bulgarian tambura` of `mandolin`
+  - [ ] `liuqin`, `setar` of `pipa`
+  - [ ] `gaoyin ruan`, `daruan`, `xiaoruan` of `ruan`
+  - [ ] `sopranino ukulele` of `soprano ukulele`
+  - [ ] `plectrum banjo` of `tenor banjo`
+  - [ ] `viola da terra` of `tiple colombiano`
+  - [ ] `alpine zither` of `zither`
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-4.tsv`; the sheet's 284 rows:
+  SHIP 7, SOUND_ALIKE 27, WAIT 215, ALIAS 19, DROP 16; the 245 candidates the audits left come
+  from the command in Task 3 Step 1 of
+  `plans/2026-11-09-instrument-catalog-batch-4-implementation.md`, which regenerates the
+  ignored `build/batch-4-candidates.txt`):
+  - [ ] The range rule, which is why 215 rows wait. The owner ruled it strict (2026-11-09), so
+    the 166 WAIT rows that wait for "a sourced range" stay out until a source gives one; the
+    spec accepts fetched text or a maker's or museum's documented span, and a letter tuning
+    counts when the source anchors its octave. A later pass can range them from maker pages,
+    museum records (MIMO, the Met, Horniman) and organology pages: each such row's notes record
+    what was searched. A second research pass over the first 69 such rows was not run, since
+    the wider search of the second part turned only 7 of about 65 into rows and several museum
+    sites refuse fetches; say if you want it run
+  - [ ] WAIT for an engine feature (21 rows): a pitch that moves through a phrase (8: `dan bau`,
+    `diddley bow`, `gopichand`, `guqin`, `ichigenkin`, `khamak`, `vong co guitar`, `washtub
+    bass`), sympathetic strings (6: `gottuvadhyam`, `mohan veena`, `rabab`, `surbahar`, `ten
+    string guitar`, `vichitra veena`), a buzzing bridge or wire or a jawari bridge (5:
+    `begena`, `jakhe`, `yueqin`, `electric sitar`, `rudra veena`) and moving formants (2: `ukeke`, `umrhubhe`)
+  - [ ] WAIT because their target waits (28 rows): `cavaco` (target `cavaquinho`), `cetera`
+    (`citole`), `koboz` (`cobza`), `dotar` (`dutar`), `epinette` (`epinette des vosges`),
+    `chitravina` (`gottuvadhyam`), `banjitar` and `banjo guitar` (`guitar banjo`), `kecapi`
+    (`kacapi`), `tanbura` (`kissar`), `kopuz` and `qopuz` (`komuz`), `kudlong` (`kudyapi`),
+    `laud espanol` (`laud`), `politiko laouto` (`lavta`), `guitarra portuguesa` (`portuguese
+    guitar`), `gambus` (`qanbus`), `hommel` and `hummel` (`scheitholt`), `seul` (`se`), `tea
+    chest bass`, `babatoni`, `box bass`, `dumdum`, `gutbucket` and `sanduku` (`washtub bass`),
+    `hoddu` (`xalam`) and `wolgeum` (`yueqin`)
+  - [ ] The pitched sound-alike rule (the plan's call, which you approved with the plan,
+    2026-11-09): a sound-alike shares its parent's build but gives its own sourced range, and
+    is pitched exactly when its parent is. Decision 8 said a sound-alike has its parent's range;
+    that held for drums, which have none. `mandolin` and `mandola` already shared a build with
+    their own ranges
+  - [ ] The 54 pairs among the 58 existing plucked entries that share a build (`mandolin` and
+    `mandola` both use `BRIGHT_LUTE`) were left as they are; the new-entry test never checks them (it
+    loops only over `NEW_PLUCKED_NAMES`; `EXISTING_PLUCKED_NAMES` is used only in the
+    set-equality test). Confirm, or convert some into sound-alikes
+  - [ ] `sitar`, `tanpura` and `veena` are old entries that approximate sympathetic strings and
+    a buzzing bridge, which decision 4 now holds back. They stay; new instruments whose
+    identifying sound is one of those (`rudra veena`, `surbahar`, `mohan veena`, `ten string
+    guitar`) wait and are not sound-alikes of `sitar`. Keep the three, or remove them
+  - [ ] The audit's placement notes are not acted on: `lyre`, `kora` and `harp guitar` are in
+    harps, `berimbau` is in struck strings. The plucked lyres (`krar`, `kissar`, `kithara`,
+    `kinnor`, `barbiton`) stay in plucked strings while `lyre` is in harps, so the family split
+    needs a decision before any of them ships
+  - [ ] Every derived range: where a source gave a lowest note and a fret count, the highest is
+    that note plus the frets (`bulgarian tambura` E4 plus 24 frets is E6); 15 comments in
+    `plucked_strings.py` and `plucked_sound_alikes.py` say "derived", each with the source
+    quoted
+  - [ ] The two-half split: necked lutes (Hornbostel-Sachs 321.3) and then everything else
+    (zithers, musical bows, lyres, out-of-family rows) were built in two halves. The halves were
+    not exact: leftover necked lutes (`donso ngoni`, `kamele ngoni`, `tanbura`) got their sheet
+    rows in the second half. Confirm the split reads right to a person adding the next entry
+  - [ ] `angelique` is a SHIP with its own single-strung build (the lute's traits without
+    courses, since courses are a sourced trait that sets it apart; its range C2-E4 is the stated
+    open-string compass). Keep it, or fold it into a sound-alike once `theorbo`'s build is
+    settled
+  - [ ] `banjolele` ships without the sheet's unsourced pick click (no fetched source gives a
+    plectrum): a slightly softer attack than the sheet's sound design
+  - [ ] The sheet's form check reads "a SHIP or SOUND_ALIKE name that is already in the catalog"
+    as "other than a batch 4 row already coded", so after the necked lutes it flags exactly
+    their 25 coded rows; none collides with an entry of another family
+  - [ ] `theorbo` and `archlute` are built with paired courses, but fetched pages call the
+    theorbo single-strung (a possible bug in an existing entry)
+  - [ ] None of the 58 existing plucked entries cites a source for its range or build
+  - [ ] The catalog `zither` tops at C6, but the sourced fingerboard top is D7 (an existing entry
+    whose data is off; `alpine zither` carries its own F1-D7)
+  - [ ] The cited infobox gives the Greek bouzouki's top as E6, while the catalog `greek
+    bouzouki` stops at D6 (C3-D6), so the new `trichordo bouzouki` sound-alike (D3-E6) tops out
+    above its parent (the `tetrachordo bouzouki` row's data note)
+  - [ ] `bozuk` is an alias of `saz` in `aliases.py`, so it reports the saz's range, but the
+    Bağlama page says "Larger saz instruments were known by other names such as: bozuk,
+    tambura" and the sheet row admits it "can mean a larger saz": bozuk may be a larger saz (a
+    sound-alike with its own range, or a WAIT) rather than another name
+  - [ ] `yakumogoto` and `nigenkin` are sound-alikes of other instruments while `ichigenkin`
+    waits for a slide, though all three are the same fretless tenkan tube; read as a slide for
+    all, both would wait too
+  - [ ] `qanun`'s maqam quarter-tones are not in decision 4's list of what the engine cannot do
+    yet; it ships with the western semitones
+  - [ ] The washtub bass page lists "dan bau" (Vietnam) as a name for the washtub bass, which
+    collides with the zither dan bau (`dan bau` waits)
+  - [ ] Process calls made on your behalf: the registry's two small code tasks (the pitched
+    sound-alike rule and the family's move into `plucked_strings.py`) went to one implementer
+    and one review, as separate commits; the batch 4 owner's checks are #74 and refer to batch
+    3's as #73, though the PR that renumbers it (#172) is still open (one renumber if it is
+    closed unmerged)
+- **Follow-ups**:
+  - [ ] The audit's "Gaps you could not close" (`plans/data/instrument-audit/plucked-strings.md`)
+    are a later pass over this family, along with ranging the 166 range WAIT rows from maker and
+    museum sources
+  - [ ] The 16 DROP rows (`aeolian harp`, `claviharp`, `divan saz`, `dolceola`, `donso ngoni`,
+    `fotdella`, `kacapi suling`, `kamele ngoni`, `laudon`, `marimbula`, `meydan saz`, `nondo`,
+    `quijongo`, `shudraga`, `talk box`, `zeze`): each row's notes give the fetched reason
+  - [ ] A sound-alike a source later sets apart takes `sound_changes`, citing the source
+- **Found**: batch 4's reviews (2026-11-09)
+- **Status**: TODO
+- **Priority**: Medium (before the tuned percussion batch builds on the same catalog)
+
 ### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
 - **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,
   `next_frame_deadline_ns`: a frame up to one period late is caught up by the next, so the

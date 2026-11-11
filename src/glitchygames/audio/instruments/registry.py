@@ -22,11 +22,11 @@ from glitchygames.audio.instruments.keyboards import (
 )
 from glitchygames.audio.instruments.noise_makers import NOISE_MAKERS
 from glitchygames.audio.instruments.percussion import TUNED_PERCUSSION
+from glitchygames.audio.instruments.plucked_strings import PLUCKED_STRINGS
 from glitchygames.audio.instruments.sound_effects import SOUND_EFFECTS
 from glitchygames.audio.instruments.strings import (
     BOWED_STRINGS,
     HARPS,
-    PLUCKED_STRINGS,
     STRUCK_STRINGS,
 )
 from glitchygames.audio.instruments.voices import CHOIRS, VOICES
@@ -164,8 +164,8 @@ def sound_alikes_from(catalog: Mapping[str, CatalogEntry]) -> dict[str, CatalogE
     Raises:
         ValueError: Naming the entry, when sound changes come without ``sounds_like``, or a
             sound-alike has its own build, sounds like itself, an entry that is not in the
-            catalog or another sound-alike, has a range other than its parent's, or carries
-            changes its parent's builder cannot take.
+            catalog or another sound-alike, is pitched when its parent is not (or the reverse),
+            or carries changes its parent's builder cannot take.
     """
     assembled: dict[str, CatalogEntry] = {}
     for name, catalog_entry in catalog.items():
@@ -189,8 +189,11 @@ def sound_alikes_from(catalog: Mapping[str, CatalogEntry]) -> dict[str, CatalogE
         if parent.sounds_like is not None:
             message = f'{name}: sounds like {parent_name!r}, itself a sound-alike'
             raise ValueError(message)
-        if (catalog_entry.lowest, catalog_entry.highest) != (parent.lowest, parent.highest):
-            message = f'{name}: its range must be that of {parent_name!r}'
+        # Decision 8 (plans/2026-11-07-instrument-catalog-expansion-design.md), extended by
+        # plans/2026-11-09-instrument-catalog-batch-4-implementation.md: a pitched sound-alike
+        # gives its own sourced range, but pitched-ness comes from the parent's build
+        if catalog_entry.pitched != parent.pitched:
+            message = f'{name}: pitched exactly when {parent_name!r} is'
             raise ValueError(message)
         assembled[name] = dataclasses.replace(
             catalog_entry, build=_sound_alike_build(catalog_entry, parent)

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import collections
 import contextvars
 import importlib.util
 import random
@@ -15,7 +16,7 @@ import re
 import sys
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, Any, cast, override
 
 import numpy as np
 import pygame
@@ -36,6 +37,11 @@ from glitchygames.backgrounds import (
     active_default_background_pattern,
     set_active_default_background_pattern,
 )
+from glitchygames.engine.game_engine import (
+    CURRENT_ENGINE_SLOT,
+    NoRunningEngineError,
+    current_engine,
+)
 from glitchygames.engine_context import (
     DEFAULT_CONTEXT_NAME,
     ContextSlot,
@@ -45,10 +51,15 @@ from glitchygames.engine_context import (
     declared_context_slots,
     default_context,
 )
+from glitchygames.events import HashableEvent, ResourceManager, unhandled_event
+from glitchygames.events.base import UNHANDLED_EVENT_TYPES_SLOT
+from glitchygames.fonts import FontManager
+from glitchygames.fonts.font_manager import FONT_OPTIONS_SLOT
 from glitchygames.game_frames import game_frame_clock
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, EnumerationAnswer
 from glitchygames.input.state import IDLE_INPUT, current_input, set_current_input
 from glitchygames.live_sources import LiveSources
+from glitchygames.performance import AdaptiveClamping
 from glitchygames.pixel_snap import (
     PixelSnapMode,
     active_default_snap_mode,
@@ -63,6 +74,12 @@ from glitchygames.randomness import (
     reset_streams,
     seed_engine_random,
     stream_seed,
+)
+from glitchygames.recording import (
+    live_game_code_running,
+    reset_internal_post_tracking,
+    set_live_game_code_running,
+    start_tracking_internal_posts,
 )
 from glitchygames.scenes import SceneManager
 from glitchygames.sources import (
@@ -87,6 +104,9 @@ from glitchygames.sources import (
     stop_observing_save_store_openings,
     without_discarded_scope_posts,
 )
+from glitchygames.sprites import Singleton, Sprite
+from glitchygames.sprites.bitmappy_sprite import SINGLETONS_SLOT
+from glitchygames.sprites.sprite import SPRITE_COUNTERS_SLOT, SpriteCounters
 from glitchygames.state import MemorySaveManager, SaveManager, open_saves
 from tests.ast_scanning import PROJECT_ROOT
 from tests.engine_source import ENGINE_DIRECTORY
@@ -95,6 +115,7 @@ from tests.input.test_input_state import snapshot_with
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
+    from glitchygames.engine import GameEngine
     from glitchygames.input.devices import DeviceDescriptor
 
 # A slot of this test module's own (declared once, as the module is imported, like every slot)
@@ -290,7 +311,11 @@ def test_the_harness_leak_check_is_torn_down_before_every_engine_state_reset():
 
 
 # The fixtures that only group the engine-state resets for the leak check (tests/harness.py)
-GROUPING_FIXTURE_NAMES = ('per_context_state_resets', 'engine_service_resets')
+GROUPING_FIXTURE_NAMES = (
+    'per_context_state_resets',
+    'per_context_object_resets',
+    'engine_service_resets',
+)
 
 
 def _repository_plugin_paths() -> list[Path]:
@@ -343,7 +368,7 @@ def test_only_the_harness_defines_autouse_fixtures():
 
 
 def test_the_grouping_fixtures_only_group():
-    """The two grouping fixtures hold only their docstrings (BUGS.md #228 item 5).
+    """The grouping fixtures hold only their docstrings (BUGS.md #228 item 5).
 
     Any reset they did would run outside the order the leak check sets.
     """
@@ -952,6 +977,7 @@ def check_scene_managers(*, first: EngineContext, second: EngineContext) -> None
     with second.active():
         second_manager = SceneManager()
         assert second_manager is not first_manager
+        assert second_manager.engine_options is not first_manager.engine_options
         assert second_manager.frame_number == 0
     with first.active():
         assert SceneManager() is first_manager
@@ -959,6 +985,184 @@ def check_scene_managers(*, first: EngineContext, second: EngineContext) -> None
     assert SceneManager() is default_manager
     assert default_manager is not first_manager
     assert default_manager is not second_manager
+    assert default_manager.engine_options is not first_manager.engine_options
+
+
+def current_engine_or_none() -> GameEngine | None:
+    """Return the current context's engine, or None when no engine runs in it.
+
+    Returns:
+        The engine, or None.
+
+    """
+    try:
+        return current_engine()
+    except NoRunningEngineError:
+        return None
+
+
+def check_current_engine(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context answers with its own engine, and the default context with its own."""
+    default_answer = current_engine_or_none()
+    stand_in_engine = cast('GameEngine', object())
+    first.value(slot=CURRENT_ENGINE_SLOT).engine = stand_in_engine
+    with first.active():
+        assert current_engine() is stand_in_engine
+    with second.active(), pytest.raises(NoRunningEngineError):
+        current_engine()
+    assert current_engine_or_none() is default_answer
+
+
+def check_internal_post_tracker(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own internal-post tracker, and the default context its own."""
+    default_running = live_game_code_running()
+    with first.active():
+        start_tracking_internal_posts()
+        set_live_game_code_running(running=True)
+    with second.active():
+        assert live_game_code_running() is False
+        reset_internal_post_tracking()
+    with first.active():
+        assert live_game_code_running() is True
+        reset_internal_post_tracking()
+    assert live_game_code_running() is default_running
+
+
+# A target FPS the first context's performance manager is given (the default is 0.0: unlimited)
+FIRST_TARGET_FPS = 30.0
+
+
+def check_performance_managers(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context has its own performance manager, and the default context its own (C14).
+
+    ``_target_fps`` is read through the manager: it has no public reader and no observable
+    effect outside the shutdown reports (decision 1).
+    """
+    default_manager = AdaptiveClamping()
+    default_target_fps = default_manager._target_fps
+    with first.active():
+        first_manager = AdaptiveClamping()
+        first_manager.set_target_fps(FIRST_TARGET_FPS)
+    with second.active():
+        second_manager = AdaptiveClamping()
+        assert second_manager is not first_manager
+        assert second_manager._target_fps == 0.0
+    with first.active():
+        assert AdaptiveClamping() is first_manager
+        assert first_manager._target_fps == FIRST_TARGET_FPS
+    assert AdaptiveClamping() is default_manager
+    assert default_manager is not first_manager
+    assert default_manager is not second_manager
+    assert default_manager._target_fps == default_target_fps
+
+
+class SharedInstanceStandIn(ResourceManager):
+    """A shared ResourceManager of the isolation check's own (no game, no proxies)."""
+
+
+def check_shared_instances(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context answers with its own shared manager, and the default context its own (C12)."""
+    default_instance = SharedInstanceStandIn(game=None)
+    with first.active():
+        first_instance = SharedInstanceStandIn(game=None)
+    with first.active():
+        assert SharedInstanceStandIn(game=None) is first_instance
+    with second.active():
+        second_instance = SharedInstanceStandIn(game=None)
+        assert second_instance is not first_instance
+        ResourceManager.release_shared_instances()
+    with first.active():
+        assert SharedInstanceStandIn(game=None) is first_instance
+    assert SharedInstanceStandIn(game=None) is default_instance
+    assert default_instance is not first_instance
+    assert default_instance is not second_instance
+
+
+def check_font_options(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own font options, and the default context its own (C13)."""
+    default_options = dict(default_context().value(slot=FONT_OPTIONS_SLOT))
+    with first.active():
+        FontManager.set_font_system(font_system='freetype')
+    with second.active():
+        FontManager.set_font_system(font_system='pygame')
+    with first.active():
+        first_system = FontManager.get_font_system()
+
+    assert first_system == 'freetype'
+    assert first.value(slot=FONT_OPTIONS_SLOT) == {'use_freetype': True}
+    assert second.value(slot=FONT_OPTIONS_SLOT) == {'use_freetype': False}
+    assert default_context().value(slot=FONT_OPTIONS_SLOT) == default_options
+
+
+def check_singletons(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context answers with its own singleton, and the default context its own (C15)."""
+    default_instance = Singleton()
+    with first.active():
+        first_instance = Singleton()
+    with second.active():
+        second_instance = Singleton()
+    with first.active():
+        assert Singleton() is first_instance
+
+    assert first_instance is not default_instance
+    assert second_instance is not default_instance
+    assert second_instance is not first_instance
+    assert Singleton() is default_instance
+    assert first.value(slot=SINGLETONS_SLOT) == {Singleton: first_instance}
+    assert second.value(slot=SINGLETONS_SLOT) == {Singleton: second_instance}
+
+
+class StandInDebugEventsGame:
+    """A game's options as unhandled_event reads them, with --debug-events given.
+
+    A plain class, not a frozen model: unhandled_event's GameOptionsProvider declares a
+    writable options attribute.
+    """
+
+    def __init__(self) -> None:
+        """Hold the options of a game started with --debug-events."""
+        self.options: dict[str, Any] = {'debug_events': True, 'no_unhandled_events': False}
+
+
+def check_unhandled_event_types(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own logged unhandled event types, the default context none (C17)."""
+    game = StandInDebugEventsGame()
+    with first.active():
+        unhandled_event(game, HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE))
+    with second.active():
+        unhandled_event(game, HashableEvent(pygame.MOUSEMOTION, pos=(0, 0)))
+
+    assert first.value(slot=UNHANDLED_EVENT_TYPES_SLOT) == {pygame.KEYDOWN}
+    assert second.value(slot=UNHANDLED_EVENT_TYPES_SLOT) == {pygame.MOUSEMOTION}
+    assert default_context().value(slot=UNHANDLED_EVENT_TYPES_SLOT) == set()
+
+
+def check_sprite_counters(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context counts its own sprites and keeps its own breakpoints, the default none (C18)."""
+
+    class CountedInFirst(Sprite):
+        """The sprite type the first context makes."""
+
+    class CountedInSecond(Sprite):
+        """The sprite type the second context makes."""
+
+    with first.active():
+        CountedInFirst(x=0, y=0, width=2, height=1)
+        CountedInFirst(x=0, y=0, width=2, height=1)
+        Sprite.break_when(sprite_type=CountedInFirst)
+    with second.active():
+        CountedInSecond(x=0, y=0, width=3, height=1)
+
+    assert first.value(slot=SPRITE_COUNTERS_SLOT) == SpriteCounters(
+        counters=collections.OrderedDict({str(CountedInFirst): {'count': 2, 'pixels': 4}}),
+        breakpoints=[str(CountedInFirst)],
+        count=2,
+    )
+    assert second.value(slot=SPRITE_COUNTERS_SLOT) == SpriteCounters(
+        counters=collections.OrderedDict({str(CountedInSecond): {'count': 1, 'pixels': 3}}),
+        count=1,
+    )
+    assert default_context().value(slot=SPRITE_COUNTERS_SLOT) == SpriteCounters()
 
 
 # Every engine slot, with the check that proves its values never leak between contexts. Each
@@ -973,6 +1177,14 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.randomness.streams': check_random_streams,
     'glitchygames.sources.registry': check_sources_registry,
     'glitchygames.scenes.scene.scene_managers': check_scene_managers,
+    'glitchygames.engine.game_engine.current_engine': check_current_engine,
+    'glitchygames.recording.internal_posts': check_internal_post_tracker,
+    'glitchygames.performance.adaptive_clamping.managers': check_performance_managers,
+    'glitchygames.events.base.shared_instances': check_shared_instances,
+    'glitchygames.fonts.font_manager.options': check_font_options,
+    'glitchygames.sprites.bitmappy_sprite.singletons': check_singletons,
+    'glitchygames.events.base.unhandled_event_types': check_unhandled_event_types,
+    'glitchygames.sprites.sprite.counters': check_sprite_counters,
 }
 
 

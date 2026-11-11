@@ -138,10 +138,10 @@ Graphics Options:
 Diagnostics Options:
   --log-timer-jitter    log frame pacing jitter statistics periodically
   --perf-trim-percent PERF_TRIM_PERCENT
-                        percent of frames to trim from top and bottom in global FPS report
+                        percent of frames to trim from top and bottom in the game's global FPS report
   --fps-histogram {equal-range,target-relative}
-                        FPS histogram buckets in the shutdown report: equal-range (10 equal buckets spanning the analyzed min to
-                        max, default) or target-relative (10% steps of the target FPS)
+                        FPS histogram buckets in the game's shutdown report: equal-range (10 equal buckets spanning the analyzed
+                        min to max, default) or target-relative (10% steps of the target FPS)
   --debug-overlay, --no-debug-overlay
                         show the debug overlay at startup (F3 toggles, F4 cycles panels)
   --debug-events        log a warning the first time each unhandled event type arrives (--no-unhandled-events raises on one

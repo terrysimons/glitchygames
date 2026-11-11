@@ -254,6 +254,7 @@ from typing import TYPE_CHECKING, Any, Protocol, Self, TypedDict, Unpack, cast
 import numpy as np
 import pygame
 
+from glitchygames.engine_context import ContextSlot, current_context
 from glitchygames.events.base import LEGACY_CUSTOM_EVENT_TYPES, NAMED_CUSTOM_EVENT_TYPES
 from glitchygames.input.state import IDLE_INPUT, snapshot_changes
 from glitchygames.recording_history import (
@@ -408,6 +409,9 @@ class UnrepresentableValue:
 class InternalEventPosts:
     """Events engine or game code posted (``post_event``) that no pump has returned yet.
 
+    One per engine context; where its posts go (SDL's one queue) is sub-plan 6's
+    (plans/2026-10-25-engine-context.md).
+
     Attributes:
         owner_count: How many owners want posts tracked: each open ``GameplayRecorder``, and a
             replay's sources while installed (``start_tracking_internal_posts``).
@@ -435,7 +439,20 @@ class InternalEventPosts:
         return self.owner_count > 0
 
 
-_INTERNAL_POSTS = InternalEventPosts()
+# Each engine context's internal-post tracker (glitchygames.engine_context)
+INTERNAL_POSTS_SLOT: ContextSlot[InternalEventPosts] = ContextSlot(
+    name='glitchygames.recording.internal_posts', factory=InternalEventPosts
+)
+
+
+def _internal_posts() -> InternalEventPosts:
+    """Return the current engine context's internal-post tracker.
+
+    Returns:
+        The tracker (made with no owners and nothing pending on first read).
+
+    """
+    return current_context().value(slot=INTERNAL_POSTS_SLOT)
 
 
 def start_tracking_internal_posts() -> None:
@@ -444,25 +461,27 @@ def start_tracking_internal_posts() -> None:
     A ``GameplayRecorder`` owns it while open, and a replay's sources while installed, so
     closing a recorder never switches tracking off under a live replay.
     """
-    _INTERNAL_POSTS.owner_count += 1
+    _internal_posts().owner_count += 1
 
 
 def stop_tracking_internal_posts() -> None:
     """Give up one ownership; at zero owners tracking stops and pending posts are forgotten."""
-    _INTERNAL_POSTS.owner_count = max(0, _INTERNAL_POSTS.owner_count - 1)
-    if _INTERNAL_POSTS.owner_count == 0:
-        _INTERNAL_POSTS.pending.clear()
-        _INTERNAL_POSTS.live_game_posts.clear()
-        _INTERNAL_POSTS.input_posts.clear()
+    internal_posts = _internal_posts()
+    internal_posts.owner_count = max(0, internal_posts.owner_count - 1)
+    if internal_posts.owner_count == 0:
+        internal_posts.pending.clear()
+        internal_posts.live_game_posts.clear()
+        internal_posts.input_posts.clear()
 
 
 def reset_internal_post_tracking() -> None:
     """Forget every owner and every pending post (a new run, or a test)."""
-    _INTERNAL_POSTS.owner_count = 0
-    _INTERNAL_POSTS.pending.clear()
-    _INTERNAL_POSTS.live_game_code_running = False
-    _INTERNAL_POSTS.live_game_posts.clear()
-    _INTERNAL_POSTS.input_posts.clear()
+    internal_posts = _internal_posts()
+    internal_posts.owner_count = 0
+    internal_posts.pending.clear()
+    internal_posts.live_game_code_running = False
+    internal_posts.live_game_posts.clear()
+    internal_posts.input_posts.clear()
 
 
 def forget_pending_posts() -> None:
@@ -471,8 +490,9 @@ def forget_pending_posts() -> None:
     The live game's posts made inside a playback scope (``live_game_posts``) are not touched:
     the scope sorts those out itself.
     """
-    _INTERNAL_POSTS.pending.clear()
-    _INTERNAL_POSTS.input_posts.clear()
+    internal_posts = _internal_posts()
+    internal_posts.pending.clear()
+    internal_posts.input_posts.clear()
 
 
 def pending_internal_posts() -> list[tuple[int, dict[str, Any]]]:
@@ -485,7 +505,7 @@ def pending_internal_posts() -> list[tuple[int, dict[str, Any]]]:
         (type, attributes) of each pending post, in posting order.
 
     """
-    return _INTERNAL_POSTS.pending
+    return _internal_posts().pending
 
 
 def live_game_code_running() -> bool:
@@ -495,7 +515,7 @@ def live_game_code_running() -> bool:
         ``InternalEventPosts.live_game_code_running``.
 
     """
-    return _INTERNAL_POSTS.live_game_code_running
+    return _internal_posts().live_game_code_running
 
 
 def set_live_game_code_running(*, running: bool) -> None:
@@ -508,7 +528,7 @@ def set_live_game_code_running(*, running: bool) -> None:
         running: True while a supervisor or handler the live game added runs in a scope.
 
     """
-    _INTERNAL_POSTS.live_game_code_running = running
+    _internal_posts().live_game_code_running = running
 
 
 def live_game_posts() -> list[tuple[int, dict[str, Any]]]:
@@ -523,7 +543,7 @@ def live_game_posts() -> list[tuple[int, dict[str, Any]]]:
         The entries, in posting order.
 
     """
-    return _INTERNAL_POSTS.live_game_posts
+    return _internal_posts().live_game_posts
 
 
 def is_input_post(*, post: tuple[int, dict[str, Any]]) -> bool:
@@ -536,7 +556,7 @@ def is_input_post(*, post: tuple[int, dict[str, Any]]) -> bool:
         True when it is one of the input posts (by identity, not equality).
 
     """
-    return any(post is input_post for input_post in _INTERNAL_POSTS.input_posts)
+    return any(post is input_post for input_post in _internal_posts().input_posts)
 
 
 def pending_code_post_count() -> int:
@@ -550,7 +570,7 @@ def pending_code_post_count() -> int:
         The number of pending posts not made through ``post_input_event``.
 
     """
-    return sum(1 for post in _INTERNAL_POSTS.pending if not is_input_post(post=post))
+    return sum(1 for post in _internal_posts().pending if not is_input_post(post=post))
 
 
 def is_live_game_post(*, post: tuple[int, dict[str, Any]]) -> bool:
@@ -563,7 +583,7 @@ def is_live_game_post(*, post: tuple[int, dict[str, Any]]) -> bool:
         True when it is one of ``live_game_posts()`` (by identity, not equality).
 
     """
-    return any(post is live_game_post for live_game_post in _INTERNAL_POSTS.live_game_posts)
+    return any(post is live_game_post for live_game_post in _internal_posts().live_game_posts)
 
 
 def post_event(event: pygame.event.Event) -> bool:
@@ -618,13 +638,14 @@ def _post_tracked(*, event: pygame.event.Event, is_input: bool) -> bool:
 
     """
     was_posted = bool(pygame.event.post(event))
-    if was_posted and _INTERNAL_POSTS.is_tracking:
+    internal_posts = _internal_posts()
+    if was_posted and internal_posts.is_tracking:
         post = (event.type, dict(event.dict))
-        _INTERNAL_POSTS.pending.append(post)
+        internal_posts.pending.append(post)
         if is_input:
-            _INTERNAL_POSTS.input_posts.append(post)
-        if _INTERNAL_POSTS.live_game_code_running:
-            _INTERNAL_POSTS.live_game_posts.append(post)
+            internal_posts.input_posts.append(post)
+        if internal_posts.live_game_code_running:
+            internal_posts.live_game_posts.append(post)
     return was_posted
 
 
@@ -1283,7 +1304,7 @@ class GameplayRecorder:
                 None classifies the batch with the internal-post tracker.
 
         """
-        pending = _INTERNAL_POSTS.pending
+        pending = _internal_posts().pending
         batch = event_batch_records(raw_events=raw_events, pending=pending, origins=origins)
         if origins is None and pending:
             # Posted but not returned: the queue was cleared or the type is blocked

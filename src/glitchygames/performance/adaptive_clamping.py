@@ -1,4 +1,9 @@
-"""Adaptive delta time adjustment based on performance."""
+"""Adaptive delta time adjustment based on performance.
+
+One performance manager per engine context: ``AdaptiveClamping()`` is the current context's,
+so each game's FPS statistics and shutdown report are its own, and an outer game's cover every
+game it steps. ``glitchygames.performance.performance_manager`` is a read-only view of it.
+"""
 
 from __future__ import annotations
 
@@ -8,9 +13,10 @@ import statistics
 from bisect import bisect_right
 from collections import deque
 from enum import Enum
-from typing import TYPE_CHECKING, Any, ClassVar, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
 
 from glitchygames import clock
+from glitchygames.engine_context import ContextSlot, current_context
 
 if TYPE_CHECKING:
     from collections.abc import Collection
@@ -70,20 +76,29 @@ class FpsHistogramMode(Enum):
 
 
 class AdaptiveClamping:
-    """Singleton class for performance-based delta time adjustment.
+    """Performance-based delta time adjustment and the run's FPS statistics and reports.
+
+    One manager per engine context (glitchygames.engine_context): ``AdaptiveClamping()``
+    returns the current context's, so each game has its own report. An outer game's frames
+    contain the inner games' steps (each timed in its own context), so the outer game's report
+    is the aggregate of the whole system.
 
     This class automatically adjusts delta time to maintain consistent game speed
     regardless of frame rate, supporting infinite frame rates with smooth performance.
     """
 
-    _instance = None
+    # True once __init__ ran: AdaptiveClamping() returns the context's manager, whose __init__
+    # runs again (an immutable class default; each instance sets its own)
     _initialized = False
 
     def __new__(cls: type[Self]) -> Self:
-        """Ensure only one instance exists (singleton pattern)."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance  # type: ignore[return-value]
+        """Return this engine context's manager of this class, made on first use."""
+        managers = current_context().value(slot=PERFORMANCE_MANAGERS_SLOT)
+        instance = managers.get(cls)
+        if instance is None:
+            instance = super().__new__(cls)
+            managers[cls] = instance
+        return cast('Self', instance)
 
     def __init__(self: Self) -> None:
         """Initialize the adaptive clamping system."""
@@ -922,5 +937,8 @@ class AdaptiveClamping:
         LOG.info('=' * 80)
 
 
-# Global instance for easy access
-performance_manager = AdaptiveClamping()
+# Each engine context's performance managers, by the class constructed
+# (glitchygames.engine_context): each game counts its own frames and has its own report
+PERFORMANCE_MANAGERS_SLOT: ContextSlot[dict[type[AdaptiveClamping], AdaptiveClamping]] = (
+    ContextSlot(name='glitchygames.performance.adaptive_clamping.managers', factory=dict)
+)

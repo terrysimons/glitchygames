@@ -35,7 +35,7 @@ from glitchygames.recording import RecordingWriteError
 from glitchygames.replay.tools import registry
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.replay.tools.registry import Tool
-from glitchygames.scenes import Scene, SceneManager
+from glitchygames.scenes import Scene
 from glitchygames.sources import active_sources
 from glitchygames.timing import FastTimer
 from tests.input.stand_in_devices import STAND_IN_PAD, STAND_IN_STICK, install_stand_in_devices
@@ -217,8 +217,12 @@ class TestEngineLifecycle:
 
         engine.start()
 
-        assert isinstance(engine.game, game_class)
-        assert engine.game.frames_run == 1
+        # engine.game stays the class; the scene start() built is running_game's (the owner,
+        # 2026-10-29: glitchygames/engine/running_game.py)
+        assert engine.game is game_class
+        assert engine.running_game.game_class is game_class
+        assert isinstance(engine.running_game.instance, game_class)
+        assert engine.running_game.instance.frames_run == 1
         # The scene manager ended its loop by switching away from the game
         assert engine.scene_manager.active_scene is None
         shutdown.assert_called_once_with(run_ended_by=None)
@@ -230,7 +234,7 @@ class TestEngineLifecycle:
 
         engine.start()
 
-        assert engine.game.frames_run == 1
+        assert engine.running_game.instance.frames_run == 1
         assert PROFILE_REPORT_MARKER in capsys.readouterr().out
 
     def test_game_engine_start_without_profiling_prints_no_profile(self, mocker, capsys):
@@ -259,8 +263,9 @@ class TestEngineLifecycle:
 
         engine.start()
 
-        assert isinstance(engine.game, game_class)
-        assert SceneManager.OPTIONS is GameEngine.OPTIONS
+        assert isinstance(engine.running_game.instance, game_class)
+        # Read on the objects: start() returns after the shutdown, when no engine is current
+        assert engine.scene_manager.OPTIONS is engine.OPTIONS
         assert engine.scene_manager.game_engine is engine
         for manager, manager_class in (
             (engine.audio_manager, AudioEventManager),
@@ -305,8 +310,8 @@ class TestEngineLifecycle:
         crash_records = [record for record in caplog.records if record.exc_info is not None]
         assert [record.exc_info[1] for record in crash_records] == [manager_error]
         # The game was built before the managers, and never ran a frame
-        assert isinstance(engine.game, game_class)
-        assert engine.game.frames_run == 0
+        assert isinstance(engine.running_game.instance, game_class)
+        assert engine.running_game.instance.frames_run == 0
 
     def test_start_method_error_message_with_current_scene(self, mocker, caplog):
         """A crash in the active scene's logic is logged with that scene's name."""
@@ -331,7 +336,7 @@ class TestEngineLifecycle:
             engine.start()
 
         # The switch happened: the game scene ran, then the scene it switched to
-        assert engine.scene_manager.previous_scene is engine.game
+        assert engine.scene_manager.previous_scene is engine.running_game.instance
         assert logged_crash_scene_names(caplog) == ['CrashingScene']
 
     def test_start_method_error_message_with_no_scenes(self, mocker, caplog):
@@ -483,8 +488,8 @@ class TestHostedRuns:
 
         asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))
 
-        assert isinstance(engine.game, game_class)
-        assert engine.game.frames_run == 1
+        assert isinstance(engine.running_game.instance, game_class)
+        assert engine.running_game.instance.frames_run == 1
         assert engine.scene_manager.active_scene is None
         assert ticks
         shutdown.assert_called_once_with(run_ended_by=None)
@@ -917,9 +922,9 @@ class TestCrtPowerOnOption:
 
     def test_the_option_is_unset_by_default(self, mocker):
         """Unset, the environment then auto decide (crt_power_on.resolve_mode)."""
-        build_engine(mocker, game=first_frame_game())
+        engine = build_engine(mocker, game=first_frame_game())
 
-        assert GameEngine.OPTIONS['crt_power_on'] is None
+        assert engine.options['crt_power_on'] is None
 
     @pytest.mark.parametrize('flag', ['--replay-trace', '--record-trace'])
     def test_forcing_it_on_is_refused_with_a_replay_or_a_recording(

@@ -13,10 +13,11 @@ from hypothesis import strategies as st
 from pygame import Color
 
 from glitchygames.color.palette import ColorPalette, PaletteUtility
+from glitchygames.engine_context import default_context
 from glitchygames.movement.horizontal import Horizontal
 from glitchygames.movement.speed import Speed
 from glitchygames.movement.vertical import Vertical
-from glitchygames.performance.adaptive_clamping import AdaptiveClamping
+from glitchygames.performance.adaptive_clamping import PERFORMANCE_MANAGERS_SLOT, AdaptiveClamping
 
 # ---------------------------------------------------------------------------
 # Reusable strategies
@@ -449,11 +450,11 @@ class TestAdaptiveClampingProperties:
     @pytest.fixture(autouse=True)
     def fresh_clamping(self):
         """Reset the singleton for each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.clamping = AdaptiveClamping()
         yield
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
 
     @given(dt=dt_values)
@@ -513,11 +514,11 @@ class TestTrimPercentValidation:
     @pytest.fixture(autouse=True)
     def fresh_clamping(self):
         """Reset the singleton for each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.clamping = AdaptiveClamping()
         yield
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
 
     @given(
@@ -551,11 +552,11 @@ class TestPerformanceGrading:
     @pytest.fixture(autouse=True)
     def fresh_clamping(self):
         """Reset the singleton for each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.clamping = AdaptiveClamping()
         yield
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
 
     @given(

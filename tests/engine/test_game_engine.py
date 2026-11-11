@@ -40,8 +40,8 @@ import dataclasses
 import logging
 import os
 import platform
+import re
 import sys
-from collections import OrderedDict
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
@@ -60,12 +60,13 @@ if TYPE_CHECKING:
 
 from glitchygames import events
 from glitchygames.argument_types import non_negative_int, non_negative_percent, unit_interval
-from glitchygames.engine import GameEngine
+from glitchygames.engine import GameEngine, NoRunningEngineError, current_engine
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.engine.game_engine import (
     pygame_needs_fastevents,
     scene_class_of,
 )
+from glitchygames.engine_context import EngineContext, current_context
 from glitchygames.events import base as events_base
 from glitchygames.events.controller import ControllerEventManager
 from glitchygames.exit_codes import ExitCode
@@ -78,8 +79,14 @@ from glitchygames.input.devices import (
 )
 from glitchygames.input.input_devices import InputMode, RecordedDevices
 from glitchygames.live_sources import LiveSources
+from glitchygames.performance import AdaptiveClamping
 from glitchygames.scenes import Scene, SceneManager
-from glitchygames.sources import active_sources, advance_frame_clock, install_sources
+from glitchygames.sources import (
+    active_sources,
+    advance_frame_clock,
+    install_sources,
+    reset_sources,
+)
 from tests.display_canvas import CANVAS_PATTERN, show_canvas_on_new_display
 from tests.input.stand_in_devices import (
     STAND_IN_PAD,
@@ -265,7 +272,15 @@ class TestGameEngineInitializeArguments:
         assert result['update_type'] == 'flip'
         assert result['target_fps'] == 30.0
         assert result['log_level'] == 'warning'
-        assert EngineTestGame.options is result
+
+    def test_parsing_the_options_leaves_the_game_class_alone(self, mocker):
+        """Two contexts running one game class never share its options (new audit row C20)."""
+        mocker.patch.object(sys, 'argv', ['test_game_engine', *ENGINE_TEST_ARGUMENTS])
+        options_before = vars(EngineTestGame).get('options')
+
+        GameEngine.initialize_arguments(EngineTestGame)
+
+        assert vars(EngineTestGame).get('options') is options_before
 
     def test_initialize_arguments_adds_the_game_options(self, mocker):
         """A game's args() class method adds its options to the engine's command line."""
@@ -533,10 +548,10 @@ class TestGameEngineInitializeEventHandlers:
     """Test GameEngine event handler initialization."""
 
     def test_event_handlers_populated(self, mocker):
-        """Test that initialize_event_handlers populates EVENT_HANDLERS dict."""
+        """Test that initialize_event_handlers populates the engine's event_handlers dict."""
         engine = _make_engine(mocker)
-        # After initialization, EVENT_HANDLERS should have entries
-        assert len(GameEngine.EVENT_HANDLERS) > 0
+        # After initialization, event_handlers should have entries
+        assert len(engine.event_handlers) > 0
 
     def test_input_event_handlers_include_all_types(
         self,
@@ -546,13 +561,13 @@ class TestGameEngineInitializeEventHandlers:
         engine = _make_engine(mocker)
 
         # Check that keyboard events are registered
-        assert pygame.KEYDOWN in GameEngine.EVENT_HANDLERS
-        assert pygame.KEYUP in GameEngine.EVENT_HANDLERS
+        assert pygame.KEYDOWN in engine.event_handlers
+        assert pygame.KEYUP in engine.event_handlers
 
         # Check that mouse events are registered
-        assert pygame.MOUSEBUTTONDOWN in GameEngine.EVENT_HANDLERS
-        assert pygame.MOUSEBUTTONUP in GameEngine.EVENT_HANDLERS
-        assert pygame.MOUSEMOTION in GameEngine.EVENT_HANDLERS
+        assert pygame.MOUSEBUTTONDOWN in engine.event_handlers
+        assert pygame.MOUSEBUTTONUP in engine.event_handlers
+        assert pygame.MOUSEMOTION in engine.event_handlers
 
 
 class TestGameEngineSystemInfo:
@@ -908,12 +923,12 @@ class TestProcessUnimplementedEvent:
         """Test first occurrence of an unimplemented event is logged."""
         engine = _make_engine(mocker)
         # Clear prior state
-        GameEngine.UNIMPLEMENTED_EVENTS.clear()
+        engine.unimplemented_events.clear()
 
         event = events.HashableEvent(55555)  # An arbitrary unused event type
 
         engine.process_unimplemented_event(event)
-        assert 55555 in GameEngine.UNIMPLEMENTED_EVENTS
+        assert 55555 in engine.unimplemented_events
 
     def test_duplicate_unimplemented_event_not_added_twice(
         self,
@@ -921,18 +936,18 @@ class TestProcessUnimplementedEvent:
     ):
         """Test duplicate unimplemented events are not appended again."""
         engine = _make_engine(mocker)
-        GameEngine.UNIMPLEMENTED_EVENTS.clear()
+        engine.unimplemented_events.clear()
 
         event = events.HashableEvent(55556)
 
         engine.process_unimplemented_event(event)
         engine.process_unimplemented_event(event)
-        assert GameEngine.UNIMPLEMENTED_EVENTS.count(55556) == 1
+        assert engine.unimplemented_events.count(55556) == 1
 
     def test_event_type_1543_debug_logging(self, mocker, caplog):
         """Event type 1543 is logged in detail: its contents, the controller count, its ids."""
         engine = _make_engine(mocker)
-        GameEngine.UNIMPLEMENTED_EVENTS.clear()
+        engine.unimplemented_events.clear()
         event = events.HashableEvent(1543, device_index=2)  # UNKNOWN_SDL2_EVENT_TYPE_1543
 
         with (
@@ -941,7 +956,7 @@ class TestProcessUnimplementedEvent:
         ):
             engine.process_unimplemented_event(event)
 
-        assert 1543 in GameEngine.UNIMPLEMENTED_EVENTS
+        assert 1543 in engine.unimplemented_events
         assert "'device_index': 2" in caplog.text
         assert 'Current controller count when event 1543 received: ' in caplog.text
         assert 'Controller system not initialized' not in caplog.text
@@ -951,7 +966,7 @@ class TestProcessUnimplementedEvent:
     def test_event_type_1543_when_the_controller_system_cannot_answer(self, mocker, caplog):
         """SDL cannot count controllers (subsystem not initialized): logged, never raised."""
         engine = _make_engine(mocker)
-        GameEngine.UNIMPLEMENTED_EVENTS.clear()
+        engine.unimplemented_events.clear()
         event = events.HashableEvent(1543)
 
         with (
@@ -961,7 +976,7 @@ class TestProcessUnimplementedEvent:
             engine.process_unimplemented_event(event)
 
         assert 'Controller system not initialized' in caplog.text
-        assert 1543 in GameEngine.UNIMPLEMENTED_EVENTS
+        assert 1543 in engine.unimplemented_events
 
 
 class TestUnhandledEventTracking:
@@ -1115,15 +1130,12 @@ class TestSceneManagerGameEngineSetter:
         edit that moved this configuration out of the setter: the setter is tested alone here.
         """
         from glitchygames.performance import performance_manager
-        from glitchygames.scenes import SceneManager
 
         # The real manager is process-wide: put its settings back after the test
         mocker.patch.object(
             performance_manager, '_fps_log_interval_ms', performance_manager._fps_log_interval_ms
         )
         mocker.patch.object(performance_manager, '_target_fps', performance_manager._target_fps)
-        # The setter copies the engine's options onto the SceneManager class
-        mocker.patch.object(SceneManager, 'OPTIONS', SceneManager.OPTIONS)
         engine = _make_engine(mocker, '--target-fps', '30', '--fps-log-interval-ms', '250')
         performance_manager.set_fps_log_interval(interval_ms=1000.0)
         performance_manager.set_target_fps(target_fps=0.0)
@@ -1177,21 +1189,21 @@ class TestMissingEvent:
     def test_missing_event_logs_once(self, mocker):
         """Test missing_event logs the method name once."""
         engine = _make_engine(mocker)
-        GameEngine.MISSING_EVENTS.clear()
-        GameEngine.LAST_EVENT_MISS = 'on_some_unknown_event'
+        engine.missing_events.clear()
+        engine.last_event_miss = 'on_some_unknown_event'
 
         engine.missing_event('arg1', kwarg1='val')
-        assert 'on_some_unknown_event' in GameEngine.MISSING_EVENTS
+        assert 'on_some_unknown_event' in engine.missing_events
 
     def test_missing_event_not_duplicated(self, mocker):
         """Test missing_event does not duplicate entries."""
         engine = _make_engine(mocker)
-        GameEngine.MISSING_EVENTS.clear()
-        GameEngine.LAST_EVENT_MISS = 'on_duplicate_event'
+        engine.missing_events.clear()
+        engine.last_event_miss = 'on_duplicate_event'
 
         engine.missing_event()
         engine.missing_event()
-        assert GameEngine.MISSING_EVENTS.count('on_duplicate_event') == 1
+        assert engine.missing_events.count('on_duplicate_event') == 1
 
     def test_an_event_handler_nobody_has_reaches_missing_event(self, mocker):
         """A handler the engine does not have resolves to missing_event, which notes it once.
@@ -1200,8 +1212,6 @@ class TestMissingEvent:
         (SceneManager.__getattr__), and the engine's __getattr__ answers it.
         """
         engine = _make_engine(mocker)
-        mocker.patch.object(GameEngine, 'LAST_EVENT_MISS', GameEngine.LAST_EVENT_MISS)
-        mocker.patch.object(GameEngine, 'MISSING_EVENTS', [])
 
         handler = engine.on_never_defined_event
         handler(events.HashableEvent(pygame.USEREVENT))
@@ -1249,7 +1259,7 @@ class TestProcessEvents:
         self,
         mocker,
     ):
-        """Test process_events routes events through EVENT_HANDLERS."""
+        """Test process_events routes events through the engine's event_handlers."""
         engine = _make_engine(mocker)
         engine._active_scene = mocker.Mock(spec=[])  # No process_event
 
@@ -1257,7 +1267,7 @@ class TestProcessEvents:
         mocker.patch('pygame.event.get', return_value=[raw_event])
 
         key_down_handler = mocker.Mock(return_value=True)
-        mocker.patch.dict(GameEngine.EVENT_HANDLERS, {pygame.KEYDOWN: key_down_handler})
+        mocker.patch.dict(engine.event_handlers, {pygame.KEYDOWN: key_down_handler})
 
         result = engine.process_events()
         assert result is True
@@ -1279,16 +1289,16 @@ class TestProcessEvents:
         """Test process_events routes unhandled events to process_unimplemented_event."""
         engine = _make_engine(mocker)
         engine._active_scene = mocker.Mock(spec=[])  # No process_event
-        GameEngine.UNIMPLEMENTED_EVENTS.clear()
+        engine.unimplemented_events.clear()
 
         mocker.patch('pygame.event.get', return_value=[_raw_event(UNMAPPED_EVENT_TYPE)])
-        assert UNMAPPED_EVENT_TYPE not in GameEngine.EVENT_HANDLERS
+        assert UNMAPPED_EVENT_TYPE not in engine.event_handlers
 
         result = engine.process_events()
 
         assert result is False
         assert engine.unhandled_events[UNMAPPED_EVENT_TYPE].count == 1
-        assert UNMAPPED_EVENT_TYPE in GameEngine.UNIMPLEMENTED_EVENTS
+        assert UNMAPPED_EVENT_TYPE in engine.unimplemented_events
 
     def test_process_events_unhandled_event_does_not_drop_rest_of_batch(self, mocker):
         """An unhandled event must not drop the key-down queued after it in the same batch."""
@@ -1302,7 +1312,7 @@ class TestProcessEvents:
         key_up_handler = mocker.Mock(return_value=False)
         key_down_handler = mocker.Mock(return_value=True)
         mocker.patch.dict(
-            GameEngine.EVENT_HANDLERS,
+            engine.event_handlers,
             {pygame.KEYUP: key_up_handler, pygame.KEYDOWN: key_down_handler},
         )
         mock_unimplemented = mocker.patch.object(engine, 'process_unimplemented_event')
@@ -1333,20 +1343,18 @@ class TestProcessEvents:
         assert result is True
 
     def test_process_events_unmapped_type_after_handled_event_is_unhandled(self, mocker):
-        """An event type missing from EVENT_HANDLERS never inherits the previous result."""
+        """A type missing from the engine's event_handlers never inherits the previous result."""
         engine = _make_engine(mocker)
         engine._active_scene = mocker.Mock(spec=[])  # No process_event
         unmapped_event_type = OTHER_UNMAPPED_EVENT_TYPE
-        assert unmapped_event_type not in GameEngine.EVENT_HANDLERS
+        assert unmapped_event_type not in engine.event_handlers
 
         raw_events = [
             _raw_event(pygame.KEYDOWN, key=pygame.K_a),
             _raw_event(unmapped_event_type),
         ]
         mocker.patch('pygame.event.get', return_value=raw_events)
-        mocker.patch.dict(
-            GameEngine.EVENT_HANDLERS, {pygame.KEYDOWN: mocker.Mock(return_value=True)}
-        )
+        mocker.patch.dict(engine.event_handlers, {pygame.KEYDOWN: mocker.Mock(return_value=True)})
         mock_unimplemented = mocker.patch.object(engine, 'process_unimplemented_event')
 
         result = engine.process_events()
@@ -1365,7 +1373,7 @@ class TestProcessEvents:
         ]
         mocker.patch('pygame.event.get', return_value=raw_events)
         mocker.patch.dict(
-            GameEngine.EVENT_HANDLERS,
+            engine.event_handlers,
             {
                 pygame.KEYDOWN: mocker.Mock(return_value=True),
                 pygame.KEYUP: mocker.Mock(return_value=True),
@@ -1378,7 +1386,7 @@ class TestProcessEvents:
 
         # A handled event after an unhandled one does not turn the result back to True
         mocker.patch('pygame.event.get', return_value=list(reversed(raw_events)))
-        GameEngine.EVENT_HANDLERS[pygame.KEYUP] = mocker.Mock(return_value=False)
+        engine.event_handlers[pygame.KEYUP] = mocker.Mock(return_value=False)
 
         assert engine.process_events() is False
         mock_unimplemented.assert_called_once()
@@ -1390,7 +1398,7 @@ class TestProcessEvents:
         raw_events = [_raw_event(pygame.KEYDOWN, key=pygame.K_a)]
         mocker.patch('pygame.event.get', return_value=raw_events)
         key_down_handler = mocker.Mock(return_value=True)
-        mocker.patch.dict(GameEngine.EVENT_HANDLERS, {pygame.KEYDOWN: key_down_handler})
+        mocker.patch.dict(engine.event_handlers, {pygame.KEYDOWN: key_down_handler})
         mock_unimplemented = mocker.patch.object(engine, 'process_unimplemented_event')
 
         result = engine.process_events(should_discard=lambda _event: True)
@@ -1411,7 +1419,7 @@ class TestProcessEvents:
         key_down_handler = mocker.Mock(return_value=True)
         key_up_handler = mocker.Mock(return_value=True)
         mocker.patch.dict(
-            GameEngine.EVENT_HANDLERS,
+            engine.event_handlers,
             {pygame.KEYDOWN: key_down_handler, pygame.KEYUP: key_up_handler},
         )
 
@@ -1550,8 +1558,8 @@ class TestInitializeEventManagers:
         from glitchygames.events.window import WindowEventManager
 
         engine = _make_engine(mocker)
-        # As GameEngine.start() does before it builds the managers (put back after the test)
-        mocker.patch.object(SceneManager, 'OPTIONS', GameEngine.OPTIONS)
+        # As GameEngine.start() does before it builds the managers (the game_engine setter)
+        engine.scene_manager.engine_options = engine.options
         install_stand_in_devices(descriptors=[STAND_IN_STICK, STAND_IN_PAD])
 
         engine._initialize_event_managers()
@@ -1570,7 +1578,7 @@ class TestInitializeEventManagers:
             engine.midi_manager,
         ):
             assert manager is not None
-        assert GameEngine.OPTIONS['input_mode'] == 'auto'
+        assert engine.options['input_mode'] == 'auto'
         assert engine.controller_manager is not None
         assert not any(
             pygame.event.get_blocked(event_type) for event_type in events.CONTROLLER_EVENTS
@@ -1586,7 +1594,7 @@ class TestInitializeEventManagers:
     def test_joystick_mode_blocks_controller_events_and_builds_no_controller_manager(self, mocker):
         """--input-mode joystick: no controller manager, and SDL drops controller events."""
         engine = _make_engine(mocker, '--input-mode', 'joystick')
-        mocker.patch.object(SceneManager, 'OPTIONS', GameEngine.OPTIONS)
+        engine.scene_manager.engine_options = engine.options
         install_stand_in_devices(descriptors=[STAND_IN_PAD])
 
         engine._initialize_event_managers()
@@ -1602,7 +1610,7 @@ class TestStartMethod:
     def test_start_with_no_game_raises(self, mocker):
         """Test start raises RuntimeError when game is None."""
         engine = _make_engine(mocker)
-        GameEngine.game = None
+        engine.game = None
 
         with pytest.raises(RuntimeError, match='Game not initialized'):
             engine.start()
@@ -2058,14 +2066,13 @@ def _engine_with_devices(mocker, *, input_mode='auto', plugged_in_at_start=True)
 
     """
     engine = _make_engine(mocker, '--input-mode', input_mode)
-    # As GameEngine.start() does before it builds the managers (put back after the test)
-    mocker.patch.object(SceneManager, 'OPTIONS', GameEngine.OPTIONS)
+    # As GameEngine.start() does before it builds the managers
     engine.scene_manager.game_engine = engine
     install_stand_in_devices(
         descriptors=[STAND_IN_STICK, STAND_IN_PAD], plugged_in_at_start=plugged_in_at_start
     )
     engine._initialize_event_managers()
-    scene = DeviceRecordingGame(options=GameEngine.OPTIONS)
+    scene = DeviceRecordingGame(options=engine.options)
     engine.scene_manager.switch_to_scene(scene)
     return engine, scene
 
@@ -2412,7 +2419,9 @@ class TestPlaybackDevices:
         engine.exit_playback_devices()
 
         assert engine.controller_manager is None
-        assert ControllerEventManager not in events_base.ResourceManager.__instances__
+        assert ControllerEventManager not in current_context().value(
+            slot=events_base.SHARED_INSTANCES_SLOT
+        )
 
     def test_an_instant_replays_devices_are_adopted_asking_the_door_nothing(self, mocker):
         """The journal's devices become stand-ins: no count, open or is_controller is asked.
@@ -2869,6 +2878,10 @@ class TestGameEngineInvalidUpdateType:
         assert engine.screen is pygame.display.get_surface()
 
 
+# How many sprites the teardown report test makes (each 2 x 1 pixels)
+TEARDOWN_REPORT_SPRITES = 3
+
+
 class TestGameEngineTeardownReports:
     """The sprite counts are reported by the teardown, never by a finaliser (BUGS.md #188)."""
 
@@ -2876,13 +2889,14 @@ class TestGameEngineTeardownReports:
         """_shutdown logs the total sprite count, then each sprite type's counters."""
         from glitchygames.sprites import Sprite
 
+        class TeardownReportSprite(Sprite):
+            """A sprite type only this test makes."""
+
         engine = _make_engine(mocker)
         mocker.patch('pygame.display.quit')
         mocker.patch('pygame.quit')
-        mocker.patch.object(Sprite, 'SPRITE_COUNT', 5)
-        mocker.patch.object(
-            Sprite, 'SPRITE_COUNTERS', OrderedDict({'TestSprite': {'count': 3, 'pixels': 2}})
-        )
+        for _ in range(TEARDOWN_REPORT_SPRITES):
+            TeardownReportSprite(x=0, y=0, width=2, height=1)
 
         with caplog.at_level('INFO', logger='game.engine'):
             engine._shutdown()
@@ -2890,9 +2904,10 @@ class TestGameEngineTeardownReports:
         engine_messages = [
             record.getMessage() for record in caplog.records if record.name == 'game.engine'
         ]
-        assert 'Sprite Count: 5' in engine_messages
-        assert 'TestSprite Sprite count: 3' in engine_messages
-        assert 'TestSprite Sprite pixels: 2' in engine_messages
+        sprite_type = str(TeardownReportSprite)
+        assert f'Sprite Count: {TEARDOWN_REPORT_SPRITES}' in engine_messages
+        assert f'{sprite_type} Sprite count: {TEARDOWN_REPORT_SPRITES}' in engine_messages
+        assert f'{sprite_type} Sprite pixels: {2 * TEARDOWN_REPORT_SPRITES}' in engine_messages
 
     def test_the_engine_has_no_finaliser(self):
         """No __del__: a finaliser that logs can fail mid-write to the log's stream."""
@@ -2938,18 +2953,16 @@ class TestGameEngineTimerCalibration:
         timer = mocker.Mock()
         timer.calibrate.side_effect = lambda: calls.append('calibrate')
         mocker.patch('glitchygames.engine.game_engine.create_timer', return_value=timer)
-        mocker.patch('glitchygames.performance.performance_manager')
-        mocker.patch.object(GameEngine, 'game', mocker.Mock())
-        mocker.patch.object(
-            GameEngine,
-            'OPTIONS',
-            {
-                'profile': False,
-                'timer_backend': 'auto',
-                'target_fps': target_fps,
-                'perf_trim_percent': 5.0,
-            },
-        )
+        # The methods start() calls on the current context's performance manager
+        for method_name in ('set_trim_percent', 'set_histogram_mode'):
+            mocker.patch.object(AdaptiveClamping, method_name, autospec=True)
+        engine.game = mocker.Mock()
+        engine.options = {
+            'profile': False,
+            'timer_backend': 'auto',
+            'target_fps': target_fps,
+            'perf_trim_percent': 5.0,
+        }
         engine.scene_manager = mocker.Mock()
         engine.scene_manager.start.side_effect = lambda: calls.append('first frame')
         engine._initialize_event_managers = mocker.Mock()
@@ -2985,8 +2998,8 @@ class TestGameEngineTimerBackendError:
         mock_game_class = mocker.Mock()
         mock_game_instance = mocker.Mock()
         mock_game_class.return_value = mock_game_instance
-        GameEngine.game = mock_game_class
-        GameEngine.OPTIONS = {
+        engine.game = mock_game_class
+        engine.options = {
             'profile': False,
             'timer_backend': 'invalid',
             'perf_trim_percent': 5.0,
@@ -3119,8 +3132,6 @@ class TestDebugEventsArgument:
         options = GameEngine.initialize_arguments(EngineTestGame)
         scene = Scene(options=options)
         unhandled_event = events.HashableEvent(UNMAPPED_EVENT_TYPE)
-        # Each type is logged once per process: start this test with none logged yet
-        mocker.patch.object(events_base, '_unhandled_event_types', set())
 
         with caplog.at_level(logging.WARNING, logger=events.LOG.name):
             events.unhandled_event(game=scene, event=unhandled_event)
@@ -3243,28 +3254,29 @@ class TestFpsHistogramArgument:
         """Test start() calls set_histogram_mode with the parsed option."""
         engine = _make_engine(mocker)
         mocker.patch('glitchygames.engine.game_engine.create_timer')
-        mock_manager = mocker.patch('glitchygames.performance.performance_manager')
-        mocker.patch.object(GameEngine, 'game', mocker.Mock())
-        mocker.patch.object(
-            GameEngine,
-            'OPTIONS',
-            {
-                'profile': False,
-                'timer_backend': 'fast',
-                'perf_trim_percent': 5.0,
-                'fps_histogram': 'target-relative',
-            },
+        # The methods start() calls on the current context's performance manager
+        set_trim_percent = mocker.patch.object(AdaptiveClamping, 'set_trim_percent', autospec=True)
+        set_histogram_mode = mocker.patch.object(
+            AdaptiveClamping, 'set_histogram_mode', autospec=True
         )
+        engine.game = mocker.Mock()
+        engine.options = {
+            'profile': False,
+            'timer_backend': 'fast',
+            'perf_trim_percent': 5.0,
+            'fps_histogram': 'target-relative',
+        }
         engine.scene_manager = mocker.Mock()
         engine._initialize_event_managers = mocker.Mock()
         engine._shutdown = mocker.Mock()
 
         engine.start()
 
-        mock_manager.set_histogram_mode.assert_called_once_with('target-relative')
+        set_histogram_mode.assert_called_once_with(AdaptiveClamping(), 'target-relative')
+        set_trim_percent.assert_called_once_with(AdaptiveClamping(), 5.0)
 
     def test_an_unknown_histogram_mode_is_logged_and_the_run_goes_on(self, mocker, caplog):
-        """A mode the performance manager refuses (set in OPTIONS, not parsed) never ends a run."""
+        """A mode the performance manager refuses (set in options, not parsed) never ends a run."""
         from glitchygames.performance import performance_manager
 
         engine = _make_engine(mocker)
@@ -3275,17 +3287,13 @@ class TestFpsHistogramArgument:
             performance_manager, '_histogram_mode', performance_manager._histogram_mode
         )
         histogram_mode_before = performance_manager._histogram_mode
-        mocker.patch.object(GameEngine, 'game', mocker.Mock())
-        mocker.patch.object(
-            GameEngine,
-            'OPTIONS',
-            {
-                'profile': False,
-                'timer_backend': 'fast',
-                'perf_trim_percent': 7.5,
-                'fps_histogram': 'sideways',
-            },
-        )
+        engine.game = mocker.Mock()
+        engine.options = {
+            'profile': False,
+            'timer_backend': 'fast',
+            'perf_trim_percent': 7.5,
+            'fps_histogram': 'sideways',
+        }
         engine.scene_manager = mocker.Mock()
         engine._initialize_event_managers = mocker.Mock()
         engine._shutdown = mocker.Mock()
@@ -3303,26 +3311,28 @@ class TestFpsHistogramArgument:
         """Test a bad trim value cannot skip setting the histogram mode."""
         engine = _make_engine(mocker)
         mocker.patch('glitchygames.engine.game_engine.create_timer')
-        mock_manager = mocker.patch('glitchygames.performance.performance_manager')
-        mock_manager.set_trim_percent.side_effect = ValueError('bad trim')
-        mocker.patch.object(GameEngine, 'game', mocker.Mock())
-        mocker.patch.object(
-            GameEngine,
-            'OPTIONS',
-            {
-                'profile': False,
-                'timer_backend': 'fast',
-                'perf_trim_percent': 5.0,
-                'fps_histogram': 'target-relative',
-            },
+        # The methods start() calls on the current context's performance manager
+        set_trim_percent = mocker.patch.object(
+            AdaptiveClamping, 'set_trim_percent', autospec=True, side_effect=ValueError('bad trim')
         )
+        set_histogram_mode = mocker.patch.object(
+            AdaptiveClamping, 'set_histogram_mode', autospec=True
+        )
+        engine.game = mocker.Mock()
+        engine.options = {
+            'profile': False,
+            'timer_backend': 'fast',
+            'perf_trim_percent': 5.0,
+            'fps_histogram': 'target-relative',
+        }
         engine.scene_manager = mocker.Mock()
         engine._initialize_event_managers = mocker.Mock()
         engine._shutdown = mocker.Mock()
 
         engine.start()
 
-        mock_manager.set_histogram_mode.assert_called_once_with('target-relative')
+        set_trim_percent.assert_called_once_with(AdaptiveClamping(), 5.0)
+        set_histogram_mode.assert_called_once_with(AdaptiveClamping(), 'target-relative')
 
 
 class TestReplayRestartExitStatus:
@@ -3371,3 +3381,140 @@ class TestSceneClassOf:
 
         assert scene_class_of(EngineTestGame.__new__(EngineTestGame)) is EngineTestGame
         assert scene_class_of(stand_in) is type(stand_in)
+
+
+def test_current_engine_answers_with_each_contexts_own_engine(mocker):
+    """current_engine() is the engine made last in the current context (answer 2)."""
+    first_context = EngineContext(name='first')
+    second_context = EngineContext(name='second')
+    with first_context.active():
+        first_engine = _make_engine(mocker, '--target-fps', '30')
+    with second_context.active():
+        second_engine = _make_engine(mocker, '--target-fps', '50')
+    with first_context.active():
+        first_answer = current_engine()
+    with second_context.active():
+        second_answer = current_engine()
+    for context in (first_context, second_context):
+        with context.active():
+            reset_sources()
+
+    assert first_answer is first_engine
+    assert second_answer is second_engine
+
+
+def test_each_engine_keeps_the_options_it_was_started_with(mocker):
+    """Two engines started with different options in two contexts keep their own (C8, C7).
+
+    The spike's goldens recorded the same options, so a mix-up could not show there.
+    """
+    first_context = EngineContext(name='first')
+    second_context = EngineContext(name='second')
+    with first_context.active():
+        first_engine = _make_engine(mocker, '--target-fps', '30')
+        first_engine.scene_manager.game_engine = first_engine
+    with second_context.active():
+        second_engine = _make_engine(mocker, '--target-fps', '50')
+        second_engine.scene_manager.game_engine = second_engine
+    with first_context.active():
+        first_manager_target = SceneManager().OPTIONS['target_fps']
+        first_view_options = GameEngine.OPTIONS
+    for context in (first_context, second_context):
+        with context.active():
+            reset_sources()
+
+    assert first_engine.OPTIONS['target_fps'] == 30.0
+    assert second_engine.OPTIONS['target_fps'] == 50.0
+    assert first_manager_target == 30.0
+    # Read on the class, the view is None where no engine runs (here one does)
+    assert first_view_options is not None
+    assert first_view_options['target_fps'] == 30.0
+
+
+def test_current_engine_refuses_when_no_engine_runs_in_the_context():
+    """A context no engine was made in names itself in the refusal."""
+    with (
+        EngineContext(name='idle').active(),
+        pytest.raises(
+            NoRunningEngineError,
+            match=re.escape("No game engine is running in the engine context 'idle'"),
+        ),
+    ):
+        current_engine()
+
+
+def test_an_engine_that_shut_down_is_no_longer_current(mocker):
+    """_shutdown clears the context's engine, so the finished engine is not kept alive."""
+    engine = _make_engine(mocker, '--target-fps', '30')
+    mocker.patch('pygame.display.quit')
+    mocker.patch('pygame.quit')
+    engine._shutdown()
+
+    with pytest.raises(NoRunningEngineError):
+        current_engine()
+
+
+class HalfMadeEngineError(RuntimeError):
+    """Raised by a stand-in display open, after the engine made itself current."""
+
+
+def test_an_engine_whose_init_fails_after_registering_is_not_left_current(mocker):
+    """A failure after __init__ registers the engine clears it again, and propagates."""
+    mocker.patch.object(PlainWindowEngine, 'initialize_display', side_effect=HalfMadeEngineError)
+
+    with pytest.raises(HalfMadeEngineError):
+        _make_engine(mocker, '--target-fps', '30')
+    with pytest.raises(NoRunningEngineError):
+        current_engine()
+
+
+def test_an_engine_that_is_not_current_shuts_down_leaving_the_current_one(mocker):
+    """Only the engine the context holds is cleared: a newer engine stays current."""
+    earlier_engine = _make_engine(mocker, '--target-fps', '30')
+    later_engine = _make_engine(mocker, '--target-fps', '50')
+    mocker.patch('pygame.display.quit')
+    mocker.patch('pygame.quit')
+    earlier_engine._shutdown()
+
+    assert current_engine() is later_engine
+
+
+def test_each_engine_keeps_its_own_game(mocker):
+    """An engine built before another keeps its own game (audit C9)."""
+    first_context = EngineContext(name='first')
+    second_context = EngineContext(name='second')
+    with first_context.active():
+        first_engine = _make_engine(mocker, '--target-fps', '30', game=EngineTestGame)
+    with second_context.active():
+        _make_engine(mocker, '--target-fps', '50', game=NoIconGame)
+    for context in (first_context, second_context):
+        with context.active():
+            reset_sources()
+
+    assert first_engine.game is EngineTestGame
+
+
+def test_each_engine_notes_its_own_missing_and_unimplemented_events(mocker, caplog):
+    """One engine's missing handlers and unimplemented events are never another's (C11)."""
+    first_context = EngineContext(name='first')
+    second_context = EngineContext(name='second')
+    with first_context.active():
+        first_engine = _make_engine(mocker, '--target-fps', '30')
+    with second_context.active():
+        second_engine = _make_engine(mocker, '--target-fps', '50')
+    first_engine.on_never_defined_event(events.HashableEvent(pygame.USEREVENT))
+    first_engine.process_unimplemented_event(events.HashableEvent(UNMAPPED_EVENT_TYPE))
+    # Only the second engine's record may answer the check below, whatever level was in force
+    # for the first engine's (Task 7 review, minor 1)
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger='game.engine'):
+        second_engine.on_never_defined_event(events.HashableEvent(pygame.USEREVENT))
+    for context in (first_context, second_context):
+        with context.active():
+            reset_sources()
+
+    assert any(
+        record.getMessage().startswith('Unimplemented method called: on_never_defined_event')
+        for record in caplog.records
+    )
+    assert UNMAPPED_EVENT_TYPE not in second_engine.unimplemented_events

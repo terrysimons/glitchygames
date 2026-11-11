@@ -312,10 +312,12 @@ games.
 ### Core Engine Components
 
 **GameEngine** (`src/glitchygames/engine/__init__.py`)
-- Singleton orchestrator extending `EventManager`
+- Orchestrator extending `EventManager`, one per running game (`current_engine()` is the current
+  engine context's)
 - Handles pygame initialization, display management, event routing
 - Bootstraps command-line arguments for all games
-- Pre-computes `EVENT_HANDLERS` dict for O(1) event dispatch
+- Pre-computes its own `event_handlers` dict (per engine; `GameEngine.EVENT_HANDLERS` is the
+  current game's, a read-only view) for O(1) event dispatch
 - Logging: a game logs at `--log-level warning` by default (the owner, 2026-10-28; the tools'
   level), so the exit code, whether the seed was rolled or given, and the end-of-run performance
   reports (INFO) show only with `--log-level info`; the seed itself is always in the options
@@ -1171,10 +1173,12 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 **Engine Context** (`src/glitchygames/engine_context.py`; design `plans/2026-10-25-engine-context.md`)
 - The state one running game owns, so several games can run in one process (the Arcade's demo
   tiles). Ordinary games never create one and run in the default context
-  (`default_context()`), exactly as before. Only the slots below are per context today; the rest
-  of the process-wide state (`GameEngine` and its `OPTIONS`, `SceneManager.OPTIONS`,
-  `FontManager`, `ResourceManager`, the event managers, other audit rows) is later sub-plans,
-  and the engine does not switch contexts yet (nothing in `src/` calls `.active()`; tests do)
+  (`default_context()`), exactly as before. Per context today: the slots below, and the
+  engine's and scene manager's own attributes (`engine.options`, `game`, `running_game`,
+  `event_handlers`, the event bookkeeping; `manager.engine_options`). Still one per process:
+  the audit's shared rows (S1-S20: the display, mixer, SDL's queue, joystick subsystem, process
+  services, ...), which later sub-plans keep inner contexts off. The engine does not run a game
+  in another context yet (the one switch in `src/` is the sound-file loader's scratch context)
 - Per-context state is a `ContextSlot(name=..., factory=...)` declared once at module level in
   the module that owns it; code reads `current_context().value(slot=...)` when it needs it,
   never at import (`tests/test_engine_context.py` scans the engine and every member).
@@ -1183,9 +1187,29 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - `with context.active():` switches (a `contextvars.ContextVar`: per thread and asyncio task;
   nests; restores on exceptions). Slots today: the default snap mode, the default background,
   the polled input, the random streams, the game-frame clock, the doors with the frame clock
-  and observers, the `SceneManager` singleton, the wave registry and the audio engine (the table in
+  and observers, the `SceneManager` singleton, the wave registry, the audio engine, the current
+  engine (`current_engine()`), the internal-post tracker, the performance manager
+  (`AdaptiveClamping()`), the shared event managers and `FontManager` (`ResourceManager`), the
+  font options, the singleton sprites, the debug-events log set and the sprite counters
+  (`sprite_counters()`) (the table in
   `docs/architecture/engine_context.md` lists each one's functions); each has an isolation check in `tests/test_engine_context.py`
   (`ISOLATION_CHECKS`), and a slot without one fails the suite
+- The old class-level names are read-only views (`src/glitchygames/read_only_views.py`):
+  `GameEngine.OPTIONS`, `game`, `EVENT_HANDLERS`, `LAST_EVENT_MISS`, `MISSING_EVENTS`,
+  `UNIMPLEMENTED_EVENTS`, `SceneManager.OPTIONS`, `FontManager.OPTIONS`, `Sprite.SPRITE_COUNTERS`,
+  `SPRITE_BREAKPOINTS`, `SPRITE_COUNT` and the module view
+  `glitchygames.performance.performance_manager`. Each is read-only, the current game's, and
+  `None` (or its empty default) outside a game; writing one raises `ReadOnlyViewError` naming
+  where to write instead. Engine code never reads a view (it costs about two slot reads): it
+  reads the instance (`self.options`), or the owner function (`sprite_counters()`,
+  `AdaptiveClamping()`); `current_engine()` is the engine made last in the current context. The
+  views table and the measured costs are in `docs/architecture/engine_context.md`
+- Guards: `tests/test_read_only_views.py` (every view checked per context, the engine never
+  reads one, the page's views table and costs), `tests/test_process_state_guard.py` (the audit
+  as an allowlist scan of the engine and every member: new module- or class-level mutable state
+  fails unless it is a slot or listed with its audit row), `tests/test_shared_font_cache_guard.py`
+  (nothing restyles a cached font in place, R9) and `tests/test_suite_collection.py` (no living
+  document writes a view)
 - The harness fails a test that leaves another context current
   (`every_test_ends_in_the_default_engine_context`): a switch entered by hand and still held. A
   switch abandoned unexited unwinds itself when collected and is not reported. A new autouse fixture that resets engine
@@ -1280,11 +1304,12 @@ M2 next)
 - Instrument catalog (`audio/instruments/`): `instruments.get('violin')` is an ordinary
   `Instrument` (built once per process), `instruments.entry(name)` its title, family and range
   (`lowest`/`highest`, sounding; None for unpitched drums, whose fixed tones ignore the pitch
-  given). 624 entries in 23 `Family`s (every size of each family, voices soprano to basso
+  given). 658 entries in 23 `Family`s (every size of each family, voices soprano to basso
   profundo on five vowels; `Tag.MECHANICAL` marks mechanical ones, `names(tag=...)` lists them;
-  `ALIASES` (read-only, as `CATALOG` is) maps 35 other names to catalog names, resolved by
+  `ALIASES` (read-only, as `CATALOG` is) maps 54 other names to catalog names, resolved by
   `get`/`entry`; a sound-alike is its own entry sharing a parent's build via `sounds_like`, with
-  optional sourced `sound_changes`), each built by a shape in `timbres.py` (`blown`, `plucked`, `struck`, `rubbed`,
+  optional sourced `sound_changes`; 158 in all, and a pitched one, as the plucked strings' are,
+  gives its own sourced range), each built by a shape in `timbres.py` (`blown`, `plucked`, `struck`, `rubbed`,
   `drum`, `with_drones`) from overtone series (`falling_series`, `plucked_series`,
   `formant_series`); `tests/audio/test_instrument_catalog.py` renders every entry across its
   range and checks each harmonic one's pitch. `scripts/make_instrument_demos.py` writes WAVs
@@ -1362,7 +1387,7 @@ display before every present. The test guard judges what the window shows
 
 ### Event System
 
-**Event Flow**: `active_sources().pump_events()` (live: `pygame.event.get()`) → `GameEngine.process_events()` → `EVENT_HANDLERS[type]()` → `SceneManager.on_*_event()` → `Scene.on_*_event()` → `Sprite.on_*_event()`
+**Event Flow**: `active_sources().pump_events()` (live: `pygame.event.get()`) → `GameEngine.process_events()` → `engine.event_handlers[type]()` → `SceneManager.on_*_event()` → `Scene.on_*_event()` → `Sprite.on_*_event()`
 
 **Event Categories**:
 - Audio, Controller, Keyboard, Mouse, Window, Touch, Joystick, MIDI
@@ -1486,17 +1511,22 @@ Features:
 
 ### Resource Management
 
-**Fonts** (`src/glitchygames/fonts/`): `FontManager` singleton with Bitstream Vera fonts
+**Fonts** (`src/glitchygames/fonts/`): `FontManager` singleton (one per engine context) with
+Bitstream Vera fonts
 
 **Colors** (`src/glitchygames/color/`): Palettes (NES, SYSTEM, VGA) and constants
 
 **Game Objects** (`src/glitchygames/game_objects/`): Physics objects (Ball, Paddle)
 
-**Performance** (`src/glitchygames/performance/`): `AdaptiveClamping` for FPS monitoring
+**Performance** (`src/glitchygames/performance/`): `AdaptiveClamping` for FPS monitoring, one
+performance manager per engine context (`AdaptiveClamping()`; `performance_manager` is a
+read-only view): each game's FPS statistics and shutdown report are its own, an outer game's
+the aggregate of the games it steps
 
 ## Design Patterns
 
-- **Singleton**: `SceneManager` (one per engine context), `FontManager`
+- **Singleton**: `SceneManager`, `AdaptiveClamping`, the shared event managers and `FontManager`
+  (one per engine context)
 - **Observer**: `FrameManager` for animation frame changes
 - **Strategy**: Timer backends, display update modes, controller modes
 - **Proxy**: Event routing through `SceneManager` to `Scene`

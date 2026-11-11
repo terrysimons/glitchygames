@@ -8,7 +8,6 @@ from http import HTTPStatus
 from typing import Any
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE
-from glitchygames.sprites import BitmappySprite
 
 # Logger
 LOG = logging.getLogger('game.tools.bitmappy')
@@ -100,6 +99,3 @@ ai_training_state: dict[str, list[dict[str, Any]] | str | None] = {
     'data': [],
     'format': None,  # Will be detected from training files
 }
-
-# Turn on sprite debugging
-BitmappySprite.DEBUG = True

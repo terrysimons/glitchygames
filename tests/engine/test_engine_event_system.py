@@ -476,7 +476,8 @@ class TestNativeWindowMessages:
 
     def test_game_engine_event_manager_integration(self, engine, scene):
         """The engine's managers route to the scene manager, whose active scene is the game."""
-        assert engine.game is scene
+        assert engine.running_game.instance is scene
+        assert engine.game is type(scene)
         assert engine.scene_manager is SceneManager()
         assert engine.scene_manager.active_scene is scene
         for manager in (
