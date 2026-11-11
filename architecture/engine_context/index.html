@@ -1219,6 +1219,39 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#read-only-views" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Read-only views
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#guards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guards
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2977,12 +3010,19 @@
 <h1 id="engine-context">Engine Context<a class="headerlink" href="#engine-context" title="Permanent link">#</a></h1>
 <p>An engine context is the state one running game owns, so several games can run in one process
 (the Arcade's demo tiles; design: <code>plans/2026-10-25-engine-context.md</code>). Ordinary games never
-create one: they run in the default context, exactly as before. Only the nine slots below are
-per context today; the rest of the process-wide state (<code>GameEngine</code> and its <code>OPTIONS</code>,
-<code>SceneManager.OPTIONS</code>, <code>FontManager</code>, <code>ResourceManager</code>, the event managers and the other rows
-of the audit in <code>plans/2026-10-25-engine-context.md</code>) is still shared and belongs to later
-sub-plans. The engine does not switch contexts yet: nothing in <code>src/</code> calls <code>.active()</code>, only
-tests do.</p>
+create one: they run in the default context, exactly as before.</p>
+<p>What is per game today: the seventeen slots below, and the engine's and the scene manager's own
+attributes (an engine's <code>options</code>, <code>game</code>, <code>running_game</code>, <code>event_handlers</code> and its event
+bookkeeping; a scene manager's <code>engine_options</code>), which belong to the object, so two engines
+never share them. The old class-level names of that state (<code>GameEngine.OPTIONS</code>,
+<code>SceneManager.OPTIONS</code>, <code>Sprite.SPRITE_COUNT</code>, ...) are now read-only views of the current game's
+(below). What is still one per process is the audit's shared rows (S1-S20 in
+<code>plans/2026-10-25-engine-context.md</code>): the display and window services, the mixer and music,
+SDL's event queue and its blocked types, the joystick subsystem, the process services (signal
+handlers, the SDL environment, <code>pygame.init()</code>), the player's clipboard and files, and a few
+recursion guards and registries; later sub-plans keep an inner context off each of them. The
+engine does not run a game in another context yet; the one switch in <code>src/</code> is the sound-file
+loader's scratch context for building a file's waves (<code>src/glitchygames/audio/assets.py</code>).</p>
 <h2 id="rules">Rules<a class="headerlink" href="#rules" title="Permanent link">#</a></h2>
 <ol>
 <li>Per-context state is a <code>ContextSlot</code> (<code>src/glitchygames/engine_context.py</code>), declared once at
@@ -3005,6 +3045,8 @@ tests do.</p>
    (<code>glitchygames.audio.library.ENGINE_SOUND_CACHE</code>: the CRT power-on's, compiled once per
    process and shared by every context as read-only samples; each context makes its own <code>Sound</code>
    over them).</li>
+<li><code>current_engine()</code> (<code>glitchygames.engine</code>) is the engine made last in the current context,
+   until it shuts down; with none running it raises <code>NoRunningEngineError</code>.</li>
 </ol>
 <h2 id="what-belongs-to-a-context-today">What belongs to a context today<a class="headerlink" href="#what-belongs-to-a-context-today" title="Permanent link">#</a></h2>
 <table>
@@ -3061,10 +3103,253 @@ tests do.</p>
 <td><code>src/glitchygames/audio/engine.py</code></td>
 <td><code>SceneManager.audio</code>, <code>existing_audio_engine</code>, <code>install_audio_engine</code>, <code>discard_audio_engine</code></td>
 </tr>
+<tr>
+<td><code>'glitchygames.engine.game_engine.current_engine'</code></td>
+<td><code>src/glitchygames/engine/game_engine.py</code></td>
+<td><code>current_engine()</code> (the engine made last in the context; the <code>GameEngine</code> views read it)</td>
+</tr>
+<tr>
+<td><code>'glitchygames.recording.internal_posts'</code></td>
+<td><code>src/glitchygames/recording.py</code></td>
+<td><code>post_event</code>, <code>post_input_event</code>, <code>start_tracking_internal_posts</code>, <code>stop_tracking_internal_posts</code>, <code>reset_internal_post_tracking</code>, <code>forget_pending_posts</code>, <code>pending_internal_posts</code>, <code>live_game_posts</code>, <code>pending_code_post_count</code></td>
+</tr>
+<tr>
+<td><code>'glitchygames.performance.adaptive_clamping.managers'</code></td>
+<td><code>src/glitchygames/performance/adaptive_clamping.py</code></td>
+<td><code>AdaptiveClamping()</code> (the context's performance manager: its FPS statistics and shutdown report)</td>
+</tr>
+<tr>
+<td><code>'glitchygames.events.base.shared_instances'</code></td>
+<td><code>src/glitchygames/events/base.py</code></td>
+<td><code>ResourceManager()</code> subclasses (the shared event managers and the <code>FontManager</code>: one per class per engine context), <code>ResourceManager.release_shared_instances</code>, <code>release_shared_instance</code></td>
+</tr>
+<tr>
+<td><code>'glitchygames.fonts.font_manager.options'</code></td>
+<td><code>src/glitchygames/fonts/font_manager.py</code></td>
+<td><code>FontManager.OPTIONS</code> (a view of it), <code>FontManager.set_font_system</code>, <code>get_font_system</code></td>
+</tr>
+<tr>
+<td><code>'glitchygames.sprites.bitmappy_sprite.singletons'</code></td>
+<td><code>src/glitchygames/sprites/bitmappy_sprite.py</code></td>
+<td><code>Singleton()</code>, <code>SingletonBitmappySprite()</code>, <code>FocusableSingletonBitmappySprite()</code> (one per class per engine context)</td>
+</tr>
+<tr>
+<td><code>'glitchygames.events.base.unhandled_event_types'</code></td>
+<td><code>src/glitchygames/events/base.py</code></td>
+<td><code>unhandled_event</code> (the event types already logged under <code>--debug-events</code>)</td>
+</tr>
+<tr>
+<td><code>'glitchygames.sprites.sprite.counters'</code></td>
+<td><code>src/glitchygames/sprites/sprite.py</code></td>
+<td><code>sprite_counters()</code> (the sprite creation counters and breakpoints the teardown report logs), <code>Sprite.break_when</code></td>
+</tr>
 </tbody>
 </table>
 <p><code>tests/test_engine_context.py</code> proves, for every slot, that two contexts in one process never
 see each other's values; a slot added without such a check fails the suite.</p>
+<h2 id="read-only-views">Read-only views<a class="headerlink" href="#read-only-views" title="Permanent link">#</a></h2>
+<p>The class attributes that held one game's state are now read-only views. Each is read-only, the
+current game's, and <code>None</code> (or its empty default) outside a game; engine code reads the instance
+or the slot's owner function instead, and so does any code that writes.</p>
+<table>
+<thead>
+<tr>
+<th>View</th>
+<th>What it reads</th>
+<th>Outside a game</th>
+<th>Where to write</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GameEngine.game</code></td>
+<td>the current engine's game class (<code>engine.game</code>; the scene it built is <code>engine.running_game.instance</code>)</td>
+<td><code>None</code></td>
+<td>the engine's own: engine.game</td>
+</tr>
+<tr>
+<td><code>GameEngine.OPTIONS</code></td>
+<td>the current engine's parsed options</td>
+<td><code>None</code></td>
+<td>the engine's own: engine.options</td>
+</tr>
+<tr>
+<td><code>GameEngine.EVENT_HANDLERS</code></td>
+<td>the current engine's dispatch table, event type to bound handler</td>
+<td><code>None</code></td>
+<td>the engine's own: engine.event_handlers</td>
+</tr>
+<tr>
+<td><code>GameEngine.LAST_EVENT_MISS</code></td>
+<td>the <code>on_*_event</code> name the current engine last looked up and missed</td>
+<td><code>None</code></td>
+<td>the engine's own: engine.last_event_miss</td>
+</tr>
+<tr>
+<td><code>GameEngine.MISSING_EVENTS</code></td>
+<td>the handler names the current engine missed (each logged once)</td>
+<td><code>None</code></td>
+<td>the engine's own: engine.missing_events</td>
+</tr>
+<tr>
+<td><code>GameEngine.UNIMPLEMENTED_EVENTS</code></td>
+<td>the event types no handler of the current engine took (each logged once)</td>
+<td><code>None</code></td>
+<td>the engine's own: engine.unimplemented_events</td>
+</tr>
+<tr>
+<td><code>SceneManager.OPTIONS</code></td>
+<td>the current context's scene manager's copy of its engine's options (never makes a manager)</td>
+<td><code>None</code></td>
+<td>the manager's own: manager.engine_options (the game_engine setter sets it)</td>
+</tr>
+<tr>
+<td><code>FontManager.OPTIONS</code></td>
+<td>the current context's font options</td>
+<td>an empty dict</td>
+<td>the current context's font options in place (FontManager.OPTIONS.update(...)) or FontManager.set_font_system(...)</td>
+</tr>
+<tr>
+<td><code>Sprite.SPRITE_COUNTERS</code></td>
+<td>the current context's sprite counters, by sprite type</td>
+<td>an empty dict</td>
+<td>glitchygames.sprites.sprite.sprite_counters().counters</td>
+</tr>
+<tr>
+<td><code>Sprite.SPRITE_BREAKPOINTS</code></td>
+<td>the current context's sprite breakpoints (<code>Sprite.break_when</code>)</td>
+<td><code>None</code> (no breakpoints)</td>
+<td>a breakpoint with Sprite.break_when(...)</td>
+</tr>
+<tr>
+<td><code>Sprite.SPRITE_COUNT</code></td>
+<td>how many sprites the current context made</td>
+<td><code>0</code></td>
+<td>glitchygames.sprites.sprite.sprite_counters().count</td>
+</tr>
+<tr>
+<td><code>glitchygames.performance.performance_manager</code></td>
+<td><code>AdaptiveClamping()</code>, the current context's performance manager (made on first read)</td>
+<td>a fresh manager, with no statistics yet</td>
+<td>nothing: AdaptiveClamping() is the current context's manager; patch its methods</td>
+</tr>
+</tbody>
+</table>
+<p>Read on an instance, a class view answers that object's own state (<code>engine.OPTIONS</code> is
+<code>engine.options</code>). The rules (<code>src/glitchygames/read_only_views.py</code>):</p>
+<ul>
+<li>A view stores nothing: its functions run on every read.</li>
+<li>A view is declared in its class body (<code>ReadOnlyView</code>, or <code>ClassOnlyView</code> for a name each
+  instance keeps as its own attribute, <code>engine.game</code>). A module view is a name its module marks
+  in <code>READ_ONLY_MODULE_VIEWS</code> and answers in its <code>__getattr__</code>; a module <code>__getattr__</code> alone
+  (<code>glitchygames.audio</code>'s lazy <code>VoiceAssistant</code>) is not a view.</li>
+<li>Writing or deleting a view, on its class, an instance or its module, raises
+  <code>ReadOnlyViewError</code> naming where to write instead (the last column).</li>
+<li>A class-level read costs about 2.3 slot reads (Performance, below), so engine code never
+  reads a view: it reads its own objects (<code>self.options</code>, <code>self.event_handlers</code>), a slot once per
+  function into a local, or the owner function (<code>sprite_counters()</code>, <code>AdaptiveClamping()</code>).</li>
+</ul>
+<p><code>current_engine()</code> answers the engine itself, for code that has none at hand.</p>
+<h2 id="guards">Guards<a class="headerlink" href="#guards" title="Permanent link">#</a></h2>
+<ul>
+<li><code>tests/test_engine_context.py</code>: every slot's isolation check, the import-time read scan, and
+  that every test ends in the default context.</li>
+<li><code>tests/test_read_only_views.py</code>: every view has a check (two contexts each see their own value,
+  a fresh context reads <code>None</code> or the empty default, and writing it raises naming where to
+  write); the engine never reads a view; this page lists every view and where to write, and the
+  costs below stay within the gate.</li>
+<li><code>tests/test_process_state_guard.py</code>: the audit as an allowlist scan of the engine and every
+  member; module- or class-level mutable state that is neither a slot nor listed with its audit
+  row and reason fails the suite.</li>
+<li><code>tests/test_shared_font_cache_guard.py</code>: nothing changes a cached font's style in place, so the
+  process-wide font caches (audit row R9) stay safe to share.</li>
+<li><code>tests/test_suite_collection.py</code>: no living document writes a read-only view.</li>
+</ul>
+<p>Each game's performance report covers that game alone (its context's <code>AdaptiveClamping()</code>); an
+outer game that steps others (the Arcade's wrapper) reports the aggregate of every game it steps.</p>
+<h2 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">#</a></h2>
+<p>What each kind of read costs (Apple M4 Max, Python 3.14):</p>
+<table>
+<thead>
+<tr>
+<th>Read</th>
+<th>Cost per read</th>
+<th>Measured</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>attribute read</code></td>
+<td>30 ns</td>
+<td><code>engine.options</code>; Task 17, 2026-11-10, median (0.33 slot reads)</td>
+</tr>
+<tr>
+<td><code>instance property</code></td>
+<td>19 ns</td>
+<td><code>timeit</code>; the owner, 2026-10-28</td>
+</tr>
+<tr>
+<td><code>slot read</code></td>
+<td>90 ns</td>
+<td><code>current_context().value(slot=...)</code>; Task 17, 2026-11-10, median (the reference)</td>
+</tr>
+<tr>
+<td><code>read-only view</code></td>
+<td>210 ns</td>
+<td><code>GameEngine.OPTIONS</code> with an engine running; Task 17, 2026-11-10, median (2.32 slot reads)</td>
+</tr>
+<tr>
+<td><code>current_engine()</code></td>
+<td>113 ns</td>
+<td>Task 17, 2026-11-10, median (1.25 slot reads)</td>
+</tr>
+<tr>
+<td><code>context switch</code></td>
+<td>430 ns</td>
+<td><code>with context.active():</code> entered and left; <code>timeit</code>; the owner, 2026-10-28</td>
+</tr>
+</tbody>
+</table>
+<p>The four Task 17 rows are the medians of gate &copy;'s per-read benchmarks
+(<code>tests/benchmarks/test_engine_context_benchmarks.py</code>, <code>-k reading</code>, pytest-benchmark, one run on
+2026-11-10, the machine's one-minute load 5.2). Each benchmarked function makes one read, so each
+of those four medians includes the same one Python function call (about 18 ns: the attribute
+read's 30 ns here against 12 ns under <code>timeit</code>): they compare with each other, not with the two
+<code>timeit</code> rows, which have no call around the read. They replace Task 1's and Task 16's <code>timeit</code>
+best-of-five figures (slot read 61 ns, view 126 ns or 2.07 slot reads, <code>current_engine()</code> 79 ns or
+1.30 slot reads, attribute 12 ns).</p>
+<p>What they mean per frame:</p>
+<ul>
+<li>Engine code reads its own objects (<code>self.options</code>, <code>self.event_handlers</code>: the dispatch runs per
+  event), so those reads cost no more than before. What is new per frame: two slot reads per pump
+  (the internal-post tracker, <code>pending_internal_posts()</code> and <code>forget_pending_posts()</code>, about
+  50 ns more each than the old global), and one <code>clock.raw_counter_seconds()</code> per unpaced step,
+  which is BUGS.md #268's fix, not the contexts.</li>
+<li>The slot-backed state a frame reads (the doors, the random streams, the polled input, the frame
+  clock, the sprite counters, the internal-post tracker) costs roughly 1-3 µs a frame by the
+  plan's estimate (not counted read by read). Task 17 (2026-11-10) measured it against main before
+  the plan (cd60bd42), on a bare frame step of about 19-21 µs, in one informational longer pair
+  (~70-85k rounds each, load 5.6-5.7): the frame step about 0.6-1.7 µs more, and dispatching a
+  batch of two events about 0.3-1.2 µs more (minimum to median). That frame-step figure runs
+  <code>paced=False</code>, so it includes #268's clock read. In gate &copy;'s six short per-call pairs (two sets of
+  three, load 3.6-4.1), pytest-benchmark's 5% median check failed 3 of 6 for the frame step and
+  2 of 6 for event dispatch, never all three of a set, so not a regression by the gate's rule. In the games' goldens and bundled demos neither p50 nor
+  p99 moved beyond timer noise (gate (a)).</li>
+<li>The Arcade pays about 0.4 µs per game per tick for switching.</li>
+<li>Each game's performance report covers that game alone; an outer game's (the Arcade wrapper's)
+  is the aggregate of every game it steps.</li>
+</ul>
+<p>The rules that follow:</p>
+<ul>
+<li>Engine code never reads a view (<code>test_the_engine_never_reads_a_view</code> enforces it).</li>
+<li>Games, tools and tests may read views for convenience, but read their own object or a local in
+  a hot loop.</li>
+<li>Task 17's gate keeps the numbers honest and is never relaxed: the recordings A/B against the
+  base with behaviour unchanged, the per-call benchmarks, and each read's ratio to a slot read
+  (<code>READ_RATIO_LIMITS</code> in <code>tests/benchmarks/test_engine_context_benchmarks.py</code>: a view at most 4
+  slot reads, <code>current_engine()</code> at most 2; <code>tests/test_read_only_views.py</code> checks this table
+  against them).</li>
+</ul>
 
 
 

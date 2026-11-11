@@ -3026,8 +3026,12 @@ each frame's work without the pacing sleep), so a line moves only when the code 
 slower, or the machine changed. Times compare only on one machine: each machine (its CPU model)
 and kind of run is its own line. <a href="../../requirements/">Requirements</a> turns these measurements into a
 verdict per game for each measured machine.</p>
+<p>These measurements replay one game alone in its process. When several games share a process
+(the Arcade), each keeps its own FPS statistics and shutdown report, the outer game's covering
+the whole tick; the <a href="../../architecture/engine_context/#performance">engine context page's "Performance" section</a>
+says what contexts cost and how each game's report stays its own.</p>
 <p>Until a build generates them, this page has only this text.</p>
-<p>Generated from 339 ledger rows (2107 in the repository, 339 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
+<p>Generated from 360 ledger rows (2324 in the repository, 339 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
 <h2 id="latest-measurements">Latest measurements<a class="headerlink" href="#latest-measurements" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -3047,233 +3051,233 @@ verdict per game for each measured machine.</p>
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">1.709</td>
-<td style="text-align: right;">1.878</td>
-<td style="text-align: right;">5.174</td>
+<td style="text-align: right;">1.696</td>
+<td style="text-align: right;">1.884</td>
+<td style="text-align: right;">3.904</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">681 (473-12821)</td>
+<td style="text-align: right;">689 (498-12500)</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz</code></td>
 <td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">22.926</td>
-<td style="text-align: right;">24.227</td>
-<td style="text-align: right;">47.197</td>
+<td style="text-align: right;">22.924</td>
+<td style="text-align: right;">24.300</td>
+<td style="text-align: right;">47.774</td>
 <td style="text-align: right;">421</td>
-<td style="text-align: right;">50 (39-503)</td>
+<td style="text-align: right;">50 (39-447)</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz</code></td>
 <td>Raspberry Pi 5 Model B Rev 1.1, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">7.469</td>
-<td style="text-align: right;">8.876</td>
-<td style="text-align: right;">19.041</td>
-<td style="text-align: right;">1</td>
-<td style="text-align: right;">157 (111-1209)</td>
+<td style="text-align: right;">6.613</td>
+<td style="text-align: right;">7.433</td>
+<td style="text-align: right;">16.261</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">175 (127-1401)</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">1.743</td>
-<td style="text-align: right;">2.201</td>
-<td style="text-align: right;">3.877</td>
+<td style="text-align: right;">1.703</td>
+<td style="text-align: right;">2.060</td>
+<td style="text-align: right;">3.778</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">662 (475-12346)</td>
+<td style="text-align: right;">686 (500-12821)</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz</code></td>
 <td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">23.204</td>
-<td style="text-align: right;">26.181</td>
-<td style="text-align: right;">47.696</td>
+<td style="text-align: right;">23.083</td>
+<td style="text-align: right;">26.089</td>
+<td style="text-align: right;">48.573</td>
 <td style="text-align: right;">421</td>
-<td style="text-align: right;">49 (39-485)</td>
+<td style="text-align: right;">50 (39-464)</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz</code></td>
 <td>Raspberry Pi 5 Model B Rev 1.1, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">7.681</td>
-<td style="text-align: right;">8.862</td>
-<td style="text-align: right;">19.203</td>
-<td style="text-align: right;">1</td>
-<td style="text-align: right;">151 (108-1215)</td>
+<td style="text-align: right;">6.372</td>
+<td style="text-align: right;">7.461</td>
+<td style="text-align: right;">16.647</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">182 (134-1603)</td>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">532</td>
-<td style="text-align: right;">0.421</td>
-<td style="text-align: right;">0.815</td>
-<td style="text-align: right;">2.855</td>
+<td style="text-align: right;">0.408</td>
+<td style="text-align: right;">0.705</td>
+<td style="text-align: right;">2.872</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">2324 (1133-12048)</td>
+<td style="text-align: right;">2428 (1232-12346)</td>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">532</td>
-<td style="text-align: right;">6.149</td>
-<td style="text-align: right;">9.028</td>
-<td style="text-align: right;">36.109</td>
+<td style="text-align: right;">6.415</td>
+<td style="text-align: right;">9.281</td>
+<td style="text-align: right;">36.262</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">163 (98-406)</td>
+<td style="text-align: right;">157 (95-481)</td>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 5 Model B Rev 1.1, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">532</td>
-<td style="text-align: right;">1.843</td>
-<td style="text-align: right;">2.970</td>
-<td style="text-align: right;">16.064</td>
+<td style="text-align: right;">1.721</td>
+<td style="text-align: right;">3.216</td>
+<td style="text-align: right;">14.453</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">526 (281-1218)</td>
+<td style="text-align: right;">558 (278-1689)</td>
 </tr>
 <tr>
 <td><code>src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">1614</td>
-<td style="text-align: right;">0.409</td>
-<td style="text-align: right;">0.588</td>
-<td style="text-align: right;">4.769</td>
+<td style="text-align: right;">0.395</td>
+<td style="text-align: right;">0.563</td>
+<td style="text-align: right;">4.727</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">2456 (1546-5348)</td>
+<td style="text-align: right;">2494 (1590-5236)</td>
 </tr>
 <tr>
 <td><code>src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">1614</td>
-<td style="text-align: right;">5.497</td>
-<td style="text-align: right;">7.071</td>
-<td style="text-align: right;">42.171</td>
+<td style="text-align: right;">5.448</td>
+<td style="text-align: right;">7.075</td>
+<td style="text-align: right;">41.807</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">182 (133-294)</td>
+<td style="text-align: right;">184 (133-299)</td>
 </tr>
 <tr>
 <td><code>src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 5 Model B Rev 1.1, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">1614</td>
-<td style="text-align: right;">1.509</td>
-<td style="text-align: right;">2.046</td>
-<td style="text-align: right;">13.965</td>
+<td style="text-align: right;">1.444</td>
+<td style="text-align: right;">1.916</td>
+<td style="text-align: right;">12.861</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">653 (456-1031)</td>
+<td style="text-align: right;">691 (485-1121)</td>
 </tr>
 <tr>
 <td><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">2072</td>
-<td style="text-align: right;">0.683</td>
-<td style="text-align: right;">0.971</td>
-<td style="text-align: right;">4.085</td>
+<td style="text-align: right;">0.636</td>
+<td style="text-align: right;">0.792</td>
+<td style="text-align: right;">3.767</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">1481 (1025-6757)</td>
+<td style="text-align: right;">1612 (1206-7194)</td>
 </tr>
 <tr>
 <td><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">2072</td>
-<td style="text-align: right;">9.150</td>
-<td style="text-align: right;">13.070</td>
-<td style="text-align: right;">37.671</td>
+<td style="text-align: right;">9.087</td>
+<td style="text-align: right;">12.986</td>
+<td style="text-align: right;">38.397</td>
 <td style="text-align: right;">2</td>
-<td style="text-align: right;">110 (77-341)</td>
+<td style="text-align: right;">111 (77-328)</td>
 </tr>
 <tr>
 <td><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 5 Model B Rev 1.1, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">2072</td>
-<td style="text-align: right;">4.098</td>
-<td style="text-align: right;">5.664</td>
-<td style="text-align: right;">18.192</td>
-<td style="text-align: right;">2</td>
-<td style="text-align: right;">247 (183-682)</td>
+<td style="text-align: right;">3.396</td>
+<td style="text-align: right;">4.753</td>
+<td style="text-align: right;">14.429</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">300 (218-1025)</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">450</td>
-<td style="text-align: right;">0.089</td>
-<td style="text-align: right;">0.253</td>
-<td style="text-align: right;">0.385</td>
+<td style="text-align: right;">0.087</td>
+<td style="text-align: right;">0.165</td>
+<td style="text-align: right;">0.299</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">10486 (5000-19231)</td>
+<td style="text-align: right;">11318 (6803-18519)</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code></td>
 <td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">450</td>
-<td style="text-align: right;">1.161</td>
-<td style="text-align: right;">1.659</td>
-<td style="text-align: right;">2.873</td>
+<td style="text-align: right;">1.173</td>
+<td style="text-align: right;">1.624</td>
+<td style="text-align: right;">2.842</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">870 (593-1372)</td>
+<td style="text-align: right;">866 (603-1333)</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code></td>
 <td>Raspberry Pi 5 Model B Rev 1.1, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">450</td>
-<td style="text-align: right;">0.235</td>
-<td style="text-align: right;">0.409</td>
-<td style="text-align: right;">1.299</td>
+<td style="text-align: right;">0.233</td>
+<td style="text-align: right;">0.366</td>
+<td style="text-align: right;">1.198</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">4216 (2457-7353)</td>
+<td style="text-align: right;">4278 (2545-7246)</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">622</td>
 <td style="text-align: right;">0.089</td>
-<td style="text-align: right;">0.207</td>
-<td style="text-align: right;">3.384</td>
+<td style="text-align: right;">0.213</td>
+<td style="text-align: right;">3.250</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">9834 (3425-18519)</td>
+<td style="text-align: right;">9993 (3623-18519)</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">622</td>
-<td style="text-align: right;">1.251</td>
-<td style="text-align: right;">2.270</td>
-<td style="text-align: right;">32.326</td>
+<td style="text-align: right;">1.238</td>
+<td style="text-align: right;">2.262</td>
+<td style="text-align: right;">33.361</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">733 (300-1309)</td>
+<td style="text-align: right;">741 (297-1359)</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 5 Model B Rev 1.1, unpaced replay</td>
-<td><code>857a71f</code></td>
+<td><code>296bf87</code></td>
 <td style="text-align: right;">622</td>
-<td style="text-align: right;">0.256</td>
-<td style="text-align: right;">0.926</td>
-<td style="text-align: right;">13.723</td>
+<td style="text-align: right;">0.249</td>
+<td style="text-align: right;">1.178</td>
+<td style="text-align: right;">12.752</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">2949 (737-7353)</td>
+<td style="text-align: right;">2982 (701-7299)</td>
 </tr>
 </tbody>
 </table>

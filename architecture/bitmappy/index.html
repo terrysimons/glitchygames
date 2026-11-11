@@ -3175,7 +3175,7 @@ is the editor's own code (<code>src/apps/bitmappy/src/bitmappy/</code>); the Eng
         SM-&gt;&gt;BES: _update_scene() (Scene.dt_tick: logic and collision)
         SM-&gt;&gt;GE: _process_events()
         GE-&gt;&gt;GE: _pump_events() (active_sources().pump_events(): live, pygame.event.get())
-        GE-&gt;&gt;SM: EVENT_HANDLERS[event.type](event)
+        GE-&gt;&gt;SM: event_handlers[event.type](event)
         SM-&gt;&gt;BES: on_*_event(event)
         SM-&gt;&gt;SM: _run_supervisor_slot() (supervisors, e.g. a recording's)
         SM-&gt;&gt;SM: _update_frame_services() (shake, rumble)
@@ -3272,7 +3272,7 @@ falls to is the engine's):</p>
 <pre class="mermaid"><code>flowchart TD
     SDL["SDL Event"] --&gt; GE
     subgraph ENGINE_BITMAPPY_EVENT_FLOW["Engine"]
-        GE["GameEngine\nO#40;1#41; EVENT_HANDLERS lookup"]
+        GE["GameEngine\nO#40;1#41; event_handlers lookup"]
         GE --&gt; MGR["Event Manager\ne.g. MouseEventManager"]
         MGR --&gt;|"updates state,\nsynthesizes events"| SM["SceneManager\nforwards to active_scene"]
         STUB["No handler?\nThe stub calls unhandled_event#40;#41;"]
@@ -3319,14 +3319,14 @@ boxes; the Bitmappy box holds the editor's own sprites.</p>
 <h2 id="event-flow">Event Flow<a class="headerlink" href="#event-flow" title="Permanent link">#</a></h2>
 <p>How pygame events propagate through the system: from <code>GameEngine._pump_events()</code> (live:
 <code>pygame.event.get()</code>) through
-the <code>EVENT_HANDLERS</code> dispatch table, into specialized event managers, through the
+the engine's own <code>event_handlers</code> dispatch table, into specialized event managers, through the
 scene manager, and finally into Bitmappy's scene and sprite handlers. The top Engine box is the
 dispatch every game gets, the Bitmappy box is the editor's handlers, and the bottom Engine box is
 the engine's UI widgets (<code>glitchygames.ui</code>) the editor's clicks reach.</p>
 <pre class="mermaid"><code>flowchart TD
     subgraph ENGINE_BITMAPPY_DISPATCH["Engine"]
         PG["GameEngine._pump_events()\nactive_sources().pump_events()"] --&gt; GE["GameEngine.process_events()"]
-        GE --&gt; EH{"EVENT_HANDLERS[event.type]"}
+        GE --&gt; EH{"event_handlers[event.type]"}
 
         EH --&gt;|KEYDOWN| KEM["KeyboardEventManager"]
         EH --&gt;|MOUSEBUTTONDOWN| MEM["MouseEventManager"]
@@ -3448,7 +3448,7 @@ every step; the Bitmappy box is the editor's <code>update()</code>, which step 7
     subgraph ENGINE_BITMAPPY_FRAME["Engine"]
         BEGIN["1. camera.begin_frame()\nclear the camera's update and shake-advance flags"] --&gt; LOGIC
         LOGIC["2. _update_scene()\nScene.dt_tick(dt): logic, animation, collision\n(dt capped by MAX_FRAME_SECONDS when set)"] --&gt; EVENTS
-        EVENTS["3. _process_events(), then _run_supervisor_slot()\nEVENT_HANDLERS dict - O(1) lookup\nBitmapEditorScene handlers modify sprites"] --&gt; SERVICES
+        EVENTS["3. _process_events(), then _run_supervisor_slot()\nthe engine's event_handlers dict - O(1) lookup\nBitmapEditorScene handlers modify sprites"] --&gt; SERVICES
         SERVICES["4. _update_frame_services()\nshake and rumble"] --&gt; AIM
         AIM["5. _aim_active_camera()\ncamera_target() / follow target\n(skipped when the scene was switched mid-frame)"] --&gt; POSITION
         POSITION["6. _position_active_world_sprites()\nworld sprites' rect from the camera, culling\n(screen-space sprites untouched)"] --&gt; RENDER

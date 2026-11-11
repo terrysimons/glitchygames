@@ -3605,8 +3605,8 @@ state and synthesize higher-level events, through the scene manager, and finally
 into scenes and sprites.</p>
 <h2 id="event-dispatch-overview">Event Dispatch Overview<a class="headerlink" href="#event-dispatch-overview" title="Permanent link">#</a></h2>
 <p>The path an event takes from SDL to your scene's handler. Every event family follows the same
-path; the <code>EVENT_HANDLERS</code> dict picks the family's method in one lookup (the table below says
-which method each event type gets). The Engine box is the same for every game; the Your game box
+path; the engine's <code>event_handlers</code> dict picks the family's method in one lookup (the table
+below says which method each event type gets). The Engine box is the same for every game; the Your game box
 is where your scene's and sprites' code runs.</p>
 <pre class="mermaid"><code>%%{init: {"flowchart": {"wrappingWidth": 400}}}%%
 flowchart TB
@@ -3615,7 +3615,7 @@ flowchart TB
         PATH_PUMP["active_sources().pump_events()&lt;br/&gt;(live: pygame.event.get())"]
         PATH_PUMP --&gt; PATH_PROCESS["GameEngine.process_events()"]
         PATH_PROCESS --&gt; PATH_WRAP["HashableEvent.from_pygame()"]
-        PATH_WRAP --&gt; PATH_LOOKUP{"EVENT_HANDLERS[event.type]"}
+        PATH_WRAP --&gt; PATH_LOOKUP{"event_handlers[event.type]"}
         PATH_LOOKUP --&gt;|"no entry, or not handled"| PATH_UNHANDLED["process_unimplemented_event()&lt;br/&gt;counted in unhandled_events"]
         PATH_LOOKUP --&gt; PATH_FAMILY["GameEngine.process_family_event()&lt;br/&gt;(one per event family, table below)"]
         PATH_FAMILY --&gt; PATH_MANAGER["the family's event manager"]
@@ -3754,7 +3754,7 @@ flowchart TD
     BLOCKED --&gt;|"Yes"| ZERO["Filtered by SDL\nNever enters pipeline\nCost: zero"]
     BLOCKED --&gt;|"No"| WRAP
     subgraph ENGINE_TIERS["Engine"]
-        WRAP["Wrap as HashableEvent\nO#40;1#41; EVENT_HANDLERS lookup"]
+        WRAP["Wrap as HashableEvent\nO#40;1#41; event_handlers lookup"]
         WRAP --&gt; STUB{"Scene overrides\nthe handler?"}
         STUB --&gt;|"No — hits stub"| UH["unhandled_event#40;#41;&lt;br/&gt;raises UnhandledEventError when options#91;'no_unhandled_events'#93; is set&lt;br/&gt;#40;the --no-unhandled-events argument#41;,&lt;br/&gt;else logs a warning once per event type when options#91;'debug_events'#93; is on&lt;br/&gt;#40;the --debug-events flag, off by default#41;"]
     end
@@ -3792,7 +3792,7 @@ flowchart TD
 </tr>
 </tbody>
 </table>
-<p>The <code>EVENT_HANDLERS</code> dict lookup is O(1) for all events that reach the pipeline,
+<p>The <code>event_handlers</code> dict lookup is O(1) for all events that reach the pipeline,
 but every unblocked event still travels the dispatch path (wrap in
 <code>HashableEvent</code>, dict lookup, proxy forwarding). To eliminate that cost entirely,
 block the event at the pygame level with <code>pygame.event.set_blocked()</code>.</p>
@@ -3934,7 +3934,7 @@ and forwards calls to the game object.</p>
 <pre class="mermaid"><code>classDiagram
     direction LR
     class ResourceManager {
-        +__instances__ dict
+        +SHARED_INSTANCES_SLOT per context
         +proxies list
         +SHARES_INSTANCE bool
         +__new__() returns the shared instance
@@ -4219,8 +4219,9 @@ the joystick and controller managers, the game):</p>
 <p>Managers without a pygame subsystem in their proxy list (like <code>DropEventManager</code>)
 only forward events — <code>__getattr__</code> falls through to the game object.</p>
 <h3 id="shared-instances">Shared instances<a class="headerlink" href="#shared-instances" title="Permanent link">#</a></h3>
-<p><code>ResourceManager.__new__</code> maintains a class-level <code>__instances__</code> dict keyed by
-concrete class type. Constructing <code>MouseEventManager(game)</code> a second time returns
+<p><code>ResourceManager.__new__</code> keeps the shared instances in the current engine context
+(<code>SHARED_INSTANCES_SLOT</code>, <code>src/glitchygames/events/base.py</code>), keyed by concrete class type: one
+per class per engine context. Constructing <code>MouseEventManager(game)</code> a second time returns
 the original instance as it is: <code>ResourceManager.__init_subclass__</code> wraps each class's
 <code>__init__</code> so a shared instance is initialized once (BUGS.md #198: Python runs <code>__init__</code>
 on whatever <code>__new__</code> returns, so a second construction rebuilt the manager for
@@ -4228,9 +4229,10 @@ on whatever <code>__new__</code> returns, so a second construction rebuilt the m
 <p>A class with <code>SHARES_INSTANCE = False</code> gets a new instance at every construction: the
 proxies (a manager owns its own; the controller manager one per controller) and
 <code>EventManager</code> (<code>GameEngine</code>, made for each run, and <code>SceneManager</code>, whose own <code>__new__</code>
-keeps its singleton). Each engine run calls <code>ResourceManager.release_shared_instances()</code>
-before it makes its managers, so a second engine in one process (a recording, then its
-replay) builds its own, opening devices through its own doors.</p>
+keeps one per engine context). Each engine run calls
+<code>ResourceManager.release_shared_instances()</code> (the current context's) before it makes its
+managers, so a second engine in one process (a recording, then its replay) builds its own,
+opening devices through its own doors.</p>
 <h2 id="hashableevent-wrapper">HashableEvent Wrapper<a class="headerlink" href="#hashableevent-wrapper" title="Permanent link">#</a></h2>
 <p>Raw pygame events are converted to <code>HashableEvent</code> (<code>HashableEvent.from_pygame</code>) to
 enable hashing, immutability and serialization. This is the universal event type
@@ -4363,7 +4365,7 @@ real handler.</p>
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>(1 log call total, then 0 per frame)
 </code></pre></div>
 <p>Separately, <code>GameEngine.process_unimplemented_event</code> handles events that no
-<code>process_*_event</code> method dispatched (types with no <code>EVENT_HANDLERS</code> entry, or a
+<code>process_*_event</code> method dispatched (types with no <code>event_handlers</code> entry, or a
 handler that returned False): it counts each type in <code>GameEngine.unhandled_events</code>
 (count, first-seen time, attribute names) and the engine logs that table at
 teardown.</p>
@@ -5818,7 +5820,8 @@ sticks, 0 to 32767 for triggers.</p>
 <h2 id="unhandled-event-safety-net">Unhandled Event Safety Net<a class="headerlink" href="#unhandled-event-safety-net" title="Permanent link">#</a></h2>
 <p>When an event has no handler, the stub system catches it. The behavior is
 configurable: silent, logged, or error-raising (used in tests).</p>
-<p>Both settings come from the command line, through the scene's <code>options</code> (<code>GameEngine.OPTIONS</code>):
+<p>Both settings come from the command line, through the scene's <code>options</code> (the engine's own
+<code>engine.options</code>; <code>GameEngine.OPTIONS</code> is the current game's, read-only):
 <code>no_unhandled_events</code> is the <code>--no-unhandled-events</code> argument (Game Options), and <code>debug_events</code>
 is the <code>--debug-events</code> flag (Diagnostics Options, off by default: a run opts in to the warnings).
 A replay keeps its own <code>--debug-events</code>, never the recording's (<code>REPLAY_LOCAL_OPTIONS</code>).</p>
@@ -5909,11 +5912,13 @@ in the Bitmappy pixel art editor. The editor is Bitmappy's; the dialogs are the 
     BitmapEditorScene --&gt; [*] : User closes window (QUIT), or releases Q/Escape with nothing focused</code></pre>
 <p>Every transition goes through <code>SceneManager.switch_to_scene()</code>. Dialog scenes
 (<code>src/glitchygames/ui/dialogs.py</code>) store a reference to <code>previous_scene</code> so they can
-return to the editor when the user confirms or cancels. The SceneManager itself is a singleton — there is only
+return to the editor when the user confirms or cancels. The SceneManager itself is a singleton (one per engine context) — there is only
 one <code>active_scene</code> at a time, and only that scene receives events.</p>
 <h2 id="event_handlers-dict-construction">EVENT_HANDLERS Dict Construction<a class="headerlink" href="#event_handlers-dict-construction" title="Permanent link">#</a></h2>
-<p>The <code>EVENT_HANDLERS</code> dict (a class attribute of <code>GameEngine</code>) is built once during
-<code>GameEngine.__init__()</code> by <code>initialize_event_handlers()</code>. This pre-computation avoids per-event
+<p>Each engine's own <code>event_handlers</code> dict (<code>engine.event_handlers</code>; <code>GameEngine.EVENT_HANDLERS</code> is
+the current game's, read-only) is built once during <code>GameEngine.__init__()</code> by
+<code>initialize_event_handlers()</code>, so two engines in one process (two engine contexts) never share
+one. This pre-computation avoids per-event
 if/elif chains, giving O(1) dispatch.</p>
 <h3 id="how-its-built">How it's built<a class="headerlink" href="#how-its-built" title="Permanent link">#</a></h3>
 <p>At startup, <code>initialize_event_handlers()</code> iterates over each event category's
@@ -5995,10 +6000,10 @@ category's handler method; each <code>process_*_event</code> then picks the mana
 the type and returns whether it handled it.</p>
 <h3 id="how-it-dispatches-at-runtime">How it dispatches at runtime<a class="headerlink" href="#how-it-dispatches-at-runtime" title="Permanent link">#</a></h3>
 <pre class="mermaid"><code>flowchart LR
-    EVENT["Incoming event\nevent.type = 768\n#40;KEYDOWN#41;"] --&gt; LOOKUP["EVENT_HANDLERS#91;768#93;"]
+    EVENT["Incoming event\nevent.type = 768\n#40;KEYDOWN#41;"] --&gt; LOOKUP["self.event_handlers#91;768#93;"]
     LOOKUP --&gt; HANDLER["process_keyboard_event#40;event#41;"]</code></pre>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-88-1" name="__codelineno-88-1" href="#__codelineno-88-1"></a><span class="c1"># What the dict looks like after construction:</span>
-<a id="__codelineno-88-2" name="__codelineno-88-2" href="#__codelineno-88-2"></a><span class="n">EVENT_HANDLERS</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-88-2" name="__codelineno-88-2" href="#__codelineno-88-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">event_handlers</span> <span class="o">=</span> <span class="p">{</span>
 <a id="__codelineno-88-3" name="__codelineno-88-3" href="#__codelineno-88-3"></a>    <span class="mi">768</span><span class="p">:</span> <span class="n">process_keyboard_event</span><span class="p">,</span>   <span class="c1"># KEYDOWN</span>
 <a id="__codelineno-88-4" name="__codelineno-88-4" href="#__codelineno-88-4"></a>    <span class="mi">769</span><span class="p">:</span> <span class="n">process_keyboard_event</span><span class="p">,</span>   <span class="c1"># KEYUP</span>
 <a id="__codelineno-88-5" name="__codelineno-88-5" href="#__codelineno-88-5"></a>    <span class="mi">1024</span><span class="p">:</span> <span class="n">process_mouse_event</span><span class="p">,</span>     <span class="c1"># MOUSEMOTION</span>
@@ -6009,8 +6014,8 @@ the type and returns whether it handled it.</p>
 <a id="__codelineno-88-10" name="__codelineno-88-10" href="#__codelineno-88-10"></a>
 <a id="__codelineno-88-11" name="__codelineno-88-11" href="#__codelineno-88-11"></a><span class="c1"># Runtime dispatch in GameEngine.process_events — O(1) lookup:</span>
 <a id="__codelineno-88-12" name="__codelineno-88-12" href="#__codelineno-88-12"></a><span class="n">event_was_handled</span> <span class="o">=</span> <span class="kc">False</span>
-<a id="__codelineno-88-13" name="__codelineno-88-13" href="#__codelineno-88-13"></a><span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">type</span> <span class="ow">in</span> <span class="n">GameEngine</span><span class="o">.</span><span class="n">EVENT_HANDLERS</span><span class="p">:</span>
-<a id="__codelineno-88-14" name="__codelineno-88-14" href="#__codelineno-88-14"></a>    <span class="n">event_was_handled</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">GameEngine</span><span class="o">.</span><span class="n">EVENT_HANDLERS</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">type</span><span class="p">](</span><span class="n">event</span><span class="p">))</span>
+<a id="__codelineno-88-13" name="__codelineno-88-13" href="#__codelineno-88-13"></a><span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_handlers</span><span class="p">:</span>
+<a id="__codelineno-88-14" name="__codelineno-88-14" href="#__codelineno-88-14"></a>    <span class="n">event_was_handled</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">event_handlers</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">type</span><span class="p">](</span><span class="n">event</span><span class="p">))</span>
 <a id="__codelineno-88-15" name="__codelineno-88-15" href="#__codelineno-88-15"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">event_was_handled</span><span class="p">:</span>
 <a id="__codelineno-88-16" name="__codelineno-88-16" href="#__codelineno-88-16"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">process_unimplemented_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
 </code></pre></div>

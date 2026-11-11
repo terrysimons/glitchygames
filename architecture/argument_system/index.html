@@ -3156,7 +3156,7 @@ adds layers 1 and 2, the Bitmappy box layer 3, and argparse's <code>ArgumentPars
     Note over GAME: Layer 3&lt;br/&gt;-v, -s
     INIT-&gt;&gt;PARSER: parse_args()
     PARSER--&gt;&gt;INIT: the parsed options
-    Note over INIT: GameEngine.OPTIONS = the options&lt;br/&gt;target_fps resolved&lt;br/&gt;game.options = OPTIONS</code></pre>
+    Note over INIT: engine.options = the options&lt;br/&gt;target_fps resolved</code></pre>
 <p>Every option each layer adds is listed in the <a href="#complete-flag-reference">Complete Flag Reference</a>.</p>
 <h2 id="the-argument-group-hierarchy">The Argument Group Hierarchy<a class="headerlink" href="#the-argument-group-hierarchy" title="Permanent link">#</a></h2>
 <p>Each layer adds its own <code>add_argument_group()</code>, so <code>--help</code> shows clearly separated sections, in
@@ -3227,23 +3227,26 @@ shows it; the default warning does not) and continues.</p>
 game arguments appear under their own heading in <code>--help</code> output.</p>
 <h2 id="options-dictionary-flow">OPTIONS Dictionary Flow<a class="headerlink" href="#options-dictionary-flow" title="Permanent link">#</a></h2>
 <p>After parsing, the <code>Namespace</code> is converted to a plain dict and propagated to
-every component that needs it.</p>
+every component that needs it. Each engine keeps its own (<code>engine.options</code>), and its scene
+manager its own copy (<code>manager.engine_options</code>), so two games in one process (two engine
+contexts) never share options; <code>GameEngine.OPTIONS</code> and <code>SceneManager.OPTIONS</code> are read-only
+views of the current game's (<a href="../engine_context/#read-only-views">Engine Context</a>). The game's
+class keeps none: it is shared by every context.</p>
 <pre class="mermaid"><code>flowchart TD
     PARSE["parser.parse_args()"] --&gt; VARS["vars(args)\nNamespace -&gt; dict"]
-    VARS --&gt; OPT["GameEngine.OPTIONS (class var)"]
+    VARS --&gt; OPT["engine.options (the engine's own)"]
 
-    OPT --&gt; FPS["OPTIONS['target_fps'] resolved\n(--target-fps, else the game's TARGET_FPS, else 60.01)"]
-    FPS --&gt; BACKPROP["game.options = OPTIONS"]
-    BACKPROP --&gt; SM_OPT["SceneManager.OPTIONS = OPTIONS"]
-    SM_OPT --&gt; SCENE_INIT["Scene.__init__(options=OPTIONS)"]
-    SCENE_INIT --&gt; SELF_OPT["self.options = OPTIONS"]
+    OPT --&gt; FPS["options['target_fps'] resolved\n(--target-fps, else the game's TARGET_FPS, else 60.01)"]
+    FPS --&gt; SM_OPT["manager.engine_options = engine.options\n(the game_engine setter)"]
+    SM_OPT --&gt; SCENE_INIT["Scene.__init__(options=engine.options)"]
+    SCENE_INIT --&gt; SELF_OPT["self.options = options"]
 
     subgraph Access["Runtime Access"]
         A1["self.options['target_fps']"]
         A2["self.options['font_name']"]
         A3["self.options['log_level']"]
         A4["self.options['debug_events']"]
-        A5["GameEngine.OPTIONS['resolution']"]
+        A5["engine.options['resolution']"]
     end
 
     SELF_OPT --&gt; Access</code></pre>
@@ -3335,8 +3338,8 @@ replay are described in <a href="../gameplay_replay/">Gameplay Recording and Rep
 from <code>--help</code>: the watched replay's restart internals.</p>
 <ul>
 <li><code>--log-timer-jitter</code> (<code>store_true</code>, default <code>False</code>): log frame pacing jitter statistics periodically</li>
-<li><code>--perf-trim-percent PERF_TRIM_PERCENT</code> (<code>float</code>, default <code>5.0</code>): percent of frames to trim from top and bottom in global FPS report</li>
-<li><code>--fps-histogram {equal-range,target-relative}</code> (<code>choice</code>, default <code>equal-range</code>): FPS histogram buckets in the shutdown report: equal-range (10 equal buckets spanning the analyzed min to max, default) or target-relative (10% steps of the target FPS)</li>
+<li><code>--perf-trim-percent PERF_TRIM_PERCENT</code> (<code>float</code>, default <code>5.0</code>): percent of frames to trim from top and bottom in the game's global FPS report</li>
+<li><code>--fps-histogram {equal-range,target-relative}</code> (<code>choice</code>, default <code>equal-range</code>): FPS histogram buckets in the game's shutdown report: equal-range (10 equal buckets spanning the analyzed min to max, default) or target-relative (10% steps of the target FPS)</li>
 <li><code>--debug-overlay, --no-debug-overlay</code> (<code>bool</code>, default <code>False</code>): show the debug overlay at startup (F3 toggles, F4 cycles panels)</li>
 <li><code>--sound-diagnostics</code> (<code>store_true</code>, default <code>False</code>): start with the debug overlay on, showing the Audio panel (replay-local)</li>
 <li><code>--debug-events</code> (<code>store_true</code>, default <code>False</code>): log a warning the first time each unhandled event type arrives (--no-unhandled-events raises on one instead)</li>
