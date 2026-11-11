@@ -573,8 +573,12 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   and opens nothing. Each device's input events reach handlers from its `event_layer` only (the
   controller layer if mapped, else the joystick layer): the other layer's are dropped, so each
   press arrives once. `--input-mode` filters: `auto` (default) all, `joystick` joystick layers
-  only (controller events blocked), `controller` mapped pads only. Tests use stand-in devices
-  through the door (`tests/input/stand_in_devices.py`). `--list-input-devices`
+  only (controller events blocked), `controller` mapped pads only. Stand-in devices
+  (`src/glitchygames/input/stand_in_devices.py`: doors and a registry that answer as SDL would
+  and hand a recorder what they opened) go through the door: tests use them (their
+  descriptors in `tests/input/stand_in_devices.py`), and a scripted session records a game
+  played on one (`record_scripted_session(stand_in_devices=[...])`, `GoldenTraceEngine`'s
+  `stand_in_devices`; its pad events reach the snapshot with `polled_input`). `--list-input-devices`
   (`src/glitchygames/input/device_listing.py`) replaces the run: it counts devices before SDL's
   queue is pumped (what the managers' startup count sees), listens a second keeping each
   device added/removed event with its time (macOS reports connected pads as device-added

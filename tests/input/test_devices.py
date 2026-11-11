@@ -19,6 +19,13 @@ from glitchygames.input.devices import (
 )
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.live_sources import LiveSources
+from glitchygames.sources import active_sources
+from tests.input.stand_in_devices import (
+    STAND_IN_PAD,
+    STAND_IN_STICK,
+    install_stand_in_devices,
+    stand_in_registry,
+)
 
 PAD = DeviceDescriptor(
     kind='joystick',
@@ -703,3 +710,56 @@ def test_import_sdl_controller_module_is_none_when_it_cannot_import(mocker, capl
         assert _import_sdl_controller_module() is None
 
     assert 'pygame._sdl2.controller is unavailable' in caplog.text
+
+
+def test_a_stand_in_registry_hands_a_recorder_what_it_opened_and_answered():
+    """Stand-ins tell a recorder their answers and opened devices once each, as live play does."""
+    registry = stand_in_registry(descriptors=[STAND_IN_STICK, STAND_IN_PAD])
+
+    count = registry.joystick_count()
+    controllers = registry.controller_count()
+    stick_is_controller = registry.is_controller(device_index=STAND_IN_STICK.device_index)
+    pad_name = registry.name_for_index(device_index=STAND_IN_PAD.device_index)
+    registry.open_joystick(device_index=STAND_IN_STICK.device_index)
+    registry.open_controller(device_index=STAND_IN_PAD.device_index)
+
+    assert (count, controllers, stick_is_controller) == (2, 2, False)
+    assert pad_name == STAND_IN_PAD.name
+    assert registry.take_opened_descriptors() == [STAND_IN_STICK, STAND_IN_PAD]
+    assert registry.take_enumeration_answers() == [
+        EnumerationAnswer(call='joystick_count', device_index=None, value=2),
+        EnumerationAnswer(call='controller_count', device_index=None, value=2),
+        EnumerationAnswer(
+            call='is_controller', device_index=STAND_IN_STICK.device_index, value=False
+        ),
+        EnumerationAnswer(
+            call='name_for_index', device_index=STAND_IN_PAD.device_index, value=STAND_IN_PAD.name
+        ),
+        EnumerationAnswer(
+            call='open_joystick',
+            device_index=STAND_IN_STICK.device_index,
+            value=STAND_IN_STICK.instance_id,
+        ),
+        EnumerationAnswer(
+            call='open_controller',
+            device_index=STAND_IN_PAD.device_index,
+            value=STAND_IN_PAD.instance_id,
+        ),
+    ]
+    # Taken once each
+    assert registry.take_opened_descriptors() == []
+    assert registry.take_enumeration_answers() == []
+
+
+def test_stand_in_frames_without_a_recorder_keep_no_answers():
+    """The stand-in doors discard untaken answers and descriptors at the end of every frame."""
+    registry = install_stand_in_devices(descriptors=[STAND_IN_STICK])
+    sources = active_sources()
+
+    for frame_number in range(3):
+        registry.joystick_count()
+        registry.open_joystick(device_index=STAND_IN_STICK.device_index)
+        sources.end_frame(frame_number=frame_number, dt=0.016, scene=None, control_events=[])
+
+        assert registry.take_enumeration_answers() == []
+        assert registry.take_opened_descriptors() == []

@@ -133,7 +133,7 @@ https://claude.ai/artifact/3QKddtTADVqC1LVpvDSQSD).
   - `ScriptedSessionOptions.stand_in_devices: Sequence[DeviceDescriptor] | None` (default None)
   - `PostedPolledInput` follows `JOYAXISMOTION`, `JOYBUTTONDOWN`/`UP` and `JOYHATMOTION` by `instance_id` and `overlay` lays them into `device_axes`, `device_buttons`, `device_hats`
 
-- [ ] **Step 1: Write the failing tests** in `tests/replay/tools/test_scripted_sessions.py`:
+- [x] **Step 1: Write the failing tests** in `tests/replay/tools/test_scripted_sessions.py`:
 
 ```python
 def test_a_session_with_a_stand_in_pad_records_and_replays_it(tmp_path):
@@ -165,15 +165,15 @@ snapshot shows each, a button released reads False). A third, in the engine's li
 file: `GameEngine.build_live_sources` returns `LiveSources` with the given seed and
 `captures_scene_starts`.
 
-- [ ] **Step 2: Run** `uv run pytest --dummy-only tests/replay/tools/test_scripted_sessions.py -k "stand_in_pad or follows_the_pad"`. Expected: fail (`unexpected keyword argument 'stand_in_devices'`).
-- [ ] **Step 3: Implement.** Move the three names into the engine module (the test module
+- [x] **Step 2: Run** `uv run pytest --dummy-only tests/replay/tools/test_scripted_sessions.py -k "stand_in_pad or follows_the_pad"`. Expected: fail (`unexpected keyword argument 'stand_in_devices'`).
+- [x] **Step 3: Implement.** Move the three names into the engine module (the test module
   imports them; no copy is left); extract `build_live_sources` from `game_engine.py:1595-1601`
   unchanged in behaviour; `record_scripted_session` passes `stand_in_devices` to
   `GoldenTraceEngine`; extend `PostedPolledInput.follow`/`overlay`. Axes and buttons tuples are
   sized from the descriptor (`axis_count`, `button_count`, `hat_count`), so `PostedPolledInput`
   takes `descriptors` (empty by default) at construction.
-- [ ] **Step 4: Run** the three tests, then `uv run pytest --dummy-only tests/input tests/replay tests/engine -n auto`, then lint (`nox -s lint-code`, `nox -s static-analysis`). Expected: all pass; `tests/test_engine_doors.py` passes (no new device bypass).
-- [ ] **Step 5: Run the suite** (`uv run pytest -n auto`): every test passes, 100% coverage, 0 driver differences. **Commit:** `Engine: stand-in devices in a recorded scripted session`.
+- [x] **Step 4: Run** the three tests, then `uv run pytest --dummy-only tests/input tests/replay tests/engine -n auto`, then lint (`nox -s lint-code`, `nox -s static-analysis`). Expected: all pass; `tests/test_engine_doors.py` passes (no new device bypass).
+- [x] **Step 5: Run the suite** (`uv run pytest -n auto`): every test passes, 100% coverage, 0 driver differences. **Commit:** `Engine: stand-in devices in a recorded scripted session`.
 
 ---
 
