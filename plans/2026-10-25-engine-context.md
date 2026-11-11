@@ -10,10 +10,9 @@ decisions. Sub-plan 1 implemented and verified on feature/engine-context-state (
 Task 10), merged as #108. Sub-plan 2
 ([2026-10-27-engine-context-2-engine-state.md](2026-10-27-engine-context-2-engine-state.md),
 begun on `feature/engine-context-2-engine-state`, rebased onto main as `arcade-1-engine-state`):
-Tasks 1-16 done (commits 597d028f through the documentation commit `Docs: the engine's own state
-per context, the read-only views, and the guards`, 2026-11-10), rows C7-C15 and C17-C20 below in
-the context, the read-only views, the process-state guard and the font-cache guard; its Task 17
-(the whole-branch verification and the performance gate) is left. Sub-plans 1 and 2 have full
+done (Tasks 1-17, commits 597d028f through the final-review fixes, 2026-11-10; PR #171), rows
+C7-C15 and C17-C20 below in the context, the read-only views, the process-state guard and the
+font-cache guard; the whole-branch verification and the performance gate passed. Sub-plans 1 and 2 have full
 implementation plans; sub-plans 3-8 are one line each below and get
 their plans when each starts, written against how the one before turned out. Execution is
 subagent-driven (superpowers:subagent-driven-development), for every sub-plan. This file is

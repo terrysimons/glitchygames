@@ -1,9 +1,9 @@
 # GlitchyGames Arcade: a showcase and game picker (`uv run arcade`) — master spec
 
-Status: SPEC (agreed with the user 2026-10-25; drafted 2026-10-23); sub-plan 1 under way
-(branch `arcade-1-engine-state`: engine context sub-plan 2's Tasks 1-7 rebased onto main on
-2026-11-08, the owner's RunningGame ruling done; Tasks 8-16 done by 2026-11-10, its Task 17, the
-whole-branch verification and the performance gate, left). Tracked as feature #43 in `plans/future-features.md`.
+Status: SPEC (agreed with the user 2026-10-25; drafted 2026-10-23); sub-plan 1 done
+(branch `arcade-1-engine-state`, PR #171: engine context sub-plan 2's Tasks 1-7 rebased onto main
+on 2026-11-08, the owner's RunningGame ruling done; Tasks 8-17 done 2026-11-10, the whole-branch
+verification and the performance gate passed); sub-plan 2 next. Tracked as feature #43 in `plans/future-features.md`.
 This is the master plan: each piece below gets its own sub-plan, linked both ways from here
 (sub-plans link back to this file). Since 2026-11-08 it also holds the engine context plan's
 remaining sub-plans (Sub-plans, below).
