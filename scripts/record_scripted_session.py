@@ -1,7 +1,8 @@
 r"""Record a scripted session of one of our games through the real engine: its golden replay.
 
 Used for the golden replay fixtures in the workspace members'
-``<member>/tests/fixtures/replays/`` (and later for bundled demos). The engine's scripted-session
+``<member>/tests/fixtures/replays/`` (the bundled demos have their own script,
+scripts/record_bundled_demos.py). The engine's scripted-session
 recorder does the recording (glitchygames/replay/tools/scripted_sessions.py, which says how a
 session runs: the supervisor, the controls tail and its quit, the real frame loop, placements
 and polled input); any game's own sessions are recorded with ``--record-session`` (or
@@ -21,8 +22,8 @@ the QUIT the game posted. tests/replay/test_golden_replays.py checks that every 
 binds is exercised (or listed with the reason it cannot be: no gamepad in the session), that the
 game pauses and resumes, and that the recording ends on the game's own QUIT.
 
-``--script-only`` (demos, and short test sessions) leaves the tail out: at frame N - 1 the
-session ends, so the recording holds frames 0 to N - 1 and no quit.
+``--script-only`` (short test sessions; the bundled demos have their own script) leaves the
+tail out: at frame N - 1 the session ends, so the recording holds frames 0 to N - 1 and no quit.
 
 Script placements move sprites directly, so a session may not run a frame a placement is
 scheduled before, except for games whose placements only steer the script's own input
