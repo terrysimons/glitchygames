@@ -81,8 +81,9 @@ from glitchygames.replay.tools.golden_traces import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Sequence
 
+    from glitchygames.input.devices import DeviceDescriptor
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene, SceneManager
 
@@ -99,23 +100,44 @@ class GameDidNotQuitError(RuntimeError):
 
 
 class PostedPolledInput:
-    """The polled input a real keyboard and mouse would leave behind the supervisor's events.
+    """The polled input a real keyboard, mouse and pad would leave behind the supervisor's events.
 
     SDL updates its polled state (``pygame.key.get_pressed``, ``pygame.mouse.get_pos`` and
-    ``get_pressed``) as a real device's events arrive, never for a posted event, so on its own a
-    supervisor's key press is an event that no snapshot shows held. A game that reads held keys
-    or the mouse from the frame's snapshot (``current_input()``) would never see the script
-    play. This follows each posted event (a key held from its KEYDOWN to its KEYUP, by
-    scancode; the mouse's position and buttons) and ``overlay`` lays it over a live snapshot,
-    so the session's snapshots agree with its events as a real player's do. A replay serves the
-    recorded snapshots, so it needs none of this.
+    ``get_pressed``, a joystick's ``get_axis``, ``get_button`` and ``get_hat``) as a real
+    device's events arrive, never for a posted event, so on its own a supervisor's key press is
+    an event that no snapshot shows held. A game that reads held keys, the mouse or a pad from
+    the frame's snapshot (``current_input()``) would never see the script play. This follows
+    each posted event (a key held from its KEYDOWN to its KEYUP, by scancode; the mouse's
+    position and buttons; a stand-in device's axes, buttons and hats, by instance id) and
+    ``overlay`` lays it over a live snapshot, so the session's snapshots agree with its events
+    as a real player's do. A replay serves the recorded snapshots, so it needs none of this.
+
+    The devices are the session's stand-ins (``descriptors``): each is in every overlaid
+    snapshot from the start, at rest until its events move it, as an opened real device's
+    polled positions are, with as many axes, buttons and hats as its descriptor says. A device
+    event for an instance id no descriptor names, or for an axis, button or hat the device does
+    not have, changes nothing (SDL reports no such event).
     """
 
-    def __init__(self) -> None:
-        """Start with nothing posted: no key held, the mouse unmoved, its buttons up."""
+    def __init__(self, *, descriptors: Sequence[DeviceDescriptor] = ()) -> None:
+        """Start with nothing posted: no key held, the mouse unmoved, every device at rest.
+
+        Args:
+            descriptors: The session's stand-in devices (none by default).
+
+        """
         self.held_scancodes: set[int] = set()
         self.mouse_position: tuple[int, int] | None = None
         self.mouse_buttons = [False] * MOUSE_BUTTON_COUNT
+        self.device_axes: dict[int, list[float]] = {
+            descriptor.instance_id: [0.0] * descriptor.axis_count for descriptor in descriptors
+        }
+        self.device_buttons: dict[int, list[bool]] = {
+            descriptor.instance_id: [False] * descriptor.button_count for descriptor in descriptors
+        }
+        self.device_hats: dict[int, list[tuple[int, int]]] = {
+            descriptor.instance_id: [(0, 0)] * descriptor.hat_count for descriptor in descriptors
+        }
 
     def follow(self, event: pygame.event.Event) -> None:
         """Note what a posted event changes in the polled input.
@@ -135,6 +157,28 @@ class PostedPolledInput:
             button_index = event.button - 1
             if button_index < MOUSE_BUTTON_COUNT:
                 self.mouse_buttons[button_index] = event.type == pygame.MOUSEBUTTONDOWN
+        elif event.type == pygame.JOYAXISMOTION:
+            _set_device_position(
+                positions=self.device_axes,
+                instance_id=event.instance_id,
+                index=event.axis,
+                value=float(event.value),
+            )
+        elif event.type in {pygame.JOYBUTTONDOWN, pygame.JOYBUTTONUP}:
+            _set_device_position(
+                positions=self.device_buttons,
+                instance_id=event.instance_id,
+                index=event.button,
+                value=event.type == pygame.JOYBUTTONDOWN,
+            )
+        elif event.type == pygame.JOYHATMOTION:
+            hat_x, hat_y = event.value
+            _set_device_position(
+                positions=self.device_hats,
+                instance_id=event.instance_id,
+                index=event.hat,
+                value=(int(hat_x), int(hat_y)),
+            )
 
     def overlay(self, snapshot: InputSnapshot) -> InputSnapshot:
         """Lay the posted input over a live snapshot.
@@ -144,7 +188,8 @@ class PostedPolledInput:
 
         Returns:
             The snapshot with the posted held keys added, the posted mouse position (once the
-            mouse was moved) and the posted mouse buttons.
+            mouse was moved), the posted mouse buttons, and each stand-in device's posted axes,
+            buttons and hats in place of any live ones (a stand-in has none).
 
         """
         return dataclasses.replace(
@@ -155,7 +200,39 @@ class PostedPolledInput:
                 live or posted
                 for live, posted in zip(snapshot.mouse_buttons, self.mouse_buttons, strict=True)
             ),
+            device_axes={
+                **snapshot.device_axes,
+                **{instance_id: tuple(axes) for instance_id, axes in self.device_axes.items()},
+            },
+            device_buttons={
+                **snapshot.device_buttons,
+                **{
+                    instance_id: tuple(buttons)
+                    for instance_id, buttons in self.device_buttons.items()
+                },
+            },
+            device_hats={
+                **snapshot.device_hats,
+                **{instance_id: tuple(hats) for instance_id, hats in self.device_hats.items()},
+            },
         )
+
+
+def _set_device_position[Position](
+    *, positions: dict[int, list[Position]], instance_id: int, index: int, value: Position
+) -> None:
+    """Set one axis, button or hat of a stand-in device, if the device has it.
+
+    Args:
+        positions: The devices' axes, buttons or hats, by instance id.
+        instance_id: The event's device.
+        index: The event's axis, button or hat.
+        value: Its new position.
+
+    """
+    device_positions = positions.get(instance_id)
+    if device_positions is not None and 0 <= index < len(device_positions):
+        device_positions[index] = value
 
 
 @contextlib.contextmanager
@@ -288,7 +365,9 @@ class ScriptedInputSupervisor:
         self.controls_tail = controls_tail
         # Keys the posted script input left down (released when the controls tail starts)
         self.held_keys: set[int] = set()
-        # The polled input the posted events would leave behind (polled_input_follows)
+        # The polled input the posted events would leave behind (polled_input_follows); a
+        # session with stand-in devices replaces it, before anything is posted, with one that
+        # follows them too (record_scripted_session)
         self.posted_input = PostedPolledInput()
         self.game_did_not_quit = False
 
@@ -375,6 +454,16 @@ class ScriptedSessionOptions(TypedDict, total=False):
             they may run inside the session (``ScriptedInputSupervisor``). False by default.
         random_seed: The run's master seed (``--random-seed``); None (the default) rolls one,
             as any run does.
+        stand_in_devices: Joysticks and game controllers that exist only in the session
+            (glitchygames/input/stand_in_devices.py), plugged in from its start: the engine
+            opens them as real ones, the recording's header holds them and its replay opens
+            them again. The script moves them with their events (``JOYAXISMOTION``,
+            ``JOYBUTTONDOWN``/``UP``, ``JOYHATMOTION`` by ``instance_id``), which a game reads
+            from the frame's polled input only with ``polled_input``. Three cases: None (the
+            default) gives the machine's real devices, as any run has; an empty sequence gives
+            no devices at all (stand-in doors around an empty registry, so a real device is
+            never seen or opened: the bundled demos without a pad record this way); a
+            non-empty sequence gives exactly those stand-ins.
 
     """
 
@@ -382,6 +471,7 @@ class ScriptedSessionOptions(TypedDict, total=False):
     polled_input: bool
     input_only_placements: bool
     random_seed: int | None
+    stand_in_devices: Sequence[DeviceDescriptor] | None
 
 
 def record_scripted_session(
@@ -403,6 +493,8 @@ def record_scripted_session(
         frame_count: How many of the script's frames to record.
         path: Where the recording goes (its directory is created).
         **options: How the session is played, by keyword (``ScriptedSessionOptions``).
+            ``stand_in_devices``: None for the machine's real devices, an empty sequence for no
+            devices at all, a non-empty one for exactly those stand-ins.
 
     A script that cannot be recorded as input for this many frames
     (``scripted_session_refusal``) raises the supervisor's ValueError before anything runs.
@@ -412,6 +504,7 @@ def record_scripted_session(
 
     """
     controls_tail = options.get('controls_tail')
+    stand_in_devices = options.get('stand_in_devices')
     path.parent.mkdir(parents=True, exist_ok=True)
     with (
         tempfile.TemporaryDirectory(prefix='scripted-session-saves-') as save_directory,
@@ -431,6 +524,9 @@ def record_scripted_session(
                 controls_tail=controls_tail,
                 input_only_placements=options.get('input_only_placements', False),
             )
+            if stand_in_devices is not None:
+                # Nothing is posted yet: the polled input follows the stand-ins from the start
+                supervisor.posted_input = PostedPolledInput(descriptors=stand_in_devices)
             with command_line([
                 '--windowed',
                 '--resolution',
@@ -443,7 +539,7 @@ def record_scripted_session(
                 '--record-trace',
                 str(path),
             ]):
-                engine = GoldenTraceEngine(game=scene_class)
+                engine = GoldenTraceEngine(game=scene_class, stand_in_devices=stand_in_devices)
             # Added after the engine: GameEngine.__init__ resets the scene manager's supervision
             manager.add_supervisor(supervisor=supervisor)
             discard_environment_events()

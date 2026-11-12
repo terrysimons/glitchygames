@@ -573,8 +573,15 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   and opens nothing. Each device's input events reach handlers from its `event_layer` only (the
   controller layer if mapped, else the joystick layer): the other layer's are dropped, so each
   press arrives once. `--input-mode` filters: `auto` (default) all, `joystick` joystick layers
-  only (controller events blocked), `controller` mapped pads only. Tests use stand-in devices
-  through the door (`tests/input/stand_in_devices.py`). `--list-input-devices`
+  only (controller events blocked), `controller` mapped pads only. Stand-in devices
+  (`src/glitchygames/input/stand_in_devices.py`: doors and a registry that answer as SDL would
+  and hand a recorder what they opened) go through the door: tests use them (their
+  descriptors in `tests/input/stand_in_devices.py`), and a scripted session records a game
+  played on one (`record_scripted_session(stand_in_devices=[...])`, `GoldenTraceEngine`'s
+  `stand_in_devices`; its pad events reach the snapshot with `polled_input`). `stand_in_devices`
+  has three cases: None (the default) the machine's real devices, an empty tuple no devices at
+  all (stand-in doors around an empty registry: real ones are never seen or opened), a non-empty
+  tuple exactly those stand-ins. `--list-input-devices`
   (`src/glitchygames/input/device_listing.py`) replaces the run: it counts devices before SDL's
   queue is pumped (what the managers' startup count sees), listens a second keeping each
   device added/removed event with its time (macOS reports connected pads as device-added
@@ -786,7 +793,27 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `bundled_demo_paths(*, packages)` and `replay/tools/recordings.py` (which measure uses)
   call it. Development installs are editable (`uv sync`; the
   `replay-metrics` nox session runs `uv run --all-packages`), so the ledger names a demo by its
-  repository path; outside a repository, by its install name. PaddleSlap's is
+  repository path; outside a repository, by its install name. Every Arcade tile has one (Arcade
+  sub-plan 2, plans/2026-11-11-arcade-2-demos.md), ten in all, each under its member's
+  `src/<package>/demos/` (`tests/workspace_expectations.py` `EXPECTED_BUNDLED_DEMOS`): PaddleSlap
+  `rally`, Clockwork Keep `climb`, Brave Adventurer `classic` and `papyrus` (both in the
+  launcher's package, `brave_adventurer_modes/demos/`: its console script is the one that
+  replays them), Mr. Muncher `chase`, Drawing Fire `battle`, Bitmappy `drawing`, and the dt,
+  text-input and joystick demos' `timing`, `typing` and `pad` (the Sound Board has no tile and
+  no demo). One command records them, `scripts/record_bundled_demos.py` (`DEMO_RECIPES`, one
+  `DemoRecipe` per demo: scene, input script, frame count, package and name, `polled_input`,
+  `input_only_placements`, `stand_in_devices`; `uv run python -m scripts.record_bundled_demos
+  --demo KEY` or `--all`): each is `--script-only` (no controls tail, no quit) under the goldens'
+  `RANDOM_SEED` at 800x480, with the AI install root pointed at an empty directory, with no
+  devices at all unless the recipe names stand-ins (`stand_in_devices=()`, the recipe's default),
+  and SDL's real joystick drivers off for the session as defence in depth. The games reuse their golden scripts' frames before the
+  controls tail (Mr. Muncher's chase a demo-only script, `scripts/demo_inputs.py`, which also holds
+  the dt, text-input, joystick and Bitmappy scripts); the joystick demo's pad is a stand-in
+  ('GlitchyGames Demo Pad', `ScriptedSessionOptions.stand_in_devices`), which the recording's
+  header holds and its replay opens again. `tests/replay/test_bundled_demos.py` also checks each
+  demo is at most `MAXIMUM_DEMO_BYTES` (256 KB) and ends with nothing held: no key, mouse or pad
+  button down, every pad axis at rest (exactly 0) and every hat centred, since the Arcade loops
+  it. PaddleSlap's (the first) is
   `src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz`. PaddleSlap has no title screen, so its
   game-over screen (`PaddleSlapGameOverScene`) plays
   `PADDLESLAP_DEMO_PATH` after `GAME_OVER_IDLE_SECONDS` (10) of game time without a key or
@@ -804,9 +831,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   refused), except under `--rebaseline`, the backward-compatibility path (no table of former
   locations): there the qualified name alone decides, so a game or scene that moved since is
   accepted (ambiguity still refused; one rule, `modules_not_compared` in
-  `src/glitchygames/replay/driver.py`), and NEW holds the current logical names. Record a demo with `scripts/record_scripted_session.py --script-only --output PATH` (it runs
-  `--record-trace`, so frame 0 holds the scene start); PaddleSlap's is `--frames 450`, before the
-  golden script's pause
+  `src/glitchygames/replay/driver.py`), and NEW holds the current logical names. A demo is recorded through the
+  real engine loop with `--record-trace`, so frame 0 holds the scene start; PaddleSlap's rally is
+  450 frames, before the golden script's pause. Re-record a demo only deliberately, as a golden
 - `--random-seed INT`: the run's master seed (default: 64 random bits, kept in recordings). All
   randomness draws from named streams seeded from it: `random_stream('name')` (`random.Random`) or
   `numpy_stream('name')` (numpy `Generator`), looked up at draw time; `engine_random()` is
