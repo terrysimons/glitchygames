@@ -1634,7 +1634,8 @@ def test_the_nes_triangle_buzzes_from_its_thirty_two_steps():
     32-step sequence of 4-bit values to the mixer", 15 down to 0 and back up to 15. A wave held
     on 32 steps per cycle has images of its fundamental at harmonics 32 - 1 and 32 + 1, each
     about 1/31 of it; a smooth triangle's 31st and 33rd harmonics are 1/31 squared and 1/33
-    squared. Measured at A2, the stepped wave's are 0.032 and 0.030 of its fundamental and the
+    squared. A 16-step staircase would instead buzz at harmonics 15 and 17, so those stay low
+    here. Measured at A2, the stepped wave's are 0.032 and 0.030 of its fundamental and the
     chip triangle's 0.00104 and 0.00092 (31 and 33 times less); 10 keeps room. The Ricoh 2A03
     page's "an overtone is created four octaves higher" is not what the sequence makes: it is
     half-wave antisymmetric (each value 16 steps on is 15 minus it), so it has no even
@@ -1652,14 +1653,21 @@ def test_the_nes_triangle_buzzes_from_its_thirty_two_steps():
         frequencies = np.fft.rfftfreq(len(held), 1 / SAMPLE_RATE)
         peaks = [
             float(np.max(magnitude[np.abs(frequencies - harmonic * hertz) < hertz / 4.0]))
-            for harmonic in (1, 31, 33)
+            for harmonic in (1, 15, 17, 31, 33)
         ]
         return [peak / peaks[0] for peak in peaks[1:]]
 
     stepped = relative_harmonics('nes triangle')
     smooth = relative_harmonics('chip triangle')
-    for stepped_level, smooth_level in zip(stepped, smooth, strict=True):
+    stepped_low_harmonics, stepped_image_harmonics = stepped[:2], stepped[2:]
+    smooth_image_harmonics = smooth[2:]
+    for stepped_level, smooth_level in zip(
+        stepped_image_harmonics, smooth_image_harmonics, strict=True
+    ):
         assert stepped_level > 10.0 * smooth_level
+    # A 16-step staircase would put about 1/15 of the fundamental at harmonics 15 and 17
+    for stepped_level in stepped_low_harmonics:
+        assert stepped_level < 0.01
 
 
 def test_a_sound_alike_is_listed_and_builds_its_parents_sound():

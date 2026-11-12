@@ -70,7 +70,7 @@ ELECTRONIC_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
         sounds_like='electronic kick',
     ),
     # Sound-alike of the cowbell (no fetched source sets it apart in sound):
-    # https://hn.jakechampion.name/reader/http://outputchannel.com/post/tr-808-cowbell-web-audio
+    # http://outputchannel.com/post/tr-808-cowbell-web-audio
     # ("All you need is two square waves at specific frequencies of 800 and 540Hz."): the cowbell
     # is built as those two squares ringing together
     CatalogEntry(
