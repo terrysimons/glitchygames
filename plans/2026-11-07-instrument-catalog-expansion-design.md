@@ -14,10 +14,12 @@
   `plans/2026-11-09-instrument-catalog-batch-4-implementation.md` and
   `plans/data/instrument-audit/batch-4.tsv`. Batch 5 (tuned percussion) is done: see
   `plans/2026-11-11-instrument-catalog-batch-5-implementation.md` and
-  `plans/data/instrument-audit/batch-5.tsv`. The later batches are not yet planned.
+  `plans/data/instrument-audit/batch-5.tsv`. Batch 6 (electronic) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-6-implementation.md` and
+  `plans/data/instrument-audit/batch-6.tsv`. The later batches are not yet planned.
 - **Depends on:** the instrument catalog (`src/glitchygames/audio/instruments/`, 431 instruments
   in 18 families when this was written, shipped with the sound engine M1; 439 in 21 after batch
-  1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5), its range audit, and the engine's four sources per instrument
+  1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682 after batch 6), its range audit, and the engine's four sources per instrument
   (`src/glitchygames/audio/instrument.py`).
 - **Tracked as:** `plans/future-features.md` #70.
 
@@ -135,8 +137,8 @@ A grouping that cuts across families is a tag, not a family (the owner, 2026-11-
   pianos, serinettes). Each stays in the family it sounds like.
 - `instruments.names(tag=Tag.MECHANICAL)` lists them, beside `names(family=...)`; both may be
   given together.
-- Later tags (`chip` for the sound-chip voices, `historical`, regions) are added the same way
-  when a batch needs one.
+- `Tag.CHIP` (the sound-chip voices) was added by batch 6; later tags (`historical`, regions)
+  are added the same way when a batch needs one.
 - Tests: every entry's tags are members of `Tag`; `names(tag=...)` returns exactly the tagged
   entries.
 

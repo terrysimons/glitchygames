@@ -1750,10 +1750,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 5 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 6 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
-  batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5) toward every instrument a game might want, in one verified
-  batch per family. Adversarial audits (2026-11-07) found 1,303 candidates, only 84 with
+  batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682 after batch 6) toward every instrument a game might
+  want, in one verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates, only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
   makers, sound effects, and electromechanical, which takes the electric pianos, Clavinet and
   tonewheel organs from keyboards and organs), makes mechanical instruments a tag, and lists
@@ -1789,8 +1789,16 @@ This document tracks planned future features for the GlitchyGames project. Featu
   aliases and 169 sound-alikes). Most rows wait because the range rule stays strict. The
   audit's "Gaps you could not close" (`plans/data/instrument-audit/tuned-percussion.md`: the
   Chinese, Japanese, Korean, Indian, African, Oceanic and Philippine names it suspected but did
-  not confirm) are a later pass over this family. Next: electronic, the next largest existing
-  family, per the design's order
+  not confirm) are a later pass over this family.
+  Batch 6 (electronic) is done: of its 161 sheet rows 1 shipped (its own build, `nes triangle`),
+  10 became sound-alikes (sound chips and drum-machine voices; the chips give their own sourced
+  range), 56 wait (13 for a sourced range, 43 for engine features or because their target
+  waits), 5 became aliases and 89 were dropped; the family grew from 15 to 26 entries (682 in
+  all, 73 aliases and 179 sound-alikes). `Tag.CHIP` is the second tag, on nine entries. The
+  audit's "Gaps you could not close" (`plans/data/instrument-audit/electronic.md`: MIMO, the
+  Met, Horniman and Grove unconsulted; the SPC700, YM2413, VIC-20, Ensoniq, Waldorf, Nord Lead,
+  Korg Wavestation and the rest it suspected but did not list) are a later pass over this family, along with ranging the range WAIT rows
+  from manuals and datasheets. Next: bowed strings, the next in the design's order
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
@@ -1802,7 +1810,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sheet `plans/data/instrument-audit/batch-4.tsv`
 - **Plan (batch 5)**: `plans/2026-11-11-instrument-catalog-batch-5-implementation.md`; audit
   sheet `plans/data/instrument-audit/batch-5.tsv`
-- **Status**: Batches 1, 2, 3, 4 and 5 done (requested by the owner 2026-11-06)
+- **Plan (batch 6)**: `plans/2026-11-12-instrument-catalog-batch-6-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-6.tsv`
+- **Status**: Batches 1, 2, 3, 4, 5 and 6 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
@@ -2204,6 +2214,169 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Found**: batch 5's reviews (2026-11-11)
 - **Status**: TODO
 - **Priority**: Medium (before the electronic batch builds on the same catalog)
+
+### 76. Sound Engine: The Owner's Checks on Instrument Catalog Batch 6 — TODO
+- **Goal**: confirm or overturn the calls made while batch 6 of #70 ran, and listen to its new
+  instruments (electronic, 15 to 26 entries). Most candidates wait, drop or alias: 1 built, 10
+  sound-alikes, 56 waits, 5 aliases and 89 drops in the sheet's 161 rows
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+  every level, filter, ring and click is sound design unless a source is cited in the code; the
+  folder is `build/instruments/electronic/`). The 1 new build comes first, then the
+  sound-alikes; each group below is a parent with the sound-alikes that share its build, which
+  must sound alike by design. The ranges differ within a group, since a chip gives its own:
+  - [ ] The new build, `nes triangle`: a 32-step 4-bit staircase, distinct from the smooth
+    `chip triangle`. Its buzz is at harmonics 31 and 33 (about 1/31 of the fundamental each,
+    measured), where Wikipedia's Ricoh 2A03 page claims an overtone four octaves higher (see the
+    bugs below). Hear it beside `chip triangle` at A2 (the test pins the difference, but only
+    the owner hears whether it reads as the NES)
+  - [ ] The sound-alikes, 10 in 6 groups (each is its parent's sound):
+  - [ ] `ay 3 8910`, `pc speaker`, `sn76489` of `chip square` (sound chips; each a plain square
+    with nothing sourced to set it apart)
+  - [ ] `sid sawtooth` of `saw lead` (the SID's plain sawtooth waveform, unfiltered; the SID's
+    identifying filter, ring modulation and sync wait as `sid voice`)
+  - [ ] `electronic conga`, `electronic tom`, `syndrum` of `electronic kick` (drums and
+    percussion; see "electronic tom, electronic conga and syndrum" below)
+  - [ ] `electronic clave` of `claves`; `electronic cowbell` of `cowbell`; `electronic maracas`
+    of `maracas` (all unpitched)
+  - [ ] The 5 aliases: `vox continental` (of `combo organ`, in organs), `thereminvox` and
+    `etherwave` (of `theremin`), `chip sawtooth` (of `sid sawtooth`), `ym2149` (of `ay 3 8910`)
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-6.tsv`; the sheet's 161
+  rows: SHIP 1, SOUND_ALIKE 10, WAIT 56, ALIAS 5, DROP 89):
+  - [ ] Every WAIT (56 rows), by reason: 13 for a sourced range (`atari punk console`, `casio vl
+    tone`, `dynaphone`, `electronde`, `givelet coupleux organ`, `jennings univox`, `lyricon`,
+    `moog taurus`, `musical tesla coil`, `omnichord`, `stylophone`, `theremin cello`, `triadex
+    muse`); 7 for moving formants (`otamatone`, `sonovox`, `speak and spell`, `talk box`,
+    `vocoder`, `voder`, `votrax`); 4 for sample playback (`d 50 la synth`, `electronic cymbal`,
+    `linn lm1`, `nes dpcm`); 4 for filter resonance (`minimoog`, `moog modular synthesizer`,
+    `trautonium`, `volks trautonium`); 4 for LFSR widths other than 15 and 7 (`atari tia`, `ay 3
+    8910 noise`, `pokey`, `sid noise`); 3 for FM synthesis (`dx7 bass`, `dx7 ep`, `ym2612`); 2
+    for a chorus's moving delay (`arp string ensemble`, `juno 106`); 2 for FM synthesis and
+    wavefolding (`buchla 100`, `buchla music easel`); 2 for wavetable morphing (`ppg wave`,
+    `prophet vs`); 2 for a filter envelope and filter resonance (`sh 101`, `tb 303`); 2 for a
+    fixed noise clock (`nes noise`, `game boy short noise`); 2 for more than four sources
+    (`electronic closed hi hat`, `electronic open hi hat`); 1 each for phase distortion (`casio
+    cz`), a pitch LFO for vibrato (`clavioline`), a pitch LFO for portamento between notes
+    (`clavivox`), an amplitude LFO for the sawtooth envelope (`electronic clap`), filter
+    resonance with ring modulation and oscillator hard sync (`sid voice`), LFSR tap sets other
+    than maximal-length (`nes short noise`, the 93-step mode), LFSR tap sets other than
+    maximal-length and a 16-stage width (`sn76489 noise`); and 2 because their target waits
+    (`suzuki q chord` waits for `omnichord`, `chip dpcm sample` for `nes dpcm`)
+  - [ ] The range ruling: a keyboard's keys at the normal setting (8', octave switch at 0, no
+    transpose); a chip's hertz at the clock of the machine the entry is named for, the lowest
+    note rounded up to the first note at or above the lowest frequency, the highest rounded down,
+    and clipped to A0-C8 (the catalog's span). Every derived range, each shown in the sheet's
+    notes: `nes triangle` A0-C8 (the NTSC CPU clock 1.789773 MHz over 32 x 2048 is 27.31 Hz, so
+    A0; the top 55.9 kHz clipped), `ay 3 8910` B0-C8 (30.6 Hz is B0, 30.87 Hz; 125 kHz
+    clipped), `pc speaker` A0-C8 (the PC's 1193180 Hz clock, 18.2 Hz clipped to A0, 596.6 kHz
+    clipped to C8), `sid sawtooth` A0-B7 (0.0625 Hz clipped to A0, 4095.9375 Hz is B7 at 1 MHz),
+    `sn76489` A2-C8 (108 Hz is A2 at the NTSC 3.58 MHz clock; 111.6 kHz clipped)
+  - [ ] The chip-clock ruling: a chip-named entry (`sn76489`, `ay 3 8910`, `sid sawtooth`)
+    takes the clock its own datasheet or page gives, since it is named for the chip and not for a
+    machine; three ranges depend on it (the page names Master System, ColecoVision and BBC Micro
+    without their clocks)
+  - [ ] `sh 101`'s recorded range is C4-G6 (32 keys from middle C at 8' with TRANSPOSE at
+    NORMAL, Roland's owner manual), kept on a WAIT row: the entry waits for the filter feature
+    its source's quote names, and the range is ready for when it lands
+  - [ ] Patches dropped (a patch is not an instrument): `fm bell`, `hoover lead`, `laser zap`,
+    `moog bass`, `moog lead`, `noise riser`, `pwm pad`, `reese bass`, `ring modulator`, `sample
+    and hold`, `sync lead`, `wobble bass`; the 13 patch entries already in the family (`saw
+    lead` to `chip triangle`) predate the rule and stay
+  - [ ] Programmable synthesizers as sound-alikes of the patch their source names: only `sid
+    sawtooth` (of `saw lead`) shipped. `minimoog` and `sh 101` wait for the filter feature their
+    own quotes name, as `tb 303` does (the Task 3 review made the three consistent); `jupiter 8`,
+    `prophet 5`, `arp 2600`, `arp odyssey`, `cs 80`, `ems vcs3`, `ms 20`, `oberheim sem`,
+    `polymoog`, `synclavier`, `yamaha vl1`, `theremini`, `therevox` are dropped as programmable
+    synthesizers whose fetched sources name no voice of their own
+  - [ ] The stop and preset DROP reason: `keyboard theremin`, `novachord`, `solovox` and
+    `ondioline` are dropped because their fetched sources name a palette of switch-, stop- or
+    panel-set imitations of other instruments, not a voice of their own (the programmable-
+    synthesizer ruling extended to stop and preset instruments)
+  - [ ] Controllers, samplers and programmable channels dropped as having no sound of their
+    own: `alphasphere`, `eigenharp`, `ewi`, `fairlight cmi`, `guitar synthesizer`, `haken
+    continuum`, `keytar`, `laser harp`, `lightharp`, `radiodrum`, `reactable`, `samchillian`,
+    `tenori on`; the programmable channels `amiga paula`, `huc6280`, `konami scc`, `namco wsg`,
+    `game boy wave channel`; the biosignal sonifiers `electrocardiophone` and
+    `electroencephalophone`
+  - [ ] Drum-machine voices in electronic, while `electronic kick` and `electronic snare` stay
+    in drums and percussion (unchanged); a drum machine as a product (`rhythm king`, `wurlitzer
+    side man`, `drum machine voices`) is dropped as a set of voices, each its own row
+  - [ ] `electronic tom`, `electronic conga` and `syndrum` are unpitched sound-alikes of
+    `electronic kick`, so they play electronic kick's sound: decision 8's exception (names, not
+    builds), though the TR-808's toms and congas and the Syndrum's falling sine are each their
+    own circuit or voice in the sources. Confirm, or ask for builds of their own. The audit
+    titled `electronic tom` Simmons, but the Simmons page describes no tom circuit, so the
+    TR-808's is used
+  - [ ] `Tag.CHIP`, its definition (an integrated circuit made to produce a computer's,
+    console's or arcade machine's sound: Wikipedia's "Sound chip" page, fetched and quoted in
+    the plan), and its addition to the four existing `chip ...` entries (`chip square`, `chip
+    pulse 25`, `chip pulse 12`, `chip triangle`). It is on nine entries: those four, `nes
+    triangle`, `ay 3 8910`, `pc speaker`, `sid sawtooth` and `sn76489`
+  - [ ] `pc speaker` carries `Tag.CHIP`, though the Intel 8253 that drives it is a programmable
+    interval timer, not a sound chip by the definition above; the PC speaker is a beeper, not
+    a chip. Keep the tag, drop it, or define `Tag.CHIP` more widely (the review noted it)
+  - [ ] The existing entries decision 4 would hold back, left alone: `theremin` (no vibrato or
+    portamento, C3-C7), the 13 patch entries (no resonance) and their unsourced ranges. The
+    existing unsourced ranges: `theremin` C3-C7, the patches, `chip square`, `chip pulse 25` and
+    `chip pulse 12` A1-C8, `chip triangle` A0-C7. `ondes martenot`'s C1-C8 is below
+  - [ ] The engine features this batch named beyond the spec's table, for the spec's "What the
+    engine cannot make yet": oscillator hard sync, ring modulation, filter resonance, a filter
+    envelope (a cutoff that moves during a note), wavefolding, phase distortion, wavetable
+    morphing, portamento (a glide between successive notes), a chorus's moving delay, a pitch
+    LFO (vibrato), an amplitude LFO, LFSR widths other than 15 and 7, a fixed noise clock (the
+    engine scales an all-noise instrument's LFSR clock by pitch / 440, so a noise channel at one
+    clock cannot be set), and LFSR tap sets other than maximal-length (the NES's 93-step mode,
+    the SN76489's feedback from bits 12 and 13). The last two are the names this plan added
+    while it ran
+  - [ ] The earlier sheets' rows left as decided: batch 2's tape and optical WAITs (`mellotron`,
+    `chamberlin`, `optigan`, `vako orchestron`, `welte lichttonorgel`, `telharmonium`) stay
+    electromechanical, and `oramics` and `wurlitzer sideman` stay dropped; they are DROP rows
+    here naming the sheet and the status. The nine hand-offs decided here: `solovox` (dropped, a
+    stop-set palette), `vox continental` (alias of `combo organ`), `dx7 ep` (FM synthesis),
+    `chip dpcm sample` (waits for `nes dpcm`), `chip noise` (`nes noise`, a fixed noise clock),
+    `drum machine voices` (dropped, a set of voices), `rhythmicon` (dropped as
+    electromechanical, H-S 52: its page says electro-mechanical, which outranked the plan's WAIT
+    hint), `wurlitzer side man` (dropped, a set of voices), `talk box` (moving formants)
+  - [ ] The one-offs dropped (a one-off instrument, not a type a game would ask for): `ans
+    synthesizer`, `variophone`, `subharchord`, `hellertion`, `terpsitone`, `sphaerophon`,
+    `croix sonore`, `electronic sackbut`, `electro theremin` (and its alias `tannerin`),
+    `mixturtrautonium`
+  - [ ] The two-half split by kind: the players' instruments (early electronic instruments,
+    synthesizers, patches; 79 candidates) and then the machines (sound chips, drum machines,
+    tape and sample replay, speech, controllers; 73). Electrophones have no Hornbostel-Sachs
+    subclasses the plan could rely on, so the split is an explicit list. Confirm the split reads
+    right to a person adding the next entry
+- **Bugs to report** (found while building batch 6; none fixed here):
+  - [ ] `drums.py`'s acoustic `cowbell` is built as the TR-808 circuit (two squares at 540 and
+    800 Hz) with no source: an acoustic cowbell has no reason to sound like that circuit, and
+    `electronic cowbell`, the entry the 808 circuit is sourced for, shares this build as a
+    sound-alike of it
+  - [ ] The engine accepts an LFSR clock up to 44100 Hz, but the pitch check refuses one above
+    22050 Hz (the Nyquist frequency): `Noise('lfsr', rate=...)` is resolved as a pitch, so the
+    NES noise channel's 27965.2 Hz (period $4) cannot be set. The two limits disagree; a fixed
+    noise clock (above) would settle it
+  - [ ] `combo organ` (organs) cites no source for its name, build or range (C2-C7); it
+    predates the rule, and `vox continental` is now an alias of it
+  - [ ] `ondes martenot`'s C1-C8 is the audit's "with the transpose switch" span, which this
+    plan's own range ruling (octave switches and transposers do not widen the span) would not
+    accept: its range at the normal setting is unsourced
+  - [ ] Wikipedia's Ricoh 2A03 page says the triangle's stepping creates "an overtone ... four
+    octaves higher at 1/8 the volume"; the NESdev 32-step sequence is half-wave antisymmetric,
+    so it has no even harmonics and its 16th measures 0. The buzz is at harmonics 31 and 33
+    (this batch's own measurement, not a source), so the code comment and the sheet say so
+  - [ ] The subagent commits whose trailer names "Claude Sonnet 5.5" instead of the owner's
+    "Claude Opus 5.5": the ledger says three, the branch holds one (`5a237a64`, Task 4's
+    implementer); the brief's other two were not found between `origin/main` and the head
+- **Follow-ups**:
+  - [ ] The audit's "Gaps you could not close" (`plans/data/instrument-audit/electronic.md`) are
+    a later pass over this family, along with ranging the 13 range WAIT rows from manuals and
+    datasheets
+  - [ ] The sheet's cells contain stray quote characters (some cells are CSV-quoted), so read it
+    with Python's csv module rather than splitting on tabs
+  - [ ] The engine changes that unblock the waits above (a fixed noise clock first: two entries,
+    `nes noise` and `game boy short noise`, wait only on it)
+- **Found**: batch 6's reviews (2026-11-12)
+- **Status**: TODO
+- **Priority**: Medium (before the bowed strings batch builds on the same catalog)
 
 ### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
 - **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,

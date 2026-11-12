@@ -211,7 +211,7 @@ the sound never plays where the picture does not (`--headless`, tests, replays, 
 
 ## The instrument catalog
 
-`glitchygames.audio.instruments` holds 671 ready-made instruments in 23 families. Each is an
+`glitchygames.audio.instruments` holds 682 ready-made instruments in 23 families. Each is an
 ordinary `Instrument`, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:
@@ -224,6 +224,7 @@ tune = audio.sound(violin, notes='G3:0.5 D4:0.5 A4:1')
 instruments.entry('alto saxophone').playing_range        # (Note('Db3'), Note('Ab5'))
 instruments.names(family=instruments.Family.BRASS)       # every brass instrument
 instruments.names(tag=instruments.Tag.MECHANICAL)        # every entry carrying a tag
+instruments.names(tag=instruments.Tag.CHIP)              # every sound-chip voice
 instruments.get('slapstick')                             # an alias: the same instrument as 'whip'
 ```
 
@@ -243,7 +244,7 @@ instruments.get('slapstick')                             # an alias: the same in
 | `keyboards` | 11 | pianos, harpsichords, clavichord, celesta, toy piano |
 | `organs` | 9 | pipe organ stops and plenum, positive, combo and theatre organs, calliope |
 | `electromechanical` | 11 | electric pianos (tine, reed), Clavinet, Pianet, tonewheel organ registrations and percussion |
-| `electronic` | 15 | theremin, ondes Martenot, leads, pads, basses, chiptune pulses |
+| `electronic` | 26 | theremin, ondes Martenot, leads, pads, basses, chiptune pulses, sound-chip voices (NES triangle, AY-3-8910, SID sawtooth, SN76489, PC speaker) and drum-machine voices (TR-808 tom, conga, cowbell, clave, maracas; Syndrum), and 10 sound-alikes |
 | `tuned percussion` | 36 | glockenspiel, xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, boomwhackers, gangsa, and 11 sound-alikes |
 | `plucked idiophones` | 4 | kalimba, mbira, music box, sansula |
 | `friction instruments` | 3 | glass harmonica, glass harp, terpodion |
@@ -257,14 +258,17 @@ instruments.get('slapstick')                             # an alias: the same in
   reeds'`). `get`, `entry`, `names` and `entries` lowercase what they are given, so
   `instruments.get('Tenor Saxophone')` is the same instrument.
 - A `Tag` marks a quality that cuts across families (the set is closed): `Tag.MECHANICAL`, on
-  the music box so far, stays in the family the instrument sounds like.
+  the music box, and `Tag.CHIP`, on the voices of sound chips (an integrated circuit made to
+  produce a computer's, console's or arcade machine's sound: the four generic `chip ...` entries
+  and `nes triangle`, `ay 3 8910`, `pc speaker`, `sid sawtooth`, `sn76489`; nine in all), each
+  stays in the family the instrument sounds like.
   `instruments.names(tag=...)` and `entries(tag=...)` list the entries carrying it, and combine
   with `family=`.
 - `instruments.ALIASES` (read-only, as `instruments.CATALOG` is) maps another name to its
   catalog name: `slapstick` to `whip`, `zanza` to `mbira`, `cylinder music box` and `disc music
   box` to `music box`, `wurlitzer electronic piano` to `reed electric piano`, `hohner clavinet`
   to `clavinet`, `rain box` to `rain machine`, `horse hooves` to `coconut shells`, `tavil` to
-  `thavil` and `riq` to `daf` (54 in all, among them `kanun` to `qanun`, `ud` to `oud` and
+  `thavil` and `riq` to `daf` (73 in all, among them `kanun` to `qanun`, `ud` to `oud` and
   `neapolitan mandolin` to `mandolin`). `get` and `entry` resolve an alias, while `names` and
   `entries` list catalog names only.
 - A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
