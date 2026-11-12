@@ -2105,7 +2105,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - [ ] A sound-alike a source later sets apart takes `sound_changes`, citing the source
 - **Found**: batch 4's reviews (2026-11-09)
 - **Status**: TODO
-- **Priority**: Medium (before the tuned percussion batch builds on the same catalog)
+- **Priority**: Medium (before the electronic batch builds on the same catalog)
 
 ### 75. Sound Engine: The Owner's Checks on Instrument Catalog Batch 5 — TODO
 - **Goal**: confirm or overturn the calls made while batch 5 of #70 ran, and listen to its new
@@ -2126,7 +2126,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
     up, about 38 Hz at C6. Its weakest partial (5.15) was left out because an instrument has at
     most four sources (three partials plus the mallet). Its range (C4-C6) comes from "around
     C7", and the source says "There is no standard pitch in any Balinese music"
-  - [ ] Near pairs to hear side by side: `boomwhackers` and `tabla dayan`
+  - [ ] Near pairs to hear side by side: `boomwhackers` and `tabla dayan`; `gangsa` against
+    `saron` and `gender`. `gangsa` is the GAMELAN_METALLOPHONE family's sound with a 1.036
+    *ombak* partial added and the 5.15 partial dropped, so it is the new build most at risk of
+    the anti-goal
   - [ ] The sound-alikes, 11 in 3 groups (each is its parent's sound):
   - [ ] `alto glockenspiel`, `alto metallophone`, `bass metallophone`, `soprano glockenspiel`,
     `soprano metallophone`, `tubaphone` of `glockenspiel`
@@ -2139,18 +2142,21 @@ This document tracks planned future features for the GlitchyGames project. Featu
     engine feature: `angklung` and `zimbelstern` and `wind chimes` (repeated strikes, an
     amplitude LFO) and `gyil` (spider-silk mirlitons). 7 wait because their target waits:
     `banghyang`, `hank drum`, `hapi drum`, `pyeongyeong`, `tank drum`, `pyeonjong`, `roto toms`
-  - [ ] The four steel pans whose only source is PAN Magazine (`double guitar`, `double tenor`,
-    `quadrophonic`, `tenor bass` steel pan) wait, because a magazine is not a maker or museum.
-    Their ranges are in the sheet's notes, and accepting the source is a one-cell change per
-    row. `tenor bass`'s parent is a judgment call between `bass steel pan` and `cello steel
+  - [ ] The four steel pans whose only range source is PAN Magazine (`double guitar`, `double
+    tenor`, `quadrophonic`, `tenor bass` steel pan) wait, because a magazine is not a maker or
+    museum. The other waiting pans cite it but take no range from it. Their ranges are in the
+    sheet's notes, and accepting the source is a one-cell change per row. `soprano steel pan`
+    and `lead pan` are aliases resting only on PAN Magazine, as a name source: the same
+    publication the strict-range ruling rejects as a range source, so judge the magazine once
+    for both uses. `tenor bass`'s parent is a judgment call between `bass steel pan` and `cello steel
     pan`
   - [ ] `lithophone` and `sekkin` wait: the only range found was one stone marimba's photo
     caption
   - [ ] `paigu` waits as a pitched tuned drum; `bonang barung` and `gender barung` wait the same
     way, as sizes of existing entries with no sourced range
   - [ ] Tuned percussion is pitched: an unpitched row goes to drums and percussion.
-    `babandil` is dropped there as an unpitched timekeeper (no pitch is sourced), as batch 3's
-    `agung` is
+    `babandil` is dropped from this family and left for drums and percussion, as an unpitched
+    timekeeper (no pitch is sourced), the way batch 3 shipped `agung` there
   - [ ] A set's range for a one-pitch body: a `kenong` or `kempul` is a row of single-pitch
     gongs and takes the set's range from a source; without one it waits (both wait)
   - [ ] The one-offs dropped (a one-off instrument, not a type a game would ask for):
@@ -2184,7 +2190,14 @@ This document tracks planned future features for the GlitchyGames project. Featu
     museum sources
   - [ ] The sheet's cells contain stray quote characters (some cells are CSV-quoted), so read it
     with Python's csv module rather than splitting on tabs
-  - [ ] `diamond marimba`'s note reads as a fragment
+  - [ ] Candidate aliases, recorded for the owner and not added: `bell lyre` (the `bell lyra`
+    comment in aliases.py quotes a source naming "bell lyre, bell lyra, or lyra-glockenspiel",
+    and `instruments.get('bell lyre')` raises KeyError); `single tenor` (quoted in the `lead
+    pan` and `ping pong` comments and the sheet); `tubular chimes` (named in the Tubular bells
+    infobox but left out without a stated reason)
+  - [ ] Name hazard: the Tubular bells infobox lists "orchestral bells", while `orchestra
+    bells` is an alias of `glockenspiel`. A developer typing `orchestral bells` gets a KeyError
+    whose suggestion is the glockenspiel, a different instrument
   - [ ] A sound-alike a source later sets apart takes `sound_changes`, citing the source
 - **Found**: batch 5's reviews (2026-11-11)
 - **Status**: TODO

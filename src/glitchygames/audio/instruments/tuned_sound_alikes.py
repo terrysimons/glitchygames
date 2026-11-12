@@ -50,7 +50,7 @@ TUNED_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
         sounds_like='glockenspiel',
     ),
     # Sound-alike of the xylophone (no fetched source sets it apart in sound):
-    # https://GuitarCenter.com/Open-Box/Lyons/Xylophone-Regular-Diatonic.gc ("16-note Stamped Bars
+    # https://www.guitarcenter.com/Lyons/Xylophone-Regular-Diatonic.gc ("16-note Stamped Bars
     # C4 to A5 (Alto)"; "Aged moisture controlled wood bars") and
     # https://en.wikipedia.org/wiki/Xylophone ("The alto ranges are written from middle C to A an
     # octave higher and sound as written."): wooden bars, the xylophone's sound. Range C4-A5
@@ -78,7 +78,7 @@ TUNED_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
         sounds_like='glockenspiel',
     ),
     # Sound-alike of the xylophone (no fetched source sets it apart in sound):
-    # https://www.guitarcenter.com/Open-Box/Lyons/Xylophone-Regular-Diatonic-Level-1-Bass-K64633004003000.gc
+    # https://www.guitarcenter.com/Lyons/Xylophone-Regular-Diatonic.gc
     # ("16-note Stamped Bars C3 to A4 (Bass)"; "Aged moisture controlled wood bars"; "an
     # all-wood chamber, wood tone bars and metal resonators") and
     # https://en.wikipedia.org/wiki/Xylophone ("The bass xylophone ranges are written from middle C

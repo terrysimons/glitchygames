@@ -799,6 +799,9 @@ def test_the_batch_aliases_resolve(alias, target):
     like one is its own entry (``test_a_sound_alike_is_listed_and_builds_its_parents_sound``).
     Batch 4's aliases are other names for a plucked instrument (``kanun`` for the qanun, ``bozuk``
     for the saz).
+    Batch 5's first half names the glockenspiel two more ways (bell lyra, orchestra bells), the
+    tubular bells two more (chimes, orchestral chimes), the saron as the saron barung, and
+    the boomwhackers as the boomwhacker.
     Batch 5's second half names the tenor steel pan three more ways (soprano, lead, ping pong),
     the singing bowl as the rin, the crotales as antique cymbals, and across families the glass
     harp as the verrillon and the mbira as the sanza and sansa.
