@@ -3,7 +3,9 @@
 Status: SPEC (agreed with the user 2026-10-25; drafted 2026-10-23); sub-plan 1 done
 (branch `arcade-1-engine-state`, PR #171: engine context sub-plan 2's Tasks 1-7 rebased onto main
 on 2026-11-08, the owner's RunningGame ruling done; Tasks 8-17 done 2026-11-10, the whole-branch
-verification and the performance gate passed); sub-plan 2 next. Tracked as feature #43 in `plans/future-features.md`.
+verification and the performance gate passed); sub-plan 2 done (branch `arcade-2-demos`,
+[2026-11-11-arcade-2-demos.md](2026-11-11-arcade-2-demos.md), commits `c0ac3f0f..HEAD`:
+every tile's bundled demo); sub-plan 3 next. Tracked as feature #43 in `plans/future-features.md`.
 This is the master plan: each piece below gets its own sub-plan, linked both ways from here
 (sub-plans link back to this file). Since 2026-11-08 it also holds the engine context plan's
 remaining sub-plans (Sub-plans, below).
@@ -189,12 +191,31 @@ entry-point contract is this sub-plan's to define. Launching builds the game in 
 the Arcade's context comes back. The window takes the game's resolution, and the Arcade's again
 after.
 
-### 5. Demos for all nine
+### 5. Demos for all ten
 
-One recording per game, bundled inside each game's own package (`<package>/demos/<name>.jsonl.gz`,
-e.g. `src/games/paddleslap/paddleslap/demos/rally.jsonl.gz` after the migration), recorded with `scripts/record_scripted_session.py --script-only
---output PATH`, each replayed headless by `tests/replay/test_bundled_demos.py`. Bitmappy's shows a
-sprite being drawn; the joystick demo's shows its readout answering a recorded pad.
+One recording per tile, bundled inside each member's own package (`<package>/demos/<name>.jsonl.gz`),
+recorded by one command from its recipe (`scripts/record_bundled_demos.py`, `DEMO_RECIPES`:
+`uv run python -m scripts.record_bundled_demos --demo KEY` or `--all`), each a `--script-only`
+session replayed headless by `tests/replay/test_bundled_demos.py`, which also checks it ends with
+nothing held and stays within 256 KB. Done in sub-plan 2
+([2026-11-11-arcade-2-demos.md](2026-11-11-arcade-2-demos.md)); the ten:
+
+| Tile | Demo |
+| --- | --- |
+| PaddleSlap | `src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz` (the existing one) |
+| Brave Adventurer (Classic) | `src/games/brave-adventurer/src/brave_adventurer_modes/demos/classic.jsonl.gz` |
+| Brave Adventurer: Papyrus | `src/games/brave-adventurer/src/brave_adventurer_modes/demos/papyrus.jsonl.gz` |
+| Clockwork Keep | `src/games/clockwork-keep/src/clockwork_keep/demos/climb.jsonl.gz` |
+| Mr. Muncher | `src/games/mr-muncher/src/mr_muncher/demos/chase.jsonl.gz` |
+| Drawing Fire | `src/games/drawing-fire/src/drawing_fire/demos/battle.jsonl.gz` |
+| Bitmappy | `src/apps/bitmappy/src/bitmappy/demos/drawing.jsonl.gz` (a smiley being drawn) |
+| dt demo | `src/demos/dt-demo/src/dt_demo/demos/timing.jsonl.gz` |
+| Joystick demo | `src/demos/joystick-demo/src/joystick_demo/demos/pad.jsonl.gz` (its readout answering a stand-in pad) |
+| Text-input demo | `src/demos/text-input-demo/src/text_input_demo/demos/typing.jsonl.gz` |
+
+Brave Adventurer's two are in its launcher's package, whose console script is the one that replays
+them. The Sound Board demo is not a tile and has no demo (an open question in
+`plans/future-work.md`).
 
 ## Errors and odd cases
 
@@ -270,7 +291,8 @@ recorded the same options; ten tiles with different games and resolutions make t
    branch `arcade-1-engine-state`): the engine's own state (C7-C20) per engine and context, the
    read-only views, the process-state guard, two engines with different options side by side.
 2. **Demos for every tile** ([2026-11-11-arcade-2-demos.md](2026-11-11-arcade-2-demos.md),
-   branch `arcade-2-demos`): a bundled demo recording for every tile, each a bundled-demo test.
+   branch `arcade-2-demos`; done, section 5 lists the ten): a bundled demo recording for every
+   tile, each a bundled-demo test.
    Only PaddleSlap had one (its rally); the other games had only their golden replays, so they
    get theirs here beside Bitmappy and the dt, joystick and text-input demos.
 3. **A game inside the Arcade** = engine context sub-plans 3, 4, 6 and 7: an inner engine built

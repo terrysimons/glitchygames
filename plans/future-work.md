@@ -15,7 +15,9 @@ Branch `feature/samples-phase-0-layers` holds no phase 0 work yet. In order:
 
 - [x] **Land #111.** Its Windows CI job fails (Linux and macOS pass); find out why and fix it, or
   confirm another session has it. **Done**: #111 merged 2026-10-28 (checked 2026-11-08).
-- [ ] **Rebase `feature/samples-phase-0-layers` onto `main`** once #111 is merged.
+- [x] **Rebase `feature/samples-phase-0-layers` onto `main`** once #111 is merged. **Done**
+  (nothing to rebase): the branch held no work beyond main, its future-work notes were already on
+  main, and its worktree was removed on 2026-11-12.
 - [ ] **Re-run the layer audit** against the new tree, and record what #111 resolved, what is
   left and anything new, against the 2026-10-26 audit (update that file, dated, rather than
   writing another).
@@ -176,6 +178,11 @@ local branches are deleted. The decisions made on the way, for the record:
 | Each AI response runs `_prepare_ai_content` twice (the pixel-row check, then the load), repeating its parse, rewrite and logs | `src/apps/bitmappy/src/bitmappy/ai_manager.py` | Found 2026-10-30 by the pixel-rows final review (minor). |
 | ~~`qlmanage -t -s 256 -o <dir> <sprite.toml>...` hangs with no output and the sprite thumbnail extension never launches~~ | `src/quicklook/tools/make_thumbnails.swift` | Found 2026-10-29 (`feat/sprite-quicklook`, plan Task 7). **Done** (explained, not an extension bug): on this macOS `qlmanage -t` only uses old generator plug-ins (its log says "missing or invalid generator for thumbnail" and its `com.apple.quicklook.thumbnail` discovery finds 0 extensions), and it hangs on any type without one (an unknown `.qqqzz` file hangs too). Through `QLThumbnailGenerator`, the API Finder uses, the extension draws sprites and declines other `.toml` files, which keep the plain document icon they had before (checked with the extension switched off). Check thumbnails with `swift tools/make_thumbnails.swift`. |
 | The multi-ball simulation tests write `ball.rect.x/y` for start positions and separations, which never took effect (the ball's position is `world_x`/`world_y`; rect was rebuilt from it, now by the engine), so every ball starts at its `reset()` serve position, not the drawn random one | `tests/game_objects/test_multi_ball_*.py` | Pre-existing test weakness found in feature/engine-world-space Task 9; set `world_x`/`world_y` instead and re-check the thresholds. |
+| CoreAudio flake: `AudioQueueStart -66681` stalled two of three full `uv run pytest` runs on the native (cocoa + coreaudio) driver on 2026-11-11, in `test_crt_power_on_sound` and `test_sound_cache`; the named tests pass alone | `tests/` (native driver child run), SDL's coreaudio driver | Found during Arcade sub-plan 2's verification. Same error as BUGS.md #266 (a held audio device), but no orphaned process was found this time; find what holds or starves the device under the full parallel run. |
+| `TextSprite.update_text` renders with `FontManager.get_font()` and ignores `self.font`, so the `.font` Bitmappy sets on its slider labels does nothing | `src/glitchygames/ui/text_widgets.py` (`TextSprite.update_text`), Bitmappy's slider labels | Found in Arcade sub-plan 2 (Task 6, Bitmappy's demo). Use `self.font` when set, or stop setting it. |
+| The dt demo's square keeps moving off screen after it crosses: nothing clamps or wraps it | `src/demos/dt-demo/src/dt_demo/__init__.py` | Found in Arcade sub-plan 2 (Tasks 4-5). Clamp or wrap it, then re-record `timing.jsonl.gz` (a reviewed step). |
+| Stand-in pads log a misleading WARNING "Device enumeration ... is not in the recording" on a second `joystick_count` or on `name_for_index` | `src/glitchygames/input/stand_in_devices.py`, `src/glitchygames/input/devices.py` (~1371) | Found in Arcade sub-plan 2 (Task 7, the joystick demo's `pad`). The answer is right; the warning is noise. A stand-in registry should answer repeated enumerations without falling to the "not recorded" path. |
+| The joystick demo would raise if a device connected while another scene was active | `src/demos/joystick-demo/src/joystick_demo/__init__.py` | Found in Arcade sub-plan 2. Matters once the Arcade hosts the demo beside other scenes. |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)
 
@@ -703,6 +710,36 @@ only replays; Part 2 Task 1).
   (`ai_service_default_bonsai_size`, plans/lucid-circuit.md section 5), at its full context, or
   nothing when that doesn't fit. Agreed earlier and deferred: step down instead, full context, then
   32K, then 8K, then none, with Qwen starting with the game as it does today.
+
+## Arcade (sub-plan 2 follow-ups, 2026-11-11; plans/2026-11-11-arcade-2-demos.md)
+
+- **Longer attract scripts for Clockwork Keep and Brave Adventurer.** Their demos (`climb`, 330
+  frames; `classic` and `papyrus`, 400 each) reuse their golden scripts' frames and stop where
+  each script's first placement comes (a session may not run a placement's frame), so they are
+  short loops (Ruling 3). Write demo-only scripts in `scripts/demo_inputs.py` (as Mr. Muncher's
+  chase has) and re-record with `scripts/record_bundled_demos.py`.
+- **The game demos keep the golden scripts' pause** (the owner's question). Mr. Muncher's chase
+  pauses at frames 31-34 and Brave Adventurer's two at frames 80-93, so a looping tile briefly
+  shows the pause screen. Keep the pause, or trim or replace those scripts' pauses for the demos.
+- **The Sound Board's tile and demo** (the owner's question). It is not one of the mockup's ten
+  tiles, so it got no demo (Ruling 2). If it becomes a tile, its demo is one more recipe in
+  `DEMO_RECIPES`; note a replay compares sprites and events, so what it plays must be shown by
+  sprites or posted as events to be checked.
+- **The text-input demo's replay doesn't compare the typed text** (Ruling R10). Its submit
+  handler only logs the text and the `InputBox` rect never changes, so `typing.jsonl.gz` would
+  replay clean if typing broke. Post an internal GAMEEVENT on submit
+  (`glitchygames.recording.post_event`, as Drawing Fire does per death) or draw the typed text as
+  sprites, then re-record the demo (`src/demos/text-input-demo/src/text_input_demo/__init__.py`
+  `on_input_box_submit_event`).
+- **Bitmappy starts its AI worker process on every run** (Ruling R11). With no AI service
+  installed, `ai_worker.py` logs "AI features disabled" at ERROR with a traceback
+  (`log.exception`), though that is a normal case. In the one-process Arcade, Bitmappy's tile
+  would start a worker on every loop. Start no worker, and log no error (INFO at most), when the
+  service is absent, in a replay or in a demo (`src/apps/bitmappy/src/bitmappy/ai_worker.py`).
+- ~~**Convert the joystick demo (and the dt demo) to sprites**~~ (the owner, 2026-11-11). **Done**
+  in sub-plan 2's Task 4 (`40576db5`, `8c5dcf61`), which removed the entry from Games: both draw
+  with sprites (the joystick demo's gauges, a column rebuilt when a pad's mapping changes), so
+  their `timing` and `pad` demos compare what they show.
 
 ## Games
 

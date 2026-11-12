@@ -59,7 +59,7 @@ TEXT_INPUT_DEMO_FRAME_COUNT = 600
 
 # The joystick demo's pad: an unmapped joystick (its events come from its joystick layer, axes
 # -1.0..1.0) that exists only in the recording session. It names no GUID, so the readout shows
-# "GUID: unknown"
+# its GUID as unknown
 DEMO_PAD = DeviceDescriptor(
     kind=JOYSTICK_KIND,
     device_index=0,

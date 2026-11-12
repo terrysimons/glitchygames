@@ -944,6 +944,21 @@ Our five games' scripts and controls tails are test data in `scripts/golden_inpu
 `scripts/record_golden_traces.py` and `scripts/record_scripted_session.py` keep only our
 games' tables and call the engine.
 
+From Python, the scripted-session recorder
+(`glitchygames.replay.tools.scripted_sessions.record_scripted_session`) takes its options by
+keyword (`ScriptedSessionOptions`): `controls_tail` (None ends the session after the script's
+frames, as `--script-only` and every bundled demo do), `polled_input`, `input_only_placements`,
+`random_seed`, and `stand_in_devices`. Stand-in devices
+(`glitchygames.input.stand_in_devices`: a joystick or game controller that exists only in the
+session, given as `DeviceDescriptor`s) are plugged in from the session's start and opened
+through the real devices door, so the game sees them as real pads, the recording's header holds
+them and its replay opens them again (a replay never sees real hardware). The script moves them
+with their events (`JOYAXISMOTION`, `JOYBUTTONDOWN`/`UP`, `JOYHATMOTION` by `instance_id`),
+which a game that polls (`current_input()`) sees only with `polled_input`. The golden-trace
+harness takes the same option (`GoldenTraceEngine(..., stand_in_devices=...)`). It has no
+command-line flag: the joystick demo's `pad` recording is its one user
+(`scripts/record_bundled_demos.py`).
+
 ### Project settings (`[tool.glitchygames]`)
 
 A project's settings for the tools live in `[tool.glitchygames]` in its `pyproject.toml`
@@ -1050,14 +1065,33 @@ A demo plays at the game's speed from the start of the next frame and ends at th
 end, at the player's first press (consumed: it never reaches `then`), at the recording's own
 quit, or at a divergence (logged at WARNING as `demo diverged: ...`, then back to `then`). A
 recording that cannot be played (missing, unreadable, another game's, no scene start) is logged
-at WARNING and nothing starts. Record a demo with
-`scripts/record_scripted_session.py --script-only --output PATH` (it runs `--record-trace`, so
-its first frame holds the scene start; `--script-only` leaves out the controls tail, whose quit
-would end the demo).
+at WARNING and nothing starts. A demo is a scripted session recorded with `--record-trace`, so
+its first frame holds the scene start, and without a controls tail, whose quit would end the
+demo (`scripts/record_scripted_session.py --script-only --output PATH` records one from a
+game's golden script).
 
 Bundled demos are recordings shipped in a game's package as package data,
-`<package>/demos/<name>.jsonl.gz`: PaddleSlap's `paddleslap/demos/rally.jsonl.gz`, which its
-game-over screen plays after 10 seconds without a press. The engine finds them, for any tool or
+`<package>/demos/<name>.jsonl.gz`. Every Arcade tile has one, ten in all: PaddleSlap's
+`paddleslap/demos/rally.jsonl.gz`, which its game-over screen plays after 10 seconds without a
+press; Clockwork Keep's `climb`; Brave Adventurer's `classic` and `papyrus` (both in its
+launcher's package, `brave_adventurer_modes/demos/`, whose console script replays the edition
+each header names); Mr. Muncher's `chase`; Drawing Fire's `battle`; Bitmappy's `drawing` (a
+smiley drawn on the canvas); the dt demo's `timing`, the text-input demo's `typing` and the
+joystick demo's `pad` (a stand-in pad, 'GlitchyGames Demo Pad'). Each is recorded by one
+command from its recipe in `scripts/record_bundled_demos.py` (`DEMO_RECIPES`: the scene, the
+input script, the frame count, the package and name, and the session's options):
+
+```bash
+uv run python -m scripts.record_bundled_demos --demo mr_muncher_chase   # or --all
+```
+
+Every recipe records without a controls tail, under the goldens' seed, at 800x480, with no AI
+service reachable and no real pad (the session's AI install root is an empty directory and SDL's
+joystick drivers are off). The games reuse their golden scripts' frames up to the controls tail;
+the demos and Bitmappy have their own scripts in `scripts/demo_inputs.py`. A demo must end with
+nothing held (no key, mouse or pad button down, every pad axis at rest and every hat centred),
+since the Arcade loops it, and stay at most 256 KB; `tests/replay/test_bundled_demos.py` checks
+both on the committed files. Re-record a demo only deliberately, as a golden. The engine finds them, for any tool or
 installed game, with `glitchygames.bundled_demos.bundled_demos()`: each `BundledDemo` (a frozen
 record) holds the game's console script (None when no installed console script is in the
 package), the demo's installed path and its install name (`paddleslap/demos/rally.jsonl.gz`,

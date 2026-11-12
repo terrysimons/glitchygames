@@ -118,10 +118,71 @@ def input_held_after_the_last_frame(*, path):
     return held
 
 
+# Event type -> the kind of position it moves and the attribute naming which one (an axis or a
+# hat). A position is at rest at 0 (an axis: 0.0 on the joystick layer, 0 on the controller
+# layer's int scale) or (0, 0) (a hat, centred). The rest is exact, not within a dead zone: the
+# engine's dead zone belongs to an action map (``action_map.DEFAULT_DEADZONE``, ``--axis-deadzone``)
+# and the joystick demo draws the raw positions, so an axis left at 0.1 would show off centre
+# when the Arcade loops the demo
+POSITION_KINDS = {
+    pygame.JOYAXISMOTION: ('joystick axis', 'axis'),
+    pygame.JOYHATMOTION: ('joystick hat', 'hat'),
+    pygame.CONTROLLERAXISMOTION: ('controller axis', 'axis'),
+}
+
+
+def is_at_rest(*, value):
+    """Return whether an axis or hat position is at rest.
+
+    Args:
+        value: An axis value (a number) or a hat value (a pair, as JSON decodes it: a list).
+
+    Returns:
+        True for an axis at 0 or a centred hat.
+
+    """
+    if isinstance(value, list | tuple):
+        return all(component == 0 for component in value)
+    return value == 0
+
+
+def positions_away_from_rest_after_the_last_frame(*, path):
+    """Return the external axes and hats a recording leaves away from rest.
+
+    Args:
+        path: The recording.
+
+    Returns:
+        A dict from ``(kind, instance_id, axis or hat)`` to its last value, for each position
+        whose last recorded value is not at rest (see ``is_at_rest``).
+
+    """
+    last_values = {}
+    with TraceReader(path=path) as reader:
+        for frame in reader:
+            for batch in frame.get('event_batches', []):
+                for record in batch:
+                    if record['origin'] != 'external' or record['type'] not in POSITION_KINDS:
+                        continue
+                    kind, index_attribute = POSITION_KINDS[record['type']]
+                    attributes = record['attributes']
+                    position = (kind, attributes['instance_id'], attributes[index_attribute])
+                    last_values[position] = attributes['value']
+    return {
+        position: value for position, value in last_values.items() if not is_at_rest(value=value)
+    }
+
+
 def test_no_bundled_demo_ends_with_input_held():
-    """The Arcade loops a demo, so nothing a demo pressed may still be down after its last frame."""
+    """The Arcade loops a demo, so nothing a demo pressed may still be down after its last frame.
+
+    Nor moved: every pad axis it moved is back at rest and every hat centred (Ruling R12).
+    """
     for demo in bundled_demos(packages=MEMBER_PACKAGES):
         assert input_held_after_the_last_frame(path=demo.path) == set(), demo.install_name
+        assert positions_away_from_rest_after_the_last_frame(path=demo.path) == {}, (
+            demo.install_name
+        )
 
 
 @pytest.mark.parametrize(
