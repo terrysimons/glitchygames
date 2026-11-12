@@ -1,6 +1,7 @@
 """The instrument catalog: every entry builds, renders across its range and plays its pitch."""
 
 from functools import partial
+from typing import NamedTuple
 
 import numpy as np
 import pytest
@@ -199,7 +200,10 @@ def test_every_instrument_renders_across_its_range(name):
     [
         entry.name
         for entry in instruments.entries()
-        if entry.family in HARMONIC_FAMILIES and entry.name not in NOT_PERIODIC_AT_THE_NOTE
+        if entry.family in HARMONIC_FAMILIES
+        and entry.name not in NOT_PERIODIC_AT_THE_NOTE
+        # An unpitched entry has no note to repeat at (batch 6's drum-machine voices)
+        and entry.pitched
     ],
 )
 def test_harmonic_instruments_sound_their_note(name):
@@ -1480,21 +1484,61 @@ TUNED_SOUND_ALIKE_PARENTS: dict[str, str] = {
     'ugal': 'gangsa',
 }
 
-# Each family a batch grew: (the entries that predate it, its new builds, its sound-alikes)
-BATCH_FAMILIES: dict[Family, tuple[frozenset[str], list[str], dict[str, str]]] = {
-    Family.PLUCKED_STRINGS: (
-        EXISTING_PLUCKED_NAMES,
-        NEW_PLUCKED_NAMES,
-        PLUCKED_SOUND_ALIKE_PARENTS,
+# The 15 electronic entries that predate batch 6
+EXISTING_ELECTRONIC_NAMES = frozenset({
+    'theremin',
+    'ondes martenot',
+    'saw lead',
+    'square lead',
+    'supersaw',
+    'synth pad',
+    'synth strings',
+    'synth brass',
+    'synth bass',
+    'sub bass',
+    'synth pluck',
+    'chip square',
+    'chip pulse 25',
+    'chip pulse 12',
+    'chip triangle',
+})
+# Batch 6's electronic family: the names of its entries with their own build, each of its
+# sound-alikes with the entry it sounds like, and the entries that are unpitched (the drum
+# machines' voices; Tasks 4 and 6 fill these)
+NEW_ELECTRONIC_NAMES: list[str] = []
+ELECTRONIC_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+ELECTRONIC_UNPITCHED_NAMES: frozenset[str] = frozenset()
+
+
+class BatchFamily(NamedTuple):
+    """A family a batch grew: the entries that predate it, what it added and what is unpitched."""
+
+    existing_names: frozenset[str]
+    new_names: list[str]
+    sound_alike_parents: dict[str, str]
+    unpitched_names: frozenset[str] = frozenset()
+
+
+BATCH_FAMILIES: dict[Family, BatchFamily] = {
+    Family.PLUCKED_STRINGS: BatchFamily(
+        EXISTING_PLUCKED_NAMES, NEW_PLUCKED_NAMES, PLUCKED_SOUND_ALIKE_PARENTS
     ),
-    Family.TUNED_PERCUSSION: (EXISTING_TUNED_NAMES, NEW_TUNED_NAMES, TUNED_SOUND_ALIKE_PARENTS),
+    Family.ELECTRONIC: BatchFamily(
+        EXISTING_ELECTRONIC_NAMES,
+        NEW_ELECTRONIC_NAMES,
+        ELECTRONIC_SOUND_ALIKE_PARENTS,
+        ELECTRONIC_UNPITCHED_NAMES,
+    ),
+    Family.TUNED_PERCUSSION: BatchFamily(
+        EXISTING_TUNED_NAMES, NEW_TUNED_NAMES, TUNED_SOUND_ALIKE_PARENTS
+    ),
 }
 
 
 @pytest.mark.parametrize('family', list(BATCH_FAMILIES), ids=str)
 def test_no_new_build_is_another_entrys_instrument(family):
     """A batch's build is its own sound (the anti-goal), whatever entry it is set against."""
-    _, new_names, _ = BATCH_FAMILIES[family]
+    new_names = BATCH_FAMILIES[family].new_names
     names = instruments.names(family=family)
     same = [
         (new_name, other)
@@ -1508,14 +1552,16 @@ def test_no_new_build_is_another_entrys_instrument(family):
 
 
 @pytest.mark.parametrize('family', list(BATCH_FAMILIES), ids=str)
-def test_the_new_entries_are_pitched_entries_of_their_family(family):
-    """Each new entry, sound-alikes included, is in its family with a range."""
-    existing_names, new_names, sound_alike_parents = BATCH_FAMILIES[family]
-    for name in [*new_names, *sound_alike_parents]:
+def test_the_new_entries_are_in_their_family_pitched_unless_listed(family):
+    """Each new entry, sound-alikes included, is in its family, pitched unless the row lists it."""
+    row = BATCH_FAMILIES[family]
+    new_entries = [*row.new_names, *row.sound_alike_parents]
+    assert row.unpitched_names <= set(new_entries)
+    for name in new_entries:
         assert instruments.entry(name).family == family, name
-        assert instruments.entry(name).pitched, name
+        assert instruments.entry(name).pitched == (name not in row.unpitched_names), name
     assert set(instruments.names(family=family)) == (
-        existing_names | set(new_names) | set(sound_alike_parents)
+        row.existing_names | set(row.new_names) | set(row.sound_alike_parents)
     )
 
 
@@ -1526,9 +1572,9 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         assert name in listed, name
         assert instruments.entry(name).sounds_like == parent, name
         assert instruments.get(name) == instruments.get(parent), name
-    for family, (_, _, sound_alike_parents) in BATCH_FAMILIES.items():
+    for family, row in BATCH_FAMILIES.items():
         listed_in_family = instruments.names(family=family)
-        for name, parent in sound_alike_parents.items():
+        for name, parent in row.sound_alike_parents.items():
             assert name in listed_in_family, name
             assert instruments.entry(name).sounds_like == parent, name
             assert instruments.get(name) == instruments.get(parent), name
@@ -1537,9 +1583,13 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         for catalog_entry in instruments.entries()
         if catalog_entry.sounds_like is not None
     ]
-    # The catalog lists families in table order: plucked strings, tuned percussion, then drums
+    # The catalog lists families in table order: plucked strings, electronic, tuned percussion,
+    # then drums
     assert every_sound_alike == (
-        list(PLUCKED_SOUND_ALIKE_PARENTS) + list(TUNED_SOUND_ALIKE_PARENTS) + SOUND_ALIKE_NAMES
+        list(PLUCKED_SOUND_ALIKE_PARENTS)
+        + list(ELECTRONIC_SOUND_ALIKE_PARENTS)
+        + list(TUNED_SOUND_ALIKE_PARENTS)
+        + SOUND_ALIKE_NAMES
     )
 
 
