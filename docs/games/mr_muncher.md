@@ -122,17 +122,22 @@ stateDiagram-v2
     GameOver --> [*] : ESC, B or Back
 ```
 
-- **Next reel**: `_go_to_next_level` sets `next_scene` to a new `MrMuncherScene` with
-  `GameProgress(level + 1, score, lives, extra_life_awarded)`. It does this only once (it
-  checks that `next_scene` is still `None`).
-- **Game over**: `_show_game_over_screen` fades (1 s `FadeTransition`) to
-  `MrMuncherGameOverScene`. This screen shows the engine's GAME OVER layout (score and high
-  score table) plus a headline, either `NEW HIGH SCORE!  Reel N` or `You reached reel N`.
-  `resume()` always starts a new game with `switch_to_scene(MrMuncherScene(...))`, because the
-  previous scene depends on how the screen was reached.
-- **Pause**: the engine's `PauseScene` shows a frozen screenshot of the game. When play
-  resumes, the scene's `setup()` runs again. That is why `setup()` shows the ready message only
-  while the phase is still `READY`.
+Next reel
+:   `_go_to_next_level` sets `next_scene` to a new `MrMuncherScene` with
+    `GameProgress(level + 1, score, lives, extra_life_awarded)`. It does this only once (it
+    checks that `next_scene` is still `None`).
+
+Game over
+:   `_show_game_over_screen` fades (1 s `FadeTransition`) to
+    `MrMuncherGameOverScene`. This screen shows the engine's GAME OVER layout (score and high
+    score table) plus a headline, either `NEW HIGH SCORE!  Reel N` or `You reached reel N`.
+    `resume()` always starts a new game with `switch_to_scene(MrMuncherScene(...))`, because the
+    previous scene depends on how the screen was reached.
+
+Pause
+:   The engine's `PauseScene` shows a frozen screenshot of the game. When play
+    resumes, the scene's `setup()` runs again. That is why `setup()` shows the ready message only
+    while the phase is still `READY`.
 
 ### Scene classes
 
@@ -282,15 +287,20 @@ does not have exactly one `P`. It knows nothing about pixels. Positions are in *
 the centre of the tile in column `c`, row `r` is `(c, r)`, so an actor standing on a tile centre
 has whole-number coordinates.
 
-- **Tunnels.** `Maze.tile` wraps columns, and treats rows outside the maze as wall. Only rows 4
-  and 22 are open at both edges, so they are the two wrapping tunnels. `wrap_x` moves an x that
-  has gone more than half a tile past an edge to the other side. `tile_distance` measures the
-  short way round, so two positions at opposite ends of a tunnel count as close.
-- **The house.** The door is at (13, 9). `house_entrance` is the corridor tile above it (13, 8),
-  where munchers leave and come back. `house_centre` is two tiles below the door (13, 11).
-- **Geometry.** `MazeGeometry` (`actors.py`) holds `tile_size`, `left` and `top`, and converts a
-  position in tiles to pixels (`pixel_centre`). `maze_geometry` (`game.py`) chooses the tile
-  size.
+Tunnels
+:   `Maze.tile` wraps columns, and treats rows outside the maze as wall. Only rows 4
+    and 22 are open at both edges, so they are the two wrapping tunnels. `wrap_x` moves an x that
+    has gone more than half a tile past an edge to the other side. `tile_distance` measures the
+    short way round, so two positions at opposite ends of a tunnel count as close.
+
+The house
+:   The door is at (13, 9). `house_entrance` is the corridor tile above it (13, 8),
+    where munchers leave and come back. `house_centre` is two tiles below the door (13, 11).
+
+Geometry
+:   `MazeGeometry` (`actors.py`) holds `tile_size`, `left` and `top`, and converts a
+    position in tiles to pixels (`pixel_centre`). `maze_geometry` (`game.py`) chooses the tile
+    size.
 
 ### Grid movement and turn buffering
 
@@ -504,18 +514,23 @@ flowchart TB
     A --> B
 ```
 
-- **Sub-steps.** `_play` splits the frame into `ceil(dt / (1/120))` equal steps (two at 60 FPS,
-  at most six after a capped hitch), so no actor moves far enough in one step to pass through
-  another. In each step the player moves and eats first, and contact is checked both after the
-  player moves and after the munchers move.
-- **The pose rule.** Every sprite's picture is chosen in `dt_tick`, after its state is decided
-  (`_pose_sprites`): the bucket's chomp (four mouth steps per tile travelled), the dying
-  animation (24 steps), each muncher's body, frightened or flashing picture or eyes, the skirt's
-  wave (every 0.15 s of game time), and the snacks' twinkle. The side panels are redrawn only
-  when what they show changes.
-- **Input timing.** Key events are handled after `dt_tick`, so a key pressed in frame N changes
-  `wanted_direction` in the `dt_tick` of frame N + 1. The autopilot allows for this delay (see
-  below).
+Sub-steps
+:   `_play` splits the frame into `ceil(dt / (1/120))` equal steps (two at 60 FPS,
+    at most six after a capped hitch), so no actor moves far enough in one step to pass through
+    another. In each step the player moves and eats first, and contact is checked both after the
+    player moves and after the munchers move.
+
+The pose rule
+:   Every sprite's picture is chosen in `dt_tick`, after its state is decided
+    (`_pose_sprites`): the bucket's chomp (four mouth steps per tile travelled), the dying
+    animation (24 steps), each muncher's body, frightened or flashing picture or eyes, the skirt's
+    wave (every 0.15 s of game time), and the snacks' twinkle. The side panels are redrawn only
+    when what they show changes.
+
+Input timing
+:   Key events are handled after `dt_tick`, so a key pressed in frame N changes
+    `wanted_direction` in the `dt_tick` of frame N + 1. The autopilot allows for this delay (see
+    below).
 
 ## Drawing
 
@@ -668,14 +683,17 @@ live voice or no audio is available, the game logs a warning and plays without i
 the screen, and never changes it. `Autopilot.choose_direction(scene=...)` returns the direction
 to ask for in each frame. It has two uses:
 
-- **Steering the golden replay.** `scripts/golden_inputs.py: mr_muncher_script` wraps it
-  in `MuncherSteering`, which holds the arrow key for the direction the autopilot wants
-  (pressing it again if the player still wants another way after 4 frames). With
-  `seek_capture_after_seconds=22.0` it walks into a muncher once, so the recording includes a
-  death and the next take.
-- **Bot playtests in the tests.** `src/games/mr-muncher/tests/test_mr_muncher.py::TestWholeGames` lets it
-  play a last life until game over (setting `wanted_direction` directly), and
-  `TestAutopilot` in `src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py` checks its choices.
+Steering the golden replay
+:   `scripts/golden_inputs.py: mr_muncher_script` wraps it
+    in `MuncherSteering`, which holds the arrow key for the direction the autopilot wants
+    (pressing it again if the player still wants another way after 4 frames). With
+    `seek_capture_after_seconds=22.0` it walks into a muncher once, so the recording includes a
+    death and the next take.
+
+Bot playtests in the tests
+:   `src/games/mr-muncher/tests/test_mr_muncher.py::TestWholeGames` lets it
+    play a last life until game over (setting `wanted_direction` directly), and
+    `TestAutopilot` in `src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py` checks its choices.
 
 How it decides:
 

@@ -74,6 +74,8 @@ docs = [
   "mkdocs-autorefs",
   "mkdocs-macros-plugin",
   "mkdocstrings-python",
+  # Each page's last-updated date, from its history (zensical.yml plugins)
+  "mkdocs-git-revision-date-localized-plugin",
 ]
 dev = [
   "nox[uv]",
@@ -827,6 +829,7 @@ DEP002 = [
   "mkdocs-autorefs",
   "mkdocs-macros-plugin",
   "mkdocstrings-python",
+  "mkdocs-git-revision-date-localized-plugin",
   "pytest-cov",
   "pytest-xdist",
   "pytest-benchmark",

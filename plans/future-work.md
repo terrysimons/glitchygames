@@ -988,14 +988,20 @@ drafted issue text. Not posted yet:
   glossary of abbreviations). Material stays, with mkdocs pinned below 2.0. Plan:
   `plans/2026-11-09-docs-material-formatting.md`.
 - **Smaller docs items left from #145** (2026-11-09):
-  - `docs/index.md` says the engine "aims to support 20-25FPS minimum games on Raspberry Pi",
-    while the requirements page's minimum is a typical p99 under 16.7 ms (60 FPS). The owner
-    decides which holds; the other is reworded.
-  - The event system diagrams' click links (`js/mermaid-config.js` sets Mermaid's `loose` security
-    level so they work under Material) were checked to render, not clicked: click one on the
-    published site.
-  - The explorers' JavaScript has no automated test (the browser test under Performance and
-    pacing).
+  - Done (2026-11-10, `docs/material-formatting`): `docs/index.md` said the engine "aims to
+    support 20-25FPS minimum games on Raspberry Pi", while the requirements page's minimum is a
+    typical p99 under 16.7 ms (60 FPS). index.md now follows the requirements page (60 FPS; the
+    Pi 5 runs every game, the Pi 4 all but Brave Adventurer, which fits 30 FPS there). The owner
+    may still choose the other wording.
+  - Done (2026-11-10): the event system diagrams' click links (`js/mermaid-config.js` sets
+    Mermaid's `loose` security level so they work under Material): all 74 `click` lines reach the
+    built page, and their 8 targets on pyga.me answer 200.
+  - Done (2026-11-10), without a browser: every docs build checks the three explorers' built
+    pages (requirements, replay performance, code complexity) hold their explorer and that every
+    local script, stylesheet and `data-source` they name is a file of the site
+    (`scripts/mkdocs_hooks.py` `missing_explorer_files`, `tests/test_mkdocs_hooks_browser_games.py`).
+    The explorers' JavaScript itself still has no automated test (the browser test under
+    Performance and pacing).
   - The requirements page and its claude.ai doc copy are re-measured later (under Performance and
     pacing).
 - **Move the docs site to Zensical** (the owner, 2026-11-09: later, after the Material

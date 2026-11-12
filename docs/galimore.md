@@ -160,13 +160,19 @@ fully-impassable mask cells), `map.map` (lattice test), `test.map` (18 cells of 
 GEDIT (32×32, 256 colours, rotate/mirror/replace/transparent colour, 8-frame sprites); GMAP (15×15
 maps, layer toggles, exits); GATTRIB (attributes); GTORAW / RAWTOG (bitmap ↔ RGB raw, palette as a
 `switch`). The two DOCs are swapped (`GMAP.DOC` documents GEDIT).
-- **Bitmap, 1312 B:** bitmapSize, transparentImage, transparencyColor (default 15); `byte
-  array[32][32]` palette indices `[x][y]`; attribs (name[21], 3 type bytes, misc, weight,
-  description[256]). `BKG.DAT` 19,680 = 15×1312.
-- **Sprite, 9262 B:** 8 frames (DOWN1/2, UP1/2, LEFT1/2, RIGHT1/2) + speed, dimensions, direction,
-  X, Y + temp array + `struct time`.
-- **Map:** 1458 B = `unsigned char Map[6][15][15]` + 6 exits (old: 2808 B with `int`). Exit = name[13]
-  + pad + int X, Y. Layers: background, wall, object, scenery, door.
+
+Bitmap, 1312 B
+:   bitmapSize, transparentImage, transparencyColor (default 15); `byte
+    array[32][32]` palette indices `[x][y]`; attribs (name[21], 3 type bytes, misc, weight,
+    description[256]). `BKG.DAT` 19,680 = 15×1312.
+
+Sprite, 9262 B
+:   8 frames (DOWN1/2, UP1/2, LEFT1/2, RIGHT1/2) + speed, dimensions, direction,
+    X, Y + temp array + `struct time`.
+
+Map
+:   1458 B = `unsigned char Map[6][15][15]` + 6 exits (old: 2808 B with `int`). Exit = name[13]
+    + pad + int X, Y. Layers: background, wall, object, scenery, door.
 
 ---
 
@@ -235,14 +241,26 @@ Roadmap **#11 "Level/room data format (and tilemaps)"** is open; each game rolls
 ### 5.2 Converting Galimore data
 The survey's read-only decoder (not in this repository) decodes everything below to PNG; sub-plan E
 (`plans/2026-10-18-level-tools-e-galimore-import.md`) plans a reviewed converter.
-- **Tiles:** `<1024H`, transpose from `[x][y]`, RGB565 → RGB888, `0xF81F` → magenta; write TOML
-  `pixels` + `[colors]` (10–60 colours per tile); keep the 1-based `.dat` index as the tile ID.
-- **Sprites:** 16 × 32×48 frames (`<1536H`, `[x][y]`); drop all-grey frames; `walk_down` (0–2),
-  `walk_up` (3–5), `walk_side` (6–8, mirrored).
-- **Raw:** RGB888 row-major → PNG for Bitmappy.
-- **Maps:** offsets in §2.3; layers per floor; mask bits → named properties.
-- **1999 data:** 1312 B indexed bitmaps (palette from GTORAW or `GALIMORE PALLETE.GIF`; honour
-  `transparencyColor`), 9262 B 8-frame sprites, 1458 / 2808 B maps with exits — the best test case
-  for a room/exit design.
-- **Caveats:** tiles may be RGB555 if saved in 15-bit mode; attribute blocks are empty; sounds need
-  resource-fork extraction first (e.g. `DeRez`).
+
+Tiles
+:   `<1024H`, transpose from `[x][y]`, RGB565 → RGB888, `0xF81F` → magenta; write TOML
+    `pixels` + `[colors]` (10–60 colours per tile); keep the 1-based `.dat` index as the tile ID.
+
+Sprites
+:   16 × 32×48 frames (`<1536H`, `[x][y]`); drop all-grey frames; `walk_down` (0–2),
+    `walk_up` (3–5), `walk_side` (6–8, mirrored).
+
+Raw
+:   RGB888 row-major → PNG for Bitmappy.
+
+Maps
+:   Offsets in §2.3; layers per floor; mask bits → named properties.
+
+1999 data
+:   1312 B indexed bitmaps (palette from GTORAW or `GALIMORE PALLETE.GIF`; honour
+    `transparencyColor`), 9262 B 8-frame sprites, 1458 / 2808 B maps with exits — the best test case
+    for a room/exit design.
+
+Caveats
+:   Tiles may be RGB555 if saved in 15-bit mode; attribute blocks are empty; sounds need
+    resource-fork extraction first (e.g. `DeRez`).

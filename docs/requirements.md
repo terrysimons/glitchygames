@@ -3,7 +3,7 @@
 A computer meets GlitchyGames' minimum for a game when that game's typical frame takes less than
 16.7 ms of work, the budget for the engine's default 60 FPS. Pick a target and a measure below, and
 a platform from the tabs: every verdict and color follows your choice. Three machines have been
-measured so far.
+measured so far: a Raspberry Pi 4, a Raspberry Pi 5 and an Apple M4 Max.
 
 !!! note "Provisional"
     These numbers were measured from November 5 to 9, 2026. They will change once the in-flight
@@ -15,12 +15,12 @@ measured so far.
 
 | Requirement | Minimum | Recommended |
 | --- | --- | --- |
-| Each game's frame work, in the replay benchmark | Under the frame budget: 16.7 ms at 60 FPS, 33.3 ms at 30 | Under 60% of it (10 ms at 60 FPS), leaving the rest to draw the frame on screen |
+| Each game's frame work in the replay benchmark (its typical p99, unless you pick another measure below) | Under the frame budget: 16.7 ms at 60 FPS, 33.3 ms at 30 | Under 60% of it (10 ms at 60 FPS), leaving the rest to draw the frame on screen |
 | Operating system | Ubuntu 26.04 LTS or later, or macOS 27 | Same |
 | Python and pygame-ce | Python 3.14 and pygame-ce 2.5.8 (uv installs both) | Same |
 | Memory | 4 GB, the smallest machine measured | Same |
 
-The 60% recommended line is a proposal. The benchmark doesn't time drawing to the screen, so the
+The 60% recommended line (10 ms at 60 FPS) is a proposal. The benchmark doesn't time drawing to the screen, so the
 line leaves room for it. Windows passes the test suite in CI, but no Windows machine has been
 measured.
 
@@ -32,7 +32,7 @@ measured.
 </div>
 
 The FPS column is the rate a game would run at if every frame took the measure you picked
-(1000 ÷ ms), colored from red at 15 FPS to green at 60 FPS and above; the black line on the scale
+(1000 ÷ ms), colored from red at 15 FPS to green at 60 FPS and above; the line on the scale
 marks the target. The ranges are the lowest and highest across a machine's runs.
 
 === "Raspberry Pi 4"
@@ -61,18 +61,31 @@ marks the target. The ranges are the lowest and highest across a machine's runs.
 
 ## How this was measured
 
-- **Source:** the replay ledger, `quality/replay-ledger/` ([Replay Performance](quality/performance.md)),
-  summarized in `docs/data/requirements.json`, which this page reads. Each ledger row is one
-  measured run of one golden replay or bundled demo. The pre-push hook measures both Pis for each
-  new code tree.
-- **What a number is:** each frame's processing time while the recording replays headless,
-  unpaced, on SDL's dummy driver. It is the game's own work, without drawing to a real screen.
-- **Typical:** the median across a machine's runs. Runs are from November 5 to 9, 2026.
+Source
+:   The replay ledger, `quality/replay-ledger/` ([Replay Performance](quality/performance.md)),
+    summarized in `docs/data/requirements.json`, which this page reads. Each ledger row is one
+    measured run of one golden replay or bundled demo. The pre-push hook measures both Pis for
+    each new code tree.
 
-What the numbers leave out:
+What a number is
+:   Each frame's processing time while the recording replays headless, unpaced, on SDL's dummy
+    driver. It is the game's own work, without drawing to a real screen.
 
-- **Drawing to a real screen.** Real-driver timing is planned, not yet measured.
-- **Memory.** Not recorded in the ledger.
-- **Thermals.** The ledger doesn't record temperature on Linux. The Pi 4, with no added cooling,
-  varies about 12% across runs.
-- **Other machines.** No Windows PC, x86 Linux machine or older Mac has been measured.
+Typical
+:   The median across a machine's runs. Typical p99, the measure picked first, is the median of
+    each run's 99th-percentile frame. Runs are from November 5 to 9, 2026.
+
+!!! warning "What the numbers leave out"
+    Drawing to a real screen
+    :   A one-off CircleCI job on the Pi 4 (build 2857) measured a 30.1 ms flip per frame on
+        SDL's `wayland` driver at 2560x1440. Real-driver timing is planned, not yet measured.
+
+    Memory
+    :   Not recorded in the ledger.
+
+    Thermals
+    :   The ledger doesn't record temperature on Linux. The Pi 4, with no added cooling, varies
+        about 12% across runs.
+
+    Other machines
+    :   No Windows PC, x86 Linux machine or older Mac has been measured.
