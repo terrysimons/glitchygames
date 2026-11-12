@@ -63,6 +63,7 @@ from glitchygames.replay.tools.golden_traces import (
 )
 from glitchygames.replay.tools.scripted_sessions import record_scripted_session
 from scripts.demo_inputs import (
+    BITMAPPY_DEMO_FRAME_COUNT,
     DT_DEMO_FRAME_COUNT,
     MR_MUNCHER_DEMO_FRAME_COUNT,
     TEXT_INPUT_DEMO_FRAME_COUNT,
@@ -111,6 +112,13 @@ class DemoRecipe(BaseModel):
 # started by one launcher, so both demos are in its package, brave_adventurer_modes (the
 # launcher's console script replays them)
 DEMO_RECIPES: dict[str, DemoRecipe] = {
+    'bitmappy_drawing': DemoRecipe(
+        scene='bitmappy.editor:BitmapEditorScene',
+        script='scripts.demo_inputs:bitmappy_demo_script',
+        frame_count=BITMAPPY_DEMO_FRAME_COUNT,
+        package='bitmappy',
+        name='drawing.jsonl.gz',
+    ),
     'brave_adventurer_classic': DemoRecipe(
         scene='brave_adventurer.game:BraveAdventurerScene',
         script='scripts.golden_inputs:brave_adventurer_script',

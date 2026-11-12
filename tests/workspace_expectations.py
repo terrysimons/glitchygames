@@ -23,8 +23,9 @@ GAMES_LAYER = 'games'
 GOLDEN_SUFFIX = '.jsonl.gz'
 # The bundled demos, by (package, name): PaddleSlap's rally, Clockwork Keep's climb, Brave
 # Adventurer's classic and papyrus (in the launcher package, brave_adventurer_modes), Mr. Muncher's
-# chase, Drawing Fire's battle, the dt demo's timing and the text-input demo's typing (each in its
-# package's demos directory, e.g. src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz).
+# chase, Drawing Fire's battle, the dt demo's timing, the text-input demo's typing and Bitmappy's
+# drawing (each in its package's demos directory, e.g.
+# src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz).
 # Never by path: nox's test sessions install the members non-editable, so a demo's path is in
 # site-packages there
 EXPECTED_BUNDLED_DEMOS = frozenset({
@@ -36,6 +37,7 @@ EXPECTED_BUNDLED_DEMOS = frozenset({
     ('drawing_fire', 'battle.jsonl.gz'),
     ('dt_demo', 'timing.jsonl.gz'),
     ('text_input_demo', 'typing.jsonl.gz'),
+    ('bitmappy', 'drawing.jsonl.gz'),
 })
 # The most a bundled demo's file may hold (Arcade sub-plan 2): a demo ships in a game's wheel
 MAXIMUM_DEMO_BYTES = 256 * 1024

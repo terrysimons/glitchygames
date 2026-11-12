@@ -77,10 +77,11 @@ def test_quiet_level_offenders_lists_the_most_first():
 
 
 def test_the_recordings_are_every_golden_and_bundled_demo():
-    """Six goldens and the eight bundled demos: an empty list would skip the guard, not fail it."""
+    """Six goldens and the nine bundled demos: an empty list would skip the guard, not fail it."""
     names = sorted(f'{console_script}/{path.name}' for console_script, path in RECORDINGS)
 
     assert names == [
+        'bitmappy/drawing.jsonl.gz',
         'brave-adventurer/classic.jsonl.gz',
         'brave-adventurer/golden-classic.jsonl.gz',
         'brave-adventurer/golden-papyrus.jsonl.gz',

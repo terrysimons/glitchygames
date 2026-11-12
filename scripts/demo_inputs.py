@@ -6,7 +6,8 @@ whose script holds a key to the last frame needs a demo script of its own, which
 builder takes no arguments and returns a fresh ``InputScript``, a ``MODULE:NAME`` target for a
 recipe's ``script`` (``scripts.demo_inputs:mr_muncher_demo_script``). The golden scripts and the
 golden replays are never changed for a demo. A demo of a game with no golden script (the dt demo
-and the text-input demo, which are demos-layer members, not games) has a script here too.
+and the text-input demo, which are demos-layer members, not games, and Bitmappy, an app) has a
+script here too.
 
 Why a demo needs its own: the Arcade loops a demo, so nothing a demo pressed may still be down
 after its last frame (tests/replay/test_bundled_demos.py
@@ -21,7 +22,7 @@ import pygame
 
 from glitchygames.replay.tools.golden_traces import InputScript, release
 from glitchygames.testing.keys import qwerty_scancode
-from scripts.golden_inputs import MuncherSteering, mr_muncher_script
+from scripts.golden_inputs import LEFT_MOUSE_BUTTON, MuncherSteering, mr_muncher_script
 
 if TYPE_CHECKING:
     from glitchygames.scenes import Scene
@@ -47,6 +48,72 @@ TEXT_INPUT_DEMO_FIRST_KEY_FRAME = 50
 TEXT_INPUT_DEMO_FRAMES_BETWEEN_KEYS = 15
 TEXT_INPUT_DEMO_KEY_HELD_FRAMES = 4
 TEXT_INPUT_DEMO_FRAME_COUNT = 600
+
+# Bitmappy's demo: a smiley drawn on the blank 32x32 canvas. The points are the editor's layout
+# at the recorder's resolution (SCREEN_RESOLUTION, 800x480): the canvas's top-left corner is
+# below the menu bar, each canvas pixel a 10-pixel square
+# (src/apps/bitmappy/tests/test_bitmappy_demo_script.py checks every point on the real editor)
+BITMAPPY_DEMO_CANVAS_LEFT = 0
+BITMAPPY_DEMO_CANVAS_TOP = 24
+BITMAPPY_DEMO_CANVAS_PIXEL_SIZE = 10
+# The colours: the editor starts with white; the blue slider's left end makes it yellow, then the
+# red and the green sliders' left ends make it black
+BITMAPPY_DEMO_FACE_COLOR = (255, 255, 0)
+BITMAPPY_DEMO_FEATURE_COLOR = (0, 0, 0)
+# (channel, point): each a click on the left end of a slider (its value goes to 0); the
+# sliders' rows at 800x480 are red y 443-451, green 456-464, blue 469-477, from x 13
+BITMAPPY_DEMO_FACE_COLOR_PICKS = (('blue', (13, 473)),)
+BITMAPPY_DEMO_FEATURE_COLOR_PICKS = (('red', (13, 447)), ('green', (13, 460)))
+BITMAPPY_DEMO_COLOR_PICKS = (*BITMAPPY_DEMO_FACE_COLOR_PICKS, *BITMAPPY_DEMO_FEATURE_COLOR_PICKS)
+# The face, a 16-pixel disc, one drag per row: (row, first column, last column)
+BITMAPPY_DEMO_FACE_ROWS = (
+    (7, 13, 18),
+    (8, 11, 20),
+    (9, 10, 21),
+    (10, 9, 22),
+    (11, 8, 23),
+    (12, 8, 23),
+    (13, 8, 23),
+    (14, 8, 23),
+    (15, 8, 23),
+    (16, 8, 23),
+    (17, 8, 23),
+    (18, 8, 23),
+    (19, 9, 22),
+    (20, 10, 21),
+    (21, 11, 20),
+    (22, 13, 18),
+)
+# The features over the face, one drag each through its (column, row) pixels in order: the eyes
+# (two pixels square) and the smile. A drag paints only the pixels its motions reach, so every
+# pixel of a stroke is named
+BITMAPPY_DEMO_FEATURE_STROKES = (
+    ((11, 11), (12, 11), (12, 12), (11, 12)),
+    ((19, 11), (20, 11), (20, 12), (19, 12)),
+    (
+        (10, 16),
+        (11, 17),
+        (12, 18),
+        (13, 19),
+        (14, 19),
+        (15, 19),
+        (16, 19),
+        (17, 19),
+        (18, 19),
+        (19, 18),
+        (20, 17),
+        (21, 16),
+    ),
+)
+# The pace: a colour pick's click is held a few frames; a drag moves one pixel every
+# BITMAPPY_DEMO_FRAMES_PER_PIXEL frames, and the next drag starts a pause after the last one's
+# release. The finished smiley stays on the canvas for the demo's last frames
+BITMAPPY_DEMO_FIRST_PICK_FRAME = 30
+BITMAPPY_DEMO_CLICK_HELD_FRAMES = 4
+BITMAPPY_DEMO_FRAMES_BETWEEN_PICKS = 20
+BITMAPPY_DEMO_FRAMES_PER_PIXEL = 2
+BITMAPPY_DEMO_FRAMES_BETWEEN_STROKES = 4
+BITMAPPY_DEMO_FRAME_COUNT = 900
 
 
 class HoldingSteering(Protocol):
@@ -193,4 +260,193 @@ def text_input_demo_script() -> InputScript:
         script.at(frame_number + TEXT_INPUT_DEMO_KEY_HELD_FRAMES, key_up)
         frame_number += TEXT_INPUT_DEMO_FRAMES_BETWEEN_KEYS
     script.tap(frame_number, pygame.K_RETURN, held_frames=TEXT_INPUT_DEMO_KEY_HELD_FRAMES)
+    return script
+
+
+def bitmappy_demo_canvas_point(*, column: int, row: int) -> tuple[int, int]:
+    """Return the window point at the centre of a canvas pixel's square, at 800x480.
+
+    Args:
+        column: The canvas pixel's column.
+        row: The canvas pixel's row.
+
+    Returns:
+        ``(x, y)`` in window pixels.
+
+    """
+    half_pixel = BITMAPPY_DEMO_CANVAS_PIXEL_SIZE // 2
+    return (
+        BITMAPPY_DEMO_CANVAS_LEFT + column * BITMAPPY_DEMO_CANVAS_PIXEL_SIZE + half_pixel,
+        BITMAPPY_DEMO_CANVAS_TOP + row * BITMAPPY_DEMO_CANVAS_PIXEL_SIZE + half_pixel,
+    )
+
+
+def bitmappy_demo_face_strokes() -> tuple[tuple[tuple[int, int], ...], ...]:
+    """Return the face's drags as canvas pixels, one per row, alternating direction.
+
+    Returns:
+        Each row's ``(column, row)`` pixels, the first row left to right, the next right to
+        left, and so on, as a hand going back and forth would fill it.
+
+    """
+    return tuple(
+        tuple(
+            (column, row)
+            for column in (range(first, last + 1) if index % 2 == 0 else range(last, first - 1, -1))
+        )
+        for index, (row, first, last) in enumerate(BITMAPPY_DEMO_FACE_ROWS)
+    )
+
+
+# Every point the demo clicks or drags through on the canvas, in the order it does
+BITMAPPY_DEMO_POINTS: tuple[tuple[int, int], ...] = tuple(
+    bitmappy_demo_canvas_point(column=column, row=row)
+    for stroke in (*bitmappy_demo_face_strokes(), *BITMAPPY_DEMO_FEATURE_STROKES)
+    for column, row in stroke
+)
+
+
+def mouse_motion(
+    *, position: tuple[int, int], previous_position: tuple[int, int], is_button_down: bool
+) -> pygame.event.Event:
+    """Build a mouse motion as a real mouse reports it.
+
+    Args:
+        position: Where the pointer moves to.
+        previous_position: Where it was.
+        is_button_down: True while the left button is held (a drag).
+
+    Returns:
+        A MOUSEMOTION with its ``rel`` and ``buttons``.
+
+    """
+    return pygame.event.Event(
+        pygame.MOUSEMOTION,
+        pos=position,
+        rel=(position[0] - previous_position[0], position[1] - previous_position[1]),
+        buttons=(int(is_button_down), 0, 0),
+        touch=False,
+    )
+
+
+def mouse_button(*, position: tuple[int, int], is_down: bool) -> pygame.event.Event:
+    """Build a left mouse button press or release.
+
+    Args:
+        position: Where the pointer is.
+        is_down: True for the press, False for the release.
+
+    Returns:
+        A MOUSEBUTTONDOWN or MOUSEBUTTONUP of the left button.
+
+    """
+    return pygame.event.Event(
+        pygame.MOUSEBUTTONDOWN if is_down else pygame.MOUSEBUTTONUP,
+        pos=position,
+        button=LEFT_MOUSE_BUTTON,
+        touch=False,
+    )
+
+
+class BitmappyDemoHand:
+    """Writes a pointer's moves, clicks and drags into an input script, frame by frame.
+
+    Attributes:
+        script: The script the events go into.
+        frame_number: The frame the next event is posted before.
+        position: Where the pointer is.
+    """
+
+    def __init__(self, *, script: InputScript, frame_number: int) -> None:
+        """Start with the pointer at the window's top-left corner and the button up.
+
+        Args:
+            script: The script to write into.
+            frame_number: The first frame to post before.
+
+        """
+        self.script = script
+        self.frame_number = frame_number
+        self.position = (0, 0)
+
+    def move_to(self, *, position: tuple[int, int], is_button_down: bool) -> None:
+        """Move the pointer before the current frame.
+
+        Args:
+            position: Where it moves to.
+            is_button_down: True while the left button is held.
+
+        """
+        self.script.at(
+            self.frame_number,
+            mouse_motion(
+                position=position,
+                previous_position=self.position,
+                is_button_down=is_button_down,
+            ),
+        )
+        self.position = position
+
+    def click(self, *, position: tuple[int, int]) -> None:
+        """Move to a point and click it: pressed, held a few frames, released, then a pause.
+
+        Args:
+            position: The point.
+
+        """
+        self.move_to(position=position, is_button_down=False)
+        self.script.at(self.frame_number, mouse_button(position=position, is_down=True))
+        self.frame_number += BITMAPPY_DEMO_CLICK_HELD_FRAMES
+        self.script.at(self.frame_number, mouse_button(position=position, is_down=False))
+        self.frame_number += BITMAPPY_DEMO_FRAMES_BETWEEN_PICKS
+
+    def drag(self, *, positions: tuple[tuple[int, int], ...]) -> None:
+        """Press at the first point, move through the rest with the button held, release.
+
+        Args:
+            positions: The points, in order.
+
+        """
+        first_position, *later_positions = positions
+        self.move_to(position=first_position, is_button_down=False)
+        self.script.at(self.frame_number, mouse_button(position=first_position, is_down=True))
+        for position in later_positions:
+            self.frame_number += BITMAPPY_DEMO_FRAMES_PER_PIXEL
+            self.move_to(position=position, is_button_down=True)
+        self.frame_number += BITMAPPY_DEMO_FRAMES_PER_PIXEL
+        self.script.at(self.frame_number, mouse_button(position=self.position, is_down=False))
+        self.frame_number += BITMAPPY_DEMO_FRAMES_BETWEEN_STROKES
+
+
+def bitmappy_demo_script() -> InputScript:
+    """Bitmappy's demo: pick yellow, draw a face, pick black, draw its eyes and smile.
+
+    Returns:
+        A script that clicks the left end of the blue slider (white becomes yellow), drags
+        across each row of ``BITMAPPY_DEMO_FACE_ROWS``, clicks the left ends of the red and green
+        sliders (yellow becomes black) and drags through each of
+        ``BITMAPPY_DEMO_FEATURE_STROKES``, from ``BITMAPPY_DEMO_FIRST_PICK_FRAME`` on. Every
+        press is released. The canvas paints from the mouse events (their positions), never
+        from the polled mouse, so the recipe records without ``polled_input``.
+
+    """
+    script = InputScript()
+    hand = BitmappyDemoHand(script=script, frame_number=BITMAPPY_DEMO_FIRST_PICK_FRAME)
+    for _channel, position in BITMAPPY_DEMO_FACE_COLOR_PICKS:
+        hand.click(position=position)
+    for stroke in bitmappy_demo_face_strokes():
+        hand.drag(
+            positions=tuple(
+                bitmappy_demo_canvas_point(column=column, row=row) for column, row in stroke
+            )
+        )
+    hand.frame_number += BITMAPPY_DEMO_FRAMES_BETWEEN_PICKS
+    for _channel, position in BITMAPPY_DEMO_FEATURE_COLOR_PICKS:
+        hand.click(position=position)
+    for stroke in BITMAPPY_DEMO_FEATURE_STROKES:
+        hand.drag(
+            positions=tuple(
+                bitmappy_demo_canvas_point(column=column, row=row) for column, row in stroke
+            )
+        )
     return script
