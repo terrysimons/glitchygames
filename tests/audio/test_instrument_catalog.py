@@ -1562,3 +1562,30 @@ def test_the_pianet_settles_from_a_bright_strike():
             samples[round(0.3 * SAMPLE_RATE) : round(0.4 * SAMPLE_RATE)], hertz=cutoff
         )
         assert strike > 10.0 * settled, note.name
+
+
+def test_the_gangsa_pairs_its_fundamental_at_the_ombak_ratio():
+    """A gangsa note holds two fundamentals 228 / 220 = 1.036 apart, the pair's ombak.
+
+    The Gamelan gong kebyar page (https://en.wikipedia.org/wiki/Gamelan_gong_kebyar): "one note
+    on a female gangsa pemadé might be tuned to 220 Hz, while the male gangsa pemadé might be
+    tuned slightly higher to 228 Hz". The spectrum of a C4 note has a strong peak at the
+    note's frequency and another at 1.036 times it, with far less between them, so a partial sits
+    at the ratio (a single fundamental, as the glockenspiel has, has none there).
+    """
+    note = Note('C4')
+    fundamental = float(note.to_hz())
+
+    def peak_near(name: str, hertz: float) -> float:
+        samples = rendered(instruments.get(name), pitch=note.name)[: 2 * SAMPLE_RATE]
+        magnitude = np.abs(np.fft.rfft(samples * np.hanning(len(samples))))
+        frequencies = np.fft.rfftfreq(len(samples), 1 / SAMPLE_RATE)
+        return float(np.max(magnitude[np.abs(frequencies - hertz) < 1.0]))
+
+    ombak = peak_near('gangsa', 1.036 * fundamental)
+    between = peak_near('gangsa', 1.018 * fundamental)
+    assert ombak > 0.5 * peak_near('gangsa', fundamental)
+    assert ombak > 3.0 * between
+    assert peak_near('glockenspiel', 1.036 * fundamental) < 0.1 * peak_near(
+        'glockenspiel', fundamental
+    )

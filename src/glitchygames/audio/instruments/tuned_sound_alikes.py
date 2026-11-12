@@ -167,7 +167,7 @@ TUNED_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
     # nominal)
     CatalogEntry(
         'ugal',
-        'Balinese ugal',
+        'Balinese ugal (jiyeng)',
         Family.TUNED_PERCUSSION,
         'C3',
         'C5',

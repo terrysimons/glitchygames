@@ -380,8 +380,9 @@ _TUNED_BUILDS: Final[tuple[CatalogEntry, ...]] = (
     # so the beating speeds up with pitch (about 38 Hz at C6) where a real pair beats at a rate
     # set by its tuning; a ratio is the nearest the engine has without a new feature. Sound
     # design: the 2.71 partial (GAMELAN_METALLOPHONE's, from the catalog), every level and ring,
-    # the mallet. The sheet's build also holds a 5.15 partial, which does not fit: ``struck``
-    # takes three partials with a mallet noise (a fourth source), so the weakest, 5.15, is left out
+    # the mallet. GAMELAN_METALLOPHONE's 5.15 partial is left out: ``struck`` takes three partials
+    # with a mallet noise (the mallet is a fourth source), so the weakest, 5.15, does not fit. The
+    # sheet's builder cell describes exactly this build
     CatalogEntry(
         'gangsa',
         'Balinese gangsa (pemadé)',
