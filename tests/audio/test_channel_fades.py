@@ -45,7 +45,10 @@ from tests.audio.channel_fade_analysis import (
     recording_directory,
     shared_recording,
     trial_chunks,
+    trial_report_path,
+    trial_report_rows,
     worst_step_ratio,
+    write_trial_report,
 )
 from tests.audio.channel_fade_probe import (
     BUS_FADE,
@@ -235,3 +238,31 @@ def test_a_stalled_trial_stays_one_trial():
     assert len(recorded_trials) == TRIAL_COUNT
     stalled = recorded_trials[4]
     assert len(stalled) >= 2 * 20 + stall.size // DEFAULT_BUFFER_SAMPLES
+
+
+@pytest.mark.parametrize('case', [STEAL_IMMEDIATE, STEAL_DELAYED])
+def test_a_steal_report_holds_every_trial_whether_or_not_its_relation_held(
+    recordings, case, tmp_path
+):
+    """The steal benchmarks' report is written under its directory with a row for every trial.
+
+    The report is what diagnoses a flaky benchmark run, so it is checked here, in the normal
+    suite, on the real recording: written to ``channel-fade-<case>.md``, one table row per trial,
+    each trial's action chunk and levels in it.
+    """
+    samples = recordings(case)
+    directory = tmp_path / 'test-results'
+
+    path, text = write_trial_report(samples, case=case, directory=directory)
+
+    assert path == trial_report_path(case=case, directory=directory)
+    assert path.name == f'channel-fade-{case}.md'
+    assert path.read_text(encoding='utf-8') == text
+    rows = trial_report_rows(samples)
+    assert [row.trial for row in rows] == list(range(1, TRIAL_COUNT + 1))
+    table_rows = [
+        line for line in text.splitlines() if line.startswith('| ') and 'Trial' not in line
+    ]
+    assert len(table_rows) == TRIAL_COUNT
+    for row, line in zip(rows, table_rows, strict=True):
+        assert line.startswith(f'| {row.trial} | {row.action_chunk} | {row.stolen_level:.3f} |')
