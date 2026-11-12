@@ -9,6 +9,8 @@ and the command line.
 
 from __future__ import annotations
 
+import ast
+import importlib.util
 import os
 from pathlib import Path
 
@@ -18,7 +20,9 @@ from scripts import record_bundled_demos
 from scripts.demo_inputs import (
     MR_MUNCHER_DEMO_FRAME_COUNT,
     ReleaseHeldKeyOnFinalFrame,
+    dt_demo_script,
     mr_muncher_demo_script,
+    text_input_demo_script,
 )
 from scripts.golden_inputs import mr_muncher_script
 from scripts.record_bundled_demos import DEMO_RECIPES, DemoRecipe, demo_path, record_demo
@@ -32,6 +36,7 @@ from glitchygames.replay.tools.golden_traces import (
     press,
     release,
 )
+from glitchygames.ui import InputBox
 from tests.workspace_expectations import EXPECTED_BUNDLED_DEMOS
 
 JOYSTICK_DRIVER_VARIABLES = ('SDL_JOYSTICK_HIDAPI', 'SDL_JOYSTICK_MFI', 'SDL_JOYSTICK_IOKIT')
@@ -192,6 +197,106 @@ def test_the_mr_muncher_demo_script_is_the_golden_script_with_the_wrapped_steeri
     assert demo.key_events.keys() == golden.key_events.keys()
     assert DEMO_RECIPES['mr_muncher_chase'].frame_count == MR_MUNCHER_DEMO_FRAME_COUNT
     assert DEMO_RECIPES['mr_muncher_chase'].script == 'scripts.demo_inputs:mr_muncher_demo_script'
+
+
+def keys_read_by(*, module_name: str, class_name: str, method_names: tuple[str, ...]) -> set[int]:
+    """Return the ``pygame.K_*`` keys some methods of a member's class name in their source.
+
+    The member's source is parsed, never imported (the engine's tests import no member).
+
+    Args:
+        module_name: The member's import package.
+        class_name: The class in its top-level module.
+        method_names: The methods to read.
+
+    Returns:
+        The key codes of every ``pygame.K_*`` attribute in those methods.
+
+    """
+    specification = importlib.util.find_spec(module_name)
+    assert specification is not None
+    assert specification.origin is not None
+    tree = ast.parse(Path(specification.origin).read_text(encoding='utf-8'))
+    methods = [
+        method
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef) and node.name == class_name
+        for method in node.body
+        if isinstance(method, ast.FunctionDef) and method.name in method_names
+    ]
+    assert len(methods) == len(method_names)
+    return {
+        getattr(pygame, node.attr)
+        for method in methods
+        for node in ast.walk(method)
+        if isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == 'pygame'
+        and node.attr.startswith('K_')
+    }
+
+
+def scripted_events_in_frame_order(*, script: InputScript) -> list[pygame.event.Event]:
+    """Return a script's own events, frame by frame.
+
+    Args:
+        script: The input script.
+
+    Returns:
+        Every event of ``key_events``, earliest frame first.
+
+    """
+    return [
+        event
+        for frame_number in sorted(script.key_events)
+        for event in script.key_events[frame_number]
+    ]
+
+
+def test_the_dt_demo_script_presses_every_dt_demo_control():
+    """Every key the dt demo's key handler and tick read is pressed at least once."""
+    read_keys = keys_read_by(
+        module_name='dt_demo', class_name='Game', method_names=('on_key_down_event', 'dt_tick')
+    )
+    assert read_keys == {pygame.K_SPACE}
+    pressed_keys = {
+        event.key
+        for event in scripted_events_in_frame_order(script=dt_demo_script())
+        if event.type == pygame.KEYDOWN
+    }
+    assert read_keys <= pressed_keys
+
+
+def test_the_text_input_script_types_and_submits():
+    """The script focuses the box, clears its text, types GLITCHYGAMES and presses Return."""
+    events = scripted_events_in_frame_order(script=text_input_demo_script())
+    box = InputBox(x=0, y=0, width=200, height=20, text='Test')
+    box.activate()
+    submitted = False
+    for event in events:
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_RETURN:
+                submitted = True
+            box.on_key_down_event(event)
+    assert box.text == 'GLITCHYGAMES'
+    assert submitted
+    # The box is focused by Tab's release, before the first key typed into it
+    focus = [
+        index
+        for index, event in enumerate(events)
+        if event.type == pygame.KEYUP and event.key == pygame.K_TAB
+    ]
+    typed = [
+        index
+        for index, event in enumerate(events)
+        if event.type == pygame.KEYDOWN and event.key != pygame.K_TAB
+    ]
+    assert focus
+    assert focus[0] < typed[0]
+    # Every typed letter is released with its own key up
+    downs = [event.key for event in events if event.type == pygame.KEYDOWN]
+    ups = [event.key for event in events if event.type == pygame.KEYUP]
+    assert sorted(downs) == sorted(ups)
 
 
 def test_every_demo_is_in_a_package_with_its_console_script():

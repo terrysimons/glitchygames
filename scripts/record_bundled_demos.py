@@ -62,7 +62,11 @@ from glitchygames.replay.tools.golden_traces import (
     load_input_script,
 )
 from glitchygames.replay.tools.scripted_sessions import record_scripted_session
-from scripts.demo_inputs import MR_MUNCHER_DEMO_FRAME_COUNT
+from scripts.demo_inputs import (
+    DT_DEMO_FRAME_COUNT,
+    MR_MUNCHER_DEMO_FRAME_COUNT,
+    TEXT_INPUT_DEMO_FRAME_COUNT,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -136,6 +140,14 @@ DEMO_RECIPES: dict[str, DemoRecipe] = {
         name='battle.jsonl.gz',
         polled_input=True,
     ),
+    'dt_demo_timing': DemoRecipe(
+        scene='dt_demo:Game',
+        script='scripts.demo_inputs:dt_demo_script',
+        frame_count=DT_DEMO_FRAME_COUNT,
+        package='dt_demo',
+        name='timing.jsonl.gz',
+        polled_input=True,
+    ),
     'mr_muncher_chase': DemoRecipe(
         scene='mr_muncher.game:MrMuncherScene',
         script='scripts.demo_inputs:mr_muncher_demo_script',
@@ -150,6 +162,13 @@ DEMO_RECIPES: dict[str, DemoRecipe] = {
         package='paddleslap',
         name='rally.jsonl.gz',
         input_only_placements=True,
+    ),
+    'text_input_demo_typing': DemoRecipe(
+        scene='text_input_demo:Game',
+        script='scripts.demo_inputs:text_input_demo_script',
+        frame_count=TEXT_INPUT_DEMO_FRAME_COUNT,
+        package='text_input_demo',
+        name='typing.jsonl.gz',
     ),
 }
 
