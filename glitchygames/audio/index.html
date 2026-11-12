@@ -4973,6 +4973,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#glitchygames.audio.instruments.tuned_sound_alikes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tuned_sound_alikes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#glitchygames.audio.instruments.voices" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -47611,6 +47622,11 @@ basses, ukuleles, banjos, mandolins, lutes such as <code>angelique</code>, zithe
 (<code>requinto guitar</code> and <code>classical guitar</code>, <code>liuqin</code> and <code>pipa</code>). The family is pitched,
 so a pitched sound-alike gives its own sourced range, a requinto's span being its own: it
 shares its parent's build, not its range.</p>
+<p>Tuned percussion (36 entries) holds the family's builds in <code>percussion.py</code> (glockenspiel,
+xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, <code>boomwhackers</code> and
+<code>gangsa</code>) and its sound-alikes in <code>tuned_sound_alikes.py</code> (<code>alto xylophone</code> and
+<code>xylophone</code>, <code>kantilan</code> and <code>gangsa</code>). It is pitched too: each sound-alike gives its own
+sourced range.</p>
 <p><code>instruments.ALIASES</code> (read-only, as <code>CATALOG</code> is) maps each other name (<code>slapstick</code>) to
 its catalog name (<code>whip</code>): another name for the same instrument, where a sound-alike is a
 different instrument. <code>entry</code> and <code>get</code> resolve aliases, while <code>names</code> and <code>entries</code>
@@ -50373,8 +50389,7 @@ the overtone's number.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/audio/instruments/percussion.py</code></summary>
-              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-32">32</a></span>
-<span class="normal"><a href="#glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-33">33</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-33">33</a></span>
 <span class="normal"><a href="#glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-34">34</a></span>
 <span class="normal"><a href="#glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-35">35</a></span>
 <span class="normal"><a href="#glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-36">36</a></span>
@@ -50404,38 +50419,39 @@ the overtone's number.</p>
 <span class="normal"><a href="#glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-60">60</a></span>
 <span class="normal"><a href="#glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-61">61</a></span>
 <span class="normal"><a href="#glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-62">62</a></span>
-<span class="normal"><a href="#glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-63">63</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-32"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-32" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-32"></a><span class="k">def</span><span class="w"> </span><span class="nf">struck_bar</span><span class="p">(</span>  <span class="c1"># ruff: ignore[too-many-arguments] - a struck bar's partials</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-33"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-33" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-33"></a>    <span class="n">ratios</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-34"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-34" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-34"></a>    <span class="n">levels</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-35"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-35" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-35"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-36"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-36" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-36"></a>    <span class="n">ring_seconds</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-37"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-37" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-37"></a>    <span class="n">mallet</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">,</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-38"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-38" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-38"></a>    <span class="n">mallet_low_pass</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">3000.0</span><span class="p">,</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-39"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-39" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-39"></a>    <span class="n">overtone_ring</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.25</span><span class="p">,</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-40"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-40" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-40"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Instrument</span><span class="p">:</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-41"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-41" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-41"></a><span class="w">    </span><span class="sd">"""A struck or plucked bar: a fundamental and its overtones, each ringing out on its own.</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-42"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-42" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-42"></a>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-43"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-43" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-43"></a><span class="sd">    Args:</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-44"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-44" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-44"></a><span class="sd">        ratios: Each partial's frequency as a multiple of the note's.</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-45"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-45" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-45"></a><span class="sd">        levels: Each partial's level, one per ratio.</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-46"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-46" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-46"></a><span class="sd">        ring_seconds: How long the fundamental rings (it is also the release).</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-47"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-47" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-47"></a><span class="sd">        mallet: Seconds of the mallet's noise burst.</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-48"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-48" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-48"></a><span class="sd">        mallet_low_pass: Cutoff in hertz of the mallet's noise.</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-49"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-49" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-49"></a><span class="sd">        overtone_ring: The overtones' ring time as a fraction of the fundamental's, divided by</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-50"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-50" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-50"></a><span class="sd">            the overtone's number.</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-51"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-51" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-51"></a>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-52"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-52" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-52"></a><span class="sd">    Returns:</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-53"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-53" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-53"></a><span class="sd">        The instrument.</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-54"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-54" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-54"></a><span class="sd">    """</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-55"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-55" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-55"></a>    <span class="n">partials</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-56"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-56" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-56"></a>        <span class="n">Partial</span><span class="p">(</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-57"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-57" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-57"></a>            <span class="n">ratio</span><span class="o">=</span><span class="n">ratio</span><span class="p">,</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-58"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-58" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-58"></a>            <span class="n">level</span><span class="o">=</span><span class="n">level</span><span class="p">,</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-59"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-59" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-59"></a>            <span class="n">ring_seconds</span><span class="o">=</span><span class="n">ring_seconds</span> <span class="k">if</span> <span class="n">number</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">ring_seconds</span> <span class="o">*</span> <span class="n">overtone_ring</span> <span class="o">/</span> <span class="n">number</span><span class="p">,</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-60"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-60" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-60"></a>        <span class="p">)</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-61"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-61" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-61"></a>        <span class="k">for</span> <span class="n">number</span><span class="p">,</span> <span class="p">(</span><span class="n">ratio</span><span class="p">,</span> <span class="n">level</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">ratios</span><span class="p">,</span> <span class="n">levels</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-62"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-62" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-62"></a>    <span class="p">)</span>
-</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-63"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-63" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-63"></a>    <span class="k">return</span> <span class="n">struck</span><span class="p">(</span><span class="n">partials</span><span class="p">,</span> <span class="n">release</span><span class="o">=</span><span class="n">ring_seconds</span><span class="p">,</span> <span class="n">mallet</span><span class="o">=</span><span class="n">mallet</span><span class="p">,</span> <span class="n">mallet_low_pass</span><span class="o">=</span><span class="n">mallet_low_pass</span><span class="p">)</span>
+<span class="normal"><a href="#glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-63">63</a></span>
+<span class="normal"><a href="#glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-64">64</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-33"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-33" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-33"></a><span class="k">def</span><span class="w"> </span><span class="nf">struck_bar</span><span class="p">(</span>  <span class="c1"># ruff: ignore[too-many-arguments] - a struck bar's partials</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-34"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-34" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-34"></a>    <span class="n">ratios</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-35"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-35" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-35"></a>    <span class="n">levels</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-36"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-36" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-36"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-37"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-37" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-37"></a>    <span class="n">ring_seconds</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-38"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-38" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-38"></a>    <span class="n">mallet</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">,</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-39"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-39" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-39"></a>    <span class="n">mallet_low_pass</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">3000.0</span><span class="p">,</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-40"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-40" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-40"></a>    <span class="n">overtone_ring</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.25</span><span class="p">,</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-41"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-41" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-41"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Instrument</span><span class="p">:</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-42"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-42" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-42"></a><span class="w">    </span><span class="sd">"""A struck or plucked bar: a fundamental and its overtones, each ringing out on its own.</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-43"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-43" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-43"></a>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-44"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-44" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-44"></a><span class="sd">    Args:</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-45"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-45" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-45"></a><span class="sd">        ratios: Each partial's frequency as a multiple of the note's.</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-46"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-46" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-46"></a><span class="sd">        levels: Each partial's level, one per ratio.</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-47"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-47" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-47"></a><span class="sd">        ring_seconds: How long the fundamental rings (it is also the release).</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-48"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-48" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-48"></a><span class="sd">        mallet: Seconds of the mallet's noise burst.</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-49"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-49" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-49"></a><span class="sd">        mallet_low_pass: Cutoff in hertz of the mallet's noise.</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-50"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-50" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-50"></a><span class="sd">        overtone_ring: The overtones' ring time as a fraction of the fundamental's, divided by</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-51"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-51" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-51"></a><span class="sd">            the overtone's number.</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-52"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-52" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-52"></a>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-53"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-53" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-53"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-54"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-54" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-54"></a><span class="sd">        The instrument.</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-55"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-55" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-55"></a><span class="sd">    """</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-56"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-56" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-56"></a>    <span class="n">partials</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-57"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-57" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-57"></a>        <span class="n">Partial</span><span class="p">(</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-58"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-58" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-58"></a>            <span class="n">ratio</span><span class="o">=</span><span class="n">ratio</span><span class="p">,</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-59"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-59" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-59"></a>            <span class="n">level</span><span class="o">=</span><span class="n">level</span><span class="p">,</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-60"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-60" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-60"></a>            <span class="n">ring_seconds</span><span class="o">=</span><span class="n">ring_seconds</span> <span class="k">if</span> <span class="n">number</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">ring_seconds</span> <span class="o">*</span> <span class="n">overtone_ring</span> <span class="o">/</span> <span class="n">number</span><span class="p">,</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-61"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-61" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-61"></a>        <span class="p">)</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-62"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-62" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-62"></a>        <span class="k">for</span> <span class="n">number</span><span class="p">,</span> <span class="p">(</span><span class="n">ratio</span><span class="p">,</span> <span class="n">level</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">ratios</span><span class="p">,</span> <span class="n">levels</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-63"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-63" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-63"></a>    <span class="p">)</span>
+</span><span id="glitchygames.audio.instruments.percussion.struck_bar--source--__span-0-64"><a id="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-64" name="glitchygames.audio.instruments.percussion.struck_bar--source--__codelineno-0-64"></a>    <span class="k">return</span> <span class="n">struck</span><span class="p">(</span><span class="n">partials</span><span class="p">,</span> <span class="n">release</span><span class="o">=</span><span class="n">ring_seconds</span><span class="p">,</span> <span class="n">mallet</span><span class="o">=</span><span class="n">mallet</span><span class="p">,</span> <span class="n">mallet_low_pass</span><span class="o">=</span><span class="n">mallet_low_pass</span><span class="p">)</span>
 </span></code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -55553,6 +55569,56 @@ a short note still rings: a struck bar is not damped by letting go).</p>
     </div>
 
 </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h3 id="glitchygames.audio.instruments.tuned_sound_alikes" class="doc doc-heading">
+            <code>tuned_sound_alikes</code>
+
+
+<a href="#glitchygames.audio.instruments.tuned_sound_alikes" class="headerlink" title="Permanent link">#</a></h3>
+
+    <div class="doc doc-contents ">
+
+        <p>Tuned percussion's sound-alikes: listed instruments that share another entry's build.</p>
+<p>A sound-alike is a distinct instrument, verified by its source, that no fetched source sets apart
+in sound from an existing entry. The owner ruled (2026-11-08) that each is a catalog entry of its
+own rather than an alias: "could we also consider making them full on instruments that inherit
+from the parent and change their details? ... I want them to all show up." Each is listed under
+its own name, so a person finds it by the name they know, and each builds its parent's
+instrument through <code>sounds_like</code> (assembled in <code>registry.sound_alikes_from</code>). It gives its own
+sourced range, since a sound-alike of another size plays another span. A true alias, another name
+for the same instrument, stays in <code>aliases.py</code>. The family's builds are in <code>percussion.py</code>.</p>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
 
 
 
