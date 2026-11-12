@@ -713,15 +713,6 @@ only replays; Part 2 Task 1).
   with palette swaps), it gets ids, sprite comparison, hitboxes in the debug overlay, and the AI's tools for free.
   Its golden replay will change, so re-recording it is a reviewed step, and the GAMEEVENTs can stay or go once the
   sprites carry what they did. Check the per-frame cost against the run ledger, since it draws many soldiers.
-- **Convert the joystick demo to sprites** (the owner, 2026-11-11). `src/demos/joystick-demo` writes its device
-  readout as text straight onto the screen, so it has no sprites, and a replay compares only sprites and recorded
-  events, never pixels. The bundled demo Arcade sub-plan 2 records for it (`pad.jsonl.gz`,
-  plans/2026-11-11-arcade-2-demos.md Task 7) would then replay "clean" even if what it shows broke. Draw the readout
-  with sprites (a `TextSprite` per line or per device, redrawn when its values change), so the replay compares
-  what the pad does; otherwise post an internal event (`post_event`) per change, as Drawing Fire does. Doing this
-  before Task 7 records the demo spares re-recording it (planned: that plan's Task 4). The dt demo has the same problem (its countdown, FPS and
-  record text are `font.render` blits onto `self.screen`, `src/demos/dt-demo/src/dt_demo/__init__.py`, no sprites),
-  so its `timing.jsonl.gz` (Task 5) needs the same fix.
 
 ## Performance and pacing
 
