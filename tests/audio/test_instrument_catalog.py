@@ -1523,11 +1523,10 @@ EXISTING_ELECTRONIC_NAMES = frozenset({
 })
 # Batch 6's electronic family: the names of its entries with their own build, each of its
 # sound-alikes with the entry it sounds like, and the entries that are unpitched (the drum
-# machines' voices; Tasks 4 and 6 fill these). The sheet's two SHIP noise rows, nes noise and
-# game boy short noise, are not built yet: the engine scales an all-noise instrument's LFSR clock
-# by the pitch it is played at (build_spec's unpitched_scale), so neither would ignore the pitch
-# as an unpitched entry must (test_unpitched_entries_sound_the_same_at_any_pitch); held for the
-# owner
+# machines' voices; Tasks 4 and 6 fill these). The sheet's two noise rows, nes noise and game boy
+# short noise, wait for a fixed noise clock: the engine scales an all-noise instrument's LFSR
+# clock by the pitch it is played at (build_spec's unpitched_scale), so neither would ignore the
+# pitch as an unpitched entry must (test_unpitched_entries_sound_the_same_at_any_pitch)
 NEW_ELECTRONIC_NAMES: list[str] = ['nes triangle']
 ELECTRONIC_SOUND_ALIKE_PARENTS: dict[str, str] = {
     'ay 3 8910': 'chip square',
