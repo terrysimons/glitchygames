@@ -813,7 +813,7 @@ def test_the_batch_aliases_resolve(alias, target):
     the singing bowl as the rin, the crotales as antique cymbals, and across families the glass
     harp as the verrillon and the mbira as the sanza and sansa.
     Batch 6's first half names the theremin two more ways (thereminvox, etherwave) and, across
-    families, the keyboards' combo organ as the Vox Continental.
+    families, the organs' combo organ as the Vox Continental.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
