@@ -282,8 +282,9 @@ instruments.get('slapstick')                             # an alias: the same in
   trait; each needs a cited source.
   Assembly refuses a `sounds_like` that names no entry, itself or another sound-alike. The 131
   drum ones are in `drum_sound_alikes.py`, the family's builds in `drums.py`; the 27 plucked
-  string ones are in `plucked_sound_alikes.py`, the builds in `plucked_strings.py` (158
-  sound-alikes in all).
+  string ones are in `plucked_sound_alikes.py`, the builds in `plucked_strings.py`; the 11
+  tuned percussion ones are in `tuned_sound_alikes.py` and the 10 electronic ones in
+  `electronic_sound_alikes.py` (179 sound-alikes in all).
 - Each entry has a `title`, a `family` and its playing range, `lowest` and `highest` (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (`pitch='A4'`); it does not change

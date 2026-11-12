@@ -1307,7 +1307,8 @@ M2 next)
   `Instrument` (built once per process), `instruments.entry(name)` its title, family and range
   (`lowest`/`highest`, sounding; None for unpitched drums, whose fixed tones ignore the pitch
   given). 682 entries in 23 `Family`s (every size of each family, voices soprano to basso
-  profundo on five vowels; `Tag.MECHANICAL` marks mechanical ones and `Tag.CHIP` sound-chip voices, `names(tag=...)` lists them;
+  profundo on five vowels; `Tag.MECHANICAL` marks mechanical ones and `Tag.CHIP` sound-chip
+  voices, `names(tag=...)` lists them;
   `ALIASES` (read-only, as `CATALOG` is) maps 73 other names to catalog names, resolved by
   `get`/`entry`; a sound-alike is its own entry sharing a parent's build via `sounds_like`, with
   optional sourced `sound_changes`; 179 in all, and a pitched one, as the plucked strings' are,

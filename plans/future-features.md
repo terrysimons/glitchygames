@@ -2345,6 +2345,13 @@ This document tracks planned future features for the GlitchyGames project. Featu
     tape and sample replay, speech, controllers; 73). Electrophones have no Hornbostel-Sachs
     subclasses the plan could rely on, so the split is an explicit list. Confirm the split reads
     right to a person adding the next entry
+  - [ ] Ruling: dae6433c (noise clocks the engine renders) was reverted (00c0647d); the sourced
+    clocks stay recorded in the sheet, and the 22050 Hz limit is in the WAIT notes
+  - [ ] Ruling: the form check's "taken" rule now accepts a row the code already holds with the
+    same target or parent (the check assumed sheet before code; half A was coded first)
+  - [ ] Process: pushing and opening the stacked PR without asking, per the owner's "Work on
+    every batch in turn and stack them into PRs"; Tasks 1 and 2 done together; the Task 3 and 5
+    sheets researched in parallel
 - **Bugs to report** (found while building batch 6; none fixed here):
   - [ ] `drums.py`'s acoustic `cowbell` is built as the TR-808 circuit (two squares at 540 and
     800 Hz) with no source: an acoustic cowbell has no reason to sound like that circuit, and
