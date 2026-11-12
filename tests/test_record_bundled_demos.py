@@ -18,9 +18,12 @@ import pygame
 import pytest
 from scripts import record_bundled_demos
 from scripts.demo_inputs import (
+    DEMO_PAD,
+    JOYSTICK_DEMO_FRAME_COUNT,
     MR_MUNCHER_DEMO_FRAME_COUNT,
     ReleaseHeldKeyOnFinalFrame,
     dt_demo_script,
+    joystick_demo_script,
     mr_muncher_demo_script,
     text_input_demo_script,
 )
@@ -29,6 +32,7 @@ from scripts.record_bundled_demos import DEMO_RECIPES, DemoRecipe, demo_path, re
 
 from glitchygames.ai_link import INSTALL_ROOT_ENVIRONMENT_VARIABLE
 from glitchygames.bundled_demos import console_script_in_module
+from glitchygames.input.devices import JOYSTICK_KIND
 from glitchygames.replay.tools.golden_traces import (
     RANDOM_SEED,
     InputScript,
@@ -297,6 +301,70 @@ def test_the_text_input_script_types_and_submits():
     downs = [event.key for event in events if event.type == pygame.KEYDOWN]
     ups = [event.key for event in events if event.type == pygame.KEYUP]
     assert sorted(downs) == sorted(ups)
+
+
+def test_the_joystick_script_moves_every_axis_presses_every_button_and_the_hat():
+    """The demo pad's every axis moves, every button is pressed and released, the hat goes round.
+
+    The script is played out as the pad would follow it: each axis is swept over several frames
+    (the readout's marker visibly moves), each button goes down and up, the hat is held in each
+    of its four directions, and after the last frame everything is back at rest (the Arcade
+    loops the demo).
+    """
+    assert DEMO_PAD.kind == JOYSTICK_KIND
+    assert (DEMO_PAD.device_index, DEMO_PAD.instance_id) == (0, 0)
+    assert DEMO_PAD.name == 'GlitchyGames Demo Pad'
+    assert (
+        DEMO_PAD.axis_count,
+        DEMO_PAD.button_count,
+        DEMO_PAD.hat_count,
+        DEMO_PAD.ball_count,
+    ) == (6, 12, 1, 0)
+    script = joystick_demo_script()
+    assert script.per_frame is None
+    assert max(script.key_events) < JOYSTICK_DEMO_FRAME_COUNT
+    events = scripted_events_in_frame_order(script=script)
+    assert {event.instance_id for event in events} == {DEMO_PAD.instance_id}
+
+    axis_values: dict[int, set[float]] = {axis: set() for axis in range(DEMO_PAD.axis_count)}
+    axes = [0.0] * DEMO_PAD.axis_count
+    pressed_buttons: set[int] = set()
+    released_buttons: set[int] = set()
+    held_buttons: set[int] = set()
+    hat_values: list[tuple[int, int]] = []
+    hat = (0, 0)
+    for event in events:
+        if event.type == pygame.JOYAXISMOTION:
+            axis_values[event.axis].add(event.value)
+            axes[event.axis] = event.value
+        elif event.type == pygame.JOYBUTTONDOWN:
+            pressed_buttons.add(event.button)
+            held_buttons.add(event.button)
+        elif event.type == pygame.JOYBUTTONUP:
+            released_buttons.add(event.button)
+            held_buttons.discard(event.button)
+        else:
+            assert event.type == pygame.JOYHATMOTION
+            assert event.hat == 0
+            hat_values.append(event.value)
+            hat = event.value
+
+    every_button = set(range(DEMO_PAD.button_count))
+    assert pressed_buttons == every_button
+    assert released_buttons == every_button
+    for axis, values in axis_values.items():
+        # Swept: many positions, reaching both ends
+        assert len(values) > 4, axis
+        assert (min(values), max(values)) == (-1.0, 1.0), axis
+    assert {(0, 1), (1, 0), (0, -1), (-1, 0)} <= set(hat_values)
+    assert axes == [0.0] * DEMO_PAD.axis_count
+    assert held_buttons == set()
+    assert hat == (0, 0)
+    recipe = DEMO_RECIPES['joystick_demo_pad']
+    assert recipe.script == 'scripts.demo_inputs:joystick_demo_script'
+    assert recipe.frame_count == JOYSTICK_DEMO_FRAME_COUNT
+    assert recipe.stand_in_devices == (DEMO_PAD,)
+    assert recipe.polled_input
 
 
 def test_every_demo_is_in_a_package_with_its_console_script():

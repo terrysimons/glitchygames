@@ -5,21 +5,29 @@ script (scripts/golden_inputs.py) whenever that script's frames already make a g
 whose script holds a key to the last frame needs a demo script of its own, which lives here: each
 builder takes no arguments and returns a fresh ``InputScript``, a ``MODULE:NAME`` target for a
 recipe's ``script`` (``scripts.demo_inputs:mr_muncher_demo_script``). The golden scripts and the
-golden replays are never changed for a demo. A demo of a game with no golden script (the dt demo
-and the text-input demo, which are demos-layer members, not games, and Bitmappy, an app) has a
-script here too.
+golden replays are never changed for a demo. A demo of a game with no golden script (the dt demo,
+the joystick demo and the text-input demo, which are demos-layer members, not games, and
+Bitmappy, an app) has a script here too.
+
+The joystick demo's pad is a stand-in (``DEMO_PAD``, glitchygames/input/stand_in_devices.py): it
+exists only in the recording session, whose recipe names it (``DemoRecipe.stand_in_devices``), so
+its script posts the pad's own events (JOYAXISMOTION, JOYBUTTONDOWN/UP, JOYHATMOTION by its
+instance id), which the recorder follows into the frame's polled input (``polled_input=True``).
 
 Why a demo needs its own: the Arcade loops a demo, so nothing a demo pressed may still be down
 after its last frame (tests/replay/test_bundled_demos.py
-``test_no_bundled_demo_ends_with_input_held``).
+``test_no_bundled_demo_ends_with_input_held``). The joystick demo's pad also ends at rest: every
+axis back at 0 and the hat centred.
 """
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Protocol
 
 import pygame
 
+from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.replay.tools.golden_traces import InputScript, release
 from glitchygames.testing.keys import qwerty_scancode
 from scripts.golden_inputs import LEFT_MOUSE_BUTTON, MuncherSteering, mr_muncher_script
@@ -48,6 +56,38 @@ TEXT_INPUT_DEMO_FIRST_KEY_FRAME = 50
 TEXT_INPUT_DEMO_FRAMES_BETWEEN_KEYS = 15
 TEXT_INPUT_DEMO_KEY_HELD_FRAMES = 4
 TEXT_INPUT_DEMO_FRAME_COUNT = 600
+
+# The joystick demo's pad: an unmapped joystick (its events come from its joystick layer, axes
+# -1.0..1.0) that exists only in the recording session. It names no GUID, so the readout shows
+# "GUID: unknown"
+DEMO_PAD = DeviceDescriptor(
+    kind=JOYSTICK_KIND,
+    device_index=0,
+    instance_id=0,
+    name='GlitchyGames Demo Pad',
+    guid=None,
+    axis_count=6,
+    button_count=12,
+    hat_count=1,
+    ball_count=0,
+)
+# The joystick demo's script, one part after another: each axis in turn swept through a full
+# sine cycle (0, up to 1.0, down to -1.0, back to 0) one position a frame; then each button
+# pressed, held and released, the next a pace later; then the hat round its eight positions,
+# clockwise from up, and back to centre; then the pad stays at rest to the last frame
+JOYSTICK_DEMO_FIRST_AXIS_FRAME = 30
+JOYSTICK_DEMO_AXIS_SWEEP_FRAMES = 40
+# Decimal places of a swept axis's positions (the readout's text shows each)
+JOYSTICK_DEMO_AXIS_DECIMAL_PLACES = 3
+JOYSTICK_DEMO_FIRST_BUTTON_FRAME = 290
+JOYSTICK_DEMO_FRAMES_BETWEEN_BUTTONS = 12
+JOYSTICK_DEMO_BUTTON_HELD_FRAMES = 8
+JOYSTICK_DEMO_FIRST_HAT_FRAME = 450
+JOYSTICK_DEMO_HAT_HELD_FRAMES = 10
+# (x, y): pygame's hat values, y up
+JOYSTICK_DEMO_HAT_POSITIONS = ((0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1))
+JOYSTICK_DEMO_HAT_CENTRE = (0, 0)
+JOYSTICK_DEMO_FRAME_COUNT = 600
 
 # Bitmappy's demo: a smiley drawn on the blank 32x32 canvas. The points are the editor's layout
 # at the recorder's resolution (SCREEN_RESOLUTION, 800x480): the canvas's top-left corner is
@@ -209,6 +249,74 @@ def dt_demo_script() -> InputScript:
     """
     script = InputScript()
     script.tap(DT_DEMO_SPACE_FRAME, pygame.K_SPACE, held_frames=DT_DEMO_SPACE_HELD_FRAMES)
+    return script
+
+
+def joystick_demo_axis_sweep() -> tuple[float, ...]:
+    """Return a swept axis's positions, one a frame: a full sine cycle ending exactly at rest.
+
+    Returns:
+        ``JOYSTICK_DEMO_AXIS_SWEEP_FRAMES`` positions, each rounded to
+        ``JOYSTICK_DEMO_AXIS_DECIMAL_PLACES``: up to 1.0 a quarter of the way through, down to
+        -1.0 at three quarters, and 0.0 last (never -0.0, which a recording would write as such).
+
+    """
+    positions: list[float] = []
+    for step in range(1, JOYSTICK_DEMO_AXIS_SWEEP_FRAMES + 1):
+        position = round(
+            math.sin(2 * math.pi * step / JOYSTICK_DEMO_AXIS_SWEEP_FRAMES),
+            JOYSTICK_DEMO_AXIS_DECIMAL_PLACES,
+        )
+        positions.append(position if position != 0 else 0.0)
+    return tuple(positions)
+
+
+def joystick_demo_script() -> InputScript:
+    """The joystick demo: the demo pad sweeps every axis, presses every button, works the hat.
+
+    Returns:
+        A script of ``DEMO_PAD``'s own events: from ``JOYSTICK_DEMO_FIRST_AXIS_FRAME`` each axis
+        in turn takes ``joystick_demo_axis_sweep``'s positions, one JOYAXISMOTION a frame; from
+        ``JOYSTICK_DEMO_FIRST_BUTTON_FRAME`` each button is pressed and released
+        ``JOYSTICK_DEMO_BUTTON_HELD_FRAMES`` later, one every
+        ``JOYSTICK_DEMO_FRAMES_BETWEEN_BUTTONS`` frames; from ``JOYSTICK_DEMO_FIRST_HAT_FRAME``
+        the hat holds each of ``JOYSTICK_DEMO_HAT_POSITIONS`` for
+        ``JOYSTICK_DEMO_HAT_HELD_FRAMES`` frames, then centres. The demo draws its gauges from
+        the frame's polled input, so the recipe records with ``polled_input=True``.
+
+    """
+    script = InputScript()
+    instance_id = DEMO_PAD.instance_id
+    frame_number = JOYSTICK_DEMO_FIRST_AXIS_FRAME
+    for axis in range(DEMO_PAD.axis_count):
+        for position in joystick_demo_axis_sweep():
+            script.at(
+                frame_number,
+                pygame.event.Event(
+                    pygame.JOYAXISMOTION, instance_id=instance_id, axis=axis, value=position
+                ),
+            )
+            frame_number += 1
+    frame_number = JOYSTICK_DEMO_FIRST_BUTTON_FRAME
+    for button in range(DEMO_PAD.button_count):
+        script.at(
+            frame_number,
+            pygame.event.Event(pygame.JOYBUTTONDOWN, instance_id=instance_id, button=button),
+        )
+        script.at(
+            frame_number + JOYSTICK_DEMO_BUTTON_HELD_FRAMES,
+            pygame.event.Event(pygame.JOYBUTTONUP, instance_id=instance_id, button=button),
+        )
+        frame_number += JOYSTICK_DEMO_FRAMES_BETWEEN_BUTTONS
+    frame_number = JOYSTICK_DEMO_FIRST_HAT_FRAME
+    for hat_position in (*JOYSTICK_DEMO_HAT_POSITIONS, JOYSTICK_DEMO_HAT_CENTRE):
+        script.at(
+            frame_number,
+            pygame.event.Event(
+                pygame.JOYHATMOTION, instance_id=instance_id, hat=0, value=hat_position
+            ),
+        )
+        frame_number += JOYSTICK_DEMO_HAT_HELD_FRAMES
     return script
 
 

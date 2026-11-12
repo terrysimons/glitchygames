@@ -64,7 +64,9 @@ from glitchygames.replay.tools.golden_traces import (
 from glitchygames.replay.tools.scripted_sessions import record_scripted_session
 from scripts.demo_inputs import (
     BITMAPPY_DEMO_FRAME_COUNT,
+    DEMO_PAD,
     DT_DEMO_FRAME_COUNT,
+    JOYSTICK_DEMO_FRAME_COUNT,
     MR_MUNCHER_DEMO_FRAME_COUNT,
     TEXT_INPUT_DEMO_FRAME_COUNT,
 )
@@ -155,6 +157,15 @@ DEMO_RECIPES: dict[str, DemoRecipe] = {
         package='dt_demo',
         name='timing.jsonl.gz',
         polled_input=True,
+    ),
+    'joystick_demo_pad': DemoRecipe(
+        scene='joystick_demo:Game',
+        script='scripts.demo_inputs:joystick_demo_script',
+        frame_count=JOYSTICK_DEMO_FRAME_COUNT,
+        package='joystick_demo',
+        name='pad.jsonl.gz',
+        polled_input=True,
+        stand_in_devices=(DEMO_PAD,),
     ),
     'mr_muncher_chase': DemoRecipe(
         scene='mr_muncher.game:MrMuncherScene',
