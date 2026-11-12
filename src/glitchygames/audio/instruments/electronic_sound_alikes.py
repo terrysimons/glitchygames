@@ -5,8 +5,9 @@ in sound from an existing entry. The owner ruled (2026-11-08) that each is a cat
 own rather than an alias: "could we also consider making them full on instruments that inherit
 from the parent and change their details? ... I want them to all show up." Each is listed under
 its own name, so a person finds it by the name they know, and each builds its parent's
-instrument through ``sounds_like`` (assembled in ``registry.sound_alikes_from``). It gives its own
-sourced range, since a sound-alike of another size plays another span. A true alias, another name
+instrument through ``sounds_like`` (assembled in ``registry.sound_alikes_from``). A pitched one
+gives its own sourced range, since a sound-alike of another size plays another span; an unpitched
+one has none. A true alias, another name
 for the same instrument, stays in ``aliases.py``. The family's builds are in ``electronic.py``.
 """
 
@@ -127,16 +128,19 @@ ELECTRONIC_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
     # Sound-alike of the saw lead (no fetched source sets it apart in sound):
     # https://en.wikipedia.org/wiki/MOS_Technology_6581 ("four basic waveform types selectable:
     # triangle, sawtooth, pulse (with variable duty cycle), and pseudorandom noise"; "Each voice
-    # may be routed into an analog filter"): the plain sawtooth. Range, the same page ("0.0625-
-    # 4095.9375 Hz range on a 1 MHz clock", the en dash written as a hyphen): 0.0625 Hz is
-    # clipped to A0; B7 (3951.07 Hz) is the highest note at or below 4095.9375 Hz (C8 is 4186.01
-    # Hz)
+    # may be routed into an analog filter"): the plain sawtooth. Range, from the 6581 datasheet's
+    # formula as transcribed at https://www.bellesondes.fr/wiki/doku.php?id=mos6581 ("Fout = (Fn *
+    # Fclk/16777216) Hz", Fn the 16-bit frequency value; "Fout = (Fn * 0.0596) Hz" at its 1.0 MHz
+    # clock): the lowest, Fn = 1, is 0.0596 Hz, clipped to A0; the highest, Fn = 65535, is
+    # 3906.2 Hz, so A#7 (3729.31 Hz) is the highest note at or below it (B7 is 3951.07 Hz).
+    # Wikipedia's "0.0625-4095.9375 Hz range on a 1 MHz clock" would give B7, but its 0.0625 Hz
+    # step implies a 1.048576 MHz clock, not 1 MHz, so the datasheet's formula is used
     CatalogEntry(
         'sid sawtooth',
         'MOS Technology SID sawtooth (6581)',
         Family.ELECTRONIC,
         'A0',
-        'B7',
+        'A#7',
         sounds_like='saw lead',
         tags=frozenset({Tag.CHIP}),
     ),

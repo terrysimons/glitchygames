@@ -244,7 +244,7 @@ instruments.get('slapstick')                             # an alias: the same in
 | `keyboards` | 11 | pianos, harpsichords, clavichord, celesta, toy piano |
 | `organs` | 9 | pipe organ stops and plenum, positive, combo and theatre organs, calliope |
 | `electromechanical` | 11 | electric pianos (tine, reed), Clavinet, Pianet, tonewheel organ registrations and percussion |
-| `electronic` | 26 | theremin, ondes Martenot, leads, pads, basses, chiptune pulses, sound-chip voices (NES triangle, AY-3-8910, SID sawtooth, SN76489, PC speaker) and drum-machine voices (TR-808 tom, conga, cowbell, clave, maracas; Syndrum), and 10 sound-alikes |
+| `electronic` | 26 | theremin, ondes Martenot, leads, pads, basses, chiptune pulses, sound-chip voices (NES triangle, AY-3-8910, SID sawtooth, SN76489, PC speaker) and drum-machine voices (TR-808 tom, conga, cowbell, clave, maracas; Syndrum); 10 of the 26 are sound-alikes of other entries |
 | `tuned percussion` | 36 | glockenspiel, xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, boomwhackers, gangsa, and 11 sound-alikes |
 | `plucked idiophones` | 4 | kalimba, mbira, music box, sansula |
 | `friction instruments` | 3 | glass harmonica, glass harp, terpodion |

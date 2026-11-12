@@ -1752,8 +1752,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 6 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
-  batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682 after batch 6) toward every instrument a game might
-  want, in one verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates, only 84 with
+  batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682
+  after batch 6) toward every instrument a game might
+  want, in one verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates,
+  only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
   makers, sound effects, and electromechanical, which takes the electric pianos, Clavinet and
   tonewheel organs from keyboards and organs), makes mechanical instruments a tag, and lists
@@ -1797,7 +1799,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
   all, 73 aliases and 179 sound-alikes). `Tag.CHIP` is the second tag, on nine entries. The
   audit's "Gaps you could not close" (`plans/data/instrument-audit/electronic.md`: MIMO, the
   Met, Horniman and Grove unconsulted; the SPC700, YM2413, VIC-20, Ensoniq, Waldorf, Nord Lead,
-  Korg Wavestation and the rest it suspected but did not list) are a later pass over this family, along with ranging the range WAIT rows
+  Korg Wavestation and the rest it suspected but did not list) are a later pass over this family,
+  along with ranging the range WAIT rows
   from manuals and datasheets. Next: bowed strings, the next in the design's order
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
@@ -2268,8 +2271,15 @@ This document tracks planned future features for the GlitchyGames project. Featu
     notes: `nes triangle` A0-C8 (the NTSC CPU clock 1.789773 MHz over 32 x 2048 is 27.31 Hz, so
     A0; the top 55.9 kHz clipped), `ay 3 8910` B0-C8 (30.6 Hz is B0, 30.87 Hz; 125 kHz
     clipped), `pc speaker` A0-C8 (the PC's 1193180 Hz clock, 18.2 Hz clipped to A0, 596.6 kHz
-    clipped to C8), `sid sawtooth` A0-B7 (0.0625 Hz clipped to A0, 4095.9375 Hz is B7 at 1 MHz),
+    clipped to C8), `sid sawtooth` A0-A#7 (0.0596 Hz clipped to A0, 3906.2 Hz is A#7 at 1 MHz),
     `sn76489` A2-C8 (108 Hz is A2 at the NTSC 3.58 MHz clock; 111.6 kHz clipped)
+  - [ ] `sid sawtooth`'s top note: the 6581 datasheet's formula (Fout = Fn x Fclk / 16777216, as
+    transcribed at bellesondes.fr) at its 1 MHz clock gives 3906.2 Hz, so A#7, not the B7 that
+    Wikipedia's 4095.9375 Hz (which implies a 1.048576 MHz clock) gives. Confirm the datasheet's
+    clock, or name a machine clock (NTSC C64 1.0227 MHz gives B7).
+  - [ ] Confirm `electronic clave` (of `claves`), `electronic maracas` (of `maracas`) and
+    `electronic cowbell` (of `cowbell`) as sound-alikes of acoustic parents; the cowbell's pairing
+    rests on the unsourced `cowbell` build this entry reports as a bug.
   - [ ] The chip-clock ruling: a chip-named entry (`sn76489`, `ay 3 8910`, `sid sawtooth`)
     takes the clock its own datasheet or page gives, since it is named for the chip and not for a
     machine; three ranges depend on it (the page names Master System, ColecoVision and BBC Micro

@@ -1523,7 +1523,7 @@ EXISTING_ELECTRONIC_NAMES = frozenset({
 })
 # Batch 6's electronic family: the names of its entries with their own build, each of its
 # sound-alikes with the entry it sounds like, and the entries that are unpitched (the drum
-# machines' voices; Tasks 4 and 6 fill these). The sheet's two noise rows, nes noise and game boy
+# machines' voices). The sheet's two noise rows, nes noise and game boy
 # short noise, wait for a fixed noise clock: the engine scales an all-noise instrument's LFSR
 # clock by the pitch it is played at (build_spec's unpitched_scale), so neither would ignore the
 # pitch as an unpitched entry must (test_unpitched_entries_sound_the_same_at_any_pitch)

@@ -38,8 +38,8 @@ martenot``, the synth patches such as ``saw lead`` and ``synth pad``, the chiptu
 ``chip square`` and ``nes triangle``) and its sound-alikes in ``electronic_sound_alikes.py``: sound
 chips (``sn76489``, ``ay 3 8910``, ``pc speaker``, ``sid sawtooth``) and drum-machine voices
 (``electronic tom``, ``electronic cowbell``, ``syndrum``). It is pitched, but the drum-machine
-voices are unpitched, as the drums' are, and a chip's range is its datasheet's hertz at a sourced
-clock, rounded inward to notes.
+voices are unpitched, as the drums' are, and a chip's range is its hertz at a sourced clock (from a
+chip page such as Wikipedia's or NESdev's, or a datasheet's formula), rounded inward to notes.
 
 Drums and percussion (237 entries) holds the family's builds in ``drums.py`` (hand drums such as
 ``daf``, ``dhol``, ``kendang`` and ``mridangam``, snares, gongs such as ``agung`` and ``jing``,
