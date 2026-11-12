@@ -16,8 +16,10 @@ Branch `feature/samples-phase-0-layers` holds no phase 0 work yet. In order:
 - [x] **Land #111.** Its Windows CI job fails (Linux and macOS pass); find out why and fix it, or
   confirm another session has it. **Done**: #111 merged 2026-10-28 (checked 2026-11-08).
 - [x] **Rebase `feature/samples-phase-0-layers` onto `main`** once #111 is merged. **Done**
-  (nothing to rebase): the branch held no work beyond main, its future-work notes were already on
-  main, and its worktree was removed on 2026-11-12.
+  (nothing to rebase): the branch's two commits beyond main only added future-work notes, and
+  every one of the 49 lines they added was checked on 2026-11-11 against main's future-work (41
+  verbatim, the other 8 reworded or updated there). Its worktree was removed on 2026-11-11; the
+  local branch `feature/samples-phase-0-layers` still exists.
 - [ ] **Re-run the layer audit** against the new tree, and record what #111 resolved, what is
   left and anything new, against the 2026-10-26 audit (update that file, dated, rather than
   writing another).
@@ -955,7 +957,7 @@ only replays; Part 2 Task 1).
   pytest-benchmark release works with 9.2, then re-run the benchmarks and the memory guard's
   check that pytest still keeps each test's class instance (`tests/garbage_collection.py`).
 - **The serial suite's two memory leads still open** (found 2026-10-28 by the test-memory-reduction
-  work, #112; its report, kept 2026-11-12: plans/2026-10-28-test-memory-reduction-report.md,
+  work, #112; its report, kept 2026-11-11: plans/2026-10-28-test-memory-reduction-report.md,
   BUGS.md #237). Neither is needed for the 1600 MiB limit (CircleCI's Linux peak was 1121 MiB,
   `tests/memory_guard.py`); they are where the next savings are.
   - `tests/world/test_golden_traces.py` adds about 116 MiB to the pytest process: `record_trace`
