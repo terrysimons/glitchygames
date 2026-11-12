@@ -21,10 +21,27 @@ from glitchygames.logical_names import MEMBER_LAYERS
 GAMES_LAYER = 'games'
 # A golden replay's suffix (scripts/record_scripted_session.py REPLAY_FIXTURE_SUFFIX)
 GOLDEN_SUFFIX = '.jsonl.gz'
-# The bundled demos, by (package, name): PaddleSlap's rally is the one today
-# (src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz). Never by path: nox's test sessions
-# install the members non-editable, so a demo's path is in site-packages there
-EXPECTED_BUNDLED_DEMOS = frozenset({('paddleslap', 'rally.jsonl.gz')})
+# The bundled demos, by (package, name): PaddleSlap's rally, Clockwork Keep's climb, Brave
+# Adventurer's classic and papyrus (in the launcher package, brave_adventurer_modes), Mr. Muncher's
+# chase, Drawing Fire's battle, the dt demo's timing, the joystick demo's pad, the text-input
+# demo's typing and Bitmappy's drawing (each in its package's demos directory, e.g.
+# src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz).
+# Never by path: nox's test sessions install the members non-editable, so a demo's path is in
+# site-packages there
+EXPECTED_BUNDLED_DEMOS = frozenset({
+    ('paddleslap', 'rally.jsonl.gz'),
+    ('clockwork_keep', 'climb.jsonl.gz'),
+    ('brave_adventurer_modes', 'classic.jsonl.gz'),
+    ('brave_adventurer_modes', 'papyrus.jsonl.gz'),
+    ('mr_muncher', 'chase.jsonl.gz'),
+    ('drawing_fire', 'battle.jsonl.gz'),
+    ('dt_demo', 'timing.jsonl.gz'),
+    ('joystick_demo', 'pad.jsonl.gz'),
+    ('text_input_demo', 'typing.jsonl.gz'),
+    ('bitmappy', 'drawing.jsonl.gz'),
+})
+# The most a bundled demo's file may hold (Arcade sub-plan 2): a demo ships in a game's wheel
+MAXIMUM_DEMO_BYTES = 256 * 1024
 # The import packages whose bundled demos the workspace's tests search: every member's
 # (glitchygames.bundled_demos.bundled_demos takes them explicitly, with no default: Stage D,
 # Task D5)

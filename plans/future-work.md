@@ -15,7 +15,11 @@ Branch `feature/samples-phase-0-layers` holds no phase 0 work yet. In order:
 
 - [x] **Land #111.** Its Windows CI job fails (Linux and macOS pass); find out why and fix it, or
   confirm another session has it. **Done**: #111 merged 2026-10-28 (checked 2026-11-08).
-- [ ] **Rebase `feature/samples-phase-0-layers` onto `main`** once #111 is merged.
+- [x] **Rebase `feature/samples-phase-0-layers` onto `main`** once #111 is merged. **Done**
+  (nothing to rebase): the branch's two commits beyond main only added future-work notes, and
+  every one of the 49 lines they added was checked on 2026-11-11 against main's future-work (41
+  verbatim, the other 8 reworded or updated there). Its worktree was removed on 2026-11-11; the
+  local branch `feature/samples-phase-0-layers` still exists.
 - [ ] **Re-run the layer audit** against the new tree, and record what #111 resolved, what is
   left and anything new, against the 2026-10-26 audit (update that file, dated, rather than
   writing another).
@@ -176,6 +180,11 @@ local branches are deleted. The decisions made on the way, for the record:
 | Each AI response runs `_prepare_ai_content` twice (the pixel-row check, then the load), repeating its parse, rewrite and logs | `src/apps/bitmappy/src/bitmappy/ai_manager.py` | Found 2026-10-30 by the pixel-rows final review (minor). |
 | ~~`qlmanage -t -s 256 -o <dir> <sprite.toml>...` hangs with no output and the sprite thumbnail extension never launches~~ | `src/quicklook/tools/make_thumbnails.swift` | Found 2026-10-29 (`feat/sprite-quicklook`, plan Task 7). **Done** (explained, not an extension bug): on this macOS `qlmanage -t` only uses old generator plug-ins (its log says "missing or invalid generator for thumbnail" and its `com.apple.quicklook.thumbnail` discovery finds 0 extensions), and it hangs on any type without one (an unknown `.qqqzz` file hangs too). Through `QLThumbnailGenerator`, the API Finder uses, the extension draws sprites and declines other `.toml` files, which keep the plain document icon they had before (checked with the extension switched off). Check thumbnails with `swift tools/make_thumbnails.swift`. |
 | The multi-ball simulation tests write `ball.rect.x/y` for start positions and separations, which never took effect (the ball's position is `world_x`/`world_y`; rect was rebuilt from it, now by the engine), so every ball starts at its `reset()` serve position, not the drawn random one | `tests/game_objects/test_multi_ball_*.py` | Pre-existing test weakness found in feature/engine-world-space Task 9; set `world_x`/`world_y` instead and re-check the thresholds. |
+| CoreAudio flake: `AudioQueueStart -66681` stalled two of three full `uv run pytest` runs on the native (cocoa + coreaudio) driver on 2026-11-11, in `test_crt_power_on_sound` and `test_sound_cache`; the named tests pass alone | `tests/` (native driver child run), SDL's coreaudio driver | Found during Arcade sub-plan 2's verification. Same error as BUGS.md #266 (a held audio device), but no orphaned process was found this time; find what holds or starves the device under the full parallel run. |
+| `TextSprite.update_text` renders with `FontManager.get_font()` and ignores `self.font`, so the `.font` Bitmappy sets on its slider labels does nothing | `src/glitchygames/ui/text_widgets.py` (`TextSprite.update_text`), Bitmappy's slider labels | Found in Arcade sub-plan 2 (Task 6, Bitmappy's demo). Use `self.font` when set, or stop setting it. |
+| The dt demo's square keeps moving off screen after it crosses: nothing clamps or wraps it | `src/demos/dt-demo/src/dt_demo/__init__.py` | Found in Arcade sub-plan 2 (Tasks 4-5). Clamp or wrap it, then re-record `timing.jsonl.gz` (a reviewed step). |
+| Stand-in pads log a misleading WARNING "Device enumeration ... is not in the recording" on a second `joystick_count` or on `name_for_index` | `src/glitchygames/input/stand_in_devices.py`, `src/glitchygames/input/devices.py` (~1371) | Found in Arcade sub-plan 2 (Task 7, the joystick demo's `pad`). The answer is right; the warning is noise. A stand-in registry should answer repeated enumerations without falling to the "not recorded" path. |
+| The joystick demo would raise if a device connected while another scene was active | `src/demos/joystick-demo/src/joystick_demo/__init__.py` | Found in Arcade sub-plan 2. Matters once the Arcade hosts the demo beside other scenes. |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)
 
@@ -704,6 +713,82 @@ only replays; Part 2 Task 1).
   nothing when that doesn't fit. Agreed earlier and deferred: step down instead, full context, then
   32K, then 8K, then none, with Qwen starting with the game as it does today.
 
+## Arcade (sub-plan 2 follow-ups, 2026-11-11; plans/2026-11-11-arcade-2-demos.md)
+
+- **Longer attract scripts for Clockwork Keep and Brave Adventurer.** Their demos (`climb`, 330
+  frames; `classic` and `papyrus`, 400 each) reuse their golden scripts' frames and stop where
+  each script's first placement comes (a session may not run a placement's frame), so they are
+  short loops (Ruling 3). Write demo-only scripts in `scripts/demo_inputs.py` (as Mr. Muncher's
+  chase has) and re-record with `scripts/record_bundled_demos.py`.
+- **The game demos keep the golden scripts' pause** (the owner's question). Mr. Muncher's chase
+  pauses at frames 31-34 and Brave Adventurer's two at frames 80-93, so a looping tile briefly
+  shows the pause screen. Keep the pause, or trim or replace those scripts' pauses for the demos.
+- **The Sound Board's tile and demo** (the owner's question). It is not one of the mockup's ten
+  tiles, so it got no demo (Ruling 2). If it becomes a tile, its demo is one more recipe in
+  `DEMO_RECIPES`; note a replay compares sprites and events, so what it plays must be shown by
+  sprites or posted as events to be checked.
+- **The text-input demo's replay doesn't compare the typed text** (Ruling R10). Its submit
+  handler only logs the text and the `InputBox` rect never changes, so `typing.jsonl.gz` would
+  replay clean if typing broke. Post an internal GAMEEVENT on submit
+  (`glitchygames.recording.post_event`, as Drawing Fire does per death) or draw the typed text as
+  sprites, then re-record the demo (`src/demos/text-input-demo/src/text_input_demo/__init__.py`
+  `on_input_box_submit_event`).
+- **Bitmappy starts its AI worker process on every run** (Ruling R11). With no AI service
+  installed, `ai_worker.py` logs "AI features disabled" at ERROR with a traceback
+  (`log.exception`), though that is a normal case. In the one-process Arcade, Bitmappy's tile
+  would start a worker on every loop. Start no worker, and log no error (INFO at most), when the
+  service is absent, in a replay or in a demo (`src/apps/bitmappy/src/bitmappy/ai_worker.py`).
+- ~~**Convert the joystick demo (and the dt demo) to sprites**~~ (the owner, 2026-11-11). **Done**
+  in sub-plan 2's Task 4 (`40576db5`, `8c5dcf61`), which removed the entry from Games: both draw
+  with sprites (the joystick demo's gauges, a column rebuilt when a pad's mapping changes), so
+  their `timing` and `pad` demos compare what they show.
+- **Fold both demos' `TextLine` into the engine's `TextSprite`.** The dt and joystick demos each
+  carry a near-identical `TextLine(TextSprite)` subclass because `TextSprite.update_text`
+  ignores `self.font` (the bugs table). Fix that, then delete both copies; text showing a
+  measured value (the dt demo's FPS line, Ruling R14) keeps a fixed size.
+- **Say why each demo's frame count was chosen in `scripts/record_bundled_demos.py`** (final
+  review, minor 2). Only the rally's is explained there (Mr. Muncher's in
+  `scripts/demo_inputs.py`); Clockwork Keep's 330, Brave Adventurer's 400 and Drawing Fire's 1600
+  are explained only in the plan (Ruling 3) and the entry above.
+- **The text-input script copies the demo's starting text** (final review, minor 3).
+  `scripts/demo_inputs.py` `TEXT_INPUT_DEMO_ORIGINAL_TEXT_LENGTH = len('Test')`, and
+  `test_the_text_input_script_types_and_submits` builds its own `InputBox(text='Test')`, so a
+  change to the demo's starting text is not caught. Read it from the demo (by AST, as
+  `keys_read_by` does, or a shared constant).
+- **`record_scripted_session` swaps the supervisor's `PostedPolledInput`** (final review, minor
+  4). The supervisor builds one, then the recorder replaces it with one that knows the stand-ins'
+  descriptors (`scripted_sessions.py`). Pass `descriptors` to `ScriptedInputSupervisor.__init__`
+  and drop the swap and its comment.
+- **Plan checkboxes.** `plans/2026-11-11-arcade-2-demos.md` says DONE, but the steps of Tasks 2-8
+  are still `- [ ]` (only Task 1's are ticked).
+- **Small clean-ups left from sub-plan 2's task reviews** (kept from the progress ledger, Ruling
+  R16; each harmless today):
+  - `tests/test_record_bundled_demos.py` `held_at_end` sees only `InputScript.key_events`, so it
+    is near-vacuous for per-frame input; the recordings' own guard
+    (`tests/replay/test_bundled_demos.py` `test_no_bundled_demo_ends_with_input_held`, Rulings R6
+    and R12) superseded it. Delete it or make it read per-frame input.
+  - `scripts/record_bundled_demos.py` sets `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER` with
+    `os.environ.setdefault` at import time (so importing it from a test sets them too).
+  - `scripts/record_bundled_demos.py` `main` prints the recipe's frame count, not the recording's
+    frame count.
+  - `scripts/demo_inputs.py` `ReleaseHeldKeyOnFinalFrame` assumes "call n is frame n" and writes
+    `steering.held_key` directly; only the end-to-end held-input guard checks it.
+  - `scripts/demo_inputs.py` `bitmappy_demo_script`: the unused `_channel` unpacking in the two
+    colour-pick loops, the stroke-to-canvas-points comprehension written twice, and
+    `BITMAPPY_DEMO_FRAMES_BETWEEN_PICKS` doing double duty (the pause after each click and the
+    pause after the face's strokes).
+  - `scripts/demo_inputs.py` `typed_key_events` sets Shift in `mod` without a Shift press.
+  - `tests/test_record_bundled_demos.py` `scripted_events_in_frame_order` reads
+    `InputScript.key_events` internals; the hat test asserts only the four cardinals; the dt test
+    pins only the Space press, not the crossing or the record line.
+  - The held-input guard (R12) reads `JOYAXISMOTION` and `JOYHATMOTION` but not `JOYBALLMOTION`
+    (no shipped demo has a ball), and only external events (the supervisor's posts are
+    external, so every scripted input is read).
+  - A new demo must be `git add`ed before the every-recording-checked test sees it.
+  - Every text line of the dt and joystick demos is rendered again each frame.
+  - `nox -s test` reported 30 skips to `uv run pytest`'s 8 at Task 8: confirm the extra 22 are
+    optional-dependency skips (the voice tests) that main has too.
+
 ## Games
 
 - **Convert Drawing Fire to sprites** (the owner, 2026-11-07). It draws its soldiers, sandbags and bullets straight
@@ -917,6 +1002,17 @@ only replays; Part 2 Task 1).
   (`pytest_benchmark/fixture.py:88`), so every `benchmark` test errored at setup. Lift it once a
   pytest-benchmark release works with 9.2, then re-run the benchmarks and the memory guard's
   check that pytest still keeps each test's class instance (`tests/garbage_collection.py`).
+- **The serial suite's two memory leads still open** (found 2026-10-28 by the test-memory-reduction
+  work, #112; its report, kept 2026-11-11: plans/2026-10-28-test-memory-reduction-report.md,
+  BUGS.md #237). Neither is needed for the 1600 MiB limit (CircleCI's Linux peak was 1121 MiB,
+  `tests/memory_guard.py`); they are where the next savings are.
+  - `tests/world/test_golden_traces.py` adds about 116 MiB to the pytest process: `record_trace`
+    holds the whole current run in memory. Reading the baseline with shared records
+    (`share_records`) did not change it.
+  - The serial job's peak is `tests/test_driver_comparison.py::TestEndToEnd`: pytest at about
+    685 MiB plus an inner pytest with two worker processes (about 100 MiB each). Where the inner
+    run gets its workers in a serial job was not found. Next after it: the golden replays near the
+    end (pytest about 850 MiB plus a 150-185 MiB child).
 - **The SBOM's scope** (found 2026-10-28 when syft and grype replaced safety and pip-audit).
   The license decisions are in `scripts/check_licenses.py`'s `EXCEPTIONS`. The SBOM
   (`docs/sbom.cyclonedx.json`) is everything `uv.lock` pins, development and docs tools included,

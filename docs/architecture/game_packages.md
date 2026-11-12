@@ -37,7 +37,8 @@ the installed package. Coverage maps the installed copies back to `src/`
 - A **demo** (a demos-layer member): a program under `src/demos/<demo>/`, run with its console
   script or `python -m <package>`. It is code.
 - A game's **bundled demo recording**: `<package>/demos/<name>.jsonl.gz`, package data inside a
-  game (PaddleSlap's `rally.jsonl.gz`), replayed by that game's console script. It is data, and
+  game (PaddleSlap's `rally.jsonl.gz`; every Arcade tile has one), replayed by that game's
+  console script. It is data, and
   `glitchygames.bundled_demos` finds it (see "Bundled demos" below).
 
 A `demos` directory inside a package is therefore never a demos-layer member, and a demos-layer
@@ -333,6 +334,15 @@ registration (`git add -A src tests scripts docs`) before committing.
   built install (`site-packages`, as nox's test sessions install on purpose) a recording outside
   the repository is named by its install name
   (`glitchygames.replay.tools.measure.recording_ledger_name`).
+  A bundled demo is paired with the console script whose entry point is in the demo's own
+  package, so a member with several import packages keeps its demos in the package its console
+  script starts (Brave Adventurer's `classic` and `papyrus` are in the launcher's
+  `brave_adventurer_modes/demos/`). A new member's demo is a recipe in
+  `scripts/record_bundled_demos.py` (`DEMO_RECIPES`: scene, input script, frame count, package,
+  name and the session's options; `uv run python -m scripts.record_bundled_demos --demo KEY`)
+  and an entry in `tests/workspace_expectations.py` `EXPECTED_BUNDLED_DEMOS`; it is recorded
+  without a controls tail, must end with nothing held (the Arcade loops it) and stay within
+  `MAXIMUM_DEMO_BYTES` (256 KB), both checked by `tests/replay/test_bundled_demos.py`.
 - **Engine-private names**: a member uses only the engine's public API. Where a member needs
   something the engine keeps private, give the engine a public read-only API first: PaddleSlap
   reads its ball's path through `BallSprite.trajectory` and `record_trajectory_point`.

@@ -99,7 +99,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   EngineContext, the default context, six pieces of state moved) is done, and its sub-plan 2
   (the engine's own state per context, the read-only views and the guards; the Arcade's
   sub-plan 1) is done (PR #171, verified and through its performance gate); the Arcade's
-  sub-plan 2 (demos for every tile) is next
+  sub-plan 2 (demos for every tile: `plans/2026-11-11-arcade-2-demos.md`, branch
+  `arcade-2-demos`) is done: all ten tiles have a bundled demo, recorded by
+  `scripts/record_bundled_demos.py`; sub-plan 3 (a game inside the Arcade) is next
 - **Priority**: High (requested 2026-10-23)
 
 ### 46. Recording Metrics: History, Headroom and Gameplay Analytics — TODO

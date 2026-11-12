@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from glitchygames.audio.accounting import AudioFrameAccount
+    from glitchygames.input.devices import DeviceRegistry
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
     from glitchygames.state.manager import SaveManager
@@ -175,8 +176,12 @@ class LiveSources:
             controller_buttons=polled.controller_buttons,
         )
 
-    def devices(self: Self) -> LiveDeviceRegistry:
+    def devices(self: Self) -> DeviceRegistry:
         """Return the live device registry (real devices).
+
+        Typed as the door's registry (``EngineSources.devices``), as live doors may serve
+        others: stand-in devices' doors (glitchygames/input/stand_in_devices.py) serve a
+        stand-in registry.
 
         Returns:
             The registry.

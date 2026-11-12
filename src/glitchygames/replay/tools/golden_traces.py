@@ -59,6 +59,7 @@ import pygame
 from glitchygames.engine import GameEngine, RunningGame
 from glitchygames.engine_context import current_context
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
+from glitchygames.input.stand_in_devices import StandInDeviceSources, stand_in_registry
 from glitchygames.logical_names import logical_name
 from glitchygames.replay.driver import RANDOM_SEED_HEADER_FIELD
 from glitchygames.scenes import Scene, SceneManager
@@ -68,10 +69,12 @@ from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.tracing import StableSpriteIds, sample_scene_frame
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Iterable, Iterator, Mapping
+    from collections.abc import Callable, Generator, Iterable, Iterator, Mapping, Sequence
 
     from _typeshed import SupportsKeysAndGetItem
 
+    from glitchygames.input.devices import DeviceDescriptor
+    from glitchygames.live_sources import LiveSources
     from glitchygames.replay import ReplayResult
 
 FRAME_SECONDS = 1.0 / 60.0
@@ -449,7 +452,69 @@ class GoldenTraceSceneManager(SceneManager):
 
 
 class GoldenTraceEngine(GameEngine):
-    """The GameEngine, started without its frame loop so the recorder can step frames."""
+    """The GameEngine, started without its frame loop so the recorder can step frames.
+
+    Given ``stand_in_devices``, its live doors' devices are those stand-ins
+    (glitchygames/input/stand_in_devices.py) from the run's start, so the engine's device
+    managers open them as they would real ones, and a recording of the run holds them in its
+    header (the scripted-session recorder's ``stand_in_devices``). They exist only in this run.
+    Three cases: None (the default) keeps the engine's own live doors and the machine's real
+    devices; an empty sequence gives stand-in doors with no devices at all, so a real device is
+    never seen or opened; a non-empty sequence gives exactly those stand-ins.
+    """
+
+    def __init__(
+        self: Self,
+        game: type[Scene] | Scene,
+        icon: pygame.Surface | Path | str | None = None,
+        *,
+        stand_in_devices: Sequence[DeviceDescriptor] | None = None,
+    ) -> None:
+        """Build the engine, its live doors serving the stand-in devices if any are given.
+
+        ``game`` and ``icon`` are ``GameEngine``'s, so this engine stands in wherever a game
+        builds a ``GameEngine`` (a test patches it in, and the game passes its icon).
+
+        Args:
+            game: The game's scene class.
+            icon: The game icon (``GameEngine``'s).
+            stand_in_devices: Devices that exist only in this run, plugged in from its start:
+                None (the default) for the live doors' real devices, an empty sequence for no
+                devices at all, a non-empty one for exactly those stand-ins.
+
+        """
+        # Read by build_live_sources, which GameEngine.__init__ calls
+        self.stand_in_devices = stand_in_devices
+        super().__init__(game=game, icon=icon)
+
+    @override
+    def build_live_sources(
+        self: Self, *, random_seed: int, captures_scene_starts: bool
+    ) -> LiveSources:
+        """Build the live doors: stand-in doors whenever ``stand_in_devices`` is not None.
+
+        An empty sequence still gets stand-in doors (around an empty registry): a run with no
+        devices at all, real ones hidden. Only None keeps the engine's own live doors.
+
+        Args:
+            random_seed: The run's master seed.
+            captures_scene_starts: True when the run will be recorded.
+
+        Returns:
+            The live doors (``StandInDeviceSources`` around the stand-ins, none included, or
+            the engine's own for None).
+
+        """
+        if self.stand_in_devices is None:
+            return super().build_live_sources(
+                random_seed=random_seed, captures_scene_starts=captures_scene_starts
+            )
+        return StandInDeviceSources(
+            registry=stand_in_registry(descriptors=self.stand_in_devices),
+            random_seed=random_seed,
+            use_fastevents=GameEngine.USE_FASTEVENTS,
+            captures_scene_starts=captures_scene_starts,
+        )
 
     @override
     def initialize_display(self) -> None:

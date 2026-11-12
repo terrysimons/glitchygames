@@ -29,6 +29,8 @@ from glitchygames.replay.tools.golden_traces import (
     GoldenTraceSceneManager,
     command_line,
 )
+from glitchygames.sources import active_sources
+from glitchygames.ui import TextSprite
 from tests.demo_runs import engine_run_environment, run_demo_main
 from tests.input.stand_in_devices import STAND_IN_PAD, STAND_IN_STICK, install_stand_in_devices
 
@@ -100,6 +102,8 @@ def running_demo(
         engine.install_game(scene_class=joystick_demo.Game)
         scene = manager.active_scene
         assert isinstance(scene, joystick_demo.Game)
+        # The first frame, as the engine's frame loop would draw it
+        _draw_frame(scene)
         yield engine, scene
     finally:
         pygame.event.clear()
@@ -128,6 +132,47 @@ def _set_device_positions() -> None:
             controller_buttons={STAND_IN_PAD.instance_id: (True, False, False, True)},
         )
     )
+
+
+def _hold_inputs(
+    *,
+    stick_axes: tuple[float, ...] = (0.0, 0.0, 0.0),
+    stick_buttons: tuple[bool, ...] = (False, False, False, False),
+    stick_hat: tuple[int, int] = (0, 0),
+    pad_axes: tuple[int, ...] = (0, 0, 0, 0, 0, 0),
+) -> None:
+    """Make this frame's snapshot hold these stand-in positions (the pad's buttons released)."""
+    set_current_input(
+        snapshot=InputSnapshot(
+            pressed_scancodes=frozenset(),
+            modifiers=0,
+            mouse_position=(0, 0),
+            mouse_buttons=(False, False, False),
+            mouse_focused=True,
+            device_axes={STAND_IN_STICK.instance_id: stick_axes},
+            device_buttons={STAND_IN_STICK.instance_id: stick_buttons},
+            device_hats={STAND_IN_STICK.instance_id: (stick_hat,)},
+            controller_axes={STAND_IN_PAD.instance_id: pad_axes},
+        )
+    )
+
+
+def _draw_frame(scene: joystick_demo.Game) -> None:
+    """Draw one frame as the scene manager does: the scene's update, then its sprite group."""
+    scene.update()
+    assert scene.screen is not None
+    scene.render(scene.screen)
+
+
+def _rgb(screen: pygame.Surface, position: tuple[int, int]) -> tuple[int, int, int]:
+    """Return the colour of one screen pixel, without its alpha.
+
+    Returns:
+        The red, green and blue values.
+
+    """
+    color = screen.get_at(position)
+    return (color.r, color.g, color.b)
 
 
 def _demo_font() -> pygame.font.Font:
@@ -238,7 +283,7 @@ class TestReadout:
         with running_demo() as (engine, scene):
             _set_device_positions()
 
-            scene.update()
+            _draw_frame(scene)
 
             assert scene.screen is not None
             assert _shows_header(
@@ -288,12 +333,29 @@ class TestReadout:
         assert lines[1] == 'GUID: unknown'
         assert 'Buttons held: none' in lines
 
+    def test_a_device_with_an_empty_name_still_gets_a_column(self):
+        """An empty name is a line of no text, not a sprite too narrow to make."""
+        unnamed_stick = dataclasses.replace(STAND_IN_STICK, name='')
+        device = ConnectedInputDevice(
+            descriptor=unnamed_stick,
+            joystick=ReplayJoystick(descriptor=unnamed_stick),
+            controller=None,
+        )
+        _hold_inputs()
+        group: pygame.sprite.LayeredDirty[pygame.sprite.DirtySprite] = pygame.sprite.LayeredDirty()
+
+        readout = joystick_demo.DeviceReadout(device=device, font=_demo_font(), groups=group)
+
+        assert not readout.text_lines[0].text
+        assert readout.text_lines[0].rect.width == _demo_font().size('')[0]
+        assert len(group) == len(readout.sprites())
+
     def test_joystick_mode_shows_every_device_on_its_joystick_layer(self):
         """--input-mode joystick: the pad's column is its joystick layer."""
         with running_demo(input_mode='joystick') as (engine, scene):
             _set_device_positions()
 
-            scene.update()
+            _draw_frame(scene)
 
             assert scene.screen is not None
             assert _shows(
@@ -307,12 +369,208 @@ class TestReadout:
     def test_without_devices_the_header_asks_for_one(self):
         """No device: the header says so and no column is drawn."""
         with running_demo(descriptors=()) as (_engine, scene):
-            scene.update()
+            _draw_frame(scene)
 
             assert scene.screen is not None
             assert _shows(
                 scene.screen, text='No devices: plug one in', topleft=_header_line_topleft(2)
             )
+
+
+class TestGauges:
+    """Below each device's text, sprites show its axes, held buttons and hats."""
+
+    @pytest.mark.parametrize(('value', 'offset'), [(-1.0, 0), (0.0, 50), (1.0, 100)])
+    def test_an_axis_marker_moves_with_its_axis(self, value, offset):
+        """A joystick-layer axis puts its marker at the track's left, middle or right."""
+        with running_demo() as (_engine, scene):
+            readout = scene.device_readouts[STAND_IN_STICK.instance_id]
+            _hold_inputs(stick_axes=(0.0, value, 0.0))
+
+            _draw_frame(scene)
+
+            track = readout.axis_tracks[1]
+            assert track.rect.width == joystick_demo.AXIS_TRACK_WIDTH
+            assert readout.axis_markers[1].rect.centerx == track.rect.left + offset
+            assert readout.axis_markers[0].rect.centerx == track.rect.left + 50
+            assert scene.screen is not None
+            assert _rgb(scene.screen, readout.axis_markers[1].rect.center) == YELLOW[:3]
+
+    @pytest.mark.parametrize(
+        ('value', 'offset'), [(-32768, 0), (-32767, 0), (0, 50), (16384, 75), (32767, 100)]
+    )
+    def test_a_controller_axis_marker_spans_pygames_int_scale(self, value, offset):
+        """A controller-layer axis (pygame's int scale) spans the same track."""
+        with running_demo() as (_engine, scene):
+            readout = scene.device_readouts[STAND_IN_PAD.instance_id]
+            _hold_inputs(pad_axes=(0, 0, value, 0, 0, 0))
+
+            _draw_frame(scene)
+
+            track_left = readout.axis_tracks[2].rect.left
+            assert readout.axis_markers[2].rect.centerx == track_left + offset
+
+    def test_a_button_lamp_is_visible_only_while_held(self):
+        """A button's lamp shows while it is held and goes when it is released."""
+        with running_demo() as (_engine, scene):
+            readout = scene.device_readouts[STAND_IN_STICK.instance_id]
+            lamp = readout.button_lamps[2]
+            assert scene.screen is not None
+            _hold_inputs(stick_buttons=(False, False, True, False))
+
+            _draw_frame(scene)
+
+            assert lamp.visible
+            assert not readout.button_lamps[1].visible
+            assert _rgb(scene.screen, lamp.rect.center) == YELLOW[:3]
+
+            _hold_inputs()
+            _draw_frame(scene)
+
+            assert not lamp.visible
+            assert _rgb(scene.screen, lamp.rect.center) == BLACK[:3]
+
+    def test_the_hat_dot_moves_with_the_hat(self):
+        """The hat's dot sits HAT_STEP pixels from its centre toward each direction held."""
+        with running_demo() as (_engine, scene):
+            dot = scene.device_readouts[STAND_IN_STICK.instance_id].hat_dots[0]
+            _hold_inputs(stick_hat=(0, 0))
+            _draw_frame(scene)
+            centre_x, centre_y = dot.rect.center
+            step = joystick_demo.HAT_STEP
+
+            for hat_x, hat_y in [(0, 1), (1, 0), (0, -1), (-1, 0), (1, 1), (0, 0)]:
+                _hold_inputs(stick_hat=(hat_x, hat_y))
+                _draw_frame(scene)
+
+                assert dot.rect.center == (centre_x + step * hat_x, centre_y - step * hat_y)
+
+    def test_the_gauges_sit_below_the_devices_text(self):
+        """Every gauge is below the device's last line of text, inside its column."""
+        with running_demo() as (engine, scene):
+            _set_device_positions()
+            _draw_frame(scene)
+
+            for column, device in enumerate(engine.input_devices):
+                readout = scene.device_readouts[device.instance_id]
+                text_bottom = max(line.rect.bottom for line in readout.text_lines)
+                column_left = joystick_demo.MARGIN + column * joystick_demo.COLUMN_WIDTH
+                gauges = [
+                    *readout.axis_tracks,
+                    *readout.axis_markers,
+                    *readout.button_lamps,
+                    *readout.hat_dots,
+                ]
+                assert gauges
+                for gauge in gauges:
+                    assert gauge.rect.top >= text_bottom
+                    assert column_left <= gauge.rect.left
+                    assert gauge.rect.right <= column_left + joystick_demo.COLUMN_WIDTH
+                    assert gauge in scene.all_sprites
+
+    def test_a_pad_mapped_after_it_arrived_gets_its_controller_layers_gauges(self, mocker):
+        """A pad first seen on its joystick layer and mapped later shows its controller layer.
+
+        SDL could not say the pad was a game controller when it arrived (``is_controller``
+        failed: hardware, so injected), so the engine added it on its joystick layer; its
+        controller then arrived, and the engine moved it to the controller layer without telling
+        the scene (``InputDevices.synchronize``, ``attach_controller``).
+        """
+        with running_demo(plugged_in_at_start=False) as (engine, scene):
+            pad_id = STAND_IN_PAD.instance_id
+            devices = active_sources().devices()
+            mocker.patch.object(
+                devices, 'is_controller', side_effect=pygame.error('cannot say yet')
+            )
+            engine.process_joystick_event(
+                HashableEvent(pygame.JOYDEVICEADDED, device_index=1, guid='g')
+            )
+            joystick_layer_readout = scene.device_readouts[pad_id]
+            assert joystick_layer_readout.text_lines[3].text == 'Events: joystick layer'
+            mocker.stopall()
+            engine.process_controller_event(
+                HashableEvent(pygame.CONTROLLERDEVICEADDED, device_index=1, guid='g')
+            )
+            pad = next(device for device in engine.input_devices if device.instance_id == pad_id)
+            assert pad.event_layer.kind == 'controller'
+            _hold_inputs(pad_axes=(0, 0, 0, 0, 32767, 0))
+
+            _draw_frame(scene)
+
+            readout = scene.device_readouts[pad_id]
+            assert readout is not joystick_layer_readout
+            assert not any(
+                sprite in scene.all_sprites for sprite in joystick_layer_readout.sprites()
+            )
+            assert readout.text_lines[3].text == 'Events: controller layer'
+            assert len(readout.axis_markers) == len(pad.event_layer.axes)
+            assert len(readout.button_lamps) == len(pad.event_layer.buttons)
+            assert readout.hat_dots == []
+            track_left = readout.axis_tracks[4].rect.left
+            assert readout.axis_markers[4].rect.centerx == track_left + 100
+            assert scene.screen is not None
+            assert _shows_column(scene.screen, column=0, lines=joystick_demo.device_lines(pad))
+
+    def test_a_removed_devices_sprites_are_gone(self):
+        """A device's text and gauges come with it and go with it."""
+        with running_demo(plugged_in_at_start=False) as (engine, scene):
+            assert scene.device_readouts == {}
+            engine.process_joystick_event(
+                HashableEvent(pygame.JOYDEVICEADDED, device_index=0, guid='g')
+            )
+            readout = scene.device_readouts[STAND_IN_STICK.instance_id]
+            sprites = readout.sprites()
+            assert len(sprites) == (
+                len(readout.text_lines)
+                + 2 * STAND_IN_STICK.axis_count
+                + STAND_IN_STICK.button_count
+                + STAND_IN_STICK.hat_count
+            )
+            assert all(sprite in scene.all_sprites for sprite in sprites)
+
+            engine.process_joystick_event(
+                HashableEvent(pygame.JOYDEVICEREMOVED, instance_id=STAND_IN_STICK.instance_id)
+            )
+
+            assert scene.device_readouts == {}
+            assert not any(sprite in scene.all_sprites for sprite in sprites)
+
+    def test_the_text_lines_are_text_sprites(self):
+        """The header and every device line are text sprites, their text replaced as it changes."""
+        with running_demo() as (_engine, scene):
+            readout = scene.device_readouts[STAND_IN_STICK.instance_id]
+            _hold_inputs(stick_axes=(0.0, 1.0, 0.0))
+            _draw_frame(scene)
+
+            assert all(isinstance(line, TextSprite) for line in scene.header_text)
+            assert all(isinstance(line, TextSprite) for line in readout.text_lines)
+            assert readout.text_lines[5].text == 'Axis 1: 1.0'
+
+            _hold_inputs(stick_axes=(0.0, -0.5, 0.0))
+            _draw_frame(scene)
+
+            assert readout.text_lines[5].text == 'Axis 1: -0.5'
+
+    def test_update_draws_only_sprites(self):
+        """update() draws nothing on the screen: everything shown is the sprite group's."""
+        with running_demo() as (_engine, scene):
+            assert scene.screen is not None
+            assert scene.background_color is not None
+            assert scene.background_color[:3] == BLACK[:3]
+            scene.screen.fill(BLACK)
+            _set_device_positions()
+
+            scene.update()
+
+            width, height = scene.screen.get_size()
+            expected = bytes(BLACK[:3]) * (width * height)
+            assert pygame.image.tobytes(scene.screen, 'RGB') == expected
+
+            # Drawing the group (all of it: the fill above wiped what it drew) shows the frame
+            scene.all_sprites.repaint_rect(scene.screen.get_rect())
+            scene.render(scene.screen)
+
+            assert _shows_column(scene.screen, column=0, lines=PAD_LINES)
 
 
 class TestHotPlug:
@@ -325,7 +583,7 @@ class TestHotPlug:
             engine.process_joystick_event(
                 HashableEvent(pygame.JOYDEVICEADDED, device_index=0, guid='g')
             )
-            scene.update()
+            _draw_frame(scene)
             assert scene.screen is not None
             assert _shows(
                 scene.screen,
@@ -337,7 +595,7 @@ class TestHotPlug:
             engine.process_joystick_event(
                 HashableEvent(pygame.JOYDEVICEREMOVED, instance_id=stick_id)
             )
-            scene.update()
+            _draw_frame(scene)
 
             assert _shows(
                 scene.screen,
@@ -371,7 +629,7 @@ class TestHotPlug:
                 HashableEvent(pygame.CONTROLLERDEVICEREMOVED, instance_id=pad_id)
             )
 
-            scene.update()
+            _draw_frame(scene)
 
             assert scene.screen is not None
             assert _shows(
@@ -431,7 +689,7 @@ class TestInputEvents:
                 else engine.process_joystick_event
             )
             dispatcher(event)
-            scene.update()
+            _draw_frame(scene)
 
             assert scene.screen is not None
             assert _shows(scene.screen, text=report, topleft=_header_line_topleft(4))

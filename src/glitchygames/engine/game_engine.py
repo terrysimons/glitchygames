@@ -1592,9 +1592,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # The run's session with the local AI service, if it has one (glitchygames/ai_link.py)
         self.ai_link: AiLink | None = None
         if self.replay_sources is None:
-            live_sources = LiveSources(
+            live_sources = self.build_live_sources(
                 random_seed=self.random_seed,
-                use_fastevents=GameEngine.USE_FASTEVENTS,
                 # A recorded run captures scene starts from its first scene on, which
                 # is built before recording starts (glitchygames/scene_start.py)
                 captures_scene_starts=options.get('record_trace') is not None,
@@ -3891,6 +3890,31 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             sound_cues.carry_tail_into_the_game()
         if outcome is PowerOnOutcome.QUIT:
             post_input_event(event=pygame.event.Event(pygame.QUIT))
+
+    def build_live_sources(
+        self: Self, *, random_seed: int, captures_scene_starts: bool
+    ) -> LiveSources:
+        """Build the live doors a live run reads through, beneath its host's.
+
+        Called once, as the engine is constructed, for every run that is not a replay. A
+        subclass may build other live doors: the golden-trace harness's engine builds stand-in
+        devices' (``GoldenTraceEngine(stand_in_devices=...)``,
+        glitchygames/replay/tools/golden_traces.py).
+
+        Args:
+            random_seed: The run's master seed (glitchygames/randomness.py).
+            captures_scene_starts: True when the run will be recorded (``--record-trace``), so
+                scene starts are captured from its first scene on (``LiveSources``).
+
+        Returns:
+            The live doors.
+
+        """
+        return LiveSources(
+            random_seed=random_seed,
+            use_fastevents=GameEngine.USE_FASTEVENTS,
+            captures_scene_starts=captures_scene_starts,
+        )
 
     def _host_sources(self: Self, *, inner: LiveSources, overlay: OnionSkin | None) -> HostSources:
         """Build the host's doors: the AI's subclass only for a run that has a link.
