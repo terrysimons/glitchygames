@@ -62,6 +62,7 @@ from glitchygames.replay.tools.golden_traces import (
     load_input_script,
 )
 from glitchygames.replay.tools.scripted_sessions import record_scripted_session
+from scripts.demo_inputs import MR_MUNCHER_DEMO_FRAME_COUNT
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -102,7 +103,46 @@ class DemoRecipe(BaseModel):
     stand_in_devices: StandInDevices = ()
 
 
+# In key order (``main --all`` records in sorted key order). Brave Adventurer's two editions are
+# started by one launcher, so both demos are in its package, brave_adventurer_modes (the
+# launcher's console script replays them)
 DEMO_RECIPES: dict[str, DemoRecipe] = {
+    'brave_adventurer_classic': DemoRecipe(
+        scene='brave_adventurer.game:BraveAdventurerScene',
+        script='scripts.golden_inputs:brave_adventurer_script',
+        frame_count=400,
+        package='brave_adventurer_modes',
+        name='classic.jsonl.gz',
+    ),
+    'brave_adventurer_papyrus': DemoRecipe(
+        scene='brave_adventurer_papyrus.game:PapyrusBraveAdventurerScene',
+        script='scripts.golden_inputs:brave_adventurer_script',
+        frame_count=400,
+        package='brave_adventurer_modes',
+        name='papyrus.jsonl.gz',
+    ),
+    'clockwork_keep_climb': DemoRecipe(
+        scene='clockwork_keep.game:ClockworkKeepScene',
+        script='scripts.golden_inputs:clockwork_keep_script',
+        frame_count=330,
+        package='clockwork_keep',
+        name='climb.jsonl.gz',
+    ),
+    'drawing_fire_battle': DemoRecipe(
+        scene='drawing_fire.game:DrawingFireScene',
+        script='scripts.golden_inputs:drawing_fire_script',
+        frame_count=1600,
+        package='drawing_fire',
+        name='battle.jsonl.gz',
+        polled_input=True,
+    ),
+    'mr_muncher_chase': DemoRecipe(
+        scene='mr_muncher.game:MrMuncherScene',
+        script='scripts.demo_inputs:mr_muncher_demo_script',
+        frame_count=MR_MUNCHER_DEMO_FRAME_COUNT,
+        package='mr_muncher',
+        name='chase.jsonl.gz',
+    ),
     'paddleslap_rally': DemoRecipe(
         scene='paddleslap:Game',
         script='scripts.golden_inputs:paddleslap_script',
@@ -175,6 +215,8 @@ def record_demo(*, recipe: DemoRecipe) -> Path:
 
     """
     path = demo_path(recipe=recipe)
+    # A package with no demos yet has no demos directory
+    path.parent.mkdir(parents=True, exist_ok=True)
     scene_class = GameSceneClasses({recipe.name: recipe.scene})[recipe.name]
     script = load_input_script(reference=recipe.script)
     with recording_session_environment():

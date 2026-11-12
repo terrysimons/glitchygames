@@ -15,6 +15,12 @@ from pathlib import Path
 import pygame
 import pytest
 from scripts import record_bundled_demos
+from scripts.demo_inputs import (
+    MR_MUNCHER_DEMO_FRAME_COUNT,
+    ReleaseHeldKeyOnFinalFrame,
+    mr_muncher_demo_script,
+)
+from scripts.golden_inputs import mr_muncher_script
 from scripts.record_bundled_demos import DEMO_RECIPES, DemoRecipe, demo_path, record_demo
 
 from glitchygames.ai_link import INSTALL_ROOT_ENVIRONMENT_VARIABLE
@@ -135,6 +141,59 @@ def test_held_at_end_finds_what_a_script_leaves_pressed(mocker):
     }
 
 
+class StubSteering:
+    """A steering that holds the up arrow from its first call on, as Mr. Muncher's does."""
+
+    def __init__(self) -> None:
+        """Start holding nothing."""
+        self.held_key: int | None = None
+
+    def __call__(self, _scene: object) -> list[pygame.event.Event]:
+        if self.held_key is not None:
+            return []
+        self.held_key = pygame.K_UP
+        return [press(pygame.K_UP)]
+
+
+def test_the_final_frame_releases_the_key_the_steering_holds():
+    """Run to the last frame, the wrapped steering has released everything and pressed nothing."""
+    steering = StubSteering()
+    wrapper = ReleaseHeldKeyOnFinalFrame(steering=steering, final_frame=5)
+    held: set[int] = set()
+    for frame_number in range(1, 6):
+        for event in wrapper(None):
+            if event.type == pygame.KEYDOWN:
+                held.add(event.key)
+            else:
+                assert event.type == pygame.KEYUP
+                assert event.scancode == release(event.key).scancode
+                held.discard(event.key)
+        if frame_number < 5:
+            assert held == {pygame.K_UP}
+    assert held == set()
+    assert steering.held_key is None
+    assert wrapper(None) == []
+
+
+def test_the_final_frame_with_nothing_held_posts_nothing():
+    """A steering between a release and a re-press has nothing to release on the last frame."""
+    steering = StubSteering()
+    wrapper = ReleaseHeldKeyOnFinalFrame(steering=steering, final_frame=1)
+    assert wrapper(None) == []
+
+
+def test_the_mr_muncher_demo_script_is_the_golden_script_with_the_wrapped_steering():
+    """Only the per-frame steering differs from the golden script: the same pauses, same events."""
+    golden = mr_muncher_script()
+    demo = mr_muncher_demo_script()
+    assert isinstance(demo.per_frame, ReleaseHeldKeyOnFinalFrame)
+    assert demo.per_frame.steering.__class__ is golden.per_frame.__class__
+    assert demo.per_frame.final_frame == MR_MUNCHER_DEMO_FRAME_COUNT - 1
+    assert demo.key_events.keys() == golden.key_events.keys()
+    assert DEMO_RECIPES['mr_muncher_chase'].frame_count == MR_MUNCHER_DEMO_FRAME_COUNT
+    assert DEMO_RECIPES['mr_muncher_chase'].script == 'scripts.demo_inputs:mr_muncher_demo_script'
+
+
 def test_every_demo_is_in_a_package_with_its_console_script():
     """Each recipe's package starts a game: the Arcade tile runs its console script."""
     for key, recipe in DEMO_RECIPES.items():
@@ -156,6 +215,15 @@ def test_a_demo_goes_into_its_packages_demos_directory():
     assert path.parent.name == 'demos'
     assert path.parent.parent.name == 'paddleslap'
     assert path.name == 'rally.jsonl.gz'
+
+
+def test_recording_a_demo_creates_its_demos_directory(mocker, tmp_path):
+    """A package with no demos directory yet gets one: the recording is written into it."""
+    path = tmp_path / 'not-yet' / 'demos' / 'rally.jsonl.gz'
+    mocker.patch('scripts.record_bundled_demos.demo_path', return_value=path)
+    mocker.patch('scripts.record_bundled_demos.record_scripted_session')
+    record_demo(recipe=DEMO_RECIPES['paddleslap_rally'])
+    assert path.parent.is_dir()
 
 
 def session_recipe() -> DemoRecipe:
