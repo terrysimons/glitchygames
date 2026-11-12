@@ -30,19 +30,30 @@ from glitchygames.ui import TextSprite
 FONT_SIZE = 40
 # Where the FPS line starts, below the time line
 FPS_LINE_TOP = 50
+# The widest text the FPS line is sized for, once: the FPS is measured (a replay under
+# --replay-fps real serves this machine's), so the line's rect must not follow it. The bundled
+# font's digits are all one width, and five integer digits cover an uncapped run
+# (--target-fps 0); anything wider is cut off at the line's right edge, never resized (Ruling R14)
+FPS_LINE_WIDEST_TEXT = 'FPS: 99999.99'
 # The square: this many pixels a side, its top this far below the middle of the screen
 SQUARE_SIZE = 40
 SQUARE_BELOW_MIDDLE = 30
 
 
 class TextLine(TextSprite):
-    """One line of the demo's text: a TextSprite in the demo's font, exactly as big as its text.
+    """One line of the demo's text: a TextSprite in the demo's font, starting at its top-left.
 
     TextSprite draws the engine's default font centred in a box of fixed size; the demo's lines
     keep the font they were drawn in when they were blitted straight onto the screen, starting
-    at their top-left corner, so the demo looks as it did. A replay compares the line's rect,
-    so its width follows the text.
+    at their top-left corner, so the demo looks as it did. A replay compares the line's rect:
+    a line of replayed values (game time) is exactly as big as its text, so its width follows
+    the text; a subclass naming ``WIDEST_TEXT`` (``FpsLine``: the measured FPS) is sized once
+    for that text and keeps that rect whatever it shows, the text drawn at its left.
     """
+
+    # The widest text the line can show, for a line of a fixed size; None for a line exactly as
+    # big as its text
+    WIDEST_TEXT: str | None = None
 
     def __init__(
         self: Self,
@@ -65,7 +76,10 @@ class TextLine(TextSprite):
         """
         # Set before TextSprite's __init__, which draws the text (update_text)
         self.line_font = font
-        width, height = font.size(text)
+        self.fixed_size: tuple[int, int] | None = (
+            None if self.WIDEST_TEXT is None else font.size(self.WIDEST_TEXT)
+        )
+        width, height = font.size(text) if self.fixed_size is None else self.fixed_size
         super().__init__(
             x=topleft[0],
             y=topleft[1],
@@ -79,14 +93,28 @@ class TextLine(TextSprite):
 
     @override
     def update_text(self: Self, text: str) -> None:
-        """Draw the text in the line's font; the sprite takes the text's size.
+        """Draw the text in the line's font: the sprite takes the text's size, or keeps its own.
 
         Args:
             text: The text.
 
         """
-        self.image = self.line_font.render(text, FontManager.antialias(), self.text_color)
-        self.rect.size = self.image.get_size()
+        rendered_text = self.line_font.render(text, FontManager.antialias(), self.text_color)
+        if self.fixed_size is None:
+            self.image = rendered_text
+            self.rect.size = self.image.get_size()
+            return
+        # A transparent surface of the line's fixed size, the text copied in at its left: the
+        # maximum of each channel against all zeroes is the text's own pixels, alpha included,
+        # so the line looks exactly as the rendered text does, and its rect never changes
+        self.image = pygame.Surface(self.fixed_size, pygame.SRCALPHA)
+        self.image.blit(rendered_text, (0, 0), special_flags=pygame.BLEND_RGBA_MAX)
+
+
+class FpsLine(TextLine):
+    """The FPS line: one fixed size, sized for ``FPS_LINE_WIDEST_TEXT``, whatever the FPS."""
+
+    WIDEST_TEXT = FPS_LINE_WIDEST_TEXT
 
 
 class Game(Scene):
@@ -128,9 +156,10 @@ class Game(Scene):
         self.passed = False
         self.start = False
         # Everything shown is a sprite on black, so a replay compares what the demo shows: the
-        # lines' widths follow their text, the square's x its position, and the record line is
-        # hidden until the square has crossed (screen-space sprites: their rect and visible are
-        # the demo's to set)
+        # time and record lines' widths follow their text (game time, which a replay serves),
+        # the FPS line keeps one size (the FPS is measured), the square's x its position, and
+        # the record line is hidden until the square has crossed (screen-space sprites: their
+        # rect and visible are the demo's to set)
         self.background_color = BLACK
         self.time_line = TextLine(
             font=self.font,
@@ -139,7 +168,7 @@ class Game(Scene):
             name='Time',
             groups=self.all_sprites,
         )
-        self.fps_line = TextLine(
+        self.fps_line = FpsLine(
             font=self.font,
             text=self._fps_text(),
             topleft=(0, FPS_LINE_TOP),

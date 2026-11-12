@@ -251,6 +251,49 @@ def test_the_lines_are_text_sprites(scene: dt_demo.Game) -> None:
     assert {scene.time_line, scene.fps_line} <= set(scene.all_sprites)
 
 
+def test_the_fps_line_keeps_one_rect_whatever_the_fps(scene: dt_demo.Game) -> None:
+    """The FPS line's rect is the same for very different FPS values (Ruling R14).
+
+    The FPS is measured: a replay under ``--replay-fps real`` serves this machine's, so a rect
+    that followed the text would diverge on a faster or slower machine.
+    """
+    scene.fps = 5.0
+    _draw_frame(scene)
+    slow_rect = scene.fps_line.rect.copy()
+
+    scene.fps = 12345.67
+    _draw_frame(scene)
+
+    assert scene.fps_line.text == 'FPS: 12345.67'
+    assert scene.fps_line.rect == slow_rect
+    assert slow_rect.topleft == (0, dt_demo.FPS_LINE_TOP)
+
+
+# Each narrower than the line's widest text, so some of the line is right of the text
+@pytest.mark.parametrize('frames_per_second', [0.0, 60.01, 9876.5])
+def test_the_fps_line_shows_its_text_at_its_left(
+    scene: dt_demo.Game, frames_per_second: float
+) -> None:
+    """The fixed-size FPS line looks as the text did when drawn alone: same font, same place."""
+    scene.fps = frames_per_second
+    _draw_frame(scene)
+
+    assert scene.screen is not None
+    expected_text = _demo_text(f'FPS: {round(frames_per_second, 2)}')
+    assert _shows(scene.screen, image=expected_text, topleft=(0, dt_demo.FPS_LINE_TOP))
+    # Right of the text, to the line's fixed edge, the line is transparent: black shows
+    text_width, text_height = expected_text.get_size()
+    line_right = scene.fps_line.rect.right
+    beyond_text = pygame.Rect(
+        text_width, dt_demo.FPS_LINE_TOP, line_right - text_width, text_height
+    )
+    assert beyond_text.width > 0
+    region = scene.screen.subsurface(beyond_text)
+    assert pygame.image.tobytes(region, 'RGB') == bytes(BLACK_RGB) * (
+        beyond_text.width * beyond_text.height
+    )
+
+
 def test_update_draws_only_sprites(scene: dt_demo.Game) -> None:
     """update() draws nothing on the screen: everything shown is the sprite group's."""
     assert scene.screen is not None
