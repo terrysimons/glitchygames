@@ -204,7 +204,7 @@ the sound never plays where the picture does not (`--headless`, tests, replays, 
 
 ## The instrument catalog
 
-`glitchygames.audio.instruments` holds 658 ready-made instruments in 23 families. Each is an
+`glitchygames.audio.instruments` holds 671 ready-made instruments in 23 families. Each is an
 ordinary `Instrument`, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:
@@ -237,7 +237,7 @@ instruments.get('slapstick')                             # an alias: the same in
 | `organs` | 9 | pipe organ stops and plenum, positive, combo and theatre organs, calliope |
 | `electromechanical` | 11 | electric pianos (tine, reed), Clavinet, Pianet, tonewheel organ registrations and percussion |
 | `electronic` | 15 | theremin, ondes Martenot, leads, pads, basses, chiptune pulses |
-| `tuned percussion` | 23 | glockenspiel, xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan |
+| `tuned percussion` | 36 | glockenspiel, xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, boomwhackers, gangsa, and 11 sound-alikes |
 | `plucked idiophones` | 4 | kalimba, mbira, music box, sansula |
 | `friction instruments` | 3 | glass harmonica, glass harp, terpodion |
 | `drums and percussion` | 237 | kits (kicks, snares, toms, hi-hats, cymbals), hand drums (daf, dhol, kendang, mridangam), gongs, shakers, blocks, and 131 sound-alikes |
