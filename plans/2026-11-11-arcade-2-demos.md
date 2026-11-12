@@ -1,6 +1,6 @@
 # Arcade, Sub-plan 2: Demos for Every Tile — Implementation Plan
 
-Status: DONE (branch `arcade-2-demos` (its PR number is added when it is opened): Tasks 1-8,
+Status: DONE (PR #177, squash-merged 2026-11-11: Tasks 1-8,
 Task 8's docs commit, then the final review's fixes). Every tile of the Arcade has its bundled demo; the follow-ups found on the way are
 in `plans/future-work.md` (Arcade, and the bugs table).
 

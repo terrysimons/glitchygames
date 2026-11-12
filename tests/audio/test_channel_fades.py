@@ -55,6 +55,8 @@ from tests.audio.channel_fade_probe import (
     CRT_SKIP,
     STEAL_DELAYED,
     STEAL_IMMEDIATE,
+    STEALER_TONE_HZ,
+    STOLEN_TONE_HZ,
     TRIAL_COUNT,
     own_largest_step,
 )
@@ -240,6 +242,24 @@ def test_a_stalled_trial_stays_one_trial():
     assert len(stalled) >= 2 * 20 + stall.size // DEFAULT_BUFFER_SAMPLES
 
 
+def assert_report_holds_every_recorded_trial(samples, *, case, directory):
+    """Write the report and check it holds one table row for each trial the recording holds."""
+    path, text = write_trial_report(samples, case=case, directory=directory)
+
+    assert path == trial_report_path(case=case, directory=directory)
+    assert path.name == f'channel-fade-{case}.md'
+    assert path.read_text(encoding='utf-8') == text
+    rows = trial_report_rows(samples)
+    assert rows
+    assert [row.trial for row in rows] == list(range(1, len(rows) + 1))
+    table_rows = [
+        line for line in text.splitlines() if line.startswith('| ') and 'Trial' not in line
+    ]
+    assert len(table_rows) == len(rows)
+    for row, line in zip(rows, table_rows, strict=True):
+        assert line.startswith(f'| {row.trial} | {row.action_chunk} | {row.stolen_level:.3f} |')
+
+
 @pytest.mark.parametrize('case', [STEAL_IMMEDIATE, STEAL_DELAYED])
 def test_a_steal_report_holds_every_trial_whether_or_not_its_relation_held(
     recordings, case, tmp_path
@@ -247,22 +267,34 @@ def test_a_steal_report_holds_every_trial_whether_or_not_its_relation_held(
     """The steal benchmarks' report is written under its directory with a row for every trial.
 
     The report is what diagnoses a flaky benchmark run, so it is checked here, in the normal
-    suite, on the real recording: written to ``channel-fade-<case>.md``, one table row per trial,
-    each trial's action chunk and levels in it.
+    suite, on the real recording: written to ``channel-fade-<case>.md``, one table row per trial
+    the recording holds, each trial's action chunk and levels in it. How many trials a live
+    recording holds is not this test's to judge: a delayed steal that stalls under load loses
+    one (native run, 2026-11-11: 5 of 6), which the benchmark tolerates down to
+    MINIMUM_DELAYED_STEAL_TRIALS and owns.
     """
-    samples = recordings(case)
-    directory = tmp_path / 'test-results'
+    assert_report_holds_every_recorded_trial(
+        recordings(case), case=case, directory=tmp_path / 'test-results'
+    )
 
-    path, text = write_trial_report(samples, case=case, directory=directory)
 
-    assert path == trial_report_path(case=case, directory=directory)
-    assert path.name == f'channel-fade-{case}.md'
-    assert path.read_text(encoding='utf-8') == text
-    rows = trial_report_rows(samples)
-    assert [row.trial for row in rows] == list(range(1, TRIAL_COUNT + 1))
-    table_rows = [
-        line for line in text.splitlines() if line.startswith('| ') and 'Trial' not in line
-    ]
-    assert len(table_rows) == TRIAL_COUNT
-    for row, line in zip(rows, table_rows, strict=True):
-        assert line.startswith(f'| {row.trial} | {row.action_chunk} | {row.stolen_level:.3f} |')
+def test_a_steal_report_of_a_recording_with_a_lost_trial_holds_the_trials_that_remain(tmp_path):
+    """A recording one trial short still gets a report with a row for each remaining trial.
+
+    Synthetic: five trials of the probe's tones (the stolen tone, then the stealer's) separated
+    by silences, as a live recording is after a stalled trial is lost.
+    """
+    chunk = DEFAULT_BUFFER_SAMPLES
+    time = np.arange(chunk * 4) / 44100
+    stolen = np.sin(2 * np.pi * STOLEN_TONE_HZ * time)
+    stealer = np.sin(2 * np.pi * STEALER_TONE_HZ * time)
+    between_trials = np.zeros(round(0.300 * 44100))
+    pieces: list[np.ndarray] = []
+    for _ in range(TRIAL_COUNT - 1):
+        pieces.extend([stolen, stealer, between_trials])
+    samples = np.concatenate(pieces[:-1])
+
+    assert len(trial_chunks(samples)) == TRIAL_COUNT - 1
+    assert_report_holds_every_recorded_trial(
+        samples, case=STEAL_DELAYED, directory=tmp_path / 'test-results'
+    )
