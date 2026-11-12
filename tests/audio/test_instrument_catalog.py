@@ -794,6 +794,8 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('vox continental', 'combo organ'),
         ('thereminvox', 'theremin'),
         ('etherwave', 'theremin'),
+        ('chip sawtooth', 'sid sawtooth'),
+        ('ym2149', 'ay 3 8910'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -814,6 +816,8 @@ def test_the_batch_aliases_resolve(alias, target):
     harp as the verrillon and the mbira as the sanza and sansa.
     Batch 6's first half names the theremin two more ways (thereminvox, etherwave) and, across
     families, the organs' combo organ as the Vox Continental.
+    Batch 6's second half names the SID's sawtooth as the chiptune sawtooth, and the
+    AY-3-8910 as Yamaha's licensed YM2149; both targets are sound-alike entries.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1049,6 +1053,10 @@ NEW_DRUM_NAMES = [
     'washboard',
     'xiaoluo',
 ]
+# Batch 6's drum-machine voices with their own builds, in the sheet's order. None today: the
+# sheet makes every TR-808 voice and the Syndrum a sound-alike of the drum it sounds like
+# (plans/data/instrument-audit/batch-6.tsv)
+NEW_ELECTRONIC_DRUM_NAMES: list[str] = []
 # Batch 3's sound-alikes and the entry each sounds like, in the sheet's order
 SOUND_ALIKE_PARENTS = {
     'alfaia': 'taiko',
@@ -1282,7 +1290,10 @@ def strikes_again(twice: np.ndarray, *, single: np.ndarray, merged: np.ndarray) 
     return bool(RESTRIKE_CLOSER_FACTOR * to_expected < to_merged)
 
 
-@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES + NEW_DRUM_NAMES + CHANGED_SOUND_ALIKE_NAMES)
+@pytest.mark.parametrize(
+    'name',
+    SOUND_EFFECT_NAMES + NEW_DRUM_NAMES + NEW_ELECTRONIC_DRUM_NAMES + CHANGED_SOUND_ALIKE_NAMES,
+)
 def test_a_one_shot_strikes_again_on_each_note(name):
     """A second note adds its own strike, and is not the first note merged into a held one."""
     instrument = instruments.get(name)
@@ -1299,7 +1310,10 @@ def test_a_one_shot_strikes_again_on_each_note(name):
     assert strikes_again(twice, single=single, merged=merged), name
 
 
-@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES + NEW_DRUM_NAMES + CHANGED_SOUND_ALIKE_NAMES)
+@pytest.mark.parametrize(
+    'name',
+    SOUND_EFFECT_NAMES + NEW_DRUM_NAMES + NEW_ELECTRONIC_DRUM_NAMES + CHANGED_SOUND_ALIKE_NAMES,
+)
 def test_a_one_shot_stops_however_long_it_is_held(name):
     """Held for six seconds, a one-shot is far below its loudest by 5 s: none sustains."""
     samples = render_sound(
@@ -1509,10 +1523,32 @@ EXISTING_ELECTRONIC_NAMES = frozenset({
 })
 # Batch 6's electronic family: the names of its entries with their own build, each of its
 # sound-alikes with the entry it sounds like, and the entries that are unpitched (the drum
-# machines' voices; Tasks 4 and 6 fill these)
-NEW_ELECTRONIC_NAMES: list[str] = []
-ELECTRONIC_SOUND_ALIKE_PARENTS: dict[str, str] = {}
-ELECTRONIC_UNPITCHED_NAMES: frozenset[str] = frozenset()
+# machines' voices; Tasks 4 and 6 fill these). The sheet's two SHIP noise rows, nes noise and
+# game boy short noise, are not built yet: the engine scales an all-noise instrument's LFSR clock
+# by the pitch it is played at (build_spec's unpitched_scale), so neither would ignore the pitch
+# as an unpitched entry must (test_unpitched_entries_sound_the_same_at_any_pitch); held for the
+# owner
+NEW_ELECTRONIC_NAMES: list[str] = ['nes triangle']
+ELECTRONIC_SOUND_ALIKE_PARENTS: dict[str, str] = {
+    'ay 3 8910': 'chip square',
+    'electronic clave': 'claves',
+    'electronic conga': 'electronic kick',
+    'electronic cowbell': 'cowbell',
+    'electronic maracas': 'maracas',
+    'electronic tom': 'electronic kick',
+    'pc speaker': 'chip square',
+    'sid sawtooth': 'saw lead',
+    'sn76489': 'chip square',
+    'syndrum': 'electronic kick',
+}
+ELECTRONIC_UNPITCHED_NAMES: frozenset[str] = frozenset({
+    'electronic clave',
+    'electronic conga',
+    'electronic cowbell',
+    'electronic maracas',
+    'electronic tom',
+    'syndrum',
+})
 
 
 class BatchFamily(NamedTuple):
@@ -1571,7 +1607,17 @@ def test_the_new_entries_are_in_their_family_pitched_unless_listed(family):
 
 
 # Every sound-chip voice, in catalog order (Tag.CHIP; batch 6)
-CHIP_NAMES = ['chip square', 'chip pulse 25', 'chip pulse 12', 'chip triangle']
+CHIP_NAMES = [
+    'chip square',
+    'chip pulse 25',
+    'chip pulse 12',
+    'chip triangle',
+    'nes triangle',
+    'ay 3 8910',
+    'pc speaker',
+    'sid sawtooth',
+    'sn76489',
+]
 
 
 def test_the_chip_tag_marks_exactly_the_sound_chip_voices():
@@ -1580,6 +1626,41 @@ def test_the_chip_tag_marks_exactly_the_sound_chip_voices():
     assert instruments.names(tag='Chip') == tuple(CHIP_NAMES)
     for name in CHIP_NAMES:
         assert instruments.entry(name).family == Family.ELECTRONIC, name
+
+
+def test_the_nes_triangle_buzzes_from_its_thirty_two_steps():
+    """The NES triangle's 32-step staircase buzzes at harmonics 31 and 33; a smooth one does not.
+
+    NESdev (https://www.nesdev.org/wiki/APU_Triangle): "The sequencer sends the following looping
+    32-step sequence of 4-bit values to the mixer", 15 down to 0 and back up to 15. A wave held
+    on 32 steps per cycle has images of its fundamental at harmonics 32 - 1 and 32 + 1, each
+    about 1/31 of it; a smooth triangle's 31st and 33rd harmonics are 1/31 squared and 1/33
+    squared. Measured at A2, the stepped wave's are 0.032 and 0.030 of its fundamental and the
+    chip triangle's 0.00104 and 0.00092 (31 and 33 times less); 10 keeps room. The Ricoh 2A03
+    page's "an overtone is created four octaves higher" is not what the sequence makes: it is
+    half-wave antisymmetric (each value 16 steps on is 15 minus it), so it has no even
+    harmonics, and its 16th measures 0.
+    """
+    note = Note('A2')
+    hertz = float(note.to_hz())
+
+    def relative_harmonics(name: str) -> list[float]:
+        samples = render_sound(
+            spec_for(instruments.get(name), name=name, pitch=note.name, length=1.0)
+        ).samples
+        held = samples[round(0.1 * SAMPLE_RATE) : round(0.9 * SAMPLE_RATE)]
+        magnitude = np.abs(np.fft.rfft(held * np.hanning(len(held))))
+        frequencies = np.fft.rfftfreq(len(held), 1 / SAMPLE_RATE)
+        peaks = [
+            float(np.max(magnitude[np.abs(frequencies - harmonic * hertz) < hertz / 4.0]))
+            for harmonic in (1, 31, 33)
+        ]
+        return [peak / peaks[0] for peak in peaks[1:]]
+
+    stepped = relative_harmonics('nes triangle')
+    smooth = relative_harmonics('chip triangle')
+    for stepped_level, smooth_level in zip(stepped, smooth, strict=True):
+        assert stepped_level > 10.0 * smooth_level
 
 
 def test_a_sound_alike_is_listed_and_builds_its_parents_sound():

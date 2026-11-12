@@ -252,4 +252,15 @@ ALIASES: Final[dict[str, str]] = {
     # source only: Wikipedia has no Etherwave page and the National Music Centre record returned
     # 403)
     'etherwave': 'theremin',
+    # https://en.wikipedia.org/wiki/MOS_Technology_6581 (the SID's "four basic waveform types
+    # selectable: triangle, sawtooth, pulse (with variable duty cycle), and pseudorandom
+    # noise"); the audit's generic name for the SID's sawtooth (its alias list: "sid chip sawtooth
+    # -> chip sawtooth"), the name a person asking for a chip sawtooth would type
+    'chip sawtooth': 'sid sawtooth',
+    # https://en.wikipedia.org/wiki/General_Instrument_AY-3-8910 ("It was also manufactured under
+    # license by Yamaha (with a selectable clock divider pin and a double-resolution and
+    # double-rate volume envelope table) as the YM2149F; the Atari ST uses this version."): the
+    # licensed chip, its tone channels the AY's; the differences are the clock pin and the
+    # envelope table, not the square tone
+    'ym2149': 'ay 3 8910',
 }
