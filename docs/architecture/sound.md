@@ -140,6 +140,13 @@ thread runs, in `tests/benchmarks/test_channel_fade_relations.py` under `--bench
 
 - `Channel.fadeout(10)` (a steal) is one plateau or an immediate halt, and `Channel.play` straight
   after it replaces the fading sound at the next chunk, so the engine keeps its one-frame wait.
+- The wait orders the fade before the stealer only if the mixer thread mixes a chunk during that
+  frame. A mixer thread kept off the CPU for longer than a frame mixes the stealer into the fade's
+  first chunk, the same cut as playing at once, so the delayed benchmark needs only
+  `MINIMUM_DELAYED_STEAL_TRIALS` of its trials to show the wait. Both steal benchmarks report
+  every trial, passing or not (the action chunk, both tones' levels in it, and whether the
+  stealer is absent from it and sounds after it), to `test-results/channel-fade-steal-delayed.md`
+  and `channel-fade-steal-immediate.md`, so a flaky run can be diagnosed afterwards.
 - A volume or bus fade stepped once per frame over 50 ms reaches the channel as three gain steps
   of a third, each at a chunk boundary.
 - The CRT skip's `Channel.fadeout(20)` is one or two plateaus and then a halt.

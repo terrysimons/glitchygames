@@ -9,6 +9,7 @@ for the file (``shared_recording``).
 
 from __future__ import annotations
 
+import dataclasses
 import operator
 import os
 import sys
@@ -27,6 +28,9 @@ from tests.audio import channel_fade_probe
 from tests.audio.channel_fade_probe import TONE_AMPLITUDE, TRIAL_COUNT, own_largest_step
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+# Where the steal benchmarks write each run's per-trial reports (test-results/ is untracked, as
+# for every test artifact; the same place as tests/benchmarks/test_logging_cost.py's report)
+TRIAL_REPORT_DIRECTORY = REPOSITORY_ROOT / 'test-results'
 # Feature spec 16.1's metric: no step larger than the tones' own largest (the spec names no
 # number; tests/test_crt_power_on_sound.py uses the same threshold)
 DISCONTINUITY_THRESHOLD = 1.0
@@ -233,3 +237,101 @@ def levels_after_the_action(levels: np.ndarray, chunks: range) -> np.ndarray:
         The levels.
     """
     return levels[action_chunk(levels, chunks) : chunks.stop]
+
+
+@dataclasses.dataclass(frozen=True)
+class TrialReportRow:
+    """One trial's levels in the chunk the steal changed, and what followed.
+
+    Attributes:
+        trial: The trial's number, from 1.
+        action_chunk: The recording's chunk the steal first changed (``action_chunk``).
+        stolen_level: The stolen tone's level in that chunk.
+        stealer_level: The stealer tone's level in that chunk.
+        stealer_absent: Whether the stealer is absent from that chunk (a delayed steal).
+        stealer_sounds_from_then_on: Whether the stealer sounds in a chunk from that one to the
+            trial's end.
+
+    """
+
+    trial: int
+    action_chunk: int
+    stolen_level: float
+    stealer_level: float
+    stealer_absent: bool
+    stealer_sounds_from_then_on: bool
+
+
+def trial_report_rows(samples: np.ndarray) -> list[TrialReportRow]:
+    """Describe every trial of a steal recording, whether or not its relation held.
+
+    Returns:
+        One row per recorded trial.
+    """
+    stolen = chunk_levels(samples, frequency=channel_fade_probe.STOLEN_TONE_HZ)
+    stealer = chunk_levels(samples, frequency=channel_fade_probe.STEALER_TONE_HZ)
+    rows = []
+    for trial, chunks in enumerate(trial_chunks(samples), start=1):
+        first_changed = action_chunk(stolen, chunks)
+        rows.append(
+            TrialReportRow(
+                trial=trial,
+                action_chunk=first_changed,
+                stolen_level=float(stolen[first_changed]),
+                stealer_level=float(stealer[first_changed]),
+                stealer_absent=bool(stealer[first_changed] <= ABSENT_LEVEL),
+                stealer_sounds_from_then_on=bool(
+                    np.any(stealer[first_changed : chunks.stop] > ABSENT_LEVEL)
+                ),
+            )
+        )
+    return rows
+
+
+def trial_report_path(*, case: str, directory: Path = TRIAL_REPORT_DIRECTORY) -> Path:
+    """Return where a case's report goes: ``<directory>/channel-fade-<case>.md``.
+
+    Returns:
+        The report's path.
+    """
+    return directory / f'channel-fade-{case}.md'
+
+
+def trial_report_text(*, rows: list[TrialReportRow], case: str) -> str:
+    """Format the rows as a Markdown table.
+
+    Returns:
+        The report, ending in a newline.
+    """
+    lines = [
+        f'Channel fade relations: {case}',
+        '',
+        (
+            '| Trial | Action chunk | Stolen level | Stealer level | Stealer absent '
+            '| Stealer sounds from then on |'
+        ),
+        '|---:|---:|---:|---:|---|---|',
+        *(
+            f'| {row.trial} | {row.action_chunk} | {row.stolen_level:.3f} '
+            f'| {row.stealer_level:.3f} | {"yes" if row.stealer_absent else "no"} '
+            f'| {"yes" if row.stealer_sounds_from_then_on else "no"} |'
+            for row in rows
+        ),
+        '',
+    ]
+    return '\n'.join(lines)
+
+
+def write_trial_report(
+    samples: np.ndarray, *, case: str, directory: Path = TRIAL_REPORT_DIRECTORY
+) -> tuple[Path, str]:
+    """Write every trial of a recording to ``<directory>/channel-fade-<case>.md``.
+
+    Returns:
+        The report's path and its text.
+    """
+    text = trial_report_text(rows=trial_report_rows(samples), case=case)
+    path = trial_report_path(case=case, directory=directory)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding='utf-8')
+    return path, text
