@@ -788,6 +788,15 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             'context compares against the same one.'
         ),
     },
+    'audio/instruments/bowed_strings.py': {
+        'VIOLIN': CATALOG_BUILD,
+        'VIOLA': CATALOG_BUILD,
+        'CELLO': CATALOG_BUILD,
+        'DOUBLE_BASS': CATALOG_BUILD,
+        'VIOL': CATALOG_BUILD,
+        'FOLK_FIDDLE': CATALOG_BUILD,
+        'SPIKE_FIDDLE': CATALOG_BUILD,
+    },
     'audio/instruments/brass.py': {
         'HARMON_LEVELS': CATALOG_SERIES,
         'STRAIGHT_MUTE_LEVELS': CATALOG_SERIES,
@@ -830,15 +839,6 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             'R17: each catalog instrument built once per process (CLAUDE.md, Instrument '
             'catalog), a frozen Instrument computed from its name alone.'
         ),
-    },
-    'audio/instruments/strings.py': {
-        'VIOLIN': CATALOG_BUILD,
-        'VIOLA': CATALOG_BUILD,
-        'CELLO': CATALOG_BUILD,
-        'DOUBLE_BASS': CATALOG_BUILD,
-        'VIOL': CATALOG_BUILD,
-        'FOLK_FIDDLE': CATALOG_BUILD,
-        'SPIKE_FIDDLE': CATALOG_BUILD,
     },
     'audio/instruments/timbres.py': {
         'HARMONIC_FIELD_NAMES': (
