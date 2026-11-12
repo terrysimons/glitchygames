@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/games/mr-muncher/src/mr_muncher/demos/chase.jsonl.gz performance</title>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --surface: #fcfcfb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --grid: #e4e3df;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --grid: #33332f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #1a1a19;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --grid: #33332f;
+}
+body {
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: system-ui, sans-serif;
+  margin: 0 16px;
+}
+h2 { font-size: 1.05rem; margin: 1.2rem 0 0.2rem; }
+p { color: var(--text-secondary); margin: 0.2rem 0; font-size: 0.9rem; }
+.chart { width: 100%; height: 320px; }
+</style>
+</head>
+<body>
+<h2>Processing time per frame (ms): p50 solid, p99 dashed, max dotted</h2>
+<div class="chart" id="processing"></div>
+<h2>Frames over budget</h2>
+<div class="chart" id="over_budget"></div>
+<h2>Live frame time (ms): how steady pacing was</h2>
+<div class="chart" id="frame_time"></div>
+<h2>FPS by commit: achieved by live runs (solid), headroom of replays (dashed)</h2>
+<p>Each point is the average; its bar runs from the 5% low (the slowest 5% of frames, averaged)
+to the 5% high. Live runs are paced, so they never pass the target (the dotted line); a replay's
+headroom is 1 / its processing time, how fast the work alone could run. Log scale.</p>
+<div class="chart" id="fps"></div>
+<h2>Machines: headroom FPS of each machine's latest replay</h2>
+<p>Replays only (never paced runs). The bar is the average, its error bar the 5% low to the 5%
+high. Machines marked (CI) measured on continuous integration's virtual runners: noisy.</p>
+<div class="chart" id="machines"></div>
+<h2>Slowest frame across the recording, by commit (ms)</h2>
+<p>Each cell is the slowest frame of a stretch of the recording (about 1% of it). The heatmap
+shows time only: whether the work changed (a frame whose content hash differs) is what the
+behaviour-change map shows (<code>glitchygames report</code>).</p>
+<div id="heatmaps"></div>
+<script>
+const charts = {"commits":["3ab23ff"],"processing":[{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay: p50","x":["3ab23ff"],"y":[0.635],"customdata":["committed 2026-11-11, measured 2026-11-12T03:06, 1950 frames"],"meta":0,"line":{"width":2,"dash":"solid"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay: p99","x":["3ab23ff"],"y":[0.8],"customdata":["committed 2026-11-11, measured 2026-11-12T03:06, 1950 frames"],"meta":0,"line":{"width":2,"dash":"dash"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay: max","x":["3ab23ff"],"y":[3.708],"customdata":["committed 2026-11-11, measured 2026-11-12T03:06, 1950 frames"],"meta":0,"line":{"width":2,"dash":"dot"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Raspberry Pi 4 Model B Rev 1.4, unpaced replay: p50","x":["3ab23ff"],"y":[8.939],"customdata":["committed 2026-11-11, measured 2026-11-12T03:31, 1950 frames"],"meta":1,"line":{"width":2,"dash":"solid"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Raspberry Pi 4 Model B Rev 1.4, unpaced replay: p99","x":["3ab23ff"],"y":[12.691],"customdata":["committed 2026-11-11, measured 2026-11-12T03:31, 1950 frames"],"meta":1,"line":{"width":2,"dash":"dash"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Raspberry Pi 4 Model B Rev 1.4, unpaced replay: max","x":["3ab23ff"],"y":[37.199],"customdata":["committed 2026-11-11, measured 2026-11-12T03:31, 1950 frames"],"meta":1,"line":{"width":2,"dash":"dot"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Raspberry Pi 5 Model B Rev 1.1, unpaced replay: p50","x":["3ab23ff"],"y":[3.941],"customdata":["committed 2026-11-11, measured 2026-11-12T03:29, 1950 frames"],"meta":2,"line":{"width":2,"dash":"solid"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Raspberry Pi 5 Model B Rev 1.1, unpaced replay: p99","x":["3ab23ff"],"y":[5.626],"customdata":["committed 2026-11-11, measured 2026-11-12T03:29, 1950 frames"],"meta":2,"line":{"width":2,"dash":"dash"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Raspberry Pi 5 Model B Rev 1.1, unpaced replay: max","x":["3ab23ff"],"y":[17.087],"customdata":["committed 2026-11-11, measured 2026-11-12T03:29, 1950 frames"],"meta":2,"line":{"width":2,"dash":"dot"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"}],"over_budget":[{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay","x":["3ab23ff"],"y":[0.0],"customdata":["committed 2026-11-11, measured 2026-11-12T03:06, 1950 frames"],"meta":0,"line":{"width":2,"dash":"solid"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Raspberry Pi 4 Model B Rev 1.4, unpaced replay","x":["3ab23ff"],"y":[1.0],"customdata":["committed 2026-11-11, measured 2026-11-12T03:31, 1950 frames"],"meta":1,"line":{"width":2,"dash":"solid"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Raspberry Pi 5 Model B Rev 1.1, unpaced replay","x":["3ab23ff"],"y":[1.0],"customdata":["committed 2026-11-11, measured 2026-11-12T03:29, 1950 frames"],"meta":2,"line":{"width":2,"dash":"solid"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"}],"frame_time":[],"fps":[{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay: headroom FPS","x":["3ab23ff"],"y":[1607.6],"customdata":["5% low 1239, 5% high 3846 fps<br>committed 2026-11-11, measured 2026-11-12T03:06, 1950 frames"],"error_y":{"type":"data","symmetric":false,"array":[2238.6],"arrayminus":[368.4],"thickness":1.5,"width":4},"meta":0,"line":{"width":2,"dash":"dash"},"marker":{"size":8},"hovertemplate":"%{x}: avg %{y} fps, %{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Raspberry Pi 4 Model B Rev 1.4, unpaced replay: headroom FPS","x":["3ab23ff"],"y":[112.7],"customdata":["5% low 80, 5% high 235 fps<br>committed 2026-11-11, measured 2026-11-12T03:31, 1950 frames"],"error_y":{"type":"data","symmetric":false,"array":[122.2],"arrayminus":[32.6],"thickness":1.5,"width":4},"meta":1,"line":{"width":2,"dash":"dash"},"marker":{"size":8},"hovertemplate":"%{x}: avg %{y} fps, %{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Raspberry Pi 5 Model B Rev 1.1, unpaced replay: headroom FPS","x":["3ab23ff"],"y":[256.5],"customdata":["5% low 191, 5% high 515 fps<br>committed 2026-11-11, measured 2026-11-12T03:29, 1950 frames"],"error_y":{"type":"data","symmetric":false,"array":[258.4],"arrayminus":[65.3],"thickness":1.5,"width":4},"meta":2,"line":{"width":2,"dash":"dash"},"marker":{"size":8},"hovertemplate":"%{x}: avg %{y} fps, %{customdata}<extra>%{fullData.name}<\/extra>"}],"machines":{"type":"bar","name":"headroom FPS, latest replay","x":["Apple M4 Max","Raspberry Pi 4 Model B Rev 1.4","Raspberry Pi 5 Model B Rev 1.1"],"y":[1607.6,112.7,256.5],"customdata":["5% low 1239, 5% high 3846 fps<br>commit 3ab23ff, committed 2026-11-11, measured 2026-11-12T03:06, 1950 frames","5% low 80, 5% high 235 fps<br>commit 3ab23ff, committed 2026-11-11, measured 2026-11-12T03:31, 1950 frames","5% low 191, 5% high 515 fps<br>commit 3ab23ff, committed 2026-11-11, measured 2026-11-12T03:29, 1950 frames"],"error_y":{"type":"data","symmetric":false,"array":[2238.6,122.2,258.4],"arrayminus":[368.4,32.6,65.3],"thickness":1.5,"width":6},"meta":[0,1,2],"marker":{},"hovertemplate":"%{x}: avg %{y} fps, %{customdata}<extra><\/extra>"},"target_fps":60.0,"heatmaps":[{"type":"heatmap","name":"Apple M4 Max, unpaced replay","x":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99],"y":["3ab23ff"],"z":[[0.713,0.639,0.682,0.701,0.668,0.659,0.658,0.636,0.71,0.638,0.642,1.134,0.729,0.753,0.994,0.756,0.749,0.955,0.706,0.717,0.984,0.723,0.708,0.768,0.963,0.737,0.738,0.972,0.718,0.903,3.708,0.103,0.089,1.077,0.721,0.7,0.892,0.72,0.719,0.74,0.722,0.719,0.834,0.716,0.704,0.69,0.735,0.702,0.716,0.607,0.8,0.783,0.802,0.733,0.722,0.721,0.753,0.729,0.738,0.686,0.699,0.699,0.694,0.613,0.676,0.721,0.734,0.678,0.71,0.724,0.672,0.755,0.618,0.685,0.682,0.721,0.687,0.683,0.693,0.765,0.861,0.769,0.694,0.697,0.608,0.61,0.629,0.62,0.604,0.603,0.626,0.623,0.604,0.741,0.634,0.608,0.592,0.605,0.595,1.084]],"customdata":[["frames 0-18, scene MrMuncherScene, max 0.713 ms","frames 19-38, scene MrMuncherScene, max 0.639 ms","frames 39-57, scene MrMuncherScene, max 0.682 ms","frames 58-77, scene MrMuncherScene, max 0.701 ms","frames 78-96, scene MrMuncherScene, max 0.668 ms","frames 97-116, scene MrMuncherScene, max 0.659 ms","frames 117-135, scene MrMuncherScene, max 0.658 ms","frames 136-155, scene MrMuncherScene, max 0.636 ms","frames 156-174, scene MrMuncherScene, max 0.710 ms","frames 175-194, scene MrMuncherScene, max 0.638 ms","frames 195-213, scene MrMuncherScene, max 0.642 ms","frames 214-233, scene MrMuncherScene, max 1.134 ms","frames 234-252, scene MrMuncherScene, max 0.729 ms","frames 253-272, scene MrMuncherScene, max 0.753 ms","frames 273-291, scene MrMuncherScene, max 0.994 ms","frames 292-311, scene MrMuncherScene, max 0.756 ms","frames 312-330, scene MrMuncherScene, max 0.749 ms","frames 331-350, scene MrMuncherScene, max 0.955 ms","frames 351-369, scene MrMuncherScene, max 0.706 ms","frames 370-389, scene MrMuncherScene, max 0.717 ms","frames 390-408, scene MrMuncherScene, max 0.984 ms","frames 409-428, scene MrMuncherScene, max 0.723 ms","frames 429-447, scene MrMuncherScene, max 0.708 ms","frames 448-467, scene MrMuncherScene, max 0.768 ms","frames 468-486, scene MrMuncherScene, max 0.963 ms","frames 487-506, scene MrMuncherScene, max 0.737 ms","frames 507-525, scene MrMuncherScene, max 0.738 ms","frames 526-545, scene MrMuncherScene, max 0.972 ms","frames 546-564, scene MrMuncherScene, max 0.718 ms","frames 565-584, scene MrMuncherScene, max 0.903 ms","frames 585-603, scene MrMuncherScene, max 3.708 ms","frames 604-623, scene PauseScene, max 0.103 ms","frames 624-642, scene PauseScene, max 0.089 ms","frames 643-662, scene PauseScene, max 1.077 ms","frames 663-681, scene MrMuncherScene, max 0.721 ms","frames 682-701, scene MrMuncherScene, max 0.700 ms","frames 702-720, scene MrMuncherScene, max 0.892 ms","frames 721-740, scene MrMuncherScene, max 0.720 ms","frames 741-759, scene MrMuncherScene, max 0.719 ms","frames 760-779, scene MrMuncherScene, max 0.740 ms","frames 780-798, scene MrMuncherScene, max 0.722 ms","frames 799-818, scene MrMuncherScene, max 0.719 ms","frames 819-837, scene MrMuncherScene, max 0.834 ms","frames 838-857, scene MrMuncherScene, max 0.716 ms","frames 858-876, scene MrMuncherScene, max 0.704 ms","frames 877-896, scene MrMuncherScene, max 0.690 ms","frames 897-915, scene MrMuncherScene, max 0.735 ms","frames 916-935, scene MrMuncherScene, max 0.702 ms","frames 936-954, scene MrMuncherScene, max 0.716 ms","frames 955-974, scene MrMuncherScene, max 0.607 ms","frames 975-993, scene MrMuncherScene, max 0.800 ms","frames 994-1013, scene MrMuncherScene, max 0.783 ms","frames 1014-1032, scene MrMuncherScene, max 0.802 ms","frames 1033-1052, scene MrMuncherScene, max 0.733 ms","frames 1053-1071, scene MrMuncherScene, max 0.722 ms","frames 1072-1091, scene MrMuncherScene, max 0.721 ms","frames 1092-1110, scene MrMuncherScene, max 0.753 ms","frames 1111-1130, scene MrMuncherScene, max 0.729 ms","frames 1131-1149, scene MrMuncherScene, max 0.738 ms","frames 1150-1169, scene MrMuncherScene, max 0.686 ms","frames 1170-1188, scene MrMuncherScene, max 0.699 ms","frames 1189-1208, scene MrMuncherScene, max 0.699 ms","frames 1209-1227, scene MrMuncherScene, max 0.694 ms","frames 1228-1247, scene MrMuncherScene, max 0.613 ms","frames 1248-1266, scene MrMuncherScene, max 0.676 ms","frames 1267-1286, scene MrMuncherScene, max 0.721 ms","frames 1287-1305, scene MrMuncherScene, max 0.734 ms","frames 1306-1325, scene MrMuncherScene, max 0.678 ms","frames 1326-1344, scene MrMuncherScene, max 0.710 ms","frames 1345-1364, scene MrMuncherScene, max 0.724 ms","frames 1365-1383, scene MrMuncherScene, max 0.672 ms","frames 1384-1403, scene MrMuncherScene, max 0.755 ms","frames 1404-1422, scene MrMuncherScene, max 0.618 ms","frames 1423-1442, scene MrMuncherScene, max 0.685 ms","frames 1443-1461, scene MrMuncherScene, max 0.682 ms","frames 1462-1481, scene MrMuncherScene, max 0.721 ms","frames 1482-1500, scene MrMuncherScene, max 0.687 ms","frames 1501-1520, scene MrMuncherScene, max 0.683 ms","frames 1521-1539, scene MrMuncherScene, max 0.693 ms","frames 1540-1559, scene MrMuncherScene, max 0.765 ms","frames 1560-1578, scene MrMuncherScene, max 0.861 ms","frames 1579-1598, scene MrMuncherScene, max 0.769 ms","frames 1599-1617, scene MrMuncherScene, max 0.694 ms","frames 1618-1637, scene MrMuncherScene, max 0.697 ms","frames 1638-1656, scene MrMuncherScene, max 0.608 ms","frames 1657-1676, scene MrMuncherScene, max 0.610 ms","frames 1677-1695, scene MrMuncherScene, max 0.629 ms","frames 1696-1715, scene MrMuncherScene, max 0.620 ms","frames 1716-1734, scene MrMuncherScene, max 0.604 ms","frames 1735-1754, scene MrMuncherScene, max 0.603 ms","frames 1755-1773, scene MrMuncherScene, max 0.626 ms","frames 1774-1793, scene MrMuncherScene, max 0.623 ms","frames 1794-1812, scene MrMuncherScene, max 0.604 ms","frames 1813-1832, scene MrMuncherScene, max 0.741 ms","frames 1833-1851, scene MrMuncherScene, max 0.634 ms","frames 1852-1871, scene MrMuncherScene, max 0.608 ms","frames 1872-1890, scene MrMuncherScene, max 0.592 ms","frames 1891-1910, scene MrMuncherScene, max 0.605 ms","frames 1911-1929, scene MrMuncherScene, max 0.595 ms","frames 1930-1949, scene MrMuncherScene, max 1.084 ms"]],"hoverongaps":false,"hovertemplate":"%{y}: %{customdata}<extra><\/extra>","colorbar":{"title":{"text":"ms"}}},{"type":"heatmap","name":"Raspberry Pi 4 Model B Rev 1.4, unpaced replay","x":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99],"y":["3ab23ff"],"z":[[9.86,9.059,9.194,9.011,9.023,9.183,9.184,9.007,9.584,9.031,9.103,14.053,12.356,12.401,12.942,12.662,13.424,13.347,13.547,13.543,12.498,13.549,13.249,12.691,13.728,12.618,13.375,12.294,13.296,12.359,37.199,4.416,2.057,14.444,10.115,10.104,10.153,11.08,9.894,10.44,10.551,10.429,10.986,10.23,10.111,10.178,10.061,10.062,10.326,8.58,9.675,10.306,10.289,10.048,10.295,10.114,10.187,10.299,10.122,9.749,9.942,9.834,9.998,9.406,9.141,10.781,10.002,9.962,9.05,9.284,9.06,10.067,8.317,9.015,9.201,9.647,9.064,9.165,9.232,9.921,9.986,10.016,9.183,9.037,8.302,8.156,8.508,8.479,8.736,8.492,8.461,8.353,8.101,9.746,8.251,8.34,8.333,8.244,8.34,13.487]],"customdata":[["frames 0-18, scene MrMuncherScene, max 9.860 ms","frames 19-38, scene MrMuncherScene, max 9.059 ms","frames 39-57, scene MrMuncherScene, max 9.194 ms","frames 58-77, scene MrMuncherScene, max 9.011 ms","frames 78-96, scene MrMuncherScene, max 9.023 ms","frames 97-116, scene MrMuncherScene, max 9.183 ms","frames 117-135, scene MrMuncherScene, max 9.184 ms","frames 136-155, scene MrMuncherScene, max 9.007 ms","frames 156-174, scene MrMuncherScene, max 9.584 ms","frames 175-194, scene MrMuncherScene, max 9.031 ms","frames 195-213, scene MrMuncherScene, max 9.103 ms","frames 214-233, scene MrMuncherScene, max 14.053 ms","frames 234-252, scene MrMuncherScene, max 12.356 ms","frames 253-272, scene MrMuncherScene, max 12.401 ms","frames 273-291, scene MrMuncherScene, max 12.942 ms","frames 292-311, scene MrMuncherScene, max 12.662 ms","frames 312-330, scene MrMuncherScene, max 13.424 ms","frames 331-350, scene MrMuncherScene, max 13.347 ms","frames 351-369, scene MrMuncherScene, max 13.547 ms","frames 370-389, scene MrMuncherScene, max 13.543 ms","frames 390-408, scene MrMuncherScene, max 12.498 ms","frames 409-428, scene MrMuncherScene, max 13.549 ms","frames 429-447, scene MrMuncherScene, max 13.249 ms","frames 448-467, scene MrMuncherScene, max 12.691 ms","frames 468-486, scene MrMuncherScene, max 13.728 ms","frames 487-506, scene MrMuncherScene, max 12.618 ms","frames 507-525, scene MrMuncherScene, max 13.375 ms","frames 526-545, scene MrMuncherScene, max 12.294 ms","frames 546-564, scene MrMuncherScene, max 13.296 ms","frames 565-584, scene MrMuncherScene, max 12.359 ms","frames 585-603, scene MrMuncherScene, max 37.199 ms","frames 604-623, scene PauseScene, max 4.416 ms","frames 624-642, scene PauseScene, max 2.057 ms","frames 643-662, scene PauseScene, max 14.444 ms","frames 663-681, scene MrMuncherScene, max 10.115 ms","frames 682-701, scene MrMuncherScene, max 10.104 ms","frames 702-720, scene MrMuncherScene, max 10.153 ms","frames 721-740, scene MrMuncherScene, max 11.080 ms","frames 741-759, scene MrMuncherScene, max 9.894 ms","frames 760-779, scene MrMuncherScene, max 10.440 ms","frames 780-798, scene MrMuncherScene, max 10.551 ms","frames 799-818, scene MrMuncherScene, max 10.429 ms","frames 819-837, scene MrMuncherScene, max 10.986 ms","frames 838-857, scene MrMuncherScene, max 10.230 ms","frames 858-876, scene MrMuncherScene, max 10.111 ms","frames 877-896, scene MrMuncherScene, max 10.178 ms","frames 897-915, scene MrMuncherScene, max 10.061 ms","frames 916-935, scene MrMuncherScene, max 10.062 ms","frames 936-954, scene MrMuncherScene, max 10.326 ms","frames 955-974, scene MrMuncherScene, max 8.580 ms","frames 975-993, scene MrMuncherScene, max 9.675 ms","frames 994-1013, scene MrMuncherScene, max 10.306 ms","frames 1014-1032, scene MrMuncherScene, max 10.289 ms","frames 1033-1052, scene MrMuncherScene, max 10.048 ms","frames 1053-1071, scene MrMuncherScene, max 10.295 ms","frames 1072-1091, scene MrMuncherScene, max 10.114 ms","frames 1092-1110, scene MrMuncherScene, max 10.187 ms","frames 1111-1130, scene MrMuncherScene, max 10.299 ms","frames 1131-1149, scene MrMuncherScene, max 10.122 ms","frames 1150-1169, scene MrMuncherScene, max 9.749 ms","frames 1170-1188, scene MrMuncherScene, max 9.942 ms","frames 1189-1208, scene MrMuncherScene, max 9.834 ms","frames 1209-1227, scene MrMuncherScene, max 9.998 ms","frames 1228-1247, scene MrMuncherScene, max 9.406 ms","frames 1248-1266, scene MrMuncherScene, max 9.141 ms","frames 1267-1286, scene MrMuncherScene, max 10.781 ms","frames 1287-1305, scene MrMuncherScene, max 10.002 ms","frames 1306-1325, scene MrMuncherScene, max 9.962 ms","frames 1326-1344, scene MrMuncherScene, max 9.050 ms","frames 1345-1364, scene MrMuncherScene, max 9.284 ms","frames 1365-1383, scene MrMuncherScene, max 9.060 ms","frames 1384-1403, scene MrMuncherScene, max 10.067 ms","frames 1404-1422, scene MrMuncherScene, max 8.317 ms","frames 1423-1442, scene MrMuncherScene, max 9.015 ms","frames 1443-1461, scene MrMuncherScene, max 9.201 ms","frames 1462-1481, scene MrMuncherScene, max 9.647 ms","frames 1482-1500, scene MrMuncherScene, max 9.064 ms","frames 1501-1520, scene MrMuncherScene, max 9.165 ms","frames 1521-1539, scene MrMuncherScene, max 9.232 ms","frames 1540-1559, scene MrMuncherScene, max 9.921 ms","frames 1560-1578, scene MrMuncherScene, max 9.986 ms","frames 1579-1598, scene MrMuncherScene, max 10.016 ms","frames 1599-1617, scene MrMuncherScene, max 9.183 ms","frames 1618-1637, scene MrMuncherScene, max 9.037 ms","frames 1638-1656, scene MrMuncherScene, max 8.302 ms","frames 1657-1676, scene MrMuncherScene, max 8.156 ms","frames 1677-1695, scene MrMuncherScene, max 8.508 ms","frames 1696-1715, scene MrMuncherScene, max 8.479 ms","frames 1716-1734, scene MrMuncherScene, max 8.736 ms","frames 1735-1754, scene MrMuncherScene, max 8.492 ms","frames 1755-1773, scene MrMuncherScene, max 8.461 ms","frames 1774-1793, scene MrMuncherScene, max 8.353 ms","frames 1794-1812, scene MrMuncherScene, max 8.101 ms","frames 1813-1832, scene MrMuncherScene, max 9.746 ms","frames 1833-1851, scene MrMuncherScene, max 8.251 ms","frames 1852-1871, scene MrMuncherScene, max 8.340 ms","frames 1872-1890, scene MrMuncherScene, max 8.333 ms","frames 1891-1910, scene MrMuncherScene, max 8.244 ms","frames 1911-1929, scene MrMuncherScene, max 8.340 ms","frames 1930-1949, scene MrMuncherScene, max 13.487 ms"]],"hoverongaps":false,"hovertemplate":"%{y}: %{customdata}<extra><\/extra>","colorbar":{"title":{"text":"ms"}}},{"type":"heatmap","name":"Raspberry Pi 5 Model B Rev 1.1, unpaced replay","x":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99],"y":["3ab23ff"],"z":[[5.038,3.865,4.061,4.436,3.905,4.018,4.275,3.892,4.241,4.117,3.908,6.224,5.745,5.317,5.554,5.626,5.975,5.634,5.567,5.652,5.669,6.08,5.624,5.679,6.355,5.31,5.758,5.836,5.406,6.067,17.087,1.242,1.928,6.212,4.492,4.464,4.407,4.366,4.321,4.838,4.915,4.631,4.927,4.61,4.521,4.496,4.43,4.502,4.612,3.789,4.275,4.548,4.914,4.504,4.489,4.611,4.528,4.532,4.65,4.365,4.423,4.359,4.404,3.678,4.798,4.407,4.452,4.394,4.173,4.111,4.408,4.639,3.707,4.037,4.394,4.176,4.081,4.204,4.102,4.458,4.57,4.521,4.045,4.107,4.074,3.614,3.821,4.014,3.76,3.746,4.149,3.624,3.667,4.354,3.936,3.895,3.766,3.931,3.667,5.902]],"customdata":[["frames 0-18, scene MrMuncherScene, max 5.038 ms","frames 19-38, scene MrMuncherScene, max 3.865 ms","frames 39-57, scene MrMuncherScene, max 4.061 ms","frames 58-77, scene MrMuncherScene, max 4.436 ms","frames 78-96, scene MrMuncherScene, max 3.905 ms","frames 97-116, scene MrMuncherScene, max 4.018 ms","frames 117-135, scene MrMuncherScene, max 4.275 ms","frames 136-155, scene MrMuncherScene, max 3.892 ms","frames 156-174, scene MrMuncherScene, max 4.241 ms","frames 175-194, scene MrMuncherScene, max 4.117 ms","frames 195-213, scene MrMuncherScene, max 3.908 ms","frames 214-233, scene MrMuncherScene, max 6.224 ms","frames 234-252, scene MrMuncherScene, max 5.745 ms","frames 253-272, scene MrMuncherScene, max 5.317 ms","frames 273-291, scene MrMuncherScene, max 5.554 ms","frames 292-311, scene MrMuncherScene, max 5.626 ms","frames 312-330, scene MrMuncherScene, max 5.975 ms","frames 331-350, scene MrMuncherScene, max 5.634 ms","frames 351-369, scene MrMuncherScene, max 5.567 ms","frames 370-389, scene MrMuncherScene, max 5.652 ms","frames 390-408, scene MrMuncherScene, max 5.669 ms","frames 409-428, scene MrMuncherScene, max 6.080 ms","frames 429-447, scene MrMuncherScene, max 5.624 ms","frames 448-467, scene MrMuncherScene, max 5.679 ms","frames 468-486, scene MrMuncherScene, max 6.355 ms","frames 487-506, scene MrMuncherScene, max 5.310 ms","frames 507-525, scene MrMuncherScene, max 5.758 ms","frames 526-545, scene MrMuncherScene, max 5.836 ms","frames 546-564, scene MrMuncherScene, max 5.406 ms","frames 565-584, scene MrMuncherScene, max 6.067 ms","frames 585-603, scene MrMuncherScene, max 17.087 ms","frames 604-623, scene PauseScene, max 1.242 ms","frames 624-642, scene PauseScene, max 1.928 ms","frames 643-662, scene PauseScene, max 6.212 ms","frames 663-681, scene MrMuncherScene, max 4.492 ms","frames 682-701, scene MrMuncherScene, max 4.464 ms","frames 702-720, scene MrMuncherScene, max 4.407 ms","frames 721-740, scene MrMuncherScene, max 4.366 ms","frames 741-759, scene MrMuncherScene, max 4.321 ms","frames 760-779, scene MrMuncherScene, max 4.838 ms","frames 780-798, scene MrMuncherScene, max 4.915 ms","frames 799-818, scene MrMuncherScene, max 4.631 ms","frames 819-837, scene MrMuncherScene, max 4.927 ms","frames 838-857, scene MrMuncherScene, max 4.610 ms","frames 858-876, scene MrMuncherScene, max 4.521 ms","frames 877-896, scene MrMuncherScene, max 4.496 ms","frames 897-915, scene MrMuncherScene, max 4.430 ms","frames 916-935, scene MrMuncherScene, max 4.502 ms","frames 936-954, scene MrMuncherScene, max 4.612 ms","frames 955-974, scene MrMuncherScene, max 3.789 ms","frames 975-993, scene MrMuncherScene, max 4.275 ms","frames 994-1013, scene MrMuncherScene, max 4.548 ms","frames 1014-1032, scene MrMuncherScene, max 4.914 ms","frames 1033-1052, scene MrMuncherScene, max 4.504 ms","frames 1053-1071, scene MrMuncherScene, max 4.489 ms","frames 1072-1091, scene MrMuncherScene, max 4.611 ms","frames 1092-1110, scene MrMuncherScene, max 4.528 ms","frames 1111-1130, scene MrMuncherScene, max 4.532 ms","frames 1131-1149, scene MrMuncherScene, max 4.650 ms","frames 1150-1169, scene MrMuncherScene, max 4.365 ms","frames 1170-1188, scene MrMuncherScene, max 4.423 ms","frames 1189-1208, scene MrMuncherScene, max 4.359 ms","frames 1209-1227, scene MrMuncherScene, max 4.404 ms","frames 1228-1247, scene MrMuncherScene, max 3.678 ms","frames 1248-1266, scene MrMuncherScene, max 4.798 ms","frames 1267-1286, scene MrMuncherScene, max 4.407 ms","frames 1287-1305, scene MrMuncherScene, max 4.452 ms","frames 1306-1325, scene MrMuncherScene, max 4.394 ms","frames 1326-1344, scene MrMuncherScene, max 4.173 ms","frames 1345-1364, scene MrMuncherScene, max 4.111 ms","frames 1365-1383, scene MrMuncherScene, max 4.408 ms","frames 1384-1403, scene MrMuncherScene, max 4.639 ms","frames 1404-1422, scene MrMuncherScene, max 3.707 ms","frames 1423-1442, scene MrMuncherScene, max 4.037 ms","frames 1443-1461, scene MrMuncherScene, max 4.394 ms","frames 1462-1481, scene MrMuncherScene, max 4.176 ms","frames 1482-1500, scene MrMuncherScene, max 4.081 ms","frames 1501-1520, scene MrMuncherScene, max 4.204 ms","frames 1521-1539, scene MrMuncherScene, max 4.102 ms","frames 1540-1559, scene MrMuncherScene, max 4.458 ms","frames 1560-1578, scene MrMuncherScene, max 4.570 ms","frames 1579-1598, scene MrMuncherScene, max 4.521 ms","frames 1599-1617, scene MrMuncherScene, max 4.045 ms","frames 1618-1637, scene MrMuncherScene, max 4.107 ms","frames 1638-1656, scene MrMuncherScene, max 4.074 ms","frames 1657-1676, scene MrMuncherScene, max 3.614 ms","frames 1677-1695, scene MrMuncherScene, max 3.821 ms","frames 1696-1715, scene MrMuncherScene, max 4.014 ms","frames 1716-1734, scene MrMuncherScene, max 3.760 ms","frames 1735-1754, scene MrMuncherScene, max 3.746 ms","frames 1755-1773, scene MrMuncherScene, max 4.149 ms","frames 1774-1793, scene MrMuncherScene, max 3.624 ms","frames 1794-1812, scene MrMuncherScene, max 3.667 ms","frames 1813-1832, scene MrMuncherScene, max 4.354 ms","frames 1833-1851, scene MrMuncherScene, max 3.936 ms","frames 1852-1871, scene MrMuncherScene, max 3.895 ms","frames 1872-1890, scene MrMuncherScene, max 3.766 ms","frames 1891-1910, scene MrMuncherScene, max 3.931 ms","frames 1911-1929, scene MrMuncherScene, max 3.667 ms","frames 1930-1949, scene MrMuncherScene, max 5.902 ms"]],"hoverongaps":false,"hovertemplate":"%{y}: %{customdata}<extra><\/extra>","colorbar":{"title":{"text":"ms"}}}]};
+const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  && document.documentElement.dataset.theme !== 'light';
+const palette = dark ? ["#3987e5","#d95926","#199e70","#c98500","#d55181","#008300","#9085e9","#e66767"] : ["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#6250d6","#e34948"];
+const style = getComputedStyle(document.documentElement);
+const ink = style.getPropertyValue('--text-primary').trim();
+const muted = style.getPropertyValue('--text-secondary').trim();
+const grid = style.getPropertyValue('--grid').trim();
+const empty = {
+  processing: 'No measurements with a known commit yet.',
+  over_budget: 'No measurements with a frame budget yet.',
+  frame_time: 'No live runs with a known commit yet: the recordings were made before runs '
+    + 'named their commit.',
+  fps: 'No measurements with FPS figures yet: rows from before the 5% slices have none.',
+};
+const target = charts.target_fps;
+const targetLine = target === null ? [] : [{
+  type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: target, y1: target,
+  line: { color: muted, width: 1.5, dash: 'dot' },
+}];
+// A log axis places annotations by the value's logarithm
+const targetLabel = (logarithmic) => target === null ? [] : [{
+  xref: 'paper', x: 1, xanchor: 'right', yref: 'y', y: logarithmic ? Math.log10(target) : target,
+  yanchor: 'bottom', text: 'target ' + target + ' fps', showarrow: false,
+  font: { color: muted, size: 11 },
+}];
+for (const name of ['processing', 'over_budget', 'frame_time', 'fps']) {
+  const traces = charts[name];
+  const element = document.getElementById(name);
+  if (traces.length === 0) {
+    element.outerHTML = '<p>' + empty[name] + '</p>';
+    continue;
+  }
+  for (const trace of traces) {
+    trace.line.color = palette[trace.meta % palette.length];
+    trace.marker.color = trace.line.color;
+    if (trace.error_y) {
+      trace.error_y.color = trace.line.color;
+    }
+  }
+  const fps = name === 'fps';
+  Plotly.newPlot(element, traces, {
+    shapes: fps ? targetLine : [],
+    annotations: fps ? targetLabel(true) : [],
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: ink },
+    margin: { l: 56, r: 16, t: 40, b: 48 },
+    hovermode: 'closest',
+    legend: { orientation: 'h', x: 0, y: 1.02, yanchor: 'bottom', font: { color: muted } },
+    xaxis: {
+      type: 'category', categoryorder: 'array', categoryarray: charts.commits,
+      title: { text: 'commit' }, gridcolor: grid, linecolor: grid,
+    },
+    yaxis: fps
+      ? { type: 'log', title: { text: 'fps' }, gridcolor: grid, linecolor: grid }
+      : { rangemode: 'tozero', gridcolor: grid, linecolor: grid, zerolinecolor: grid },
+  }, { responsive: true, displaylogo: false });
+}
+const machinesElement = document.getElementById('machines');
+if (charts.machines === null) {
+  machinesElement.outerHTML = '<p>No replays with FPS figures yet.</p>';
+} else {
+  const bars = charts.machines;
+  bars.marker.color = bars.meta.map((slot) => palette[slot % palette.length]);
+  bars.error_y.color = muted;
+  Plotly.newPlot(machinesElement, [bars], {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: ink },
+    margin: { l: 56, r: 16, t: 24, b: 72 },
+    hovermode: 'closest',
+    showlegend: false,
+    shapes: targetLine,
+    annotations: targetLabel(false),
+    xaxis: { type: 'category', gridcolor: grid, linecolor: grid },
+    yaxis: {
+      rangemode: 'tozero', title: { text: 'headroom fps' }, gridcolor: grid, linecolor: grid,
+      zerolinecolor: grid,
+    },
+  }, { responsive: true, displaylogo: false });
+}
+const heatmapScale = dark
+  ? [[0, '#1d2b3f'], [1, '#9cc4f5']]
+  : [[0, '#e8f0fb'], [1, '#0d3b7a']];
+const heatmapContainer = document.getElementById('heatmaps');
+if (charts.heatmaps.length === 0) {
+  heatmapContainer.outerHTML = '<p>No measurements with a per-frame profile yet.</p>';
+}
+for (const heatmap of charts.heatmaps) {
+  const heading = document.createElement('p');
+  heading.textContent = heatmap.name;
+  const element = document.createElement('div');
+  element.className = 'chart';
+  heatmapContainer.append(heading, element);
+  heatmap.colorscale = heatmapScale;
+  Plotly.newPlot(element, [heatmap], {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: ink },
+    margin: { l: 72, r: 16, t: 8, b: 48 },
+    xaxis: { title: { text: 'position in the recording (start to end)' }, showgrid: false },
+    yaxis: {
+      type: 'category', categoryorder: 'array', categoryarray: heatmap.y,
+      title: { text: 'commit' },
+    },
+  }, { responsive: true, displaylogo: false });
+}
+</script>
+</body>
+</html>

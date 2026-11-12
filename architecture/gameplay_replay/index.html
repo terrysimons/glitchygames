@@ -4537,6 +4537,28 @@ Our five games' scripts and controls tails are test data in <code>scripts/golden
 (<code>--input-script scripts.golden_inputs:paddleslap_script</code>, run from the repository root);
 <code>scripts/record_golden_traces.py</code> and <code>scripts/record_scripted_session.py</code> keep only our
 games' tables and call the engine.</p>
+<p>From Python, the scripted-session recorder
+(<code>glitchygames.replay.tools.scripted_sessions.record_scripted_session</code>) takes its options by
+keyword (<code>ScriptedSessionOptions</code>): <code>controls_tail</code> (None ends the session after the script's
+frames, as <code>--script-only</code> and every bundled demo do), <code>polled_input</code>, <code>input_only_placements</code>,
+<code>random_seed</code>, and <code>stand_in_devices</code>. Stand-in devices
+(<code>glitchygames.input.stand_in_devices</code>: a joystick or game controller that exists only in the
+session, given as <code>DeviceDescriptor</code>s) are plugged in from the session's start and opened
+through the real devices door, so the game sees them as real pads, the recording's header holds
+them and its replay opens them again (a replay never sees real hardware). The script moves them
+with their events (<code>JOYAXISMOTION</code>, <code>JOYBUTTONDOWN</code>/<code>UP</code>, <code>JOYHATMOTION</code> by <code>instance_id</code>),
+which a game that polls (<code>current_input()</code>) sees only with <code>polled_input</code>. The golden-trace
+harness takes the same option (<code>GoldenTraceEngine(..., stand_in_devices=...)</code>). It has three
+cases:</p>
+<ul>
+<li>None (the default): the machine's real devices, as any run has.</li>
+<li>An empty tuple: no devices at all. The session runs on stand-in doors around an empty
+  registry, so a real device is never seen or opened, on any platform.</li>
+<li>A non-empty tuple: exactly those stand-ins.</li>
+</ul>
+<p>It has no command-line flag. <code>scripts/record_bundled_demos.py</code> is its user: every bundled demo
+is recorded with no devices at all (an empty tuple) unless its recipe names stand-ins, as the
+joystick demo's <code>pad</code> recording does.</p>
 <h3 id="project-settings-toolglitchygames">Project settings (<code>[tool.glitchygames]</code>)<a class="headerlink" href="#project-settings-toolglitchygames" title="Permanent link">#</a></h3>
 <p>A project's settings for the tools live in <code>[tool.glitchygames]</code> in its <code>pyproject.toml</code>
 (<code>src/glitchygames/replay/tools/settings.py</code>). Every key has a default that fits a standard
@@ -4679,13 +4701,29 @@ requests got and how it resumed).</p>
 end, at the player's first press (consumed: it never reaches <code>then</code>), at the recording's own
 quit, or at a divergence (logged at WARNING as <code>demo diverged: ...</code>, then back to <code>then</code>). A
 recording that cannot be played (missing, unreadable, another game's, no scene start) is logged
-at WARNING and nothing starts. Record a demo with
-<code>scripts/record_scripted_session.py --script-only --output PATH</code> (it runs <code>--record-trace</code>, so
-its first frame holds the scene start; <code>--script-only</code> leaves out the controls tail, whose quit
-would end the demo).</p>
+at WARNING and nothing starts. A demo is a scripted session recorded with <code>--record-trace</code>, so
+its first frame holds the scene start, and without a controls tail, whose quit would end the
+demo (<code>scripts/record_scripted_session.py --script-only --output PATH</code> records one from a
+game's golden script).</p>
 <p>Bundled demos are recordings shipped in a game's package as package data,
-<code>&lt;package&gt;/demos/&lt;name&gt;.jsonl.gz</code>: PaddleSlap's <code>paddleslap/demos/rally.jsonl.gz</code>, which its
-game-over screen plays after 10 seconds without a press. The engine finds them, for any tool or
+<code>&lt;package&gt;/demos/&lt;name&gt;.jsonl.gz</code>. Every Arcade tile has one, ten in all: PaddleSlap's
+<code>paddleslap/demos/rally.jsonl.gz</code>, which its game-over screen plays after 10 seconds without a
+press; Clockwork Keep's <code>climb</code>; Brave Adventurer's <code>classic</code> and <code>papyrus</code> (both in its
+launcher's package, <code>brave_adventurer_modes/demos/</code>, whose console script replays the edition
+each header names); Mr. Muncher's <code>chase</code>; Drawing Fire's <code>battle</code>; Bitmappy's <code>drawing</code> (a
+smiley drawn on the canvas); the dt demo's <code>timing</code>, the text-input demo's <code>typing</code> and the
+joystick demo's <code>pad</code> (a stand-in pad, 'GlitchyGames Demo Pad'). Each is recorded by one
+command from its recipe in <code>scripts/record_bundled_demos.py</code> (<code>DEMO_RECIPES</code>: the scene, the
+input script, the frame count, the package and name, and the session's options):</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scripts.record_bundled_demos<span class="w"> </span>--demo<span class="w"> </span>mr_muncher_chase<span class="w">   </span><span class="c1"># or --all</span>
+</span></code></pre></div>
+<p>Every recipe records without a controls tail, under the goldens' seed, at 800x480, with no <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr>
+service reachable and no real pad (the session's <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> install root is an empty directory and <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s
+joystick drivers are off). The games reuse their golden scripts' frames up to the controls tail;
+the demos and Bitmappy have their own scripts in <code>scripts/demo_inputs.py</code>. A demo must end with
+nothing held (no key, mouse or pad button down, every pad axis at rest and every hat centred),
+since the Arcade loops it, and stay at most 256 KB; <code>tests/replay/test_bundled_demos.py</code> checks
+both on the committed files. Re-record a demo only deliberately, as a golden. The engine finds them, for any tool or
 installed game, with <code>glitchygames.bundled_demos.bundled_demos()</code>: each <code>BundledDemo</code> (a frozen
 record) holds the game's console script (None when no installed console script is in the
 package), the demo's installed path and its install name (<code>paddleslap/demos/rally.jsonl.gz</code>,
@@ -4697,12 +4735,12 @@ path. <code>tests/replay/test_bundled_demos.py</code> replays every one headless
 change that makes a demo diverge fails in <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> before it ships; <code>glitchygames measure</code> measures
 the same demos (each game's <code>--measure</code> takes its own package's, as <code>--verify</code> does).</p>
 <h3 id="instant-replay">Instant replay<a class="headerlink" href="#instant-replay" title="Permanent link">#</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">Match</span><span class="p">(</span><span class="n">Scene</span><span class="p">):</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">INSTANT_REPLAY_SECONDS</span> <span class="o">=</span> <span class="mf">5.0</span>                       <span class="c1"># opt in: show the last 5 seconds</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS</span> <span class="o">=</span> <span class="mf">60.0</span>     <span class="c1"># the default budget</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">on_goal</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">scene_manager</span><span class="o">.</span><span class="n">instant_replay</span><span class="p">()</span>            <span class="c1"># False (logged) when it cannot play</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">Match</span><span class="p">(</span><span class="n">Scene</span><span class="p">):</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="n">INSTANT_REPLAY_SECONDS</span> <span class="o">=</span> <span class="mf">5.0</span>                       <span class="c1"># opt in: show the last 5 seconds</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS</span> <span class="o">=</span> <span class="mf">60.0</span>     <span class="c1"># the default budget</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">on_goal</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">scene_manager</span><span class="o">.</span><span class="n">instant_replay</span><span class="p">()</span>            <span class="c1"># False (logged) when it cannot play</span>
 </span></code></pre></div>
 <p>A scene class that sets <code>INSTANT_REPLAY_SECONDS</code> keeps, in memory, the recording of every frame
 since its first logic frame (<code>src/glitchygames/instant_replay.py</code>), sprites included: about 0.5 MB
@@ -4715,11 +4753,11 @@ which <code>instant_replay()</code> returns <code>False</code>; longer scenes wo
 pace with their sounds, then the live scene goes on exactly where it was. The player's presses
 do not end it. To let the player skip it, read the player's input in a supervisor and end the
 playback there (<code>end_playback()</code> is honoured only from a supervisor or between frames):</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">SkipReplayOnPress</span><span class="p">:</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">on_frame</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">frame_number</span><span class="p">,</span> <span class="n">scene</span><span class="p">):</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>        <span class="n">player_input</span> <span class="o">=</span> <span class="n">scene_manager</span><span class="o">.</span><span class="n">playback_player_input</span>   <span class="c1"># None outside a playback</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>        <span class="k">if</span> <span class="n">player_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">player_input</span><span class="o">.</span><span class="n">key_pressed</span><span class="p">(</span><span class="n">pygame</span><span class="o">.</span><span class="n">K_SPACE</span><span class="p">):</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>            <span class="n">scene_manager</span><span class="o">.</span><span class="n">end_playback</span><span class="p">()</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">SkipReplayOnPress</span><span class="p">:</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">on_frame</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">frame_number</span><span class="p">,</span> <span class="n">scene</span><span class="p">):</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>        <span class="n">player_input</span> <span class="o">=</span> <span class="n">scene_manager</span><span class="o">.</span><span class="n">playback_player_input</span>   <span class="c1"># None outside a playback</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>        <span class="k">if</span> <span class="n">player_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">player_input</span><span class="o">.</span><span class="n">key_pressed</span><span class="p">(</span><span class="n">pygame</span><span class="o">.</span><span class="n">K_SPACE</span><span class="p">):</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>            <span class="n">scene_manager</span><span class="o">.</span><span class="n">end_playback</span><span class="p">()</span>
 </span></code></pre></div>
 <p>Instant replays can follow one another (a replay after every goal): a playback suspends the
 journal, which resumes afterwards, and a request the scene's own code makes while its journal
@@ -4728,21 +4766,21 @@ plays back gets the answer it got live.</p>
 <p>A ghost is a recorded sprite's path and looks drawn beside live play, a time-trial ghost
 (<code>src/glitchygames/replay/ghosts.py</code>'s docstring is the contract). Ghosts are appearance, not
 play: they have no hitbox and change nothing the game does.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.replay.ghosts</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="n">GhostRecorder</span><span class="p">,</span> <span class="n">GhostSprite</span><span class="p">,</span> <span class="n">GhostTrack</span><span class="p">,</span> <span class="n">images_from_animated_sprite</span><span class="p">,</span>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="p">)</span>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="c1"># Recording: from the scene's start until the lap ends</span>
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="n">recorder</span> <span class="o">=</span> <span class="n">GhostRecorder</span><span class="p">(</span><span class="n">sprite</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">player</span><span class="p">,</span> <span class="n">scene</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
-</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="o">...</span>
-</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="n">track</span> <span class="o">=</span> <span class="n">recorder</span><span class="o">.</span><span class="n">finish</span><span class="p">()</span>
-</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="n">saves</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s1">'best_lap'</span><span class="p">,</span> <span class="n">track</span><span class="o">.</span><span class="n">to_json</span><span class="p">())</span>
-</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>
-</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="c1"># Playing it in the next run of the scene (in setup())</span>
-</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="n">track</span> <span class="o">=</span> <span class="n">GhostTrack</span><span class="o">.</span><span class="n">from_json</span><span class="p">(</span><span class="n">saves</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">'best_lap'</span><span class="p">))</span>
-</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="n">ghost</span> <span class="o">=</span> <span class="n">GhostSprite</span><span class="p">(</span><span class="n">track</span><span class="o">=</span><span class="n">track</span><span class="p">,</span> <span class="n">image_for</span><span class="o">=</span><span class="n">images_from_animated_sprite</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">player</span><span class="p">))</span>
-</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="n">ghost</span><span class="o">.</span><span class="n">scene</span> <span class="o">=</span> <span class="bp">self</span>                     <span class="c1"># the ghost follows this scene's game_time</span>
-</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="bp">self</span><span class="o">.</span><span class="n">all_sprites</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">ghost</span><span class="p">)</span>            <span class="c1"># never to a collision group</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.replay.ghosts</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    <span class="n">GhostRecorder</span><span class="p">,</span> <span class="n">GhostSprite</span><span class="p">,</span> <span class="n">GhostTrack</span><span class="p">,</span> <span class="n">images_from_animated_sprite</span><span class="p">,</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="p">)</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="c1"># Recording: from the scene's start until the lap ends</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="n">recorder</span> <span class="o">=</span> <span class="n">GhostRecorder</span><span class="p">(</span><span class="n">sprite</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">player</span><span class="p">,</span> <span class="n">scene</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="o">...</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="n">track</span> <span class="o">=</span> <span class="n">recorder</span><span class="o">.</span><span class="n">finish</span><span class="p">()</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="n">saves</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s1">'best_lap'</span><span class="p">,</span> <span class="n">track</span><span class="o">.</span><span class="n">to_json</span><span class="p">())</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="c1"># Playing it in the next run of the scene (in setup())</span>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="n">track</span> <span class="o">=</span> <span class="n">GhostTrack</span><span class="o">.</span><span class="n">from_json</span><span class="p">(</span><span class="n">saves</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">'best_lap'</span><span class="p">))</span>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="n">ghost</span> <span class="o">=</span> <span class="n">GhostSprite</span><span class="p">(</span><span class="n">track</span><span class="o">=</span><span class="n">track</span><span class="p">,</span> <span class="n">image_for</span><span class="o">=</span><span class="n">images_from_animated_sprite</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">player</span><span class="p">))</span>
+</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="n">ghost</span><span class="o">.</span><span class="n">scene</span> <span class="o">=</span> <span class="bp">self</span>                     <span class="c1"># the ghost follows this scene's game_time</span>
+</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="bp">self</span><span class="o">.</span><span class="n">all_sprites</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">ghost</span><span class="p">)</span>            <span class="c1"># never to a collision group</span>
 </span></code></pre></div>
 <ul>
 <li><code>GhostRecorder</code> is a supervisor: once per frame, after the frame's logic, it samples the
@@ -4786,7 +4824,7 @@ play: they have no hitbox and change nothing the game does.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 12, 2026 00:20:18 UTC">November 12, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 12, 2026 04:40:58 UTC">November 12, 2026</span>
   </span>
 
     

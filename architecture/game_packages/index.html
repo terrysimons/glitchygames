@@ -3227,7 +3227,8 @@ the installed package. Coverage maps the installed copies back to <code>src/</co
 <li>A <strong>demo</strong> (a demos-layer member): a program under <code>src/demos/&lt;demo&gt;/</code>, run with its console
   script or <code>python -m &lt;package&gt;</code>. It is code.</li>
 <li>A game's <strong>bundled demo recording</strong>: <code>&lt;package&gt;/demos/&lt;name&gt;.jsonl.gz</code>, package data inside a
-  game (PaddleSlap's <code>rally.jsonl.gz</code>), replayed by that game's console script. It is data, and
+  game (PaddleSlap's <code>rally.jsonl.gz</code>; every Arcade tile has one), replayed by that game's
+  console script. It is data, and
   <code>glitchygames.bundled_demos</code> finds it (see "Bundled demos" below).</li>
 </ul>
 <p>A <code>demos</code> directory inside a package is therefore never a demos-layer member, and a demos-layer
@@ -3511,7 +3512,16 @@ registration (<code>git add -A src tests scripts docs</code>) before committing.
   the demos are found in the repository and the ledger names them by repository path; under a
   built install (<code>site-packages</code>, as nox's test sessions install on purpose) a recording outside
   the repository is named by its install name
-  (<code>glitchygames.replay.tools.measure.recording_ledger_name</code>).</li>
+  (<code>glitchygames.replay.tools.measure.recording_ledger_name</code>).
+  A bundled demo is paired with the console script whose entry point is in the demo's own
+  package, so a member with several import packages keeps its demos in the package its console
+  script starts (Brave Adventurer's <code>classic</code> and <code>papyrus</code> are in the launcher's
+  <code>brave_adventurer_modes/demos/</code>). A new member's demo is a recipe in
+  <code>scripts/record_bundled_demos.py</code> (<code>DEMO_RECIPES</code>: scene, input script, frame count, package,
+  name and the session's options; <code>uv run python -m scripts.record_bundled_demos --demo KEY</code>)
+  and an entry in <code>tests/workspace_expectations.py</code> <code>EXPECTED_BUNDLED_DEMOS</code>; it is recorded
+  without a controls tail, must end with nothing held (the Arcade loops it) and stay within
+  <code>MAXIMUM_DEMO_BYTES</code> (256 KB), both checked by <code>tests/replay/test_bundled_demos.py</code>.</li>
 <li><strong>Engine-private names</strong>: a member uses only the engine's public <abbr title="Application programming interface">API</abbr>. Where a member needs
   something the engine keeps private, give the engine a public read-only <abbr title="Application programming interface">API</abbr> first: PaddleSlap
   reads its ball's path through <code>BallSprite.trajectory</code> and <code>record_trajectory_point</code>.</li>
@@ -3580,7 +3590,7 @@ members' <code>test_the_old_example_module_is_gone</code> (PaddleSlap's and the 
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 12, 2026 00:20:18 UTC">November 12, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 12, 2026 04:40:58 UTC">November 12, 2026</span>
   </span>
 
     
