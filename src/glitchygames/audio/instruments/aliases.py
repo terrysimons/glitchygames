@@ -237,4 +237,19 @@ ALIASES: Final[dict[str, str]] = {
     'sanza': 'mbira',
     # https://en.wikipedia.org/wiki/Mbira: as `sanza` above, from the same infobox list
     'sansa': 'mbira',
+    # --- Batch 6's players' instruments (electronic), in the order of
+    # plans/data/instrument-audit/batch-6.tsv
+    # https://en.wikipedia.org/wiki/Vox_Continental: "The Vox Continental is a transistorised combo
+    # organ that was manufactured between 1962 and 1971 by the British musical equipment
+    # manufacturer Vox."; the model is the catalog combo organ (organs family), so this crosses
+    # families, as aliases are catalog-wide
+    'vox continental': 'combo organ',
+    # https://en.wikipedia.org/wiki/Theremin: "The theremin (; originally known as the ætherphone,
+    # etherphone, thereminophone or termenvox/thereminvox)"; another name for the theremin
+    'thereminvox': 'theremin',
+    # https://www.sweetwater.com/store/detail/EtherwaveStd: "Moog Etherwave Standard Theremin -
+    # Ash"; Moog's model name for a theremin, so another name for the catalog theremin (a name
+    # source only: Wikipedia has no Etherwave page and the National Music Centre record returned
+    # 403)
+    'etherwave': 'theremin',
 }

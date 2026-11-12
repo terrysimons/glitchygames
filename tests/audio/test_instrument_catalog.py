@@ -791,6 +791,9 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('ping pong', 'tenor steel pan'),
         ('sanza', 'mbira'),
         ('sansa', 'mbira'),
+        ('vox continental', 'combo organ'),
+        ('thereminvox', 'theremin'),
+        ('etherwave', 'theremin'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -809,6 +812,8 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 5's second half names the tenor steel pan three more ways (soprano, lead, ping pong),
     the singing bowl as the rin, the crotales as antique cymbals, and across families the glass
     harp as the verrillon and the mbira as the sanza and sansa.
+    Batch 6's first half names the theremin two more ways (thereminvox, etherwave) and, across
+    families, the keyboards' combo organ as the Vox Continental.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
