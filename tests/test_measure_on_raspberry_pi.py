@@ -19,6 +19,7 @@ import fcntl
 import io
 import json
 import os
+import re
 import shlex
 import sys
 import tarfile
@@ -749,6 +750,84 @@ def test_staging_refuses_a_row_of_another_tree(repository):
     assert staged(repository=repository) == []
 
 
+def test_a_pi_printing_before_the_script_fails_the_hook_rather_than_passing(
+    repository, raspberry_pi
+):
+    """A line on standard output before the script's (a ~/.bashrc's) hides the header: fail.
+
+    The script never exits 0 without its header, so its rows could not be read; passing would
+    lose them silently.
+    """
+    chatty = dataclasses.replace(
+        raspberry_pi,
+        script_runner=(
+            'sh',
+            '-c',
+            'echo "Welcome to the Pi"; exec "$@"',
+            'sh',
+            *raspberry_pi.script_runner,
+        ),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="raspberry-pi-4 exited 0 without sending its rows: its output began with 'Welcome",
+    ):
+        measure(repository=repository, raspberry_pis=(chatty,))
+    assert staged(repository=repository) == []
+
+
+@pytest.mark.parametrize(
+    ('output', 'expected'),
+    [
+        (b'measured soon\n', "raspberry-pi-4 sent a malformed header: b'measured soon'"),
+        (b'measured 0\nnot a tar archive', 'raspberry-pi-4 sent rows that are not a readable'),
+    ],
+    ids=['malformed-header', 'unreadable-archive'],
+)
+def test_an_unreadable_answer_from_the_pi_is_a_copy_failure(
+    repository, raspberry_pi, mocker, output, expected
+):
+    """What the measuring script never sends: reported as the Pi's, never a traceback.
+
+    The Pi runs a script printing that answer in place of the measuring script.
+    """
+    real_run = measure_on_raspberry_pi._run_on_raspberry_pi
+    prints_the_answer = f'printf %s {shlex.quote(output.decode("ascii"))}\n'
+
+    def answer(*, raspberry_pi, script):
+        if script == 'true\n':
+            return real_run(raspberry_pi=raspberry_pi, script=script)
+        return real_run(raspberry_pi=raspberry_pi, script=prints_the_answer)
+
+    mocker.patch.object(measure_on_raspberry_pi, '_run_on_raspberry_pi', answer)
+
+    with pytest.raises(RuntimeError, match=re.escape(expected)):
+        measure(repository=repository, raspberry_pis=(raspberry_pi,))
+    assert staged(repository=repository) == []
+
+
+def test_the_measurement_holds_neither_the_rows_channel_nor_the_lock(repository, raspberry_pi, row):
+    """Only the script's own shell holds descriptors 3 and 9.
+
+    A measurement child that outlived the script would otherwise keep the hook reading the rows
+    channel and keep the lock held until it ended.
+    """
+    checks_its_descriptors = with_measurement(
+        raspberry_pi=raspberry_pi,
+        command=(
+            'if [ -e /dev/fd/3 ] || [ -e /dev/fd/9 ]; then '
+            f'echo "a descriptor leaked"; exit {FAILED_MEASUREMENT_STATUS}; fi; '
+            f'{raspberry_pi.measure_command}'
+        ),
+    )
+
+    exit_code = measure(repository=repository, raspberry_pis=(checks_its_descriptors,))
+
+    assert exit_code == ExitCode.OPTIONS_REFUSED
+    assert staged(repository=repository) == [row]
+
+
 def test_a_checkout_moved_during_the_measurement_sends_no_rows(repository, raspberry_pi, capsys):
     """After measuring, the clone's HEAD must still be the pushed commit, or no rows come back."""
     write(repository=repository, relative_path='src/more.py', text='more\n')
@@ -901,6 +980,9 @@ def test_each_pis_clone_is_the_one_ansible_makes():
         assert each.measure_command == 'uv run --locked --extra dev nox -s measure-staged'
         # An unreachable Pi fails at once, never waiting at a password prompt
         assert 'BatchMode=yes' in each.script_runner
+        # A Pi that drops off mid-run fails the hook rather than hanging it
+        assert 'ServerAliveInterval=30' in each.script_runner
+        assert 'ServerAliveCountMax=4' in each.script_runner
 
 
 def test_each_pis_runs_lock_a_file_beside_its_clone_with_flock():
@@ -932,9 +1014,13 @@ def test_the_measuring_script_locks_before_the_checkout_and_archives_under_the_l
     assert script.index('measured_head=') < script.index('tar -cf -')
     # Only the pushed tree's row files and history rows are listed for the archive
     assert f"'{LEDGER}/0123456789ab-*.json' '{LEDGER}/history-*.json'" in script
-    # Nothing in the script lets go of the lock before it exits
-    assert script.count('9>') == 1
+    # Nothing in the script lets go of the lock before it exits: the script's shell opens it once
+    # and never closes it (only the measurement's subshell goes without it)
+    assert script.count('exec 9>>') == 1
+    assert 'exec 9>&-' not in script
     assert 'flock --unlock' not in script
+    assert 'flock -u' not in script
+    assert '\n) 3>&- 9>&-\n' in script
 
 
 def test_the_hook_runs_first_at_push_and_stops_the_rest():

@@ -112,6 +112,8 @@ CHECKOUT_MOVED_STATUS = ExitCode.INTERNAL_ERROR
 # Leads the script's standard output once it has measured: the line ``measured <status>``, then
 # the archive of the rows
 MEASURED_HEADER = b'measured '
+# How much of a stray first line of the script's standard output the hook's message shows
+SHOWN_STRAY_OUTPUT_BYTES = 200
 # One writer at a time, so two Pis' lines never interleave mid-line
 _OUTPUT_LOCK = threading.Lock()
 
@@ -155,8 +157,21 @@ def raspberry_pi(*, name: str, address: str) -> RaspberryPi:
     return RaspberryPi(
         name=name,
         # BatchMode: an unreachable or unknown Pi fails the hook, never waiting at a password
-        # prompt
-        script_runner=('ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', login, 'bash -s'),
+        # prompt. ServerAlive: a Pi that drops off mid-run (waiting for the lock, measuring)
+        # fails the hook after two minutes rather than hanging it
+        script_runner=(
+            'ssh',
+            '-o',
+            'BatchMode=yes',
+            '-o',
+            'ConnectTimeout=10',
+            '-o',
+            'ServerAliveInterval=30',
+            '-o',
+            'ServerAliveCountMax=4',
+            login,
+            'bash -s',
+        ),
         clone_url=f'{login}:{RASPBERRY_PI_CLONE}',
         clone_directory=RASPBERRY_PI_CLONE,
         measure_command=MEASURE_COMMAND,
@@ -261,10 +276,12 @@ git fetch --quiet origin main
 git reset --quiet
 git checkout --quiet --detach --force {quoted_commit}
 set +e
+# 3>&- 9>&-: only this shell holds the rows channel and the lock; a measurement child that
+# outlived it would otherwise keep the hook reading, and the lock held, until that child ended
 (
   set -e
   {raspberry_pi.measure_command}
-)
+) 3>&- 9>&-
 measure_status=$?
 set -e
 measured_head=$(git rev-parse HEAD)
@@ -506,7 +523,40 @@ def _measure_and_fetch(
             code_tree=code_tree,
         ),
     )
+    return _outcome(
+        repository=repository,
+        raspberry_pi=raspberry_pi,
+        completed=completed,
+        ledger_directory=ledger_directory,
+        code_tree=code_tree,
+    )
+
+
+def _outcome(
+    *,
+    repository: Path,
+    raspberry_pi: RaspberryPi,
+    completed: subprocess.CompletedProcess[bytes],
+    ledger_directory: str,
+    code_tree: str,
+) -> PiOutcome:
+    """Read what the measuring script answered, and fetch its rows when it sent them.
+
+    Returns:
+        How it went.
+
+    """
     header, _, archive = completed.stdout.partition(b'\n')
+    if not header.startswith(MEASURED_HEADER) and completed.returncode == 0:
+        # The script never exits 0 without its header: something else wrote to standard output
+        # (a line from the Pi's ~/.bashrc), so its rows cannot be read: fail, never pass
+        printed = header[:SHOWN_STRAY_OUTPUT_BYTES].decode('utf-8', errors='replace')
+        error = RuntimeError(
+            f'{raspberry_pi.name} exited 0 without sending its rows: its output began with '
+            f'{printed!r}, not "{MEASURED_HEADER.decode("ascii")}<status>" (does something on '
+            'the Pi, such as ~/.bashrc, print to standard output?)'
+        )
+        return PiOutcome(raspberry_pi=raspberry_pi, measure_status=0, fetch_error=error)
     if not header.startswith(MEASURED_HEADER):
         # It stopped before measuring, or before sending rows: nothing to fetch
         return PiOutcome(
@@ -514,7 +564,13 @@ def _measure_and_fetch(
             measure_status=completed.returncode,
             refusal=_refusal(raspberry_pi=raspberry_pi, status=completed.returncode),
         )
-    measure_status = int(header.removeprefix(MEASURED_HEADER))
+    try:
+        measure_status = int(header.removeprefix(MEASURED_HEADER))
+    except ValueError:
+        error = RuntimeError(f'{raspberry_pi.name} sent a malformed header: {header!r}')
+        return PiOutcome(
+            raspberry_pi=raspberry_pi, measure_status=completed.returncode, fetch_error=error
+        )
     if completed.returncode != 0:
         error = RuntimeError(
             f'copying the rows from {raspberry_pi.name} failed with status {completed.returncode}'
@@ -530,9 +586,16 @@ def _measure_and_fetch(
             ledger_directory=ledger_directory,
             code_tree=code_tree,
         )
-    except RuntimeError as error:
+    except (RuntimeError, tarfile.TarError) as error:
+        fetch_error = (
+            error
+            if isinstance(error, RuntimeError)
+            else RuntimeError(
+                f'{raspberry_pi.name} sent rows that are not a readable archive: {error}'
+            )
+        )
         return PiOutcome(
-            raspberry_pi=raspberry_pi, measure_status=measure_status, fetch_error=error
+            raspberry_pi=raspberry_pi, measure_status=measure_status, fetch_error=fetch_error
         )
     return PiOutcome(
         raspberry_pi=raspberry_pi, measure_status=measure_status, fetched=tuple(fetched)

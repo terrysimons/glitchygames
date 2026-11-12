@@ -92,10 +92,9 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    their row files of the pushed commit's code tree here, staged. Each Pi measures one push at a
    time (a lock beside its clone; a second push waits, and gives up after 30 minutes), and a row
    of any other code tree is refused rather than staged. A push that brings rows stops so they
-   can be committed, and the
-   next one goes through; a Pi that cannot be reached stops the push before any Pi measures (by
-   hand: `nox -s measure-on-raspberry-pi`; `SKIP=raspberry-pi-replay-metrics git push ...` skips
-   it).
+   can be committed, and the next one goes through; a Pi that cannot be reached stops the push
+   before any Pi measures (by hand: `nox -s measure-on-raspberry-pi`;
+   `SKIP=raspberry-pi-replay-metrics git push ...` skips it).
 2. **The site shows what landed on `main`.** Every docs build reads the repository's row files
    and keeps each row whose code tree is the code tree of the commit that added its file: on
    `main`, the squash merge, so each is shown under the commit its code landed in (code that
