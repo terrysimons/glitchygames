@@ -240,9 +240,31 @@
         controls.appendChild(filterLabel);
         root.replaceChildren(controls, holder.caption, holder.plot);
         draw(holder, data, state);
+        redrawOnSchemeChange(function () {
+            draw(holder, data, state);
+        });
+    }
+
+
+    // The palette toggle (zensical.yml theme.palette) changes the body's data-md-color-scheme
+    // without reloading the page; plotly keeps the colors a chart was drawn with, so the chart is
+    // drawn again in the new scheme's. One watcher at a time: instant navigation keeps the body.
+    var schemeWatcher = null;
+
+    function redrawOnSchemeChange(redraw) {
+        if (schemeWatcher) {
+            schemeWatcher.disconnect();
+            schemeWatcher = null;
+        }
+        if (!redraw) {
+            return;
+        }
+        schemeWatcher = new MutationObserver(redraw);
+        schemeWatcher.observe(document.body, {attributes: true, attributeFilter: ["data-md-color-scheme"]});
     }
 
     function start() {
+        redrawOnSchemeChange(null);
         var root = document.querySelector(".complexity-explorer");
         if (!root) {
             return;
