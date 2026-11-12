@@ -3,8 +3,8 @@
 Status: SPEC (agreed with the user 2026-10-25; drafted 2026-10-23); sub-plan 1 done
 (branch `arcade-1-engine-state`, PR #171: engine context sub-plan 2's Tasks 1-7 rebased onto main
 on 2026-11-08, the owner's RunningGame ruling done; Tasks 8-17 done 2026-11-10, the whole-branch
-verification and the performance gate passed); sub-plan 2 done (branch `arcade-2-demos` (its
-PR number is added when it is opened), [2026-11-11-arcade-2-demos.md](2026-11-11-arcade-2-demos.md):
+verification and the performance gate passed); sub-plan 2 done (PR #177, squash-merged 2026-11-11,
+[2026-11-11-arcade-2-demos.md](2026-11-11-arcade-2-demos.md):
 every tile's bundled demo); sub-plan 3 next. Tracked as feature #43 in `plans/future-features.md`.
 This is the master plan: each piece below gets its own sub-plan, linked both ways from here
 (sub-plans link back to this file). Since 2026-11-08 it also holds the engine context plan's
