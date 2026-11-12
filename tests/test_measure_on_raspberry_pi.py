@@ -15,7 +15,6 @@ platform.
 from __future__ import annotations
 
 import dataclasses
-import fcntl
 import io
 import json
 import os
@@ -35,6 +34,10 @@ from glitchygames.code_tree import CodeTreePaths, commit_code_tree
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.tools.settings import load_project_settings
 from tests.test_code_tree import git, write
+
+# The hook and its Pis are POSIX (flock): a platform without fcntl (Windows) skips this module
+# at collection, where an import of fcntl would be a collection error before pytestmark applies
+fcntl = pytest.importorskip('fcntl')
 
 pytestmark = pytest.mark.skipif(
     os.environ.get('CI') == 'true',
