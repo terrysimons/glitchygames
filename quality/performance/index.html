@@ -31,6 +31,9 @@
     
       <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
       
 
 
@@ -65,7 +68,14 @@
   </head>
   
   
-    <body dir="ltr">
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -117,6 +127,32 @@
       </div>
     </div>
     
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
     
       <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
     
@@ -141,11 +177,18 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
         <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
       
     </form>
     <div class="md-search__output">
@@ -3015,6 +3058,11 @@
 
 
   
+    <a href="https://github.com/terrysimons/glitchygames/edit/main/docs/quality/performance.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
   
 
 
@@ -3023,15 +3071,15 @@
 each game's <code>tests/fixtures/replays/</code> and the demos bundled with the games), commit by commit. Every
 measurement replays a recording headless and unpaced on one machine (<code>--rebaseline</code>, which times
 each frame's work without the pacing sleep), so a line moves only when the code got faster or
-slower, or the machine changed. Times compare only on one machine: each machine (its CPU model)
+slower, or the machine changed. Times compare only on one machine: each machine (its <abbr title="Central processing unit">CPU</abbr> model)
 and kind of run is its own line. <a href="../../requirements/">Requirements</a> turns these measurements into a
 verdict per game for each measured machine.</p>
 <p>These measurements replay one game alone in its process. When several games share a process
-(the Arcade), each keeps its own FPS statistics and shutdown report, the outer game's covering
+(the Arcade), each keeps its own <abbr title="Frames per second">FPS</abbr> statistics and shutdown report, the outer game's covering
 the whole tick; the <a href="../../architecture/engine_context/#performance">engine context page's "Performance" section</a>
 says what contexts cost and how each game's report stays its own.</p>
 <p>Until a build generates them, this page has only this text.</p>
-<p>Generated from 360 ledger rows (2324 in the repository, 339 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
+<p>Generated from 381 ledger rows (2366 in the repository, 360 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
 <h2 id="latest-measurements">Latest measurements<a class="headerlink" href="#latest-measurements" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -3040,244 +3088,244 @@ says what contexts cost and how each game's report stays its own.</p>
 <th>Machine</th>
 <th>Commit</th>
 <th style="text-align: right;">Frames</th>
-<th style="text-align: right;">p50 ms</th>
-<th style="text-align: right;">p99 ms</th>
+<th style="text-align: right;"><abbr title="The 50th percentile (median): half the frames took longer">p50</abbr> ms</th>
+<th style="text-align: right;"><abbr title="The 99th percentile: 1% of the frames took longer">p99</abbr> ms</th>
 <th style="text-align: right;">Max ms</th>
 <th style="text-align: right;">Over budget</th>
-<th style="text-align: right;">FPS (5% low-high)</th>
+<th style="text-align: right;"><abbr title="Frames per second">FPS</abbr> (5% low-high)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">1.696</td>
-<td style="text-align: right;">1.884</td>
-<td style="text-align: right;">3.904</td>
+<td style="text-align: right;">1.671</td>
+<td style="text-align: right;">1.826</td>
+<td style="text-align: right;">5.392</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">689 (498-12500)</td>
+<td style="text-align: right;">697 (473-12987)</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz</code></td>
 <td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">22.924</td>
-<td style="text-align: right;">24.300</td>
-<td style="text-align: right;">47.774</td>
+<td style="text-align: right;">22.822</td>
+<td style="text-align: right;">24.054</td>
+<td style="text-align: right;">47.836</td>
 <td style="text-align: right;">421</td>
-<td style="text-align: right;">50 (39-447)</td>
+<td style="text-align: right;">50 (39-505)</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz</code></td>
 <td>Raspberry Pi 5 Model B Rev 1.1, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">6.613</td>
-<td style="text-align: right;">7.433</td>
-<td style="text-align: right;">16.261</td>
+<td style="text-align: right;">7.070</td>
+<td style="text-align: right;">8.128</td>
+<td style="text-align: right;">16.441</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">175 (127-1401)</td>
+<td style="text-align: right;">166 (121-1383)</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">1.703</td>
-<td style="text-align: right;">2.060</td>
-<td style="text-align: right;">3.778</td>
+<td style="text-align: right;">1.673</td>
+<td style="text-align: right;">2.081</td>
+<td style="text-align: right;">4.002</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">686 (500-12821)</td>
+<td style="text-align: right;">695 (501-12987)</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz</code></td>
 <td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">23.083</td>
-<td style="text-align: right;">26.089</td>
-<td style="text-align: right;">48.573</td>
+<td style="text-align: right;">23.107</td>
+<td style="text-align: right;">26.483</td>
+<td style="text-align: right;">46.988</td>
 <td style="text-align: right;">421</td>
-<td style="text-align: right;">50 (39-464)</td>
+<td style="text-align: right;">50 (39-457)</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz</code></td>
 <td>Raspberry Pi 5 Model B Rev 1.1, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">6.372</td>
-<td style="text-align: right;">7.461</td>
-<td style="text-align: right;">16.647</td>
+<td style="text-align: right;">6.544</td>
+<td style="text-align: right;">7.598</td>
+<td style="text-align: right;">16.393</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">182 (134-1603)</td>
+<td style="text-align: right;">178 (133-1348)</td>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">532</td>
-<td style="text-align: right;">0.408</td>
-<td style="text-align: right;">0.705</td>
-<td style="text-align: right;">2.872</td>
+<td style="text-align: right;">0.415</td>
+<td style="text-align: right;">0.697</td>
+<td style="text-align: right;">2.802</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">2428 (1232-12346)</td>
+<td style="text-align: right;">2397 (1227-12658)</td>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">532</td>
-<td style="text-align: right;">6.415</td>
-<td style="text-align: right;">9.281</td>
-<td style="text-align: right;">36.262</td>
+<td style="text-align: right;">6.145</td>
+<td style="text-align: right;">8.773</td>
+<td style="text-align: right;">36.170</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">157 (95-481)</td>
+<td style="text-align: right;">163 (98-420)</td>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 5 Model B Rev 1.1, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">532</td>
-<td style="text-align: right;">1.721</td>
-<td style="text-align: right;">3.216</td>
-<td style="text-align: right;">14.453</td>
+<td style="text-align: right;">1.790</td>
+<td style="text-align: right;">3.026</td>
+<td style="text-align: right;">14.275</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">558 (278-1689)</td>
+<td style="text-align: right;">546 (290-1468)</td>
 </tr>
 <tr>
 <td><code>src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">1614</td>
-<td style="text-align: right;">0.395</td>
-<td style="text-align: right;">0.563</td>
-<td style="text-align: right;">4.727</td>
+<td style="text-align: right;">0.396</td>
+<td style="text-align: right;">0.576</td>
+<td style="text-align: right;">6.308</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">2494 (1590-5236)</td>
+<td style="text-align: right;">2491 (1522-5525)</td>
 </tr>
 <tr>
 <td><code>src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">1614</td>
-<td style="text-align: right;">5.448</td>
-<td style="text-align: right;">7.075</td>
-<td style="text-align: right;">41.807</td>
+<td style="text-align: right;">5.441</td>
+<td style="text-align: right;">7.108</td>
+<td style="text-align: right;">41.798</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">184 (133-299)</td>
+<td style="text-align: right;">183 (132-299)</td>
 </tr>
 <tr>
 <td><code>src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 5 Model B Rev 1.1, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">1614</td>
-<td style="text-align: right;">1.444</td>
-<td style="text-align: right;">1.916</td>
-<td style="text-align: right;">12.861</td>
+<td style="text-align: right;">1.406</td>
+<td style="text-align: right;">1.896</td>
+<td style="text-align: right;">12.709</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">691 (485-1121)</td>
+<td style="text-align: right;">706 (492-1144)</td>
 </tr>
 <tr>
 <td><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">2072</td>
-<td style="text-align: right;">0.636</td>
-<td style="text-align: right;">0.792</td>
-<td style="text-align: right;">3.767</td>
+<td style="text-align: right;">0.644</td>
+<td style="text-align: right;">0.874</td>
+<td style="text-align: right;">4.230</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">1612 (1206-7194)</td>
+<td style="text-align: right;">1583 (1134-7143)</td>
 </tr>
 <tr>
 <td><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">2072</td>
-<td style="text-align: right;">9.087</td>
-<td style="text-align: right;">12.986</td>
-<td style="text-align: right;">38.397</td>
+<td style="text-align: right;">9.039</td>
+<td style="text-align: right;">12.827</td>
+<td style="text-align: right;">38.301</td>
 <td style="text-align: right;">2</td>
-<td style="text-align: right;">111 (77-328)</td>
+<td style="text-align: right;">112 (78-350)</td>
 </tr>
 <tr>
 <td><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 5 Model B Rev 1.1, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">2072</td>
-<td style="text-align: right;">3.396</td>
-<td style="text-align: right;">4.753</td>
-<td style="text-align: right;">14.429</td>
+<td style="text-align: right;">3.609</td>
+<td style="text-align: right;">5.129</td>
+<td style="text-align: right;">15.867</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">300 (218-1025)</td>
+<td style="text-align: right;">281 (201-885)</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">450</td>
-<td style="text-align: right;">0.087</td>
-<td style="text-align: right;">0.165</td>
-<td style="text-align: right;">0.299</td>
+<td style="text-align: right;">0.088</td>
+<td style="text-align: right;">0.146</td>
+<td style="text-align: right;">0.297</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">11318 (6803-18519)</td>
+<td style="text-align: right;">11248 (6849-19231)</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code></td>
 <td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">450</td>
-<td style="text-align: right;">1.173</td>
-<td style="text-align: right;">1.624</td>
-<td style="text-align: right;">2.842</td>
+<td style="text-align: right;">1.150</td>
+<td style="text-align: right;">1.592</td>
+<td style="text-align: right;">2.761</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">866 (603-1333)</td>
+<td style="text-align: right;">875 (615-1368)</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code></td>
 <td>Raspberry Pi 5 Model B Rev 1.1, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">450</td>
 <td style="text-align: right;">0.233</td>
-<td style="text-align: right;">0.366</td>
-<td style="text-align: right;">1.198</td>
+<td style="text-align: right;">0.363</td>
+<td style="text-align: right;">1.138</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">4278 (2545-7246)</td>
+<td style="text-align: right;">4297 (2551-7299)</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">622</td>
-<td style="text-align: right;">0.089</td>
-<td style="text-align: right;">0.213</td>
-<td style="text-align: right;">3.250</td>
+<td style="text-align: right;">0.091</td>
+<td style="text-align: right;">0.178</td>
+<td style="text-align: right;">3.313</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">9993 (3623-18519)</td>
+<td style="text-align: right;">9951 (3597-19231)</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">622</td>
-<td style="text-align: right;">1.238</td>
-<td style="text-align: right;">2.262</td>
-<td style="text-align: right;">33.361</td>
+<td style="text-align: right;">1.271</td>
+<td style="text-align: right;">2.205</td>
+<td style="text-align: right;">33.182</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">741 (297-1359)</td>
+<td style="text-align: right;">733 (304-1323)</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Raspberry Pi 5 Model B Rev 1.1, unpaced replay</td>
-<td><code>296bf87</code></td>
+<td><code>42a9375</code></td>
 <td style="text-align: right;">622</td>
-<td style="text-align: right;">0.249</td>
-<td style="text-align: right;">1.178</td>
-<td style="text-align: right;">12.752</td>
+<td style="text-align: right;">0.251</td>
+<td style="text-align: right;">0.721</td>
+<td style="text-align: right;">11.584</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">2982 (701-7299)</td>
+<td style="text-align: right;">3202 (925-7353)</td>
 </tr>
 </tbody>
 </table>
@@ -3296,38 +3344,43 @@ says what contexts cost and how each game's report stays its own.</p>
 <li>PaddleSlap: <a href="../metrics/paddleslap-golden.html"><code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code></a></li>
 </ul>
 <div class="admonition note">
-<p class="admonition-title">The latest measurements table's FPS column</p>
-<p>Each line's newest run, as the explorer's <strong>FPS</strong> chart plots it: the average, then the 5% low
-and 5% high in parentheses; a live run's achieved FPS, a replay's headroom. A run from before
+<p class="admonition-title">The latest measurements table's <abbr title="Frames per second">FPS</abbr> column</p>
+<p>Each line's newest run, as the explorer's <strong><abbr title="Frames per second">FPS</abbr></strong> chart plots it: the average, then the 5% low
+and 5% high in parentheses; a live run's achieved <abbr title="Frames per second">FPS</abbr>, a replay's headroom. A run from before
 the 5% figures shows its average alone, and a live run without frame times shows none.</p>
 </div>
 <h2 id="what-the-graphs-show">What the graphs show<a class="headerlink" href="#what-the-graphs-show" title="Permanent link">#</a></h2>
 <p>The explorer above draws one chart at a time: pick the recording (grouped by game), the chart,
-the statistics (p50, p99, max) and the machines to compare. Each recording's own page, linked
+the statistics (<abbr title="The 50th percentile (median): half the frames took longer">p50</abbr>, <abbr title="The 99th percentile: 1% of the frames took longer">p99</abbr>, max) and the machines to compare. Each recording's own page, linked
 under it, shows every chart at once with the slowest-frame heatmaps.</p>
-<ul>
-<li><strong>Processing time per frame</strong>: the median (p50), the 99<sup>th</sup> percentile (p99) and the slowest
-  frame (max) of one replay, in milliseconds, by commit (oldest on the left, labelled with the
-  short hash). A frame's budget at 60 FPS is 16.7 ms.</li>
-<li><strong>Frames over budget</strong>: frames whose processing alone took longer than the budget.</li>
-<li><strong>Live frame time</strong>: for the runs that recorded a session live (paced, in a window), how long
-  each frame really took, start to start: how steady pacing was. Replays have none.</li>
-<li><strong>FPS by commit</strong>: the same runs as frames per second. A live run's line (solid) is the FPS
-  it achieved (1 / its frame time); it is paced, so it never passes the target (the dotted
-  line, 1 / the frame budget). A replay's line (dashed) is its headroom (1 / its processing
-  time): how fast the work alone could run. Each point is the average, with a bar from the
-  "5% low" to the "5% high": the mean of the slowest and of the fastest 5% of frames (at least
-  one frame; pause frames count; a live run's first frame, timed from the clock's start, does
-  not). The axis is logarithmic, as headroom runs to thousands. Paced and unpaced numbers do
-  not compare: the processor slows down between paced frames.</li>
-<li><strong>Machines</strong>: each machine's latest replay, as a bar of its average headroom FPS with the
-  same 5% low and high, so platforms compare at a glance for the same recording. Replays only;
-  machines marked <strong>(CI)</strong> measured on continuous integration's virtual runners, which are
-  noisy.</li>
-</ul>
-<p>The figures are stored in seconds and turned into FPS only for display. Measurements from
-before them (2026-10-28) have no FPS point. <code>glitchygames measure</code> and <code>glitchygames report</code>
-print the same FPS beside the milliseconds.</p>
+<dl>
+<dt>Processing time per frame</dt>
+<dd>The median (<abbr title="The 50th percentile (median): half the frames took longer">p50</abbr>), the 99<sup>th</sup> percentile (<abbr title="The 99th percentile: 1% of the frames took longer">p99</abbr>) and the slowest
+frame (max) of one replay, in milliseconds, by commit (oldest on the left, labelled with the
+short hash). A frame's budget at 60 <abbr title="Frames per second">FPS</abbr> is 16.7 ms.</dd>
+<dt>Frames over budget</dt>
+<dd>Frames whose processing alone took longer than the budget.</dd>
+<dt>Live frame time</dt>
+<dd>For the runs that recorded a session live (paced, in a window), how long
+each frame really took, start to start: how steady pacing was. Replays have none.</dd>
+<dt><abbr title="Frames per second">FPS</abbr> by commit</dt>
+<dd>The same runs as frames per second. A live run's line (solid) is the <abbr title="Frames per second">FPS</abbr>
+it achieved (1 / its frame time); it is paced, so it never passes the target (the dotted
+line, 1 / the frame budget). A replay's line (dashed) is its headroom (1 / its processing
+time): how fast the work alone could run. Each point is the average, with a bar from the
+"5% low" to the "5% high": the mean of the slowest and of the fastest 5% of frames (at least
+one frame; pause frames count; a live run's first frame, timed from the clock's start, does
+not). The axis is logarithmic, as headroom runs to thousands. Paced and unpaced numbers do
+not compare: the processor slows down between paced frames.</dd>
+<dt>Machines</dt>
+<dd>Each machine's latest replay, as a bar of its average headroom <abbr title="Frames per second">FPS</abbr> with the
+same 5% low and high, so platforms compare at a glance for the same recording. Replays only;
+machines marked <strong>(<abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr>)</strong> measured on continuous integration's virtual runners, which are
+noisy.</dd>
+</dl>
+<p>The figures are stored in seconds and turned into <abbr title="Frames per second">FPS</abbr> only for display. Measurements from
+before them (2026-10-28) have no <abbr title="Frames per second">FPS</abbr> point. <code>glitchygames measure</code> and <code>glitchygames report</code>
+print the same <abbr title="Frames per second">FPS</abbr> beside the milliseconds.</p>
 <ul>
 <li><strong>Slowest frame across the recording, by commit</strong>: a heatmap per machine. Each column is a
   stretch of the recording (about 1% of it, start to end) and each row a commit; the color is
@@ -3371,7 +3424,7 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    This needs squash merges: a merge commit brings its branch's commits into <code>main</code>'s history,
    and each that added rows would land its own (intermediate) code tree, so pull requests are
    squash-merged only.
-   After each merge to <code>main</code>, CircleCI deploys the site with them; CI never measures (its
+   After each merge to <code>main</code>, CircleCI deploys the site with them; <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> never measures (its
    machines vary).</li>
 <li>The history measured before this (rows naming their commit) was moved into the repository
    too (<code>scripts/import_published_ledger.py</code>). <code>nox -s replay-metrics</code> still measures by hand
@@ -3382,10 +3435,10 @@ changes". They stay in the pending file after a deploy, so they remain visible l
 way (<a href="../../architecture/gameplay_replay/#tools-for-any-game">Tools for any game</a>), with the
 paths in its <code>[tool.glitchygames]</code> (ours: <code>ledger-directory</code>, <code>pending-ledger</code>,
 <code>published-ledger</code>, <code>measured-paths</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>unmeasured<span class="w"> </span>--game<span class="w"> </span>&lt;game&gt;<span class="w">   </span><span class="c1"># what is not measured yet on this machine</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>measure<span class="w"> </span>--game<span class="w"> </span>&lt;game&gt;<span class="w">      </span><span class="c1"># measure it into the pending ledger</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>performance-pages<span class="w"> </span>&lt;directory&gt;<span class="w">   </span><span class="c1"># the ledger and one graph page per recording</span>
-</code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>unmeasured<span class="w"> </span>--game<span class="w"> </span>&lt;game&gt;<span class="w">   </span><span class="c1"># what is not measured yet on this machine</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>measure<span class="w"> </span>--game<span class="w"> </span>&lt;game&gt;<span class="w">      </span><span class="c1"># measure it into the pending ledger</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>performance-pages<span class="w"> </span>&lt;directory&gt;<span class="w">   </span><span class="c1"># the ledger and one graph page per recording</span>
+</span></code></pre></div>
 <p>(<code>&lt;game&gt; --measure</code>, <code>--unmeasured</code> and <code>--performance-pages &lt;directory&gt;</code> are the same tools as
 the game's own flags.) Our docs build makes these pages through <code>scripts/mkdocs_hooks.py</code> and
 <code>scripts/generate_performance_graphs.py</code>, which only add our docs paths and the snippet above.</p>
@@ -3399,10 +3452,10 @@ differs, with both runs' commits). Design:
 same child command <code>glitchygames measure</code> runs: at <code>--log-level warning</code> (the replay tools' level
 and a game's default: logging off), at <code>--log-level info</code> (what a bug report asks a player to run
 with) and at <code>--log-level debug</code> (everything on). It is not part of the test run (<code>nox -s test</code>;
-it takes under a minute), but CI runs it with the other benchmarks in the macOS job's
+it takes under a minute), but <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> runs it with the other benchmarks in the macOS job's
 <code>nox -s performance-test</code>, where a failed rebaseline fails the job. Run it alone with</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/benchmarks/test_logging_cost.py<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="w"> </span>-p<span class="w"> </span>no:xdist<span class="w"> </span>--benchmark-only<span class="w"> </span>--dummy-only
-</code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/benchmarks/test_logging_cost.py<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="w"> </span>-p<span class="w"> </span>no:xdist<span class="w"> </span>--benchmark-only<span class="w"> </span>--dummy-only
+</span></code></pre></div>
 <p>or with every other benchmark in <code>nox -s performance-test</code>. It prints two tables and writes them
 to <code>test-results/logging-cost.md</code>:</p>
 <ol>
@@ -3433,6 +3486,27 @@ and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary t
 
 
 
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 12, 2026 00:20:18 UTC">November 12, 2026</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
 
 
 
@@ -3457,6 +3531,46 @@ and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary t
       </main>
       
         <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../complexity/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Code Complexity">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Code Complexity
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../driver_comparison/" class="md-footer__link md-footer__link--next" aria-label="Next: Driver Comparison">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Driver Comparison
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
   
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
@@ -3485,7 +3599,7 @@ and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary t
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link", "navigation.expand", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.expand", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>

@@ -31,6 +31,9 @@
     
       <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
       
 
 
@@ -65,7 +68,14 @@
   </head>
   
   
-    <body dir="ltr">
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -117,6 +127,32 @@
       </div>
     </div>
     
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
     
       <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
     
@@ -141,11 +177,18 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
         <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
       
     </form>
     <div class="md-search__output">
@@ -3382,6 +3425,11 @@
 
 
   
+    <a href="https://github.com/terrysimons/glitchygames/edit/main/docs/multi_controller_system.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
   
 
 
@@ -3389,14 +3437,20 @@
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">#</a></h2>
 <p>The Multi-Controller System enables up to 4 simultaneous controllers to navigate and interact with the bitmappy tool independently. Each controller has its own visual indicator, navigation state, and can operate simultaneously without conflicts.</p>
 <h2 id="features">Features<a class="headerlink" href="#features" title="Permanent link">#</a></h2>
-<ul>
-<li><strong>Multi-Controller Support</strong>: Up to 4 simultaneous controllers</li>
-<li><strong>Independent Navigation</strong>: Each controller navigates film strips and frames independently</li>
-<li><strong>Visual Distinction</strong>: A unique color for each controller (Red, Green, Blue, Yellow): triangles on the film strips, squares on the canvas, circles on the sliders</li>
-<li><strong>Smart Positioning</strong>: Automatic collision avoidance when multiple controllers select the same spot</li>
-<li><strong>State Preservation</strong>: Controllers maintain their selection state when switching between them</li>
-<li><strong>Hotplug Support</strong>: Controllers can be connected/disconnected during operation</li>
-</ul>
+<dl>
+<dt>Multi-Controller Support</dt>
+<dd>Up to 4 simultaneous controllers</dd>
+<dt>Independent Navigation</dt>
+<dd>Each controller navigates film strips and frames independently</dd>
+<dt>Visual Distinction</dt>
+<dd>A unique color for each controller (Red, Green, Blue, Yellow): triangles on the film strips, squares on the canvas, circles on the sliders</dd>
+<dt>Smart Positioning</dt>
+<dd>Automatic collision avoidance when multiple controllers select the same spot</dd>
+<dt>State Preservation</dt>
+<dd>Controllers maintain their selection state when switching between them</dd>
+<dt>Hotplug Support</dt>
+<dd>Controllers can be connected/disconnected during operation</dd>
+</dl>
 <h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">#</a></h2>
 <h3 id="core-components">Core Components<a class="headerlink" href="#core-components" title="Permanent link">#</a></h3>
 <ol>
@@ -3409,269 +3463,273 @@
 <p>The button and trigger bindings are listed in <code>CONTROLLER_CONTROLS_README.md</code> at the repository root.</p>
 <h3 id="controller-color-scheme">Controller Color Scheme<a class="headerlink" href="#controller-color-scheme" title="Permanent link">#</a></h3>
 <p><code>MultiControllerManager.CONTROLLER_COLORS</code>, indexed by controller ID. In Bitmappy, activating a controller (Start) gives it the next color in activation order (<code>assign_color_to_controller</code>), so the first controller activated is red:</p>
-<ul>
-<li><strong>Controller 0</strong>: Red (255, 0, 0)</li>
-<li><strong>Controller 1</strong>: Green (0, 255, 0)  </li>
-<li><strong>Controller 2</strong>: Blue (0, 0, 255)</li>
-<li><strong>Controller 3</strong>: Yellow (255, 255, 0)</li>
-</ul>
+<dl>
+<dt>Controller 0</dt>
+<dd>Red (255, 0, 0)</dd>
+<dt>Controller 1</dt>
+<dd>Green (0, 255, 0)  </dd>
+<dt>Controller 2</dt>
+<dd>Blue (0, 0, 255)</dd>
+<dt>Controller 3</dt>
+<dd>Yellow (255, 255, 0)</dd>
+</dl>
 <h2 id="usage-examples">Usage Examples<a class="headerlink" href="#usage-examples" title="Permanent link">#</a></h2>
 <h3 id="basic-setup">Basic Setup<a class="headerlink" href="#basic-setup" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">bitmappy.controllers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ControllerSelection</span><span class="p">,</span> <span class="n">MultiControllerManager</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">bitmappy.indicators</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualCollisionManager</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Initialize the system (MultiControllerManager is a singleton)</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">manager</span> <span class="o">=</span> <span class="n">MultiControllerManager</span><span class="p">()</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">visual_manager</span> <span class="o">=</span> <span class="n">VisualCollisionManager</span><span class="p">()</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">controller_selections</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Find the connected controllers (through the engine's devices door; at most once a second)</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">connected_instance_ids</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">scan_for_controllers</span><span class="p">()</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1"># Set up a controller: only a connected controller can be assigned (None otherwise)</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="n">instance_id</span> <span class="o">=</span> <span class="n">connected_instance_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="n">controller_id</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">assign_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">)</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">ControllerSelection</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">instance_id</span><span class="p">)</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">bitmappy.controllers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ControllerSelection</span><span class="p">,</span> <span class="n">MultiControllerManager</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">bitmappy.indicators</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualCollisionManager</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Initialize the system (MultiControllerManager is a singleton)</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">manager</span> <span class="o">=</span> <span class="n">MultiControllerManager</span><span class="p">()</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">visual_manager</span> <span class="o">=</span> <span class="n">VisualCollisionManager</span><span class="p">()</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">controller_selections</span> <span class="o">=</span> <span class="p">{}</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Find the connected controllers (through the engine's devices door; at most once a second)</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">connected_instance_ids</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">scan_for_controllers</span><span class="p">()</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1"># Set up a controller: only a connected controller can be assigned (None otherwise)</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="n">instance_id</span> <span class="o">=</span> <span class="n">connected_instance_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="n">controller_id</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">assign_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">)</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">ControllerSelection</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">instance_id</span><span class="p">)</span>
+</span></code></pre></div>
 <h3 id="controller-activation">Controller Activation<a class="headerlink" href="#controller-activation" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Activate a controller</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">activate</span><span class="p">()</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">manager</span><span class="o">.</span><span class="n">activate_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">)</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># Set initial selection</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation_name"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1"># Add visual indicator</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">visual_manager</span><span class="o">.</span><span class="n">add_controller_indicator</span><span class="p">(</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">controller_id</span><span class="o">=</span><span class="n">controller_id</span><span class="p">,</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">instance_id</span><span class="o">=</span><span class="n">instance_id</span><span class="p">,</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">color</span><span class="o">=</span><span class="n">manager</span><span class="o">.</span><span class="n">CONTROLLER_COLORS</span><span class="p">[</span><span class="n">controller_id</span><span class="p">],</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">position</span><span class="o">=</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="p">)</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Activate a controller</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">activate</span><span class="p">()</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">manager</span><span class="o">.</span><span class="n">activate_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">)</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># Set initial selection</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation_name"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1"># Add visual indicator</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">visual_manager</span><span class="o">.</span><span class="n">add_controller_indicator</span><span class="p">(</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">controller_id</span><span class="o">=</span><span class="n">controller_id</span><span class="p">,</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">instance_id</span><span class="o">=</span><span class="n">instance_id</span><span class="p">,</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">color</span><span class="o">=</span><span class="n">manager</span><span class="o">.</span><span class="n">CONTROLLER_COLORS</span><span class="p">[</span><span class="n">controller_id</span><span class="p">],</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">position</span><span class="o">=</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="p">)</span>
+</span></code></pre></div>
 <h3 id="navigation">Navigation<a class="headerlink" href="#navigation" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Navigate to different animation/frame</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"new_animation"</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Get current selection</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">animation</span><span class="p">,</span> <span class="n">frame</span> <span class="o">=</span> <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">get_selection</span><span class="p">()</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Controller </span><span class="si">{</span><span class="n">controller_id</span><span class="si">}</span><span class="s2"> is at </span><span class="si">{</span><span class="n">animation</span><span class="si">}</span><span class="s2">, frame </span><span class="si">{</span><span class="n">frame</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1"># Get navigation history (an entry is added when the animation changes)</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">history</span> <span class="o">=</span> <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">get_navigation_history</span><span class="p">()</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">history</span><span class="p">:</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Previous: </span><span class="si">{</span><span class="n">entry</span><span class="p">[</span><span class="s1">'animation'</span><span class="p">]</span><span class="si">}</span><span class="s2">, frame </span><span class="si">{</span><span class="n">entry</span><span class="p">[</span><span class="s1">'frame'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Navigate to different animation/frame</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"new_animation"</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Get current selection</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">animation</span><span class="p">,</span> <span class="n">frame</span> <span class="o">=</span> <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">get_selection</span><span class="p">()</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Controller </span><span class="si">{</span><span class="n">controller_id</span><span class="si">}</span><span class="s2"> is at </span><span class="si">{</span><span class="n">animation</span><span class="si">}</span><span class="s2">, frame </span><span class="si">{</span><span class="n">frame</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1"># Get navigation history (an entry is added when the animation changes)</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">history</span> <span class="o">=</span> <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">get_navigation_history</span><span class="p">()</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">history</span><span class="p">:</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Previous: </span><span class="si">{</span><span class="n">entry</span><span class="p">[</span><span class="s1">'animation'</span><span class="p">]</span><span class="si">}</span><span class="s2">, frame </span><span class="si">{</span><span class="n">entry</span><span class="p">[</span><span class="s1">'frame'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span></code></pre></div>
 <h3 id="multi-controller-navigation">Multi-Controller Navigation<a class="headerlink" href="#multi-controller-navigation" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Set up multiple controllers</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">instance_id</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">manager</span><span class="o">.</span><span class="n">scan_for_controllers</span><span class="p">()):</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">controller_id</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">assign_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">)</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">ControllerSelection</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">instance_id</span><span class="p">)</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">activate</span><span class="p">()</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="c1"># Each controller can navigate independently</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="sa">f</span><span class="s2">"animation_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="c1"># Add visual indicators</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">visual_manager</span><span class="o">.</span><span class="n">add_controller_indicator</span><span class="p">(</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>        <span class="n">controller_id</span><span class="o">=</span><span class="n">controller_id</span><span class="p">,</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>        <span class="n">instance_id</span><span class="o">=</span><span class="n">instance_id</span><span class="p">,</span>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>        <span class="n">color</span><span class="o">=</span><span class="n">manager</span><span class="o">.</span><span class="n">CONTROLLER_COLORS</span><span class="p">[</span><span class="n">controller_id</span><span class="p">],</span>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>        <span class="n">position</span><span class="o">=</span><span class="p">(</span><span class="mi">100</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
-<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>    <span class="p">)</span>
-<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>
-<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="c1"># All controllers can navigate independently</span>
-<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="n">controller_selections</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation_A"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="n">controller_selections</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation_B"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="n">controller_selections</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation_C"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
-<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="n">controller_selections</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation_D"</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Set up multiple controllers</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">instance_id</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">manager</span><span class="o">.</span><span class="n">scan_for_controllers</span><span class="p">()):</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">controller_id</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">assign_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">)</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">ControllerSelection</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">instance_id</span><span class="p">)</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">activate</span><span class="p">()</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="c1"># Each controller can navigate independently</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="sa">f</span><span class="s2">"animation_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="c1"># Add visual indicators</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">visual_manager</span><span class="o">.</span><span class="n">add_controller_indicator</span><span class="p">(</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>        <span class="n">controller_id</span><span class="o">=</span><span class="n">controller_id</span><span class="p">,</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>        <span class="n">instance_id</span><span class="o">=</span><span class="n">instance_id</span><span class="p">,</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>        <span class="n">color</span><span class="o">=</span><span class="n">manager</span><span class="o">.</span><span class="n">CONTROLLER_COLORS</span><span class="p">[</span><span class="n">controller_id</span><span class="p">],</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>        <span class="n">position</span><span class="o">=</span><span class="p">(</span><span class="mi">100</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>    <span class="p">)</span>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="c1"># All controllers can navigate independently</span>
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="n">controller_selections</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation_A"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="n">controller_selections</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation_B"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="n">controller_selections</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation_C"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="n">controller_selections</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation_D"</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+</span></code></pre></div>
 <h3 id="visual-collision-avoidance">Visual Collision Avoidance<a class="headerlink" href="#visual-collision-avoidance" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Multiple controllers at same position</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">visual_manager</span><span class="o">.</span><span class="n">add_controller_indicator</span><span class="p">(</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>        <span class="n">controller_id</span><span class="o">=</span><span class="n">i</span><span class="p">,</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="n">instance_id</span><span class="o">=</span><span class="n">i</span><span class="p">,</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mi">255</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="n">position</span><span class="o">=</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>  <span class="c1"># Same position</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="p">)</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># System automatically applies offsets (VisualCollisionManager.POSITION_PATTERNS) to prevent overlap</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="n">visual_manager</span><span class="o">.</span><span class="n">get_final_position</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># (100, 100) - no offset</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="n">visual_manager</span><span class="o">.</span><span class="n">get_final_position</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># (85, 85) - (-15, -15) offset</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="n">visual_manager</span><span class="o">.</span><span class="n">get_final_position</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>  <span class="c1"># (115, 85) - (15, -15) offset</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Multiple controllers at same position</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">visual_manager</span><span class="o">.</span><span class="n">add_controller_indicator</span><span class="p">(</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>        <span class="n">controller_id</span><span class="o">=</span><span class="n">i</span><span class="p">,</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="n">instance_id</span><span class="o">=</span><span class="n">i</span><span class="p">,</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mi">255</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="n">position</span><span class="o">=</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>  <span class="c1"># Same position</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="p">)</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># System automatically applies offsets (VisualCollisionManager.POSITION_PATTERNS) to prevent overlap</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="n">visual_manager</span><span class="o">.</span><span class="n">get_final_position</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># (100, 100) - no offset</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="n">visual_manager</span><span class="o">.</span><span class="n">get_final_position</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># (85, 85) - (-15, -15) offset</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="n">visual_manager</span><span class="o">.</span><span class="n">get_final_position</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>  <span class="c1"># (115, 85) - (15, -15) offset</span>
+</span></code></pre></div>
 <h3 id="controller-state-management">Controller State Management<a class="headerlink" href="#controller-state-management" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Check controller status</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">if</span> <span class="n">manager</span><span class="o">.</span><span class="n">is_controller_active</span><span class="p">(</span><span class="n">instance_id</span><span class="p">):</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Controller </span><span class="si">{</span><span class="n">instance_id</span><span class="si">}</span><span class="s2"> is active"</span><span class="p">)</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># Get controller information</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">info</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">get_controller_info</span><span class="p">(</span><span class="n">instance_id</span><span class="p">)</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="k">if</span> <span class="n">info</span><span class="p">:</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Controller </span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">controller_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1"># Deactivate controller (the manager has no deactivate; cleanup_inactive_controllers()</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="c1"># unassigns controllers idle for more than ASSIGNMENT_TIMEOUT seconds)</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">deactivate</span><span class="p">()</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Check controller status</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">if</span> <span class="n">manager</span><span class="o">.</span><span class="n">is_controller_active</span><span class="p">(</span><span class="n">instance_id</span><span class="p">):</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Controller </span><span class="si">{</span><span class="n">instance_id</span><span class="si">}</span><span class="s2"> is active"</span><span class="p">)</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># Get controller information</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">info</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">get_controller_info</span><span class="p">(</span><span class="n">instance_id</span><span class="p">)</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="k">if</span> <span class="n">info</span><span class="p">:</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Controller </span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">controller_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1"># Deactivate controller (the manager has no deactivate; cleanup_inactive_controllers()</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="c1"># unassigns controllers idle for more than ASSIGNMENT_TIMEOUT seconds)</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">deactivate</span><span class="p">()</span>
+</span></code></pre></div>
 <h3 id="hotplug-support">Hotplug Support<a class="headerlink" href="#hotplug-support" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Handle controller connection</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_controller_connected</span><span class="p">(</span><span class="n">instance_id</span><span class="p">):</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">controller_id</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">assign_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">)</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">ControllerSelection</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">instance_id</span><span class="p">)</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Controller </span><span class="si">{</span><span class="n">controller_id</span><span class="si">}</span><span class="s2"> connected"</span><span class="p">)</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="c1"># Handle controller disconnection</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_controller_disconnected</span><span class="p">(</span><span class="n">instance_id</span><span class="p">):</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="k">if</span> <span class="n">instance_id</span> <span class="ow">in</span> <span class="n">manager</span><span class="o">.</span><span class="n">assigned_controllers</span><span class="p">:</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>        <span class="n">controller_id</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">assigned_controllers</span><span class="p">[</span><span class="n">instance_id</span><span class="p">]</span>
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>        <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="p">:</span>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>            <span class="k">del</span> <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span>
-<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Controller </span><span class="si">{</span><span class="n">controller_id</span><span class="si">}</span><span class="s2"> disconnected"</span><span class="p">)</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Handle controller connection</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_controller_connected</span><span class="p">(</span><span class="n">instance_id</span><span class="p">):</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">controller_id</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">assign_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">)</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">ControllerSelection</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">instance_id</span><span class="p">)</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Controller </span><span class="si">{</span><span class="n">controller_id</span><span class="si">}</span><span class="s2"> connected"</span><span class="p">)</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="c1"># Handle controller disconnection</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_controller_disconnected</span><span class="p">(</span><span class="n">instance_id</span><span class="p">):</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="k">if</span> <span class="n">instance_id</span> <span class="ow">in</span> <span class="n">manager</span><span class="o">.</span><span class="n">assigned_controllers</span><span class="p">:</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>        <span class="n">controller_id</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">assigned_controllers</span><span class="p">[</span><span class="n">instance_id</span><span class="p">]</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>        <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="p">:</span>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>            <span class="k">del</span> <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span>
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Controller </span><span class="si">{</span><span class="n">controller_id</span><span class="si">}</span><span class="s2"> disconnected"</span><span class="p">)</span>
+</span></code></pre></div>
 <h2 id="integration-with-bitmappy">Integration with Bitmappy<a class="headerlink" href="#integration-with-bitmappy" title="Permanent link">#</a></h2>
 <h3 id="event-handling">Event Handling<a class="headerlink" href="#event-handling" title="Permanent link">#</a></h3>
 <p>Bitmappy's <code>ControllerEventHandler.on_controller_button_down_event</code> scans for controllers,
 assigns the controller on its first button press, and passes the button to its current mode's
 strategy (<code>FilmStripModeStrategy</code>, <code>CanvasModeStrategy</code> or <code>SliderModeStrategy</code>). A simplified
 version of the film strip navigation:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_controller_button_down_event</span><span class="p">(</span><span class="n">event</span><span class="p">):</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span><span class="sd">"""Handle controller button presses in bitmappy."""</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">controller_id</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">get_controller_id</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">instance_id</span><span class="p">)</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>        <span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">button</span> <span class="o">==</span> <span class="n">pygame</span><span class="o">.</span><span class="n">CONTROLLER_BUTTON_START</span><span class="p">:</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>            <span class="c1"># Start button - activate the controller on the first frame of the first animation</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>            <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="p">:</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>                <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">activate</span><span class="p">()</span>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>                <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"first_animation"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>        <span class="k">elif</span> <span class="n">event</span><span class="o">.</span><span class="n">button</span> <span class="o">==</span> <span class="n">pygame</span><span class="o">.</span><span class="n">CONTROLLER_BUTTON_DPAD_LEFT</span><span class="p">:</span>
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>            <span class="c1"># D-pad left - previous frame</span>
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>            <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="p">:</span>
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>                <span class="n">current_animation</span><span class="p">,</span> <span class="n">current_frame</span> <span class="o">=</span> <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">get_selection</span><span class="p">()</span>
-<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>                <span class="k">if</span> <span class="n">current_frame</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>                    <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="n">current_animation</span><span class="p">,</span> <span class="n">current_frame</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
-<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>
-<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>        <span class="k">elif</span> <span class="n">event</span><span class="o">.</span><span class="n">button</span> <span class="o">==</span> <span class="n">pygame</span><span class="o">.</span><span class="n">CONTROLLER_BUTTON_DPAD_RIGHT</span><span class="p">:</span>
-<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>            <span class="c1"># D-pad right - next frame</span>
-<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a>            <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="p">:</span>
-<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>                <span class="n">current_animation</span><span class="p">,</span> <span class="n">current_frame</span> <span class="o">=</span> <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">get_selection</span><span class="p">()</span>
-<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>                <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="n">current_animation</span><span class="p">,</span> <span class="n">current_frame</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_controller_button_down_event</span><span class="p">(</span><span class="n">event</span><span class="p">):</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span><span class="sd">"""Handle controller button presses in bitmappy."""</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">controller_id</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">get_controller_id</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">instance_id</span><span class="p">)</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>        <span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">button</span> <span class="o">==</span> <span class="n">pygame</span><span class="o">.</span><span class="n">CONTROLLER_BUTTON_START</span><span class="p">:</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>            <span class="c1"># Start button - activate the controller on the first frame of the first animation</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>            <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="p">:</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>                <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">activate</span><span class="p">()</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>                <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"first_animation"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>        <span class="k">elif</span> <span class="n">event</span><span class="o">.</span><span class="n">button</span> <span class="o">==</span> <span class="n">pygame</span><span class="o">.</span><span class="n">CONTROLLER_BUTTON_DPAD_LEFT</span><span class="p">:</span>
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>            <span class="c1"># D-pad left - previous frame</span>
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>            <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="p">:</span>
+</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>                <span class="n">current_animation</span><span class="p">,</span> <span class="n">current_frame</span> <span class="o">=</span> <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">get_selection</span><span class="p">()</span>
+</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>                <span class="k">if</span> <span class="n">current_frame</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+</span><span id="__span-7-16"><a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>                    <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="n">current_animation</span><span class="p">,</span> <span class="n">current_frame</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-7-17"><a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>
+</span><span id="__span-7-18"><a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>        <span class="k">elif</span> <span class="n">event</span><span class="o">.</span><span class="n">button</span> <span class="o">==</span> <span class="n">pygame</span><span class="o">.</span><span class="n">CONTROLLER_BUTTON_DPAD_RIGHT</span><span class="p">:</span>
+</span><span id="__span-7-19"><a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>            <span class="c1"># D-pad right - next frame</span>
+</span><span id="__span-7-20"><a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a>            <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="p">:</span>
+</span><span id="__span-7-21"><a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>                <span class="n">current_animation</span><span class="p">,</span> <span class="n">current_frame</span> <span class="o">=</span> <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">get_selection</span><span class="p">()</span>
+</span><span id="__span-7-22"><a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>                <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="n">current_animation</span><span class="p">,</span> <span class="n">current_frame</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+</span></code></pre></div>
 <h3 id="film-strip-integration">Film Strip Integration<a class="headerlink" href="#film-strip-integration" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_film_strip_indicators</span><span class="p">():</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="sd">"""Update visual indicators on film strips."""</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="k">for</span> <span class="n">controller_id</span><span class="p">,</span> <span class="n">selection</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>        <span class="k">if</span> <span class="n">selection</span><span class="o">.</span><span class="n">is_active</span><span class="p">():</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>            <span class="n">animation</span><span class="p">,</span> <span class="n">frame</span> <span class="o">=</span> <span class="n">selection</span><span class="o">.</span><span class="n">get_selection</span><span class="p">()</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>            <span class="c1"># Update visual indicator position</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>            <span class="k">if</span> <span class="n">animation</span> <span class="ow">in</span> <span class="n">film_strips</span><span class="p">:</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>                <span class="c1"># frame_layouts maps (animation, frame) to the frame's rect on the strip</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>                <span class="n">frame_rect</span> <span class="o">=</span> <span class="n">film_strips</span><span class="p">[</span><span class="n">animation</span><span class="p">]</span><span class="o">.</span><span class="n">frame_layouts</span><span class="p">[</span><span class="n">animation</span><span class="p">,</span> <span class="n">frame</span><span class="p">]</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>                <span class="n">visual_manager</span><span class="o">.</span><span class="n">update_controller_position</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">frame_rect</span><span class="o">.</span><span class="n">midtop</span><span class="p">)</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_film_strip_indicators</span><span class="p">():</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="sd">"""Update visual indicators on film strips."""</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="k">for</span> <span class="n">controller_id</span><span class="p">,</span> <span class="n">selection</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>        <span class="k">if</span> <span class="n">selection</span><span class="o">.</span><span class="n">is_active</span><span class="p">():</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>            <span class="n">animation</span><span class="p">,</span> <span class="n">frame</span> <span class="o">=</span> <span class="n">selection</span><span class="o">.</span><span class="n">get_selection</span><span class="p">()</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>            <span class="c1"># Update visual indicator position</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>            <span class="k">if</span> <span class="n">animation</span> <span class="ow">in</span> <span class="n">film_strips</span><span class="p">:</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>                <span class="c1"># frame_layouts maps (animation, frame) to the frame's rect on the strip</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>                <span class="n">frame_rect</span> <span class="o">=</span> <span class="n">film_strips</span><span class="p">[</span><span class="n">animation</span><span class="p">]</span><span class="o">.</span><span class="n">frame_layouts</span><span class="p">[</span><span class="n">animation</span><span class="p">,</span> <span class="n">frame</span><span class="p">]</span>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>                <span class="n">visual_manager</span><span class="o">.</span><span class="n">update_controller_position</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">frame_rect</span><span class="o">.</span><span class="n">midtop</span><span class="p">)</span>
+</span></code></pre></div>
 <h2 id="advanced-features">Advanced Features<a class="headerlink" href="#advanced-features" title="Permanent link">#</a></h2>
 <h3 id="state-cloning">State Cloning<a class="headerlink" href="#state-cloning" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Clone controller state to another controller</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">source_controller</span> <span class="o">=</span> <span class="n">controller_selections</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">target_controller</span> <span class="o">=</span> <span class="n">controller_selections</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">source_controller</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation_A"</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">source_controller</span><span class="o">.</span><span class="n">clone_state_to</span><span class="p">(</span><span class="n">target_controller</span><span class="p">)</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="c1"># Target controller now has same state</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="n">animation</span><span class="p">,</span> <span class="n">frame</span> <span class="o">=</span> <span class="n">target_controller</span><span class="o">.</span><span class="n">get_selection</span><span class="p">()</span>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="k">assert</span> <span class="n">animation</span> <span class="o">==</span> <span class="s2">"animation_A"</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="k">assert</span> <span class="n">frame</span> <span class="o">==</span> <span class="mi">5</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Clone controller state to another controller</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">source_controller</span> <span class="o">=</span> <span class="n">controller_selections</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">target_controller</span> <span class="o">=</span> <span class="n">controller_selections</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">source_controller</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation_A"</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">source_controller</span><span class="o">.</span><span class="n">clone_state_to</span><span class="p">(</span><span class="n">target_controller</span><span class="p">)</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="c1"># Target controller now has same state</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="n">animation</span><span class="p">,</span> <span class="n">frame</span> <span class="o">=</span> <span class="n">target_controller</span><span class="o">.</span><span class="n">get_selection</span><span class="p">()</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="k">assert</span> <span class="n">animation</span> <span class="o">==</span> <span class="s2">"animation_A"</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="k">assert</span> <span class="n">frame</span> <span class="o">==</span> <span class="mi">5</span>
+</span></code></pre></div>
 <h3 id="navigation-history">Navigation History<a class="headerlink" href="#navigation-history" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Track navigation history</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">controller</span> <span class="o">=</span> <span class="n">controller_selections</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">controller</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation1"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">controller</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation2"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">controller</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation3"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># Get history</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="n">history</span> <span class="o">=</span> <span class="n">controller</span><span class="o">.</span><span class="n">get_navigation_history</span><span class="p">()</span>
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Navigation history: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">history</span><span class="p">)</span><span class="si">}</span><span class="s2"> entries"</span><span class="p">)</span>
-<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">history</span><span class="p">:</span>
-<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  </span><span class="si">{</span><span class="n">entry</span><span class="p">[</span><span class="s1">'animation'</span><span class="p">]</span><span class="si">}</span><span class="s2">, frame </span><span class="si">{</span><span class="n">entry</span><span class="p">[</span><span class="s1">'frame'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Track navigation history</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">controller</span> <span class="o">=</span> <span class="n">controller_selections</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">controller</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation1"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">controller</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation2"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">controller</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="s2">"animation3"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># Get history</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="n">history</span> <span class="o">=</span> <span class="n">controller</span><span class="o">.</span><span class="n">get_navigation_history</span><span class="p">()</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Navigation history: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">history</span><span class="p">)</span><span class="si">}</span><span class="s2"> entries"</span><span class="p">)</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">history</span><span class="p">:</span>
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  </span><span class="si">{</span><span class="n">entry</span><span class="p">[</span><span class="s1">'animation'</span><span class="p">]</span><span class="si">}</span><span class="s2">, frame </span><span class="si">{</span><span class="n">entry</span><span class="p">[</span><span class="s1">'frame'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span></code></pre></div>
 <h3 id="performance-optimization">Performance Optimization<a class="headerlink" href="#performance-optimization" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Clean up inactive controllers</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">manager</span><span class="o">.</span><span class="n">cleanup_inactive_controllers</span><span class="p">()</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Optimize visual positioning</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">visual_manager</span><span class="o">.</span><span class="n">optimize_positioning</span><span class="p">()</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># Clear all indicators</span>
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="n">visual_manager</span><span class="o">.</span><span class="n">clear_all_indicators</span><span class="p">()</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Clean up inactive controllers</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">manager</span><span class="o">.</span><span class="n">cleanup_inactive_controllers</span><span class="p">()</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Optimize visual positioning</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">visual_manager</span><span class="o">.</span><span class="n">optimize_positioning</span><span class="p">()</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># Clear all indicators</span>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="n">visual_manager</span><span class="o">.</span><span class="n">clear_all_indicators</span><span class="p">()</span>
+</span></code></pre></div>
 <h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">#</a></h2>
 <h3 id="invalid-operations">Invalid Operations<a class="headerlink" href="#invalid-operations" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Handle invalid controller IDs gracefully</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">manager</span><span class="o">.</span><span class="n">is_controller_active</span><span class="p">(</span><span class="mi">999</span><span class="p">):</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"Controller 999 not found"</span><span class="p">)</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="c1"># Handle missing controller selections</span>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="k">if</span> <span class="n">controller_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="p">:</span>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Controller </span><span class="si">{</span><span class="n">controller_id</span><span class="si">}</span><span class="s2"> not initialized"</span><span class="p">)</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Handle invalid controller IDs gracefully</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">manager</span><span class="o">.</span><span class="n">is_controller_active</span><span class="p">(</span><span class="mi">999</span><span class="p">):</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"Controller 999 not found"</span><span class="p">)</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="c1"># Handle missing controller selections</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="k">if</span> <span class="n">controller_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="p">:</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Controller </span><span class="si">{</span><span class="n">controller_id</span><span class="si">}</span><span class="s2"> not initialized"</span><span class="p">)</span>
+</span></code></pre></div>
 <h3 id="system-resilience">System Resilience<a class="headerlink" href="#system-resilience" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># System handles rapid controller switching</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="k">for</span> <span class="n">cycle</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1000</span><span class="p">):</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">):</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>        <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="p">:</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>            <span class="n">controller_selections</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="sa">f</span><span class="s2">"animation_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">cycle</span> <span class="o">%</span> <span class="mi">50</span><span class="p">)</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="c1"># System handles controller disconnection/reconnection</span>
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">):</span>
-<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>    <span class="n">manager</span><span class="o">.</span><span class="n">_handle_controller_connect</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>    <span class="c1"># ... use controller ...</span>
-<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>    <span class="n">manager</span><span class="o">.</span><span class="n">_handle_controller_disconnect</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># System handles rapid controller switching</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="k">for</span> <span class="n">cycle</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1000</span><span class="p">):</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">):</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>        <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="p">:</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>            <span class="n">controller_selections</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_selection</span><span class="p">(</span><span class="sa">f</span><span class="s2">"animation_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">cycle</span> <span class="o">%</span> <span class="mi">50</span><span class="p">)</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="c1"># System handles controller disconnection/reconnection</span>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">):</span>
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>    <span class="n">manager</span><span class="o">.</span><span class="n">_handle_controller_connect</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>    <span class="c1"># ... use controller ...</span>
+</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>    <span class="n">manager</span><span class="o">.</span><span class="n">_handle_controller_disconnect</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+</span></code></pre></div>
 <h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">#</a></h2>
 <h3 id="1-controller-lifecycle-management">1. Controller Lifecycle Management<a class="headerlink" href="#1-controller-lifecycle-management" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">setup_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">):</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">    </span><span class="sd">"""Properly set up a new controller."""</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="n">controller_id</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">assign_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">)</span>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>        <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">ControllerSelection</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">instance_id</span><span class="p">)</span>
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>        <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">activate</span><span class="p">()</span>
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>        <span class="n">manager</span><span class="o">.</span><span class="n">activate_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">)</span>
-<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>        <span class="k">return</span> <span class="n">controller_id</span>
-<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    <span class="k">return</span> <span class="kc">None</span>
-<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>
-<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">cleanup_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">):</span>
-<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="w">    </span><span class="sd">"""Properly clean up a controller."""</span>
-<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>    <span class="k">if</span> <span class="n">instance_id</span> <span class="ow">in</span> <span class="n">manager</span><span class="o">.</span><span class="n">assigned_controllers</span><span class="p">:</span>
-<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>        <span class="n">controller_id</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">assigned_controllers</span><span class="p">[</span><span class="n">instance_id</span><span class="p">]</span>
-<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>        <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="p">:</span>
-<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>            <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">deactivate</span><span class="p">()</span>
-<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a>            <span class="k">del</span> <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">setup_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">):</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">    </span><span class="sd">"""Properly set up a new controller."""</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="n">controller_id</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">assign_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">)</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>        <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">ControllerSelection</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">instance_id</span><span class="p">)</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>        <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">activate</span><span class="p">()</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>        <span class="n">manager</span><span class="o">.</span><span class="n">activate_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">)</span>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>        <span class="k">return</span> <span class="n">controller_id</span>
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    <span class="k">return</span> <span class="kc">None</span>
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>
+</span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">cleanup_controller</span><span class="p">(</span><span class="n">instance_id</span><span class="p">):</span>
+</span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="w">    </span><span class="sd">"""Properly clean up a controller."""</span>
+</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>    <span class="k">if</span> <span class="n">instance_id</span> <span class="ow">in</span> <span class="n">manager</span><span class="o">.</span><span class="n">assigned_controllers</span><span class="p">:</span>
+</span><span id="__span-14-14"><a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>        <span class="n">controller_id</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">assigned_controllers</span><span class="p">[</span><span class="n">instance_id</span><span class="p">]</span>
+</span><span id="__span-14-15"><a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>        <span class="k">if</span> <span class="n">controller_id</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="p">:</span>
+</span><span id="__span-14-16"><a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>            <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span><span class="o">.</span><span class="n">deactivate</span><span class="p">()</span>
+</span><span id="__span-14-17"><a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a>            <span class="k">del</span> <span class="n">controller_selections</span><span class="p">[</span><span class="n">controller_id</span><span class="p">]</span>
+</span></code></pre></div>
 <h3 id="2-visual-indicator-management">2. Visual Indicator Management<a class="headerlink" href="#2-visual-indicator-management" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_controller_visuals</span><span class="p">():</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">    </span><span class="sd">"""Update all controller visual indicators."""</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    <span class="k">for</span> <span class="n">controller_id</span><span class="p">,</span> <span class="n">selection</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>        <span class="k">if</span> <span class="n">selection</span><span class="o">.</span><span class="n">is_active</span><span class="p">():</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>            <span class="n">animation</span><span class="p">,</span> <span class="n">frame</span> <span class="o">=</span> <span class="n">selection</span><span class="o">.</span><span class="n">get_selection</span><span class="p">()</span>
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>            <span class="n">position</span> <span class="o">=</span> <span class="n">get_frame_position</span><span class="p">(</span><span class="n">animation</span><span class="p">,</span> <span class="n">frame</span><span class="p">)</span>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>            <span class="n">visual_manager</span><span class="o">.</span><span class="n">update_controller_position</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">position</span><span class="p">)</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_controller_visuals</span><span class="p">():</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">    </span><span class="sd">"""Update all controller visual indicators."""</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    <span class="k">for</span> <span class="n">controller_id</span><span class="p">,</span> <span class="n">selection</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>        <span class="k">if</span> <span class="n">selection</span><span class="o">.</span><span class="n">is_active</span><span class="p">():</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>            <span class="n">animation</span><span class="p">,</span> <span class="n">frame</span> <span class="o">=</span> <span class="n">selection</span><span class="o">.</span><span class="n">get_selection</span><span class="p">()</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>            <span class="n">position</span> <span class="o">=</span> <span class="n">get_frame_position</span><span class="p">(</span><span class="n">animation</span><span class="p">,</span> <span class="n">frame</span><span class="p">)</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>            <span class="n">visual_manager</span><span class="o">.</span><span class="n">update_controller_position</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">position</span><span class="p">)</span>
+</span></code></pre></div>
 <h3 id="3-state-synchronization">3. State Synchronization<a class="headerlink" href="#3-state-synchronization" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">sync_controller_states</span><span class="p">():</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">    </span><span class="sd">"""Synchronize controller states with UI."""</span>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    <span class="k">for</span> <span class="n">controller_id</span><span class="p">,</span> <span class="n">selection</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>        <span class="k">if</span> <span class="n">selection</span><span class="o">.</span><span class="n">is_active</span><span class="p">():</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>            <span class="n">animation</span><span class="p">,</span> <span class="n">frame</span> <span class="o">=</span> <span class="n">selection</span><span class="o">.</span><span class="n">get_selection</span><span class="p">()</span>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>            <span class="c1"># Update UI elements</span>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>            <span class="n">update_film_strip_selection</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">animation</span><span class="p">,</span> <span class="n">frame</span><span class="p">)</span>
-<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>            <span class="n">update_visual_indicator</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">animation</span><span class="p">,</span> <span class="n">frame</span><span class="p">)</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">sync_controller_states</span><span class="p">():</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">    </span><span class="sd">"""Synchronize controller states with UI."""</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    <span class="k">for</span> <span class="n">controller_id</span><span class="p">,</span> <span class="n">selection</span> <span class="ow">in</span> <span class="n">controller_selections</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>        <span class="k">if</span> <span class="n">selection</span><span class="o">.</span><span class="n">is_active</span><span class="p">():</span>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>            <span class="n">animation</span><span class="p">,</span> <span class="n">frame</span> <span class="o">=</span> <span class="n">selection</span><span class="o">.</span><span class="n">get_selection</span><span class="p">()</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>            <span class="c1"># Update UI elements</span>
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>            <span class="n">update_film_strip_selection</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">animation</span><span class="p">,</span> <span class="n">frame</span><span class="p">)</span>
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>            <span class="n">update_visual_indicator</span><span class="p">(</span><span class="n">controller_id</span><span class="p">,</span> <span class="n">animation</span><span class="p">,</span> <span class="n">frame</span><span class="p">)</span>
+</span></code></pre></div>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">#</a></h2>
 <h3 id="common-issues">Common Issues<a class="headerlink" href="#common-issues" title="Permanent link">#</a></h3>
 <ol>
@@ -3694,15 +3752,15 @@ version of the film strip navigation:</p>
 <li>Check navigation history: <code>selection.get_navigation_history()</code></li>
 </ol>
 <h3 id="debug-information">Debug Information<a class="headerlink" href="#debug-information" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Get system status</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Active controllers: </span><span class="si">{</span><span class="n">manager</span><span class="o">.</span><span class="n">get_active_controllers</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Visual indicators: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">visual_manager</span><span class="o">.</span><span class="n">indicators</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Collision summary: </span><span class="si">{</span><span class="n">visual_manager</span><span class="o">.</span><span class="n">get_collision_summary</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="c1"># Get controller details</span>
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="k">for</span> <span class="n">instance_id</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="n">manager</span><span class="o">.</span><span class="n">controllers</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Controller </span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">controller_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">, color </span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">color</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Get system status</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Active controllers: </span><span class="si">{</span><span class="n">manager</span><span class="o">.</span><span class="n">get_active_controllers</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Visual indicators: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">visual_manager</span><span class="o">.</span><span class="n">indicators</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Collision summary: </span><span class="si">{</span><span class="n">visual_manager</span><span class="o">.</span><span class="n">get_collision_summary</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="c1"># Get controller details</span>
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="k">for</span> <span class="n">instance_id</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="n">manager</span><span class="o">.</span><span class="n">controllers</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Controller </span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">controller_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">, color </span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">color</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span></code></pre></div>
 <h2 id="future-extensions">Future Extensions<a class="headerlink" href="#future-extensions" title="Permanent link">#</a></h2>
 <p>The multi-controller system provides a foundation for:</p>
 <ol>
@@ -3711,7 +3769,7 @@ version of the film strip navigation:</p>
 <li><strong>Session Management</strong>: Save/load controller configurations</li>
 <li><strong>Permission Systems</strong>: Master/slave controller relationships</li>
 </ol>
-<h2 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">#</a></h2>
+<h2 id="api-reference"><abbr title="Application programming interface">API</abbr> Reference<a class="headerlink" href="#api-reference" title="Permanent link">#</a></h2>
 <h3 id="multicontrollermanager">MultiControllerManager<a class="headerlink" href="#multicontrollermanager" title="Permanent link">#</a></h3>
 <ul>
 <li><code>scan_for_controllers()</code> - Scan for connected controllers (at most once per <code>scan_interval</code>, 1 s) and return their instance IDs</li>
@@ -3749,6 +3807,27 @@ version of the film strip navigation:</p>
 
 
 
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 12, 2026 00:20:18 UTC">November 12, 2026</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
 
 
 
@@ -3773,6 +3852,46 @@ version of the film strip navigation:</p>
       </main>
       
         <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../architecture/sound/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Sound">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Sound
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../quality/complexity/" class="md-footer__link md-footer__link--next" aria-label="Next: Code Complexity">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Code Complexity
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
   
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
@@ -3801,7 +3920,7 @@ version of the film strip navigation:</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.tabs.link", "navigation.expand", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "toc.follow", "toc.integrate"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.expand", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../assets/javascripts/bundle.c21346df.min.js"></script>

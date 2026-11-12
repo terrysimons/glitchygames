@@ -31,6 +31,9 @@
     
       <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
       
 
 
@@ -65,7 +68,14 @@
   </head>
   
   
-    <body dir="ltr">
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -117,6 +127,32 @@
       </div>
     </div>
     
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
     
       <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
     
@@ -141,11 +177,18 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
         <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
       
     </form>
     <div class="md-search__output">
@@ -2930,14 +2973,19 @@
 
 
   
+    <a href="https://github.com/terrysimons/glitchygames/edit/main/docs/requirements.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
   
 
 
 <h1 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">#</a></h1>
 <p>A computer meets GlitchyGames' minimum for a game when that game's typical frame takes less than
-16.7 ms of work, the budget for the engine's default 60 FPS. Pick a target and a measure below, and
+16.7 ms of work, the budget for the engine's default 60 <abbr title="Frames per second">FPS</abbr>. Pick a target and a measure below, and
 a platform from the tabs: every verdict and color follows your choice. Three machines have been
-measured so far.</p>
+measured so far: a Raspberry Pi 4, a Raspberry Pi 5 and an Apple M4 Max.</p>
 <div class="admonition note">
 <p class="admonition-title">Provisional</p>
 <p>These numbers were measured from November 5 to 9, 2026. They will change once the in-flight
@@ -2956,9 +3004,9 @@ speedups. Then every machine gets re-measured and this page updated
 </thead>
 <tbody>
 <tr>
-<td>Each game's frame work, in the replay benchmark</td>
-<td>Under the frame budget: 16.7 ms at 60 FPS, 33.3 ms at 30</td>
-<td>Under 60% of it (10 ms at 60 FPS), leaving the rest to draw the frame on screen</td>
+<td>Each game's frame work in the replay benchmark (its typical <abbr title="The 99th percentile: 1% of the frames took longer">p99</abbr>, unless you pick another measure below)</td>
+<td>Under the frame budget: 16.7 ms at 60 <abbr title="Frames per second">FPS</abbr>, 33.3 ms at 30</td>
+<td>Under 60% of it (10 ms at 60 <abbr title="Frames per second">FPS</abbr>), leaving the rest to draw the frame on screen</td>
 </tr>
 <tr>
 <td>Operating system</td>
@@ -2977,8 +3025,8 @@ speedups. Then every machine gets re-measured and this page updated
 </tr>
 </tbody>
 </table>
-<p>The 60% recommended line is a proposal. The benchmark doesn't time drawing to the screen, so the
-line leaves room for it. Windows passes the test suite in CI, but no Windows machine has been
+<p>The 60% recommended line (10 ms at 60 <abbr title="Frames per second">FPS</abbr>) is a proposal. The benchmark doesn't time drawing to the screen, so the
+line leaves room for it. Windows passes the test suite in <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr>, but no Windows machine has been
 measured.</p>
 <h2 id="measured-platforms">Measured platforms<a class="headerlink" href="#measured-platforms" title="Permanent link">#</a></h2>
 <div class="requirements-explorer" data-source="../data/requirements.json">
@@ -2987,16 +3035,16 @@ measured.</p>
 <p>Loading the measurements…</p>
 </div>
 </div>
-<p>The FPS column is the rate a game would run at if every frame took the measure you picked
-(1000 ÷ ms), colored from red at 15 FPS to green at 60 FPS and above; the black line on the scale
+<p>The <abbr title="Frames per second">FPS</abbr> column is the rate a game would run at if every frame took the measure you picked
+(1000 ÷ ms), colored from red at 15 <abbr title="Frames per second">FPS</abbr> to green at 60 <abbr title="Frames per second">FPS</abbr> and above; the line on the scale
 marks the target. The ranges are the lowest and highest across a machine's runs.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Raspberry Pi 4</label><label for="__tabbed_1_2">Raspberry Pi 5</label><label for="__tabbed_1_3">Apple M4 Max</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<p>The Pi 4 has no added cooling and boots from an SD card. At 60 FPS, Brave Adventurer is too
-slow on it; it fits a 30 FPS target. A one-off CircleCI job (build 2857) measured a 30.1 ms
-flip per frame on SDL's <code>wayland</code> driver at 2560x1440: on a screen that size, presenting alone
-takes more than the 60 FPS budget.</p>
+<p>The Pi 4 has no added cooling and boots from an SD card. At 60 <abbr title="Frames per second">FPS</abbr>, Brave Adventurer is too
+slow on it; it fits a 30 <abbr title="Frames per second">FPS</abbr> target. A one-off CircleCI job (build 2857) measured a 30.1 ms
+flip per frame on <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s <code>wayland</code> driver at 2560x1440: on a screen that size, presenting alone
+takes more than the 60 <abbr title="Frames per second">FPS</abbr> budget.</p>
 <p><div class="requirements-platform" data-platform="raspberry-pi-4"></div></p>
 </div>
 <div class="tabbed-block">
@@ -3006,30 +3054,41 @@ ranges are thin. Drawing to a real screen hasn't been measured on it.</p>
 </div>
 <div class="tabbed-block">
 <p>The highest p99s (up to 20.2 ms) come from a few runs, most likely ones measured while the Mac
-was busy with other work. The typical run is ten times faster: pick "Slowest run's p99" to see
+was busy with other work. The typical run is ten times faster: pick "Slowest run's <abbr title="The 99th percentile: 1% of the frames took longer">p99</abbr>" to see
 what those runs alone would say.</p>
 <p><div class="requirements-platform" data-platform="apple-m4-max"></div></p>
 </div>
 </div>
 </div>
 <h2 id="how-this-was-measured">How this was measured<a class="headerlink" href="#how-this-was-measured" title="Permanent link">#</a></h2>
-<ul>
-<li><strong>Source:</strong> the replay ledger, <code>quality/replay-ledger/</code> (<a href="../quality/performance/">Replay Performance</a>),
-  summarized in <code>docs/data/requirements.json</code>, which this page reads. Each ledger row is one
-  measured run of one golden replay or bundled demo. The pre-push hook measures both Pis for each
-  new code tree.</li>
-<li><strong>What a number is:</strong> each frame's processing time while the recording replays headless,
-  unpaced, on SDL's dummy driver. It is the game's own work, without drawing to a real screen.</li>
-<li><strong>Typical:</strong> the median across a machine's runs. Runs are from November 5 to 9, 2026.</li>
-</ul>
-<p>What the numbers leave out:</p>
-<ul>
-<li><strong>Drawing to a real screen.</strong> Real-driver timing is planned, not yet measured.</li>
-<li><strong>Memory.</strong> Not recorded in the ledger.</li>
-<li><strong>Thermals.</strong> The ledger doesn't record temperature on Linux. The Pi 4, with no added cooling,
-  varies about 12% across runs.</li>
-<li><strong>Other machines.</strong> No Windows PC, x86 Linux machine or older Mac has been measured.</li>
-</ul>
+<dl>
+<dt>Source</dt>
+<dd>The replay ledger, <code>quality/replay-ledger/</code> (<a href="../quality/performance/">Replay Performance</a>),
+summarized in <code>docs/data/requirements.json</code>, which this page reads. Each ledger row is one
+measured run of one golden replay or bundled demo. The pre-push hook measures both Pis for
+each new code tree.</dd>
+<dt>What a number is</dt>
+<dd>Each frame's processing time while the recording replays headless, unpaced, on <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s dummy
+driver. It is the game's own work, without drawing to a real screen.</dd>
+<dt>Typical</dt>
+<dd>The median across a machine's runs. Typical <abbr title="The 99th percentile: 1% of the frames took longer">p99</abbr>, the measure picked first, is the median of
+each run's 99<sup>th</sup>-percentile frame. Runs are from November 5 to 9, 2026.</dd>
+</dl>
+<div class="admonition warning">
+<p class="admonition-title">What the numbers leave out</p>
+<dl>
+<dt>Drawing to a real screen</dt>
+<dd>A one-off CircleCI job on the Pi 4 (build 2857) measured a 30.1 ms flip per frame on
+<abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s <code>wayland</code> driver at 2560x1440. Real-driver timing is planned, not yet measured.</dd>
+<dt>Memory</dt>
+<dd>Not recorded in the ledger.</dd>
+<dt>Thermals</dt>
+<dd>The ledger doesn't record temperature on Linux. The Pi 4, with no added cooling, varies
+about 12% across runs.</dd>
+<dt>Other machines</dt>
+<dd>No Windows PC, x86 Linux machine or older Mac has been measured.</dd>
+</dl>
+</div>
 
 
 
@@ -3037,6 +3096,27 @@ what those runs alone would say.</p>
 
 
 
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 12, 2026 00:20:18 UTC">November 12, 2026</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
 
 
 
@@ -3061,6 +3141,46 @@ what those runs alone would say.</p>
       </main>
       
         <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href=".." class="md-footer__link md-footer__link--prev" aria-label="Previous: GlitchyGames Getting Started">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                GlitchyGames Getting Started
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../architecture/bitmappy/" class="md-footer__link md-footer__link--next" aria-label="Next: Bitmappy Architecture">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Bitmappy Architecture
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
   
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
@@ -3089,7 +3209,7 @@ what those runs alone would say.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.tabs.link", "navigation.expand", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "toc.follow", "toc.integrate"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.expand", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../assets/javascripts/bundle.c21346df.min.js"></script>

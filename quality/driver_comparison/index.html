@@ -31,6 +31,9 @@
     
       <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
       
 
 
@@ -65,7 +68,14 @@
   </head>
   
   
-    <body dir="ltr">
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -117,6 +127,32 @@
       </div>
     </div>
     
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
     
       <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
     
@@ -141,11 +177,18 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
         <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
       
     </form>
     <div class="md-search__output">
@@ -3032,18 +3075,23 @@
 
 
   
+    <a href="https://github.com/terrysimons/glitchygames/edit/main/docs/quality/driver_comparison.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
   
 
 
 <h1 id="driver-comparison">Driver Comparison<a class="headerlink" href="#driver-comparison" title="Permanent link">#</a></h1>
-<p>The test suite draws in software on SDL's <code>dummy</code> video driver, which has no window. The
+<p>The test suite draws in software on <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s <code>dummy</code> video driver, which has no window. The
 platform's own driver (macOS <code>cocoa</code>, Windows <code>windows</code>, Linux <code>wayland</code> or <code>x11</code>) draws through
 the same code, and the engine presents opaque frames, so every test should show the same pixels
 on both. When they differ, the engine depends on the driver: on macOS a display with per-pixel
 alpha once showed black frames (BUGS.md #142) and a black box around the player during
 Clockwork Keep's elevator ride (BUGS.md #189), neither visible on <code>dummy</code>.</p>
 <h2 id="every-local-run-compares">Every local run compares<a class="headerlink" href="#every-local-run-compares" title="Permanent link">#</a></h2>
-<p>Outside CI, <code>uv run pytest</code> (and <code>nox -s test</code>) runs the suite twice at once:</p>
+<p>Outside <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr>, <code>uv run pytest</code> (and <code>nox -s test</code>) runs the suite twice at once:</p>
 <ol>
 <li>on <code>dummy</code>, in the pytest process and its xdist workers, with coverage and the 99% gate as
    always;</li>
@@ -3064,7 +3112,7 @@ failure in the native run, fails the run; the differing tests are re-run on both
 the differing frames as PNG files with a difference image (the baseline dimmed to grey, differing
 pixels magenta) under <code>test-results/driver-comparison/pytest/</code>. The terminal summary names every
 file and the native run's log.</p>
-<p>The comparison is off, and the summary says why, in CI (<code>CI=true</code>), with <code>--dummy-only</code> (fast
+<p>The comparison is off, and the summary says why, in <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> (<code>CI=true</code>), with <code>--dummy-only</code> (fast
 iteration), when <code>SDL_VIDEODRIVER</code> or <code>SDL_AUDIODRIVER</code> is set (that driver runs alone), and on a
 Linux machine without a display.</p>
 <h2 id="tests-whose-frames-vary">Tests whose frames vary<a class="headerlink" href="#tests-whose-frames-vary" title="Permanent link">#</a></h2>
@@ -3088,7 +3136,7 @@ N-way matrix (<code>scripts/driver_configurations.py</code> lists them and finds
 <tbody>
 <tr>
 <td><code>dummy</code></td>
-<td>SDL's windowless driver, run twice (a test whose frames differ between those runs is nondeterministic: it should be marked)</td>
+<td><abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s windowless driver, run twice (a test whose frames differ between those runs is nondeterministic: it should be marked)</td>
 <td>nothing; always the baseline</td>
 </tr>
 <tr>
@@ -3098,7 +3146,7 @@ N-way matrix (<code>scripts/driver_configurations.py</code> lists them and finds
 </tr>
 <tr>
 <td><code>x11-macos</code></td>
-<td>x11 on this Mac, drawing on XQuartz, through SDL built with x11</td>
+<td>x11 on this Mac, drawing on XQuartz, through <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> built with x11</td>
 <td>macOS, XQuartz, a C compiler and make</td>
 </tr>
 <tr>
@@ -3130,15 +3178,15 @@ fails or is interrupted never replaces the last complete one: while a comparison
 complete one waits in <code>test-results/driver-comparison/nox-previous/</code>, and it goes back to
 <code>test-results/driver-comparison/nox/</code> when the comparison fails; the failed comparison's runs
 are kept in <code>test-results/driver-comparison/nox-failed/</code>.</p>
-<h3 id="x11-on-macos-sdl-built-with-x11">x11 on macOS: SDL built with x11<a class="headerlink" href="#x11-on-macos-sdl-built-with-x11" title="Permanent link">#</a></h3>
-<p>pygame-ce's macOS wheel bundles an SDL without x11. SDL's dynamic API loads another SDL at run
-time instead: with <code>SDL_DYNAMIC_API=/path/libSDL2-2.0.0.dylib</code> the wheel's SDL fills its jump
-table from that library, and every SDL call (pygame's, SDL_image's, SDL_mixer's, SDL_ttf's) runs
+<h3 id="x11-on-macos-sdl-built-with-x11">x11 on macOS: <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> built with x11<a class="headerlink" href="#x11-on-macos-sdl-built-with-x11" title="Permanent link">#</a></h3>
+<p>pygame-ce's macOS wheel bundles an <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> without x11. <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s dynamic <abbr title="Application programming interface">API</abbr> loads another <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> at run
+time instead: with <code>SDL_DYNAMIC_API=/path/libSDL2-2.0.0.dylib</code> the wheel's <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> fills its jump
+table from that library, and every <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> call (pygame's, SDL_image's, SDL_mixer's, SDL_ttf's) runs
 it. <code>nox -s build-sdl-x11</code> (run by <code>compare-drivers</code> when needed) builds the very version the
 wheel reports (<code>pygame.get_sdl_version()</code>) from its GitHub release tarball, its SHA-256 pinned
-per version in <code>scripts/build_sdl_x11.py</code>, with SDL's autotools build (SDL 2's CMake build never
+per version in <code>scripts/build_sdl_x11.py</code>, with <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s autotools build (<abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> 2's CMake build never
 enables x11 on Apple platforms) and x11 against XQuartz's <code>/opt/X11</code>. Cocoa, Metal, Vulkan, MFi,
-OpenGL and OpenGL ES are left out: the wheel's SDL is loaded too, and two copies of SDL's
+OpenGL and OpenGL ES are left out: the wheel's <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> is loaded too, and two copies of <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s
 Objective-C classes in one process make the runtime warn and risk crashes; OpenGL crashed workers
 on XQuartz (see the caveats below). The build lives in
 <code>~/Library/Caches/glitchygames/sdl-x11/&lt;version&gt;/</code> (never a system path) and is reused while its
@@ -3146,40 +3194,47 @@ on XQuartz (see the caveats below). The build lives in
 XQuartz through it. The runs use <code>SDL_VIDEODRIVER=x11</code>, dummy audio and XQuartz's <code>DISPLAY</code>.</p>
 <h3 id="x11-caveats">x11 caveats<a class="headerlink" href="#x11-caveats" title="Permanent link">#</a></h3>
 <p>Both x11 configurations draw on XQuartz, a real X server with a window manager, so some tests
-see what a real desktop does and the dummy driver never shows (measured 2026-10-23, SDL 2.32.10,
+see what a real desktop does and the dummy driver never shows (measured 2026-10-23, <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> 2.32.10,
 XQuartz 2.8):</p>
-<ul>
-<li><strong>Slow windows</strong>: creating a window on XQuartz takes about 0.75 s, so <code>x11-macos</code> ran the
-  suite in 872 s (dummy 46 s, cocoa 110 s) and <code>x11-linux</code>, over TCP, in 552 s.</li>
-<li><strong>Smallest window</strong>: XQuartz's window manager widens a window narrower than 72 pixels (a
-  64x48 window becomes 72x48), so pygame warns "Requested window was forcibly resized by the
-  OS" (an error in this suite). Tests open windows at least 96 pixels wide.</li>
-<li><strong>Late resizes</strong>: resizing an existing window is asynchronous on x11. SDL waits 100 ms for
-  the window manager, then keeps the old size (pygame warns as above) and the new size arrives
-  on a later pump. On a loaded machine every resize came late (over TCP from the container, 8
-  processes resizing at once: 0.8-3.4 s), so a window changed from 800x600 to 800x480 reported
-  the old size. The engine and the tests set the display mode through
-  <code>glitchygames.display_mode.set_display_mode</code>, which pumps until the size changes and warns
-  only if the window ends at another size than the requested one.</li>
-<li><strong>Real window events</strong>: the X server sends focus, exposure and move events for the real
-  window; a recording made on x11 holds them, and tests that assume only the dummy driver's
-  window events see them. Its raw messages (pygame's <code>SYSWMEVENT</code>) stay blocked unless a game
-  opts in (<code>NATIVE_WINDOW_MESSAGES</code>); before 2026-10-23 the engine's allow-all enabled them,
-  filling queues, recordings and instant-replay journals.</li>
-<li><strong>No OpenGL</strong> (<code>x11-macos</code>): with OpenGL, SDL on macOS marks every window OpenGL, loading
-  XQuartz's libGL and Apple's Xplugin into the process, and draws window surfaces through an
-  OpenGL texture. Under load that ended pytest workers without a traceback (<code>GLXBadContext</code> in
-  <code>X_GLXMakeCurrent</code> through Xlib's default error handler; a crash in SkyLight on Xplugin's event
-  thread). The build leaves OpenGL out (<code>--disable-video-opengl</code>), so window surfaces are drawn
-  in software, as in the container, which has no libGL.</li>
-<li><strong>Root in the container</strong> (<code>x11-linux</code>): the container runs as root, who can read a file
-  without read permission, so <code>tests/templates/test_template_errors.py</code>'s permission test is
-  skipped there (an outcome difference, not a failure). It runs with an init process (<code>docker
-  run --init</code>) that reaps orphaned processes, as on a real system.</li>
-<li><strong>Pixels</strong>: no passing test drew different pixels on x11 than on dummy or cocoa; every x11
-  difference was a window size or a test's outcome (the two x11 configurations' pixels differed
-  only in the final frames of tests that had already failed on the widened window).</li>
-</ul>
+<dl>
+<dt>Slow windows</dt>
+<dd>Creating a window on XQuartz takes about 0.75 s, so <code>x11-macos</code> ran the
+suite in 872 s (dummy 46 s, cocoa 110 s) and <code>x11-linux</code>, over TCP, in 552 s.</dd>
+<dt>Smallest window</dt>
+<dd>XQuartz's window manager widens a window narrower than 72 pixels (a
+64x48 window becomes 72x48), so pygame warns "Requested window was forcibly resized by the
+OS" (an error in this suite). Tests open windows at least 96 pixels wide.</dd>
+<dt>Late resizes</dt>
+<dd>Resizing an existing window is asynchronous on x11. <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> waits 100 ms for
+the window manager, then keeps the old size (pygame warns as above) and the new size arrives
+on a later pump. On a loaded machine every resize came late (over TCP from the container, 8
+processes resizing at once: 0.8-3.4 s), so a window changed from 800x600 to 800x480 reported
+the old size. The engine and the tests set the display mode through
+<code>glitchygames.display_mode.set_display_mode</code>, which pumps until the size changes and warns
+only if the window ends at another size than the requested one.</dd>
+<dt>Real window events</dt>
+<dd>The X server sends focus, exposure and move events for the real
+window; a recording made on x11 holds them, and tests that assume only the dummy driver's
+window events see them. Its raw messages (pygame's <code>SYSWMEVENT</code>) stay blocked unless a game
+opts in (<code>NATIVE_WINDOW_MESSAGES</code>); before 2026-10-23 the engine's allow-all enabled them,
+filling queues, recordings and instant-replay journals.</dd>
+<dt>No OpenGL (<code>x11-macos</code>)</dt>
+<dd>With OpenGL, <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> on macOS marks every window OpenGL, loading
+XQuartz's libGL and Apple's Xplugin into the process, and draws window surfaces through an
+OpenGL texture. Under load that ended pytest workers without a traceback (<code>GLXBadContext</code> in
+<code>X_GLXMakeCurrent</code> through Xlib's default error handler; a crash in SkyLight on Xplugin's event
+thread). The build leaves OpenGL out (<code>--disable-video-opengl</code>), so window surfaces are drawn
+in software, as in the container, which has no libGL.</dd>
+<dt>Root in the container (<code>x11-linux</code>)</dt>
+<dd>The container runs as root, who can read a file
+without read permission, so <code>tests/templates/test_template_errors.py</code>'s permission test is
+skipped there (an outcome difference, not a failure). It runs with an init process (<code>docker
+run --init</code>) that reaps orphaned processes, as on a real system.</dd>
+<dt>Pixels</dt>
+<dd>No passing test drew different pixels on x11 than on dummy or cocoa; every x11
+difference was a window size or a test's outcome (the two x11 configurations' pixels differed
+only in the final frames of tests that had already failed on the widened window).</dd>
+</dl>
 <h2 id="linux-in-docker-nox-s-test-linux-x11">Linux in Docker: <code>nox -s test-linux-x11</code><a class="headerlink" href="#linux-in-docker-nox-s-test-linux-x11" title="Permanent link">#</a></h2>
 <p>The suite runs on Linux in a container (<code>scripts/linux_x11/Dockerfile</code>) with real X11 windows on
 the Mac's XQuartz (TCP enabled: <code>defaults write org.xquartz.X11 nolisten_tcp -bool false</code>, then
@@ -3192,12 +3247,12 @@ afterwards (<code>pulseaudio --kill</code> stops PulseAudio). The container play
 PulseAudio, or when it will not start, one line says so and the container uses dummy audio.
 <code>compare-drivers</code>' <code>x11-linux</code> runs use dummy audio (frames do not depend on sound); <code>--sound</code>
 plays theirs through PulseAudio too.</p>
-<h2 id="linux-as-ci-runs-it-nox-s-test-linux-ci">Linux as CI runs it: <code>nox -s test-linux-ci</code><a class="headerlink" href="#linux-as-ci-runs-it-nox-s-test-linux-ci" title="Permanent link">#</a></h2>
+<h2 id="linux-as-ci-runs-it-nox-s-test-linux-ci">Linux as <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> runs it: <code>nox -s test-linux-ci</code><a class="headerlink" href="#linux-as-ci-runs-it-nox-s-test-linux-ci" title="Permanent link">#</a></h2>
 <p><code>nox -s test-linux-x11</code> runs the suite on Linux for its drivers; <code>nox -s test-linux-ci</code> runs it
 the way CircleCI's Linux job does, to reproduce that job's failures here. It reads the job
 (<code>build-and-test-linux</code>) from <code>.circleci/config.yml</code>: its image (<code>cimg/python</code> at
 <code>PYTHON_LATEST_VERSION</code>), its resource class's memory and CPUs (<code>small</code>: 2 GB, no swap, and one
-CPU, given to <code>docker run</code> as <code>--memory</code>, <code>--memory-swap</code> and <code>--cpus</code>) and its environment
+<abbr title="Central processing unit">CPU</abbr>, given to <code>docker run</code> as <code>--memory</code>, <code>--memory-swap</code> and <code>--cpus</code>) and its environment
 (<code>PYTEST_WORKERS=0</code>: one serial process; <code>GLITCHYGAMES_TEST_RSS_LIMIT_MB=1600</code>:
 <code>tests/memory_guard.py</code> stops the run past it, naming the test), with <code>CI=true</code> and
 <code>CIRCLECI=true</code>. The container gets what git would commit from this checkout: tracked files and
@@ -3220,6 +3275,27 @@ Apple silicon. Made on macOS; on a Linux host the results are made writable for 
 
 
 
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 12, 2026 00:20:18 UTC">November 12, 2026</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
 
 
 
@@ -3244,6 +3320,46 @@ Apple silicon. Made on macOS; on a Linux host the results are made writable for 
       </main>
       
         <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../performance/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Replay Performance">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Replay Performance
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../upstream_issues/" class="md-footer__link md-footer__link--next" aria-label="Next: Upstream Issues">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Upstream Issues
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
   
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
@@ -3272,7 +3388,7 @@ Apple silicon. Made on macOS; on a Linux host the results are made writable for 
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link", "navigation.expand", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.expand", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>

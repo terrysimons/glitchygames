@@ -31,6 +31,9 @@
     
       <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
       
 
 
@@ -65,7 +68,14 @@
   </head>
   
   
-    <body dir="ltr">
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -117,6 +127,32 @@
       </div>
     </div>
     
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
     
       <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
     
@@ -141,11 +177,18 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
         <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
       
     </form>
     <div class="md-search__output">
@@ -3256,6 +3299,11 @@
 
 
   
+    <a href="https://github.com/terrysimons/glitchygames/edit/main/docs/games/paddleslap.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
   
 
 
@@ -3270,11 +3318,11 @@ input, the save store, and the built-in pause and game-over scenes. It is also t
 oldest regression subject: it has a golden trace, a golden replay and a bundled attract-mode demo.
 This page shows how it is put together, from its scenes down to one frame.</p>
 <h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w">                          </span><span class="c1"># one ball, extra balls spawned by paddle hits</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--balls<span class="w"> </span><span class="m">3</span><span class="w">                </span><span class="c1"># start with three balls</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--ball-spawn-mode<span class="w"> </span>none<span class="w">   </span><span class="c1"># never spawn: a classic one-ball rally</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--random-seed<span class="w"> </span><span class="m">42</span><span class="w">         </span><span class="c1"># the same serves, spawns and colours every run</span>
-</code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w">                          </span><span class="c1"># one ball, extra balls spawned by paddle hits</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--balls<span class="w"> </span><span class="m">3</span><span class="w">                </span><span class="c1"># start with three balls</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--ball-spawn-mode<span class="w"> </span>none<span class="w">   </span><span class="c1"># never spawn: a classic one-ball rally</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--random-seed<span class="w"> </span><span class="m">42</span><span class="w">         </span><span class="c1"># the same serves, spawns and colours every run</span>
+</span></code></pre></div>
 <p>The game adds these options to the engine's own (<code>Game.args()</code>; the engine's options, such as
 <code>--target-fps</code>, <code>--resolution</code> and <code>--input-mode</code>, are in <a href="../../architecture/argument_system/">Argument System</a>):</p>
 <table>
@@ -3304,7 +3352,7 @@ This page shows how it is put together, from its scenes down to one frame.</p>
 </tbody>
 </table>
 <p>The game sets no <code>TARGET_FPS</code> and no <code>MAX_FRAME_SECONDS</code>, so it runs at the engine's default
-60.01 FPS and its logic gets the raw frame time.</p>
+60.01 <abbr title="Frames per second">FPS</abbr> and its logic gets the raw frame time.</p>
 <h3 id="controls">Controls<a class="headerlink" href="#controls" title="Permanent link">#</a></h3>
 <table>
 <thead>
@@ -3441,19 +3489,22 @@ scope the demo runs in); the PaddleSlap box holds the game's own scenes.</p>
     Game --&gt; [*] : Q or Esc
     PauseScene --&gt; [*] : Q or Esc
     GameOver --&gt; [*] : Q, Esc, B or Back</code></pre>
-<ul>
-<li><strong>Pause and game over switch at the end of the frame.</strong> Both set <code>next_scene</code> instead of
-  switching at once, so the scene manager switches after the frame renders. Pausing during event
-  processing would otherwise freeze the previous frame's picture (the comment on <code>Scene.pause()</code>).
-  <code>PauseScene</code> shows <code>previous_scene.screenshot</code>; <code>resume()</code> switches back to the same <code>Game</code>
-  object, so the rally goes on where it was.</li>
-<li><strong>A new game is always a <code>Game</code>.</strong> <code>GameOverScene.resume()</code> restarts the type of the scene
-  manager's <code>previous_scene</code>, which a playback scope can change (BUGS.md #81), so
-  <code>PaddleSlapGameOverScene.resume()</code> names <code>Game</code> explicitly.</li>
-<li><strong>Rebuilding the game-over screen.</strong> <code>PaddleSlapGameOverScene.replay_arguments()</code> returns
-  <code>final_score</code> and a copy of <code>high_scores</code>, so a recording that starts on this screen can rebuild
-  it (scene starts, in <a href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>).</li>
-</ul>
+<dl>
+<dt>Pause and game over switch at the end of the frame</dt>
+<dd>Both set <code>next_scene</code> instead of
+switching at once, so the scene manager switches after the frame renders. Pausing during event
+processing would otherwise freeze the previous frame's picture (the comment on <code>Scene.pause()</code>).
+<code>PauseScene</code> shows <code>previous_scene.screenshot</code>; <code>resume()</code> switches back to the same <code>Game</code>
+object, so the rally goes on where it was.</dd>
+<dt>A new game is always a <code>Game</code></dt>
+<dd><code>GameOverScene.resume()</code> restarts the type of the scene
+manager's <code>previous_scene</code>, which a playback scope can change (BUGS.md #81), so
+<code>PaddleSlapGameOverScene.resume()</code> names <code>Game</code> explicitly.</dd>
+<dt>Rebuilding the game-over screen</dt>
+<dd><code>PaddleSlapGameOverScene.replay_arguments()</code> returns
+<code>final_score</code> and a copy of <code>high_scores</code>, so a recording that starts on this screen can rebuild
+it (scene starts, in <a href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>).</dd>
+</dl>
 <h3 id="the-attract-mode-demo">The attract-mode demo<a class="headerlink" href="#the-attract-mode-demo" title="Permanent link">#</a></h3>
 <p>PaddleSlap has no title screen (a game starts serving at once), so its idle screen is the
 game-over screen. <code>PaddleSlapGameOverScene.dt_tick</code> compares its <code>game_time</code> with
@@ -3629,23 +3680,28 @@ in <code>Game.dt_tick</code>. <code>HorizontalPaddle</code> is not used by Paddl
 </tr>
 </tbody>
 </table>
-<ul>
-<li><strong>The camera never moves.</strong> <code>Game</code> sets no follow target and no <code>camera_target()</code>, so the
-  camera stays at the origin: world and screen coordinates are the same and the balls are drawn
-  exactly where their logic left them (<code>TestWorldBallsInTheFrame</code> in
-  <code>tests/world/test_frame_integration.py</code>). The balls are world sprites anyway, so the engine is
-  the only writer of their <code>rect</code>: game logic reads <code>world_x</code>/<code>world_y</code>, <code>drawn_center()</code> or the
-  collision rect, never <code>rect</code> (which holds where the ball was last drawn).</li>
-<li><strong>Pixel snapping.</strong> The ball's own <code>pixel_snap_mode</code> (default <code>NEAREST_HALF_UP</code>, the scene's
-  default too) rounds its sub-pixel position for drawing and for collision alike.</li>
-<li><strong>Background.</strong> The court is <code>BLACK</code>, named on purpose: a scene that sets no background shows
-  the engine's test pattern.</li>
-<li><strong>Dirty rendering.</strong> All sprites live in one <code>pygame.sprite.LayeredDirty</code> (<code>all_sprites</code>). The
-  ball sets <code>dirty = 2</code> (always redrawn); paddles set <code>dirty = 1</code> every tick.</li>
-<li><strong>Pose.</strong> Neither sprite changes its image with its state (a ball's image changes only when its
-  colour is set), so the pose rule has nothing to order here. Collision resolution, the other half
-  of that rule, runs in <code>dt_tick</code> (below).</li>
-</ul>
+<dl>
+<dt>The camera never moves</dt>
+<dd><code>Game</code> sets no follow target and no <code>camera_target()</code>, so the
+camera stays at the origin: world and screen coordinates are the same and the balls are drawn
+exactly where their logic left them (<code>TestWorldBallsInTheFrame</code> in
+<code>tests/world/test_frame_integration.py</code>). The balls are world sprites anyway, so the engine is
+the only writer of their <code>rect</code>: game logic reads <code>world_x</code>/<code>world_y</code>, <code>drawn_center()</code> or the
+collision rect, never <code>rect</code> (which holds where the ball was last drawn).</dd>
+<dt>Pixel snapping</dt>
+<dd>The ball's own <code>pixel_snap_mode</code> (default <code>NEAREST_HALF_UP</code>, the scene's
+default too) rounds its sub-pixel position for drawing and for collision alike.</dd>
+<dt>Background</dt>
+<dd>The court is <code>BLACK</code>, named on purpose: a scene that sets no background shows
+the engine's test pattern.</dd>
+<dt>Dirty rendering</dt>
+<dd>All sprites live in one <code>pygame.sprite.LayeredDirty</code> (<code>all_sprites</code>). The
+ball sets <code>dirty = 2</code> (always redrawn); paddles set <code>dirty = 1</code> every tick.</dd>
+<dt>Pose</dt>
+<dd>Neither sprite changes its image with its state (a ball's image changes only when its
+colour is set), so the pose rule has nothing to order here. Collision resolution, the other half
+of that rule, runs in <code>dt_tick</code> (below).</dd>
+</dl>
 <h3 id="hitboxes">Hitboxes<a class="headerlink" href="#hitboxes" title="Permanent link">#</a></h3>
 <p>The collision manager has two layers, <code>balls</code> and <code>paddles</code> (the debug overlay's hitbox panel
 draws them). Hitboxes are the default visible-pixel trim (<code>src/glitchygames/collision/bounds.py</code>):</p>
@@ -3779,17 +3835,19 @@ overlapping <code>balls</code>/<code>balls</code> pairs. <code>_on_ball_ball_col
 </tbody>
 </table>
 <p>After the pass, two game rules apply to every pair that collided this frame:</p>
-<ul>
-<li><strong><code>_keep_collided_balls_playable</code></strong>: exact physics can leave a ball almost stopped, almost
-  vertical (it bounces between the walls and never reaches a paddle) or flat (it slides along a
-  wall). The ball's angle from horizontal is moved into its <code>ServeSettings</code> band (15° to 60°) and
-  its speed raised to at least the serve speed, keeping each component's sign (a zero component
-  points away from the partner). This is deliberately not physics and not part of
-  <code>_apply_elastic_collision</code>, whose physics the collision tests check.</li>
-<li><strong><code>_spawn_new_balls_for_ball_collisions</code></strong>: one spawn attempt per pair, if ball-ball hits are a
-  spawn trigger; the speed check uses the pair's faster ball. It runs outside the collision
-  manager's pass, so spawned balls never join it.</li>
-</ul>
+<dl>
+<dt><code>_keep_collided_balls_playable</code></dt>
+<dd>Exact physics can leave a ball almost stopped, almost
+vertical (it bounces between the walls and never reaches a paddle) or flat (it slides along a
+wall). The ball's angle from horizontal is moved into its <code>ServeSettings</code> band (15° to 60°) and
+its speed raised to at least the serve speed, keeping each component's sign (a zero component
+points away from the partner). This is deliberately not physics and not part of
+<code>_apply_elastic_collision</code>, whose physics the collision tests check.</dd>
+<dt><code>_spawn_new_balls_for_ball_collisions</code></dt>
+<dd>One spawn attempt per pair, if ball-ball hits are a
+spawn trigger; the speed check uses the pair's faster ball. It runs outside the collision
+manager's pass, so spawned balls never join it.</dd>
+</dl>
 <h3 id="serves-and-speed-ups">Serves and speed-ups<a class="headerlink" href="#serves-and-speed-ups" title="Permanent link">#</a></h3>
 <table>
 <thead>
@@ -3953,22 +4011,27 @@ the PaddleSlap box is what <code>Game</code>'s handlers and <code>dt_tick</code>
     tick --&gt; paddle
     pause -- yes --&gt; pausecall
     pause -- "not a pause key" --&gt; base</code></pre>
-<ul>
-<li><strong>Movement is frame-driven.</strong> Handlers only update the ActionMaps; the paddles are moved by
-  <code>_process_paddle_input</code> at the top of <code>dt_tick</code>, from the held state.</li>
-<li><strong>Input mode.</strong> The ActionMaps take the engine's <code>--input-mode</code> (default <code>auto</code>: a mapped pad's
-  controller events and any other device's joystick events, each press once) and its
-  <code>--axis-deadzone</code> (<code>ActionMap.from_engine_options</code>). PaddleSlap handles both families, so a pad
-  works in every mode.</li>
-<li><strong>Instance ids, not player slots.</strong> SDL numbers devices in the order they appear, so the first
-  pad connected drives the left paddle; a pad that is unplugged and plugged back in gets a new
-  instance id and no longer matches its binding.</li>
-<li><strong>Key repeat.</strong> PaddleSlap leaves SDL's key repeat off: movement reads held state and pause
-  acts on the release, so nothing needs repeated key-downs (they would only fill event batches
-  and recordings).</li>
-<li><strong>Polling.</strong> PaddleSlap never polls pygame: everything it knows about input comes through
-  events, which recordings hold, so a replay serves the same input.</li>
-</ul>
+<dl>
+<dt>Movement is frame-driven</dt>
+<dd>Handlers only update the ActionMaps; the paddles are moved by
+<code>_process_paddle_input</code> at the top of <code>dt_tick</code>, from the held state.</dd>
+<dt>Input mode</dt>
+<dd>The ActionMaps take the engine's <code>--input-mode</code> (default <code>auto</code>: a mapped pad's
+controller events and any other device's joystick events, each press once) and its
+<code>--axis-deadzone</code> (<code>ActionMap.from_engine_options</code>). PaddleSlap handles both families, so a pad
+works in every mode.</dd>
+<dt>Instance ids, not player slots</dt>
+<dd><abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> numbers devices in the order they appear, so the first
+pad connected drives the left paddle; a pad that is unplugged and plugged back in gets a new
+instance id and no longer matches its binding.</dd>
+<dt>Key repeat</dt>
+<dd>PaddleSlap leaves <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s key repeat off: movement reads held state and pause
+acts on the release, so nothing needs repeated key-downs (they would only fill event batches
+and recordings).</dd>
+<dt>Polling</dt>
+<dd>PaddleSlap never polls pygame: everything it knows about input comes through
+events, which recordings hold, so a replay serves the same input.</dd>
+</dl>
 <h2 id="sound">Sound<a class="headerlink" href="#sound" title="Permanent link">#</a></h2>
 <p>Two sound effects, loaded with <code>glitchygames.game_objects.load_sound</code> from
 <code>src/glitchygames/game_objects/snd_files/</code> at volume 0.25 (<code>pygame.mixer.Sound</code>, not the synthesiser):</p>
@@ -4159,7 +4222,7 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
 </tr>
 <tr>
 <td><code>src/glitchygames/game_objects/sounds.py</code>, <code>snd_files/</code></td>
-<td><code>SFX</code>, <code>load_sound</code>, the two WAV files</td>
+<td><code>SFX</code>, <code>load_sound</code>, the two <abbr title="Waveform Audio File Format">WAV</abbr> files</td>
 </tr>
 <tr>
 <td><code>src/glitchygames/scenes/builtin_scenes/pause_scene.py</code></td>
@@ -4202,6 +4265,27 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
 
 
 
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 12, 2026 00:20:18 UTC">November 12, 2026</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
 
 
 
@@ -4226,6 +4310,46 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
       </main>
       
         <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../../architecture/game_packages/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Games as Their Own Packages">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Games as Their Own Packages
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../brave_adventurer/" class="md-footer__link md-footer__link--next" aria-label="Next: Brave Adventurer Architecture">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Brave Adventurer Architecture
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
   
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
@@ -4254,7 +4378,7 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link", "navigation.expand", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.expand", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>

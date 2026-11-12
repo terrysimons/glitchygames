@@ -31,6 +31,9 @@
     
       <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
       
 
 
@@ -65,7 +68,14 @@
   </head>
   
   
-    <body dir="ltr">
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -117,6 +127,32 @@
       </div>
     </div>
     
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
     
       <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
     
@@ -141,11 +177,18 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
         <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
       
     </form>
     <div class="md-search__output">
@@ -3076,6 +3119,11 @@
 
 
   
+    <a href="https://github.com/terrysimons/glitchygames/edit/main/docs/architecture/bitmappy.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
   
 
 
@@ -3092,10 +3140,10 @@ replay, which names the remedy; <code>--replay-trace OLD --rebaseline NEW --head
 (<a href="../gameplay_replay/">gameplay replay</a>).</p>
 <ul>
 <li><strong>Its code</strong> is <code>src/apps/bitmappy/src/bitmappy/</code>. The engine never imports it, and Bitmappy uses
-  the engine's public API (sprite file-format detection, for one, is the engine's
+  the engine's public <abbr title="Application programming interface">API</abbr> (sprite file-format detection, for one, is the engine's
   <code>src/glitchygames/sprites/file_format.py</code>).</li>
 <li><strong>Its sprite library</strong> is 71 sprites in <code>src/apps/bitmappy/src/bitmappy/resources/sprites/</code>,
-  shipped as package data and found through <code>bitmappy.SPRITE_CONFIG_DIR</code>. They are also the AI's
+  shipped as package data and found through <code>bitmappy.SPRITE_CONFIG_DIR</code>. They are also the <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr>'s
   training data (<code>load_ai_training_data()</code> below), so they stay in the package.</li>
 <li><strong>Its other resources</strong> (the window icon and <code>bitmappy.cfg</code>) are beside them, in
   <code>src/apps/bitmappy/src/bitmappy/resources/</code>.</li>
@@ -3267,7 +3315,7 @@ through <code>__getattr__</code>.</p>
 one. <code>GameOptionsProvider</code> is a real <code>Protocol</code>: <code>unhandled_event()</code> needs only the scene's
 <code>options</code>. Both scene classes also inherit <code>SceneInterface</code> (left out to keep the diagram
 readable).</p>
-<p><strong>Event flow</strong> — how an SDL event reaches your handler in Bitmappy (the stub a missing handler
+<p><strong>Event flow</strong> — how an <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> event reaches your handler in Bitmappy (the stub a missing handler
 falls to is the engine's):</p>
 <pre class="mermaid"><code>flowchart TD
     SDL["SDL Event"] --&gt; GE
@@ -3283,7 +3331,7 @@ falls to is the engine's):</p>
     end
     SM --&gt; BES
     BES --&gt; STUB</code></pre>
-<p>The <code>GameEngine</code> receives every SDL event and does an O(1) dict lookup to find
+<p>The <code>GameEngine</code> receives every <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> event and does an O(1) dict lookup to find
 the right event manager. The event manager updates its internal state (button
 tracking, axis values, drag detection) and may synthesize higher-level events
 (drag, drop, chord). It then forwards to the <code>SceneManager</code>, which passes
@@ -3297,7 +3345,7 @@ run).</p>
 <h3 id="sprite-hierarchy-renderable-objects">Sprite hierarchy (renderable objects)<a class="headerlink" href="#sprite-hierarchy-renderable-objects" title="Permanent link">#</a></h3>
 <p><code>DirtySprite</code> is pygame's base for all sprites that support dirty-rect
 rendering. GlitchyGames extends it through <code>RootSprite</code> → <code>Sprite</code> → <code>BitmappySprite</code> to add
-mouse events, non-optional <code>image</code>/<code>rect</code>, named parent tracking and TOML load/save.
+mouse events, non-optional <code>image</code>/<code>rect</code>, named parent tracking and <abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr> load/save.
 <code>AnimatedSprite</code> derives from <code>DirtySprite</code> directly. <code>DirtySprite</code> is pygame's, outside both
 boxes; the Bitmappy box holds the editor's own sprites.</p>
 <pre class="mermaid"><code>flowchart TD
@@ -3322,7 +3370,7 @@ boxes; the Bitmappy box holds the editor's own sprites.</p>
 the engine's own <code>event_handlers</code> dispatch table, into specialized event managers, through the
 scene manager, and finally into Bitmappy's scene and sprite handlers. The top Engine box is the
 dispatch every game gets, the Bitmappy box is the editor's handlers, and the bottom Engine box is
-the engine's UI widgets (<code>glitchygames.ui</code>) the editor's clicks reach.</p>
+the engine's <abbr title="User interface">UI</abbr> widgets (<code>glitchygames.ui</code>) the editor's clicks reach.</p>
 <pre class="mermaid"><code>flowchart TD
     subgraph ENGINE_BITMAPPY_DISPATCH["Engine"]
         PG["GameEngine._pump_events()\nactive_sources().pump_events()"] --&gt; GE["GameEngine.process_events()"]
@@ -3376,8 +3424,8 @@ the engine's UI widgets (<code>glitchygames.ui</code>) the editor's clicks reach
     SM4 --&gt; BES4
     BES2 --&gt;|"Menu item"| MENU
     BES2 --&gt;|"Slider area"| SLIDER</code></pre>
-<h2 id="ui-layout-component-wiring">UI Layout &amp; Component Wiring<a class="headerlink" href="#ui-layout-component-wiring" title="Permanent link">#</a></h2>
-<p>How the UI components are arranged on screen and how data flows between them.
+<h2 id="ui-layout-component-wiring"><abbr title="User interface">UI</abbr> Layout &amp; Component Wiring<a class="headerlink" href="#ui-layout-component-wiring" title="Permanent link">#</a></h2>
+<p>How the <abbr title="User interface">UI</abbr> components are arranged on screen and how data flows between them.
 Every line is dotted: data flow, and the scene switches to the dialogs (<code>next_scene</code>).
 Each box says whose the widgets are: "Engine" for the engine's widgets and dialog scenes
 (<code>glitchygames.ui</code>), "Bitmappy" for the editor's own sprites, scene and managers.</p>
@@ -3507,7 +3555,7 @@ Canvas operations are batched per drag with 0.1s debounce for efficiency.</p>
     STACK_U --&gt;|"Ctrl+Z"| STACK_R
     STACK_R --&gt;|"Ctrl+Y / Ctrl+Shift+Z"| STACK_U</code></pre>
 <h2 id="sprite-loadsave-pipeline">Sprite Load/Save Pipeline<a class="headerlink" href="#sprite-loadsave-pipeline" title="Permanent link">#</a></h2>
-<p>How sprites are loaded from TOML files, saved back, and imported via drag-and-drop. Inside each
+<p>How sprites are loaded from <abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr> files, saved back, and imported via drag-and-drop. Inside each
 path, the Bitmappy box is the editor's canvas and the Engine box is the engine's <code>AnimatedSprite</code>,
 which reads and writes the file; drag and drop is all the editor's (<code>FileIOManager</code>).</p>
 <pre class="mermaid"><code>flowchart TD
@@ -3608,6 +3656,27 @@ and X redoes in film strip and canvas modes.</p>
 
 
 
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 11, 2026 18:59:50 UTC">November 11, 2026</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
 
 
 
@@ -3632,6 +3701,46 @@ and X redoes in film strip and canvas modes.</p>
       </main>
       
         <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../../requirements/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Requirements">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Requirements
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../game_packages/" class="md-footer__link md-footer__link--next" aria-label="Next: Games as Their Own Packages">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Games as Their Own Packages
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
   
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
@@ -3660,7 +3769,7 @@ and X redoes in film strip and canvas modes.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link", "navigation.expand", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.expand", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>

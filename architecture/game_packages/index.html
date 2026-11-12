@@ -31,6 +31,9 @@
     
       <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
       
 
 
@@ -65,7 +68,14 @@
   </head>
   
   
-    <body dir="ltr">
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -117,6 +127,32 @@
       </div>
     </div>
     
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
     
       <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
     
@@ -141,11 +177,18 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
         <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
       
     </form>
     <div class="md-search__output">
@@ -3144,6 +3187,11 @@
 
 
   
+    <a href="https://github.com/terrysimons/glitchygames/edit/main/docs/architecture/game_packages.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
   
 
 
@@ -3155,20 +3203,20 @@ is, how to work with one, and how to add one. The why is in the plan,
 <code>plans/2026-10-24-workspace-packages.md</code>; how the games got here is under "History" below.</p>
 <h2 id="the-layout">The layout<a class="headerlink" href="#the-layout" title="Permanent link">#</a></h2>
 <p>Four layers, all under <code>src/</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>src/
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  glitchygames/        the engine (distribution glitchygames); it has no examples package:
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                       every game and demo is a member, and its resources/ holds only what the
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>                       engine itself ships
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  games/&lt;game&gt;/        one member per game: every game (mr-muncher, clockwork-keep,
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>                       brave-adventurer, paddleslap, drawing-fire)
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  demos/&lt;demo&gt;/        one member per demo (dt-demo, joystick-demo, sound-board-demo,
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                       text-input-demo): a small
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                       program that shows one engine feature (console scripts `dt-demo`,
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>                       `joystick-demo`, `sound-board-demo`, `text-input-demo`; no browser build)
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>  apps/&lt;app&gt;/          one member per application (Bitmappy)
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>tests/                 the engine's own tests
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>scripts/               tools
-</code></pre></div>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>src/
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  glitchygames/        the engine (distribution glitchygames); it has no examples package:
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                       every game and demo is a member, and its resources/ holds only what the
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>                       engine itself ships
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  games/&lt;game&gt;/        one member per game: every game (mr-muncher, clockwork-keep,
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>                       brave-adventurer, paddleslap, drawing-fire)
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  demos/&lt;demo&gt;/        one member per demo (dt-demo, joystick-demo, sound-board-demo,
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                       text-input-demo): a small
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                       program that shows one engine feature (console scripts `dt-demo`,
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>                       `joystick-demo`, `sound-board-demo`, `text-input-demo`; no browser build)
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>  apps/&lt;app&gt;/          one member per application (Bitmappy)
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>tests/                 the engine's own tests
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>scripts/               tools
+</span></code></pre></div>
 <p>Nothing at the repository root is importable as one of our packages. Tests and tools run from
 the root import the installed engine and members (<code>uv sync</code> installs them editable, nox
 non-editable), and <code>tests/test_suite_collection.py</code> checks that <code>import glitchygames</code> resolves to
@@ -3186,62 +3234,62 @@ the installed package. Coverage maps the installed copies back to <code>src/</co
 member's recordings (it has none today) would still be that member's own package data.</p>
 <h2 id="what-a-member-is">What a member is<a class="headerlink" href="#what-a-member-is" title="Permanent link">#</a></h2>
 <p>A member is a directory under its layer, named after its distribution (with hyphens), holding:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>src/&lt;layer&gt;/&lt;member&gt;/
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  pyproject.toml       its metadata (below)
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  README.md            one paragraph: what it is, how to play and test it
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  src/&lt;package&gt;/       its import package (underscores: a hyphen cannot be imported), never at
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>                       the member's root, so nothing in the member directory can be imported by
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>                       accident in place of the installed package
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>  tests/               its tests (no __init__.py); a game's golden replay is in
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>                       tests/fixtures/replays/golden.jsonl.gz
-</code></pre></div>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>src/&lt;layer&gt;/&lt;member&gt;/
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  pyproject.toml       its metadata (below)
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  README.md            one paragraph: what it is, how to play and test it
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  src/&lt;package&gt;/       its import package (underscores: a hyphen cannot be imported), never at
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>                       the member's root, so nothing in the member directory can be imported by
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>                       accident in place of the installed package
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>  tests/               its tests (no __init__.py); a game's golden replay is in
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>                       tests/fixtures/replays/golden.jsonl.gz
+</span></code></pre></div>
 <p>Its <code>pyproject.toml</code> follows Mr. Muncher's (<code>src/games/mr-muncher/pyproject.toml</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">[project]</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"&lt;distribution&gt;"</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"1.0.0"</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">description</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"&lt;one line&gt;"</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">requires-python</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"&gt;=3.14,&lt;4.0"</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="c1"># What it imports (decision 10: a member declares every distribution it imports)</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="n">dependencies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"glitchygames&gt;=1.0.0"</span><span class="p">,</span><span class="w"> </span><span class="s2">"pygame-ce"</span><span class="p">]</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="k">[project.scripts]</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="err">&lt;</span><span class="n">console-script</span><span class="err">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"&lt;package&gt;:main"</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="k">[build-system]</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"hatchling"</span><span class="p">]</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="n">build-backend</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"hatchling.build"</span>
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="k">[tool.hatch.build.targets.wheel]</span>
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="n">packages</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"src/&lt;package&gt;"</span><span class="p">]</span>
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="k">[tool.uv.sources]</span>
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="n">glitchygames</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">workspace</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">}</span>
-</code></pre></div>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">[project]</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"&lt;distribution&gt;"</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"1.0.0"</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">description</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"&lt;one line&gt;"</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">requires-python</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"&gt;=3.14,&lt;4.0"</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="c1"># What it imports (decision 10: a member declares every distribution it imports)</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="n">dependencies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"glitchygames&gt;=1.0.0"</span><span class="p">,</span><span class="w"> </span><span class="s2">"pygame-ce"</span><span class="p">]</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="k">[project.scripts]</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="err">&lt;</span><span class="n">console-script</span><span class="err">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"&lt;package&gt;:main"</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="k">[build-system]</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"hatchling"</span><span class="p">]</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="n">build-backend</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"hatchling.build"</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="k">[tool.hatch.build.targets.wheel]</span>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="n">packages</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"src/&lt;package&gt;"</span><span class="p">]</span>
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="k">[tool.uv.sources]</span>
+</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="n">glitchygames</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">workspace</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">}</span>
+</span></code></pre></div>
 <p>A member declares every distribution its code imports, and the engine with a version floor
 (<code>tests/test_workspace_config.py</code>: <code>test_every_member_declares_what_it_imports</code>,
 <code>test_every_member_depends_on_the_engine_with_a_floor</code>): Mr. Muncher's list is
 <code>["glitchygames&gt;=1.0.0", "pydantic", "pygame-ce"]</code>. A member that reuses another member's code
 depends on it too (<code>"&lt;other&gt;"</code> in <code>dependencies</code>, <code>&lt;other&gt; = { workspace = true }</code>). Files inside
-the import package (a sprite TOML, a bundled demo) ship as package data: read them through the
+the import package (a sprite <abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr>, a bundled demo) ship as package data: read them through the
 module's own path (<code>Path(__file__).parent / 'sprites'</code>), never through the repository.</p>
 <h2 id="working-with-a-member">Working with a member<a class="headerlink" href="#working-with-a-member" title="Permanent link">#</a></h2>
 <p>From the repository root:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>uv<span class="w"> </span>sync<span class="w"> </span>--all-extras<span class="w"> </span>--all-groups<span class="w"> </span>--all-packages<span class="w">   </span><span class="c1"># the engine and every member, with the dev tools</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>uv<span class="w"> </span>run<span class="w"> </span>&lt;console-script&gt;<span class="w">                            </span><span class="c1"># play it</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>--no-cov<span class="w"> </span>src/&lt;layer&gt;/&lt;member&gt;/tests<span class="w">  </span><span class="c1"># its tests alone (no coverage gate on a subset)</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w">                                      </span><span class="c1"># everything: the engine's and every member's tests</span>
-</code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>uv<span class="w"> </span>sync<span class="w"> </span>--all-extras<span class="w"> </span>--all-groups<span class="w"> </span>--all-packages<span class="w">   </span><span class="c1"># the engine and every member, with the dev tools</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>uv<span class="w"> </span>run<span class="w"> </span>&lt;console-script&gt;<span class="w">                            </span><span class="c1"># play it</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>--no-cov<span class="w"> </span>src/&lt;layer&gt;/&lt;member&gt;/tests<span class="w">  </span><span class="c1"># its tests alone (no coverage gate on a subset)</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w">                                      </span><span class="c1"># everything: the engine's and every member's tests</span>
+</span></code></pre></div>
 <p>A plain <code>uv sync</code> keeps every member installed (each is in the root's <code>dev</code> dependency group),
 but drops the dev tools: use the full command above. The 100% coverage gate covers the engine
 and every member together, so it is met only by the whole run.</p>
 <p>Each layer is also an extra of the engine, naming that layer's members, so an installer picks
 the engine alone or with them:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>uv<span class="w"> </span>build<span class="w"> </span>--all-packages<span class="w">                                    </span><span class="c1"># every wheel, into dist/</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">                                                           </span><span class="c1"># (nox -s build-wheel does the same)</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>pip<span class="w"> </span>install<span class="w"> </span>--find-links<span class="w"> </span>dist<span class="w"> </span>glitchygames<span class="w">                 </span><span class="c1"># the engine</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>pip<span class="w"> </span>install<span class="w"> </span>--find-links<span class="w"> </span>dist<span class="w"> </span><span class="s2">"glitchygames[games]"</span><span class="w">        </span><span class="c1"># the engine and every game</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>pip<span class="w"> </span>install<span class="w"> </span>--find-links<span class="w"> </span>dist<span class="w"> </span><span class="s2">"glitchygames[demos,apps]"</span><span class="w">   </span><span class="c1"># the engine, the demos and the apps</span>
-</code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>uv<span class="w"> </span>build<span class="w"> </span>--all-packages<span class="w">                                    </span><span class="c1"># every wheel, into dist/</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">                                                           </span><span class="c1"># (nox -s build-wheel does the same)</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>pip<span class="w"> </span>install<span class="w"> </span>--find-links<span class="w"> </span>dist<span class="w"> </span>glitchygames<span class="w">                 </span><span class="c1"># the engine</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>pip<span class="w"> </span>install<span class="w"> </span>--find-links<span class="w"> </span>dist<span class="w"> </span><span class="s2">"glitchygames[games]"</span><span class="w">        </span><span class="c1"># the engine and every game</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>pip<span class="w"> </span>install<span class="w"> </span>--find-links<span class="w"> </span>dist<span class="w"> </span><span class="s2">"glitchygames[demos,apps]"</span><span class="w">   </span><span class="c1"># the engine, the demos and the apps</span>
+</span></code></pre></div>
 <p>The names are not yet on PyPI (neither <code>glitchygames</code> nor any game's), so install from the built
 wheels as above: a plain <code>pip install glitchygames</code> would fetch whatever package someone else
 published under that name.</p>
@@ -3256,9 +3304,9 @@ extra; <code>tests/test_workspace_config.py</code> keeps each extra equal to its
   member, so the engine's <code>uv run pytest</code> replays each one.</li>
 <li><strong>The browser build</strong> ships a member's package as its own archive (<code>&lt;package&gt;.zip</code>) beside the
   engine's <code>glitchygames.zip</code> (<code>scripts/build_browser_bundle.py</code>, <code>GameSpecification.member_packages</code>).</li>
-<li><strong>API reference</strong>: <code>scripts/gen_ref_pages.py</code> writes a page per member package
-  (<code>&lt;package&gt;/index.md</code>), listed in <code>zensical.yml</code> under "Games API Reference", "Demos API
-  Reference" or "Apps API Reference" by its layer.</li>
+<li><strong><abbr title="Application programming interface">API</abbr> reference</strong>: <code>scripts/gen_ref_pages.py</code> writes a page per member package
+  (<code>&lt;package&gt;/index.md</code>), listed in <code>zensical.yml</code> under "Games <abbr title="Application programming interface">API</abbr> Reference", "Demos <abbr title="Application programming interface">API</abbr>
+  Reference" or "Apps <abbr title="Application programming interface">API</abbr> Reference" by its layer.</li>
 <li><strong>Wheels</strong>: <code>nox -s build-wheel</code> builds the wheel of the engine and of every member
   (<code>uv build --all-packages</code>).</li>
 </ul>
@@ -3327,7 +3375,7 @@ which entries no test checks.</p>
 </tr>
 <tr>
 <td><code>zensical.yml</code></td>
-<td>The mkdocstrings <code>paths</code> (its <code>src/</code>; not checked by a test, but without it <code>nox -s lint-docs</code> fails to render its API page), and its API page under its layer's "API Reference"</td>
+<td>The mkdocstrings <code>paths</code> (its <code>src/</code>; not checked by a test, but without it <code>nox -s lint-docs</code> fails to render its <abbr title="Application programming interface">API</abbr> page), and its <abbr title="Application programming interface">API</abbr> page under its layer's "<abbr title="Application programming interface">API</abbr> Reference"</td>
 </tr>
 <tr>
 <td><code>uv.lock</code></td>
@@ -3395,28 +3443,28 @@ games ship member packages. Demos have no browser build.</p>
 <li><code>README.md</code> and <code>CLAUDE.md</code>: where it lives and how to run it.</li>
 </ul>
 <h3 id="6-verify">6. Verify<a class="headerlink" href="#6-verify" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>uv<span class="w"> </span>lock<span class="w">                                     </span><span class="c1"># then read its diff: only the new member</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>uv<span class="w"> </span>sync<span class="w"> </span>--all-extras<span class="w"> </span>--all-groups<span class="w"> </span>--all-packages
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>uv<span class="w"> </span>run<span class="w"> </span>--extra<span class="w"> </span>dev<span class="w"> </span>nox<span class="w"> </span>-s<span class="w"> </span>format-code<span class="w"> </span>lint-code<span class="w"> </span>lint-dependencies
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>uv<span class="w"> </span>run<span class="w"> </span>basedpyright<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>nox<span class="w"> </span>-s<span class="w"> </span>static-analysis-ty
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>--dummy-only<span class="w"> </span>--no-cov<span class="w"> </span>-q<span class="w"> </span>src/&lt;layer&gt;/&lt;member&gt;/tests
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="c1"># The configuration guards and the hand-written tables</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>--dummy-only<span class="w"> </span>--no-cov<span class="w"> </span>-q<span class="w"> </span>tests/test_suite_collection.py<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span>tests/test_workspace_config.py<span class="w"> </span>tests/test_workspace_packages.py<span class="w"> </span>tests/test_logical_names.py<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span>tests/replay/tools/test_settings.py<span class="w"> </span>tests/engine/test_every_game_powers_on.py
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w">                               </span><span class="c1"># the whole suite, both drivers, 100% coverage</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>uv<span class="w"> </span>build<span class="w"> </span>--package<span class="w"> </span>&lt;distribution&gt;<span class="w">           </span><span class="c1"># the member builds on its own</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>uv<span class="w"> </span>run<span class="w"> </span>nox<span class="w"> </span>-s<span class="w"> </span>lint-docs<span class="w">                     </span><span class="c1"># the docs build strictly</span>
-</code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>uv<span class="w"> </span>lock<span class="w">                                     </span><span class="c1"># then read its diff: only the new member</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>uv<span class="w"> </span>sync<span class="w"> </span>--all-extras<span class="w"> </span>--all-groups<span class="w"> </span>--all-packages
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>uv<span class="w"> </span>run<span class="w"> </span>--extra<span class="w"> </span>dev<span class="w"> </span>nox<span class="w"> </span>-s<span class="w"> </span>format-code<span class="w"> </span>lint-code<span class="w"> </span>lint-dependencies
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>uv<span class="w"> </span>run<span class="w"> </span>basedpyright<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>nox<span class="w"> </span>-s<span class="w"> </span>static-analysis-ty
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>--dummy-only<span class="w"> </span>--no-cov<span class="w"> </span>-q<span class="w"> </span>src/&lt;layer&gt;/&lt;member&gt;/tests
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="c1"># The configuration guards and the hand-written tables</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>--dummy-only<span class="w"> </span>--no-cov<span class="w"> </span>-q<span class="w"> </span>tests/test_suite_collection.py<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span>tests/test_workspace_config.py<span class="w"> </span>tests/test_workspace_packages.py<span class="w"> </span>tests/test_logical_names.py<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span>tests/replay/tools/test_settings.py<span class="w"> </span>tests/engine/test_every_game_powers_on.py
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w">                               </span><span class="c1"># the whole suite, both drivers, 100% coverage</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>uv<span class="w"> </span>build<span class="w"> </span>--package<span class="w"> </span>&lt;distribution&gt;<span class="w">           </span><span class="c1"># the member builds on its own</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>uv<span class="w"> </span>run<span class="w"> </span>nox<span class="w"> </span>-s<span class="w"> </span>lint-docs<span class="w">                     </span><span class="c1"># the docs build strictly</span>
+</span></code></pre></div>
 <p>A game also checks its golden and its browser build (no <code>-k &lt;package&gt;</code> on the member's own
 tests: a golden's id is <code>&lt;console-script&gt;/golden</code>, hyphenated, so it would be deselected):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>--dummy-only<span class="w"> </span>--no-cov<span class="w"> </span>-q<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span>tests/replay/test_golden_replays.py<span class="w"> </span>tests/world/test_golden_traces.py<span class="w"> </span>-k<span class="w"> </span>&lt;package&gt;
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>uv<span class="w"> </span>run<span class="w"> </span>&lt;console-script&gt;<span class="w"> </span>--verify<span class="w">            </span><span class="c1"># its golden replay and bundled demos, replayed headless</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>unmeasured<span class="w"> </span>--game<span class="w"> </span>&lt;console-script&gt;<span class="w">   </span><span class="c1"># what --measure would measure of it</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scripts.build_browser_bundle<span class="w"> </span>&lt;console-script&gt;<span class="w"> </span>--output<span class="w"> </span>&lt;scratch<span class="w"> </span>directory&gt;
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>uv<span class="w"> </span>run<span class="w"> </span>nox<span class="w"> </span>-s<span class="w"> </span>browser<span class="w"> </span>--<span class="w"> </span>&lt;console-script&gt;<span class="w">   </span><span class="c1"># its browser bundle, served and opened</span>
-</code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>--dummy-only<span class="w"> </span>--no-cov<span class="w"> </span>-q<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span>tests/replay/test_golden_replays.py<span class="w"> </span>tests/world/test_golden_traces.py<span class="w"> </span>-k<span class="w"> </span>&lt;package&gt;
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>uv<span class="w"> </span>run<span class="w"> </span>&lt;console-script&gt;<span class="w"> </span>--verify<span class="w">            </span><span class="c1"># its golden replay and bundled demos, replayed headless</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>unmeasured<span class="w"> </span>--game<span class="w"> </span>&lt;console-script&gt;<span class="w">   </span><span class="c1"># what --measure would measure of it</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scripts.build_browser_bundle<span class="w"> </span>&lt;console-script&gt;<span class="w"> </span>--output<span class="w"> </span>&lt;scratch<span class="w"> </span>directory&gt;
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>uv<span class="w"> </span>run<span class="w"> </span>nox<span class="w"> </span>-s<span class="w"> </span>browser<span class="w"> </span>--<span class="w"> </span>&lt;console-script&gt;<span class="w">   </span><span class="c1"># its browser bundle, served and opened</span>
+</span></code></pre></div>
 <p>The bundle built without serving must list <code>&lt;package&gt;.zip</code> in its <code>pyscript.toml</code>.</p>
 <h3 id="7-commit">7. Commit<a class="headerlink" href="#7-commit" title="Permanent link">#</a></h3>
 <p>The <code>replay-metrics</code> pre-commit hook (<code>scripts/measure_staged_replays.py</code>, which runs
@@ -3464,8 +3512,8 @@ registration (<code>git add -A src tests scripts docs</code>) before committing.
   built install (<code>site-packages</code>, as nox's test sessions install on purpose) a recording outside
   the repository is named by its install name
   (<code>glitchygames.replay.tools.measure.recording_ledger_name</code>).</li>
-<li><strong>Engine-private names</strong>: a member uses only the engine's public API. Where a member needs
-  something the engine keeps private, give the engine a public read-only API first: PaddleSlap
+<li><strong>Engine-private names</strong>: a member uses only the engine's public <abbr title="Application programming interface">API</abbr>. Where a member needs
+  something the engine keeps private, give the engine a public read-only <abbr title="Application programming interface">API</abbr> first: PaddleSlap
   reads its ball's path through <code>BallSprite.trajectory</code> and <code>record_trajectory_point</code>.</li>
 <li><strong>A known exemption, member tests</strong>: a member's tests may use the engine's test seams (for
   example <code>SceneManager._reset</code> and <code>FontManager._font_cache</code>, which reset engine state between
@@ -3488,27 +3536,30 @@ registration (<code>git add -A src tests scripts docs</code>) before committing.
 all moved into members by 2026-10-26 (Part 3). The plans record each move step by step
 (<code>plans/2026-10-24-workspace-packages.md</code> and its parts; Mr. Muncher's, the first, is
 <code>plans/2026-10-24-workspace-packages-1-foundation.md</code>, Task 9). What still matters:</p>
-<ul>
-<li><strong>Logical names</strong>: a game moved from the examples package kept its logical name, so no
-  recording changed. Bitmappy, which was not in a layer, did not: its scene's logical name was
-  its module path (glitchygames.bitmappy.editor:BitmapEditorScene) and is now
-  <code>apps.bitmappy.editor:BitmapEditorScene</code>. A plain replay refuses a recording made before the
-  move, naming the remedy, and <code>--replay-trace OLD --rebaseline NEW --headless</code> converts it (a
-  rebaseline compares the game and each scene by qualified name alone and writes the current
-  logical names: <a href="../gameplay_replay/">gameplay replay</a>).</li>
-<li><strong>Moved recordings keep their history</strong>: the root <code>pyproject.toml</code>'s
-  <code>[tool.glitchygames.recording-renames]</code> maps each moved recording's old path to its new one,
-  so its run-ledger rows stay connected (each moved member's <code>_recording_history.py</code> test
-  checks its lines). Each lookup is one step: a recording moved twice needs a line from each of
-  its old paths.</li>
-<li><strong>Old checkouts</strong>: a checkout from before the moves can hold ignored leftovers (their
-  <code>__pycache__</code>) in the old places, src/glitchygames/examples, src/glitchygames/bitmappy and
-  tests/examples, which resolve as namespace packages in an editable install. The moved
-  members' <code>test_the_old_example_module_is_gone</code> (PaddleSlap's and the demos'), Bitmappy's
-  <code>test_the_old_engine_package_is_gone</code> and the engine's
-  <code>test_the_engines_examples_directory_is_gone</code> fail on them, naming the leftover; the remedy is
-  <code>rm -rf src/glitchygames/examples src/glitchygames/bitmappy tests/examples</code>.</li>
-</ul>
+<dl>
+<dt>Logical names</dt>
+<dd>A game moved from the examples package kept its logical name, so no
+recording changed. Bitmappy, which was not in a layer, did not: its scene's logical name was
+its module path (glitchygames.bitmappy.editor:BitmapEditorScene) and is now
+<code>apps.bitmappy.editor:BitmapEditorScene</code>. A plain replay refuses a recording made before the
+move, naming the remedy, and <code>--replay-trace OLD --rebaseline NEW --headless</code> converts it (a
+rebaseline compares the game and each scene by qualified name alone and writes the current
+logical names: <a href="../gameplay_replay/">gameplay replay</a>).</dd>
+<dt>Moved recordings keep their history</dt>
+<dd>The root <code>pyproject.toml</code>'s
+<code>[tool.glitchygames.recording-renames]</code> maps each moved recording's old path to its new one,
+so its run-ledger rows stay connected (each moved member's <code>_recording_history.py</code> test
+checks its lines). Each lookup is one step: a recording moved twice needs a line from each of
+its old paths.</dd>
+<dt>Old checkouts</dt>
+<dd>A checkout from before the moves can hold ignored leftovers (their
+<code>__pycache__</code>) in the old places, src/glitchygames/examples, src/glitchygames/bitmappy and
+tests/examples, which resolve as namespace packages in an editable install. The moved
+members' <code>test_the_old_example_module_is_gone</code> (PaddleSlap's and the demos'), Bitmappy's
+<code>test_the_old_engine_package_is_gone</code> and the engine's
+<code>test_the_engines_examples_directory_is_gone</code> fail on them, naming the leftover; the remedy is
+<code>rm -rf src/glitchygames/examples src/glitchygames/bitmappy tests/examples</code>.</dd>
+</dl>
 
 
 
@@ -3516,6 +3567,27 @@ all moved into members by 2026-10-26 (Part 3). The plans record each move step b
 
 
 
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 12, 2026 00:20:18 UTC">November 12, 2026</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
 
 
 
@@ -3540,6 +3612,46 @@ all moved into members by 2026-10-26 (Part 3). The plans record each move step b
       </main>
       
         <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../bitmappy/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Bitmappy Architecture">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Bitmappy Architecture
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../games/paddleslap/" class="md-footer__link md-footer__link--next" aria-label="Next: PaddleSlap Architecture">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                PaddleSlap Architecture
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
   
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
@@ -3568,7 +3680,7 @@ all moved into members by 2026-10-26 (Part 3). The plans record each move step b
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link", "navigation.expand", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.expand", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>

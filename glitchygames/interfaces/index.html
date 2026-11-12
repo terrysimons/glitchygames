@@ -31,6 +31,9 @@
     
       <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
       
 
 
@@ -65,7 +68,14 @@
   </head>
   
   
-    <body dir="ltr">
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -117,6 +127,32 @@
       </div>
     </div>
     
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
     
       <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
     
@@ -141,11 +177,18 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
         <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
       
     </form>
     <div class="md-search__output">
@@ -3097,6 +3140,11 @@
 
 
   
+    <a href="https://github.com/terrysimons/glitchygames/edit/main/docs/glitchygames/interfaces/index.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
   
 
 
@@ -3156,7 +3204,7 @@
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SceneInterface--source--__codelineno-0-43">43</a></span>
+                <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SceneInterface--source--__codelineno-0-43">43</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface--source--__codelineno-0-44">44</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface--source--__codelineno-0-45">45</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface--source--__codelineno-0-46">46</a></span>
@@ -3192,44 +3240,44 @@
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface--source--__codelineno-0-76">76</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface--source--__codelineno-0-77">77</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface--source--__codelineno-0-78">78</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.SceneInterface--source--__codelineno-0-79">79</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-43" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-43"></a><span class="k">class</span><span class="w"> </span><span class="nc">SceneInterface</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-44" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-44"></a><span class="w">    </span><span class="sd">"""Scene interface."""</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-45" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-45"></a>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-46" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-46"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">switch_to_scene</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">next_scene</span><span class="p">:</span> <span class="n">SceneInterface</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-47" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-47"></a><span class="w">        </span><span class="sd">"""Switch to the next scene.</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-48" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-48"></a>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-49" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-49"></a><span class="sd">        Args:</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-50" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-50"></a><span class="sd">            next_scene (SceneInterface | None): The next scene, or None to clear.</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-51" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-51"></a>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-52" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-52"></a><span class="sd">        Returns:</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-53" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-53"></a><span class="sd">            None</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-54" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-54"></a>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-55" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-55"></a><span class="sd">        """</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-56" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-56"></a>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-57" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-57"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">terminate</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-58" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-58"></a><span class="w">        </span><span class="sd">"""Terminate the scene.</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-59" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-59"></a>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-60" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-60"></a><span class="sd">        Returns:</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-61" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-61"></a><span class="sd">            None</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-62" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-62"></a>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-63" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-63"></a><span class="sd">        """</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-64" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-64"></a>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-65" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-65"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">play</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-66" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-66"></a><span class="w">        </span><span class="sd">"""Play the scene.</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-67" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-67"></a>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-68" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-68"></a><span class="sd">        Returns:</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-69" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-69"></a><span class="sd">            None</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-70" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-70"></a>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-71" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-71"></a><span class="sd">        """</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-72" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-72"></a>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-73" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-73"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pause</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-74" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-74"></a><span class="w">        </span><span class="sd">"""Pause the scene.</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-75" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-75"></a>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-76" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-76"></a><span class="sd">        Returns:</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-77" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-77"></a><span class="sd">            None</span>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-78" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-78"></a>
-<a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-79" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-79"></a><span class="sd">        """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.SceneInterface--source--__codelineno-0-79">79</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.SceneInterface--source--__span-0-43"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-43" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-43"></a><span class="k">class</span><span class="w"> </span><span class="nc">SceneInterface</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-44"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-44" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-44"></a><span class="w">    </span><span class="sd">"""Scene interface."""</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-45"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-45" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-45"></a>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-46"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-46" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-46"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">switch_to_scene</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">next_scene</span><span class="p">:</span> <span class="n">SceneInterface</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-47"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-47" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-47"></a><span class="w">        </span><span class="sd">"""Switch to the next scene.</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-48"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-48" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-48"></a>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-49"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-49" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-49"></a><span class="sd">        Args:</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-50"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-50" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-50"></a><span class="sd">            next_scene (SceneInterface | None): The next scene, or None to clear.</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-51"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-51" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-51"></a>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-52"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-52" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-52"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-53"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-53" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-53"></a><span class="sd">            None</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-54"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-54" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-54"></a>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-55"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-55" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-55"></a><span class="sd">        """</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-56"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-56" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-56"></a>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-57"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-57" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-57"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">terminate</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-58"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-58" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-58"></a><span class="w">        </span><span class="sd">"""Terminate the scene.</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-59"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-59" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-59"></a>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-60"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-60" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-60"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-61"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-61" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-61"></a><span class="sd">            None</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-62"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-62" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-62"></a>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-63"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-63" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-63"></a><span class="sd">        """</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-64"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-64" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-64"></a>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-65"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-65" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-65"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">play</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-66"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-66" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-66"></a><span class="w">        </span><span class="sd">"""Play the scene.</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-67"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-67" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-67"></a>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-68"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-68" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-68"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-69"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-69" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-69"></a><span class="sd">            None</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-70"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-70" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-70"></a>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-71"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-71" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-71"></a><span class="sd">        """</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-72"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-72" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-72"></a>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-73"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-73" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-73"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pause</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-74"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-74" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-74"></a><span class="w">        </span><span class="sd">"""Pause the scene.</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-75"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-75" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-75"></a>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-76"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-76" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-76"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-77"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-77" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-77"></a><span class="sd">            None</span>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-78"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-78" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-78"></a>
+</span><span id="glitchygames.interfaces.SceneInterface--source--__span-0-79"><a id="glitchygames.interfaces.SceneInterface--source--__codelineno-0-79" name="glitchygames.interfaces.SceneInterface--source--__codelineno-0-79"></a><span class="sd">        """</span>
+</span></code></pre></div></td></tr></table></div>
               </details>
 
 
@@ -3284,20 +3332,20 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-73">73</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-73">73</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-74">74</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-75">75</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-76">76</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-77">77</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-78">78</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-79">79</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-73" name="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-73"></a><span class="k">def</span><span class="w"> </span><span class="nf">pause</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-74" name="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-74"></a><span class="w">    </span><span class="sd">"""Pause the scene.</span>
-<a id="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-75" name="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-75"></a>
-<a id="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-76" name="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-76"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-77" name="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-77"></a><span class="sd">        None</span>
-<a id="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-78" name="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-78"></a>
-<a id="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-79" name="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-79"></a><span class="sd">    """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-79">79</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.SceneInterface.pause--source--__span-0-73"><a id="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-73" name="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-73"></a><span class="k">def</span><span class="w"> </span><span class="nf">pause</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SceneInterface.pause--source--__span-0-74"><a id="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-74" name="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-74"></a><span class="w">    </span><span class="sd">"""Pause the scene.</span>
+</span><span id="glitchygames.interfaces.SceneInterface.pause--source--__span-0-75"><a id="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-75" name="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-75"></a>
+</span><span id="glitchygames.interfaces.SceneInterface.pause--source--__span-0-76"><a id="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-76" name="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-76"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.interfaces.SceneInterface.pause--source--__span-0-77"><a id="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-77" name="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-77"></a><span class="sd">        None</span>
+</span><span id="glitchygames.interfaces.SceneInterface.pause--source--__span-0-78"><a id="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-78" name="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-78"></a>
+</span><span id="glitchygames.interfaces.SceneInterface.pause--source--__span-0-79"><a id="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-79" name="glitchygames.interfaces.SceneInterface.pause--source--__codelineno-0-79"></a><span class="sd">    """</span>
+</span></code></pre></div></td></tr></table></div>
             </details>
     </div>
 
@@ -3342,20 +3390,20 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-65">65</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-65">65</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-66">66</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-67">67</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-68">68</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-69">69</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-70">70</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-71">71</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-65" name="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-65"></a><span class="k">def</span><span class="w"> </span><span class="nf">play</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-66" name="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-66"></a><span class="w">    </span><span class="sd">"""Play the scene.</span>
-<a id="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-67" name="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-67"></a>
-<a id="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-68" name="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-68"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-69" name="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-69"></a><span class="sd">        None</span>
-<a id="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-70" name="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-70"></a>
-<a id="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-71" name="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-71"></a><span class="sd">    """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-71">71</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.SceneInterface.play--source--__span-0-65"><a id="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-65" name="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-65"></a><span class="k">def</span><span class="w"> </span><span class="nf">play</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SceneInterface.play--source--__span-0-66"><a id="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-66" name="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-66"></a><span class="w">    </span><span class="sd">"""Play the scene.</span>
+</span><span id="glitchygames.interfaces.SceneInterface.play--source--__span-0-67"><a id="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-67" name="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-67"></a>
+</span><span id="glitchygames.interfaces.SceneInterface.play--source--__span-0-68"><a id="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-68" name="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-68"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.interfaces.SceneInterface.play--source--__span-0-69"><a id="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-69" name="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-69"></a><span class="sd">        None</span>
+</span><span id="glitchygames.interfaces.SceneInterface.play--source--__span-0-70"><a id="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-70" name="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-70"></a>
+</span><span id="glitchygames.interfaces.SceneInterface.play--source--__span-0-71"><a id="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-71" name="glitchygames.interfaces.SceneInterface.play--source--__codelineno-0-71"></a><span class="sd">    """</span>
+</span></code></pre></div></td></tr></table></div>
             </details>
     </div>
 
@@ -3391,7 +3439,7 @@
                 <code>next_scene</code>
             </td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="SceneInterface (glitchygames.interfaces.game.SceneInterface)" href="#glitchygames.interfaces.game.SceneInterface">SceneInterface</a> | None</code>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code&gt;SceneInterface&lt;/code&gt; (&lt;code&gt;glitchygames.interfaces.game.SceneInterface&lt;/code&gt;)" href="#glitchygames.interfaces.game.SceneInterface">SceneInterface</a> | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3431,7 +3479,7 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-46">46</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-46">46</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-47">47</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-48">48</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-49">49</a></span>
@@ -3440,17 +3488,17 @@
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-52">52</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-53">53</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-54">54</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-55">55</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-46" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-46"></a><span class="k">def</span><span class="w"> </span><span class="nf">switch_to_scene</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">next_scene</span><span class="p">:</span> <span class="n">SceneInterface</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-47" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-47"></a><span class="w">    </span><span class="sd">"""Switch to the next scene.</span>
-<a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-48" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-48"></a>
-<a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-49" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-49"></a><span class="sd">    Args:</span>
-<a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-50" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-50"></a><span class="sd">        next_scene (SceneInterface | None): The next scene, or None to clear.</span>
-<a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-51" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-51"></a>
-<a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-52" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-52"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-53" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-53"></a><span class="sd">        None</span>
-<a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-54" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-54"></a>
-<a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-55" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-55"></a><span class="sd">    """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-55">55</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__span-0-46"><a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-46" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-46"></a><span class="k">def</span><span class="w"> </span><span class="nf">switch_to_scene</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">next_scene</span><span class="p">:</span> <span class="n">SceneInterface</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__span-0-47"><a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-47" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-47"></a><span class="w">    </span><span class="sd">"""Switch to the next scene.</span>
+</span><span id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__span-0-48"><a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-48" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-48"></a>
+</span><span id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__span-0-49"><a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-49" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-49"></a><span class="sd">    Args:</span>
+</span><span id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__span-0-50"><a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-50" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-50"></a><span class="sd">        next_scene (SceneInterface | None): The next scene, or None to clear.</span>
+</span><span id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__span-0-51"><a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-51" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-51"></a>
+</span><span id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__span-0-52"><a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-52" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-52"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__span-0-53"><a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-53" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-53"></a><span class="sd">        None</span>
+</span><span id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__span-0-54"><a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-54" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-54"></a>
+</span><span id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__span-0-55"><a id="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-55" name="glitchygames.interfaces.SceneInterface.switch_to_scene--source--__codelineno-0-55"></a><span class="sd">    """</span>
+</span></code></pre></div></td></tr></table></div>
             </details>
     </div>
 
@@ -3495,20 +3543,20 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-57">57</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-57">57</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-58">58</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-59">59</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-60">60</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-61">61</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-62">62</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-63">63</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-57" name="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-57"></a><span class="k">def</span><span class="w"> </span><span class="nf">terminate</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-58" name="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-58"></a><span class="w">    </span><span class="sd">"""Terminate the scene.</span>
-<a id="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-59" name="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-59"></a>
-<a id="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-60" name="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-60"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-61" name="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-61"></a><span class="sd">        None</span>
-<a id="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-62" name="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-62"></a>
-<a id="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-63" name="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-63"></a><span class="sd">    """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-63">63</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.SceneInterface.terminate--source--__span-0-57"><a id="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-57" name="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-57"></a><span class="k">def</span><span class="w"> </span><span class="nf">terminate</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SceneInterface.terminate--source--__span-0-58"><a id="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-58" name="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-58"></a><span class="w">    </span><span class="sd">"""Terminate the scene.</span>
+</span><span id="glitchygames.interfaces.SceneInterface.terminate--source--__span-0-59"><a id="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-59" name="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-59"></a>
+</span><span id="glitchygames.interfaces.SceneInterface.terminate--source--__span-0-60"><a id="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-60" name="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-60"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.interfaces.SceneInterface.terminate--source--__span-0-61"><a id="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-61" name="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-61"></a><span class="sd">        None</span>
+</span><span id="glitchygames.interfaces.SceneInterface.terminate--source--__span-0-62"><a id="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-62" name="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-62"></a>
+</span><span id="glitchygames.interfaces.SceneInterface.terminate--source--__span-0-63"><a id="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-63" name="glitchygames.interfaces.SceneInterface.terminate--source--__codelineno-0-63"></a><span class="sd">    """</span>
+</span></code></pre></div></td></tr></table></div>
             </details>
     </div>
 
@@ -3548,7 +3596,7 @@
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SpriteInterface--source--__codelineno-0-12">12</a></span>
+                <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SpriteInterface--source--__codelineno-0-12">12</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface--source--__codelineno-0-13">13</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface--source--__codelineno-0-14">14</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface--source--__codelineno-0-15">15</a></span>
@@ -3576,36 +3624,36 @@
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface--source--__codelineno-0-37">37</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface--source--__codelineno-0-38">38</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface--source--__codelineno-0-39">39</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.SpriteInterface--source--__codelineno-0-40">40</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-12" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-12"></a><span class="k">class</span><span class="w"> </span><span class="nc">SpriteInterface</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-13" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-13"></a><span class="w">    </span><span class="sd">"""Sprite interface."""</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-14" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-14"></a>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-15" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-15"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">update_nested_sprites</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-16" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-16"></a><span class="w">        </span><span class="sd">"""Update the nested sprites.</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-17" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-17"></a>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-18" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-18"></a><span class="sd">        Returns:</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-19" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-19"></a><span class="sd">            None</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-20" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-20"></a>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-21" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-21"></a><span class="sd">        """</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-22" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-22"></a>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-23" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-23"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-24" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-24"></a><span class="w">        </span><span class="sd">"""Update the sprite.</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-25" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-25"></a>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-26" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-26"></a><span class="sd">        Returns:</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-27" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-27"></a><span class="sd">            None</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-28" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-28"></a>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-29" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-29"></a><span class="sd">        """</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-30" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-30"></a>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-31" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-31"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">screen</span><span class="p">:</span> <span class="n">pygame</span><span class="o">.</span><span class="n">Surface</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-32" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-32"></a><span class="w">        </span><span class="sd">"""Render the sprite.</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-33" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-33"></a>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-34" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-34"></a><span class="sd">        Args:</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-35" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-35"></a><span class="sd">            screen (pygame.Surface): The screen to render to.</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-36" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-36"></a>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-37" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-37"></a><span class="sd">        Returns:</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-38" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-38"></a><span class="sd">            None</span>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-39" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-39"></a>
-<a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-40" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-40"></a><span class="sd">        """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.SpriteInterface--source--__codelineno-0-40">40</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-12"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-12" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-12"></a><span class="k">class</span><span class="w"> </span><span class="nc">SpriteInterface</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-13"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-13" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-13"></a><span class="w">    </span><span class="sd">"""Sprite interface."""</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-14"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-14" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-14"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-15"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-15" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-15"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">update_nested_sprites</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-16"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-16" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-16"></a><span class="w">        </span><span class="sd">"""Update the nested sprites.</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-17"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-17" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-17"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-18"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-18" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-18"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-19"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-19" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-19"></a><span class="sd">            None</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-20"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-20" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-20"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-21"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-21" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-21"></a><span class="sd">        """</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-22"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-22" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-22"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-23"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-23" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-23"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-24"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-24" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-24"></a><span class="w">        </span><span class="sd">"""Update the sprite.</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-25"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-25" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-25"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-26"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-26" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-26"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-27"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-27" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-27"></a><span class="sd">            None</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-28"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-28" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-28"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-29"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-29" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-29"></a><span class="sd">        """</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-30"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-30" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-30"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-31"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-31" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-31"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">screen</span><span class="p">:</span> <span class="n">pygame</span><span class="o">.</span><span class="n">Surface</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-32"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-32" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-32"></a><span class="w">        </span><span class="sd">"""Render the sprite.</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-33"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-33" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-33"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-34"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-34" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-34"></a><span class="sd">        Args:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-35"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-35" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-35"></a><span class="sd">            screen (pygame.Surface): The screen to render to.</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-36"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-36" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-36"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-37"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-37" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-37"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-38"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-38" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-38"></a><span class="sd">            None</span>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-39"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-39" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-39"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface--source--__span-0-40"><a id="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-40" name="glitchygames.interfaces.SpriteInterface--source--__codelineno-0-40"></a><span class="sd">        """</span>
+</span></code></pre></div></td></tr></table></div>
               </details>
 
 
@@ -3691,7 +3739,7 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-31">31</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-31">31</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-32">32</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-33">33</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-34">34</a></span>
@@ -3700,17 +3748,17 @@
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-37">37</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-38">38</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-39">39</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-40">40</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-31" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-31"></a><span class="k">def</span><span class="w"> </span><span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">screen</span><span class="p">:</span> <span class="n">pygame</span><span class="o">.</span><span class="n">Surface</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-32" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-32"></a><span class="w">    </span><span class="sd">"""Render the sprite.</span>
-<a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-33" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-33"></a>
-<a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-34" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-34"></a><span class="sd">    Args:</span>
-<a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-35" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-35"></a><span class="sd">        screen (pygame.Surface): The screen to render to.</span>
-<a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-36" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-36"></a>
-<a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-37" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-37"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-38" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-38"></a><span class="sd">        None</span>
-<a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-39" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-39"></a>
-<a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-40" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-40"></a><span class="sd">    """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-40">40</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.SpriteInterface.render--source--__span-0-31"><a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-31" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-31"></a><span class="k">def</span><span class="w"> </span><span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">screen</span><span class="p">:</span> <span class="n">pygame</span><span class="o">.</span><span class="n">Surface</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface.render--source--__span-0-32"><a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-32" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-32"></a><span class="w">    </span><span class="sd">"""Render the sprite.</span>
+</span><span id="glitchygames.interfaces.SpriteInterface.render--source--__span-0-33"><a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-33" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-33"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface.render--source--__span-0-34"><a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-34" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-34"></a><span class="sd">    Args:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface.render--source--__span-0-35"><a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-35" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-35"></a><span class="sd">        screen (pygame.Surface): The screen to render to.</span>
+</span><span id="glitchygames.interfaces.SpriteInterface.render--source--__span-0-36"><a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-36" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-36"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface.render--source--__span-0-37"><a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-37" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-37"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface.render--source--__span-0-38"><a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-38" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-38"></a><span class="sd">        None</span>
+</span><span id="glitchygames.interfaces.SpriteInterface.render--source--__span-0-39"><a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-39" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-39"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface.render--source--__span-0-40"><a id="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-40" name="glitchygames.interfaces.SpriteInterface.render--source--__codelineno-0-40"></a><span class="sd">    """</span>
+</span></code></pre></div></td></tr></table></div>
             </details>
     </div>
 
@@ -3755,20 +3803,20 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-23">23</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-23">23</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-24">24</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-25">25</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-26">26</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-27">27</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-28">28</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-29">29</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-23" name="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-23"></a><span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-24" name="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-24"></a><span class="w">    </span><span class="sd">"""Update the sprite.</span>
-<a id="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-25" name="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-25"></a>
-<a id="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-26" name="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-26"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-27" name="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-27"></a><span class="sd">        None</span>
-<a id="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-28" name="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-28"></a>
-<a id="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-29" name="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-29"></a><span class="sd">    """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-29">29</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.SpriteInterface.update--source--__span-0-23"><a id="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-23" name="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-23"></a><span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface.update--source--__span-0-24"><a id="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-24" name="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-24"></a><span class="w">    </span><span class="sd">"""Update the sprite.</span>
+</span><span id="glitchygames.interfaces.SpriteInterface.update--source--__span-0-25"><a id="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-25" name="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-25"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface.update--source--__span-0-26"><a id="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-26" name="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-26"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface.update--source--__span-0-27"><a id="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-27" name="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-27"></a><span class="sd">        None</span>
+</span><span id="glitchygames.interfaces.SpriteInterface.update--source--__span-0-28"><a id="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-28" name="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-28"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface.update--source--__span-0-29"><a id="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-29" name="glitchygames.interfaces.SpriteInterface.update--source--__codelineno-0-29"></a><span class="sd">    """</span>
+</span></code></pre></div></td></tr></table></div>
             </details>
     </div>
 
@@ -3813,20 +3861,20 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-15">15</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-15">15</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-16">16</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-17">17</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-18">18</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-19">19</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-20">20</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-21">21</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-15" name="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_nested_sprites</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-16" name="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-16"></a><span class="w">    </span><span class="sd">"""Update the nested sprites.</span>
-<a id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-17" name="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-17"></a>
-<a id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-18" name="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-18"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-19" name="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-19"></a><span class="sd">        None</span>
-<a id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-20" name="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-20"></a>
-<a id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-21" name="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-21"></a><span class="sd">    """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-21">21</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__span-0-15"><a id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-15" name="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_nested_sprites</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__span-0-16"><a id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-16" name="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-16"></a><span class="w">    </span><span class="sd">"""Update the nested sprites.</span>
+</span><span id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__span-0-17"><a id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-17" name="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-17"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__span-0-18"><a id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-18" name="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-18"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__span-0-19"><a id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-19" name="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-19"></a><span class="sd">        None</span>
+</span><span id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__span-0-20"><a id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-20" name="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-20"></a>
+</span><span id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__span-0-21"><a id="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-21" name="glitchygames.interfaces.SpriteInterface.update_nested_sprites--source--__codelineno-0-21"></a><span class="sd">    """</span>
+</span></code></pre></div></td></tr></table></div>
             </details>
     </div>
 
@@ -3901,7 +3949,7 @@
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-43">43</a></span>
+                <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-43">43</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-44">44</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-45">45</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-46">46</a></span>
@@ -3937,44 +3985,44 @@
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-76">76</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-77">77</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-78">78</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-79">79</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-43" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-43"></a><span class="k">class</span><span class="w"> </span><span class="nc">SceneInterface</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-44" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-44"></a><span class="w">    </span><span class="sd">"""Scene interface."""</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-45" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-45"></a>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-46" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-46"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">switch_to_scene</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">next_scene</span><span class="p">:</span> <span class="n">SceneInterface</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-47" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-47"></a><span class="w">        </span><span class="sd">"""Switch to the next scene.</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-48" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-48"></a>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-49" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-49"></a><span class="sd">        Args:</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-50" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-50"></a><span class="sd">            next_scene (SceneInterface | None): The next scene, or None to clear.</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-51" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-51"></a>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-52" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-52"></a><span class="sd">        Returns:</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-53" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-53"></a><span class="sd">            None</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-54" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-54"></a>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-55" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-55"></a><span class="sd">        """</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-56" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-56"></a>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-57" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-57"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">terminate</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-58" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-58"></a><span class="w">        </span><span class="sd">"""Terminate the scene.</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-59" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-59"></a>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-60" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-60"></a><span class="sd">        Returns:</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-61" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-61"></a><span class="sd">            None</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-62" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-62"></a>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-63" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-63"></a><span class="sd">        """</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-64" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-64"></a>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-65" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-65"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">play</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-66" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-66"></a><span class="w">        </span><span class="sd">"""Play the scene.</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-67" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-67"></a>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-68" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-68"></a><span class="sd">        Returns:</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-69" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-69"></a><span class="sd">            None</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-70" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-70"></a>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-71" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-71"></a><span class="sd">        """</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-72" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-72"></a>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-73" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-73"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pause</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-74" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-74"></a><span class="w">        </span><span class="sd">"""Pause the scene.</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-75" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-75"></a>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-76" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-76"></a><span class="sd">        Returns:</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-77" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-77"></a><span class="sd">            None</span>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-78" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-78"></a>
-<a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-79" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-79"></a><span class="sd">        """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-79">79</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-43"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-43" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-43"></a><span class="k">class</span><span class="w"> </span><span class="nc">SceneInterface</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-44"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-44" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-44"></a><span class="w">    </span><span class="sd">"""Scene interface."""</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-45"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-45" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-45"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-46"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-46" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-46"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">switch_to_scene</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">next_scene</span><span class="p">:</span> <span class="n">SceneInterface</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-47"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-47" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-47"></a><span class="w">        </span><span class="sd">"""Switch to the next scene.</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-48"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-48" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-48"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-49"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-49" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-49"></a><span class="sd">        Args:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-50"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-50" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-50"></a><span class="sd">            next_scene (SceneInterface | None): The next scene, or None to clear.</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-51"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-51" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-51"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-52"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-52" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-52"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-53"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-53" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-53"></a><span class="sd">            None</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-54"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-54" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-54"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-55"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-55" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-55"></a><span class="sd">        """</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-56"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-56" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-56"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-57"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-57" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-57"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">terminate</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-58"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-58" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-58"></a><span class="w">        </span><span class="sd">"""Terminate the scene.</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-59"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-59" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-59"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-60"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-60" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-60"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-61"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-61" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-61"></a><span class="sd">            None</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-62"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-62" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-62"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-63"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-63" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-63"></a><span class="sd">        """</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-64"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-64" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-64"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-65"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-65" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-65"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">play</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-66"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-66" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-66"></a><span class="w">        </span><span class="sd">"""Play the scene.</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-67"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-67" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-67"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-68"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-68" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-68"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-69"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-69" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-69"></a><span class="sd">            None</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-70"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-70" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-70"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-71"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-71" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-71"></a><span class="sd">        """</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-72"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-72" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-72"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-73"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-73" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-73"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pause</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-74"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-74" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-74"></a><span class="w">        </span><span class="sd">"""Pause the scene.</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-75"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-75" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-75"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-76"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-76" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-76"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-77"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-77" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-77"></a><span class="sd">            None</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-78"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-78" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-78"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface--source--__span-0-79"><a id="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-79" name="glitchygames.interfaces.game.SceneInterface--source--__codelineno-0-79"></a><span class="sd">        """</span>
+</span></code></pre></div></td></tr></table></div>
               </details>
 
 
@@ -4029,20 +4077,20 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-73">73</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-73">73</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-74">74</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-75">75</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-76">76</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-77">77</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-78">78</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-79">79</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-73" name="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-73"></a><span class="k">def</span><span class="w"> </span><span class="nf">pause</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-74" name="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-74"></a><span class="w">    </span><span class="sd">"""Pause the scene.</span>
-<a id="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-75" name="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-75"></a>
-<a id="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-76" name="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-76"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-77" name="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-77"></a><span class="sd">        None</span>
-<a id="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-78" name="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-78"></a>
-<a id="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-79" name="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-79"></a><span class="sd">    """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-79">79</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.game.SceneInterface.pause--source--__span-0-73"><a id="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-73" name="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-73"></a><span class="k">def</span><span class="w"> </span><span class="nf">pause</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.pause--source--__span-0-74"><a id="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-74" name="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-74"></a><span class="w">    </span><span class="sd">"""Pause the scene.</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.pause--source--__span-0-75"><a id="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-75" name="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-75"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface.pause--source--__span-0-76"><a id="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-76" name="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-76"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.pause--source--__span-0-77"><a id="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-77" name="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-77"></a><span class="sd">        None</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.pause--source--__span-0-78"><a id="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-78" name="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-78"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface.pause--source--__span-0-79"><a id="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-79" name="glitchygames.interfaces.game.SceneInterface.pause--source--__codelineno-0-79"></a><span class="sd">    """</span>
+</span></code></pre></div></td></tr></table></div>
             </details>
     </div>
 
@@ -4087,20 +4135,20 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-65">65</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-65">65</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-66">66</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-67">67</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-68">68</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-69">69</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-70">70</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-71">71</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-65" name="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-65"></a><span class="k">def</span><span class="w"> </span><span class="nf">play</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-66" name="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-66"></a><span class="w">    </span><span class="sd">"""Play the scene.</span>
-<a id="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-67" name="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-67"></a>
-<a id="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-68" name="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-68"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-69" name="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-69"></a><span class="sd">        None</span>
-<a id="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-70" name="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-70"></a>
-<a id="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-71" name="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-71"></a><span class="sd">    """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-71">71</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.game.SceneInterface.play--source--__span-0-65"><a id="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-65" name="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-65"></a><span class="k">def</span><span class="w"> </span><span class="nf">play</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.play--source--__span-0-66"><a id="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-66" name="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-66"></a><span class="w">    </span><span class="sd">"""Play the scene.</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.play--source--__span-0-67"><a id="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-67" name="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-67"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface.play--source--__span-0-68"><a id="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-68" name="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-68"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.play--source--__span-0-69"><a id="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-69" name="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-69"></a><span class="sd">        None</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.play--source--__span-0-70"><a id="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-70" name="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-70"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface.play--source--__span-0-71"><a id="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-71" name="glitchygames.interfaces.game.SceneInterface.play--source--__codelineno-0-71"></a><span class="sd">    """</span>
+</span></code></pre></div></td></tr></table></div>
             </details>
     </div>
 
@@ -4136,7 +4184,7 @@
                 <code>next_scene</code>
             </td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="SceneInterface (glitchygames.interfaces.game.SceneInterface)" href="#glitchygames.interfaces.game.SceneInterface">SceneInterface</a> | None</code>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code&gt;SceneInterface&lt;/code&gt; (&lt;code&gt;glitchygames.interfaces.game.SceneInterface&lt;/code&gt;)" href="#glitchygames.interfaces.game.SceneInterface">SceneInterface</a> | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -4176,7 +4224,7 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-46">46</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-46">46</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-47">47</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-48">48</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-49">49</a></span>
@@ -4185,17 +4233,17 @@
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-52">52</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-53">53</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-54">54</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-55">55</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-46" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-46"></a><span class="k">def</span><span class="w"> </span><span class="nf">switch_to_scene</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">next_scene</span><span class="p">:</span> <span class="n">SceneInterface</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-47" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-47"></a><span class="w">    </span><span class="sd">"""Switch to the next scene.</span>
-<a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-48" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-48"></a>
-<a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-49" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-49"></a><span class="sd">    Args:</span>
-<a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-50" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-50"></a><span class="sd">        next_scene (SceneInterface | None): The next scene, or None to clear.</span>
-<a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-51" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-51"></a>
-<a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-52" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-52"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-53" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-53"></a><span class="sd">        None</span>
-<a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-54" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-54"></a>
-<a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-55" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-55"></a><span class="sd">    """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-55">55</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__span-0-46"><a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-46" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-46"></a><span class="k">def</span><span class="w"> </span><span class="nf">switch_to_scene</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">next_scene</span><span class="p">:</span> <span class="n">SceneInterface</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__span-0-47"><a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-47" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-47"></a><span class="w">    </span><span class="sd">"""Switch to the next scene.</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__span-0-48"><a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-48" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-48"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__span-0-49"><a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-49" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-49"></a><span class="sd">    Args:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__span-0-50"><a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-50" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-50"></a><span class="sd">        next_scene (SceneInterface | None): The next scene, or None to clear.</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__span-0-51"><a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-51" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-51"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__span-0-52"><a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-52" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-52"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__span-0-53"><a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-53" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-53"></a><span class="sd">        None</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__span-0-54"><a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-54" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-54"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__span-0-55"><a id="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-55" name="glitchygames.interfaces.game.SceneInterface.switch_to_scene--source--__codelineno-0-55"></a><span class="sd">    """</span>
+</span></code></pre></div></td></tr></table></div>
             </details>
     </div>
 
@@ -4240,20 +4288,20 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-57">57</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-57">57</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-58">58</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-59">59</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-60">60</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-61">61</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-62">62</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-63">63</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-57" name="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-57"></a><span class="k">def</span><span class="w"> </span><span class="nf">terminate</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-58" name="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-58"></a><span class="w">    </span><span class="sd">"""Terminate the scene.</span>
-<a id="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-59" name="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-59"></a>
-<a id="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-60" name="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-60"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-61" name="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-61"></a><span class="sd">        None</span>
-<a id="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-62" name="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-62"></a>
-<a id="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-63" name="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-63"></a><span class="sd">    """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-63">63</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.game.SceneInterface.terminate--source--__span-0-57"><a id="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-57" name="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-57"></a><span class="k">def</span><span class="w"> </span><span class="nf">terminate</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.terminate--source--__span-0-58"><a id="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-58" name="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-58"></a><span class="w">    </span><span class="sd">"""Terminate the scene.</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.terminate--source--__span-0-59"><a id="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-59" name="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-59"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface.terminate--source--__span-0-60"><a id="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-60" name="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-60"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.terminate--source--__span-0-61"><a id="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-61" name="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-61"></a><span class="sd">        None</span>
+</span><span id="glitchygames.interfaces.game.SceneInterface.terminate--source--__span-0-62"><a id="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-62" name="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-62"></a>
+</span><span id="glitchygames.interfaces.game.SceneInterface.terminate--source--__span-0-63"><a id="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-63" name="glitchygames.interfaces.game.SceneInterface.terminate--source--__codelineno-0-63"></a><span class="sd">    """</span>
+</span></code></pre></div></td></tr></table></div>
             </details>
     </div>
 
@@ -4293,7 +4341,7 @@
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-12">12</a></span>
+                <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-12">12</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-13">13</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-14">14</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-15">15</a></span>
@@ -4321,36 +4369,36 @@
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-37">37</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-38">38</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-39">39</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-40">40</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-12" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-12"></a><span class="k">class</span><span class="w"> </span><span class="nc">SpriteInterface</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-13" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-13"></a><span class="w">    </span><span class="sd">"""Sprite interface."""</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-14" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-14"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-15" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-15"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">update_nested_sprites</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-16" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-16"></a><span class="w">        </span><span class="sd">"""Update the nested sprites.</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-17" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-17"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-18" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-18"></a><span class="sd">        Returns:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-19" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-19"></a><span class="sd">            None</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-20" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-20"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-21" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-21"></a><span class="sd">        """</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-22" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-22"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-23" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-23"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-24" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-24"></a><span class="w">        </span><span class="sd">"""Update the sprite.</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-25" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-25"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-26" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-26"></a><span class="sd">        Returns:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-27" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-27"></a><span class="sd">            None</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-28" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-28"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-29" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-29"></a><span class="sd">        """</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-30" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-30"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-31" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-31"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">screen</span><span class="p">:</span> <span class="n">pygame</span><span class="o">.</span><span class="n">Surface</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-32" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-32"></a><span class="w">        </span><span class="sd">"""Render the sprite.</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-33" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-33"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-34" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-34"></a><span class="sd">        Args:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-35" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-35"></a><span class="sd">            screen (pygame.Surface): The screen to render to.</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-36" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-36"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-37" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-37"></a><span class="sd">        Returns:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-38" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-38"></a><span class="sd">            None</span>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-39" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-39"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-40" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-40"></a><span class="sd">        """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-40">40</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-12"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-12" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-12"></a><span class="k">class</span><span class="w"> </span><span class="nc">SpriteInterface</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-13"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-13" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-13"></a><span class="w">    </span><span class="sd">"""Sprite interface."""</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-14"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-14" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-14"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-15"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-15" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-15"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">update_nested_sprites</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-16"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-16" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-16"></a><span class="w">        </span><span class="sd">"""Update the nested sprites.</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-17"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-17" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-17"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-18"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-18" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-18"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-19"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-19" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-19"></a><span class="sd">            None</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-20"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-20" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-20"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-21"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-21" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-21"></a><span class="sd">        """</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-22"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-22" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-22"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-23"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-23" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-23"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-24"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-24" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-24"></a><span class="w">        </span><span class="sd">"""Update the sprite.</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-25"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-25" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-25"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-26"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-26" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-26"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-27"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-27" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-27"></a><span class="sd">            None</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-28"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-28" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-28"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-29"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-29" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-29"></a><span class="sd">        """</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-30"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-30" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-30"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-31"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-31" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-31"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">screen</span><span class="p">:</span> <span class="n">pygame</span><span class="o">.</span><span class="n">Surface</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-32"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-32" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-32"></a><span class="w">        </span><span class="sd">"""Render the sprite.</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-33"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-33" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-33"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-34"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-34" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-34"></a><span class="sd">        Args:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-35"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-35" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-35"></a><span class="sd">            screen (pygame.Surface): The screen to render to.</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-36"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-36" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-36"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-37"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-37" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-37"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-38"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-38" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-38"></a><span class="sd">            None</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-39"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-39" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-39"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface--source--__span-0-40"><a id="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-40" name="glitchygames.interfaces.game.SpriteInterface--source--__codelineno-0-40"></a><span class="sd">        """</span>
+</span></code></pre></div></td></tr></table></div>
               </details>
 
 
@@ -4436,7 +4484,7 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-31">31</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-31">31</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-32">32</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-33">33</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-34">34</a></span>
@@ -4445,17 +4493,17 @@
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-37">37</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-38">38</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-39">39</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-40">40</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-31" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-31"></a><span class="k">def</span><span class="w"> </span><span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">screen</span><span class="p">:</span> <span class="n">pygame</span><span class="o">.</span><span class="n">Surface</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-32" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-32"></a><span class="w">    </span><span class="sd">"""Render the sprite.</span>
-<a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-33" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-33"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-34" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-34"></a><span class="sd">    Args:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-35" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-35"></a><span class="sd">        screen (pygame.Surface): The screen to render to.</span>
-<a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-36" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-36"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-37" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-37"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-38" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-38"></a><span class="sd">        None</span>
-<a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-39" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-39"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-40" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-40"></a><span class="sd">    """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-40">40</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.game.SpriteInterface.render--source--__span-0-31"><a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-31" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-31"></a><span class="k">def</span><span class="w"> </span><span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">screen</span><span class="p">:</span> <span class="n">pygame</span><span class="o">.</span><span class="n">Surface</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.render--source--__span-0-32"><a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-32" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-32"></a><span class="w">    </span><span class="sd">"""Render the sprite.</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.render--source--__span-0-33"><a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-33" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-33"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.render--source--__span-0-34"><a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-34" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-34"></a><span class="sd">    Args:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.render--source--__span-0-35"><a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-35" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-35"></a><span class="sd">        screen (pygame.Surface): The screen to render to.</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.render--source--__span-0-36"><a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-36" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-36"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.render--source--__span-0-37"><a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-37" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-37"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.render--source--__span-0-38"><a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-38" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-38"></a><span class="sd">        None</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.render--source--__span-0-39"><a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-39" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-39"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.render--source--__span-0-40"><a id="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-40" name="glitchygames.interfaces.game.SpriteInterface.render--source--__codelineno-0-40"></a><span class="sd">    """</span>
+</span></code></pre></div></td></tr></table></div>
             </details>
     </div>
 
@@ -4500,20 +4548,20 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-23">23</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-23">23</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-24">24</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-25">25</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-26">26</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-27">27</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-28">28</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-29">29</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-23" name="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-23"></a><span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-24" name="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-24"></a><span class="w">    </span><span class="sd">"""Update the sprite.</span>
-<a id="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-25" name="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-25"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-26" name="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-26"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-27" name="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-27"></a><span class="sd">        None</span>
-<a id="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-28" name="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-28"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-29" name="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-29"></a><span class="sd">    """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-29">29</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.game.SpriteInterface.update--source--__span-0-23"><a id="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-23" name="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-23"></a><span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.update--source--__span-0-24"><a id="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-24" name="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-24"></a><span class="w">    </span><span class="sd">"""Update the sprite.</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.update--source--__span-0-25"><a id="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-25" name="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-25"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.update--source--__span-0-26"><a id="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-26" name="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-26"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.update--source--__span-0-27"><a id="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-27" name="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-27"></a><span class="sd">        None</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.update--source--__span-0-28"><a id="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-28" name="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-28"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.update--source--__span-0-29"><a id="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-29" name="glitchygames.interfaces.game.SpriteInterface.update--source--__codelineno-0-29"></a><span class="sd">    """</span>
+</span></code></pre></div></td></tr></table></div>
             </details>
     </div>
 
@@ -4558,20 +4606,20 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/interfaces/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-15">15</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-15">15</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-16">16</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-17">17</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-18">18</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-19">19</a></span>
 <span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-20">20</a></span>
-<span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-21">21</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-15" name="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_nested_sprites</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-16" name="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-16"></a><span class="w">    </span><span class="sd">"""Update the nested sprites.</span>
-<a id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-17" name="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-17"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-18" name="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-18"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-19" name="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-19"></a><span class="sd">        None</span>
-<a id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-20" name="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-20"></a>
-<a id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-21" name="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-21"></a><span class="sd">    """</span>
-</code></pre></div></td></tr></table></div>
+<span class="normal"><a href="#glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-21">21</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__span-0-15"><a id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-15" name="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_nested_sprites</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__span-0-16"><a id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-16" name="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-16"></a><span class="w">    </span><span class="sd">"""Update the nested sprites.</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__span-0-17"><a id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-17" name="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-17"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__span-0-18"><a id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-18" name="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-18"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__span-0-19"><a id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-19" name="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-19"></a><span class="sd">        None</span>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__span-0-20"><a id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-20" name="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-20"></a>
+</span><span id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__span-0-21"><a id="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-21" name="glitchygames.interfaces.game.SpriteInterface.update_nested_sprites--source--__codelineno-0-21"></a><span class="sd">    """</span>
+</span></code></pre></div></td></tr></table></div>
             </details>
     </div>
 
@@ -4607,6 +4655,27 @@
 
 
 
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 24, 2026 22:54:29 UTC">October 24, 2026</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
 
 
 
@@ -4631,6 +4700,46 @@
       </main>
       
         <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../input/" class="md-footer__link md-footer__link--prev" aria-label="Previous: glitchygames.input">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                glitchygames.input
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../movement/" class="md-footer__link md-footer__link--next" aria-label="Next: glitchygames.movement">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                glitchygames.movement
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
   
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
@@ -4659,7 +4768,7 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link", "navigation.expand", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.expand", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>

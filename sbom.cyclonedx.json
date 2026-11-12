@@ -7181,6 +7181,422 @@
       "version": "0.2.2"
     },
     {
+      "cpe": "cpe:2.3:a:python-mkdocs-git-revision-date-localized-plugin:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "name": "mkdocs-git-revision-date-localized-plugin",
+      "properties": [
+        {
+          "name": "syft:package:foundBy",
+          "value": "python-package-cataloger"
+        },
+        {
+          "name": "syft:package:language",
+          "value": "python"
+        },
+        {
+          "name": "syft:package:type",
+          "value": "python"
+        },
+        {
+          "name": "syft:package:metadataType",
+          "value": "python-uv-lock-entry"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision-date-localized-plugin:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision_date_localized_plugin:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision_date_localized_plugin:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision-date-localized-plugin:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision-date-localized-plugin:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision_date_localized_plugin:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision_date_localized_plugin:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision-date-localized-plugin:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision-date-localized-plugin:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision-date-localized:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision-date-localized:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision_date_localized:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision_date_localized:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision_date_localized_plugin:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision_date_localized_plugin:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision-date-localized-plugin:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision-date-localized-plugin:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision-date-localized:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision-date-localized:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision_date_localized:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision_date_localized:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision_date_localized_plugin:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision_date_localized_plugin:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision-date-localized:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision-date-localized:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision_date_localized:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision_date_localized:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision-date:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision-date:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision_date:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision_date:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision-date-localized:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision-date-localized:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision_date_localized:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision_date_localized:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision-date:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision-date:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision_date:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision_date:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision-date:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision-date:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision_date:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision_date:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git-revision:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git_revision:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision-date:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision-date:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision_date:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision_date:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git-revision:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git_revision:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs-git:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs_git:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-mkdocs:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:python-mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:python_mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_mkdocs:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs-git:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs_git:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:mkdocs:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:mkdocs-git-revision-date-localized-plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:mkdocs_git_revision_date_localized_plugin:1.7.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:location:0:path",
+          "value": "/uv.lock"
+        }
+      ],
+      "purl": "pkg:pypi/mkdocs-git-revision-date-localized-plugin@1.7.0",
+      "type": "library",
+      "version": "1.7.0"
+    },
+    {
       "cpe": "cpe:2.3:a:python-mkdocs-literate-nav:python-mkdocs-literate-nav:0.6.3:*:*:*:*:*:*:*",
       "licenses": [
         {
@@ -17474,6 +17890,7 @@
         "pkg:pypi/miniaudio@1.71",
         "pkg:pypi/mkdocs-autorefs@1.4.5",
         "pkg:pypi/mkdocs-gen-files@0.6.1",
+        "pkg:pypi/mkdocs-git-revision-date-localized-plugin@1.7.0",
         "pkg:pypi/mkdocs-literate-nav@0.6.3",
         "pkg:pypi/mkdocs-macros-plugin@1.5.0",
         "pkg:pypi/mkdocs-material@9.8.0",
@@ -17578,6 +17995,15 @@
         "pkg:pypi/pygments@2.21.0",
         "pkg:pypi/pymdown-extensions@12.3",
         "pkg:pypi/requests@2.34.2"
+      ]
+    },
+    {
+      "dependsOn": [
+        "pkg:pypi/babel@2.18.0",
+        "pkg:pypi/gitpython@3.2.1",
+        "pkg:pypi/mkdocs@1.6.1",
+        "pkg:pypi/packaging@26.3",
+        "pkg:pypi/tzdata@2026.6"
       ]
     },
     {

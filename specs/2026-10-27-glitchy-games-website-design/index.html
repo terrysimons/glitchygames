@@ -31,6 +31,9 @@
     
       <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
       
 
 
@@ -65,7 +68,14 @@
   </head>
   
   
-    <body dir="ltr">
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -117,6 +127,32 @@
       </div>
     </div>
     
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
     
       <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
     
@@ -141,11 +177,18 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
         <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
       
     </form>
     <div class="md-search__output">
@@ -3193,6 +3236,11 @@
 
 
   
+    <a href="https://github.com/terrysimons/glitchygames/edit/main/docs/specs/2026-10-27-glitchy-games-website-design.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
   
 
 
@@ -3208,7 +3256,7 @@ arcade (the gallery in the owner's mockup: a featured demo with sound on top, a 
 silent demo tiles below, arrows / d-pad to browse, Enter / A to play). Every game runs in the
 visitor's own browser (Pyodide/WebAssembly; <code>plans/2026-10-23-game-host-and-browser-runner.md</code>,
 <code>scripts/build_browser_bundle.py</code>), so the server only serves files.</p>
-<p>Later, a GPU instance on AWS will run AI work (e.g. Bitmappy's AI sprite generation, AI players
+<p>Later, a <abbr title="Graphics processing unit">GPU</abbr> instance on AWS will run <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> work (e.g. Bitmappy's <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> sprite generation, <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> players
 driven through the outer <code>GameHost</code> layer). It is out of scope to build now, but it is scoped into
 the cost estimate.</p>
 <h2 id="goals">Goals<a class="headerlink" href="#goals" title="Permanent link">#</a></h2>
@@ -3222,7 +3270,7 @@ the cost estimate.</p>
 <h2 id="non-goals-for-now">Non-goals (for now)<a class="headerlink" href="#non-goals-for-now" title="Permanent link">#</a></h2>
 <ul>
 <li>No servers at launch: no EC2, Lightsail, containers or databases.</li>
-<li>No GPU instance yet (later phase, below).</li>
+<li>No <abbr title="Graphics processing unit">GPU</abbr> instance yet (later phase, below).</li>
 <li>No home page at <code>glitchy.games</code> yet — it redirects to <code>play.glitchy.games</code>.</li>
 <li>No docs site yet (<code>docs.glitchy.games</code> is reserved for the MkDocs site, later).</li>
 <li>The 24 other domains the owner holds at Namecheap (<code>glitchygames.*</code>, <code>twitchplaysglitchy*</code>)
@@ -3233,7 +3281,7 @@ the cost estimate.</p>
 <ul>
 <li>Long-lived AWS access keys stored in GitHub.</li>
 <li>A setup that only works because of hand-clicked console changes nobody can reproduce.</li>
-<li>A bill that can grow silently (runaway GPU instance, traffic spike) without an alert.</li>
+<li>A bill that can grow silently (runaway <abbr title="Graphics processing unit">GPU</abbr> instance, traffic spike) without an alert.</li>
 </ul>
 <h2 id="constraints-and-facts">Constraints and facts<a class="headerlink" href="#constraints-and-facts" title="Permanent link">#</a></h2>
 <ul>
@@ -3242,7 +3290,7 @@ the cost estimate.</p>
   allowances apply (CloudFront: 1 TB transfer and 10M requests / month; Lambda; DynamoDB).</li>
 <li><strong>Domains:</strong> registered at Namecheap (namecheap.com). Two are in scope:
   <code>glitchy.games</code> and <code>glitchygames.ai</code>.</li>
-<li><strong>Region:</strong> us-east-1 (CloudFront certificates must live there; cheapest GPU pricing later).</li>
+<li><strong>Region:</strong> us-east-1 (CloudFront certificates must live there; cheapest <abbr title="Graphics processing unit">GPU</abbr> pricing later).</li>
 <li><strong>Browser build:</strong> <code>scripts/build_browser_bundle.py</code> (on <code>main</code>) writes
   <code>build/browser/&lt;game&gt;</code>: the page, the engine and our pygame-ce WebAssembly wheel. The wheel is
   built from the <code>third_party/pygame-ce</code> submodule and takes several minutes the first time.</li>
@@ -3254,7 +3302,7 @@ the cost estimate.</p>
   <code>pyscript.net</code>.</li>
 <li><strong>The Arcade app</strong> (<code>plans/2026-10-23-arcade-showcase.md</code>, feature #43) is a spec, not built.
   <code>src/apps/</code> holds only Bitmappy today.</li>
-<li><strong>CI is CircleCI</strong> (<code>.circleci/config.yml</code>); there is no <code>.github/</code>. Its <code>deploy-docs</code> job
+<li><strong><abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> is CircleCI</strong> (<code>.circleci/config.yml</code>); there is no <code>.github/</code>. Its <code>deploy-docs</code> job
   runs after <code>build-and-test-macos</code> passes on <code>main</code> (macOS <code>m4pro.medium</code>, one at a time via
   <code>serial-group</code>), already caches the Pyodide toolchain (~2 GB) and the pygame-ce WebAssembly
   wheel keyed on the submodule commit, and runs <code>nox -s docs-deploy -- --no-measure</code>.</li>
@@ -3306,8 +3354,8 @@ the cost estimate.</p>
 <td>until the Arcade exists, the owner's mockup image is the placeholder</td>
 </tr>
 <tr>
-<td>GPU</td>
-<td>later, for AI work; include it in the cost picture only</td>
+<td><abbr title="Graphics processing unit">GPU</abbr></td>
+<td>later, for <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> work; include it in the cost picture only</td>
 </tr>
 </tbody>
 </table>
@@ -3346,23 +3394,23 @@ the cost estimate.</p>
 matters beyond SEO: browser storage (the Arcade's saves, <code>browser/browser_storage.py</code>) is
 per-origin, so serving the site on two origins would split players' saves.</p>
 <h2 id="architecture-claudes-call-unless-noted">Architecture (Claude's call unless noted)<a class="headerlink" href="#architecture-claudes-call-unless-noted" title="Permanent link">#</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>                 Namecheap (registrar only)
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                   | nameservers -&gt; Route 53
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                   v
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a> Route 53 zone: glitchy.games          Route 53 zone: glitchygames.ai
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>   play  -&gt; ALIAS site distribution      @, www -&gt; ALIAS redirect distribution
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>   @,www -&gt; ALIAS redirect distribution
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                   |                                   |
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                   v                                   v
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a> CloudFront "site" distribution        CloudFront "redirect" distribution
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>   - origin: private S3 bucket (OAC)     - no real origin; a CloudFront Function
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>   - HTTPS cert (ACM, us-east-1)           answers every request with a 301 to
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>   - compression on                        https://play.glitchy.games&lt;path&gt;
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>   - response headers policy             - HTTPS cert (ACM) for the four names
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>                   |
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>                   v
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a> S3 bucket (private, versioned) holding build/browser/...
-</code></pre></div>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>                 Namecheap (registrar only)
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                   | nameservers -&gt; Route 53
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                   v
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a> Route 53 zone: glitchy.games          Route 53 zone: glitchygames.ai
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>   play  -&gt; ALIAS site distribution      @, www -&gt; ALIAS redirect distribution
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>   @,www -&gt; ALIAS redirect distribution
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                   |                                   |
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                   v                                   v
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a> CloudFront "site" distribution        CloudFront "redirect" distribution
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>   - origin: private S3 bucket (OAC)     - no real origin; a CloudFront Function
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>   - HTTPS cert (ACM, us-east-1)           answers every request with a 301 to
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>   - compression on                        https://play.glitchy.games&lt;path&gt;
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>   - response headers policy             - HTTPS cert (ACM) for the four names
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>                   |
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>                   v
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a> S3 bucket (private, versioned) holding build/browser/...
+</span></code></pre></div>
 <ul>
 <li><strong>DNS:</strong> move the nameservers of both domains to Route 53 at Namecheap (one manual step per
   domain, done once). Route 53 then holds every record as code. $0.50 / zone / month.</li>
@@ -3398,8 +3446,8 @@ per-origin, so serving the site on two origins would split players' saves.</p>
 <li>First deploy (<code>cdk bootstrap</code> + deploy) runs from the owner's Mac with admin credentials.</li>
 </ul>
 <h2 id="publishing-owner-on-every-push-to-main">Publishing (owner: on every push to <code>main</code>)<a class="headerlink" href="#publishing-owner-on-every-push-to-main" title="Permanent link">#</a></h2>
-<p>The repo's CI is CircleCI, which already builds the browser games on every merge to <code>main</code>, so
-publishing to AWS joins that pipeline (Claude's call: no GitHub Actions, one CI system).</p>
+<p>The repo's <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> is CircleCI, which already builds the browser games on every merge to <code>main</code>, so
+publishing to AWS joins that pipeline (Claude's call: no GitHub Actions, one <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> system).</p>
 <ul>
 <li>A new <code>nox -s site-publish</code> session: syncs a built site directory to the bucket
   (<code>aws s3 sync --delete</code>, <code>.wasm</code> as <code>application/wasm</code>, short cache on <code>index.html</code> files,
@@ -3475,13 +3523,13 @@ stand alone until the Arcade is ready.</p>
 <p>Plus existing Namecheap renewals (unchanged). Pyodide-based pages are ~10–30 MB per first visit,
 so 1 TB covers roughly 35–100k first-time visitors / month before CloudFront charges (~$0.085/GB
 in NA/EU).</p>
-<h3 id="later-gpu-for-ai-work-not-built-now">Later: GPU for AI work (not built now)<a class="headerlink" href="#later-gpu-for-ai-work-not-built-now" title="Permanent link">#</a></h3>
+<h3 id="later-gpu-for-ai-work-not-built-now">Later: <abbr title="Graphics processing unit">GPU</abbr> for <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> work (not built now)<a class="headerlink" href="#later-gpu-for-ai-work-not-built-now" title="Permanent link">#</a></h3>
 <p>Prices from third-party trackers (verify on AWS before buying):</p>
 <table>
 <thead>
 <tr>
 <th>Instance</th>
-<th>GPU</th>
+<th><abbr title="Graphics processing unit">GPU</abbr></th>
 <th>On-demand</th>
 <th>24/7</th>
 <th>Start/stop on demand</th>
@@ -3505,7 +3553,7 @@ in NA/EU).</p>
 </tbody>
 </table>
 <p>Plus EBS storage (~$8/mo per 100 GB gp3) and ~$3.60/mo for a public IPv4 while running. Spot
-pricing is often 60–70% lower. New accounts usually have a GPU (G-family) vCPU quota of 0 — check
+pricing is often 60–70% lower. New accounts usually have a <abbr title="Graphics processing unit">GPU</abbr> (G-family) vCPU quota of 0 — check
 and request an increase well before it's needed. "Dedicated Instances" (AWS's single-tenant
 option) cost extra and aren't needed; a normal on-demand instance is the owner's own machine.</p>
 <h2 id="manual-steps-for-the-owner">Manual steps for the owner<a class="headerlink" href="#manual-steps-for-the-owner" title="Permanent link">#</a></h2>
@@ -3529,7 +3577,7 @@ is served, so propagation time costs nothing.</p>
   unused).</li>
 <li><strong>.games / .ai nameserver changes</strong> can take up to 48 h to propagate; certificate validation
   waits on it.</li>
-<li><strong>CI build time:</strong> already handled; <code>deploy-docs</code> caches the toolchain and wheel.</li>
+<li><strong><abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> build time:</strong> already handled; <code>deploy-docs</code> caches the toolchain and wheel.</li>
 <li><strong>Third-party CDN:</strong> the site depends on <code>pyscript.net</code> (and Pyodide's CDN) being up. Self-
   hosting them is a later option.</li>
 </ul>
@@ -3556,7 +3604,7 @@ is served, so propagation time costs nothing.</p>
 <ul>
 <li>AWS free tier changes: <a href="https://tech-insider.org/what-changed-in-the-aws-free-tier-for-2026/">https://tech-insider.org/what-changed-in-the-aws-free-tier-for-2026/</a> ,
   <a href="https://spot.rackspace.com/blog/aws-free-tier">https://spot.rackspace.com/blog/aws-free-tier</a></li>
-<li>GPU pricing: <a href="https://calculator.holori.com/aws/ec2/g4dn.xlarge/us-east-1">https://calculator.holori.com/aws/ec2/g4dn.xlarge/us-east-1</a> ,
+<li><abbr title="Graphics processing unit">GPU</abbr> pricing: <a href="https://calculator.holori.com/aws/ec2/g4dn.xlarge/us-east-1">https://calculator.holori.com/aws/ec2/g4dn.xlarge/us-east-1</a> ,
   <a href="https://calculator.holori.com/aws/ec2/g6.xlarge/us-east-1">https://calculator.holori.com/aws/ec2/g6.xlarge/us-east-1</a></li>
 <li>Lightsail pricing (considered, not chosen): <a href="https://cloudburn.io/blog/amazon-lightsail-pricing">https://cloudburn.io/blog/amazon-lightsail-pricing</a></li>
 </ul>
@@ -3567,6 +3615,27 @@ is served, so propagation time costs nothing.</p>
 
 
 
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 28, 2026 20:36:28 UTC">October 28, 2026</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
 
 
 
@@ -3591,6 +3660,46 @@ is served, so propagation time costs nothing.</p>
       </main>
       
         <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../../galimore/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Galimore Survey">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Galimore Survey
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../2026-10-29-sprite-quicklook-design/" class="md-footer__link md-footer__link--next" aria-label="Next: Sprite QuickLook for macOS">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Sprite QuickLook for macOS
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
   
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
@@ -3619,7 +3728,7 @@ is served, so propagation time costs nothing.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link", "navigation.expand", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.expand", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
