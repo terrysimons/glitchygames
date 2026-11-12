@@ -85,7 +85,9 @@
 
     # git and curl: checkout and the uv installer. fontconfig: the suite's text tests, explicit
     # because only the desktop brings it in today. build-essential and python3-dev: numpy has no
-    # wheels in uv.lock and miniaudio none for Linux ARM on Python 3.14, so both compile
+    # wheels in uv.lock and miniaudio none for Linux ARM on Python 3.14, so both compile.
+    # util-linux: flock, which scripts/measure_on_raspberry_pi.py takes so one push at a time
+    # measures in the clone (BUGS.md #273); every install has it, named here so it is explicit
     - name: Install what the checkout, the tests and the source builds need
       ansible.builtin.apt:
         name:
@@ -96,6 +98,7 @@
           - git
           - openssh-server
           - python3-dev
+          - util-linux
         state: present
         update_cache: true
         cache_valid_time: 3600
