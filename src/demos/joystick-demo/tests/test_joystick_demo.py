@@ -29,6 +29,7 @@ from glitchygames.replay.tools.golden_traces import (
     GoldenTraceSceneManager,
     command_line,
 )
+from glitchygames.sources import active_sources
 from glitchygames.ui import TextSprite
 from tests.demo_runs import engine_run_environment, run_demo_main
 from tests.input.stand_in_devices import STAND_IN_PAD, STAND_IN_STICK, install_stand_in_devices
@@ -466,6 +467,49 @@ class TestGauges:
                     assert column_left <= gauge.rect.left
                     assert gauge.rect.right <= column_left + joystick_demo.COLUMN_WIDTH
                     assert gauge in scene.all_sprites
+
+    def test_a_pad_mapped_after_it_arrived_gets_its_controller_layers_gauges(self, mocker):
+        """A pad first seen on its joystick layer and mapped later shows its controller layer.
+
+        SDL could not say the pad was a game controller when it arrived (``is_controller``
+        failed: hardware, so injected), so the engine added it on its joystick layer; its
+        controller then arrived, and the engine moved it to the controller layer without telling
+        the scene (``InputDevices.synchronize``, ``attach_controller``).
+        """
+        with running_demo(plugged_in_at_start=False) as (engine, scene):
+            pad_id = STAND_IN_PAD.instance_id
+            devices = active_sources().devices()
+            mocker.patch.object(
+                devices, 'is_controller', side_effect=pygame.error('cannot say yet')
+            )
+            engine.process_joystick_event(
+                HashableEvent(pygame.JOYDEVICEADDED, device_index=1, guid='g')
+            )
+            joystick_layer_readout = scene.device_readouts[pad_id]
+            assert joystick_layer_readout.text_lines[3].text == 'Events: joystick layer'
+            mocker.stopall()
+            engine.process_controller_event(
+                HashableEvent(pygame.CONTROLLERDEVICEADDED, device_index=1, guid='g')
+            )
+            pad = next(device for device in engine.input_devices if device.instance_id == pad_id)
+            assert pad.event_layer.kind == 'controller'
+            _hold_inputs(pad_axes=(0, 0, 0, 0, 32767, 0))
+
+            _draw_frame(scene)
+
+            readout = scene.device_readouts[pad_id]
+            assert readout is not joystick_layer_readout
+            assert not any(
+                sprite in scene.all_sprites for sprite in joystick_layer_readout.sprites()
+            )
+            assert readout.text_lines[3].text == 'Events: controller layer'
+            assert len(readout.axis_markers) == len(pad.event_layer.axes)
+            assert len(readout.button_lamps) == len(pad.event_layer.buttons)
+            assert readout.hat_dots == []
+            track_left = readout.axis_tracks[4].rect.left
+            assert readout.axis_markers[4].rect.centerx == track_left + 100
+            assert scene.screen is not None
+            assert _shows_column(scene.screen, column=0, lines=joystick_demo.device_lines(pad))
 
     def test_a_removed_devices_sprites_are_gone(self):
         """A device's text and gauges come with it and go with it."""

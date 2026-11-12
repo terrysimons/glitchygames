@@ -220,6 +220,20 @@ def device_lines(device: InputDevice) -> list[str]:
     ]
 
 
+def layer_shape(*, device: InputDevice) -> tuple[DeviceLayer, int, int, int]:
+    """Return what a device's column is made from: its event layer's kind and counts.
+
+    Args:
+        device: The device.
+
+    Returns:
+        The layer's kind and its numbers of axes, buttons and hats.
+
+    """
+    layer = device.event_layer
+    return (layer.kind, len(layer.axes), len(layer.buttons), len(layer.hats))
+
+
 class DeviceReadout:
     """One device's column: its lines of text, then gauges for its axes, buttons and hats.
 
@@ -245,6 +259,10 @@ class DeviceReadout:
         """
         instance_id = device.instance_id
         layer = device.event_layer
+        # What the sprites were made for: a device's event layer can change after it arrived (a
+        # pad SDL maps late moves to its controller layer, InputDevices.synchronize), and then
+        # its column must be made again (fits)
+        self.layer_shape = layer_shape(device=device)
         self.text_lines = [
             TextLine(
                 font=font,
@@ -295,6 +313,19 @@ class DeviceReadout:
             )
             for hat in range(len(layer.hats))
         ]
+
+    def fits(self: Self, *, device: InputDevice) -> bool:
+        """Return whether the column still fits the device's event layer.
+
+        Args:
+            device: The device.
+
+        Returns:
+            True when its layer is the kind, with the axis, button and hat counts, the column
+            was made for.
+
+        """
+        return layer_shape(device=device) == self.layer_shape
 
     def sprites(self: Self) -> list[Sprite]:
         """Return every sprite of the column.
@@ -435,6 +466,9 @@ class Game(Scene):
             text_line.place(topleft=(MARGIN, MARGIN + line_number * line_height))
         columns_top = MARGIN + (len(self.header_text) + 1) * line_height
         for column, device in enumerate(self.input_devices):
+            if not self.device_readouts[device.instance_id].fits(device=device):
+                # Its event layer changed under it (a pad mapped after it arrived)
+                self._add_readout(device=device)
             self.device_readouts[device.instance_id].show(
                 device=device,
                 left=MARGIN + column * COLUMN_WIDTH,
