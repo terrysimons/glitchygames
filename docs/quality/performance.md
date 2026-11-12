@@ -89,7 +89,10 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    adds a machine without the hook). `SKIP=replay-metrics git commit ...` skips it.
    A pre-push hook (`scripts/measure_on_raspberry_pi.py`) measures the same way on the Raspberry
    Pis (a Pi 4 and a Pi 5, `ansible/inventory.yml`'s `raspberry_pis`), both at once, and copies
-   their row files here, staged. A push that brings rows stops so they can be committed, and the
+   their row files of the pushed commit's code tree here, staged. Each Pi measures one push at a
+   time (a lock beside its clone; a second push waits, and gives up after 30 minutes), and a row
+   of any other code tree is refused rather than staged. A push that brings rows stops so they
+   can be committed, and the
    next one goes through; a Pi that cannot be reached stops the push before any Pi measures (by
    hand: `nox -s measure-on-raspberry-pi`; `SKIP=raspberry-pi-replay-metrics git push ...` skips
    it).

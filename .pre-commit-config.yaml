@@ -6,7 +6,8 @@ repos:
 - repo: local
   hooks:
     # Also measures what is being pushed on the Raspberry Pis, both at once, and copies their rows
-    # here, staged (scripts/measure_on_raspberry_pi.py, by hand: nox -s measure-on-raspberry-pi).
+    # of its code tree here, staged; one push at a time per Pi, under a lock beside its clone
+    # (scripts/measure_on_raspberry_pi.py, by hand: nox -s measure-on-raspberry-pi).
     # First, and
     # fail_fast: a push that stops for rows to commit runs the checks below once, not twice.
     # SKIP=raspberry-pi-replay-metrics git push ... skips it
