@@ -218,7 +218,7 @@ ALIASES: Final[dict[str, str]] = {
     'rin': 'singing bowl',
     # https://pan-mag.com/basics-of-steelpan-instruments-in-the-steel-orchestra/: the tenor pan is
     # "sometimes referred to as the lead pan, soprano pan or single tenor", range "most often
-    # from C4 to E6", the catalog tenor steel pan's
+    # from C4 to E6", which matches the catalog tenor steel pan's range (C4 to E6)
     'soprano steel pan': 'tenor steel pan',
     # https://en.wikipedia.org/wiki/Crotales: crotales are "sometimes called antique cymbals"
     'antique cymbals': 'crotales',
