@@ -1565,6 +1565,18 @@ def test_the_new_entries_are_in_their_family_pitched_unless_listed(family):
     )
 
 
+# Every sound-chip voice, in catalog order (Tag.CHIP; batch 6)
+CHIP_NAMES = ['chip square', 'chip pulse 25', 'chip pulse 12', 'chip triangle']
+
+
+def test_the_chip_tag_marks_exactly_the_sound_chip_voices():
+    """names(tag=Tag.CHIP) is every sound-chip voice, each in the electronic family."""
+    assert instruments.names(tag=Tag.CHIP) == tuple(CHIP_NAMES)
+    assert instruments.names(tag='Chip') == tuple(CHIP_NAMES)
+    for name in CHIP_NAMES:
+        assert instruments.entry(name).family == Family.ELECTRONIC, name
+
+
 def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
     """Each sound-alike is a name of its own in its family, building its parent's sound."""
     listed = instruments.names(family=Family.DRUMS_AND_PERCUSSION)

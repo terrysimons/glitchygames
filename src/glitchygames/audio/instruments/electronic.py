@@ -15,7 +15,7 @@ from functools import partial
 from typing import Final
 
 from glitchygames.audio.instrument import Filter, Instrument, Source
-from glitchygames.audio.instruments.catalog import CatalogEntry, Family
+from glitchygames.audio.instruments.catalog import CatalogEntry, Family, Tag
 from glitchygames.audio.instruments.electronic_sound_alikes import ELECTRONIC_SOUND_ALIKES
 from glitchygames.audio.instruments.timbres import blown, envelope
 
@@ -155,6 +155,7 @@ _ELECTRONIC_BUILDS: Final[tuple[CatalogEntry, ...]] = (
         'A1',
         'C8',
         partial(_synth, 'square', attack=0.0, release=0.02),
+        tags=frozenset({Tag.CHIP}),
     ),
     CatalogEntry(
         'chip pulse 25',
@@ -163,6 +164,7 @@ _ELECTRONIC_BUILDS: Final[tuple[CatalogEntry, ...]] = (
         'A1',
         'C8',
         partial(_synth, 'pulse_25', attack=0.0, release=0.02),
+        tags=frozenset({Tag.CHIP}),
     ),
     CatalogEntry(
         'chip pulse 12',
@@ -171,6 +173,7 @@ _ELECTRONIC_BUILDS: Final[tuple[CatalogEntry, ...]] = (
         'A1',
         'C8',
         partial(_synth, 'pulse_12', attack=0.0, release=0.02),
+        tags=frozenset({Tag.CHIP}),
     ),
     CatalogEntry(
         'chip triangle',
@@ -179,6 +182,7 @@ _ELECTRONIC_BUILDS: Final[tuple[CatalogEntry, ...]] = (
         'A0',
         'C7',
         partial(_synth, 'triangle', attack=0.0, release=0.02),
+        tags=frozenset({Tag.CHIP}),
     ),
 )
 

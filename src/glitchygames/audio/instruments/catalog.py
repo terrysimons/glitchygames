@@ -3,10 +3,10 @@
 A ``CatalogEntry`` names an instrument, its family and its playing range (sounding pitch, from
 standard orchestration ranges; folk and world instruments vary by maker and tuning, so theirs
 are typical). Unpitched entries (drums, cymbals) have no range: their tones are fixed. A ``Tag``
-marks a quality that cuts across families (``Tag.MECHANICAL``); the set is closed, so tags cannot
-drift into synonyms. A sound-alike (``sounds_like``) is an instrument of its own that no source
-sets apart in sound from another entry, its parent: it is listed under its own name and builds
-its parent's instrument, changed only by its sourced ``sound_changes``.
+marks a quality that cuts across families (``Tag.MECHANICAL``, ``Tag.CHIP``); the set is closed,
+so tags cannot drift into synonyms. A sound-alike (``sounds_like``) is an instrument of its own
+that no source sets apart in sound from another entry, its parent: it is listed under its own name
+and builds its parent's instrument, changed only by its sourced ``sound_changes``.
 """
 
 from __future__ import annotations
@@ -59,6 +59,10 @@ class Tag(StrEnum):
     """The closed set of tags an entry may carry, across families."""
 
     MECHANICAL = 'mechanical'
+    # A voice of a sound chip. https://en.wikipedia.org/wiki/Sound_chip: "A sound chip is an
+    # integrated circuit (chip) designed to produce audio signals through digital, analog or
+    # mixed-mode electronics."
+    CHIP = 'chip'
 
 
 @dataclass(frozen=True, slots=True)
