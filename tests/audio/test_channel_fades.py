@@ -270,7 +270,7 @@ def test_a_steal_report_holds_every_trial_whether_or_not_its_relation_held(
     suite, on the real recording: written to ``channel-fade-<case>.md``, one table row per trial
     the recording holds, each trial's action chunk and levels in it. How many trials a live
     recording holds is not this test's to judge: a delayed steal that stalls under load loses
-    one (native run, 2026-11-10: 5 of 6), which the benchmark tolerates down to
+    one (native run, 2026-11-11: 5 of 6), which the benchmark tolerates down to
     MINIMUM_DELAYED_STEAL_TRIALS and owns.
     """
     assert_report_holds_every_recorded_trial(
