@@ -779,6 +779,14 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('orchestra bells', 'glockenspiel'),
         ('chimes', 'tubular bells'),
         ('orchestral chimes', 'tubular bells'),
+        ('rin', 'singing bowl'),
+        ('soprano steel pan', 'tenor steel pan'),
+        ('antique cymbals', 'crotales'),
+        ('verrillon', 'glass harp'),
+        ('lead pan', 'tenor steel pan'),
+        ('ping pong', 'tenor steel pan'),
+        ('sanza', 'mbira'),
+        ('sansa', 'mbira'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -791,6 +799,9 @@ def test_the_batch_aliases_resolve(alias, target):
     like one is its own entry (``test_a_sound_alike_is_listed_and_builds_its_parents_sound``).
     Batch 4's aliases are other names for a plucked instrument (``kanun`` for the qanun, ``bozuk``
     for the saz).
+    Batch 5's second half names the tenor steel pan three more ways (soprano, lead, ping pong),
+    the singing bowl as the rin, the crotales as antique cymbals, and across families the glass
+    harp as the verrillon and the mbira as the sanza and sansa.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
