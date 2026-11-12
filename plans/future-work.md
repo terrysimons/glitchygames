@@ -917,6 +917,17 @@ only replays; Part 2 Task 1).
   (`pytest_benchmark/fixture.py:88`), so every `benchmark` test errored at setup. Lift it once a
   pytest-benchmark release works with 9.2, then re-run the benchmarks and the memory guard's
   check that pytest still keeps each test's class instance (`tests/garbage_collection.py`).
+- **The serial suite's two memory leads still open** (found 2026-10-28 by the test-memory-reduction
+  work, #112; its report, kept 2026-11-12: plans/2026-10-28-test-memory-reduction-report.md,
+  BUGS.md #237). Neither is needed for the 1600 MiB limit (CircleCI's Linux peak was 1121 MiB,
+  `tests/memory_guard.py`); they are where the next savings are.
+  - `tests/world/test_golden_traces.py` adds about 116 MiB to the pytest process: `record_trace`
+    holds the whole current run in memory. Reading the baseline with shared records
+    (`share_records`) did not change it.
+  - The serial job's peak is `tests/test_driver_comparison.py::TestEndToEnd`: pytest at about
+    685 MiB plus an inner pytest with two worker processes (about 100 MiB each). Where the inner
+    run gets its workers in a serial job was not found. Next after it: the golden replays near the
+    end (pytest about 850 MiB plus a 150-185 MiB child).
 - **The SBOM's scope** (found 2026-10-28 when syft and grype replaced safety and pip-audit).
   The license decisions are in `scripts/check_licenses.py`'s `EXCEPTIONS`. The SBOM
   (`docs/sbom.cyclonedx.json`) is everything `uv.lock` pins, development and docs tools included,
