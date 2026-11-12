@@ -32,7 +32,7 @@ from glitchygames.recording import (
     INPUT_CHANGES_FIELD,
     post_event,
 )
-from glitchygames.replay.tools import command, scripted_sessions
+from glitchygames.replay.tools import command, golden_traces, scripted_sessions
 from glitchygames.replay.tools.golden_traces import (
     RANDOM_SEED,
     GoldenTraceSceneManager,
@@ -470,6 +470,44 @@ def test_a_session_with_a_stand_in_pad_records_and_replays_it(mocker, tmp_path):
 
     assert replay.exit_status == ExitCode.SUCCESS, replay.result.divergence
     assert replay.result.frames_replayed == PAD_SESSION_FRAMES
+
+
+@pytest.mark.frames_vary(
+    reason='the session runs the real frame loop: each frame moves by its measured frame time'
+)
+def test_a_session_with_no_stand_in_devices_has_no_devices_at_all(mocker, tmp_path):
+    """An empty ``stand_in_devices`` is a session with no devices at all (Ruling R13).
+
+    None gives the machine's real devices; an empty tuple gives stand-in doors around an empty
+    registry, so the real ones are hidden: the header lists no device, enumeration counts none
+    and no frame opens one. The bundled demos without a pad are recorded this way.
+    """
+    path = tmp_path / 'no-devices.jsonl.gz'
+    # GameEngine._shutdown quits pygame; later tests on this worker still need it
+    mocker.patch('pygame.quit')
+    mocker.patch('pygame.display.quit')
+    # Observed, not replaced: which registry the engine's doors were built around
+    registry_spy = mocker.spy(golden_traces, 'stand_in_registry')
+
+    record_scripted_session(
+        scene_class=SteeredPaddleScene,
+        script=steered_paddle_script(),
+        frame_count=RECORDED_FRAME_COUNT,
+        path=path,
+        stand_in_devices=(),
+        random_seed=RANDOM_SEED,
+    )
+
+    registry_spy.assert_called_once_with(descriptors=())
+    header, frames = read_recording(path=path)
+    assert header['devices'] == []
+    assert [
+        (answer['call'], answer['value'])
+        for answer in header['device_enumeration']
+        if answer['call'] == 'joystick_count'
+    ] == [('joystick_count', 0)]
+    assert not any(frame.get('devices_opened') for frame in frames)
+    assert not any(frame.get('device_enumeration') for frame in frames)
 
 
 def test_posted_polled_input_follows_the_pads_axes_buttons_and_hat():

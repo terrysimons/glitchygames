@@ -12,16 +12,23 @@ The rules every demo follows:
 
 - It is recorded without a controls tail (a demo ends after its last frame, with no quit), under
   our goldens' seed (``RANDOM_SEED``).
-- It ends with no input held: the Arcade loops a demo, so a key, mouse button or pad button held
-  at its end would stay stuck when the demo starts again
-  (tests/test_record_bundled_demos.py ``test_every_recipe_releases_what_it_presses``).
+- It ends with no input held: the Arcade loops a demo, so a key, mouse button or pad button held,
+  a pad axis off rest or a hat off centre at its end would stay stuck when the demo starts again
+  (the guard is the shipped recordings' own: tests/replay/test_bundled_demos.py
+  ``test_no_bundled_demo_ends_with_input_held``).
+- A demo is recorded with no devices at all unless its recipe names stand-ins
+  (``DemoRecipe.stand_in_devices``, glitchygames/input/stand_in_devices.py). The default, an
+  empty tuple, is passed to the recorder as given, and the engine reads an empty sequence as a
+  session on stand-in doors around an empty registry: no real device is ever seen or opened, on
+  any platform (Ruling R13; None, which no recipe passes, would mean the machine's real
+  devices). A pad a demo needs is a stand-in, which the recording's header holds and its replay
+  opens again.
 - A recording session never reaches the AI service (``GLITCHYGAMES_AI_INSTALL_ROOT`` names an
   empty temporary directory for the session, so no service is found and the game builds plain
-  host sources) and never a real pad (SDL's joystick drivers are off for the session, as for a
-  test run: tests/sdl_defaults.py). A pad a demo needs is a stand-in
-  (``DemoRecipe.stand_in_devices``, glitchygames/input/stand_in_devices.py), which the
-  recording's header holds and its replay opens again. Both settings are for the session only:
-  the environment is put back exactly afterwards (a variable that was unset is unset again).
+  host sources). SDL's real joystick drivers are also off for the session, as for a test run
+  (tests/sdl_defaults.py; Ruling R5): kept as defence in depth behind the stand-in doors. Both
+  settings are for the session only: the environment is put back exactly afterwards (a variable
+  that was unset is unset again).
 
 Commands, from the repository root (``--all`` records every demo):
 
@@ -94,7 +101,8 @@ class DemoRecipe(BaseModel):
         name: The demo's file name, ``<name>.jsonl.gz``.
         polled_input: True when the game reads its controls from the frame's polled input.
         input_only_placements: True when the script's placements only steer its own input.
-        stand_in_devices: Joysticks and game controllers that exist only in the session.
+        stand_in_devices: Joysticks and game controllers that exist only in the session; the
+            default, an empty tuple, records the demo with no devices at all.
 
     """
 

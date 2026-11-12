@@ -459,8 +459,11 @@ class ScriptedSessionOptions(TypedDict, total=False):
             opens them as real ones, the recording's header holds them and its replay opens
             them again. The script moves them with their events (``JOYAXISMOTION``,
             ``JOYBUTTONDOWN``/``UP``, ``JOYHATMOTION`` by ``instance_id``), which a game reads
-            from the frame's polled input only with ``polled_input``. None (the default): the
-            machine's real devices, as any run has.
+            from the frame's polled input only with ``polled_input``. Three cases: None (the
+            default) gives the machine's real devices, as any run has; an empty sequence gives
+            no devices at all (stand-in doors around an empty registry, so a real device is
+            never seen or opened: the bundled demos without a pad record this way); a
+            non-empty sequence gives exactly those stand-ins.
 
     """
 
@@ -490,6 +493,8 @@ def record_scripted_session(
         frame_count: How many of the script's frames to record.
         path: Where the recording goes (its directory is created).
         **options: How the session is played, by keyword (``ScriptedSessionOptions``).
+            ``stand_in_devices``: None for the machine's real devices, an empty sequence for no
+            devices at all, a non-empty one for exactly those stand-ins.
 
     A script that cannot be recorded as input for this many frames
     (``scripted_session_refusal``) raises the supervisor's ValueError before anything runs.
