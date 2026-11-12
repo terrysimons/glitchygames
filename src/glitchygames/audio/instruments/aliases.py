@@ -189,4 +189,52 @@ ALIASES: Final[dict[str, str]] = {
     # https://en.wikipedia.org/wiki/Kanun (redirects to the Qanun page): "The qanun, kanun, ganoun
     # or kanoon"; another spelling of the qanun
     'kanun': 'qanun',
+    # --- Batch 5's bars, plaques, tubes and stones, in the order of
+    # plans/data/instrument-audit/batch-5.tsv
+    # https://en.wikipedia.org/wiki/Glockenspiel: "In the United Kingdom, the United States, and
+    # Canada, a form of glockenspiel is called a bell lyre, bell lyra, or lyra-glockenspiel."; the
+    # marching glockenspiel in a lyre-shaped frame, so another name for the glockenspiel
+    'bell lyra': 'glockenspiel',
+    # https://en.wikipedia.org/wiki/Boomwhacker: the page's own title is the singular ("A
+    # Boomwhacker is a percussion instrument ..."); another name for boomwhackers
+    'boomwhacker': 'boomwhackers',
+    # https://en.wikipedia.org/wiki/Saron_(instrument): "Saron barung (sometimes just saron)";
+    # another name for the saron
+    'saron barung': 'saron',
+    # https://www.vsl.co.at/academy/percussion/glockenspiel: "Glockenspiel (orchestra bells)";
+    # another name for the glockenspiel
+    'orchestra bells': 'glockenspiel',
+    # https://en.wikipedia.org/wiki/Tubular_bells: "Tubular bells (also known as chimes)"; another
+    # name for the tubular bells
+    'chimes': 'tubular bells',
+    # https://en.wikipedia.org/wiki/Tubular_bells: the infobox's alternative names, "Chimes",
+    # "orchestral chimes"; another name for the tubular bells
+    'orchestral chimes': 'tubular bells',
+    # --- Batch 5's gongs, bells, pans and drums (and `antique cymbals`, a plaque row written
+    # here), in the order of plans/data/instrument-audit/batch-5.tsv
+    # https://en.wikipedia.org/wiki/Standing_bell: the page lists the "rin gong" and "Japanese rin
+    # played as struck idiophone" among the standing bells; the struck standing bell is the
+    # catalog's singing bowl, and the page gives the rin no pitch of its own
+    'rin': 'singing bowl',
+    # https://pan-mag.com/basics-of-steelpan-instruments-in-the-steel-orchestra/: the tenor pan is
+    # "sometimes referred to as the lead pan, soprano pan or single tenor", range "most often
+    # from C4 to E6", which matches the catalog tenor steel pan's range (C4 to E6)
+    'soprano steel pan': 'tenor steel pan',
+    # https://en.wikipedia.org/wiki/Crotales: crotales are "sometimes called antique cymbals"
+    'antique cymbals': 'crotales',
+    # https://en.wikipedia.org/wiki/Glass_harp: "verrillon or ghost fiddle" is another name of the
+    # glass harp; this crosses families (friction instruments), as aliases are catalog-wide
+    'verrillon': 'glass harp',
+    # https://pan-mag.com/basics-of-steelpan-instruments-in-the-steel-orchestra/: the tenor pan is
+    # "sometimes referred to as the lead pan, soprano pan or single tenor"
+    'lead pan': 'tenor steel pan',
+    # https://en.wikipedia.org/wiki/Steelpan: its table lists "Single Tenor, or Ping Pong" at
+    # soprano pitch, the same top pan the PAN Magazine page calls the tenor pan
+    'ping pong': 'tenor steel pan',
+    # https://en.wikipedia.org/wiki/Mbira: the infobox's other names include "sansa, sansu, sanza,
+    # thumb piano"; the lead has "kalimba and zanza (or variant spellings)", and `zanza` is
+    # already this entry's alias (this crosses families, plucked idiophones)
+    'sanza': 'mbira',
+    # https://en.wikipedia.org/wiki/Mbira: as `sanza` above, from the same infobox list
+    'sansa': 'mbira',
 }

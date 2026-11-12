@@ -1750,9 +1750,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 4 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 5 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
-  batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4) toward every instrument a game might want, in one verified
+  batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5) toward every instrument a game might want, in one verified
   batch per family. Adversarial audits (2026-11-07) found 1,303 candidates, only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
   makers, sound effects, and electromechanical, which takes the electric pianos, Clavinet and
@@ -1781,9 +1781,16 @@ This document tracks planned future features for the GlitchyGames project. Featu
   stays strict (2026-11-09, asked directly: "Keep it strict"): an instrument with no sourced
   range waits. A later pass can range them from maker or museum sources, since each WAIT row's
   notes record what was searched. The audit's "Gaps you could not close"
-  (`plans/data/instrument-audit/plucked-strings.md`) are a later pass too. Next: tuned
-  percussion, which must not ship `agung`, `tingsha` and `teponaztli` again (drums and
-  percussion shipped them in batch 3)
+  (`plans/data/instrument-audit/plucked-strings.md`) are a later pass too.
+  Batch 5 (tuned percussion) is done: of its 164 sheet rows 2 shipped (their own builds,
+  `boomwhackers` and `gangsa`), 11 became sound-alikes (each giving its own sourced range), 93
+  wait (82 for a sourced range, 4 for engine features and 7 because their target waits), 14
+  became aliases and 44 were dropped; the family grew from 23 to 36 entries (671 in all, 68
+  aliases and 169 sound-alikes). Most rows wait because the range rule stays strict. The
+  audit's "Gaps you could not close" (`plans/data/instrument-audit/tuned-percussion.md`: the
+  Chinese, Japanese, Korean, Indian, African, Oceanic and Philippine names it suspected but did
+  not confirm) are a later pass over this family. Next: electronic, the next largest existing
+  family, per the design's order
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
@@ -1793,7 +1800,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sheet `plans/data/instrument-audit/batch-3.tsv`
 - **Plan (batch 4)**: `plans/2026-11-09-instrument-catalog-batch-4-implementation.md`; audit
   sheet `plans/data/instrument-audit/batch-4.tsv`
-- **Status**: Batches 1, 2, 3 and 4 done (requested by the owner 2026-11-06)
+- **Plan (batch 5)**: `plans/2026-11-11-instrument-catalog-batch-5-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-5.tsv`
+- **Status**: Batches 1, 2, 3, 4 and 5 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
@@ -2087,8 +2096,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - [ ] Process calls made on your behalf: the registry's two small code tasks (the pitched
     sound-alike rule and the family's move into `plucked_strings.py`) went to one implementer
     and one review, as separate commits; the batch 4 owner's checks are #74 and refer to batch
-    3's as #73, though the PR that renumbers it (#172) is still open (one renumber if it is
-    closed unmerged)
+    3's as #73 (the PR that renumbered it, #172, merged on 2026-11-10)
 - **Follow-ups**:
   - [ ] The audit's "Gaps you could not close" (`plans/data/instrument-audit/plucked-strings.md`)
     are a later pass over this family, along with ranging the 166 range WAIT rows from maker and
@@ -2099,7 +2107,103 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - [ ] A sound-alike a source later sets apart takes `sound_changes`, citing the source
 - **Found**: batch 4's reviews (2026-11-09)
 - **Status**: TODO
-- **Priority**: Medium (before the tuned percussion batch builds on the same catalog)
+- **Priority**: Medium (before the electronic batch builds on the same catalog)
+
+### 75. Sound Engine: The Owner's Checks on Instrument Catalog Batch 5 — TODO
+- **Goal**: confirm or overturn the calls made while batch 5 of #70 ran, and listen to its new
+  instruments (tuned percussion, 23 to 36 entries). Most of the audit's candidates wait, because
+  the range rule stays strict: an instrument with no sourced range waits
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+  every level, filter, ring and mallet click is sound design unless a source is cited in the
+  code; the folder is `build/instruments/tuned percussion/`). The 2 new builds come first, then
+  the sound-alikes; each group below is a parent with the sound-alikes that share its build,
+  which must sound alike by design. The ranges differ within a group, since each gives its own:
+  - [ ] The 2 new builds: `boomwhackers`, `gangsa`: each distinct from the 23 already there and
+    from each other (the anti-goal; the rule-7 test only catches equal builds)
+  - [ ] `boomwhackers` is the thinnest new build. Its sourced traits are a hollow plastic tube
+    struck by hand, with no resonator; every number is sound design, and it sits near `tabla
+    dayan`
+  - [ ] `gangsa` builds the *ombak* beating pair as a fixed ratio (about 1.036) taken at 220
+    Hz. The source gives a beat rate of 8 Hz at 220 Hz, so a fixed ratio beats faster higher
+    up, about 38 Hz at C6. Its weakest partial (5.15) was left out because an instrument has at
+    most four sources (three partials plus the mallet). Its range (C4-C6) comes from "around
+    C7", and the source says "There is no standard pitch in any Balinese music"
+  - [ ] Near pairs to hear side by side: `boomwhackers` and `tabla dayan`; `gangsa` against
+    `saron` and `gender`. `gangsa` is the GAMELAN_METALLOPHONE family's sound with a 1.036
+    *ombak* partial added and the 5.15 partial dropped, so it is the new build most at risk of
+    the anti-goal
+  - [ ] The sound-alikes, 11 in 3 groups (each is its parent's sound):
+  - [ ] `alto glockenspiel`, `alto metallophone`, `bass metallophone`, `soprano glockenspiel`,
+    `soprano metallophone`, `tubaphone` of `glockenspiel`
+  - [ ] `alto xylophone`, `bass xylophone`, `soprano xylophone` of `xylophone`
+  - [ ] `kantilan`, `ugal` of `gangsa`
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-5.tsv`; the sheet's 164 rows:
+  SHIP 2, SOUND_ALIKE 11, WAIT 93, ALIAS 14, DROP 44):
+  - [ ] Every WAIT (93 rows). 82 wait for "a sourced range" (a later pass can range them from
+    maker pages and museum records; each row's notes record what was searched). 4 wait for an
+    engine feature: `angklung` and `zimbelstern` and `wind chimes` (repeated strikes, an
+    amplitude LFO) and `gyil` (spider-silk mirlitons). 7 wait because their target waits:
+    `banghyang`, `hank drum`, `hapi drum`, `pyeongyeong`, `tank drum`, `pyeonjong`, `roto toms`
+  - [ ] The four steel pans whose only range source is PAN Magazine (`double guitar`, `double
+    tenor`, `quadrophonic`, `tenor bass` steel pan) wait, because a magazine is not a maker or
+    museum. The other waiting pans cite it but take no range from it. Their ranges are in the
+    sheet's notes, and accepting the source is a one-cell change per row. `soprano steel pan`
+    and `lead pan` are aliases resting only on PAN Magazine, as a name source: the same
+    publication the strict-range ruling rejects as a range source, so judge the magazine once
+    for both uses. `tenor bass`'s parent is a judgment call between `bass steel pan` and `cello steel
+    pan`
+  - [ ] `lithophone` and `sekkin` wait: the only range found was one stone marimba's photo
+    caption
+  - [ ] `paigu` waits as a pitched tuned drum; `bonang barung` and `gender barung` wait the same
+    way, as sizes of existing entries with no sourced range
+  - [ ] Tuned percussion is pitched: an unpitched row goes to drums and percussion.
+    `babandil` is dropped from this family and left for drums and percussion, as an unpitched
+    timekeeper (no pitch is sourced), the way batch 3 shipped `agung` there
+  - [ ] A set's range for a one-pitch body: a `kenong` or `kempul` is a row of single-pitch
+    gongs and takes the set's range from a source; without one it waits (both wait)
+  - [ ] The one-offs dropped (a one-off instrument, not a type a game would ask for):
+    `bamboo marimba boo`, `diamond marimba`, `eucal blossom`, `great stalacpipe organ`, `marble
+    machine`, `marimba eroica`, `quadrangularis reversum`, `zymo xyl` (and `gameleste`, which
+    is also a keyboard)
+  - [ ] The steel pan sizes as sound-alikes: the plan made the sizes the catalog lacks
+    sound-alikes of the pan nearest in register, but none shipped, because no maker or museum
+    source gave their ranges; all wait except `soprano steel pan`, `lead pan` and
+    `ping pong`, which are aliases of `tenor steel pan`
+  - [ ] The family's existing shared builds (`marimba` and `bass marimba`; `saron` and
+    `gender`; the four steel pans) were left as they are, as batch 4 left its 54 pairs; confirm,
+    or convert some into sound-alikes
+  - [ ] The audit's range notes on existing entries, unchanged here: `bass marimba` G1-G3 or
+    C2-F3 against the catalog's A1-C4, and `timpani` about D2-A3 against D2-C4. `balafon` is
+    built without its buzzing mirlitons, which the `gyil` row says are the identifying sound
+  - [ ] Aliases may cross families: `verrillon` is an alias of `glass harp`, `sanza` and
+    `sansa` of `mbira`. `thumb piano` is dropped as a class name for lamellophones; `sanza` and
+    `sansa` alias `mbira`, following batch 1's `zanza`
+  - [ ] `rin` is a judgment alias of `singing bowl`; the Standing bell page never equates them
+  - [ ] `chime machine` is dropped as a friction device. Its source describes "pine spindles
+    worked upon by resined fingers", which corrects batch 2's "bells" reading
+  - [ ] Every derived range: where a source gave a set's lowest and highest notes, or a lowest
+    note and a count of steps, the range is derived and the sheet's notes show it
+  - [ ] The two-half split: bars, plaques, tubes and stones (Hornbostel-Sachs 111.21, 111.22,
+    111.23) and then everything else (gongs, bells, pans, drums, out-of-family rows) were built
+    in two halves. Confirm the split reads right to a person adding the next entry
+- **Follow-ups**:
+  - [ ] The audit's "Gaps you could not close" (`plans/data/instrument-audit/tuned-percussion.md`)
+    are a later pass over this family, along with ranging the 82 range WAIT rows from maker and
+    museum sources
+  - [ ] The sheet's cells contain stray quote characters (some cells are CSV-quoted), so read it
+    with Python's csv module rather than splitting on tabs
+  - [ ] Candidate aliases, recorded for the owner and not added: `bell lyre` (the `bell lyra`
+    comment in aliases.py quotes a source naming "bell lyre, bell lyra, or lyra-glockenspiel",
+    and `instruments.get('bell lyre')` raises KeyError); `single tenor` (quoted in the `lead
+    pan` and `ping pong` comments and the sheet); `tubular chimes` (named in the Tubular bells
+    infobox but left out without a stated reason)
+  - [ ] Name hazard: the Tubular bells infobox lists "orchestral bells", while `orchestra
+    bells` is an alias of `glockenspiel`. A developer typing `orchestral bells` gets a KeyError
+    whose suggestion is the glockenspiel, a different instrument
+  - [ ] A sound-alike a source later sets apart takes `sound_changes`, citing the source
+- **Found**: batch 5's reviews (2026-11-11)
+- **Status**: TODO
+- **Priority**: Medium (before the electronic batch builds on the same catalog)
 
 ### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
 - **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,

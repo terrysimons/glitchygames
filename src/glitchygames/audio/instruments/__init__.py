@@ -46,6 +46,12 @@ basses, ukuleles, banjos, mandolins, lutes such as ``angelique``, zithers such a
 so a pitched sound-alike gives its own sourced range, a requinto's span being its own: it
 shares its parent's build, not its range.
 
+Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
+xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and
+``gangsa``) and its sound-alikes in ``tuned_sound_alikes.py`` (``alto xylophone`` and
+``xylophone``, ``kantilan`` and ``gangsa``). It is pitched too: each sound-alike gives its own
+sourced range.
+
 ``instruments.ALIASES`` (read-only, as ``CATALOG`` is) maps each other name (``slapstick``) to
 its catalog name (``whip``): another name for the same instrument, where a sound-alike is a
 different instrument. ``entry`` and ``get`` resolve aliases, while ``names`` and ``entries``

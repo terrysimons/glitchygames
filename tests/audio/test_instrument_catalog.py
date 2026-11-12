@@ -773,6 +773,20 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('ud', 'oud'),
         ('kanonaki', 'qanun'),
         ('kanun', 'qanun'),
+        ('bell lyra', 'glockenspiel'),
+        ('boomwhacker', 'boomwhackers'),
+        ('saron barung', 'saron'),
+        ('orchestra bells', 'glockenspiel'),
+        ('chimes', 'tubular bells'),
+        ('orchestral chimes', 'tubular bells'),
+        ('rin', 'singing bowl'),
+        ('soprano steel pan', 'tenor steel pan'),
+        ('antique cymbals', 'crotales'),
+        ('verrillon', 'glass harp'),
+        ('lead pan', 'tenor steel pan'),
+        ('ping pong', 'tenor steel pan'),
+        ('sanza', 'mbira'),
+        ('sansa', 'mbira'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -785,6 +799,12 @@ def test_the_batch_aliases_resolve(alias, target):
     like one is its own entry (``test_a_sound_alike_is_listed_and_builds_its_parents_sound``).
     Batch 4's aliases are other names for a plucked instrument (``kanun`` for the qanun, ``bozuk``
     for the saz).
+    Batch 5's first half names the glockenspiel two more ways (bell lyra, orchestra bells), the
+    tubular bells two more (chimes, orchestral chimes), the saron as the saron barung, and
+    the boomwhackers as the boomwhacker.
+    Batch 5's second half names the tenor steel pan three more ways (soprano, lead, ping pong),
+    the singing bowl as the rin, the crotales as antique cymbals, and across families the glass
+    harp as the verrillon and the mbira as the sanza and sansa.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1417,12 +1437,68 @@ PLUCKED_SOUND_ALIKE_PARENTS = {
 }
 
 
-def test_no_new_plucked_string_builds_another_entrys_instrument():
-    """A batch 4 build is its own sound (the anti-goal), whatever entry it is set against."""
-    names = instruments.names(family=Family.PLUCKED_STRINGS)
+# The 23 tuned percussion entries that predate batch 5
+EXISTING_TUNED_NAMES = frozenset({
+    'glockenspiel',
+    'crotales',
+    'xylophone',
+    'marimba',
+    'bass marimba',
+    'vibraphone',
+    'balafon',
+    'tubular bells',
+    'church bell',
+    'carillon',
+    'handbells',
+    'tenor steel pan',
+    'double second steel pan',
+    'cello steel pan',
+    'bass steel pan',
+    'handpan',
+    'timpani',
+    'saron',
+    'gender',
+    'bonang',
+    'tuned gong',
+    'singing bowl',
+    'tabla dayan',
+})
+# Batch 5's tuned percussion: the names of its entries with their own build, and each of its
+# sound-alikes with the entry it sounds like
+NEW_TUNED_NAMES: list[str] = ['boomwhackers', 'gangsa']
+TUNED_SOUND_ALIKE_PARENTS: dict[str, str] = {
+    'alto glockenspiel': 'glockenspiel',
+    'alto metallophone': 'glockenspiel',
+    'alto xylophone': 'xylophone',
+    'bass metallophone': 'glockenspiel',
+    'bass xylophone': 'xylophone',
+    'kantilan': 'gangsa',
+    'soprano glockenspiel': 'glockenspiel',
+    'soprano metallophone': 'glockenspiel',
+    'soprano xylophone': 'xylophone',
+    'tubaphone': 'glockenspiel',
+    'ugal': 'gangsa',
+}
+
+# Each family a batch grew: (the entries that predate it, its new builds, its sound-alikes)
+BATCH_FAMILIES: dict[Family, tuple[frozenset[str], list[str], dict[str, str]]] = {
+    Family.PLUCKED_STRINGS: (
+        EXISTING_PLUCKED_NAMES,
+        NEW_PLUCKED_NAMES,
+        PLUCKED_SOUND_ALIKE_PARENTS,
+    ),
+    Family.TUNED_PERCUSSION: (EXISTING_TUNED_NAMES, NEW_TUNED_NAMES, TUNED_SOUND_ALIKE_PARENTS),
+}
+
+
+@pytest.mark.parametrize('family', list(BATCH_FAMILIES), ids=str)
+def test_no_new_build_is_another_entrys_instrument(family):
+    """A batch's build is its own sound (the anti-goal), whatever entry it is set against."""
+    _, new_names, _ = BATCH_FAMILIES[family]
+    names = instruments.names(family=family)
     same = [
         (new_name, other)
-        for new_name in NEW_PLUCKED_NAMES
+        for new_name in new_names
         for other in names
         if other != new_name
         and instruments.entry(other).sounds_like is None
@@ -1431,13 +1507,15 @@ def test_no_new_plucked_string_builds_another_entrys_instrument():
     assert same == []
 
 
-def test_the_new_plucked_strings_are_pitched_entries_of_their_family():
-    """Each new entry, sound-alikes included, is a plucked string with a range."""
-    for name in [*NEW_PLUCKED_NAMES, *PLUCKED_SOUND_ALIKE_PARENTS]:
-        assert instruments.entry(name).family == Family.PLUCKED_STRINGS, name
+@pytest.mark.parametrize('family', list(BATCH_FAMILIES), ids=str)
+def test_the_new_entries_are_pitched_entries_of_their_family(family):
+    """Each new entry, sound-alikes included, is in its family with a range."""
+    existing_names, new_names, sound_alike_parents = BATCH_FAMILIES[family]
+    for name in [*new_names, *sound_alike_parents]:
+        assert instruments.entry(name).family == family, name
         assert instruments.entry(name).pitched, name
-    assert set(instruments.names(family=Family.PLUCKED_STRINGS)) == (
-        EXISTING_PLUCKED_NAMES | set(NEW_PLUCKED_NAMES) | set(PLUCKED_SOUND_ALIKE_PARENTS)
+    assert set(instruments.names(family=family)) == (
+        existing_names | set(new_names) | set(sound_alike_parents)
     )
 
 
@@ -1448,18 +1526,21 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         assert name in listed, name
         assert instruments.entry(name).sounds_like == parent, name
         assert instruments.get(name) == instruments.get(parent), name
-    listed_plucked = instruments.names(family=Family.PLUCKED_STRINGS)
-    for name, parent in PLUCKED_SOUND_ALIKE_PARENTS.items():
-        assert name in listed_plucked, name
-        assert instruments.entry(name).sounds_like == parent, name
-        assert instruments.get(name) == instruments.get(parent), name
+    for family, (_, _, sound_alike_parents) in BATCH_FAMILIES.items():
+        listed_in_family = instruments.names(family=family)
+        for name, parent in sound_alike_parents.items():
+            assert name in listed_in_family, name
+            assert instruments.entry(name).sounds_like == parent, name
+            assert instruments.get(name) == instruments.get(parent), name
     every_sound_alike = [
         catalog_entry.name
         for catalog_entry in instruments.entries()
         if catalog_entry.sounds_like is not None
     ]
-    # The catalog lists families in table order: plucked strings come before the drums
-    assert every_sound_alike == list(PLUCKED_SOUND_ALIKE_PARENTS) + SOUND_ALIKE_NAMES
+    # The catalog lists families in table order: plucked strings, tuned percussion, then drums
+    assert every_sound_alike == (
+        list(PLUCKED_SOUND_ALIKE_PARENTS) + list(TUNED_SOUND_ALIKE_PARENTS) + SOUND_ALIKE_NAMES
+    )
 
 
 def test_the_new_drums_are_in_their_family():
@@ -1495,3 +1576,30 @@ def test_the_pianet_settles_from_a_bright_strike():
             samples[round(0.3 * SAMPLE_RATE) : round(0.4 * SAMPLE_RATE)], hertz=cutoff
         )
         assert strike > 10.0 * settled, note.name
+
+
+def test_the_gangsa_pairs_its_fundamental_at_the_ombak_ratio():
+    """A gangsa note holds two fundamentals 228 / 220 = 1.036 apart, the pair's ombak.
+
+    The Gamelan gong kebyar page (https://en.wikipedia.org/wiki/Gamelan_gong_kebyar): "one note
+    on a female gangsa pemadé might be tuned to 220 Hz, while the male gangsa pemadé might be
+    tuned slightly higher to 228 Hz". The spectrum of a C4 note has a strong peak at the
+    note's frequency and another at 1.036 times it, with far less between them, so a partial sits
+    at the ratio (a single fundamental, as the glockenspiel has, has none there).
+    """
+    note = Note('C4')
+    fundamental = float(note.to_hz())
+
+    def peak_near(name: str, hertz: float) -> float:
+        samples = rendered(instruments.get(name), pitch=note.name)[: 2 * SAMPLE_RATE]
+        magnitude = np.abs(np.fft.rfft(samples * np.hanning(len(samples))))
+        frequencies = np.fft.rfftfreq(len(samples), 1 / SAMPLE_RATE)
+        return float(np.max(magnitude[np.abs(frequencies - hertz) < 1.0]))
+
+    ombak = peak_near('gangsa', 1.036 * fundamental)
+    between = peak_near('gangsa', 1.018 * fundamental)
+    assert ombak > 0.5 * peak_near('gangsa', fundamental)
+    assert ombak > 3.0 * between
+    assert peak_near('glockenspiel', 1.036 * fundamental) < 0.1 * peak_near(
+        'glockenspiel', fundamental
+    )
