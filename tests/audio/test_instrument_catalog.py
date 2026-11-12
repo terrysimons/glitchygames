@@ -773,6 +773,12 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('ud', 'oud'),
         ('kanonaki', 'qanun'),
         ('kanun', 'qanun'),
+        ('bell lyra', 'glockenspiel'),
+        ('boomwhacker', 'boomwhackers'),
+        ('saron barung', 'saron'),
+        ('orchestra bells', 'glockenspiel'),
+        ('chimes', 'tubular bells'),
+        ('orchestral chimes', 'tubular bells'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -1443,13 +1449,25 @@ EXISTING_TUNED_NAMES = frozenset({
     'singing bowl',
     'tabla dayan',
 })
-# Batch 5's entries with their own build, and its sound-alikes with the entry each sounds like
-# (Tasks 3 and 5 fill them)
-NEW_TUNED_NAMES: list[str] = []
-TUNED_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+# Batch 5's tuned percussion: the names of its entries with their own build, and each of its
+# sound-alikes with the entry it sounds like
+NEW_TUNED_NAMES: list[str] = ['boomwhackers', 'gangsa']
+TUNED_SOUND_ALIKE_PARENTS: dict[str, str] = {
+    'alto glockenspiel': 'glockenspiel',
+    'alto metallophone': 'glockenspiel',
+    'alto xylophone': 'xylophone',
+    'bass metallophone': 'glockenspiel',
+    'bass xylophone': 'xylophone',
+    'kantilan': 'gangsa',
+    'soprano glockenspiel': 'glockenspiel',
+    'soprano metallophone': 'glockenspiel',
+    'soprano xylophone': 'xylophone',
+    'tubaphone': 'glockenspiel',
+    'ugal': 'gangsa',
+}
 
 # Each family a batch grew: (the entries that predate it, its new builds, its sound-alikes)
-BATCH_FAMILIES = {
+BATCH_FAMILIES: dict[Family, tuple[frozenset[str], list[str], dict[str, str]]] = {
     Family.PLUCKED_STRINGS: (
         EXISTING_PLUCKED_NAMES,
         NEW_PLUCKED_NAMES,

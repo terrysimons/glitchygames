@@ -189,4 +189,25 @@ ALIASES: Final[dict[str, str]] = {
     # https://en.wikipedia.org/wiki/Kanun (redirects to the Qanun page): "The qanun, kanun, ganoun
     # or kanoon"; another spelling of the qanun
     'kanun': 'qanun',
+    # --- Batch 5's bars, plaques, tubes and stones, in the order of
+    # plans/data/instrument-audit/batch-5.tsv
+    # https://en.wikipedia.org/wiki/Glockenspiel: "In the United Kingdom, the United States, and
+    # Canada, a form of glockenspiel is called a bell lyre, bell lyra, or lyra-glockenspiel."; the
+    # marching glockenspiel in a lyre-shaped frame, so another name for the glockenspiel
+    'bell lyra': 'glockenspiel',
+    # https://en.wikipedia.org/wiki/Boomwhacker: the page's own title is the singular ("A
+    # Boomwhacker is a percussion instrument ..."); another name for boomwhackers
+    'boomwhacker': 'boomwhackers',
+    # https://en.wikipedia.org/wiki/Saron_(instrument): "Saron barung (sometimes just saron)";
+    # another name for the saron
+    'saron barung': 'saron',
+    # https://www.vsl.co.at/academy/percussion/glockenspiel: "Glockenspiel (orchestra bells)";
+    # another name for the glockenspiel
+    'orchestra bells': 'glockenspiel',
+    # https://en.wikipedia.org/wiki/Tubular_bells: "Tubular bells (also known as chimes)"; another
+    # name for the tubular bells
+    'chimes': 'tubular bells',
+    # https://en.wikipedia.org/wiki/Tubular_bells: the infobox's alternative names, "Chimes",
+    # "orchestral chimes"; another name for the tubular bells
+    'orchestral chimes': 'tubular bells',
 }
