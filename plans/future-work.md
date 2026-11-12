@@ -742,6 +742,52 @@ only replays; Part 2 Task 1).
   in sub-plan 2's Task 4 (`40576db5`, `8c5dcf61`), which removed the entry from Games: both draw
   with sprites (the joystick demo's gauges, a column rebuilt when a pad's mapping changes), so
   their `timing` and `pad` demos compare what they show.
+- **Fold both demos' `TextLine` into the engine's `TextSprite`.** The dt and joystick demos each
+  carry a near-identical `TextLine(TextSprite)` subclass because `TextSprite.update_text`
+  ignores `self.font` (the bugs table). Fix that, then delete both copies; text showing a
+  measured value (the dt demo's FPS line, Ruling R14) keeps a fixed size.
+- **Say why each demo's frame count was chosen in `scripts/record_bundled_demos.py`** (final
+  review, minor 2). Only the rally's is explained there (Mr. Muncher's in
+  `scripts/demo_inputs.py`); Clockwork Keep's 330, Brave Adventurer's 400 and Drawing Fire's 1600
+  are explained only in the plan (Ruling 3) and the entry above.
+- **The text-input script copies the demo's starting text** (final review, minor 3).
+  `scripts/demo_inputs.py` `TEXT_INPUT_DEMO_ORIGINAL_TEXT_LENGTH = len('Test')`, and
+  `test_the_text_input_script_types_and_submits` builds its own `InputBox(text='Test')`, so a
+  change to the demo's starting text is not caught. Read it from the demo (by AST, as
+  `keys_read_by` does, or a shared constant).
+- **`record_scripted_session` swaps the supervisor's `PostedPolledInput`** (final review, minor
+  4). The supervisor builds one, then the recorder replaces it with one that knows the stand-ins'
+  descriptors (`scripted_sessions.py`). Pass `descriptors` to `ScriptedInputSupervisor.__init__`
+  and drop the swap and its comment.
+- **Plan checkboxes.** `plans/2026-11-11-arcade-2-demos.md` says DONE, but the steps of Tasks 2-8
+  are still `- [ ]` (only Task 1's are ticked).
+- **Small clean-ups left from sub-plan 2's task reviews** (kept from the progress ledger, Ruling
+  R16; each harmless today):
+  - `tests/test_record_bundled_demos.py` `held_at_end` sees only `InputScript.key_events`, so it
+    is near-vacuous for per-frame input; the recordings' own guard
+    (`tests/replay/test_bundled_demos.py` `test_no_bundled_demo_ends_with_input_held`, Rulings R6
+    and R12) superseded it. Delete it or make it read per-frame input.
+  - `scripts/record_bundled_demos.py` sets `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER` with
+    `os.environ.setdefault` at import time (so importing it from a test sets them too).
+  - `scripts/record_bundled_demos.py` `main` prints the recipe's frame count, not the recording's
+    frame count.
+  - `scripts/demo_inputs.py` `ReleaseHeldKeyOnFinalFrame` assumes "call n is frame n" and writes
+    `steering.held_key` directly; only the end-to-end held-input guard checks it.
+  - `scripts/demo_inputs.py` `bitmappy_demo_script`: the unused `_channel` unpacking in the two
+    colour-pick loops, the stroke-to-canvas-points comprehension written twice, and
+    `BITMAPPY_DEMO_FRAMES_BETWEEN_PICKS` doing double duty (the pause after each click and the
+    pause after the face's strokes).
+  - `scripts/demo_inputs.py` `typed_key_events` sets Shift in `mod` without a Shift press.
+  - `tests/test_record_bundled_demos.py` `scripted_events_in_frame_order` reads
+    `InputScript.key_events` internals; the hat test asserts only the four cardinals; the dt test
+    pins only the Space press, not the crossing or the record line.
+  - The held-input guard (R12) reads `JOYAXISMOTION` and `JOYHATMOTION` but not `JOYBALLMOTION`
+    (no shipped demo has a ball), and only external events (the supervisor's posts are
+    external, so every scripted input is read).
+  - A new demo must be `git add`ed before the every-recording-checked test sees it.
+  - Every text line of the dt and joystick demos is rendered again each frame.
+  - `nox -s test` reported 30 skips to `uv run pytest`'s 8 at Task 8: confirm the extra 22 are
+    optional-dependency skips (the voice tests) that main has too.
 
 ## Games
 

@@ -578,7 +578,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   and hand a recorder what they opened) go through the door: tests use them (their
   descriptors in `tests/input/stand_in_devices.py`), and a scripted session records a game
   played on one (`record_scripted_session(stand_in_devices=[...])`, `GoldenTraceEngine`'s
-  `stand_in_devices`; its pad events reach the snapshot with `polled_input`). `--list-input-devices`
+  `stand_in_devices`; its pad events reach the snapshot with `polled_input`). `stand_in_devices`
+  has three cases: None (the default) the machine's real devices, an empty tuple no devices at
+  all (stand-in doors around an empty registry: real ones are never seen or opened), a non-empty
+  tuple exactly those stand-ins. `--list-input-devices`
   (`src/glitchygames/input/device_listing.py`) replaces the run: it counts devices before SDL's
   queue is pumped (what the managers' startup count sees), listens a second keeping each
   device added/removed event with its time (macOS reports connected pads as device-added
@@ -801,15 +804,16 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `DemoRecipe` per demo: scene, input script, frame count, package and name, `polled_input`,
   `input_only_placements`, `stand_in_devices`; `uv run python -m scripts.record_bundled_demos
   --demo KEY` or `--all`): each is `--script-only` (no controls tail, no quit) under the goldens'
-  `RANDOM_SEED` at 800x480, with the AI install root pointed at an empty directory and SDL's real
-  joystick drivers off for the session. The games reuse their golden scripts' frames before the
+  `RANDOM_SEED` at 800x480, with the AI install root pointed at an empty directory, with no
+  devices at all unless the recipe names stand-ins (`stand_in_devices=()`, the recipe's default),
+  and SDL's real joystick drivers off for the session as defence in depth. The games reuse their golden scripts' frames before the
   controls tail (Mr. Muncher's chase a demo-only script, `scripts/demo_inputs.py`, which also holds
   the dt, text-input, joystick and Bitmappy scripts); the joystick demo's pad is a stand-in
   ('GlitchyGames Demo Pad', `ScriptedSessionOptions.stand_in_devices`), which the recording's
   header holds and its replay opens again. `tests/replay/test_bundled_demos.py` also checks each
   demo is at most `MAXIMUM_DEMO_BYTES` (256 KB) and ends with nothing held: no key, mouse or pad
   button down, every pad axis at rest (exactly 0) and every hat centred, since the Arcade loops
-  it. PaddleSlap's is
+  it. PaddleSlap's (the first) is
   `src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz`. PaddleSlap has no title screen, so its
   game-over screen (`PaddleSlapGameOverScene`) plays
   `PADDLESLAP_DEMO_PATH` after `GAME_OVER_IDLE_SECONDS` (10) of game time without a key or

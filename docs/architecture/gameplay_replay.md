@@ -955,9 +955,17 @@ through the real devices door, so the game sees them as real pads, the recording
 them and its replay opens them again (a replay never sees real hardware). The script moves them
 with their events (`JOYAXISMOTION`, `JOYBUTTONDOWN`/`UP`, `JOYHATMOTION` by `instance_id`),
 which a game that polls (`current_input()`) sees only with `polled_input`. The golden-trace
-harness takes the same option (`GoldenTraceEngine(..., stand_in_devices=...)`). It has no
-command-line flag: the joystick demo's `pad` recording is its one user
-(`scripts/record_bundled_demos.py`).
+harness takes the same option (`GoldenTraceEngine(..., stand_in_devices=...)`). It has three
+cases:
+
+- None (the default): the machine's real devices, as any run has.
+- An empty tuple: no devices at all. The session runs on stand-in doors around an empty
+  registry, so a real device is never seen or opened, on any platform.
+- A non-empty tuple: exactly those stand-ins.
+
+It has no command-line flag. `scripts/record_bundled_demos.py` is its user: every bundled demo
+is recorded with no devices at all (an empty tuple) unless its recipe names stand-ins, as the
+joystick demo's `pad` recording does.
 
 ### Project settings (`[tool.glitchygames]`)
 

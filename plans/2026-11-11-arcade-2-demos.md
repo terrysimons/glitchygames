@@ -1,7 +1,7 @@
 # Arcade, Sub-plan 2: Demos for Every Tile — Implementation Plan
 
-Status: DONE (branch `arcade-2-demos`, commits `c0ac3f0f..HEAD`: Tasks 1-8, Task 8's docs
-commit last). Every tile of the Arcade has its bundled demo; the follow-ups found on the way are
+Status: DONE (branch `arcade-2-demos` (its PR number is added when it is opened): Tasks 1-8,
+Task 8's docs commit, then the final review's fixes). Every tile of the Arcade has its bundled demo; the follow-ups found on the way are
 in `plans/future-work.md` (Arcade, and the bugs table).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task (execution is subagent-driven for every Arcade sub-plan: decision 4 of the engine context master plan). Steps use checkbox (`- [ ]`) syntax for tracking.
