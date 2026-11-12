@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Final
 
 from glitchygames.audio.instruments.catalog import CatalogEntry, Family
 from glitchygames.audio.instruments.timbres import Partial, struck
+from glitchygames.audio.instruments.tuned_sound_alikes import TUNED_SOUND_ALIKES
 
 if TYPE_CHECKING:
     from glitchygames.audio.instrument import Instrument
@@ -173,7 +174,7 @@ def _timpani() -> Instrument:
     )
 
 
-TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
+_TUNED_BUILDS: Final[tuple[CatalogEntry, ...]] = (
     CatalogEntry('glockenspiel', 'Glockenspiel', Family.TUNED_PERCUSSION, 'G5', 'C8', GLOCKENSPIEL),
     CatalogEntry(
         'crotales',
@@ -339,3 +340,6 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         ),
     ),
 )
+
+# The family: its builds, then the sound-alikes that share them (``tuned_sound_alikes.py``)
+TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = _TUNED_BUILDS + TUNED_SOUND_ALIKES

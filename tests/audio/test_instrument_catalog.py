@@ -1417,12 +1417,56 @@ PLUCKED_SOUND_ALIKE_PARENTS = {
 }
 
 
-def test_no_new_plucked_string_builds_another_entrys_instrument():
-    """A batch 4 build is its own sound (the anti-goal), whatever entry it is set against."""
-    names = instruments.names(family=Family.PLUCKED_STRINGS)
+# The 23 tuned percussion entries that predate batch 5
+EXISTING_TUNED_NAMES = frozenset({
+    'glockenspiel',
+    'crotales',
+    'xylophone',
+    'marimba',
+    'bass marimba',
+    'vibraphone',
+    'balafon',
+    'tubular bells',
+    'church bell',
+    'carillon',
+    'handbells',
+    'tenor steel pan',
+    'double second steel pan',
+    'cello steel pan',
+    'bass steel pan',
+    'handpan',
+    'timpani',
+    'saron',
+    'gender',
+    'bonang',
+    'tuned gong',
+    'singing bowl',
+    'tabla dayan',
+})
+# Batch 5's entries with their own build, and its sound-alikes with the entry each sounds like
+# (Tasks 3 and 5 fill them)
+NEW_TUNED_NAMES: list[str] = []
+TUNED_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+
+# Each family a batch grew: (the entries that predate it, its new builds, its sound-alikes)
+BATCH_FAMILIES = {
+    Family.PLUCKED_STRINGS: (
+        EXISTING_PLUCKED_NAMES,
+        NEW_PLUCKED_NAMES,
+        PLUCKED_SOUND_ALIKE_PARENTS,
+    ),
+    Family.TUNED_PERCUSSION: (EXISTING_TUNED_NAMES, NEW_TUNED_NAMES, TUNED_SOUND_ALIKE_PARENTS),
+}
+
+
+@pytest.mark.parametrize('family', list(BATCH_FAMILIES), ids=str)
+def test_no_new_build_is_another_entrys_instrument(family):
+    """A batch's build is its own sound (the anti-goal), whatever entry it is set against."""
+    _, new_names, _ = BATCH_FAMILIES[family]
+    names = instruments.names(family=family)
     same = [
         (new_name, other)
-        for new_name in NEW_PLUCKED_NAMES
+        for new_name in new_names
         for other in names
         if other != new_name
         and instruments.entry(other).sounds_like is None
@@ -1431,13 +1475,15 @@ def test_no_new_plucked_string_builds_another_entrys_instrument():
     assert same == []
 
 
-def test_the_new_plucked_strings_are_pitched_entries_of_their_family():
-    """Each new entry, sound-alikes included, is a plucked string with a range."""
-    for name in [*NEW_PLUCKED_NAMES, *PLUCKED_SOUND_ALIKE_PARENTS]:
-        assert instruments.entry(name).family == Family.PLUCKED_STRINGS, name
+@pytest.mark.parametrize('family', list(BATCH_FAMILIES), ids=str)
+def test_the_new_entries_are_pitched_entries_of_their_family(family):
+    """Each new entry, sound-alikes included, is in its family with a range."""
+    existing_names, new_names, sound_alike_parents = BATCH_FAMILIES[family]
+    for name in [*new_names, *sound_alike_parents]:
+        assert instruments.entry(name).family == family, name
         assert instruments.entry(name).pitched, name
-    assert set(instruments.names(family=Family.PLUCKED_STRINGS)) == (
-        EXISTING_PLUCKED_NAMES | set(NEW_PLUCKED_NAMES) | set(PLUCKED_SOUND_ALIKE_PARENTS)
+    assert set(instruments.names(family=family)) == (
+        existing_names | set(new_names) | set(sound_alike_parents)
     )
 
 
@@ -1448,18 +1494,21 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         assert name in listed, name
         assert instruments.entry(name).sounds_like == parent, name
         assert instruments.get(name) == instruments.get(parent), name
-    listed_plucked = instruments.names(family=Family.PLUCKED_STRINGS)
-    for name, parent in PLUCKED_SOUND_ALIKE_PARENTS.items():
-        assert name in listed_plucked, name
-        assert instruments.entry(name).sounds_like == parent, name
-        assert instruments.get(name) == instruments.get(parent), name
+    for family, (_, _, sound_alike_parents) in BATCH_FAMILIES.items():
+        listed_in_family = instruments.names(family=family)
+        for name, parent in sound_alike_parents.items():
+            assert name in listed_in_family, name
+            assert instruments.entry(name).sounds_like == parent, name
+            assert instruments.get(name) == instruments.get(parent), name
     every_sound_alike = [
         catalog_entry.name
         for catalog_entry in instruments.entries()
         if catalog_entry.sounds_like is not None
     ]
-    # The catalog lists families in table order: plucked strings come before the drums
-    assert every_sound_alike == list(PLUCKED_SOUND_ALIKE_PARENTS) + SOUND_ALIKE_NAMES
+    # The catalog lists families in table order: plucked strings, tuned percussion, then drums
+    assert every_sound_alike == (
+        list(PLUCKED_SOUND_ALIKE_PARENTS) + list(TUNED_SOUND_ALIKE_PARENTS) + SOUND_ALIKE_NAMES
+    )
 
 
 def test_the_new_drums_are_in_their_family():
