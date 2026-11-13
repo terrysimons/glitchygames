@@ -187,13 +187,13 @@ inside a tile. The owner left it failing (2026-11-12; `plans/future-work.md`).
     calls it at the end.
   - Containment (decision 4) around `replay`, `step` and `finish`.
 
-- [ ] **Step 1: Write the failing tests** (a stand-in game installed as a command, the
+- [x] **Step 1: Write the failing tests** (a stand-in game installed as a command, the
   unseen-game test's pattern): plays to `ENDED` and `Replay matched`; Review Focus 1, 2 and 3;
   each refused argument set.
-- [ ] **Step 2: Run them; expected FAIL**
-- [ ] **Step 3: Implement**
-- [ ] **Step 4: Run `tests/engine/`; expected PASS**
-- [ ] **Step 5: Commit** (`Inner game: a game's own command replayed inside its own engine context`)
+- [x] **Step 2: Run them; expected FAIL**
+- [x] **Step 3: Implement**
+- [x] **Step 4: Run `tests/engine/`; expected PASS**
+- [x] **Step 5: Commit** (`Inner game: a game's own command replayed inside its own engine context`)
 
 ### Task 4: The proof, the benchmark and the documents
 

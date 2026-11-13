@@ -465,6 +465,11 @@ class PrivateEventQueue:
     which belongs to the context that owns the window), so an inner game never takes an event
     another context posted, nor leaves one for it to take.
 
+    An enabled queue accepts every post: SDL's blocking of an event type (``set_blocked``) does
+    not apply to it, and every post is reported as posted. Only replay doors drain it
+    (``ReplaySources``), so only a replaying context may enable it, or its posts would pile up
+    undrained: ``InnerGame`` (glitchygames/inner_game.py), the one that enables it, only replays.
+
     Attributes:
         enabled: True when the context posts to and drains this queue (an inner game's start
             turns it on); False: SDL's queue is used, as for every ordinary game.

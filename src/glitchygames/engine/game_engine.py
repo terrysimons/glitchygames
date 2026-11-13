@@ -31,6 +31,7 @@ from typing import (
 )
 
 import pygame
+from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock, events
 from glitchygames.ai_link import AiLink, create_link
@@ -739,6 +740,21 @@ def startup_options_block(*, game_name: str, options: Mapping[str, Any]) -> str:
         options=displayed_options(options=options), indent=OPTIONS_BLOCK_INDENT
     )
     return '\n'.join([f'Options for {game_name} (secrets redacted):', *lines])
+
+
+class ReplayReport(BaseModel):
+    """A replay's settled report (``GameEngine.settle_replay_report``; read-only).
+
+    Attributes:
+        text: The report (``ReplayResult.report``, or what ended the run early).
+        is_failure: True when it reports a divergence or an early end.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    text: str
+    is_failure: bool
 
 
 class NoRunningEngineError(RuntimeError):
@@ -3206,8 +3222,35 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
     def _report_replay_result(self: Self, *, run_ended_by: str | None) -> None:
         """Settle the replay's result and report it, if replaying (rule 11).
 
-        The report (``ReplayResult.report``) is printed to stdout under ``--headless``, where it
+        The report (``settle_replay_report``) is printed to stdout under ``--headless``, where it
         is the run's output, and logged otherwise (as an error when the replay diverged).
+
+        Args:
+            run_ended_by: What ended the run early (an exit status as
+                ``ExitCode.describe_status`` gives it), or None when the run ended normally.
+
+        """
+        if self.replay_sources is None:
+            return
+        report = self.settle_replay_report(
+            replay_sources=self.replay_sources, run_ended_by=run_ended_by
+        )
+        if self.replay_sources.options.headless:
+            sys.stdout.write(f'{report.text}\n')
+            sys.stdout.flush()
+        elif report.is_failure:
+            self.log.error(report.text)
+        else:
+            self.log.info(report.text)
+
+    def settle_replay_report(
+        self: Self, *, replay_sources: ReplaySources, run_ended_by: str | None
+    ) -> ReplayReport:
+        """Settle the replay's result (``ReplaySources.finish_run``) and return its report.
+
+        The report is ``ReplayResult.report``; ``_report_replay_result`` prints or logs it, and
+        an inner game (glitchygames/inner_game.py), which writes nothing to stdout, keeps it in
+        its outcome.
 
         Any early end of the run (a crash, Ctrl-C, a signal, or any SystemExit, a game's own
         ``sys.exit(0)`` included) is reported by what ended it: before the replay reached its
@@ -3221,16 +3264,19 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         says so after the report.
 
         Args:
+            replay_sources: The run's replay doors (``self.replay_sources``).
             run_ended_by: What ended the run early (an exit status as
-                ``ExitCode.describe_status`` gives it), or None when the run ended normally.
+                ``ExitCode.describe_status`` gives it, or an inner game's error), or None when
+                the run ended normally.
+
+        Returns:
+            The report and whether it reports a failure.
 
         """
-        if self.replay_sources is None:
-            return
-        result = self.replay_sources.result
+        result = replay_sources.result
         # Read before finish_run, which turns a replay still running into a length divergence
         replay_had_ended = result.end_reason != RUNNING_END_REASON
-        self.replay_sources.finish_run()
+        replay_sources.finish_run()
         if run_ended_by is not None and replay_had_ended:
             report = f'{result.report()}\nthen the run ended with {run_ended_by}'
             is_failure = True
@@ -3251,26 +3297,20 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             else:
                 self.rebaseline.discard()
                 report = f'{report}\n{self.rebaseline.destination} was not written'
-        elif self.replay_sources.is_reseeded and run_ended_by is None:
+        elif replay_sources.is_reseeded and run_ended_by is None:
             # Under another seed than recorded (rule 19 of glitchygames/replay/driver.py) the
             # differences are what the replay reports, never a failure, and nothing is written
             report = RebaselineSummary.from_result(
                 result=result, path=None
             ).describe_reseeded_replay(
-                random_seed=self.replay_sources.random_seed,
-                recorded_seed=self.replay_sources.recorded_seed,
+                random_seed=replay_sources.random_seed,
+                recorded_seed=replay_sources.recorded_seed,
             )
             is_failure = False
         if result.processing is not None:
             # After the replay's own report (glitchygames/replay/processing.py)
             report = f'{report}\n{result.processing.describe()}'
-        if self.replay_sources.options.headless:
-            sys.stdout.write(f'{report}\n')
-            sys.stdout.flush()
-        elif is_failure:
-            self.log.error(report)
-        else:
-            self.log.info(report)
+        return ReplayReport(text=report, is_failure=is_failure)
 
     def _enter_headless_mode(self: Self) -> None:
         """--headless: run on SDL's dummy video and audio drivers (no window, no sound).

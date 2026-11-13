@@ -96,7 +96,12 @@ def display_surface() -> pygame.Surface | None:
 
 
 def request_hosted_start() -> None:
-    """Make ``GameEngine.start()`` in the current context a hosted start (build, then return)."""
+    """Make ``GameEngine.start()`` in the current context a hosted start (build, then return).
+
+    The request lasts for the context's life: nothing clears it, so every later ``start()`` in
+    the context is a hosted start too. A host makes a fresh context for each game it starts
+    (``InnerGame``, glitchygames/inner_game.py, does), so no other game finds it set.
+    """
     current_context().value(slot=RENDER_TARGET_SLOT).hosted_start_requested = True
 
 
