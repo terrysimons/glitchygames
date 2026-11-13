@@ -2,7 +2,7 @@
 
 The sound is made by electronic circuits alone (Hornbostel-Sachs 53): the family is defined by how
 the sound is made, and the owner's decision 3 splits it from the electromechanical instruments
-(H-S 51 and 52, in ``keyboards.py``), whose sound starts as a mechanical vibration read
+(H-S 51 and 52, in ``electromechanical.py``), whose sound starts as a mechanical vibration read
 electrically. Most entries are one subtractive shape (``_synth``: a wave, an envelope, an optional
 low pass, a detuned pair or a square an octave below); the theremin and ondes Martenot are blown
 shapes with a slow attack and a slight chorus. Batch 6 adds the NES triangle (``_synth`` with

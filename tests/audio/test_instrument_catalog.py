@@ -222,7 +222,9 @@ def test_harmonic_instruments_sound_their_note(name):
     """A harmonic instrument repeats at its note's period, not an octave up."""
     entry = instruments.entry(name)
     note = entry.middle_note()
-    hertz = float(note.to_hz()) / (2.0 if name in SIXTEEN_FOOT_ORGANS else 1.0)
+    hertz = float(note.to_hz()) / (
+        2.0 if name in SIXTEEN_FOOT_ORGANS or name in KEYBOARD_SIXTEEN_FOOT_NAMES else 1.0
+    )
     hertz *= 8.0 / footage_feet(ORGAN_STOP_FOOTAGES.get(name, '8'))
     samples = rendered(instruments.get(name), pitch=note.name, name=name)
     held = samples[round(0.15 * SAMPLE_RATE) : round(0.35 * SAMPLE_RATE)]
@@ -1791,6 +1793,30 @@ ORGAN_STOP_FOOTAGES: dict[str, str] = {'bourdon': '16'}
 MECHANICAL_ORGAN_NAMES: list[str] = []
 
 
+# The 11 keyboards that predate batch 15: their shared builds predate the anti-goal rule
+EXISTING_KEYBOARD_NAMES: frozenset[str] = frozenset({
+    'grand piano',
+    'bright grand piano',
+    'upright piano',
+    'honky tonk piano',
+    'fortepiano',
+    'harpsichord',
+    'harpsichord lute stop',
+    'virginal',
+    'clavichord',
+    'celesta',
+    'toy piano',
+})
+# Batch 15's keyboards with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-15.tsv)
+NEW_KEYBOARD_NAMES: list[str] = []
+# Batch 15's keyboard sound-alikes and the entry each sounds like, in the sheet's order
+KEYBOARD_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+# Batch 15's self-playing keyboards (Tag.MECHANICAL), in catalog order: the builds, then the
+# sound-alikes, each in the sheet's order (plans/data/instrument-audit/batch-15.tsv)
+MECHANICAL_KEYBOARD_NAMES: list[str] = []
+
+
 # The 42 brass instruments that predate batch 10: their shared builds predate the anti-goal rule
 EXISTING_BRASS_NAMES: frozenset[str] = frozenset({
     'piccolo trumpet',
@@ -1956,6 +1982,9 @@ BATCH_FAMILIES: dict[Family, BatchFamily] = {
     Family.PLUCKED_STRINGS: BatchFamily(
         EXISTING_PLUCKED_NAMES, NEW_PLUCKED_NAMES, PLUCKED_SOUND_ALIKE_PARENTS
     ),
+    Family.KEYBOARDS: BatchFamily(
+        EXISTING_KEYBOARD_NAMES, NEW_KEYBOARD_NAMES, KEYBOARD_SOUND_ALIKE_PARENTS
+    ),
     Family.ORGANS: BatchFamily(EXISTING_ORGAN_NAMES, NEW_ORGAN_NAMES, ORGAN_SOUND_ALIKE_PARENTS),
     Family.ELECTRONIC: BatchFamily(
         EXISTING_ELECTRONIC_NAMES,
@@ -2088,8 +2117,8 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         if catalog_entry.sounds_like is not None
     ]
     # The catalog lists families in table order: flutes, clarinets, double reeds, bagpipes, brass,
-    # bowed strings, plucked strings, organs, electronic, tuned percussion, drums, voices, then
-    # choirs, as registry.FAMILY_TABLES lists them
+    # bowed strings, plucked strings, keyboards, organs, electronic, tuned percussion, drums,
+    # voices, then choirs, as registry.FAMILY_TABLES lists them
     assert every_sound_alike == (
         list(FLUTE_SOUND_ALIKE_PARENTS)
         + list(CLARINET_SOUND_ALIKE_PARENTS)
@@ -2098,6 +2127,7 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         + list(BRASS_SOUND_ALIKE_PARENTS)
         + list(BOWED_SOUND_ALIKE_PARENTS)
         + list(PLUCKED_SOUND_ALIKE_PARENTS)
+        + list(KEYBOARD_SOUND_ALIKE_PARENTS)
         + list(ORGAN_SOUND_ALIKE_PARENTS)
         + list(ELECTRONIC_SOUND_ALIKE_PARENTS)
         + list(TUNED_SOUND_ALIKE_PARENTS)
@@ -2700,3 +2730,89 @@ def test_a_detuned_clarinet_beats_at_its_sourced_cents():
     for name, cents in CLARINET_DETUNES.items():
         chorus_source = dict(instruments.get(name).sources)['chorus']
         assert chorus_source.detune_cents == pytest.approx(cents), name
+
+
+# Batch 15's harpsichords that sound a 16' choir an octave below their keys (_harpsichord's
+# sixteen_foot), in catalog order: the builds, then the sound-alikes that add one through
+# sound_changes (plans/data/instrument-audit/batch-15.tsv)
+KEYBOARD_SIXTEEN_FOOT_NAMES: list[str] = []
+# Batch 15's keyboard idiophones built from their sourced partial ratios (_keyed_idiophone), in
+# catalog order: the builds, then their sound-alikes (plans/data/instrument-audit/batch-15.tsv)
+KEYBOARD_PARTIAL_RATIOS: dict[str, tuple[float, ...]] = {}
+# Every name plans/data/instrument-audit/batch-15.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for an engine feature, a build of its own, a sourced
+# partial series, sub-audio fundamentals, a range above C8 or more than four sources, and the alias
+# rows that wait for one of them, in the sheet's order. None ships under that name or as an alias
+# until the reason is met (decision 4; batch 15). The test matches exact names
+KEYBOARD_HELD_BACK: dict[str, str] = {}
+
+
+def test_no_keyboard_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a keyboard the sheet holds back."""
+    assert set(KEYBOARD_HELD_BACK) & set(instruments.names()) == set()
+    assert set(KEYBOARD_HELD_BACK) & set(instruments.ALIASES) == set()
+
+
+def test_the_mechanical_keyboards_are_tagged():
+    """The self-playing keyboards, and only they, carry Tag.MECHANICAL."""
+    assert instruments.names(family=Family.KEYBOARDS, tag=Tag.MECHANICAL) == tuple(
+        MECHANICAL_KEYBOARD_NAMES
+    )
+
+
+def effective_keyboard_keywords(catalog_entry: CatalogEntry) -> dict[str, object]:
+    """A keyboard entry's builder keywords: its parent's build, updated with its sound_changes.
+
+    A plain-function build (``toy piano``'s) has no keywords.
+
+    Returns:
+        The keywords the entry's instrument is built with.
+    """
+    parent = instruments.entry(catalog_entry.sounds_like or catalog_entry.name)
+    keywords = dict(getattr(parent.build, 'keywords', {}))
+    keywords.update(catalog_entry.sound_changes)
+    return keywords
+
+
+def test_a_sixteen_foot_harpsichord_sounds_its_lower_choir():
+    """The harpsichords with a 16' choir are the ones the table lists, each sounding it."""
+    with_sixteen_foot = [
+        catalog_entry.name
+        for catalog_entry in instruments.entries(family=Family.KEYBOARDS)
+        if effective_keyboard_keywords(catalog_entry).get('sixteen_foot') is True
+    ]
+    assert with_sixteen_foot == KEYBOARD_SIXTEEN_FOOT_NAMES
+    for name in KEYBOARD_SIXTEEN_FOOT_NAMES:
+        semitones = [float(source.semitones) for _name, source in instruments.get(name).sources]
+        assert -12.0 in semitones, name
+
+
+def test_a_keyed_idiophone_sounds_its_sourced_partials():
+    """The keyboards with sourced partial ratios are the table's, each sounding them."""
+    with_ratios = {
+        catalog_entry.name: effective_keyboard_keywords(catalog_entry)['ratios']
+        for catalog_entry in instruments.entries(family=Family.KEYBOARDS)
+        if 'ratios' in effective_keyboard_keywords(catalog_entry)
+    }
+    assert list(with_ratios) == list(KEYBOARD_PARTIAL_RATIOS)
+    for name, ratios in KEYBOARD_PARTIAL_RATIOS.items():
+        assert with_ratios[name] == ratios, name
+        catalog_entry = instruments.entry(name)
+        note = catalog_entry.middle_note()
+        hertz = float(note.to_hz())
+        samples = render_sound(
+            spec_for(instruments.get(name), name=name, pitch=note.name, length=1.0)
+        ).samples
+        held = samples[round(0.1 * SAMPLE_RATE) : round(0.9 * SAMPLE_RATE)]
+        magnitude = np.abs(np.fft.rfft(held * np.hanning(len(held))))
+        frequencies = np.fft.rfftfreq(len(held), 1 / SAMPLE_RATE)
+        # The spectrum's peaks: local maxima above 1% of the strongest
+        is_peak = (
+            (magnitude[1:-1] > magnitude[:-2])
+            & (magnitude[1:-1] >= magnitude[2:])
+            & (magnitude[1:-1] > 0.01 * np.max(magnitude))
+        )
+        peak_frequencies = frequencies[1:-1][is_peak]
+        for ratio in ratios:
+            nearest = float(np.min(np.abs(peak_frequencies - ratio * hertz)))
+            assert nearest <= hertz / 4.0, (name, ratio, nearest)
