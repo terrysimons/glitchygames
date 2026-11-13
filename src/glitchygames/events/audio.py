@@ -19,6 +19,7 @@ from glitchygames.events import (
     AudioDeviceEvent,
     AudioEvents,
     ResourceManager,
+    set_event_types_allowed,
 )
 
 log = logging.getLogger('game.audio')
@@ -75,7 +76,7 @@ class AudioEventManager(ResourceManager):
         """
         super().__init__(game=game)
         try:
-            pygame.event.set_allowed(AUDIO_EVENTS)
+            set_event_types_allowed(event_types=AUDIO_EVENTS, allowed=True)
         except pygame.error:
             log.debug('Failed to set allowed audio events: pygame not fully initialized')
 

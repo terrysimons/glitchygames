@@ -1179,8 +1179,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   engine's and scene manager's own attributes (`engine.options`, `game`, `running_game`,
   `event_handlers`, the event bookkeeping; `manager.engine_options`). Still one per process:
   the audit's shared rows (S1-S20: the display, mixer, SDL's queue, joystick subsystem, process
-  services, ...), which later sub-plans keep inner contexts off. The engine does not run a game
-  in another context yet (the one switch in `src/` is the sound-file loader's scratch context)
+  services, ...), which later sub-plans keep inner contexts off. A game runs in another context
+  as an inner game (below; the sound-file loader also switches to a scratch context)
 - Per-context state is a `ContextSlot(name=..., factory=...)` declared once at module level in
   the module that owns it; code reads `current_context().value(slot=...)` when it needs it,
   never at import (`tests/test_engine_context.py` scans the engine and every member).
@@ -1192,8 +1192,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   and observers, the `SceneManager` singleton, the wave registry, the audio engine, the current
   engine (`current_engine()`), the internal-post tracker, the performance manager
   (`AdaptiveClamping()`), the shared event managers and `FontManager` (`ResourceManager`), the
-  font options, the singleton sprites, the debug-events log set and the sprite counters
-  (`sprite_counters()`) (the table in
+  font options, the singleton sprites, the debug-events log set, the sprite counters
+  (`sprite_counters()`), the render target with its hosted start and the private event queue
+  (the table in
   `docs/architecture/engine_context.md` lists each one's functions); each has an isolation check in `tests/test_engine_context.py`
   (`ISOLATION_CHECKS`), and a slot without one fails the suite
 - The old class-level names are read-only views (`src/glitchygames/read_only_views.py`):
@@ -1219,6 +1220,35 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `tests/harness.py`) that the leak check requests, or be listed in
   `PROCESS_STATE_AUTOUSE_FIXTURES` (`tests/test_engine_context.py`) with its reason; a guard
   test enforces it for the autouse fixtures defined in `tests/harness.py`
+- Inner contexts (Arcade sub-plan 3, `plans/2026-11-12-arcade-3-inner-game.md`; the rules in
+  `docs/architecture/engine_context.md`, "Inner contexts"): a context with a render target
+  (`src/glitchygames/render_target.py`, `is_inner_context()`) is inner. Its engine draws on the
+  target (`display_surface()`, never `pygame.display.get_surface()` in engine code), never
+  opens, resizes, captions, presents or icons the window, never changes SDL's drivers (S1, S2),
+  and makes each unpresented frame opaque (BUGS.md #142); no SCREEN shake or overlay is drawn
+  in it. Its posts go to its own queue (`recording.private_event_queue()`), which its replay
+  doors drain, never SDL's (S5, S6), so a recorded QUIT ends only that game. `start()` in it is
+  a hosted start: the game is built to its first frame and the engine handed over
+  (`take_started_engine()`), no signal handlers, loop, crash boundary, `_begin_start` or
+  `_begin_run`; a `request_hosted_start()` lasts the context's life
+- `InnerGame` (`src/glitchygames/inner_game.py`, its docstring the rules) is the host's handle:
+  `InnerGame.replay(command=..., path=..., name=..., size=..., arguments=())` calls a game's
+  installed command, unchanged, in a fresh context (render target, private queue, `sys.argv`
+  swapped for the call), `step()` runs one unpaced frame, `finish()` settles `outcome`
+  (`InnerGameOutcome`: `RUNNING`/`ENDED`/`FAILED`, frames, report, error). Only headless
+  replays: live play, tool flags, `--rebaseline`, `--audit`, `--compare-trace`, `--profile`,
+  `--list-input-devices`, `--help`, `--version` raise `InnerGameRefusedError` before anything is
+  built. An `Exception` or `SystemExit` fails only that game; it writes nothing to stdout (the
+  report is the outcome's, logged at INFO). SDL's blocked event types are never changed from an
+  inner context (`events.set_event_types_allowed`, the one way the engine blocks or allows).
+  Still shared (`plans/future-work.md`): the mixer (sub-plan 4), SDL's key repeat, text input
+  start/stop, Bitmappy's mouse visibility, `pygame.freetype`'s default resolution (an inner
+  `FontManager`'s `--font-dpi`), `SDL_MOUSE_FOCUS_CLICKTHROUGH` when unset and
+  `pygame.register_quit`. The proof:
+  `tests/test_every_recording_replays_inside_an_inner_game.py` (every golden and bundled demo,
+  interleaved beside another inside a window of another size, matches its solo replay's digests
+  and pixels; Bitmappy's demo and the text-input demo's key repeat are strict xfails); ten
+  stand-in tiles per outer frame: `test_ten_inner_games_per_outer_frame`
 
 **Source revision** (`src/glitchygames/build_info.py`, the contract): `source_revision()` names the
 engine's commit and how it is known, first answer wins: a git checkout (git: HEAD, its date,
@@ -1312,6 +1342,12 @@ M2 next)
   `ALIASES` (read-only, as `CATALOG` is) maps 101 other names to catalog names, resolved by
   `get`/`entry`; a sound-alike is its own entry sharing a parent's build via `sounds_like`, with
   optional sourced `sound_changes`; 187 in all, and a pitched one, as the plucked strings' and bowed strings' are,
+  given). 684 entries in 23 `Family`s (every size of each family, voices soprano to basso
+  profundo on five vowels; `Tag.MECHANICAL` marks mechanical ones and `Tag.CHIP` sound-chip
+  voices, `names(tag=...)` lists them;
+  `ALIASES` (read-only, as `CATALOG` is) maps 78 other names to catalog names, resolved by
+  `get`/`entry`; a sound-alike is its own entry sharing a parent's build via `sounds_like`, with
+  optional sourced `sound_changes`; 181 in all, and a pitched one, as the plucked strings' and bowed strings' are,
   gives its own sourced range), each built by a shape in `timbres.py` (`blown`, `plucked`, `struck`, `rubbed`,
   `drum`, `with_drones`) from overtone series (`falling_series`, `plucked_series`,
   `formant_series`); `tests/audio/test_instrument_catalog.py` renders every entry across its
