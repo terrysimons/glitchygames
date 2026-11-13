@@ -796,6 +796,11 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('etherwave', 'theremin'),
         ('chip sawtooth', 'sid sawtooth'),
         ('ym2149', 'ay 3 8910'),
+        ('lira korbowa', 'hurdy gurdy'),
+        ('soprano viol', 'treble viol'),
+        ('behala', 'violin'),
+        ('matouqin', 'morin khuur'),
+        ('kemence', 'kemenche'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -1550,6 +1555,46 @@ ELECTRONIC_UNPITCHED_NAMES: frozenset[str] = frozenset({
 })
 
 
+# The 27 bowed strings that predate batch 7: their shared builds predate the anti-goal rule
+EXISTING_BOWED_NAMES = frozenset({
+    'violin',
+    'viola',
+    'cello',
+    'double bass',
+    'five string double bass',
+    'violin section',
+    'viola section',
+    'cello section',
+    'double bass section',
+    'violin pizzicato',
+    'viola pizzicato',
+    'cello pizzicato',
+    'double bass pizzicato',
+    'violin sul ponticello',
+    'fiddle',
+    'hardanger fiddle',
+    'treble viol',
+    'tenor viol',
+    'bass viol',
+    'violone',
+    'viola d amore',
+    'nyckelharpa',
+    'erhu',
+    'morin khuur',
+    'sarangi',
+    'kemenche',
+    'hurdy gurdy',
+})
+# Batch 7's entries with their own build, in the sheet's order. None: every row the sheet
+# ships is a sound-alike (plans/data/instrument-audit/batch-7.tsv)
+NEW_BOWED_NAMES: list[str] = []
+# Batch 7's sound-alikes and the entry each sounds like, in the sheet's order
+BOWED_SOUND_ALIKE_PARENTS: dict[str, str] = {
+    'bowed psaltery': 'violin',
+    'viola pomposa': 'viola',
+}
+
+
 class BatchFamily(NamedTuple):
     """A family a batch grew: the entries that predate it, what it added and what is unpitched."""
 
@@ -1560,6 +1605,9 @@ class BatchFamily(NamedTuple):
 
 
 BATCH_FAMILIES: dict[Family, BatchFamily] = {
+    Family.BOWED_STRINGS: BatchFamily(
+        EXISTING_BOWED_NAMES, NEW_BOWED_NAMES, BOWED_SOUND_ALIKE_PARENTS
+    ),
     Family.PLUCKED_STRINGS: BatchFamily(
         EXISTING_PLUCKED_NAMES, NEW_PLUCKED_NAMES, PLUCKED_SOUND_ALIKE_PARENTS
     ),
@@ -1688,10 +1736,11 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         for catalog_entry in instruments.entries()
         if catalog_entry.sounds_like is not None
     ]
-    # The catalog lists families in table order: plucked strings, electronic, tuned percussion,
-    # then drums
+    # The catalog lists families in table order: bowed strings, plucked strings, electronic, tuned
+    # percussion, then drums
     assert every_sound_alike == (
-        list(PLUCKED_SOUND_ALIKE_PARENTS)
+        list(BOWED_SOUND_ALIKE_PARENTS)
+        + list(PLUCKED_SOUND_ALIKE_PARENTS)
         + list(ELECTRONIC_SOUND_ALIKE_PARENTS)
         + list(TUNED_SOUND_ALIKE_PARENTS)
         + SOUND_ALIKE_NAMES
@@ -1758,3 +1807,26 @@ def test_the_gangsa_pairs_its_fundamental_at_the_ombak_ratio():
     assert peak_near('glockenspiel', 1.036 * fundamental) < 0.1 * peak_near(
         'glockenspiel', fundamental
     )
+
+
+# Entries that imitate a feature the engine lacks (sympathetic strings by a detuned copy, a
+# buzzing bridge by drive). They predate decision 4 and stay, but nothing new shares their
+# sound: batch 4's sitar ruling, and batch 7's for the bowed ones
+APPROXIMATING_NAMES = frozenset({
+    'sitar',
+    'tanpura',
+    'veena',
+    'sarod',
+    'sarangi',
+    'hardanger fiddle',
+    'viola d amore',
+    'nyckelharpa',
+    'hurdy gurdy',
+})
+
+
+def test_no_sound_alike_shares_an_approximated_sound():
+    """No sound-alike takes the build of an entry that imitates a missing engine feature."""
+    parents = {catalog_entry.sounds_like for catalog_entry in instruments.entries()}
+    assert parents & APPROXIMATING_NAMES == set()
+    assert set(instruments.names()).issuperset(APPROXIMATING_NAMES)

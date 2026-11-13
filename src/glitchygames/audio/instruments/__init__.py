@@ -56,6 +56,13 @@ basses, ukuleles, banjos, mandolins, lutes such as ``angelique``, zithers such a
 so a pitched sound-alike gives its own sourced range, a requinto's span being its own: it
 shares its parent's build, not its range.
 
+Bowed strings (29 entries) holds the family's builds in ``bowed_strings.py`` (violin to double
+bass, sections, pizzicato, viols, ``erhu``, ``hurdy gurdy``) and its sound-alikes in
+``bowed_sound_alikes.py`` (``viola pomposa`` and ``viola``, ``bowed psaltery`` and ``violin``). The
+family is pitched, so each sound-alike gives its own sourced range. Instruments that need
+sympathetic strings or a buzzing bridge wait, and ``sarangi``, ``hardanger fiddle``, ``viola d
+amore``, ``nyckelharpa`` and ``hurdy gurdy`` stay as the approximations they were, never a parent.
+
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and
 ``gangsa``) and its sound-alikes in ``tuned_sound_alikes.py`` (``alto xylophone`` and
