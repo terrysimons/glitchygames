@@ -2017,30 +2017,30 @@ def test_the_pianet_settles_from_a_bright_strike():
         assert strike > 10.0 * settled, note.name
 
 
-def test_the_contraforte_carries_more_high_tone_than_the_contrabassoon():
-    """The contraforte's wider bore leaves more energy above 2200 Hz than the contrabassoon's.
+def test_the_contraforte_is_driven_less_than_the_contrabassoon_at_the_same_low_pass():
+    """The contraforte lacks the contrabassoon's "rattle": less saturation, at the same low pass.
 
-    The Contraforte page (https://en.wikipedia.org/wiki/Contraforte): "The contraforte uses a
-    different and wider bore than the contrabassoon to produce a distinct tone; the sound is more
-    even in strength and intonation across registers, remaining quite strong into the high
-    register, unlike a contrabassoon." The share of a one second note's energy above 2200 Hz (the
-    contrabassoon's low pass) is more than 1.5 times the contrabassoon's at A1, A2 and A3,
-    inside both ranges (measured 11.4, 4.2 and 1.9 times).
+    The Contraforte page (https://en.wikipedia.org/wiki/Contraforte): "It also lacks the distinct
+    "rattle" of a contrabassoon"; Guntram Wolf: "einen klaren, runden Klang". The two builds share
+    a low pass (2200 Hz) and differ in drive (0.2 against 0.4), so less drive is the trait. Less
+    drive clips the peaks less, so the crest factor (peak over RMS, after the first 0.25 s) is
+    higher: 1.015, 1.015 and 1.015 times the contrabassoon's at A1, A2 and A3, inside both
+    ranges, so the test asks for more than 1.01 times. The share of energy above three times
+    the fundamental is 0.98 times the contrabassoon's, so the sources' "rounder" is not the
+    build's spectrum: it is a smaller, steadier difference, measured as less saturation.
     """
-    cutoff_hertz = 2200.0
+    assert instruments.entry('contraforte').playing_range == (Note('A0'), Note('G4'))
 
-    def share_above_cutoff(name: str, pitch: str) -> float:
+    def crest_factor(name: str, pitch: str) -> float:
         samples = render_sound(
             spec_for(instruments.get(name), name=name, pitch=pitch, length=1.0)
-        ).samples
-        power = np.abs(np.fft.rfft(samples * np.hanning(len(samples)))) ** 2
-        frequencies = np.fft.rfftfreq(len(samples), 1 / SAMPLE_RATE)
-        return float(np.sum(power[frequencies > cutoff_hertz]) / np.sum(power))
+        ).samples[SAMPLE_RATE // 4 :]
+        return float(np.max(np.abs(samples)) / np.sqrt(np.mean(samples**2)))
 
     for pitch in ('A1', 'A2', 'A3'):
-        contraforte = share_above_cutoff('contraforte', pitch)
-        contrabassoon = share_above_cutoff('contrabassoon', pitch)
-        assert contraforte > 1.5 * contrabassoon, pitch
+        contraforte = crest_factor('contraforte', pitch)
+        contrabassoon = crest_factor('contrabassoon', pitch)
+        assert contraforte > 1.01 * contrabassoon, pitch
 
 
 def test_the_gangsa_pairs_its_fundamental_at_the_ombak_ratio():

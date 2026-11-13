@@ -253,9 +253,10 @@ _DOUBLE_REED_BUILDS: Final[tuple[CatalogEntry, ...]] = (
     # bore is cited there to Eppelsheim) and Eppelsheim's maker page
     # https://www.eppelsheim.com/en/instruments/contraforte/ ("wide bore for a voluminous
     # tone"), and Guntram Wolf's page (https://www.guntramwolf.de/de/instrumente/modern/bassoons/
-    # kontrafagott/kontraforte-english: "einen klaren, runden Klang"). Sound design, not
-    # sourced: low_pass 2800 (the contrabassoon's is 2200, so the tone carries higher into the
-    # high register) and drive 0.2 (half the contrabassoon's 0.4, for the clear tone without the
+    # kontrafagott/kontraforte-english: "einen klaren, runden Klang"). "Remaining quite strong
+    # into the high register" is about high notes, not high partials, so it sets no value. Sound
+    # design, not sourced: low_pass 2200, the contrabassoon's, since no source gives a brighter
+    # tone, and drive 0.2 (half the contrabassoon's 0.4, for the clear, round tone without the
     # rattle). Range, from the maker's page: "written range A1 - G 5, sounding A0 - G 4": the
     # sounding range, an octave below the written one
     CatalogEntry(
@@ -264,7 +265,7 @@ _DOUBLE_REED_BUILDS: Final[tuple[CatalogEntry, ...]] = (
         Family.DOUBLE_REEDS,
         'A0',
         'G4',
-        partial(_double_reed, BASSOON_LEVELS, low_pass=2800.0, drive=0.2),
+        partial(_double_reed, BASSOON_LEVELS, low_pass=2200.0, drive=0.2),
     ),
 )
 
