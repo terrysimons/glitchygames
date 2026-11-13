@@ -14,6 +14,7 @@ exits while building or stepping fails alone, the default context current afterw
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 from typing import TYPE_CHECKING
@@ -21,13 +22,19 @@ from typing import TYPE_CHECKING
 import pygame
 import pytest
 
+from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
 from glitchygames.engine_context import current_context, default_context
 from glitchygames.inner_game import (
+    REFUSED_FLAGS,
+    REFUSED_SHORT_FLAG_LETTERS,
+    SHORT_FLAGS_TAKING_A_VALUE,
     InnerGame,
     InnerGameOutcome,
     InnerGameRefusedError,
     InnerGameState,
+    is_refused_argument,
+    is_refused_short_flag_cluster,
 )
 from glitchygames.render_target import render_target
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES
@@ -597,6 +604,13 @@ class TestRefusals:
             ('--list-input-devices',),
             ('--help',),
             ('-h',),
+            ('-p',),
+            ('-v',),
+            ('--version',),
+            ('--ver',),
+            ('-ph',),
+            ('-wp',),
+            ('-wv',),
             ('--rebase', 'new.jsonl.gz'),
             ('--record-trace=new.jsonl.gz',),
             ('--log-level', 'error', '--audit'),
@@ -611,6 +625,52 @@ class TestRefusals:
 
         assert stand_in.package not in sys.modules
         assert current_context() is default_context()
+
+    def test_a_cluster_whose_value_holds_a_refused_letter_is_the_games(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """-l takes the rest of its cluster as its value: no letter after it is a flag."""
+        inner_game = replay_stand_in(game=stand_in, path=recording, arguments=('-lerror',))
+
+        play_to_the_end(inner_game)
+
+        assert inner_game.outcome.state is InnerGameState.ENDED, inner_game.outcome
+        assert not is_refused_short_flag_cluster(cluster='fp')
+        assert not is_refused_short_flag_cluster(cluster='rhv')
+        assert is_refused_short_flag_cluster(cluster='wph')
+
+    def test_no_engine_flag_is_refused_but_the_refused_ones(self):
+        """Every flag of the engine's parser: refused exactly when it is a refused flag.
+
+        ``--no-audit`` (the audit switched off) is allowed though ``--audit`` is refused.
+
+        Also the short letters: the engine's short forms of refused flags are refused letters,
+        and the engine's short flags that take a value are exactly SHORT_FLAGS_TAKING_A_VALUE.
+        """
+        parser = GameEngine.args(argparse.ArgumentParser())
+        wrongly_judged: list[str] = []
+        value_letters: set[str] = set()
+        for action in parser._actions:
+            long_flags = [flag for flag in action.option_strings if flag.startswith('--')]
+            short_flags = [flag for flag in action.option_strings if not flag.startswith('--')]
+            should_refuse = any(flag in REFUSED_FLAGS for flag in long_flags)
+            # A long flag on its own (--no-audit, the audit switched off, may run); a short
+            # flag as its action's long flags are
+            wrongly_judged.extend(
+                flag
+                for flag in long_flags
+                if is_refused_argument(argument=flag) != (flag in REFUSED_FLAGS)
+            )
+            wrongly_judged.extend(
+                flag for flag in short_flags if is_refused_argument(argument=flag) != should_refuse
+            )
+            if action.nargs != 0:
+                value_letters.update(flag[1:] for flag in short_flags)
+            if should_refuse:
+                assert {flag[1:] for flag in short_flags} <= REFUSED_SHORT_FLAG_LETTERS
+
+        assert wrongly_judged == []
+        assert value_letters == SHORT_FLAGS_TAKING_A_VALUE
 
     def test_the_refusal_names_every_refused_argument(self, stand_in: StandInGame, recording: Path):
         """Each refused argument is named once, in the order given."""

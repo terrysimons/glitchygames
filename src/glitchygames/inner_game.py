@@ -20,9 +20,11 @@ The rules:
    (``InnerGameRefusedError``): every tool flag (live play, ``--record-trace`` and another
    ``--replay-trace`` among them), ``--rebaseline``, ``--audit``, ``--compare-trace`` and the
    frame stream, a watched replay's restart options, ``--profile`` and ``--list-input-devices``
-   (a hosted start would ignore them silently) and ``--help`` (it prints to stdout). Argparse
-   takes any unambiguous prefix of a flag, so a prefix of a refused flag is refused too; after a
-   bare ``--`` nothing is a flag.
+   (a hosted start would ignore them silently), and ``--help`` and ``--version`` (each prints
+   to stdout and exits), with their short forms ``-p``, ``-h`` and ``-v``. Argparse takes any
+   unambiguous prefix of a long flag, so a prefix of a refused flag is refused too, and reads a
+   short-flag cluster letter by letter (``-ph`` is ``-p -h``) until a letter that takes a value,
+   which takes the rest; after a bare ``--`` nothing is a flag.
 2. **A failure belongs to the inner game** (decisions 2 and 4). An ``Exception`` or a
    ``SystemExit`` (a game's ``sys.exit()``, the engine's ``exit_with``, argparse's exit) raised
    while building, stepping or finishing makes the outcome ``FAILED`` with the error's text; the
@@ -90,9 +92,18 @@ REFUSED_FLAGS: frozenset[str] = frozenset({
     '--profile',
     '--list-input-devices',
     '--help',
+    '--version',
 })
-# The short flags refused (argparse's -h: help, printed to stdout), by their letter
-REFUSED_SHORT_FLAG_LETTERS: frozenset[str] = frozenset({'h'})
+# The refused flags' short forms, by their letter: argparse's -h (--help) and the engine's -p
+# (--profile, glitchygames/events/game.py), checked against the engine's parser by
+# tests/engine/test_inner_game.py; and -v, the short form our games give --version (a game's own
+# flag: argparse's version action prints to stdout and exits)
+REFUSED_SHORT_FLAG_LETTERS: frozenset[str] = frozenset({'h', 'p', 'v'})
+# The engine's short flags that take a value (-f, -l, -r): in a cluster the rest of the argument
+# is that value, so no letter after one is a flag (argparse's rule). A game's own short flag
+# taking a value (-b, -s) is not known here, so a refused letter after one is refused anyway: a
+# refusal too many, never one too few
+SHORT_FLAGS_TAKING_A_VALUE: frozenset[str] = frozenset({'f', 'l', 'r'})
 # After it every argument is positional (argparse's rule)
 ARGUMENTS_SEPARATOR = '--'
 LONG_FLAG_PREFIX = '--'
@@ -160,7 +171,7 @@ def is_refused_argument(*, argument: str) -> bool:
     """Tell whether one argument is a refused flag, or a prefix argparse would read as one.
 
     Args:
-        argument: One command-line argument (``--audit``, ``--record-trace=PATH``, ``-h``).
+        argument: One command-line argument (``--audit``, ``--record-trace=PATH``, ``-ph``).
 
     Returns:
         True when argparse could take it for a refused flag.
@@ -169,8 +180,29 @@ def is_refused_argument(*, argument: str) -> bool:
     if argument.startswith(LONG_FLAG_PREFIX):
         name = argument.split(INLINE_VALUE_SEPARATOR, maxsplit=1)[0]
         return any(flag.startswith(name) for flag in REFUSED_FLAGS)
-    if argument.startswith(SHORT_FLAG_PREFIX) and len(argument) > len(SHORT_FLAG_PREFIX):
-        return argument[len(SHORT_FLAG_PREFIX)] in REFUSED_SHORT_FLAG_LETTERS
+    if argument.startswith(SHORT_FLAG_PREFIX):
+        return is_refused_short_flag_cluster(cluster=argument[len(SHORT_FLAG_PREFIX) :])
+    return False
+
+
+def is_refused_short_flag_cluster(*, cluster: str) -> bool:
+    """Tell whether a short-flag cluster holds a refused letter before any value starts.
+
+    Argparse reads ``-ph`` as ``-p -h``, and ``-fp`` as ``-f p`` (``-f`` takes a value, the rest
+    of the argument). A letter after one of ``SHORT_FLAGS_TAKING_A_VALUE`` is part of its value.
+
+    Args:
+        cluster: The argument without its leading ``-`` (``ph``).
+
+    Returns:
+        True when argparse could read a refused short flag in it.
+
+    """
+    for letter in cluster:
+        if letter in REFUSED_SHORT_FLAG_LETTERS:
+            return True
+        if letter in SHORT_FLAGS_TAKING_A_VALUE:
+            return False
     return False
 
 
