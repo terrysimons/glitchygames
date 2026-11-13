@@ -3080,8 +3080,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
     sizes depending on the author. `soprano trombone` joins the trombones' size chain, first
   - [ ] Mutes out of scope (the spec's Non-goals: "Articulations and ensemble patches (pizzicato,
     mutes, string sections)"): the audit's four further mutes (trumpet bucket and plunger,
-    trombone straight and harmon) are not rows; the catalog's six mute entries predate this and
-    stay
+    trombone straight and harmon) are not rows; the catalog's four mute entries (trumpet straight, cup and harmon mutes, trombone cup
+    mute) predate this and stay; the batch 10 plan's "six" was wrong
   - [ ] `corrugahorn`: noise makers or brass, still open from batch 1. It is dropped here as
     already decided (batch-1.tsv waits it in noise makers for a sourced range); its family
     question is the owner's

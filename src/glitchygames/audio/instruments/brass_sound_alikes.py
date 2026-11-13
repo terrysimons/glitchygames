@@ -51,7 +51,7 @@ BRASS_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
     # C6.", its range score captioned "The (sounding) range of the B-flat soprano trombone."
     CatalogEntry(
         'soprano trombone',
-        'Soprano trombone in B♭',
+        'Soprano trombone in B-flat',
         Family.BRASS,
         'E3',
         'C6',

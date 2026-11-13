@@ -1685,10 +1685,10 @@ EXISTING_BRASS_NAMES: frozenset[str] = frozenset({
     'didgeridoo',
     'vuvuzela',
 })
-# Batch 10's brass with its own build, in the sheet's order (Tasks 3 and 5 fill it)
+# Batch 10's brass with its own build, in the sheet's order. None: every row the sheet
+# ships is a sound-alike (plans/data/instrument-audit/batch-10.tsv)
 NEW_BRASS_NAMES: list[str] = []
-# Batch 10's brass sound-alikes and the entry each sounds like, in the sheet's order (Tasks 3 and
-# 5 fill it)
+# Batch 10's brass sound-alikes and the entry each sounds like, in the sheet's order
 BRASS_SOUND_ALIKE_PARENTS: dict[str, str] = {
     'bass wagner tuba': 'wagner tuba',
     'soprano trombone': 'trumpet',
