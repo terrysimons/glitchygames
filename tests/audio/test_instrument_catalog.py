@@ -2646,7 +2646,6 @@ CLARINET_DETUNES: dict[str, float] = {}
 # them, in the sheet's order. None ships under that name or as an alias until the reason is met
 # (decision 4; batch 14). The test matches exact names
 CLARINET_HELD_BACK: dict[str, str] = {
-    'birbyne': 'a sourced reed and bore',
     'contrabass birbyne': 'a sourced reed and bore',
     'tenor birbyne': 'a sourced reed and bore',
 }

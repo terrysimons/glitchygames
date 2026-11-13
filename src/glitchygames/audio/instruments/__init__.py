@@ -123,10 +123,12 @@ Clarinets (10 entries) hold the family's builds in ``clarinets.py`` (``e flat cl
 ``chalumeau``) and their sound-alikes in ``clarinet_sound_alikes.py`` (``c clarinet``, of
 ``clarinet``). ``winds.py`` keeps the saxophones and free reeds. A clarinet is a single reed on a
 cylindrical bore (a conical one is a saxophone), which favours the odd harmonics, so a clarinet of
-another key or size is a sound-alike of the nearest catalog clarinet and gives its own sourced
-range (sounding, a written range only with its stated transposition). No drone or detuned double
-clarinet shipped, so no clarinet carries drones. A clarinet whose range no source states waits (40
-names), and the three ``birbyne`` sizes wait for a sourced reed and bore.
+another key or size is a sound-alike of the catalog clarinet its own source relates it to, or
+else of the catalog clarinet (``chalumeau`` excluded) whose lowest note is nearest its own, and
+gives its own sourced range (sounding, a written range only with its stated transposition). No
+drone or detuned double clarinet shipped, so no clarinet carries drones. A clarinet whose range
+no source states waits (34 names), the tenor and contrabass ``birbyne`` wait for a sourced reed
+and bore (2 names) and 4 names wait for their target (40 waits in all).
 
 Organs (19 entries) hold the family's builds in ``organs.py`` (the ``pipe organ`` stops and
 ``plenum``, ``positive organ``, ``theatre organ``, ``calliope``, and the batch's ``stopped
