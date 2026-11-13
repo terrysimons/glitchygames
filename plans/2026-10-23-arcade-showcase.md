@@ -308,7 +308,8 @@ recorded the same options; ten tiles with different games and resolutions make t
    strict xfail) and the text-input demo's tile changes the outer game's key repeat (a strict
    xfail). Still to do from the engine context's sub-plans: sub-plan 3's binding of a scene
    manager to its context, its browser and thread rules, and the rest of row S8.
-4. **Sound only from the watched game** = engine context sub-plan 5: an audio route per context;
+4. **Sound only from the watched game** ([2026-11-13-arcade-4-sound.md](2026-11-13-arcade-4-sound.md),
+   branch `arcade-4-sound`) = engine context sub-plan 5: an audio route per context;
    silent tiles keep off the shared channels entirely; only the top frame or a launched game is
    heard.
 5. **One playback core, then `DemoPlayer`** (section 2 above), with engine context sub-plan 8:
