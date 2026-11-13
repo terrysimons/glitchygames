@@ -263,31 +263,52 @@ def start_command(
     )
 
 
-def stop_command(*, process: subprocess.Popen[str]) -> None:
+def stop_command(*, process: subprocess.Popen[str], first_signal: int = signal.SIGTERM) -> None:
     """End a child ``start_command`` started, with every process in its group, and reap it.
 
-    The group is asked to stop (SIGTERM; on Windows, the child is terminated) and killed if it
-    is still running after STOP_GRACE_SECONDS. A child that has already ended is only reaped,
-    also when it ends between the check and a signal (``_signal_the_group``).
+    On POSIX the group gets ``first_signal``, then, each after STOP_GRACE_SECONDS while the child
+    still runs, SIGTERM (when the first signal was another) and SIGKILL. On Windows the child is
+    terminated, then killed after the grace (no group signal there; ``first_signal`` is unused).
+    A child that has already ended is only reaped, also when it ends between the check and a
+    signal (``_signal_the_group``).
+
+    The group signal reaches the child and every process it started that stayed in its group
+    (a pytest run's xdist workers); a grandchild that started a session of its own is not in it.
+    A pytest run should be stopped with ``first_signal=signal.SIGINT``: pytest turns it into an
+    orderly KeyboardInterrupt in every worker, so each test's ``finally`` and fixture teardown
+    stop what the test started. SIGTERM, which pytest does not handle, kills a worker at once,
+    and a test's child in a session of its own is then left running (BUGS.md #275). A game
+    keeps the default: its engine turns SIGTERM into its own teardown.
 
     Args:
         process: The child.
+        first_signal: The first signal for the group (POSIX).
 
     """
     if process.poll() is not None:
         return
     if sys.platform == 'win32':
         process.terminate()
-    elif not _signal_the_group(process=process, signal_number=signal.SIGTERM):
-        return
-    try:
-        process.wait(timeout=STOP_GRACE_SECONDS)
-    except subprocess.TimeoutExpired:
-        if sys.platform == 'win32':
+        try:
+            process.wait(timeout=STOP_GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
             process.kill()
-        elif not _signal_the_group(process=process, signal_number=signal.SIGKILL):
+            process.wait()
+        return
+    escalation = [first_signal]
+    if first_signal != signal.SIGTERM:
+        escalation.append(signal.SIGTERM)
+    for signal_number in escalation:
+        if not _signal_the_group(process=process, signal_number=signal_number):
             return
-        process.wait()
+        try:
+            process.wait(timeout=STOP_GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            continue
+        return
+    if not _signal_the_group(process=process, signal_number=signal.SIGKILL):
+        return
+    process.wait()
 
 
 def _signal_the_group(*, process: subprocess.Popen[str], signal_number: int) -> bool:
