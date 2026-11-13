@@ -40,6 +40,29 @@ the voice that took its slot later (impl spec 4.4).
 playing channel's loop count, so the channel fades out over what is left of the pass
 (``Channel.fadeout``), ending exactly at the pass's end. That pass's remainder is heard fading,
 not at full level (a documented simplification; the brief's ruling).
+
+A silent context (``glitchygames.audio.route``; Arcade sub-plan 4, decision 3) keeps its table off
+the mixer: the library channels' numbers are the same in every context, so a silent tile's table
+would otherwise play over, or steal, the heard game's channels. The table asks the audio route of
+the context it was made in (its audio engine's, made and installed in that context), not the
+current one, so a handle used from another context still follows its own context's route. While
+that context is silent the table makes no mixer call (``play``, ``fadeout``, ``stop``, ``pause``,
+``unpause``, ``set_volume``) and reads every channel as idle (``get_busy`` is never asked): its
+voices, their ends, steals, delayed plays and ``is_playing`` go on by frame time exactly as heard,
+since none of them was ever decided by the device. Each slot remembers whether its voice (or fade)
+reached the mixer (``_Slot.heard``), and only such a slot's channel is touched, and only while the
+context is audible.
+
+Going silent is two steps in this order: ``fade_out_of_the_mixer`` (called by the audio engine
+while the context is still audible, ``AudioEngine.fade_out_of_the_mixer``) fades every heard
+channel over the scene clean-up's 50 ms and marks every slot unheard; then the route turns silent
+and the table goes quiet. A paused channel cannot fade and is silent, so it is stopped; so is one
+already fading for longer than the 50 ms, because SDL_mixer ignores a ``fadeout`` on a channel
+that is already fading out (measured with pygame-ce 2.5.8 on SDL's dummy driver: a 20 ms fadeout
+after a 2 s one left the channel busy 0.3 s later), so its fade would go on to its end. A channel
+already fading within the 50 ms (a steal's 10 ms, a short stop) is left to finish. Going audible
+again starts nothing already under way: a voice is heard only when it starts while its context is
+audible.
 """
 
 from __future__ import annotations
@@ -54,6 +77,9 @@ import operator
 from typing import TYPE_CHECKING
 
 import pygame
+
+from glitchygames.audio.route import AUDIO_ROUTE_SLOT
+from glitchygames.engine_context import current_context
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Generator
@@ -444,6 +470,9 @@ class _Slot:
     # True once the silencer stopped the channel under a voice or a fade, until the next play
     # on it: the table's state goes on by frame time, but the channel is quiet
     device_stopped: bool = False
+    # True while the slot's voice (or its fade) is on the mixer: it started while the table's
+    # context was audible, and the context has not gone silent since (fade_out_of_the_mixer)
+    heard: bool = False
 
 
 class VoiceTable:
@@ -456,13 +485,17 @@ class VoiceTable:
         buses: BusTree,
         compile_for_play: Callable[[Sound], Sound],
     ) -> None:
-        """Make a table over the partition's library channels.
+        """Make a table over the partition's library channels, for the current engine context.
+
+        The context the table is made in is the one whose audio route decides whether it reaches
+        the mixer (see the module docstring).
 
         Args:
             partition: The channel partition (``reserve_channels``).
             buses: The bus tree whose gains and reservations apply.
             compile_for_play: The library's ``compile_for_play``, called on every play.
         """
+        self._audio_route = current_context().value(slot=AUDIO_ROUTE_SLOT)
         self._partition = partition
         self._buses = buses
         self._compile_for_play = compile_for_play
@@ -591,6 +624,11 @@ class VoiceTable:
         return False
 
     @property
+    def reaches_the_mixer(self) -> bool:
+        """Whether the table's context is audible, so its heard slots' channels are touched."""
+        return self._audio_route.audible
+
+    @property
     def voice_count(self) -> int:
         """The voices playing, paused or waiting for their channel (by played time)."""
         return sum(1 for slot in self._slots if slot.voice is not None)
@@ -639,9 +677,7 @@ class VoiceTable:
                 )
             elif slot.state is _SlotState.PAUSED:
                 if not _is_among(paused_owners, voice.owner):
-                    pygame.mixer.Channel(slot.channel_index).unpause()
-                    slot.state = _SlotState.PLAYING
-                    self._fade_out_release(slot, voice)
+                    self._resume(slot, voice)
                 if buses_changed:
                     self._apply_gains(slot, voice)
             else:  # WAITING: its stolen channel has had a frame to fade
@@ -662,11 +698,18 @@ class VoiceTable:
         if paused:
             self._pause(slot)
 
-    @staticmethod
-    def _pause(slot: _Slot) -> None:
-        """Hold the slot's voice: its channel pauses and its time stops."""
-        pygame.mixer.Channel(slot.channel_index).pause()
+    def _pause(self, slot: _Slot) -> None:
+        """Hold the slot's voice: its channel pauses (when heard) and its time stops."""
+        if self._sounds(slot):
+            pygame.mixer.Channel(slot.channel_index).pause()
         slot.state = _SlotState.PAUSED
+
+    def _resume(self, slot: _Slot, voice: _Voice) -> None:
+        """Let a held voice play on: its channel unpauses (when heard) and a release fades."""
+        if self._sounds(slot):
+            pygame.mixer.Channel(slot.channel_index).unpause()
+        slot.state = _SlotState.PLAYING
+        self._fade_out_release(slot, voice)
 
     def silenced(self, channel_index: int) -> None:
         """A channel was stopped outside the table (``FrameSilencer``): only the channel is quiet.
@@ -681,6 +724,33 @@ class VoiceTable:
         for slot in self._slots:
             if slot.channel_index == channel_index and slot.state is not _SlotState.IDLE:
                 slot.device_stopped = True
+
+    def fade_out_of_the_mixer(self, *, fade_seconds: float) -> None:
+        """Fade every heard channel out, then leave the mixer: the context is going silent.
+
+        Called while the context is still audible, just before its route turns silent (the
+        module docstring has the order and the rules). Only the channels change: every voice
+        stays in the table with its played time and generation, so what the game sees goes on as
+        it would heard. Every slot is unheard afterwards, so nothing under way is heard again.
+
+        Args:
+            fade_seconds: The fade (the scene clean-up's 50 ms).
+        """
+        _check_fade(fade_seconds)
+        for slot in self._slots:
+            was_sounding = self._sounds(slot)
+            slot.heard = False
+            if not was_sounding:
+                continue
+            device_fade_seconds_left = _device_fade_seconds_left(slot)
+            channel = pygame.mixer.Channel(slot.channel_index)
+            if slot.state is _SlotState.PAUSED or (
+                device_fade_seconds_left is not None
+                and device_fade_seconds_left > fade_seconds + TIME_TOLERANCE_SECONDS
+            ):
+                channel.stop()
+            elif device_fade_seconds_left is None and slot.state is _SlotState.PLAYING:
+                channel.fadeout(round(fade_seconds * MILLISECONDS_PER_SECOND))
 
     def end_voices_without_the_device(self) -> None:
         """End every voice in the table at once, touching no channel (the mixer's are gone).
@@ -744,15 +814,20 @@ class VoiceTable:
     def snapshot(self) -> tuple[ChannelState, ...]:
         """Every channel's group and state, for the debug panel.
 
-        Live and legacy channels belong to others, so their state is the device's busy flag. A
-        library channel the silencer stopped shows ``idle`` until its next play, whatever its
-        voice is doing in the table.
+        Live and legacy channels belong to others, so their state is the device's busy flag (in a
+        silent context, ``idle``: it reads no channel). A library channel the silencer stopped
+        shows ``idle`` until its next play, whatever its voice is doing in the table.
 
         Returns:
             One state per channel, by index.
         """
+        reads_the_device = self.reaches_the_mixer
         states = [
-            ChannelState(index=index, group='live', state=_device_state(index))
+            ChannelState(
+                index=index,
+                group='live',
+                state=_device_state(index, reads_the_device=reads_the_device),
+            )
             for index in self._partition.live
         ]
         states.extend(
@@ -765,7 +840,11 @@ class VoiceTable:
         )
         first_legacy = len(self._partition.live) + len(self._partition.library)
         states.extend(
-            ChannelState(index=index, group='legacy', state=_device_state(index))
+            ChannelState(
+                index=index,
+                group='legacy',
+                state=_device_state(index, reads_the_device=reads_the_device),
+            )
             for index in range(first_legacy, first_legacy + self._partition.legacy_count)
         )
         return tuple(states)
@@ -882,7 +961,7 @@ class VoiceTable:
         reservation may take any free channel; otherwise only channels beyond the other buses'
         unmet reservations. The device only chooses among the free channels: the lowest one not
         sounding on the device, else the lowest (cutting at most a device buffer of an ended
-        voice's tail).
+        voice's tail). A silent context reads no channel: its choice is the lowest free one.
 
         Returns:
             The slot, or None.
@@ -899,9 +978,10 @@ class VoiceTable:
             )
             if len(free) <= unmet_elsewhere:
                 return None
-        for slot in free:
-            if not pygame.mixer.Channel(slot.channel_index).get_busy():
-                return slot
+        if self.reaches_the_mixer:
+            for slot in free:
+                if not pygame.mixer.Channel(slot.channel_index).get_busy():
+                    return slot
         return free[0]
 
     def _victim_for(self, bus: str, *, priority: int) -> _Slot | None:
@@ -932,16 +1012,22 @@ class VoiceTable:
         return min(candidates, key=operator.itemgetter(0))[1]
 
     def _steal(self, slot: _Slot) -> None:
-        """Fade a playing voice over 10 ms and end it; its channel is fading."""
-        pygame.mixer.Channel(slot.channel_index).fadeout(STEAL_FADE_MILLISECONDS)
+        """Fade a playing voice over 10 ms (when heard) and end it; its channel is fading."""
+        if self._sounds(slot):
+            pygame.mixer.Channel(slot.channel_index).fadeout(STEAL_FADE_MILLISECONDS)
         self._fade_slot(slot, fade_seconds=STEAL_FADE_MILLISECONDS / MILLISECONDS_PER_SECOND)
         self._steals += 1
         self._steal_frames[slot.channel_index] = self._frames_advanced
 
     def _start(self, slot: _Slot, voice: _Voice) -> None:
-        """Play a voice on its channel, then set its gains (pygame resets volume on play)."""
-        channel = pygame.mixer.Channel(slot.channel_index)
-        channel.play(voice.mixer_sound, loops=-1 if voice.loop else 0)
+        """Play a voice on its channel, then set its gains (pygame resets volume on play).
+
+        In a silent context the voice starts in the table only, unheard for its whole life.
+        """
+        slot.heard = self.reaches_the_mixer
+        if slot.heard:
+            channel = pygame.mixer.Channel(slot.channel_index)
+            channel.play(voice.mixer_sound, loops=-1 if voice.loop else 0)
         slot.voice = voice
         slot.state = _SlotState.PLAYING
         slot.fade_seconds_left = 0.0
@@ -959,13 +1045,15 @@ class VoiceTable:
             slot.generation += 1
         elif slot.state is _SlotState.PAUSED:
             # A paused channel cannot fade, and it is silent: stop it now
-            pygame.mixer.Channel(slot.channel_index).stop()
+            if self._sounds(slot):
+                pygame.mixer.Channel(slot.channel_index).stop()
             self._end_voice(slot)
         else:
             seconds = max(fade_seconds, MINIMUM_FADE_SECONDS)
-            pygame.mixer.Channel(slot.channel_index).fadeout(
-                round(seconds * MILLISECONDS_PER_SECOND)
-            )
+            if self._sounds(slot):
+                pygame.mixer.Channel(slot.channel_index).fadeout(
+                    round(seconds * MILLISECONDS_PER_SECOND)
+                )
             self._fade_slot(slot, fade_seconds=seconds)
 
     def _fade_slot(self, slot: _Slot, *, fade_seconds: float) -> None:
@@ -987,15 +1075,26 @@ class VoiceTable:
             return
         voice.release_fade_pending = False
         remaining = max(voice.release_ends_at - voice.played_seconds, MINIMUM_FADE_SECONDS)
-        pygame.mixer.Channel(slot.channel_index).fadeout(round(remaining * MILLISECONDS_PER_SECOND))
+        if self._sounds(slot):
+            pygame.mixer.Channel(slot.channel_index).fadeout(
+                round(remaining * MILLISECONDS_PER_SECOND)
+            )
 
     def _apply_gains(self, slot: _Slot, voice: _Voice) -> None:
         """Set the channel's left and right gains from the voice and its bus (impl spec 7.2)."""
-        if slot.state is _SlotState.WAITING:
-            return  # applied when it starts
+        if slot.state is _SlotState.WAITING or not self._sounds(slot):
+            return  # applied when it starts; an unheard channel is never touched
         gain = voice.volume * self._buses[voice.bus].effective_gain()
         left, right = constant_power_gains(pan=voice.pan, gain=gain)
         pygame.mixer.Channel(slot.channel_index).set_volume(left, right)
+
+    def _sounds(self, slot: _Slot) -> bool:
+        """Whether the slot's channel may be touched: its voice was heard and still may be.
+
+        Returns:
+            True when the slot is heard and the table's context is audible.
+        """
+        return slot.heard and self.reaches_the_mixer
 
     @staticmethod
     def _step_volume_fade(voice: _Voice, dt: float) -> bool:
@@ -1016,10 +1115,34 @@ class VoiceTable:
         return True
 
 
-def _device_state(index: int) -> str:
+def _device_state(index: int, *, reads_the_device: bool) -> str:
     """A channel the table does not own, as the device reports it.
 
+    Args:
+        index: The channel index.
+        reads_the_device: False in a silent context, which reads no channel.
+
     Returns:
-        ``playing`` while the device is busy on it, else ``idle``.
+        ``playing`` while the device is busy on it (and is read), else ``idle``.
     """
-    return 'playing' if pygame.mixer.Channel(index).get_busy() else 'idle'
+    return 'playing' if reads_the_device and pygame.mixer.Channel(index).get_busy() else 'idle'
+
+
+def _device_fade_seconds_left(slot: _Slot) -> float | None:
+    """How long the slot's channel still fades out on the device, by the table's frame time.
+
+    Returns:
+        The seconds left of a stop's or a steal's fade, or of a released loop's fade over what
+        is left of its pass; None when the channel is not fading out.
+    """
+    if slot.state in {_SlotState.FADING, _SlotState.WAITING}:
+        return slot.fade_seconds_left
+    voice = slot.voice
+    if (
+        slot.state is _SlotState.PLAYING
+        and voice is not None
+        and voice.release_ends_at is not None
+        and not voice.release_fade_pending
+    ):
+        return voice.release_ends_at - voice.played_seconds
+    return None

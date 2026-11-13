@@ -8,7 +8,9 @@ import pygame
 import pytest
 
 from glitchygames.audio.buses import BusTree
+from glitchygames.audio.route import set_audible
 from glitchygames.audio.voices import SoundHandle, VoiceCounters, constant_power_gains
+from glitchygames.engine_context import EngineContext
 from tests.audio.library_support import stop_mixer
 from tests.audio.voice_support import (
     FRAME_SECONDS,
@@ -800,3 +802,235 @@ def test_silencing_an_idle_library_channel_changes_nothing(table, one_second_sou
 
     assert handle.is_playing is True
     assert table.snapshot()[5].state == 'idle'
+
+
+# --- A silent context (Arcade sub-plan 4, decision 3) ---
+
+
+def _play_every_kind_of_mixer_call(table, *, buses) -> list[tuple[object, ...]]:
+    """Drive a three-channel table through every mixer call it makes, frame by frame.
+
+    Plays, a release, volume and pan changes, a volume fade, a bus change, a pause and resume, a
+    stop while paused, a steal with its delayed play, a dropped play, a stop, a cancel and the
+    close.
+
+    Returns:
+        Per frame, what the game sees: each handle's ``is_playing``, the counters and the voices.
+    """
+    looping = table.play(
+        baked_sound(seconds=0.25), owner=GAME_SCENE, **(PLAY_DEFAULTS | {'loop': True})
+    )
+    short = table.play(baked_sound(seconds=0.1), owner=GAME_SCENE, **PLAY_DEFAULTS)
+    held = table.play(baked_sound(seconds=1.0), owner=OTHER_SCENE, **PLAY_DEFAULTS)
+    handles = [looping, short, held]
+    seen: list[tuple[object, ...]] = []
+    for frame in range(40):
+        if frame == 1:
+            looping.set_volume(0.5)
+            looping.set_pan(-0.5)
+            short.set_volume(0.25, fade=0.05)
+        elif frame == 2:
+            buses['effects'].volume = 0.5
+            looping.release()
+        elif frame == 6:
+            held.stop()
+        elif frame == 8:
+            handles.extend([
+                table.play(baked_sound(seconds=1.0), owner=GAME_SCENE, **PLAY_DEFAULTS),
+                table.play(baked_sound(seconds=1.0), owner=GAME_SCENE, **PLAY_DEFAULTS),
+                table.play(
+                    baked_sound(seconds=1.0), owner=GAME_SCENE, **(PLAY_DEFAULTS | {'priority': 0})
+                ),
+            ])
+        elif frame == 12:
+            handles[3].stop(fade=0.02)
+            handles[4].cancel()
+        elif frame == 30:
+            table.close()
+        paused_owners = {GAME_SCENE, OTHER_SCENE} if frame in {3, 4, 5} else frozenset()
+        table.advance(dt=FRAME_SECONDS, paused_owners=paused_owners)
+        seen.append((
+            tuple(handle.is_playing for handle in handles),
+            table.counters,
+            table.voice_count,
+        ))
+    return seen
+
+
+def test_a_silent_contexts_table_answers_as_a_heard_one_without_touching_a_channel(
+    channel_calls,
+):
+    """Silent: no mixer call at all, and every frame's answers equal the heard table's."""
+    partition = start_reserved_mixer(live_pool=0, library_channels=3, legacy_channels=8)
+    context = EngineContext(name='silent tile')
+    with context.active():
+        set_audible(audible=False)
+        silent_buses = unreserved_buses()
+        silent_table = make_table(partition, buses=silent_buses)
+        silent_answers = _play_every_kind_of_mixer_call(silent_table, buses=silent_buses)
+    silent_calls = list(channel_calls)
+    heard_buses = unreserved_buses()
+    heard_table = make_table(partition, buses=heard_buses)
+
+    heard_answers = _play_every_kind_of_mixer_call(heard_table, buses=heard_buses)
+
+    assert silent_calls == []
+    assert silent_answers == heard_answers
+    # The heard run made every kind of call the silent one held back
+    assert {kind for _, kind, _ in channel_calls} == {
+        'play',
+        'set_volume',
+        'fadeout',
+        'stop',
+        'pause',
+        'unpause',
+    }
+    assert heard_answers[-1][1] == VoiceCounters(steals=1, delayed_plays=1, dropped_plays=1)
+
+
+def test_a_silent_contexts_table_reads_every_channel_as_idle():
+    """Its free channel is the table's lowest, busy or not, and its snapshot shows them idle."""
+    partition = start_reserved_mixer(live_pool=1, library_channels=2, legacy_channels=1)
+    busy_elsewhere = baked_sound(seconds=2.0).mixer_sound()
+    assert busy_elsewhere is not None
+    for index in (0, 1, 3):
+        pygame.mixer.Channel(index).play(busy_elsewhere)
+    context = EngineContext(name='silent tile')
+    with context.active():
+        set_audible(audible=False)
+        silent_table = make_table(partition, buses=unreserved_buses())
+        silent_handle = silent_table.play(
+            baked_sound(seconds=1.0), owner=GAME_SCENE, **PLAY_DEFAULTS
+        )
+        silent_snapshot = silent_table.snapshot()
+    heard_table = make_table(partition, buses=unreserved_buses())
+    heard_handle = heard_table.play(baked_sound(seconds=1.0), owner=GAME_SCENE, **PLAY_DEFAULTS)
+    heard_snapshot = heard_table.snapshot()
+    pygame.mixer.stop()
+
+    assert silent_handle.slot == 0
+    # The mixer keeps its 8 channels (the table only grows), so channels 3-7 are legacy
+    assert [channel.state for channel in silent_snapshot] == ['idle', 'playing'] + ['idle'] * 6
+    assert heard_handle.slot == 1
+    assert [channel.state for channel in heard_snapshot] == [
+        'playing',
+        'idle',
+        'playing',
+        'playing',
+    ] + ['idle'] * 4
+
+
+def test_a_heard_voice_plays_on_while_a_silent_context_plays_on_its_channel(channel_calls):
+    """Review Focus 1: a silent table's plays, steals and stops on the heard voice's channel."""
+    partition = start_reserved_mixer(live_pool=0, library_channels=2, legacy_channels=8)
+    heard_table = make_table(partition, buses=unreserved_buses())
+    heard_handle = heard_table.play(baked_sound(seconds=1.0), owner=GAME_SCENE, **PLAY_DEFAULTS)
+    heard_channel = pygame.mixer.Channel(partition.library[0])
+    heard_mixer_sound = heard_channel.get_sound()
+    channel_calls.clear()
+    context = EngineContext(name='silent tile')
+    with context.active():
+        set_audible(audible=False)
+        silent_table = make_table(partition, buses=unreserved_buses())
+        silent_handles = [
+            silent_table.play(baked_sound(seconds=2.0), owner=GAME_SCENE, **PLAY_DEFAULTS)
+            for _ in range(3)
+        ]
+        advance_frames(silent_table, count=2, paused_owners={GAME_SCENE})
+        advance_frames(silent_table, count=2)
+        silent_handles[1].stop()
+        silent_table.close()
+    silent_steals = silent_table.counters.steals
+    calls_while_silent = list(channel_calls)
+    still_busy = heard_channel.get_busy()
+    still_its_sound = heard_channel.get_sound()
+    heard_answers = []
+    for _ in range(60):
+        heard_answers.append(heard_handle.is_playing)
+        heard_table.advance(dt=FRAME_SECONDS, paused_owners=frozenset())
+
+    assert silent_steals == 1
+    assert calls_while_silent == []
+    assert still_busy is True
+    assert still_its_sound is heard_mixer_sound
+    assert heard_answers == [True] * 60
+    assert heard_handle.is_playing is False
+
+
+def test_going_silent_fades_the_heard_channels_within_fifty_ms_and_then_leaves_the_mixer(
+    channel_calls,
+):
+    """Faded first (paused and long-fading channels stopped), then quiet; the game sees the same."""
+    partition = start_reserved_mixer(live_pool=0, library_channels=5, legacy_channels=8)
+    context = EngineContext(name='tile')
+    with context.active():
+        table = make_table(partition, buses=unreserved_buses())
+        playing = table.play(baked_sound(seconds=1.0), owner=GAME_SCENE, **PLAY_DEFAULTS)
+        held = table.play(baked_sound(seconds=1.0), owner=OTHER_SCENE, **PLAY_DEFAULTS)
+        long_fade = table.play(baked_sound(seconds=1.0), owner=GAME_SCENE, **PLAY_DEFAULTS)
+        short_fade = table.play(baked_sound(seconds=1.0), owner=GAME_SCENE, **PLAY_DEFAULTS)
+        released = table.play(
+            baked_sound(seconds=1.0), owner=GAME_SCENE, **(PLAY_DEFAULTS | {'loop': True})
+        )
+        advance_frames(table, count=1, paused_owners={OTHER_SCENE})
+        long_fade.stop(fade=2.0)
+        short_fade.stop(fade=0.02)
+        released.release()
+        channel_calls.clear()
+
+        table.fade_out_of_the_mixer(fade_seconds=0.05)
+        set_audible(audible=False)
+        calls_going_silent = list(channel_calls)
+        channel_calls.clear()
+        advance_frames(table, count=10)
+        playing.set_volume(0.5)
+        answers_after_going_silent = (playing.is_playing, held.is_playing, released.is_playing)
+        table.close()
+
+    assert calls_going_silent == [
+        (0, 'fadeout', (50,)),
+        (1, 'stop', ()),
+        (2, 'stop', ()),
+        (4, 'stop', ()),
+    ]
+    assert channel_calls == []
+    assert answers_after_going_silent == (True, True, True)
+
+
+def test_going_audible_again_starts_nothing_already_under_way(channel_calls):
+    """A voice played silent is never heard; the next play after going audible is."""
+    partition = start_reserved_mixer(live_pool=0, library_channels=2, legacy_channels=8)
+    context = EngineContext(name='tile')
+    with context.active():
+        set_audible(audible=False)
+        table = make_table(partition, buses=unreserved_buses())
+        under_way = table.play(baked_sound(seconds=1.0), owner=GAME_SCENE, **PLAY_DEFAULTS)
+        set_audible(audible=True)
+        advance_frames(table, count=2, paused_owners={GAME_SCENE})
+        advance_frames(table, count=1)
+        under_way.set_pan(0.5)
+        calls_for_the_voice_under_way = list(channel_calls)
+        heard = table.play(baked_sound(seconds=1.0), owner=GAME_SCENE, **PLAY_DEFAULTS)
+
+    assert calls_for_the_voice_under_way == []
+    assert under_way.is_playing is True
+    assert heard.is_playing is True
+    assert [(index, kind) for index, kind, _ in channel_calls] == [(1, 'play'), (1, 'set_volume')]
+
+
+def test_going_silent_leaves_idle_and_briefly_fading_channels_alone(channel_calls):
+    """An idle table, and a channel fading from a steal (10 ms, within the 50): no call."""
+    partition = start_reserved_mixer(live_pool=0, library_channels=1, legacy_channels=8)
+    table = make_table(partition, buses=unreserved_buses())
+    table.fade_out_of_the_mixer(fade_seconds=0.05)
+    idle_calls = list(channel_calls)
+    sound = baked_sound(seconds=1.0)
+    table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
+    waiting = table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
+    channel_calls.clear()
+
+    table.fade_out_of_the_mixer(fade_seconds=0.05)
+
+    assert idle_calls == []
+    assert channel_calls == []
+    assert waiting.is_playing is True

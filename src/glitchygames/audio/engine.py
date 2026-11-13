@@ -43,6 +43,11 @@ frame, so the tail sounds while the game is built and fades from frame 0's updat
 ``silenced(channel)`` follows ``FrameSilencer``'s stops: the channels are quiet, but the voices go
 on by frame time, so a silenced frame changes nothing the game sees (impl spec 7.3). ``close()``
 fades every voice over 50 ms and waits at most 100 ms for the fades (impl spec 10.3).
+
+In a silent context (``glitchygames.audio.route``) the voice table touches no channel and the
+voices go on by frame time (``glitchygames.audio.voices``); ``fade_out_of_the_mixer()`` fades the
+heard voices over the scene clean-up's 50 ms as the context goes silent, and a silent engine's
+``close()`` never waits for the device.
 """
 
 from __future__ import annotations
@@ -679,6 +684,15 @@ class AudioEngine:
         for index in indices:
             self._voices.silenced(index)
 
+    def fade_out_of_the_mixer(self) -> None:
+        """Fade the context's heard voices over 50 ms: its route is about to turn silent.
+
+        ``glitchygames.audio.route.set_audible`` calls it while the context is still audible
+        (Arcade sub-plan 4, decision 3); the voices go on by frame time, unheard
+        (``VoiceTable.fade_out_of_the_mixer``).
+        """
+        self._voices.fade_out_of_the_mixer(fade_seconds=SCENE_CLEANUP_FADE_SECONDS)
+
     def close(self, *, wait_seconds: float = SHUTDOWN_WAIT_SECONDS) -> None:
         """Fade every voice over 50 ms, then wait for the fades at most ``wait_seconds``.
 
@@ -833,9 +847,14 @@ class AudioEngine:
     def _a_library_channel_sounds(self) -> bool:
         """Whether the device still plays (or fades) a library channel.
 
+        A silent context reads no channel (its sounds never reached one; another context's may
+        be playing there), so its close never waits.
+
         Returns:
-            True while one is busy.
+            True while one is busy; False in a silent context.
         """
+        if not self._voices.reaches_the_mixer:
+            return False
         return any(pygame.mixer.Channel(index).get_busy() for index in self._partition.library)
 
 

@@ -9,7 +9,9 @@ steal) is the same heard or silent, so a silent game replays as it does alone.
 
 The engine keeps a silent context off the mixer at each way sound reaches it: plain
 ``Sound.play()`` finds every channel reserved while a silent inner game builds, steps or
-finishes (``glitchygames.audio.voices.every_channel_reserved``, applied by ``InnerGame``).
+finishes (``glitchygames.audio.voices.every_channel_reserved``, applied by ``InnerGame``); the
+``AudioEngine``'s voice table makes no mixer call while its context is silent
+(``glitchygames.audio.voices``, decision 3).
 """
 
 from __future__ import annotations
@@ -53,8 +55,21 @@ def is_audible() -> bool:
 def set_audible(*, audible: bool) -> None:
     """Make the current context's sound heard or silent.
 
+    Going silent fades the context's heard voices first, while it is still audible, through its
+    audio engine if it has one (``AudioEngine.fade_out_of_the_mixer``: the scene clean-up's 50 ms
+    fade; no engine is made just to tell it), and only then turns the route silent, after which
+    the voice table makes no mixer call. Going audible starts nothing already under way.
+
     Args:
         audible: True to hear the context's sound, False to keep it off the mixer.
 
     """
-    current_context().value(slot=AUDIO_ROUTE_SLOT).audible = audible
+    route = current_context().value(slot=AUDIO_ROUTE_SLOT)
+    if route.audible and not audible:
+        # Imported here: the audio engine imports the voice table, which imports this module
+        from glitchygames.audio.engine import existing_audio_engine
+
+        audio_engine = existing_audio_engine()
+        if audio_engine is not None:
+            audio_engine.fade_out_of_the_mixer()
+    route.audible = audible
