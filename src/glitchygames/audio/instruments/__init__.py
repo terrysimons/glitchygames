@@ -96,6 +96,17 @@ horn``), and ``didgeridoo`` stays as the approximation it was,
 never a parent, though it has aliases (``yidaki``, ``mako``). The shells are aliases of ``conch``
 only where a source presents the name as the conch itself.
 
+Double reeds (26 entries) hold the family's builds in ``double_reeds.py`` (``oboe``, ``english
+horn``, ``bassoon``, ``contrabassoon``, ``heckelphone``, ``sarrusophone``, the shawms, the
+crumhorns, ``suona``, ``zurna``, ``duduk``) and their sound-alikes in
+``double_reed_sound_alikes.py`` (``contraforte`` and ``contrabassoon``, ``piccolo heckelphone``
+and ``heckelphone``, ``balaban`` and ``duduk``). ``winds.py`` keeps the clarinets, saxophones,
+bagpipes and free reeds. The family is pitched, so each sound-alike gives its own sourced range
+(sounding, stated, never hedged, "comfortable" or "theoretical"). A double reed whose range no
+source states waits (most of them, among them the other sarrusophone sizes, the folk shawms and
+``aulos``), and ``piri`` stays as the approximation it was, never a parent. ``cor anglais``,
+``fagott``, ``bombard`` and eight more names are aliases.
+
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and
 ``gangsa``) and its sound-alikes in ``tuned_sound_alikes.py`` (``alto xylophone`` and
