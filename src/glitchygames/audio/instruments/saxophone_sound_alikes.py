@@ -72,4 +72,34 @@ SAXOPHONE_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
         'A3',
         sounds_like='contrabass saxophone',
     ),
+    # --- Batch 19's saxophones: the other conical single reeds, in the order of
+    # plans/data/instrument-audit/batch-19.tsv (half B; its other rows drop or wait). The same
+    # ASCII notes as above: flats written as b, an en dash as a hyphen.
+    # Sound-alike of the alto saxophone, unchanged. Sound source and range source: the
+    # Heckelphone-clarinet page (https://en.wikipedia.org/wiki/Heckelphone-clarinet), cited to
+    # Dullat 2001: "Despite its name, it is essentially a wooden saxophone with wide conical
+    # bore, built of red-stained maple wood, overblowing the octave, and with clarinet-like
+    # fingerings." and "It has a single-reed mouthpiece attached to a short metal neck, similar
+    # to an alto clarinet.": a single reed on a wide conical bore, the saxophones' build. Its
+    # sound: "The instrument sounds somewhat like a saxophone, but with a much softer tone." and
+    # Heckel's 1931 catalogue, quoted on the page: "the clarinet-like tone of the instrument is
+    # excellent, extraordinarily harmonious, and powerful; nor is it sharp or metallic like that
+    # of the alto saxophone": colour words, no trait the build makes. The wood body, the
+    # clarinet-like fingering and the metal neck are a material, keywork and a part. The wide bore
+    # is named, but no fetched source states its effect on the sound. Parent: "essentially a
+    # wooden saxophone" names no catalog entry, so the catalog saxophone whose lowest note is
+    # nearest D3: the alto saxophone (Db3) is 1 semitone away, the c melody saxophone (Bb2) 4.
+    # Range, from the same page, cited to Marcuse, Musical Instruments: A Comprehensive
+    # Dictionary (1975; not reached online): "The heckelphone-clarinet is a transposing
+    # instrument in Bb with sounding range of D3 (middle line of bass staff) to C6 (two ledger
+    # lines above the treble staff), written a whole tone higher.": sounding D3 to C6. Its top
+    # note C6 is above the alto saxophone's Ab5, which a sound-alike's own sourced range allows.
+    CatalogEntry(
+        'heckelphone clarinet',
+        'Heckelphone-clarinet',
+        Family.SAXOPHONES,
+        'D3',
+        'C6',
+        sounds_like='alto saxophone',
+    ),
 )

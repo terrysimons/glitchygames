@@ -1928,6 +1928,7 @@ NEW_SAXOPHONE_NAMES: list[str] = []
 SAXOPHONE_SOUND_ALIKE_PARENTS: dict[str, str] = {
     'soprillo saxophone': 'sopranino saxophone',
     'tubax in eb': 'contrabass saxophone',
+    'heckelphone clarinet': 'alto saxophone',
 }
 
 
