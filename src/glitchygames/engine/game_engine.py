@@ -108,6 +108,12 @@ from glitchygames.recording_history import (
     MEASUREMENT_RUNS_HEADER_FIELD,
     MeasurementRun,
 )
+from glitchygames.render_target import (
+    hosted_start_requested,
+    is_inner_context,
+    note_started_engine,
+    render_target,
+)
 from glitchygames.replay.audit import (
     AuditRunError,
     audit_command,
@@ -1460,7 +1466,10 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # (_restore_sdl_driver_variables); None when the run changed neither
         self._sdl_driver_variables_before_run: dict[str, str | None] | None = None
         # Before anything starts the display or the mixer (pygame.init() below)
-        self._choose_sdl_drivers(options=options)
+        # An inner context (glitchygames/render_target.py) shares the process's drivers with
+        # every other context: it never changes the variables or restarts the display or mixer
+        if not is_inner_context():
+            self._choose_sdl_drivers(options=options)
 
         # NOTE: Game is coupled to event manager for unhandled event routing.
         # Decoupling tracked in https://glitchy-games.atlassian.net/browse/GG-22
@@ -1713,6 +1722,19 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # There are various caveats for hardware accelerated blitting
         # that make it undesirable in a lot of cases, so we'll just use
         # software.
+        # An inner context draws on its render target: it never opens or resizes the window nor
+        # sets its cursor (row S1 of plans/2026-10-25-engine-context.md;
+        # glitchygames/render_target.py)
+        inner_target = render_target()
+        if inner_target is not None:
+            self.display_info = pygame.display.Info()
+            self.initial_resolution = inner_target.get_size()
+            self.cursor = []
+            self.display_update = pygame.display.update
+            self.screen = inner_target
+            paint_default_background(surface=self.screen)
+            self.scene_manager.screen = self.screen
+            return
         self.display_info = pygame.display.Info()
         self.initial_resolution: tuple[int, int] = (
             self.display_info.current_w,
@@ -2049,6 +2071,10 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         icon: pygame.Surface = icon_attr
 
+        # The window's icon and caption are its owner's: an inner context sets neither (row S2
+        # of plans/2026-10-25-engine-context.md)
+        if is_inner_context():
+            return
         pygame.display.set_icon(icon)
 
         # The game's caption until its scene sets its own, not the engine's placeholder
@@ -3597,7 +3623,20 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         short (``ExitCode.REPLAY_DIVERGED``; a rebaseline ends normally then, with what the game
         ran); at the normal end of a replay, with the replay's exit code (``ExitCode.SUCCESS``,
         ``ExitCode.REPLAY_DIVERGED`` or ``ExitCode.UNUSABLE_INPUT`` for a truncated recording).
+
+        A hosted start (``render_target.hosted_start_requested()``: an inner context, or one
+        that called ``request_hosted_start()``) builds the game up to its first frame and
+        returns, keeping the engine for the host (``render_target.take_started_engine()``),
+        which runs the frames and their end itself; none of the above applies to it.
         """
+        # A hosted start (an inner context, or one that asked: glitchygames/render_target.py):
+        # build the game up to its first frame and hand the engine to the host, which steps its
+        # frames. No signal handlers, no blocking loop and no crash boundary, whose teardown
+        # would quit pygame for every context
+        if hosted_start_requested():
+            self._build_game(paced_by_timer=False)
+            note_started_engine(engine=self)
+            return
         profiler = self._begin_start()
         with self._crash_boundary(profiler=profiler):
             self._run_game()

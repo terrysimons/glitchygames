@@ -124,17 +124,17 @@ inside a tile. The owner left it failing (2026-11-12; `plans/future-work.md`).
   `hosted_start_requested() -> bool`, `note_started_engine(*, engine: GameEngine)`,
   `take_started_engine() -> GameEngine | None` (typed through `TYPE_CHECKING`).
 
-- [ ] **Step 1: Write the failing tests**: an inner context reads its own target and the
+- [x] **Step 1: Write the failing tests**: an inner context reads its own target and the
   default context the window (`display_surface`); a sprite made inner measures against the
   target; building a replay engine inner leaves the window's size and caption, SDL's driver
   variables and the icon unchanged; `start()` inner builds the game, returns, and
   `take_started_engine()` gives that engine once; the default context's `start()` is unchanged;
   an inner frame on a per-pixel-alpha target leaves no alpha below 255 (Review Focus 5).
-- [ ] **Step 2: Run them; expected FAIL where the port lacks the behaviour** (the opaque frame,
+- [x] **Step 2: Run them; expected FAIL where the port lacks the behaviour** (the opaque frame,
   the typed handoff)
-- [ ] **Step 3: Implement**; `_show_frame` runs `make_opaque` on an unpresented inner frame.
+- [x] **Step 3: Implement**; `_show_frame` runs `make_opaque` on an unpresented inner frame.
 - [ ] **Step 4: Run `tests/`; expected PASS**
-- [ ] **Step 5: Commit** (`Render target: an inner context draws on its own surface; the hosted start`)
+- [x] **Step 5: Commit** (`Render target: an inner context draws on its own surface; the hosted start`)
 
 ### Task 2: The private event queue, made real
 
