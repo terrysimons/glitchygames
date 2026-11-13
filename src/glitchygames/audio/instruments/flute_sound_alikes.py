@@ -57,4 +57,25 @@ FLUTE_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
         'G3',
         sounds_like='contrabass recorder',
     ),
+    # --- Batch 9's sound-alikes (the traditional flutes of Asia, Africa, the Americas and
+    # Oceania), in the order of plans/data/instrument-audit/batch-9.tsv
+    # Sound-alike of the bansuri (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Ry%C5%ABteki ("The ryūteki (龍笛; literally "dragon flute")
+    # is a Japanese transverse fue made of bamboo."; "The ryūteki is held horizontally, has seven
+    # holes, and has a length of 40 centimetres"): a keyless transverse bamboo flute, as the
+    # bansuri (E4-E6) is, with no bore, material, duct, stopped pipe or membrane named that sets
+    # its sound apart. Range, from the Koizumi catalog record 466 of the Tokyo University of
+    # the Arts' museum (https://www.geidai.ac.jp/labs/koizumi/gcat0/english/html-text/466.html:
+    # "range: e"-d""", in Helmholtz notation, so E5 to D7); Stanford's gagaku site
+    # (https://gagaku.stanford.edu/en/woodwinds/ryuteki) calls the E5 "the lowest pitch of the
+    # ryūteki's register" and the register from E7 "unstable", so its low C#5 and D#5 and its
+    # notes from E7 up are extremes the instrument does not play
+    CatalogEntry(
+        'ryuteki',
+        'Ryūteki',
+        Family.FLUTES,
+        'E5',
+        'D7',
+        sounds_like='bansuri',
+    ),
 )

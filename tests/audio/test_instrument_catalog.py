@@ -805,6 +805,10 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('contralto', 'alto ah'),
         ('boy soprano', 'treble ah'),
         ('penny whistle', 'tin whistle'),
+        ('syrinx', 'pan flute'),
+        ('jula jula', 'pan flute'),
+        ('julu julu', 'pan flute'),
+        ('siyotanka', 'native american flute'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -827,7 +831,9 @@ def test_the_batch_aliases_resolve(alias, target):
     families, the organs' combo organ as the Vox Continental.
     Batch 6's second half names the SID's sawtooth as the chiptune sawtooth, and the
     AY-3-8910 as Yamaha's licensed YM2149; both targets are sound-alike entries.
-    Batch 9's first half names the tin whistle as the penny whistle.
+    Batch 9's first half names the tin whistle as the penny whistle, and its second half names the
+    pan flute as the syrinx, the jula jula and the julu julu and the native american flute as the
+    siyotanka.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1600,6 +1606,7 @@ NEW_FLUTE_NAMES: list[str] = []
 FLUTE_SOUND_ALIKE_PARENTS: dict[str, str] = {
     'csakan': 'soprano recorder',
     'subcontrabass recorder': 'contrabass recorder',
+    'ryuteki': 'bansuri',
 }
 # Batch 9's flutes that are unpitched (a whistle its source calls noise), in the sheet's order
 FLUTE_UNPITCHED_NAMES: frozenset[str] = frozenset()
