@@ -1,13 +1,13 @@
-"""Woodwinds: clarinets, saxophones, bagpipes and free reeds.
+"""Woodwinds: clarinets, saxophones and free reeds.
 
-The flutes are in the sibling module ``flutes.py``, the double reeds in ``double_reeds.py``.
+The flutes are in the sibling module ``flutes.py``, the double reeds in ``double_reeds.py``, the
+bagpipes in ``bagpipes.py``.
 
 Ranges are sounding pitch (a B-flat clarinet's written C sounds B-flat), after the standard
 orchestration ranges (Adler, *The Study of Orchestration*; Vienna Symphonic Library's instrument
 pages); folk instruments' are typical of the common keys. Timbres follow the instruments'
 acoustics: a clarinet (a closed cylinder) favours odd harmonics, saxophones (cones) have every
-harmonic and are brighter, free reeds are bright and buzzy, a bagpipe's chanter
-sounds over fixed drones.
+harmonic and are brighter, free reeds are bright and buzzy.
 """
 
 from __future__ import annotations
@@ -16,12 +16,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Final
 
 from glitchygames.audio.instruments.catalog import CatalogEntry, Family
-from glitchygames.audio.instruments.timbres import (
-    blown,
-    falling_series,
-    wave_from_levels,
-    with_drones,
-)
+from glitchygames.audio.instruments.timbres import blown, falling_series
 
 if TYPE_CHECKING:
     from glitchygames.audio.instrument import Instrument
@@ -196,190 +191,6 @@ SAXOPHONES: Final[tuple[CatalogEntry, ...]] = (
         'Db1',
         'Ab3',
         partial(_saxophone, low_pass=2500.0),
-    ),
-)
-
-# --- Bagpipes -------------------------------------------------------------------------------
-
-# The Highland and uilleann timbres are scripts/make_pipes.py's, tuned there by ear
-HIGHLAND_LEVELS: Final[tuple[float, ...]] = (
-    1.0,
-    0.95,
-    0.85,
-    0.8,
-    0.75,
-    0.65,
-    0.55,
-    0.5,
-    0.42,
-    0.36,
-    0.3,
-    0.25,
-)
-DRONE_LEVELS: Final[tuple[float, ...]] = (1.0, 0.7, 0.55, 0.4, 0.3, 0.22, 0.15, 0.1)
-SWEET_CHANTER_LEVELS: Final[tuple[float, ...]] = (1.0, 0.55, 0.4, 0.26, 0.17, 0.1, 0.06, 0.035)
-SMOOTH_DRONE_LEVELS: Final[tuple[float, ...]] = (1.0, 0.3, 0.12, 0.05)
-
-
-def _bagpipe(  # ruff: ignore[too-many-arguments] - a chanter's traits and its drones
-    *,
-    chanter_levels: tuple[float, ...],
-    drones: tuple[tuple[float, float], ...],
-    drone_levels: tuple[float, ...],
-    low_pass: float,
-    drive: float,
-    breath: float,
-    attack: float = 0.006,
-    sustain: float = 1.0,
-) -> Instrument:
-    chanter = blown(
-        chanter_levels,
-        attack=attack,
-        decay=0.04 if sustain < 1.0 else 0.0,
-        sustain=sustain,
-        release=0.03,
-        breath=breath,
-        breath_low_pass=4500.0,
-        low_pass=low_pass,
-        drive=drive,
-    )
-    return with_drones(chanter, drones=drones, drone_wave=wave_from_levels(drone_levels))
-
-
-BAGPIPES: Final[tuple[CatalogEntry, ...]] = (
-    # Chanter A near 480 Hz (pipers tune sharp); tenor drones an octave below, bass two
-    CatalogEntry(
-        'highland bagpipe',
-        'Great Highland bagpipe',
-        Family.BAGPIPES,
-        'Ab4',
-        'Bb5',
-        partial(
-            _bagpipe,
-            chanter_levels=HIGHLAND_LEVELS,
-            drones=((240.0, 0.45), (120.0, 0.55)),
-            drone_levels=DRONE_LEVELS,
-            low_pass=6500.0,
-            drive=1.25,
-            breath=0.012,
-        ),
-    ),
-    CatalogEntry(
-        'uilleann pipes',
-        'Uilleann pipes',
-        Family.BAGPIPES,
-        'D4',
-        'E6',
-        partial(
-            _bagpipe,
-            chanter_levels=SWEET_CHANTER_LEVELS,
-            drones=((146.83, 0.25), (73.42, 0.3)),
-            drone_levels=SMOOTH_DRONE_LEVELS,
-            low_pass=3500.0,
-            drive=0.0,
-            breath=0.015,
-            attack=0.012,
-            sustain=0.85,
-        ),
-    ),
-    CatalogEntry(
-        'scottish smallpipes',
-        'Scottish smallpipes in A',
-        Family.BAGPIPES,
-        'G4',
-        'A5',
-        partial(
-            _bagpipe,
-            chanter_levels=SWEET_CHANTER_LEVELS,
-            drones=((220.0, 0.3), (110.0, 0.35)),
-            drone_levels=SMOOTH_DRONE_LEVELS,
-            low_pass=4000.0,
-            drive=0.3,
-            breath=0.01,
-        ),
-    ),
-    CatalogEntry(
-        'border pipes',
-        'Border pipes',
-        Family.BAGPIPES,
-        'G4',
-        'A5',
-        partial(
-            _bagpipe,
-            chanter_levels=HIGHLAND_LEVELS,
-            drones=((220.0, 0.4), (110.0, 0.45)),
-            drone_levels=DRONE_LEVELS,
-            low_pass=5000.0,
-            drive=0.8,
-            breath=0.012,
-        ),
-    ),
-    # Closed-ended: notes are detached, so the chanter drops between them
-    CatalogEntry(
-        'northumbrian smallpipes',
-        'Northumbrian smallpipes',
-        Family.BAGPIPES,
-        'G4',
-        'A5',
-        partial(
-            _bagpipe,
-            chanter_levels=SWEET_CHANTER_LEVELS,
-            drones=((196.0, 0.25), (98.0, 0.3)),
-            drone_levels=SMOOTH_DRONE_LEVELS,
-            low_pass=4500.0,
-            drive=0.0,
-            breath=0.008,
-            attack=0.008,
-            sustain=0.6,
-        ),
-    ),
-    CatalogEntry(
-        'galician gaita',
-        'Galician gaita in D',
-        Family.BAGPIPES,
-        'C#5',
-        'E6',
-        partial(
-            _bagpipe,
-            chanter_levels=HIGHLAND_LEVELS,
-            drones=((293.66, 0.3), (146.83, 0.4)),
-            drone_levels=DRONE_LEVELS,
-            low_pass=7000.0,
-            drive=1.0,
-            breath=0.012,
-        ),
-    ),
-    CatalogEntry(
-        'bulgarian gaida',
-        'Bulgarian gaida',
-        Family.BAGPIPES,
-        'F#4',
-        'A5',
-        partial(
-            _bagpipe,
-            chanter_levels=HIGHLAND_LEVELS,
-            drones=((196.0, 0.5),),
-            drone_levels=DRONE_LEVELS,
-            low_pass=6000.0,
-            drive=1.0,
-            breath=0.012,
-        ),
-    ),
-    CatalogEntry(
-        'musette de cour',
-        'Musette de cour',
-        Family.BAGPIPES,
-        'F4',
-        'D6',
-        partial(
-            _bagpipe,
-            chanter_levels=SWEET_CHANTER_LEVELS,
-            drones=((174.61, 0.2), (87.31, 0.25)),
-            drone_levels=SMOOTH_DRONE_LEVELS,
-            low_pass=3500.0,
-            drive=0.0,
-            breath=0.008,
-        ),
     ),
 )
 

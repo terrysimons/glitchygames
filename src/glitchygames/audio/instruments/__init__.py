@@ -99,13 +99,24 @@ Double reeds (25 entries) hold the family's builds in ``double_reeds.py`` (``obo
 horn``, ``bassoon``, ``contrabassoon``, ``heckelphone``, ``sarrusophone``, the shawms, the
 crumhorns, ``suona``, ``zurna``, ``duduk``) and their sound-alikes in
 ``double_reed_sound_alikes.py`` (``contraforte`` and ``contrabassoon``, ``piccolo heckelphone``
-and ``heckelphone``). ``winds.py`` keeps the clarinets, saxophones,
-bagpipes and free reeds. The family is pitched, so each sound-alike gives its own sourced range
+and ``heckelphone``). ``winds.py`` keeps the clarinets, saxophones
+and free reeds. The family is pitched, so each sound-alike gives its own sourced range
 (sounding, stated, never hedged, "comfortable" or "theoretical"). A double reed whose range no
 source states waits (most of them, among them the other sarrusophone sizes, the folk shawms and
 ``aulos``; ``balaban`` waits for a build that models its cylindrical bore), and ``piri`` stays as
 the approximation it was, never a parent. ``cor anglais``,
 ``fagott``, ``bombard`` and eight more names are aliases.
+
+Bagpipes (9 entries) hold the family's builds in ``bagpipes.py`` (``highland bagpipe``,
+``uilleann pipes``, ``border pipes``, ``galician gaita``, ``bulgarian gaida``, ``musette de cour``
+and ``sackpipa``, the family's first cylindrical chanter) and their sound-alikes in
+``bagpipe_sound_alikes.py`` (none yet). ``winds.py`` keeps the clarinets, saxophones and free
+reeds. A bagpipe's drones are fixed pitches inside its build, so a sound-alike in another tuning
+carries its own drones as ``sound_changes``. The family is pitched, so a sound-alike gives its own
+sourced range (sounding, stated, never hedged) and sourced drones. A bagpipe whose range no source
+states waits (nearly all of them), and ``scottish smallpipes`` joins ``piri`` as an approximation
+(a cylindrical bore the build lacks), never a parent. ``irish pipes``, ``lowland pipes``, ``half
+long pipes`` and ``gaita galega`` are aliases.
 
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and

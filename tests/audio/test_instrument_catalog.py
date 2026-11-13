@@ -842,6 +842,10 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('surnay', 'zurna'),
         ('zournas', 'zurna'),
         ('haidi', 'suona'),
+        ('irish pipes', 'uilleann pipes'),
+        ('lowland pipes', 'border pipes'),
+        ('half long pipes', 'border pipes'),
+        ('gaita galega', 'galician gaita'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -877,6 +881,8 @@ def test_the_batch_aliases_resolve(alias, target):
     oboe, the bassoon as the fagott (its German name) and the rackett as the cervelas.
     Batch 11's second half names the suona as the gyaling and the haidi, the zurna as the zurla,
     the surna, the surnay and the zournas, and the bombarde as the bombard.
+    Batch 12's bagpipes name the uilleann pipes as the irish pipes, the border pipes as the
+    lowland pipes and the half long pipes, and the galician gaita as the gaita galega.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1059,9 +1065,13 @@ SOUND_EFFECT_NAMES = [
     entry.name for entry in instruments.entries() if entry.family == 'sound effects'
 ]
 # Every catalog entry that a source sets apart from its parent (empty today): it is its own
-# sound, so it gets the one-shot checks as the new drums do
+# sound, so it gets the one-shot checks as the new drums do. A retuned bagpipe is left out: it
+# sustains, so the one-shot checks do not apply; test_a_retuned_bagpipe_sounds_its_sourced_drones
+# checks it
 CHANGED_SOUND_ALIKE_NAMES = [
-    catalog_entry.name for catalog_entry in instruments.entries() if catalog_entry.sound_changes
+    catalog_entry.name
+    for catalog_entry in instruments.entries()
+    if catalog_entry.sound_changes and catalog_entry.family != Family.BAGPIPES
 ]
 # Batch 3's new entries, in the sheet's order: the membranophones, then the idiophones
 NEW_DRUM_NAMES = [
@@ -1691,6 +1701,28 @@ DOUBLE_REED_SOUND_ALIKE_PARENTS: dict[str, str] = {
 }
 
 
+# The 8 bagpipes that predate batch 12: their shared builds predate the anti-goal rule
+EXISTING_BAGPIPE_NAMES: frozenset[str] = frozenset({
+    'highland bagpipe',
+    'uilleann pipes',
+    'scottish smallpipes',
+    'border pipes',
+    'northumbrian smallpipes',
+    'galician gaita',
+    'bulgarian gaida',
+    'musette de cour',
+})
+# Batch 12's bagpipes with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-12.tsv)
+NEW_BAGPIPE_NAMES: list[str] = ['sackpipa']
+# Batch 12's bagpipe sound-alikes and the entry each sounds like, in the sheet's order (none yet)
+BAGPIPE_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+# Batch 12's bagpipe sound-alikes whose sourced drones differ from their parent's, with their
+# drone notes (sounding, highest first), in the sheet's order: each is built with
+# sound_changes={'drones': ...} (plans/data/instrument-audit/batch-12.tsv)
+BAGPIPE_RETUNED_DRONES: dict[str, tuple[str, ...]] = {}
+
+
 # The 42 brass instruments that predate batch 10: their shared builds predate the anti-goal rule
 EXISTING_BRASS_NAMES: frozenset[str] = frozenset({
     'piccolo trumpet',
@@ -1843,6 +1875,9 @@ BATCH_FAMILIES: dict[Family, BatchFamily] = {
     Family.DOUBLE_REEDS: BatchFamily(
         EXISTING_DOUBLE_REED_NAMES, NEW_DOUBLE_REED_NAMES, DOUBLE_REED_SOUND_ALIKE_PARENTS
     ),
+    Family.BAGPIPES: BatchFamily(
+        EXISTING_BAGPIPE_NAMES, NEW_BAGPIPE_NAMES, BAGPIPE_SOUND_ALIKE_PARENTS
+    ),
     Family.BRASS: BatchFamily(EXISTING_BRASS_NAMES, NEW_BRASS_NAMES, BRASS_SOUND_ALIKE_PARENTS),
     Family.BOWED_STRINGS: BatchFamily(
         EXISTING_BOWED_NAMES, NEW_BOWED_NAMES, BOWED_SOUND_ALIKE_PARENTS
@@ -1971,18 +2006,22 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         for name, parent in row.sound_alike_parents.items():
             assert name in listed_in_family, name
             assert instruments.entry(name).sounds_like == parent, name
-            assert instruments.get(name) == instruments.get(parent), name
+            if name in BAGPIPE_RETUNED_DRONES:
+                assert instruments.get(name) != instruments.get(parent), name
+            else:
+                assert instruments.get(name) == instruments.get(parent), name
     every_sound_alike = [
         catalog_entry.name
         for catalog_entry in instruments.entries()
         if catalog_entry.sounds_like is not None
     ]
-    # The catalog lists families in table order: flutes, double reeds, brass, bowed strings,
-    # plucked strings, electronic, tuned percussion, drums, voices, then choirs, as
+    # The catalog lists families in table order: flutes, double reeds, bagpipes, brass, bowed
+    # strings, plucked strings, electronic, tuned percussion, drums, voices, then choirs, as
     # registry.FAMILY_TABLES lists them
     assert every_sound_alike == (
         list(FLUTE_SOUND_ALIKE_PARENTS)
         + list(DOUBLE_REED_SOUND_ALIKE_PARENTS)
+        + list(BAGPIPE_SOUND_ALIKE_PARENTS)
         + list(BRASS_SOUND_ALIKE_PARENTS)
         + list(BOWED_SOUND_ALIKE_PARENTS)
         + list(PLUCKED_SOUND_ALIKE_PARENTS)
@@ -2066,7 +2105,10 @@ def test_the_gangsa_pairs_its_fundamental_at_the_ombak_ratio():
 # variation during the inhalation and exhalation phases of circular breathing, give the
 # instrument its readily recognisable sound.'), and batch 11's for the piri, built as a conical
 # shawm though its page says (https://en.wikipedia.org/wiki/Piri_(instrument)): 'It has a
-# cylindrical bore.'
+# cylindrical bore.', and batch 12's for the scottish smallpipes, built with an every-harmonic
+# chanter though the Bagpipe Society's guide says
+# (https://www.bagpipesociety.org.uk/guide/scottish-smallpipes/): 'With its cylindrical bore, the
+# sound is characteristically lilting'
 APPROXIMATING_NAMES = frozenset({
     'sitar',
     'tanpura',
@@ -2080,6 +2122,7 @@ APPROXIMATING_NAMES = frozenset({
     'dizi',
     'didgeridoo',
     'piri',
+    'scottish smallpipes',
 })
 
 
@@ -2198,3 +2241,76 @@ def test_no_double_reed_name_held_back_for_a_feature_is_listed():
     """No catalog name or alias is a double reed the sheet holds back for a feature."""
     assert set(DOUBLE_REED_HELD_BACK) & set(instruments.names()) == set()
     assert set(DOUBLE_REED_HELD_BACK) & set(instruments.ALIASES) == set()
+
+
+# Every name plans/data/instrument-audit/batch-12.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for an engine feature, a build of its own, a sourced
+# drone tuning or a sourced chanter bore, and the alias rows that wait for one of them, in the
+# sheet's order. None ships under that name or as an alias until the reason is met (decision 4;
+# batch 12). The test matches exact names
+BAGPIPE_HELD_BACK: dict[str, str] = {}
+
+
+def test_no_bagpipe_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a bagpipe the sheet holds back."""
+    assert set(BAGPIPE_HELD_BACK) & set(instruments.names()) == set()
+    assert set(BAGPIPE_HELD_BACK) & set(instruments.ALIASES) == set()
+
+
+def test_a_retuned_bagpipe_sounds_its_sourced_drones():
+    """A bagpipe sound-alike in another tuning sounds its own drones, equal-tempered.
+
+    Decision 8's sound_changes: only the drones change, each at its sourced note (A4 = 440 Hz,
+    two decimals, as the catalog's builds write hertz), so it differs from its parent.
+    """
+    retuned = [
+        catalog_entry.name
+        for catalog_entry in instruments.entries(family=Family.BAGPIPES)
+        if catalog_entry.sound_changes
+    ]
+    assert retuned == list(BAGPIPE_RETUNED_DRONES)
+    for name, drone_notes in BAGPIPE_RETUNED_DRONES.items():
+        catalog_entry = instruments.entry(name)
+        assert set(catalog_entry.sound_changes) == {'drones'}, name
+        drone_hertz = [
+            float(source.pitch)
+            for source_name, source in instruments.get(name).sources
+            if source_name.startswith('drone_')
+        ]
+        assert drone_hertz == [round(float(Note(note).to_hz()), 2) for note in drone_notes], name
+        assert catalog_entry.sounds_like is not None, name
+        assert instruments.get(name) != instruments.get(catalog_entry.sounds_like), name
+
+
+def test_a_cylindrical_chanter_sounds_odd_harmonics():
+    """A cylindrical chanter's even harmonics are far below its odd ones; a conical one's are not.
+
+    The chanter alone (its drones removed), at its middle note: a closed cylinder favours odd
+    harmonics (Alban Faust, a maker, https://www.albanfaust.se/en/the-instrumentmaker/: "a
+    single reed which sits on a cylindrically drilled chanter"), where every older bagpipe's
+    chanter has every harmonic. Here the cylinder's second and fourth are under 0.05 of the
+    first and the Highland pipe's second is above 0.6 (measured 0.815).
+    """
+
+    def relative_harmonics(name: str) -> list[float]:
+        catalog_entry = instruments.entry(name)
+        build = catalog_entry.build
+        assert isinstance(build, partial), name
+        chanter = build.func(**{**build.keywords, 'drones': ()})
+        note = catalog_entry.middle_note()
+        hertz = float(note.to_hz())
+        samples = render_sound(spec_for(chanter, name=name, pitch=note.name, length=1.0)).samples
+        held = samples[round(0.1 * SAMPLE_RATE) : round(0.9 * SAMPLE_RATE)]
+        magnitude = np.abs(np.fft.rfft(held * np.hanning(len(held))))
+        frequencies = np.fft.rfftfreq(len(held), 1 / SAMPLE_RATE)
+        peaks = [
+            float(np.max(magnitude[np.abs(frequencies - harmonic * hertz) < hertz / 4.0]))
+            for harmonic in (1, 2, 3, 4)
+        ]
+        return [peak / peaks[0] for peak in peaks]
+
+    cylinder = relative_harmonics('sackpipa')
+    highland = relative_harmonics('highland bagpipe')
+    assert cylinder[1] < 0.05
+    assert cylinder[3] < 0.05
+    assert highland[1] > 0.6

@@ -422,4 +422,19 @@ ALIASES: Final[dict[str, str]] = {
     # traditional double-reeded Chinese musical instrument."): another name for the catalog's
     # suona
     'haidi': 'suona',
+    # --- Batch 12's bagpipes, in the order of plans/data/instrument-audit/batch-12.tsv
+    # https://en.wikipedia.org/wiki/Uilleann_pipes ("also known as Union pipes and sometimes called
+    # Irish pipes, are the characteristic national bagpipe of Ireland."): another name for the
+    # catalog's uilleann pipes
+    'irish pipes': 'uilleann pipes',
+    # https://en.wikipedia.org/wiki/Border_pipes ("Other names have been used for the instrument:
+    # Lowland pipes and reel pipes in Scotland, and half-long pipes in Northumberland and
+    # Durham."): another name for the catalog's border pipes
+    'lowland pipes': 'border pipes',
+    # The same page: the Northumbrian name of the catalog's border pipes
+    'half long pipes': 'border pipes',
+    # https://en.wikipedia.org/wiki/Galician_gaita ("The Galician gaita (Galician: Gaita galega,
+    # Portuguese: Gaita galega, Spanish: Gaita gallega) is the traditional instrument of Galicia
+    # and northern Portugal."): the Galician name of the catalog's galician gaita
+    'gaita galega': 'galician gaita',
 }
