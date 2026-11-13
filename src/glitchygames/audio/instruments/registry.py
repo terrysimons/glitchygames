@@ -15,6 +15,7 @@ from glitchygames.audio.instruments.brass import BRASS
 from glitchygames.audio.instruments.catalog import ENTRY_NAME_PATTERN, CatalogEntry, Family, Tag
 from glitchygames.audio.instruments.drums import DRUMS_AND_PERCUSSION
 from glitchygames.audio.instruments.electronic import ELECTRONIC
+from glitchygames.audio.instruments.flutes import FLUTES
 from glitchygames.audio.instruments.idiophones import FRICTION_INSTRUMENTS, PLUCKED_IDIOPHONES
 from glitchygames.audio.instruments.keyboards import ELECTROMECHANICAL, KEYBOARDS, ORGANS
 from glitchygames.audio.instruments.noise_makers import NOISE_MAKERS
@@ -27,7 +28,6 @@ from glitchygames.audio.instruments.winds import (
     BAGPIPES,
     CLARINETS,
     DOUBLE_REEDS,
-    FLUTES,
     FREE_REEDS,
     SAXOPHONES,
 )
