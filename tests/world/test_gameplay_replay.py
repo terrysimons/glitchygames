@@ -28,6 +28,7 @@ from glitchygames.build_info import RevisionSource, engine_source_revision
 from glitchygames.debug import DebugPanel
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
+from glitchygames.engine_context import EngineContext
 from glitchygames.events import FPSEVENT, allow_every_event_type
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
@@ -48,6 +49,7 @@ from glitchygames.recording import (
     pending_internal_posts,
     post_event,
     post_input_event,
+    private_event_queue,
 )
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
@@ -1293,6 +1295,67 @@ class TestReplayDoors:
         assert recorded['saves_opened'] == {'game': {}}
         assert recorded['device_enumeration'] == enumeration
         assert 'devices_opened' not in recorded
+
+
+class TestPrivateEventQueue:
+    """An inner context posts to and drains a queue of its own, never SDL's (audit rows S5, S6)."""
+
+    def test_a_post_in_an_inner_context_never_reaches_sdls_queue(self):
+        pygame.event.clear()
+        probe_type = pygame.event.custom_type()
+        inner_context = EngineContext(name='inner')
+        with inner_context.active():
+            private_event_queue().enabled = True
+            assert post_event(pygame.event.Event(probe_type, value=1))
+            assert post_input_event(pygame.event.Event(probe_type, value=2))
+            private_events = list(private_event_queue().events)
+        assert pygame.event.get(eventtype=probe_type) == []
+        assert [event.dict for event in private_events] == [{'value': 1}, {'value': 2}]
+        assert not private_event_queue().enabled
+        assert private_event_queue().events == []
+
+    def test_an_inner_replays_pump_leaves_an_owners_event_in_sdls_queue(self):
+        pygame.event.clear()
+        owner_type = pygame.event.custom_type()
+        post_event(pygame.event.Event(owner_type, value='owner'))
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        with EngineContext(name='inner').active():
+            private_event_queue().enabled = True
+            install_sources(sources=sources)
+            sources.pump_events()
+        left_in_sdl = pygame.event.get(eventtype=owner_type)
+        assert [event.dict for event in left_in_sdl] == [{'value': 'owner'}]
+        pygame.event.clear()
+
+    def test_an_inner_replay_serves_its_own_posts_as_internal(self):
+        pygame.event.clear()
+        probe_type = pygame.event.custom_type()
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        with EngineContext(name='inner').active():
+            private_event_queue().enabled = True
+            install_sources(sources=sources)
+            post_event(pygame.event.Event(probe_type, value=3))
+            batch = sources.pump_events()
+            assert [event.dict for event in batch if event.type == probe_type] == [{'value': 3}]
+            assert sources.last_batch_origins() == [INTERNAL_ORIGIN]
+            assert private_event_queue().events == []
+
+    def test_an_inner_replay_never_blocks_input_at_sdl(self):
+        pygame.event.clear()
+        watched_types = (pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.JOYAXISMOTION)
+        blocked_before = {
+            event_type: pygame.event.get_blocked(event_type) for event_type in watched_types
+        }
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        with EngineContext(name='inner').active():
+            private_event_queue().enabled = True
+            install_sources(sources=sources)
+            sources.pump_events()
+            sources.pump_events()
+        blocked_after = {
+            event_type: pygame.event.get_blocked(event_type) for event_type in watched_types
+        }
+        assert blocked_after == blocked_before
 
 
 class TestReplayFps:

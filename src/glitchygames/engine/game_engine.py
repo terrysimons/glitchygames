@@ -31,6 +31,7 @@ from typing import (
 )
 
 import pygame
+from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock, events
 from glitchygames.ai_link import AiLink, create_link
@@ -107,6 +108,12 @@ from glitchygames.recording_history import (
     CONTENT_HASH_SCHEME,
     MEASUREMENT_RUNS_HEADER_FIELD,
     MeasurementRun,
+)
+from glitchygames.render_target import (
+    hosted_start_requested,
+    is_inner_context,
+    note_started_engine,
+    render_target,
 )
 from glitchygames.replay.audit import (
     AuditRunError,
@@ -733,6 +740,21 @@ def startup_options_block(*, game_name: str, options: Mapping[str, Any]) -> str:
         options=displayed_options(options=options), indent=OPTIONS_BLOCK_INDENT
     )
     return '\n'.join([f'Options for {game_name} (secrets redacted):', *lines])
+
+
+class ReplayReport(BaseModel):
+    """A replay's settled report (``GameEngine.settle_replay_report``; read-only).
+
+    Attributes:
+        text: The report (``ReplayResult.report``, or what ended the run early).
+        is_failure: True when it reports a divergence or an early end.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    text: str
+    is_failure: bool
 
 
 class NoRunningEngineError(RuntimeError):
@@ -1460,7 +1482,10 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # (_restore_sdl_driver_variables); None when the run changed neither
         self._sdl_driver_variables_before_run: dict[str, str | None] | None = None
         # Before anything starts the display or the mixer (pygame.init() below)
-        self._choose_sdl_drivers(options=options)
+        # An inner context (glitchygames/render_target.py) shares the process's drivers with
+        # every other context: it never changes the variables or restarts the display or mixer
+        if not is_inner_context():
+            self._choose_sdl_drivers(options=options)
 
         # NOTE: Game is coupled to event manager for unhandled event routing.
         # Decoupling tracked in https://glitchy-games.atlassian.net/browse/GG-22
@@ -1713,6 +1738,19 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # There are various caveats for hardware accelerated blitting
         # that make it undesirable in a lot of cases, so we'll just use
         # software.
+        # An inner context draws on its render target: it never opens or resizes the window nor
+        # sets its cursor (row S1 of plans/2026-10-25-engine-context.md;
+        # glitchygames/render_target.py)
+        inner_target = render_target()
+        if inner_target is not None:
+            self.display_info = pygame.display.Info()
+            self.initial_resolution = inner_target.get_size()
+            self.cursor = []
+            self.display_update = pygame.display.update
+            self.screen = inner_target
+            paint_default_background(surface=self.screen)
+            self.scene_manager.screen = self.screen
+            return
         self.display_info = pygame.display.Info()
         self.initial_resolution: tuple[int, int] = (
             self.display_info.current_w,
@@ -2049,6 +2087,10 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         icon: pygame.Surface = icon_attr
 
+        # The window's icon and caption are its owner's: an inner context sets neither (row S2
+        # of plans/2026-10-25-engine-context.md)
+        if is_inner_context():
+            return
         pygame.display.set_icon(icon)
 
         # The game's caption until its scene sets its own, not the engine's placeholder
@@ -2087,7 +2129,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         if input_mode is InputMode.JOYSTICK:
             self.controller_manager = None
-            pygame.event.set_blocked(events.CONTROLLER_EVENTS)
+            events.set_event_types_allowed(event_types=events.CONTROLLER_EVENTS, allowed=False)
             LOG.info('Input mode: joystick (controller events blocked)')
         else:
             self.controller_manager = ControllerEventManager(game=self.scene_manager)
@@ -2210,7 +2252,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             # at SDL: the live game (joystick mode) keeps them blocked, and the scope's events
             # come from the recording, not SDL
             self.controller_manager = ControllerEventManager(game=self.scene_manager)
-            pygame.event.set_blocked(events.CONTROLLER_EVENTS)
+            events.set_event_types_allowed(event_types=events.CONTROLLER_EVENTS, allowed=False)
         self.joystick_manager.joysticks = (
             self.joystick_manager.open_connected_joysticks()
             if adopted is None
@@ -3180,8 +3222,35 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
     def _report_replay_result(self: Self, *, run_ended_by: str | None) -> None:
         """Settle the replay's result and report it, if replaying (rule 11).
 
-        The report (``ReplayResult.report``) is printed to stdout under ``--headless``, where it
+        The report (``settle_replay_report``) is printed to stdout under ``--headless``, where it
         is the run's output, and logged otherwise (as an error when the replay diverged).
+
+        Args:
+            run_ended_by: What ended the run early (an exit status as
+                ``ExitCode.describe_status`` gives it), or None when the run ended normally.
+
+        """
+        if self.replay_sources is None:
+            return
+        report = self.settle_replay_report(
+            replay_sources=self.replay_sources, run_ended_by=run_ended_by
+        )
+        if self.replay_sources.options.headless:
+            sys.stdout.write(f'{report.text}\n')
+            sys.stdout.flush()
+        elif report.is_failure:
+            self.log.error(report.text)
+        else:
+            self.log.info(report.text)
+
+    def settle_replay_report(
+        self: Self, *, replay_sources: ReplaySources, run_ended_by: str | None
+    ) -> ReplayReport:
+        """Settle the replay's result (``ReplaySources.finish_run``) and return its report.
+
+        The report is ``ReplayResult.report``; ``_report_replay_result`` prints or logs it, and
+        an inner game (glitchygames/inner_game.py), which writes nothing to stdout, keeps it in
+        its outcome.
 
         Any early end of the run (a crash, Ctrl-C, a signal, or any SystemExit, a game's own
         ``sys.exit(0)`` included) is reported by what ended it: before the replay reached its
@@ -3195,16 +3264,19 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         says so after the report.
 
         Args:
+            replay_sources: The run's replay doors (``self.replay_sources``).
             run_ended_by: What ended the run early (an exit status as
-                ``ExitCode.describe_status`` gives it), or None when the run ended normally.
+                ``ExitCode.describe_status`` gives it, or an inner game's error), or None when
+                the run ended normally.
+
+        Returns:
+            The report and whether it reports a failure.
 
         """
-        if self.replay_sources is None:
-            return
-        result = self.replay_sources.result
+        result = replay_sources.result
         # Read before finish_run, which turns a replay still running into a length divergence
         replay_had_ended = result.end_reason != RUNNING_END_REASON
-        self.replay_sources.finish_run()
+        replay_sources.finish_run()
         if run_ended_by is not None and replay_had_ended:
             report = f'{result.report()}\nthen the run ended with {run_ended_by}'
             is_failure = True
@@ -3225,26 +3297,20 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             else:
                 self.rebaseline.discard()
                 report = f'{report}\n{self.rebaseline.destination} was not written'
-        elif self.replay_sources.is_reseeded and run_ended_by is None:
+        elif replay_sources.is_reseeded and run_ended_by is None:
             # Under another seed than recorded (rule 19 of glitchygames/replay/driver.py) the
             # differences are what the replay reports, never a failure, and nothing is written
             report = RebaselineSummary.from_result(
                 result=result, path=None
             ).describe_reseeded_replay(
-                random_seed=self.replay_sources.random_seed,
-                recorded_seed=self.replay_sources.recorded_seed,
+                random_seed=replay_sources.random_seed,
+                recorded_seed=replay_sources.recorded_seed,
             )
             is_failure = False
         if result.processing is not None:
             # After the replay's own report (glitchygames/replay/processing.py)
             report = f'{report}\n{result.processing.describe()}'
-        if self.replay_sources.options.headless:
-            sys.stdout.write(f'{report}\n')
-            sys.stdout.flush()
-        elif is_failure:
-            self.log.error(report)
-        else:
-            self.log.info(report)
+        return ReplayReport(text=report, is_failure=is_failure)
 
     def _enter_headless_mode(self: Self) -> None:
         """--headless: run on SDL's dummy video and audio drivers (no window, no sound).
@@ -3597,7 +3663,20 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         short (``ExitCode.REPLAY_DIVERGED``; a rebaseline ends normally then, with what the game
         ran); at the normal end of a replay, with the replay's exit code (``ExitCode.SUCCESS``,
         ``ExitCode.REPLAY_DIVERGED`` or ``ExitCode.UNUSABLE_INPUT`` for a truncated recording).
+
+        A hosted start (``render_target.hosted_start_requested()``: an inner context, or one
+        that called ``request_hosted_start()``) builds the game up to its first frame and
+        returns, keeping the engine for the host (``render_target.take_started_engine()``),
+        which runs the frames and their end itself; none of the above applies to it.
         """
+        # A hosted start (an inner context, or one that asked: glitchygames/render_target.py):
+        # build the game up to its first frame and hand the engine to the host, which steps its
+        # frames. No signal handlers, no blocking loop and no crash boundary, whose teardown
+        # would quit pygame for every context
+        if hosted_start_requested():
+            self._build_game(paced_by_timer=False)
+            note_started_engine(engine=self)
+            return
         profiler = self._begin_start()
         with self._crash_boundary(profiler=profiler):
             self._run_game()

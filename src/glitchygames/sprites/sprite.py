@@ -30,6 +30,7 @@ import pygame
 
 from glitchygames.engine_context import ContextSlot, current_context
 from glitchygames.read_only_views import ReadOnlyView, ReadOnlyViewsABC
+from glitchygames.render_target import display_surface
 
 from .root_sprite import RootSprite
 
@@ -189,8 +190,9 @@ class Sprite(RootSprite, metaclass=ReadOnlyViewsABC):  # ruff: ignore[too-many-p
         # Sprites can register callbacks for any event type.
         self.callbacks: dict[str, Any] = {}
 
-        # Each sprite maintains a reference to the screen.
-        self.screen = pygame.display.get_surface()
+        # Each sprite maintains a reference to the screen: an inner context's render target,
+        # else the display (glitchygames/render_target.py)
+        self.screen = display_surface()
         assert self.screen is not None, (
             'Display surface must be initialized before creating sprites'
         )

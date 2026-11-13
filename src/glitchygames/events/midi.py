@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 
-from glitchygames.events import MIDI_EVENTS
+from glitchygames.events import MIDI_EVENTS, set_event_types_allowed
 
 if TYPE_CHECKING:
     import argparse
@@ -81,7 +81,7 @@ class MidiEventManager(ResourceManager):
         """
         super().__init__(game=game)
         try:
-            pygame.event.set_allowed(MIDI_EVENTS)
+            set_event_types_allowed(event_types=MIDI_EVENTS, allowed=True)
         except pygame.error:
             log.debug('Failed to set allowed MIDI events: pygame not fully initialized')
         self.game = game
