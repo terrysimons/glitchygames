@@ -28,6 +28,7 @@ from glitchygames.audio.instruments.voices import CHOIRS, VOICES
 from glitchygames.audio.instruments.winds import (
     BAGPIPES,
     CLARINETS,
+    DOUBLE_REEDS,
     FREE_REEDS,
     SAXOPHONES,
 )
