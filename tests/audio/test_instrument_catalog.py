@@ -796,6 +796,8 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('etherwave', 'theremin'),
         ('chip sawtooth', 'sid sawtooth'),
         ('ym2149', 'ay 3 8910'),
+        ('soprano viol', 'treble viol'),
+        ('lira korbowa', 'hurdy gurdy'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -1584,7 +1586,10 @@ EXISTING_BOWED_NAMES = frozenset({
 NEW_BOWED_NAMES: list[str] = []
 # Batch 7's sound-alikes and the entry each sounds like, in the sheet's order (Tasks 3 and 5
 # fill it)
-BOWED_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+BOWED_SOUND_ALIKE_PARENTS: dict[str, str] = {
+    'viola pomposa': 'viola',
+    'bowed psaltery': 'violin',
+}
 
 
 class BatchFamily(NamedTuple):

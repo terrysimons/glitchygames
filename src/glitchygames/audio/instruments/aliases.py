@@ -263,4 +263,14 @@ ALIASES: Final[dict[str, str]] = {
     # licensed chip, its tone channels the AY's; the differences are the clock pin and the
     # envelope table, not the square tone
     'ym2149': 'ay 3 8910',
+    # --- Batch 7's bowed strings, in the order of plans/data/instrument-audit/batch-7.tsv
+    # https://musicbrainz.org/instrument/8f15287f-48c1-4a7c-a7f7-30653c490279 (the viol family
+    # lists the consort as "Soprano viol (treble)" and the first grouping as "Treble/Diskant or
+    # Dessus viol"); https://en.wikipedia.org/wiki/Viol ("treble (dessus in French)"): the
+    # catalog treble viol under another name
+    'soprano viol': 'treble viol',
+    # https://en.wikipedia.org/wiki/Hurdy-gurdy ("In Poland it is called 'cranked lyre' (lira
+    # korbowa)."): the Polish name for the hurdy gurdy; an alias is a name, not a build, so it
+    # does not share the approximating hurdy gurdy's sound as a sound-alike would
+    'lira korbowa': 'hurdy gurdy',
 }
