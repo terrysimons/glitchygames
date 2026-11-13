@@ -15,8 +15,10 @@ import pytest
 
 from glitchygames import events
 from glitchygames.engine import GameEngine
+from glitchygames.engine_context import EngineContext
 from glitchygames.events import HashableEvent
 from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
+from glitchygames.render_target import set_render_target
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.scenes import Scene, SceneManager
 from tests.input.stand_in_devices import install_stand_in_devices
@@ -473,6 +475,34 @@ class TestNativeWindowMessages:
             assert pygame.event.get_blocked(pygame.SYSWMEVENT) is False
         finally:
             pygame.event.set_blocked(pygame.SYSWMEVENT)
+
+    def test_setting_event_types_allowed_changes_sdl_outside_an_inner_context(self):
+        """The default context allows and blocks at SDL, as pygame.event.set_allowed/blocked do."""
+        try:
+            events.set_event_types_allowed(event_types=pygame.MOUSEWHEEL, allowed=False)
+            assert pygame.event.get_blocked(pygame.MOUSEWHEEL) is True
+
+            events.set_event_types_allowed(event_types=[pygame.MOUSEWHEEL], allowed=True)
+            assert pygame.event.get_blocked(pygame.MOUSEWHEEL) is False
+        finally:
+            pygame.event.set_allowed(pygame.MOUSEWHEEL)
+
+    def test_setting_event_types_allowed_changes_nothing_in_an_inner_context(self):
+        """Row S6: an inner context (one with a render target) never changes SDL's blocked set."""
+        inner_context = EngineContext(name='inner')
+        pygame.event.set_blocked(pygame.MOUSEWHEEL)
+        try:
+            with inner_context.active():
+                set_render_target(surface=pygame.Surface((8, 8)))
+                events.set_event_types_allowed(event_types=None, allowed=True)
+                events.allow_every_event_type(native_window_messages=True)
+                events.set_event_types_allowed(event_types=pygame.KEYDOWN, allowed=False)
+
+            assert pygame.event.get_blocked(pygame.MOUSEWHEEL) is True
+            assert pygame.event.get_blocked(pygame.SYSWMEVENT) is True
+            assert pygame.event.get_blocked(pygame.KEYDOWN) is False
+        finally:
+            pygame.event.set_allowed(pygame.MOUSEWHEEL)
 
     def test_game_engine_event_manager_integration(self, engine, scene):
         """The engine's managers route to the scene manager, whose active scene is the game."""

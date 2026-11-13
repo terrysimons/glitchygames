@@ -41,10 +41,10 @@ parameters:
     default: "e0a74a5d2688d1254b4e17b71f068a83215e3625f846265bf6614c7ba06f3a96"
   GRYPE_VERSION:
     type: string
-    default: "0.121.0"
+    default: "0.121.3"
   GRYPE_DARWIN_ARM64_SHA256:
     type: string
-    default: "7be39d3a0428c664ce0183e4aba31ed9accffce9eda7e7f6fa84e9c512285f27"
+    default: "54336f2cd8cdee8b3d8ea83462561ff7fa9293498054c7c53a193db44bfea4c8"
   # The fingerprint of the deploy key that may push gh-pages (a GitHub deploy key with write
   # access to this repository, its private half in this CircleCI project's SSH keys): the
   # deploy-docs job loads it with add_ssh_keys

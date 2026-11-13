@@ -29,6 +29,7 @@ from glitchygames.events import (
     ControllerTouchpadEvent,
     HashableEvent,
     ResourceManager,
+    set_event_types_allowed,
 )
 from glitchygames.input.action_map import DEFAULT_DEADZONE
 from glitchygames.input.devices import sdl_controller_module
@@ -365,7 +366,7 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         super().__init__(game=game)
         # Ensure controller events are enabled
         try:
-            pygame.event.set_allowed(CONTROLLER_EVENTS)
+            set_event_types_allowed(event_types=CONTROLLER_EVENTS, allowed=True)
         except pygame.error:
             LOG.debug('Failed to set allowed controller events: pygame not fully initialized')
         # By instance id: the id every controller event carries (a device index is only valid
