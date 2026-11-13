@@ -45,8 +45,9 @@ ORGAN_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
     # Organ-Stops and Their Artistic Registration, 1921,
     # https://archive.org/download/cu31924086010331/cu31924086010331_djvu.txt: "The Bourdon, 16
     # ft., most frequently appears, in English and American instruments of moderate dimensions, in
-    # the Pedal Organ"). The AGO's Standard Console Guidelines
-    # (https://www.organsupply.com/assets/Brochures/Console-Tri-Fold.pdf), under Pedalboard:
+    # the Pedal Organ"; OCR errors in the archive.org text corrected). The AGO's Standard Console
+    # Guidelines (https://www.organsupply.com/assets/Brochures/Console-Tri-Fold.pdf), under
+    # Pedalboard:
     # "Compass: 32 notes, CCC to G"; the AGO's Pipe Organ Guide (archived, above): "low C is also
     # the lowest written note" and "others have 32-to G above middle C". So the keys are C2 (low C)
     # to G4 (G above middle C), 32 keys, sounding C1-G3 at 16'
@@ -66,8 +67,8 @@ ORGAN_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
     # Registration (1921, https://archive.org/download/cu31924086010331/cu31924086010331_djvu.txt),
     # CROMORNE: "Ger., Krummhorn. — The name used by French and German organ-builders to
     # designate a lingual stop, the tone of which somewhat resembles that of the Clarinet, but
-    # with a smoother and mournful character." and "It is commonly of 8 ft. pitch." Range: the
-    # manual, C2-C7, at 8'
+    # with a smoother and mournful character." and "It is commonly of 8 ft. pitch."
+    # (OCR errors in the archive.org text corrected). Range: the manual, C2-C7, at 8'
     CatalogEntry(
         'organ krummhorn',
         "Krummhorn 8'",
@@ -82,8 +83,9 @@ ORGAN_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
     # resonators of the unimitative Oboe, 8 ft., are approximately of the standard speaking
     # lengths; and are in the form of slender tapered tubes surmounted by long inverted conical
     # bells" and "A lingual stop, of 8 ft. pitch, which belongs to the manual department of the
-    # Organ." Its softness is a loudness and its bell no buildable trait. Range: the manual,
-    # C2-C7, at 8'
+    # Organ." (OCR errors in the archive.org
+    # text corrected). Its softness is a loudness and its bell no buildable trait. Range: the
+    # manual, C2-C7, at 8'
     CatalogEntry(
         'organ oboe',
         "Oboe 8'",

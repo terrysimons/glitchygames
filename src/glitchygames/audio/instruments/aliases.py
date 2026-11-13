@@ -450,10 +450,11 @@ ALIASES: Final[dict[str, str]] = {
     # Audsley, Organ-Stops and Their Artistic Registration (1921,
     # https://archive.org/download/cu31924086010331/cu31924086010331_djvu.txt), TRUMPET:
     # "TRUMPET.— Fr., Trompette. Ger., Trompete." "The manual lingual stop, of 8 ft. pitch, to
-    # which these names are given by the organ-builders of different countries"; the Encyclopedia
-    # of Organ Stops (http://www.organstops.org/t/Trumpet.html) lists "Trompette French" among the
-    # stop's names: the French name of the trumpet stop, the catalog's pipe organ reed ("Pipe
-    # organ, trumpet 8'")
+    # which these names are given by the organ-builders of different countries" (OCR errors in the
+    # archive.org text corrected); the Encyclopedia of Organ Stops
+    # (http://www.organstops.org/t/Trumpet.html) lists "Trompette French" among the stop's names:
+    # the French name of the trumpet stop, the catalog's pipe organ reed ("Pipe organ, trumpet
+    # 8'")
     'organ trompette': 'pipe organ reed',
     # --- Batch 13's organs: the organs as instruments, in the order of
     # plans/data/instrument-audit/batch-13.tsv

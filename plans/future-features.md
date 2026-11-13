@@ -4039,7 +4039,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
     `voix celeste` C2-C7 on the 61-note manual (the Pipe organ page, cited to the AGO's Pipe Organ
     Guide: "sixty-one notes (five octaves, from C to c⁗)", c⁗ read as C7 by the page's own
     Helmholtz notation), all at 8'; `cornet organ` C4-C7 (the Encyclopedia of Organ Stops: "usually
-    from middle C upwards", Audsley agrees) with the five ranks 8' + 4' + 2 2/3' + 2' + 1 3/5';
+    from middle C upwards") with the five ranks 8' + 4' + 2 2/3' + 2' + 1 3/5';
     `bourdon` C2-G4 on the pedal at 16'. Confirm the rule and each derived range
   - [ ] `bourdon` on the pedal (C2-G4 keys, sounding C1-G3): Audsley says the 16' bourdon "most
     frequently appears, in English and American instruments of moderate dimensions, in the Pedal
@@ -4071,8 +4071,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - [ ] `STOPPED_FLUTE_LEVELS`, `CLOSED_REED_LEVELS` and `compound_stop_levels` (`chorus_cents`
     was not added), each with the trait its source names: `STOPPED_FLUTE_LEVELS` is `(1.0, 0.0,
     0.12, 0.0, 0.02)`, `FLUTE_STOP_LEVELS` with the even harmonics silent (Audsley, The Organ of
-    the Twentieth Century, 1919: the covered pipe's missing even harmonics, "proper to a covered
-    organ-pipe"); `CLOSED_REED_LEVELS` is `falling_series(count=28, decibels_per_octave=2.5,
+    the Twentieth Century, 1919: the covered pipe's missing even harmonics, "Covered pipes cannot
+    give the uneven upper partial tones"); `CLOSED_REED_LEVELS` is `falling_series(count=28,
+    decibels_per_octave=2.5,
     odd_only=True)` (the Encyclopedia of Organ Stops, Clarinet: cylindrical resonators of half
     length, reinforcing the odd-numbered harmonics), with a line in the process-state guard's
     `CATALOG_SERIES`; `compound_stop_levels` places each rank's levels at harmonic 8/footage and
@@ -4130,7 +4131,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
     organ` (no fetched page uses the name; reversed from a target alias of `fairground organ`, as
     `regal organ`), and `dulciana` and `gemshorn` as earlier sheets decided them (batch 11's DROP:
     also the dulcian's Italian name; batch 9's WAIT: the vessel flute, whose page says the organ
-    stop is modelled on it). Already decided, so decided here: dulciana and gemshorn
+    stop is modelled on it). Already decided, so decided here: dulciana, gemshorn and
+    `hydraulophone` (batch 9's WAIT, flutes: the sheet's row is DROP "Already decided")
   - [ ] One-offs and the in-production line: `componium`, `apollonicon`, `sea organ`, `beer bottle
     organ`, `bubble organ`, `uberorgan` and `sequential resonation machine` are dropped as one-off
     instruments (one maker's or artist's design not in production), `hydraulis` and `portative
@@ -4204,7 +4206,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Incidents and process**:
   - [ ] The Pi hook was skipped while the Pis were unreachable (the owner, 2026-11-13)
   - [ ] The syft pin is 1.57.1 on the stack (the owner's choice, batch 12's note)
-  - [ ] Batch 11 was squash-merged into batch 10, and batch 12 merged batch 10's tip,; batch 13's
+  - [ ] Batch 11 was squash-merged into batch 10, and batch 12 merged batch 10's tip, batch 13's
     base is batch 12's `5cbbf882`
   - [ ] The controller's code check (`build/batch-13-code-check.py`) had a bug: its DROP and WAIT
     branch asserted that no such name was in `CATALOG` or `ALIASES`, but `vox continental` is an

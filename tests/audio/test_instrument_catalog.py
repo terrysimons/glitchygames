@@ -1,7 +1,10 @@
 """The instrument catalog: every entry builds, renders across its range and plays its pitch."""
 
+import ast
+import csv
 from fractions import Fraction
 from functools import partial
+from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
@@ -2540,3 +2543,47 @@ def test_a_compound_stop_sums_its_ranks_as_harmonics():
         compound_stop_levels((1.0,), (3.0,))
     with pytest.raises(ValueError, match='32'):
         compound_stop_levels((1.0, 0.5), (0.25,))
+
+
+def test_the_cornet_organ_ships_the_levels_its_sheet_row_names():
+    """The cornet's own build matches the builder cell of its row in batch-13.tsv.
+
+    The cell reads ``_pipe_stop(compound_stop_levels(FLUTE_STOP_LEVELS, (8.0, 4.0, 8.0 / 3.0,
+    2.0, 1.6)), chiff=0.02)``. The footages are read out of the cell and run through
+    compound_stop_levels, so the sheet and the shipped build can not drift apart.
+    """
+    sheet = Path(__file__).parents[2] / 'plans' / 'data' / 'instrument-audit' / 'batch-13.tsv'
+    with sheet.open(encoding='utf-8', newline='') as sheet_file:
+        rows = [
+            row
+            for row in csv.DictReader(sheet_file, delimiter='\t')
+            if row['name'] == 'cornet organ'
+        ]
+    assert len(rows) == 1
+    builder_cell = rows[0]['builder'].split(', as an inline partial')[0]
+    builder_call = ast.parse(builder_cell, mode='eval').body
+    assert isinstance(builder_call, ast.Call)
+    compound_call = builder_call.args[0]
+    assert isinstance(compound_call, ast.Call)
+    footages_node = ast.Expression(compound_call.args[1])
+    footages = eval(compile(footages_node, '<sheet>', 'eval'), {'__builtins__': {}})  # ruff: ignore[suspicious-eval-usage]
+    expected = compound_stop_levels(FLUTE_STOP_LEVELS, footages)
+
+    build = instruments.entry('cornet organ').build
+    assert isinstance(build, partial)
+    assert build.args[0] == expected
+    assert build.keywords == {'chiff': 0.02}
+    assert all(level > 0.0 for level in expected[:5])
+    assert max(expected) == 1.0
+
+
+def test_compound_stop_levels_refuses_empty_levels_and_a_footage_of_zero():
+    """Empty levels, no ranks and a footage of zero or less each raise a ValueError saying so."""
+    with pytest.raises(ValueError, match='at least one harmonic level'):
+        compound_stop_levels((), (8.0,))
+    with pytest.raises(ValueError, match='at least one rank'):
+        compound_stop_levels((1.0,), ())
+    with pytest.raises(ValueError, match='above zero'):
+        compound_stop_levels((1.0,), (0.0,))
+    with pytest.raises(ValueError, match='above zero'):
+        compound_stop_levels((1.0,), (-8.0,))

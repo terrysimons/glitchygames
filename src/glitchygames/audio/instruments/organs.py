@@ -92,11 +92,21 @@ def compound_stop_levels(levels: Sequence[float], footages: Sequence[float]) -> 
         The summed levels, harmonic 1 first, the loudest 1.0.
 
     Raises:
-        ValueError: On a rank whose footage is not 8 / n feet for a whole n, or whose levels
-            would reach above the highest harmonic a wave holds.
+        ValueError: On empty levels or footages, a footage that is not above zero, a rank whose
+            footage is not 8 / n feet for a whole n, or whose levels would reach above the
+            highest harmonic a wave holds.
     """
+    if not levels:
+        message = 'a compound stop needs at least one harmonic level'
+        raise ValueError(message)
+    if not footages:
+        message = 'a compound stop needs at least one rank'
+        raise ValueError(message)
     rank_harmonics: list[int] = []
     for footage in footages:
+        if footage <= 0.0:
+            message = f"a rank's footage must be above zero, not {footage}"
+            raise ValueError(message)
         harmonic = UNISON_FOOTAGE / footage
         if not harmonic.is_integer():
             message = f"a {footage}' rank does not sound a harmonic of the key"
@@ -211,16 +221,20 @@ _ORGAN_BUILDS: Final[tuple[CatalogEntry, ...]] = (
     # wide-scaled compound stop without breaks, containing a third-sounding rank, often of short
     # (treble) compass."; of the classical French Cornet, "It was a solo stop, almost invariably
     # composed of the following five ranks:" Bourdon 8', Prestant 4', Nasard 2-2/3', Quarte de
-    # Nasard 2' and Tierce 1-3/5', "The ranks were all of wide scale", and "It was invariably of
-    # short compass, usually from middle C upwards." Audsley, Organ-Stops and Their Artistic
-    # Registration (1921, https://archive.org/download/cu31924086010331/cu31924086010331_djvu.txt):
+    # Nasard 2' and Tierce 1-3/5', "The ranks were all of wide scale, and all open except for the
+    # 8'." and "It was invariably of short compass, usually from middle C upwards." Audsley,
+    # Organ-Stops and Their Artistic Registration (1921, https://archive.org/download/cu31924086010331/cu31924086010331_djvu.txt):
     # "The compound tone of the Cornet was, on account of the large scale of its pipes, flutey in
     # character" and "Being unbroken in its ranks". So the five ranks are harmonics 1, 2, 3, 4 and
     # 5 of the key, one wave (compound_stop_levels) at 8'. Range: middle C (C4), from the stop's
     # own source, up to the manual's top key, C7.
     # Sourced: the five unbroken ranks, their flute tone and the compass from middle C. Sound
     # design: each rank's levels (FLUTE_STOP_LEVELS, the same for every rank) and chiff, copied
-    # from pipe organ flute
+    # from pipe organ flute. One table serves every rank, the stopped 8' rank included, because
+    # that rank's missing even harmonics (FLUTE_STOP_LEVELS' 0.02 at harmonic 4) lie under the 4'
+    # and 2' ranks' fundamentals, so one table for every rank changes nothing audible (the sheet's
+    # ruling, plans/data/instrument-audit/batch-13.tsv). The middle C compass is the Encyclopedia's
+    # alone; Audsley's quotes here are not cited for it
     CatalogEntry(
         'cornet organ',
         'Cornet V',
