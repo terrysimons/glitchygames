@@ -54,4 +54,26 @@ DOUBLE_REED_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
         'A6',
         sounds_like='heckelphone',
     ),
+    # --- Batch 11's folk and traditional shawms and oboes, in the order of
+    # plans/data/instrument-audit/batch-11.tsv
+    # Sound-alike of the duduk (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Balaban_(instrument) ("The balaban or balaman (Azerbaijani:
+    # Balaban) is a double-reed pipe with cylindrical bore, about 35 centimetres (14 in) in
+    # length, with eight finger holes and one thumb hole" and "The Azeri balaban, the Turkish
+    # mey, and the Armenian duduk are almost identical, except for historical and geographical
+    # differences."): the duduk's own cylindrical bore, with no trait of its own. Range, from the
+    # Azerbaijan State Museum of Musical Culture, Balaban
+    # (https://musicmuseum.az/en/index.php?id=90104): "The balaban's range goes from the "sol" of
+    # the small octave to the "do" of the second octave." (the page's curly quotes are written
+    # straight here): the small octave's sol is G3 and the second octave's do
+    # is C5. The page's "The diapason can be expanded, depending upon the mastery of the
+    # performer." is a top given to the player, so it is left out
+    CatalogEntry(
+        'balaban',
+        'Balaban',
+        Family.DOUBLE_REEDS,
+        'G3',
+        'C5',
+        sounds_like='duduk',
+    ),
 )

@@ -393,4 +393,33 @@ ALIASES: Final[dict[str, str]] = {
     # https://en.wikipedia.org/wiki/Rackett ("The rackett, raggett, cervelas, or sausage bassoon
     # is a Renaissance-era double reed wind instrument"): another name for the catalog's rackett
     'cervelas': 'rackett',
+    # https://en.wikipedia.org/wiki/Gyaling ("As its name indicates, it is the Chinese double reed
+    # Suona horn (much like the Iranian sorna) used mainly in Tibetan monasteries during puja
+    # (chanting and prayer)"): the suona under its Tibetan name
+    'gyaling': 'suona',
+    # https://en.wikipedia.org/wiki/Zurna ("Also called sunay, birbynė, lettish horn, zurla or
+    # zurle, surla, sornai, zournas, zurma, or zurnes."): another name for the catalog's zurna
+    'zurla': 'zurna',
+    # https://en.wikipedia.org/wiki/Bombard_(musical_instrument) ("The bombard (Breton: bombard,
+    # talabard, French: bombarde) is a contemporary family of oboes widely used to play
+    # traditional Breton music, where it is considered emblematic."): the Breton instrument that
+    # is the catalog's bombarde
+    'bombard': 'bombarde',
+    # https://en.wikipedia.org/wiki/Surna (a disambiguation page: "Zurna or Surna, a
+    # multinational outdoor wind instrument" and "Sorna or Surna, an ancient Iranian woodwind
+    # instrument"): the name also covers the sorna, a distinct instrument that is not in the
+    # catalog, so it stands for the zurna, the disambiguation's first sense
+    'surna': 'zurna',
+    # https://en.wikipedia.org/wiki/Zurna (its Persian name: "Persian: karna/Kornay/surnay"):
+    # another name for the catalog's zurna. The Sorna page gives "surnāy" for the sorna too, so
+    # like surna it stands for the zurna, the sense the Zurna page gives directly
+    'surnay': 'zurna',
+    # https://en.wikipedia.org/wiki/Zurna ("Also called sunay, birbynė, lettish horn, zurla or
+    # zurle, surla, sornai, zournas, zurma, or zurnes." and "Greek: ζουρνάς"): the Greek name of
+    # the catalog's zurna
+    'zournas': 'zurna',
+    # https://en.wikipedia.org/wiki/Suona ("The suona, also called dida, laba or haidi, is a
+    # traditional double-reeded Chinese musical instrument."): another name for the catalog's
+    # suona
+    'haidi': 'suona',
 }

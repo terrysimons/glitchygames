@@ -835,6 +835,13 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('baritone oboe', 'bass oboe'),
         ('fagott', 'bassoon'),
         ('cervelas', 'rackett'),
+        ('gyaling', 'suona'),
+        ('zurla', 'zurna'),
+        ('bombard', 'bombarde'),
+        ('surna', 'zurna'),
+        ('surnay', 'zurna'),
+        ('zournas', 'zurna'),
+        ('haidi', 'suona'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -868,6 +875,8 @@ def test_the_batch_aliases_resolve(alias, target):
     inventionshorn, the didgeridoo as the yidaki and the mako, and the alphorn as the alpenhorn.
     Batch 11's first half names the english horn as the cor anglais, the bass oboe as the baritone
     oboe, the bassoon as the fagott (its German name) and the rackett as the cervelas.
+    Batch 11's second half names the suona as the gyaling and the haidi, the zurna as the zurla,
+    the surna, the surnay and the zournas, and the bombarde as the bombard.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1679,6 +1688,7 @@ NEW_DOUBLE_REED_NAMES: list[str] = []
 DOUBLE_REED_SOUND_ALIKE_PARENTS: dict[str, str] = {
     'contraforte': 'contrabassoon',
     'piccolo heckelphone': 'heckelphone',
+    'balaban': 'duduk',
 }
 
 
@@ -2179,7 +2189,9 @@ def test_no_brass_name_held_back_for_a_feature_is_listed():
 # of its own, with its waits_for: the WAIT rows whose reason is not "a sourced range", and the
 # alias rows that wait for one of them, in the sheet's order. None ships under that name or as an
 # alias until the engine or the build exists (decision 4; batch 11). The test matches exact names
-DOUBLE_REED_HELD_BACK: dict[str, str] = {}  # half A holds nothing back
+DOUBLE_REED_HELD_BACK: dict[str, str] = {
+    'aulos': 'a sourced drone tuning',
+}
 
 
 def test_no_double_reed_name_held_back_for_a_feature_is_listed():
