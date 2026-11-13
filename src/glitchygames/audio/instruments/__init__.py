@@ -134,15 +134,15 @@ Organs (19 entries) hold the family's builds in ``organs.py`` (the ``pipe organ`
 ``plenum``, ``positive organ``, ``theatre organ``, ``calliope``, and the batch's ``stopped
 diapason``, ``cornet organ`` and ``organ clarinet``) and their sound-alikes in
 ``organ_sound_alikes.py`` (``salicional``, ``voix celeste``, ``organ oboe``, ``organ krummhorn``,
-``organ tuba``, ``posthorn`` and ``bourdon``). ``keyboards.py`` keeps the keyboards and the
-electromechanical instruments. A stop sounds at its footage against its keys (a 16' an octave
-below, a 4' an octave above), and a sound-alike stop at another footage than its parent carries it
-as ``sound_changes`` (``bourdon``, the stopped diapason at 16'). A stop's range is its keys at 8'
-pitch. A stop whose footage no source gives, whose sounding span passes C8 (the 2' stops and high
-mutations), whose mixture breaks back or whose tone needs a tremulant waits (16 names are held back
-for such a reason), and ``open diapason``, ``organ trompette``, ``air calliope`` and
-``calliaphone`` are aliases. No self-playing organ shipped (each waits for a sourced range), so
-``Tag.MECHANICAL`` is still only on the ``music box``.
+``organ tuba``, ``posthorn`` and ``bourdon``). ``keyboards.py`` keeps the keyboards and
+``electromechanical.py`` the electromechanical instruments. A stop sounds at its footage against its
+keys (a 16' an octave below, a 4' an octave above), and a sound-alike stop at another footage than
+its parent carries it as ``sound_changes`` (``bourdon``, the stopped diapason at 16'). A stop's
+range is its keys at 8' pitch. A stop whose footage no source gives, whose sounding span passes C8
+(the 2' stops and high mutations), whose mixture breaks back or whose tone needs a tremulant waits
+(16 names are held back for such a reason), and ``open diapason``, ``organ trompette``, ``air
+calliope`` and ``calliaphone`` are aliases. No self-playing organ shipped (each waits for a sourced
+range), so ``Tag.MECHANICAL`` is still only on the ``music box``.
 
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and

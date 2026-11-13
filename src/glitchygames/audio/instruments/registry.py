@@ -17,10 +17,11 @@ from glitchygames.audio.instruments.catalog import ENTRY_NAME_PATTERN, CatalogEn
 from glitchygames.audio.instruments.clarinets import CLARINETS
 from glitchygames.audio.instruments.double_reeds import DOUBLE_REEDS
 from glitchygames.audio.instruments.drums import DRUMS_AND_PERCUSSION
+from glitchygames.audio.instruments.electromechanical import ELECTROMECHANICAL
 from glitchygames.audio.instruments.electronic import ELECTRONIC
 from glitchygames.audio.instruments.flutes import FLUTES
 from glitchygames.audio.instruments.idiophones import FRICTION_INSTRUMENTS, PLUCKED_IDIOPHONES
-from glitchygames.audio.instruments.keyboards import ELECTROMECHANICAL, KEYBOARDS
+from glitchygames.audio.instruments.keyboards import KEYBOARDS
 from glitchygames.audio.instruments.noise_makers import NOISE_MAKERS
 from glitchygames.audio.instruments.organs import ORGANS
 from glitchygames.audio.instruments.percussion import TUNED_PERCUSSION

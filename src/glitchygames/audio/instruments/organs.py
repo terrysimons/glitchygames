@@ -5,8 +5,8 @@ harmonic, a flute stop's nearly pure tone, a reed stop's brassy one. Ranges are 
 8' pitch (a 61-note manual, C2-C7), and a 16' stop or drawbar sounds an octave lower. A stop
 sounds at its footage against its keys (16' an octave below, 4' an octave above, 2 2/3' a twelfth
 above), through ``_pipe_stop``'s ``footage``. A self-playing organ carries ``Tag.MECHANICAL``. The
-sound-alikes are in ``organ_sound_alikes.py``; the keyboards and electromechanical instruments are
-in ``keyboards.py``.
+sound-alikes are in ``organ_sound_alikes.py``; the keyboards are in
+``keyboards.py`` and the electromechanical instruments in ``electromechanical.py``.
 """
 
 from __future__ import annotations
