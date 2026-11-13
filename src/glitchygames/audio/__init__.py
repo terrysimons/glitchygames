@@ -47,6 +47,7 @@ from glitchygames.audio.voices import (
     ChannelsHeldError,
     InnerGameChannelLayout,
     InnerGameChannelsError,
+    MixerBusyError,
     SoundHandle,
     reserve_inner_game_channels,
 )
@@ -73,6 +74,7 @@ __all__ = [
     'LiveVoice',
     'MacOSTTS',
     'Midi',
+    'MixerBusyError',
     'Noise',
     'Note',
     'OfflineEvent',

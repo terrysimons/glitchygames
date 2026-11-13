@@ -563,8 +563,9 @@ def reserve_inner_game_channels(
         ValueError: If ``games`` is below 1 or a channel count is negative.
         ChannelsHeldError: If an inner game holds channels of an earlier declaration.
         InnerGameChannelsError: If the mixer is not partitioned and no engine can partition it
-            now, or the mixer must grow while a channel plays (BUGS.md #145; the engine's own
-            partition made here refuses that growth with ``MixerBusyError``).
+            now, or the mixer must grow for the inner games while a channel plays (BUGS.md
+            #145; the engine's own partition made here first refuses that growth with
+            ``MixerBusyError``).
     """
     if games < 1:
         message = f'games must be >= 1, got {games}'
