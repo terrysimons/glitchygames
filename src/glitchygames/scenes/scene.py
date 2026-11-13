@@ -1425,6 +1425,14 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             self._live_audio = LiveAudio(channel_indices=channels)
         return self._live_audio
 
+    def release_live_voices(self: Self) -> None:
+        """Silence every live voice and give its channel back (an inner game's finish).
+
+        Nothing happens when no live voice was ever asked for.
+        """
+        if self._live_audio is not None:
+            self._live_audio.release_every_voice()
+
     def _debug_frame_info(
         self: Self, *, shake_offset: tuple[float, float], inspected_scene_label: str | None
     ) -> DebugFrameInfo:

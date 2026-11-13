@@ -9,6 +9,13 @@ Channel facts this module relies on (pygame-ce 2.5.8): Channel.stop() and Channe
 start the queued sound, so fades are rendered into the samples and stop_now() calls stop()
 twice; set_reserved(n) reserves channels 0..n-1; set_num_channels(smaller) stops sounds on the
 removed channels, so the pool is reserved once at startup and never resized.
+
+An inner context's pool is its channel block's live channels (``voices.context_channel_block``;
+Arcade sub-plan 4, decision 4), never the default context's. A voice belongs to the context it is
+created in: while that context is silent (``glitchygames.audio.route``) its chunks still play on
+its own channel, at volume 0 (the voice's lifecycle reads its channel's busy and queue state, so
+it is the same heard or silent); each chunk takes the route as it is rendered, so a context
+switched audible is heard from its next chunk.
 """
 
 from __future__ import annotations
@@ -20,6 +27,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pygame
 
+from glitchygames.audio.route import AUDIO_ROUTE_SLOT
 from glitchygames.audio.synth import (
     DEFAULT_FILTER_TAPS,
     FloatArray,
@@ -33,6 +41,7 @@ from glitchygames.audio.synth import (
     tremolo,
 )
 from glitchygames.audio.voices import reserve_channels, reserved_channel_count
+from glitchygames.engine_context import current_context
 from glitchygames.randomness import numpy_stream
 
 if TYPE_CHECKING:
@@ -117,8 +126,13 @@ class LiveVoice:
         sample_rate: int,
         random_source: np.random.Generator | None = None,
     ) -> None:
-        """Create a stopped voice; channel None makes a silent no-op voice."""
+        """Create a stopped voice; channel None makes a silent no-op voice.
+
+        The voice belongs to the current engine context: its route decides each chunk's volume
+        (the module docstring).
+        """
         self._channel = channel
+        self._audio_route = current_context().value(slot=AUDIO_ROUTE_SLOT)
         self.owner = owner
         self._waveform = waveform
         self._sample_rate = sample_rate
@@ -218,7 +232,7 @@ class LiveVoice:
         if self._channel is None or self._state is not VoiceState.IDLE:
             return
         self._state = VoiceState.PLAYING
-        self._channel.play(to_sound(self._render_chunk(), volume=1.0))
+        self._channel.play(to_sound(self._render_chunk(), volume=self._chunk_volume()))
 
     def update(self) -> None:
         """Keep one chunk queued; call once per frame."""
@@ -226,10 +240,10 @@ class LiveVoice:
             return
         if not self._channel.get_busy():
             log.debug('Live voice underrun; restarting')
-            self._channel.play(to_sound(self._render_chunk(), volume=1.0))
+            self._channel.play(to_sound(self._render_chunk(), volume=self._chunk_volume()))
             return
         if self._channel.get_queue() is None:
-            self._channel.queue(to_sound(self._render_chunk(), volume=1.0))
+            self._channel.queue(to_sound(self._render_chunk(), volume=self._chunk_volume()))
 
     def stop(self, *, fade_out: float = DEFAULT_FADE_OUT) -> None:
         """Fade to silence over fade_out seconds of rendered audio, then drain.
@@ -265,6 +279,14 @@ class LiveVoice:
             self._state = VoiceState.PLAYING
 
     # --- Rendering ---
+
+    def _chunk_volume(self) -> float:
+        """The volume a chunk plays at: full while the voice's context is heard, else 0.
+
+        Returns:
+            1.0 or 0.0.
+        """
+        return 1.0 if self._audio_route.audible else 0.0
 
     def _render_chunk(self) -> FloatArray:
         count = self._chunk_samples
@@ -416,6 +438,11 @@ class LiveAudio:
         if voice in self._voices:
             self._voices.remove(voice)
             self._free_channel_indices.append(self._voice_channels.pop(id(voice)))
+
+    def release_every_voice(self) -> None:
+        """Silence every voice and return its channel to the pool (an inner game's finish)."""
+        for voice in list(self._voices):
+            self.release_voice(voice)
 
     def update(
         self,

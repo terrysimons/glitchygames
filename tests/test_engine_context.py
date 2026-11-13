@@ -30,7 +30,12 @@ from glitchygames.audio.engine import (
     install_audio_engine,
 )
 from glitchygames.audio.route import AUDIO_ROUTE_SLOT, is_audible, set_audible
-from glitchygames.audio.voices import ChannelPartition
+from glitchygames.audio.voices import (
+    CHANNEL_BLOCK_SLOT,
+    ChannelPartition,
+    context_channel_block,
+    free_context_channel_block,
+)
 from glitchygames.audio.waves import Wave, current_wave_registry
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -1225,6 +1230,27 @@ def check_audio_route(*, first: EngineContext, second: EngineContext) -> None:
     assert is_audible()
 
 
+def check_channel_block(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own channel block, none in the default context; freed per context."""
+    with first.active():
+        first_block = context_channel_block(live_pool=1, library_channels=2)
+    with second.active():
+        second_before_its_own = second.value(slot=CHANNEL_BLOCK_SLOT).partition
+        second_block = context_channel_block(live_pool=1, library_channels=2)
+        free_context_channel_block()
+
+    assert second_before_its_own is None
+    assert not {*first_block.live, *first_block.library} & {
+        *second_block.live,
+        *second_block.library,
+    }
+    assert second.value(slot=CHANNEL_BLOCK_SLOT).partition is None
+    assert first.value(slot=CHANNEL_BLOCK_SLOT).partition == first_block
+    assert current_context().value(slot=CHANNEL_BLOCK_SLOT).partition is None
+    with first.active():
+        free_context_channel_block()
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -1248,6 +1274,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.render_target.target': check_render_target,
     'glitchygames.recording.private_event_queue': check_private_event_queue,
     'glitchygames.audio.route.audio_route': check_audio_route,
+    'glitchygames.audio.voices.channel_block': check_channel_block,
 }
 
 

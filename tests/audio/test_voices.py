@@ -1034,3 +1034,18 @@ def test_going_silent_leaves_idle_and_briefly_fading_channels_alone(channel_call
     assert idle_calls == []
     assert channel_calls == []
     assert waiting.is_playing is True
+
+
+def test_going_silent_leaves_a_silenced_channel_alone(channel_calls):
+    """A channel the silencer stopped is no longer the context's sound: no fade, no stop."""
+    partition = start_reserved_mixer(live_pool=0, library_channels=2, legacy_channels=8)
+    table = make_table(partition, buses=unreserved_buses())
+    silenced = table.play(baked_sound(seconds=1.0), owner=GAME_SCENE, **PLAY_DEFAULTS)
+    sounding = table.play(baked_sound(seconds=1.0), owner=GAME_SCENE, **PLAY_DEFAULTS)
+    table.silenced(partition.library[silenced.slot])
+    channel_calls.clear()
+
+    table.fade_out_of_the_mixer(fade_seconds=0.05)
+
+    assert channel_calls == [(partition.library[sounding.slot], 'fadeout', (50,))]
+    assert silenced.is_playing is True

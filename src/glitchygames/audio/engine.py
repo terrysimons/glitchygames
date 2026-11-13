@@ -78,10 +78,12 @@ from glitchygames.audio.voices import (
     ChannelPartition,
     ChannelState,
     VoiceTable,
+    context_channel_block,
     reserve_channels,
 )
 from glitchygames.audio.waves import current_wave_registry
 from glitchygames.engine_context import ContextSlot, current_context
+from glitchygames.render_target import is_inner_context
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Mapping, Sequence
@@ -252,11 +254,17 @@ def default_channel_partition() -> ChannelPartition:
     """Partition the mixer as a game engine would by default (4 live, 32 library, 8 legacy).
 
     For a scene manager without a game engine (tests, tools): ``reserve_channels`` only grows
-    the channel table, so an engine's earlier partition loses no channel.
+    the channel table, so an engine's earlier partition loses no channel. An inner context never
+    partitions: it gets its channel block of the default sizes (``context_channel_block``;
+    Arcade sub-plan 4, decision 5).
 
     Returns:
         The partition.
     """
+    if is_inner_context():
+        return context_channel_block(
+            live_pool=DEFAULT_LIVE_POOL, library_channels=DEFAULT_LIBRARY_CHANNELS
+        )
     return reserve_channels(
         live_pool=DEFAULT_LIVE_POOL,
         library_channels=DEFAULT_LIBRARY_CHANNELS,

@@ -48,6 +48,14 @@ The rules:
    ``Sound.play()`` finds no free channel, returns None and starts nothing; the reservation is
    put back after each call, on every exit path. Sounds already playing (the heard game's) play
    on. An audible inner game's plain plays are heard.
+6. **An inner game has a channel block of its own** (decisions 4, 5 and 7): its engine never
+   partitions the mixer; its sound library's channels and its live voices' are its context's
+   block (``glitchygames.audio.voices.context_channel_block``), sized by its own options (the
+   recording's ``--sound-channels`` and ``--live-voice-pool``), above the outer game's channels
+   and every other inner game's, so their sounds never take each other's channels and the
+   outer's partition and reservation stay as they are. ``finish()`` stops its live voices,
+   discards its context's audio engine (never ``release_channels``, the process's) and frees the
+   block for the next inner game; so does a build that failed.
 
 A recorded quit (every golden ends with its game's quit control) ends only its inner game:
 the QUIT is posted to and drained from the context's private queue, never SDL's.
@@ -64,8 +72,9 @@ from typing import TYPE_CHECKING, Self
 import pygame
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.audio.engine import discard_audio_engine
 from glitchygames.audio.route import AUDIO_ROUTE_SLOT, set_audible
-from glitchygames.audio.voices import every_channel_reserved
+from glitchygames.audio.voices import every_channel_reserved, free_context_channel_block
 from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
 from glitchygames.engine_context import EngineContext, current_context
 from glitchygames.exit_codes import ExitCode
@@ -286,6 +295,9 @@ class InnerGame:
             except CONTAINED_ERRORS as error:
                 self._fail(error=error)
                 self._forget_a_half_built_engine()
+                # A build that failed after its engine asked for its channels (rule 6)
+                discard_audio_engine(wait_seconds=0.0)
+                free_context_channel_block()
                 self._finished = True
                 return
             self._engine = engine
@@ -428,6 +440,9 @@ class InnerGame:
                 self._stop_trace_recording,
                 self._close_timer,
                 self._settle_replay_report,
+                self._release_live_voices,
+                self._discard_the_audio_engine,
+                self._free_the_channel_block,
             ):
                 try:
                     finish_part(engine=engine)
@@ -443,8 +458,9 @@ class InnerGame:
     def _plain_plays_kept_off_the_mixer(self: Self) -> Generator[None]:
         """Reserve every mixer channel for the body while the game is silent (rule 5).
 
-        Each build, step and finish runs inside it, never one inside another, so the
-        reservation put back is always the host's.
+        Each build, step and finish runs inside it. One inside another (an inner game stepping
+        its own inner game) is a nested ``every_channel_reserved``, which leaves the outermost's
+        reservation in place, so the reservation put back is always the host's.
 
         Yields:
             Nothing; a silent game's plain ``Sound.play()`` finds no channel in the body.
@@ -572,3 +588,38 @@ class InnerGame:
         self._report = report.text
         self._diverged = report.is_failure
         LOG.info('Inner game %s: %s', self._context.name, report.text)
+
+    @staticmethod
+    def _release_live_voices(*, engine: GameEngine) -> None:
+        """Stop the game's live voices: their channels are its block's, freed next (rule 6).
+
+        Args:
+            engine: The inner game's engine.
+
+        """
+        engine.scene_manager.release_live_voices()
+
+    @staticmethod
+    def _discard_the_audio_engine(*, engine: GameEngine) -> None:
+        """Close and forget the context's audio engine, waiting for no fade (rule 6).
+
+        Its voices fade over 50 ms where they were heard; a silent context's touch no channel.
+        Never ``release_channels``: the reservation is the process's, not this game's.
+
+        Args:
+            engine: The inner game's engine (unused: the audio engine is the context's).
+
+        """
+        del engine
+        discard_audio_engine(wait_seconds=0.0)
+
+    @staticmethod
+    def _free_the_channel_block(*, engine: GameEngine) -> None:
+        """Give the context's channel block back for the next inner game (rule 6).
+
+        Args:
+            engine: The inner game's engine (unused: the block is the context's).
+
+        """
+        del engine
+        free_context_channel_block()

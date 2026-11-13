@@ -7,8 +7,13 @@ import pytest
 from glitchygames.audio import live, voices
 from glitchygames.audio.live import LiveAudio, LiveVoice, VoiceState, reserve_live_voice_pool
 from glitchygames.audio.recipes import Tremolo
+from glitchygames.audio.route import set_audible
 from glitchygames.audio.synth import Waveform
+from glitchygames.audio.voices import context_channel_block
+from glitchygames.engine_context import EngineContext
 from glitchygames.randomness import numpy_stream, reset_streams
+from tests.audio.library_support import stop_mixer
+from tests.audio.voice_support import start_reserved_mixer
 
 RATE = 44100
 LIVE_STREAM_TEST_SEED = 78
@@ -443,3 +448,92 @@ class TestLiveAudio:
         for _ in range(2):
             audio.create_voice(owner='scene', waveform=Waveform.SINE, frequency=100.0)
         warning.assert_called_once_with('Audio unavailable; live voices are silent')
+
+
+class TestLiveVoicesOnChannelBlocks:
+    """An inner context's live voices on its own block (Arcade sub-plan 4, decision 4).
+
+    A silent context's chunks still play, at volume 0, on its own block: the voice's lifecycle
+    reads its channel, so it is the same heard or silent.
+    """
+
+    @pytest.fixture(autouse=True)
+    def partitioned_mixer(self):
+        """Partition a stereo mixer as an outer game's engine does; stop it afterwards.
+
+        Yields:
+            The default context's partition.
+        """
+        yield start_reserved_mixer()
+        pygame.mixer.stop()
+        stop_mixer()
+
+    @staticmethod
+    def _create(audio):
+        return audio.create_voice(owner='scene', waveform=Waveform.SINE, frequency=220.0)
+
+    def test_a_tiles_live_voice_and_the_default_contexts_get_their_own_channels(
+        self, partitioned_mixer
+    ):
+        """Review Focus 3: both create_voice calls succeed, on distinct channels, both playing."""
+        default_audio = LiveAudio(channel_indices=partitioned_mixer.live)
+        tile = EngineContext(name='tile')
+        with tile.active():
+            set_audible(audible=False)
+            block = context_channel_block(live_pool=4, library_channels=32)
+            tile_audio = LiveAudio(channel_indices=block.live)
+            tile_voice = self._create(tile_audio)
+            tile_voice.start()
+        default_voice = self._create(default_audio)
+        default_voice.start()
+
+        busy = [
+            index
+            for index in range(pygame.mixer.get_num_channels())
+            if pygame.mixer.Channel(index).get_busy()
+        ]
+
+        assert busy == [partitioned_mixer.live[0], block.live[0]]
+        assert tile_voice.is_playing
+        assert default_voice.is_playing
+
+    def test_a_silent_contexts_chunks_play_at_volume_zero_and_a_heard_ones_at_full(
+        self, partitioned_mixer
+    ):
+        """Silent: every chunk at volume 0 on its block; once heard, the next chunk at 1."""
+        tile = EngineContext(name='tile')
+        with tile.active():
+            set_audible(audible=False)
+            block = context_channel_block(live_pool=4, library_channels=32)
+            tile_voice = self._create(LiveAudio(channel_indices=block.live))
+            tile_voice.start()
+            tile_voice.update()
+        tile_channel = pygame.mixer.Channel(block.live[0])
+        silent_playing_volume = tile_channel.get_sound().get_volume()
+        silent_queued_volume = tile_channel.get_queue().get_volume()
+        # Channel.stop() starts the queued chunk (the module's channel facts): twice idles it
+        tile_channel.stop()
+        tile_channel.stop()
+        with tile.active():
+            set_audible(audible=True)
+        tile_voice.update()
+        heard_volume = tile_channel.get_sound().get_volume()
+
+        assert silent_playing_volume == 0.0
+        assert silent_queued_volume == 0.0
+        assert heard_volume == 1.0
+        assert not pygame.mixer.Channel(partitioned_mixer.live[0]).get_busy()
+
+    def test_releasing_every_voice_stops_them_and_frees_the_pool(self):
+        """A finished tile's live voices: stopped, their channels idle and back in the pool."""
+        audio = LiveAudio(channel_indices=(0, 1))
+        for voice in (self._create(audio), self._create(audio)):
+            voice.start()
+
+        audio.release_every_voice()
+
+        assert not pygame.mixer.Channel(0).get_busy()
+        assert not pygame.mixer.Channel(1).get_busy()
+        assert audio.playing_voice_count == 0
+        assert self._create(audio) is not None
+        assert self._create(audio) is not None

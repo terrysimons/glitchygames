@@ -893,6 +893,14 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             "S3: the mixer's channel partition (its channel count and reserved channels), "
             "pygame's one mixer per process; it replaced audio/live.py's channel counts."
         ),
+        '_channel_blocks': (
+            "S3: where the inner contexts' channel blocks lie on pygame's one mixer per process "
+            '(each context holds its own block in a slot; Arcade sub-plan 4, decision 4).'
+        ),
+        '_every_channel_reservation': (
+            "S3: whether every channel of pygame's one mixer per process is reserved "
+            '(every_channel_reserved, around a silent inner game), and how deeply nested.'
+        ),
     },
     'backgrounds.py': {
         'background_pattern_surface': (

@@ -23,7 +23,11 @@ so the engine's tests import no workspace member and run no member's code:
   - **a sound**, only in ``write_chiming_stand_in_game``'s: on its ``chime_on_frame`` its
     scene plays a few seconds of silence with a plain ``pygame.mixer.Sound.play()`` (as
     PaddleSlap's ball does) and keeps what it returned (the channel, or None when none was
-    free) as ``chime_channel``;
+    free) as ``chime_channel``; only such a stand-in's source holds the chime's lines;
+  - **a live voice**, only in ``write_live_voice_stand_in_game``'s: on its
+    ``live_voice_on_frame`` its scene creates and starts a live synth voice
+    (``scene_manager.live_audio``, as Mr. Muncher's projector does) and keeps it as
+    ``live_voice``;
   - **its layer**, only when ``layer`` is given: its package registers itself in
     ``glitchygames.logical_names.MEMBER_LAYERS`` when imported, so its logical names are
     layered (``games.<package>:<Scene>``) as a member's are. Only the child processes that run
@@ -54,6 +58,7 @@ import sys
 from typing import TYPE_CHECKING
 
 import pytest
+from pydantic import BaseModel, ConfigDict
 
 from glitchygames.build_info import BUILD_STAMP_FILE_NAME
 from glitchygames.bundled_demos import BUNDLED_DEMO_DIRECTORY_NAME, CONSOLE_SCRIPTS_GROUP
@@ -268,20 +273,70 @@ def write_stand_in_recording(*, path: Path, frame_count: int) -> None:
     )
 
 
+class StandInSounds(BaseModel):
+    """The sounds a stand-in game's scene makes, each on one frame (None: never).
+
+    Attributes:
+        chime_on_frame: The frame its scene plays a plain ``Sound.play()`` chime on.
+        live_voice_on_frame: The frame its scene creates and starts a live synth voice on.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    chime_on_frame: int | None = None
+    live_voice_on_frame: int | None = None
+
+
 def stand_in_game_source(
     *,
     package: str,
     scene_name: str,
     frames_before_quit: int,
     layer: str | None,
-    chime_on_frame: int | None = None,
+    sounds: StandInSounds | None = None,
 ) -> str:
     """Return a stand-in game package's ``__init__.py`` (the facts in this module's docstring).
+
+    The chime's and the live voice's lines are written only when their frame is given, so a
+    plain stand-in's source has neither (nor their mixer reads each frame).
 
     Returns:
         The source.
 
     """
+    chime_on_frame = None if sounds is None else sounds.chime_on_frame
+    live_voice_on_frame = None if sounds is None else sounds.live_voice_on_frame
+    sound_constants = ''
+    sound_attributes = ''
+    sound_lines = ''
+    if chime_on_frame is not None:
+        sound_constants += (
+            f'CHIME_ON_FRAME = {chime_on_frame!r}\nCHIME_SECONDS = 4\nSAMPLE_BYTES = 2\n'
+        )
+        sound_attributes += '        self.chime_channel = None\n'
+        sound_lines += (
+            '        mixer = pygame.mixer.get_init()\n'
+            '        if self.frames == CHIME_ON_FRAME and mixer is not None:\n'
+            '            frequency, _size, channels = mixer\n'
+            '            chime = pygame.mixer.Sound(\n'
+            '                buffer=bytes(frequency * channels * SAMPLE_BYTES * CHIME_SECONDS)\n'
+            '            )\n'
+            '            self.chime_channel = chime.play()\n'
+        )
+    if live_voice_on_frame is not None:
+        sound_constants += f'LIVE_VOICE_ON_FRAME = {live_voice_on_frame!r}\n'
+        sound_attributes += '        self.live_voice = None\n'
+        sound_lines += (
+            '        if self.frames == LIVE_VOICE_ON_FRAME:\n'
+            '            self.live_voice = self.scene_manager.live_audio.create_voice(\n'
+            '                owner=self, waveform=Waveform.SINE, frequency=220.0\n'
+            '            )\n'
+            '            self.live_voice.start()\n'
+        )
+    live_voice_import = (
+        '' if live_voice_on_frame is None else 'from glitchygames.audio.synth import Waveform\n'
+    )
     layer_registration = (
         ''
         if layer is None
@@ -297,15 +352,12 @@ def stand_in_game_source(
 
 import pygame
 
-from glitchygames.engine import GameEngine
+{live_voice_import}from glitchygames.engine import GameEngine
 from glitchygames.randomness import random_stream
 from glitchygames.scenes import Scene
 {layer_registration}
 FRAMES_BEFORE_QUIT = {frames_before_quit}
-CHIME_ON_FRAME = {chime_on_frame!r}
-CHIME_SECONDS = 4
-SAMPLE_BYTES = 2
-MOVER_SIZE = 4
+{sound_constants}MOVER_SIZE = 4
 MOVER_LARGEST_STEP = 3
 
 
@@ -333,19 +385,11 @@ class {scene_name}(Scene):
         self.mover = Mover()
         self.all_sprites.add(self.mover)
         self.frames = 0
-        self.chime_channel = None
-
+{sound_attributes}
     def dt_tick(self, dt):
         self.frames += 1
         self.mover.rect.x += self.steps.randint(1, MOVER_LARGEST_STEP)
-        mixer = pygame.mixer.get_init()
-        if self.frames == CHIME_ON_FRAME and mixer is not None:
-            frequency, _size, channels = mixer
-            chime = pygame.mixer.Sound(
-                buffer=bytes(frequency * channels * SAMPLE_BYTES * CHIME_SECONDS)
-            )
-            self.chime_channel = chime.play()
-        if self.frames == FRAMES_BEFORE_QUIT:
+{sound_lines}        if self.frames == FRAMES_BEFORE_QUIT:
             GameEngine.quit_game()
 
 
@@ -418,7 +462,40 @@ def write_chiming_stand_in_game(
             scene_name=stand_in_scene_name(package=package),
             frames_before_quit=STAND_IN_GAME_FRAMES,
             layer=None,
-            chime_on_frame=chime_on_frame,
+            sounds=StandInSounds(chime_on_frame=chime_on_frame),
+        ),
+        layer=None,
+    )
+
+
+def write_live_voice_stand_in_game(
+    *, directory: Path, package: str, live_voice_on_frame: int
+) -> StandInGame:
+    """Write a stand-in game whose scene starts a live synth voice on one frame.
+
+    Otherwise it is ``write_stand_in_game``'s with the defaults (no layer, its console script
+    named after its package).
+
+    Args:
+        directory: The install directory (it holds the package and the dist-info).
+        package: The import package's name.
+        live_voice_on_frame: The frame its scene starts the voice on (the scene's
+            ``live_voice``).
+
+    Returns:
+        The stand-in game.
+
+    """
+    return install_stand_in_game(
+        directory=directory,
+        package=package,
+        console_script=None,
+        source=stand_in_game_source(
+            package=package,
+            scene_name=stand_in_scene_name(package=package),
+            frames_before_quit=STAND_IN_GAME_FRAMES,
+            layer=None,
+            sounds=StandInSounds(live_voice_on_frame=live_voice_on_frame),
         ),
         layer=None,
     )
