@@ -39,8 +39,15 @@ The rules:
    changed none of them) or exits. SDL's queue, its blocked event types
    (``events.set_event_types_allowed``) and the window are never touched; the default context
    is current again after every call. The process-wide mixer is still shared (Arcade sub-plan
-   4, sound), and so are SDL's key repeat, text input and cursor visibility and pygame's default
-   font resolution (plans/future-work.md).
+   4, sound: rule 5), and so are SDL's key repeat, text input and cursor visibility and
+   pygame's default font resolution (plans/future-work.md).
+5. **A new inner game is silent** (plans/2026-11-13-arcade-4-sound.md, decisions 1 and 2): its
+   context's audio route (glitchygames/audio/route.py) is made silent when the context is
+   created, and its host switches it with ``set_audible``. While a silent inner game builds,
+   steps or finishes, every mixer channel is reserved (``every_channel_reserved``), so its plain
+   ``Sound.play()`` finds no free channel, returns None and starts nothing; the reservation is
+   put back after each call, on every exit path. Sounds already playing (the heard game's) play
+   on. An audible inner game's plain plays are heard.
 
 A recorded quit (every golden ends with its game's quit control) ends only its inner game:
 the QUIT is posted to and drained from the context's private queue, never SDL's.
@@ -48,6 +55,7 @@ the QUIT is posted to and drained from the context's private queue, never SDL's.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import sys
 from enum import StrEnum
@@ -56,6 +64,8 @@ from typing import TYPE_CHECKING, Self
 import pygame
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.audio.route import AUDIO_ROUTE_SLOT, set_audible
+from glitchygames.audio.voices import every_channel_reserved
 from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
 from glitchygames.engine_context import EngineContext, current_context
 from glitchygames.exit_codes import ExitCode
@@ -71,7 +81,7 @@ from glitchygames.replay.tools.registry import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Generator, Sequence
     from pathlib import Path
 
     from glitchygames.engine.game_engine import GameEngine
@@ -268,6 +278,9 @@ class InnerGame:
         self._run_ended_by: str | None = None
         self._finished = False
         with self._context.active():
+            # Silent from its creation (rule 5): its host makes at most one inner game audible
+            set_audible(audible=False)
+        with self._context.active(), self._plain_plays_kept_off_the_mixer():
             try:
                 engine = self._build(command_line=command_line)
             except CONTAINED_ERRORS as error:
@@ -340,6 +353,21 @@ class InnerGame:
         return self._surface
 
     @property
+    def audible(self: Self) -> bool:
+        """Whether the game's sound is heard (False from its creation: rule 5)."""
+        return self._context.value(slot=AUDIO_ROUTE_SLOT).audible
+
+    def set_audible(self: Self, *, audible: bool) -> None:
+        """Make the game's sound heard or silent (its context's audio route; rule 5).
+
+        Args:
+            audible: True to hear the game, False to keep its sound off the mixer.
+
+        """
+        with self._context.active():
+            set_audible(audible=audible)
+
+    @property
     def outcome(self: Self) -> InnerGameOutcome:
         """How the game stands, or how it ended."""
         return InnerGameOutcome(
@@ -361,7 +389,7 @@ class InnerGame:
             return False
         engine = self._engine
         assert engine is not None  # a game not finished was built
-        with self._context.active():
+        with self._context.active(), self._plain_plays_kept_off_the_mixer():
             scene_manager = engine.scene_manager
             try:
                 self._frame_start_seconds = scene_manager.run_frame_step(
@@ -394,7 +422,7 @@ class InnerGame:
         self._finished = True
         engine = self._engine
         assert engine is not None  # a game not finished was built
-        with self._context.active():
+        with self._context.active(), self._plain_plays_kept_off_the_mixer():
             for finish_part in (
                 self._end_frames,
                 self._stop_trace_recording,
@@ -410,6 +438,23 @@ class InnerGame:
         if self._state is InnerGameState.RUNNING:
             self._state = InnerGameState.ENDED
         return self.outcome
+
+    @contextlib.contextmanager
+    def _plain_plays_kept_off_the_mixer(self: Self) -> Generator[None]:
+        """Reserve every mixer channel for the body while the game is silent (rule 5).
+
+        Each build, step and finish runs inside it, never one inside another, so the
+        reservation put back is always the host's.
+
+        Yields:
+            Nothing; a silent game's plain ``Sound.play()`` finds no channel in the body.
+
+        """
+        if self.audible:
+            yield
+            return
+        with every_channel_reserved():
+            yield
 
     def _build(self: Self, *, command_line: Sequence[str]) -> GameEngine:
         """Call the command's entry point in this (current) context and take its engine.

@@ -29,6 +29,7 @@ from glitchygames.audio.engine import (
     existing_audio_engine,
     install_audio_engine,
 )
+from glitchygames.audio.route import AUDIO_ROUTE_SLOT, is_audible, set_audible
 from glitchygames.audio.voices import ChannelPartition
 from glitchygames.audio.waves import Wave, current_wave_registry
 from glitchygames.backgrounds import (
@@ -1212,6 +1213,18 @@ def check_private_event_queue(*, first: EngineContext, second: EngineContext) ->
     assert private_event_queue().events == []
 
 
+def check_audio_route(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own audio route, the default context audible."""
+    with first.active():
+        set_audible(audible=False)
+    with second.active():
+        second_reading = is_audible()
+
+    assert second_reading is True
+    assert first.value(slot=AUDIO_ROUTE_SLOT).audible is False
+    assert is_audible()
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -1234,6 +1247,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.sprites.sprite.counters': check_sprite_counters,
     'glitchygames.render_target.target': check_render_target,
     'glitchygames.recording.private_event_queue': check_private_event_queue,
+    'glitchygames.audio.route.audio_route': check_audio_route,
 }
 
 

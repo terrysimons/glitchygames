@@ -23,6 +23,8 @@ import pygame
 import pytest
 
 from glitchygames import events
+from glitchygames.audio.route import is_audible
+from glitchygames.audio.voices import reserve_channels, reserved_channel_count
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
 from glitchygames.engine_context import current_context, default_context
@@ -40,12 +42,20 @@ from glitchygames.inner_game import (
 from glitchygames.render_target import render_target
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES
 from glitchygames.scenes import Scene, SceneManager
+from tests.audio.voice_support import (
+    LEGACY_CHANNELS,
+    LIBRARY_CHANNELS,
+    LIVE_POOL,
+    SAMPLE_RATE,
+    unreserved_channel_ids,
+)
 from tests.replay.replay_helpers import tamper_first_sprite_rect
 from tests.stand_in_games import (
     STAND_IN_GAME_RESOLUTION,
     StandInGame,
     copy_recording,
     record_stand_in_game_once,
+    write_chiming_stand_in_game,
     write_stand_in_distribution,
     write_stand_in_game,
 )
@@ -58,6 +68,13 @@ if TYPE_CHECKING:
 
 # The stand-in's package: a name no other test's stand-in uses, since this process imports it
 STAND_IN_PACKAGE = 'inner_game_rally'
+# The chiming stand-in's package (a plain Sound.play() on CHIME_FRAME) and that frame
+CHIMING_STAND_IN_PACKAGE = 'inner_game_chime'
+CHIME_FRAME = 3
+# The outer game's own sound: long enough to outlast every step a test runs
+OUTER_SOUND_SECONDS = 8
+# Bytes per second of the harness's mixer (signed 16-bit, stereo)
+MIXER_BYTES_PER_SECOND = SAMPLE_RATE * 2 * 2
 # A command whose entry point returns without starting an engine
 COMMAND_THAT_STARTS_NOTHING = 'inner-game-starts-nothing'
 COMMAND_THAT_STARTS_NOTHING_PACKAGE = 'inner_game_starts_nothing'
@@ -114,6 +131,74 @@ def stand_in(
         yield game
     finally:
         sys.modules.pop(game.package, None)
+
+
+@pytest.fixture(scope='module')
+def recorded_chiming_stand_in(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> tuple[StandInGame, Path]:
+    """Record the chiming stand-in (a plain ``Sound.play()`` on CHIME_FRAME) once per module.
+
+    Returns:
+        The stand-in game and its recording (each test copies it before reading it).
+
+    """
+    root = tmp_path_factory.mktemp('inner-game-chime')
+    game = write_chiming_stand_in_game(
+        directory=root / 'site-packages',
+        package=CHIMING_STAND_IN_PACKAGE,
+        chime_on_frame=CHIME_FRAME,
+    )
+    recording = record_stand_in_game_once(game=game, path=root / 'recorded.jsonl.gz')
+    return game, recording
+
+
+@pytest.fixture
+def chiming_stand_in(
+    recorded_chiming_stand_in: tuple[StandInGame, Path], monkeypatch: pytest.MonkeyPatch
+) -> Generator[StandInGame]:
+    """Install the chiming stand-in as a command in this process.
+
+    Yields:
+        The stand-in game; its package is forgotten afterwards.
+
+    """
+    game, _recording = recorded_chiming_stand_in
+    monkeypatch.syspath_prepend(game.install_directory)
+    try:
+        yield game
+    finally:
+        sys.modules.pop(game.package, None)
+
+
+@pytest.fixture
+def chiming_recording(recorded_chiming_stand_in: tuple[StandInGame, Path], tmp_path: Path) -> Path:
+    """Return this test's own copy of the chiming stand-in's recording.
+
+    Returns:
+        The copy's path.
+
+    """
+    _game, shared_recording = recorded_chiming_stand_in
+    return copy_recording(recording=shared_recording, path=tmp_path / 'chime.jsonl.gz')
+
+
+@pytest.fixture
+def outer_partition() -> Generator[None]:
+    """Partition the mixer as an outer game's engine does (the defaults), every channel idle.
+
+    Yields:
+        Nothing; every channel is stopped afterwards, so no sound outlives the test.
+
+    """
+    pygame.mixer.stop()
+    reserve_channels(
+        live_pool=LIVE_POOL, library_channels=LIBRARY_CHANNELS, legacy_channels=LEGACY_CHANNELS
+    )
+    try:
+        yield
+    finally:
+        pygame.mixer.stop()
 
 
 @pytest.fixture
@@ -225,6 +310,52 @@ def play_to_the_end(inner_game: InnerGame) -> int:
         if not inner_game.step():
             return running_steps
     pytest.fail(f'{inner_game.context.name} did not end in {MOST_STEPS} steps')
+
+
+def reservation() -> tuple[int, list[int]]:
+    """Return the mixer's reservation: as the engine remembers it, and as SDL picks channels.
+
+    Every channel must be idle.
+
+    Returns:
+        ``reserved_channel_count()`` and the channels ``Sound.play()`` would get.
+
+    """
+    return reserved_channel_count(), unreserved_channel_ids()
+
+
+def busy_channel_ids() -> list[int]:
+    """Return every mixer channel that is playing.
+
+    Returns:
+        Their indices.
+
+    """
+    return [
+        index
+        for index in range(pygame.mixer.get_num_channels())
+        if pygame.mixer.Channel(index).get_busy()
+    ]
+
+
+def chime_channel(inner_game: InnerGame) -> pygame.mixer.Channel | None:
+    """Return what the chiming stand-in's ``Sound.play()`` returned.
+
+    Returns:
+        The channel it played on, or None (no free channel, or it has not chimed yet).
+
+    """
+    with inner_game.context.active():
+        scene = SceneManager().active_scene
+    channel = vars(scene)['chime_channel']  # the stand-in's own attribute
+    assert channel is None or isinstance(channel, pygame.mixer.Channel)
+    return channel
+
+
+def step_past_the_chime(inner_game: InnerGame) -> None:
+    """Step the chiming stand-in until its chime frame has run."""
+    for _step in range(CHIME_FRAME + 1):
+        assert inner_game.step()
 
 
 def replay_stand_in(
@@ -804,3 +935,123 @@ class TestRefusals:
         # The stand-in takes no positional: argparse refuses it, which is the game's failure
         assert inner_game.outcome.state is InnerGameState.FAILED
         assert inner_game.outcome.error == 'the game exited with ARGUMENT_PARSER_ERROR (2)'
+
+
+@pytest.mark.usefixtures('outer_partition')
+class TestPlainSoundPlays:
+    """Decisions 1 and 2 of plans/2026-11-13-arcade-4-sound.md: a silent game's plain plays.
+
+    A new inner game is silent; while it builds, steps or finishes, every channel is reserved,
+    so its plain ``Sound.play()`` finds none free and returns None (nothing starts). The
+    reservation is put back after each call. An audible inner game is heard.
+    """
+
+    def test_a_new_inner_game_is_silent_and_the_default_context_stays_audible(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """The inner context's route is silent from its creation; switching it is the host's."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        with inner_game.context.active():
+            silent_reading = is_audible()
+
+        inner_game.set_audible(audible=True)
+        with inner_game.context.active():
+            audible_reading = is_audible()
+        inner_game.set_audible(audible=False)
+
+        assert silent_reading is False
+        assert audible_reading is True
+        assert inner_game.audible is False
+        assert is_audible()
+        inner_game.finish()
+
+    def test_a_silent_games_sound_play_reaches_no_channel(
+        self, chiming_stand_in: StandInGame, chiming_recording: Path
+    ):
+        """The chime's play returns None, no channel plays, and the reservation is as before.
+
+        After the build, after the chime's step and after the finish.
+        """
+        before = reservation()
+
+        inner_game = replay_stand_in(game=chiming_stand_in, path=chiming_recording)
+        after_build = reservation()
+        step_past_the_chime(inner_game)
+        busy_after_the_chime = busy_channel_ids()
+        channel = chime_channel(inner_game)
+        after_steps = reservation()
+        inner_game.finish()
+
+        assert channel is None
+        assert busy_after_the_chime == []
+        assert not pygame.mixer.get_busy()
+        assert after_build == before
+        assert after_steps == before
+        assert reservation() == before
+        assert inner_game.outcome.state is InnerGameState.ENDED, inner_game.outcome
+
+    def test_a_silent_step_that_raises_still_puts_the_reservation_back(
+        self, chiming_stand_in: StandInGame, chiming_recording: Path, mocker: MockerFixture
+    ):
+        """The chime's frame raising after its play: FAILED, nothing playing, reservation back."""
+        before = reservation()
+        inner_game = replay_stand_in(game=chiming_stand_in, path=chiming_recording)
+        with inner_game.context.active():
+            scene = SceneManager().active_scene
+        assert isinstance(scene, Scene)
+        scene_dt_tick = scene.dt_tick
+
+        def chime_then_raise(dt: float) -> None:
+            scene_dt_tick(dt)
+            if vars(scene)['frames'] == CHIME_FRAME:  # the stand-in's own frame count
+                message = 'the scene broke after its chime'
+                raise RuntimeError(message)
+
+        # An injected failure, in the chime's own frame
+        mocker.patch.object(scene, 'dt_tick', side_effect=chime_then_raise)
+
+        play_to_the_end(inner_game)
+
+        assert inner_game.outcome.state is InnerGameState.FAILED
+        assert inner_game.outcome.error == 'RuntimeError: the scene broke after its chime'
+        assert vars(scene)['chime_channel'] is None
+        assert busy_channel_ids() == []
+        assert reservation() == before
+
+    def test_an_audible_games_sound_play_is_heard(
+        self, chiming_stand_in: StandInGame, chiming_recording: Path
+    ):
+        """Switched audible before its chime: the play takes a channel, which plays."""
+        before = reservation()
+        inner_game = replay_stand_in(game=chiming_stand_in, path=chiming_recording)
+
+        inner_game.set_audible(audible=True)
+        step_past_the_chime(inner_game)
+
+        channel = chime_channel(inner_game)
+        assert inner_game.audible is True
+        assert channel is not None
+        assert channel.get_busy()
+        assert busy_channel_ids() == [channel.id]
+        channel.stop()
+        inner_game.finish()
+        assert reservation() == before
+
+    def test_the_outer_games_sound_plays_on_through_a_silent_games_steps(
+        self, chiming_stand_in: StandInGame, chiming_recording: Path
+    ):
+        """Review Focus 1: the outer's plain play keeps its channel and plays; nothing joins it."""
+        outer_sound = pygame.mixer.Sound(buffer=bytes(MIXER_BYTES_PER_SECOND * OUTER_SOUND_SECONDS))
+        outer_channel = outer_sound.play()
+        assert outer_channel is not None
+
+        inner_game = replay_stand_in(game=chiming_stand_in, path=chiming_recording)
+        step_past_the_chime(inner_game)
+        busy_after_the_chime = busy_channel_ids()
+        channel = chime_channel(inner_game)
+        inner_game.finish()
+
+        assert channel is None
+        assert busy_after_the_chime == [outer_channel.id]
+        assert outer_channel.get_busy()
+        assert outer_channel.get_sound() is outer_sound

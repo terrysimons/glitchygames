@@ -6,6 +6,7 @@ import pytest
 from glitchygames.audio.live import reserve_live_voice_pool
 from glitchygames.audio.voices import (
     ChannelPartition,
+    every_channel_reserved,
     release_channels,
     reserve_channels,
     reserved_channel_count,
@@ -17,6 +18,7 @@ from tests.audio.voice_support import (
     baked_sound,
     make_table,
     start_reserved_mixer,
+    unreserved_channel_ids,
 )
 
 
@@ -205,3 +207,99 @@ def test_releasing_without_a_mixer_does_nothing():
     release_channels()
 
     assert reserved_channel_count() == 0
+
+
+def raise_inside() -> None:
+    """Fail inside the reservation.
+
+    Raises:
+        RuntimeError: Always.
+    """
+    message = 'inside'
+    raise RuntimeError(message)
+
+
+class TestEveryChannelReserved:
+    """every_channel_reserved: Sound.play() finds no channel inside, the reservation put back."""
+
+    def test_inside_no_play_starts_and_afterwards_the_partition_is_back(self):
+        """A partitioned mixer: None inside, then the legacy channels 36-43 again."""
+        start_reserved_mixer()
+        legacy_sound = pygame.mixer.Sound(buffer=bytes(44100 * 4))
+
+        with every_channel_reserved():
+            played_inside = legacy_sound.play()
+            explicit_channel = pygame.mixer.Channel(40)
+            explicit_channel.play(legacy_sound)
+            explicit_busy = explicit_channel.get_busy()
+        explicit_channel.stop()
+
+        assert played_inside is None
+        assert explicit_busy
+        assert reserved_channel_count() == 36
+        assert unreserved_channel_ids() == list(range(36, 44))
+
+    def test_an_unpartitioned_mixer_is_left_unreserved(self):
+        """No partition: nothing reserved before, nothing after; None inside."""
+        start_mixer(channels=2)
+        release_channels()
+        legacy_sound = pygame.mixer.Sound(buffer=bytes(44100 * 4))
+
+        with every_channel_reserved():
+            played_inside = legacy_sound.play()
+
+        assert played_inside is None
+        assert reserved_channel_count() == 0
+        assert unreserved_channel_ids() == list(range(8))
+
+    def test_the_reservation_is_put_back_after_an_exception(self):
+        """An exception inside propagates; the reservation is the partition's again."""
+        start_reserved_mixer()
+
+        with pytest.raises(RuntimeError, match='inside'), every_channel_reserved():
+            raise_inside()
+
+        assert reserved_channel_count() == 36
+        assert unreserved_channel_ids() == list(range(36, 44))
+
+    def test_a_mixer_grown_inside_keeps_the_reservation_from_before(self):
+        """A partition inside grows the mixer: the reservation from before, on the grown mixer."""
+        start_reserved_mixer()
+
+        with every_channel_reserved():
+            reserve_channels(live_pool=4, library_channels=40, legacy_channels=8)
+
+        assert pygame.mixer.get_num_channels() == 52
+        assert reserved_channel_count() == 36
+        assert unreserved_channel_ids() == list(range(36, 52))
+
+    def test_a_partition_made_inside_an_unpartitioned_mixer_is_undone(self):
+        """No partition before: none remembered after, and nothing reserved."""
+        start_mixer(channels=2)
+        release_channels()
+
+        with every_channel_reserved():
+            reserve_channels(live_pool=4, library_channels=32, legacy_channels=8)
+
+        assert reserved_channel_count() == 0
+        assert unreserved_channel_ids() == list(range(44))
+
+    def test_without_a_mixer_it_does_nothing(self):
+        """No mixer before: the body runs, and nothing is reserved or put back."""
+        stop_mixer()
+
+        with every_channel_reserved():
+            mixer_inside = pygame.mixer.get_init()
+
+        assert mixer_inside is None
+        assert pygame.mixer.get_init() is None
+
+    def test_a_mixer_stopped_inside_is_left_stopped(self):
+        """The mixer quit inside: nothing to put back on, and no error."""
+        start_reserved_mixer()
+
+        with every_channel_reserved():
+            stop_mixer()
+
+        assert pygame.mixer.get_init() is None
+        assert reserved_channel_count() == 0

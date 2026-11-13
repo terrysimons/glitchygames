@@ -20,6 +20,10 @@ so the engine's tests import no workspace member and run no member's code:
     under the recorded seed reproduces every frame and ``--audit`` passes;
   - **no input**: it binds no control and polls nothing;
   - **it quits itself** after ``frames_before_quit`` frames;
+  - **a sound**, only in ``write_chiming_stand_in_game``'s: on its ``chime_on_frame`` its
+    scene plays a few seconds of silence with a plain ``pygame.mixer.Sound.play()`` (as
+    PaddleSlap's ball does) and keeps what it returned (the channel, or None when none was
+    free) as ``chime_channel``;
   - **its layer**, only when ``layer`` is given: its package registers itself in
     ``glitchygames.logical_names.MEMBER_LAYERS`` when imported, so its logical names are
     layered (``games.<package>:<Scene>``) as a member's are. Only the child processes that run
@@ -265,7 +269,12 @@ def write_stand_in_recording(*, path: Path, frame_count: int) -> None:
 
 
 def stand_in_game_source(
-    *, package: str, scene_name: str, frames_before_quit: int, layer: str | None
+    *,
+    package: str,
+    scene_name: str,
+    frames_before_quit: int,
+    layer: str | None,
+    chime_on_frame: int | None = None,
 ) -> str:
     """Return a stand-in game package's ``__init__.py`` (the facts in this module's docstring).
 
@@ -293,6 +302,9 @@ from glitchygames.randomness import random_stream
 from glitchygames.scenes import Scene
 {layer_registration}
 FRAMES_BEFORE_QUIT = {frames_before_quit}
+CHIME_ON_FRAME = {chime_on_frame!r}
+CHIME_SECONDS = 4
+SAMPLE_BYTES = 2
 MOVER_SIZE = 4
 MOVER_LARGEST_STEP = 3
 
@@ -321,10 +333,18 @@ class {scene_name}(Scene):
         self.mover = Mover()
         self.all_sprites.add(self.mover)
         self.frames = 0
+        self.chime_channel = None
 
     def dt_tick(self, dt):
         self.frames += 1
         self.mover.rect.x += self.steps.randint(1, MOVER_LARGEST_STEP)
+        mixer = pygame.mixer.get_init()
+        if self.frames == CHIME_ON_FRAME and mixer is not None:
+            frequency, _size, channels = mixer
+            chime = pygame.mixer.Sound(
+                buffer=bytes(frequency * channels * SAMPLE_BYTES * CHIME_SECONDS)
+            )
+            self.chime_channel = chime.play()
         if self.frames == FRAMES_BEFORE_QUIT:
             GameEngine.quit_game()
 
@@ -357,19 +377,84 @@ def write_stand_in_game(
         The stand-in game.
 
     """
-    script = console_script or package.replace('_', '-')
-    scene_name = ''.join(part.title() for part in package.split('_')) + 'Scene'
-    package_directory = directory / package
-    package_directory.mkdir(parents=True)
-    (package_directory / '__init__.py').write_text(
-        stand_in_game_source(
+    scene_name = stand_in_scene_name(package=package)
+    return install_stand_in_game(
+        directory=directory,
+        package=package,
+        console_script=console_script,
+        source=stand_in_game_source(
             package=package,
             scene_name=scene_name,
             frames_before_quit=frames_before_quit,
             layer=layer,
         ),
-        encoding='utf-8',
+        layer=layer,
     )
+
+
+def write_chiming_stand_in_game(
+    *, directory: Path, package: str, chime_on_frame: int
+) -> StandInGame:
+    """Write a stand-in game whose scene plays a sound with ``Sound.play()`` on one frame.
+
+    Otherwise it is ``write_stand_in_game``'s with the defaults (no layer, its console script
+    named after its package).
+
+    Args:
+        directory: The install directory (it holds the package and the dist-info).
+        package: The import package's name.
+        chime_on_frame: The frame its scene plays the sound on (the scene's ``chime_channel``).
+
+    Returns:
+        The stand-in game.
+
+    """
+    return install_stand_in_game(
+        directory=directory,
+        package=package,
+        console_script=None,
+        source=stand_in_game_source(
+            package=package,
+            scene_name=stand_in_scene_name(package=package),
+            frames_before_quit=STAND_IN_GAME_FRAMES,
+            layer=None,
+            chime_on_frame=chime_on_frame,
+        ),
+        layer=None,
+    )
+
+
+def stand_in_scene_name(*, package: str) -> str:
+    """Return a stand-in game's scene class name, from its package (``StandInRallyScene``).
+
+    Returns:
+        The class name.
+
+    """
+    return ''.join(part.title() for part in package.split('_')) + 'Scene'
+
+
+def install_stand_in_game(
+    *, directory: Path, package: str, console_script: str | None, source: str, layer: str | None
+) -> StandInGame:
+    """Write a stand-in game's package from its source, and its distribution.
+
+    Args:
+        directory: The install directory (it holds the package and the dist-info).
+        package: The import package's name.
+        console_script: The console script's name, or None for the package's, kebab-case; the
+            distribution is named the same.
+        source: The package's ``__init__.py`` (``stand_in_game_source``).
+        layer: The layer the source registers its package in, or None for none.
+
+    Returns:
+        The stand-in game.
+
+    """
+    script = console_script or package.replace('_', '-')
+    package_directory = directory / package
+    package_directory.mkdir(parents=True)
+    (package_directory / '__init__.py').write_text(source, encoding='utf-8')
     write_stand_in_distribution(
         directory=directory, distribution=script, console_scripts={script: f'{package}:main'}
     )
@@ -377,7 +462,7 @@ def write_stand_in_game(
         package=package,
         distribution=script,
         console_script=script,
-        scene_name=scene_name,
+        scene_name=stand_in_scene_name(package=package),
         install_directory=directory,
         layer=layer,
     )

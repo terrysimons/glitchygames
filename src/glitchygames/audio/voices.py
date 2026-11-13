@@ -44,6 +44,7 @@ not at full level (a documented simplification; the brief's ruling).
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import enum
 import itertools
@@ -55,7 +56,7 @@ from typing import TYPE_CHECKING
 import pygame
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection
+    from collections.abc import Callable, Collection, Generator
 
     from glitchygames.audio.buses import BusTree
     from glitchygames.audio.library import Sound
@@ -173,6 +174,42 @@ def reserved_channel_count() -> int:
     if pygame.mixer.get_num_channels() != _partitioned_mixer['channel_count']:
         return 0
     return _partitioned_mixer['reserved_count']
+
+
+@contextlib.contextmanager
+def every_channel_reserved() -> Generator[None]:
+    """Reserve every mixer channel for the body, then put the reservation back as it was.
+
+    With every channel reserved, SDL finds no channel for a plain ``Sound.play()``, which then
+    returns None and starts nothing, as on a busy mixer; an explicit ``Channel(index).play()``
+    still plays. A silent inner game's build, steps and finish run inside it (Arcade sub-plan 4,
+    decision 2), so its plain plays reach no channel and take none from the heard game.
+
+    pygame cannot report its reservation, so the one put back is the last partition's
+    (``reserved_channel_count``, read before), on the mixer's channel count afterwards: a
+    partition made inside (an inner build re-partitioning) neither keeps its reservation nor is
+    remembered, and a mixer grown inside keeps the reservation from before. The channel count is
+    read when reserving. Without a mixer before or after the body, nothing is reserved or put
+    back. The body's exceptions propagate, the reservation put back first.
+
+    Yields:
+        Nothing; the body runs with every channel reserved.
+    """
+    if pygame.mixer.get_init() is None:
+        yield
+        return
+    reserved_before = reserved_channel_count()
+    pygame.mixer.set_reserved(pygame.mixer.get_num_channels())
+    try:
+        yield
+    finally:
+        if pygame.mixer.get_init() is not None:
+            reserved_count = pygame.mixer.set_reserved(reserved_before)
+            _partitioned_mixer.clear()
+            if reserved_before > 0:
+                _partitioned_mixer.update(
+                    channel_count=pygame.mixer.get_num_channels(), reserved_count=reserved_count
+                )
 
 
 def constant_power_gains(*, pan: float, gain: float) -> tuple[float, float]:
