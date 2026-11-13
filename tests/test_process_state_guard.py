@@ -811,6 +811,14 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         'NATURAL': CATALOG_BUILD,
         'WOODEN_LIP_REED': CATALOG_BUILD,
     },
+    'audio/instruments/flutes.py': {
+        'METAL_FLUTE': CATALOG_BUILD,
+        'WOODEN_FLUTE': CATALOG_BUILD,
+        'RECORDER': CATALOG_BUILD,
+        'WHISTLE': CATALOG_BUILD,
+        'END_BLOWN': CATALOG_BUILD,
+        'VESSEL': CATALOG_BUILD,
+    },
     'audio/instruments/keyboards.py': {
         'PRINCIPAL_LEVELS': CATALOG_SERIES,
         'REED_STOP_LEVELS': CATALOG_SERIES,
@@ -869,12 +877,6 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         ),
     },
     'audio/instruments/winds.py': {
-        'METAL_FLUTE': CATALOG_BUILD,
-        'WOODEN_FLUTE': CATALOG_BUILD,
-        'RECORDER': CATALOG_BUILD,
-        'WHISTLE': CATALOG_BUILD,
-        'END_BLOWN': CATALOG_BUILD,
-        'VESSEL': CATALOG_BUILD,
         'FREE_REED_LEVELS': CATALOG_SERIES,
     },
     'audio/library.py': {

@@ -1557,6 +1557,48 @@ ELECTRONIC_UNPITCHED_NAMES: frozenset[str] = frozenset({
 })
 
 
+# The 30 flutes that predate batch 9: their shared builds predate the anti-goal rule
+EXISTING_FLUTE_NAMES = frozenset({
+    'piccolo',
+    'flute',
+    'alto flute',
+    'bass flute',
+    'contra alto flute',
+    'contrabass flute',
+    'wooden flute',
+    'wooden concert flute',
+    'baroque flute',
+    'fife',
+    'tin whistle',
+    'low whistle',
+    'sopranino recorder',
+    'soprano recorder',
+    'alto recorder',
+    'tenor recorder',
+    'bass recorder',
+    'great bass recorder',
+    'contrabass recorder',
+    'pan flute',
+    'shakuhachi',
+    'bansuri',
+    'dizi',
+    'xiao',
+    'quena',
+    'ney',
+    'kaval',
+    'native american flute',
+    'ocarina',
+    'bass ocarina',
+})
+# Batch 9's flutes with their own build, in the sheet's order. Empty until the sheet's rows
+# are coded (plans/data/instrument-audit/batch-9.tsv)
+NEW_FLUTE_NAMES: list[str] = []
+# Batch 9's flute sound-alikes and the entry each sounds like, in the sheet's order
+FLUTE_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+# Batch 9's flutes that are unpitched (a whistle its source calls noise), in the sheet's order
+FLUTE_UNPITCHED_NAMES: frozenset[str] = frozenset()
+
+
 # The 27 bowed strings that predate batch 7: their shared builds predate the anti-goal rule
 EXISTING_BOWED_NAMES = frozenset({
     'violin',
@@ -1645,6 +1687,12 @@ class BatchFamily(NamedTuple):
 
 
 BATCH_FAMILIES: dict[Family, BatchFamily] = {
+    Family.FLUTES: BatchFamily(
+        EXISTING_FLUTE_NAMES,
+        NEW_FLUTE_NAMES,
+        FLUTE_SOUND_ALIKE_PARENTS,
+        FLUTE_UNPITCHED_NAMES,
+    ),
     Family.BOWED_STRINGS: BatchFamily(
         EXISTING_BOWED_NAMES, NEW_BOWED_NAMES, BOWED_SOUND_ALIKE_PARENTS
     ),
@@ -1778,10 +1826,11 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         for catalog_entry in instruments.entries()
         if catalog_entry.sounds_like is not None
     ]
-    # The catalog lists families in table order: bowed strings, plucked strings, electronic, tuned
-    # percussion, drums, voices, then choirs (registry.FAMILY_TABLES)
+    # The catalog lists families in table order: flutes, bowed strings, plucked strings,
+    # electronic, tuned percussion, drums, voices, then choirs (registry.FAMILY_TABLES)
     assert every_sound_alike == (
-        list(BOWED_SOUND_ALIKE_PARENTS)
+        list(FLUTE_SOUND_ALIKE_PARENTS)
+        + list(BOWED_SOUND_ALIKE_PARENTS)
         + list(PLUCKED_SOUND_ALIKE_PARENTS)
         + list(ELECTRONIC_SOUND_ALIKE_PARENTS)
         + list(TUNED_SOUND_ALIKE_PARENTS)
@@ -1855,7 +1904,9 @@ def test_the_gangsa_pairs_its_fundamental_at_the_ombak_ratio():
 
 # Entries that imitate a feature the engine lacks (sympathetic strings by a detuned copy, a
 # buzzing bridge by drive). They predate decision 4 and stay, but nothing new shares their
-# sound: batch 4's sitar ruling, and batch 7's for the bowed ones
+# sound: batch 4's sitar ruling, batch 7's for the bowed ones, and batch 9's for the dizi, built
+# without the membrane its page names (https://en.wikipedia.org/wiki/Dizi_(instrument): 'adding
+# harmonics to give the final tone a buzzing, nasal quality')
 APPROXIMATING_NAMES = frozenset({
     'sitar',
     'tanpura',
@@ -1866,6 +1917,7 @@ APPROXIMATING_NAMES = frozenset({
     'viola d amore',
     'nyckelharpa',
     'hurdy gurdy',
+    'dizi',
 })
 
 
@@ -1924,3 +1976,21 @@ def test_nothing_waiting_for_moving_formants_is_listed():
     """No catalog name or alias is an instrument the spec holds back for moving formants."""
     assert MOVING_FORMANT_NAMES & set(instruments.names()) == set()
     assert MOVING_FORMANT_NAMES & set(instruments.ALIASES) == set()
+
+
+# The slide whistle's sound is its glide between notes, which the engine cannot make (it has one
+# glide per note and no LFO): it and its names wait for a pitch LFO (portamento between notes),
+# batch 4's dan bau ruling, under its name, a qualified name or an alias (decision 4; batch 9)
+PORTAMENTO_NAMES = frozenset({
+    'slide whistle',
+    'swanee whistle',
+    'lotus flute',
+    'piston flute',
+    'jazz flute',
+})
+
+
+def test_nothing_waiting_for_a_glide_between_notes_is_listed():
+    """No catalog name or alias is an instrument held back for a glide between notes."""
+    assert PORTAMENTO_NAMES & set(instruments.names()) == set()
+    assert PORTAMENTO_NAMES & set(instruments.ALIASES) == set()
