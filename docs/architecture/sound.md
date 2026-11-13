@@ -211,7 +211,7 @@ the sound never plays where the picture does not (`--headless`, tests, replays, 
 
 ## The instrument catalog
 
-`glitchygames.audio.instruments` holds 688 ready-made instruments in 23 families. Each is an
+`glitchygames.audio.instruments` holds 703 ready-made instruments in 23 families. Each is an
 ordinary `Instrument`, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:
@@ -233,16 +233,16 @@ instruments.get('slapstick')                             # an alias: the same in
 | `flutes` | 33 | piccolo to contrabass flute, wooden flutes, sopranino to subcontrabass recorders, whistles, shakuhachi, ocarinas, and 3 sound-alikes (csakan, subcontrabass recorder, ryuteki) |
 | `clarinets` | 9 | E-flat to contrabass clarinet, basset horn, chalumeau |
 | `saxophones` | 8 | sopranino to contrabass, C melody |
-| `double reeds` | 23 | oboe family, bassoon and contrabassoon, shawms, crumhorns, suona, duduk |
-| `bagpipes` | 8 | Highland, uilleann, smallpipes, gaita, gaida, musette (drones built in) |
+| `double reeds` | 25 | oboe family, bassoon and contrabassoon, heckelphone, sarrusophone, shawms, crumhorns, suona, zurna, duduk, and 2 sound-alikes (contraforte, piccolo heckelphone) |
+| `bagpipes` | 9 | Highland, uilleann, smallpipes, gaita, gaida, musette, sackpipa (drones built in) |
 | `free reeds` | 13 | accordions (dry, musette, bass), bandoneon, concertina, harmonicas, melodicas, sheng |
-| `brass` | 42 | piccolo trumpet to contrabass tuba, alto to contrabass trombone, mutes, historic and folk horns |
+| `brass` | 44 | piccolo trumpet to contrabass tuba, alto to contrabass trombone, mutes, historic and folk horns, and 2 sound-alikes (bass wagner tuba, soprano trombone) |
 | `bowed strings` | 29 | violin to double bass, sections, pizzicato, viols, erhu, hurdy-gurdy, and 2 sound-alikes (viola pomposa, bowed psaltery) |
 | `plucked strings` | 92 | guitars (nylon, steel, twelve-string, electric clean to distortion), basses, ukuleles, banjos, mandolins, lutes (angelique), sitar, koto, qanun, tar, ruan, chapman stick, and 27 sound-alikes |
 | `harps` | 7 | concert, lever, wire-strung, triple harp, lyre, kora |
 | `struck strings` | 5 | hammered dulcimer, cimbalom, santur, yangqin, berimbau |
 | `keyboards` | 11 | pianos, harpsichords, clavichord, celesta, toy piano |
-| `organs` | 9 | pipe organ stops and plenum, positive, combo and theatre organs, calliope |
+| `organs` | 19 | pipe organ stops and plenum, positive, combo and theatre organs, calliope, stopped diapason, cornet and organ clarinet, and 7 sound-alikes (bourdon, salicional, voix céleste, oboe, krummhorn, tuba, post horn) |
 | `electromechanical` | 11 | electric pianos (tine, reed), Clavinet, Pianet, tonewheel organ registrations and percussion |
 | `electronic` | 26 | theremin, ondes Martenot, leads, pads, basses, chiptune pulses, sound-chip voices (NES triangle, AY-3-8910, SID sawtooth, SN76489, PC speaker) and drum-machine voices (TR-808 tom, conga, cowbell, clave, maracas; Syndrum); 10 of the 26 are sound-alikes of other entries |
 | `tuned percussion` | 36 | glockenspiel, xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, boomwhackers, gangsa, and 11 sound-alikes |
@@ -268,7 +268,7 @@ instruments.get('slapstick')                             # an alias: the same in
   name: `slapstick` to `whip`, `contralto` to `alto ah`, `boy soprano` to `treble ah`, `zanza` to
   `mbira`, `cylinder music box` and `disc music box` to `music box`, `wurlitzer electronic piano`
   to `reed electric piano`, `hohner clavinet` to `clavinet`, `rain box` to `rain machine`, `horse
-  hooves` to `coconut shells`, `tavil` to `thavil` and `riq` to `daf` (85 in all, among them
+  hooves` to `coconut shells`, `tavil` to `thavil` and `riq` to `daf` (120 in all, among them
   `kanun` to `qanun`, `ud` to `oud` and `neapolitan mandolin` to `mandolin`). `get` and `entry`
   resolve an alias, while `names` and `entries` list catalog names only.
 - A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
@@ -277,9 +277,9 @@ instruments.get('slapstick')                             # an alias: the same in
   shares (`instruments.get('bamboula') == instruments.get('conga')`; the parent may be in
   another family). A pitched sound-alike (the plucked strings' `requinto guitar`, `liuqin`)
   gives its own sourced range, since it may play another span than its parent; it is pitched
-  exactly when its parent is, and an unpitched one has none. `sound_changes` (empty so far) holds
-  keyword overrides of the parent's builder, for a sound-alike that a source sets apart by one
-  trait; each needs a cited source.
+  exactly when its parent is, and an unpitched one has none. `sound_changes` (set on one entry so
+  far, the organ stop `bourdon`: its footage) holds keyword overrides of the parent's builder,
+  for a sound-alike that a source sets apart by one trait; each needs a cited source.
   Assembly refuses a `sounds_like` that names no entry, itself or another sound-alike. The 131
   drum ones are in `drum_sound_alikes.py`, the family's builds in `drums.py`; the 27 plucked
   string ones are in `plucked_sound_alikes.py`, the builds in `plucked_strings.py`; the 11
@@ -287,7 +287,15 @@ instruments.get('slapstick')                             # an alias: the same in
   `electronic_sound_alikes.py` and the 2 bowed string ones (`viola pomposa`, `bowed psaltery`) in
   `bowed_sound_alikes.py`, the builds in `bowed_strings.py`; the voices' one (`basso buffo ah`, of
   `bass ah`) is in `voice_sound_alikes.py`, the builds in `voices.py`; the flutes' 3 (`csakan`, `subcontrabass recorder`, `ryuteki`) are
-  in `flute_sound_alikes.py`, the builds in `flutes.py` (185 sound-alikes in all).
+  in `flute_sound_alikes.py`, the builds in `flutes.py`; and the brass's 2 (`bass wagner tuba`, of
+  `wagner tuba`, and `soprano trombone`, of `trumpet`) are in `brass_sound_alikes.py`, the builds in
+  `brass.py`; and the double reeds' 2 (`contraforte`, of `contrabassoon`, and `piccolo heckelphone`,
+  of `heckelphone`) are in `double_reed_sound_alikes.py`, the builds in
+  `double_reeds.py`; the organs' 7 (`bourdon`, `salicional`, `voix celeste`, `organ oboe`, `organ
+  krummhorn`, `organ tuba`, `posthorn`) are in `organ_sound_alikes.py`, the builds in `organs.py`;
+  and the bagpipes' table (`bagpipe_sound_alikes.py`) is empty so far (196 sound-alikes in all). A bagpipe's drones are fixed pitches inside its build, so a bagpipe
+  sound-alike in another tuning would carry its own drones as `sound_changes` (each at the pitch
+  its source gives, equal-tempered like the chanter).
 - Each entry has a `title`, a `family` and its playing range, `lowest` and `highest` (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (`pitch='A4'`); it does not change
@@ -297,8 +305,8 @@ instruments.get('slapstick')                             # an alias: the same in
   range (its formants are placed for that pitch and move with the note elsewhere).
 - The ranges and models were audited against published references (orchestration texts, the
   Vienna Symphonic Library, makers' specifications, Fletcher and Rossing, the Csound formant
-  table) on 2026-11-03 and corrected. An organ's range is its keys at 8' pitch (C2-C7; a 16'
-  stop sounds an octave lower). Paired strings double every note, though a twelve-string
+  table) on 2026-11-03 and corrected. An organ's range is its keys at 8' pitch (C2-C7; a stop sounds at its
+  footage, a 16' an octave lower, a 4' an octave higher). Paired strings double every note, though a twelve-string
   guitar's or a bouzouki's octave pairs are only on its lower courses, and a church bell leaves
   out its weak quint, as an instrument has at most four sources.
 - `uv run python -m scripts.make_instrument_demos [DIRECTORY] [--only TEXT]` renders every
