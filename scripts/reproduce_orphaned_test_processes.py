@@ -32,6 +32,7 @@ one did, INTERNAL_ERROR (70) when a run never reached the moment.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import signal
 import sys
@@ -173,8 +174,38 @@ def swept_by_the_run(*, log_text: str) -> list[str]:
     return swept
 
 
+def reach_the_moment(*, when: str, run: RunningProcess[str], temporary: Path) -> bool:
+    """Wait for the run's test to reach the moment ``when``.
+
+    Returns:
+        True once it has; False when the run ended, or MOMENT_TIMEOUT_SECONDS passed, first.
+
+    """
+    deadline = clock.raw_counter_seconds() + MOMENT_TIMEOUT_SECONDS
+    while not reached(when=when, run=run, temporary=temporary):
+        if run.poll() is not None or clock.raw_counter_seconds() > deadline:
+            return False
+        clock.raw_sleep(POLL_SECONDS)
+    return True
+
+
+def end_the_run(*, run: RunningProcess[str]) -> None:
+    """End whatever is left of the run, however the trial ended (the moment never came, Ctrl-C).
+
+    As Ctrl-C stops it (SIGINT first: its tests' cleanup runs), then SIGKILL to anything still in
+    its group: in ``sigterm-leader`` mode the controller is gone, so ``stop_command`` (which
+    waits for the leader) signals nothing, and its workers would run on.
+    """
+    stop_command(process=run, first_signal=signal.SIGINT)
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(run.pid, signal.SIGKILL)
+
+
 def run_trial(*, mode: str, when: str, test: str) -> TrialResult | None:
     """Run, stop and sweep one trial.
+
+    The sweep runs however the trial ends, before the run's temporary directory is removed, so
+    the script never leaves the orphans it measures (the final review, 2026-11-13).
 
     Returns:
         What it found, or None when the run never reached the moment.
@@ -189,22 +220,27 @@ def run_trial(*, mode: str, when: str, test: str) -> TrialResult | None:
             'SDL_VIDEODRIVER': 'dummy',
             'SDL_AUDIODRIVER': 'dummy',
         }
-        with (temporary / 'run.log').open('w', encoding='utf-8') as log:
-            run = start_command(
-                command=run_command_line(test=test, basetemp=basetemp),
-                environment=environment,
-                output=log,
-            )
-            try:
-                deadline = clock.raw_counter_seconds() + MOMENT_TIMEOUT_SECONDS
-                while not reached(when=when, run=run, temporary=temporary):
-                    if run.poll() is not None or clock.raw_counter_seconds() > deadline:
-                        return None
-                    clock.raw_sleep(POLL_SECONDS)
-                stop(mode=mode, run=run, temporary=temporary)
-            finally:
-                stop_command(process=run)
-        left_running = [process.command for process in sweep_processes_naming(directory=temporary)]
+        reached_the_moment = False
+        left_running: list[str] = []
+        try:
+            with (temporary / 'run.log').open('w', encoding='utf-8') as log:
+                run = start_command(
+                    command=run_command_line(test=test, basetemp=basetemp),
+                    environment=environment,
+                    output=log,
+                )
+                try:
+                    reached_the_moment = reach_the_moment(when=when, run=run, temporary=temporary)
+                    if reached_the_moment:
+                        stop(mode=mode, run=run, temporary=temporary)
+                finally:
+                    end_the_run(run=run)
+        finally:
+            left_running = [
+                process.command for process in sweep_processes_naming(directory=temporary)
+            ]
+        if not reached_the_moment:
+            return None
         return TrialResult(
             left_running=left_running,
             swept_by_the_run=swept_by_the_run(

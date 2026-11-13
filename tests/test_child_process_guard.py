@@ -20,10 +20,13 @@ import pytest
 
 from tests.child_process_guard import (
     ChildProcessGuard,
+    KillPlan,
     ListedProcess,
     controller_sweep_lines,
+    kill_plan,
     leftover_processes,
     parse_process_listing,
+    processes_to_sweep,
     sweep_processes_naming,
 )
 
@@ -239,6 +242,85 @@ class TestChildProcessGuard:
             finally:
                 child.kill()
                 child.wait()
+
+
+RUN_DIRECTORY = '/runs/pytest-of-someone/pytest-5'
+
+
+class TestWhatASweepKills:
+    """Which processes a sweep takes, and how it kills them: decided on a listing.
+
+    The final review (2026-11-13) reproduced the first: ``uv run pytest --basetemp=DIR`` names
+    the directory, so the controller's sweep killed ``uv``, its own ancestor (the run exited -9
+    though its tests passed).
+    """
+
+    def test_this_process_and_its_ancestors_are_never_swept_though_they_name_it(self):
+        processes = [
+            listed(
+                pid=10, ppid=1, pgid=10, command=f'zsh -c uv run pytest --basetemp={RUN_DIRECTORY}'
+            ),
+            listed(pid=11, ppid=10, pgid=10, command=f'uv run pytest --basetemp={RUN_DIRECTORY}'),
+            listed(
+                pid=OWN_PID,
+                ppid=11,
+                pgid=10,
+                command=f'python -m pytest --basetemp={RUN_DIRECTORY}',
+            ),
+            listed(
+                pid=2000, ppid=1, pgid=2000, command=f'python {RUN_DIRECTORY}/popen-gw0/game.py'
+            ),
+        ]
+
+        swept = processes_to_sweep(processes=processes, names=[RUN_DIRECTORY], own_pid=OWN_PID)
+
+        assert [process.pid for process in swept] == [2000]
+
+    @pytest.mark.parametrize(
+        ('command', 'is_swept'),
+        [
+            (f'python {RUN_DIRECTORY}/popen-gw0/game.py', True),
+            (f'python {RUN_DIRECTORY}', True),
+            (f'tool --output={RUN_DIRECTORY}/run.jsonl.gz', True),
+            (f"python -c 'x' '{RUN_DIRECTORY}/game.py'", True),
+            (f'python {RUN_DIRECTORY}2/popen-gw0/game.py', False),
+            (f'python {RUN_DIRECTORY}-old/game.py', False),
+            (f'python /elsewhere{RUN_DIRECTORY}/game.py', False),
+        ],
+        ids=['inside', 'itself', 'after-equals', 'quoted', 'a-longer-name', 'a-suffix', 'deeper'],
+    )
+    def test_the_directory_is_matched_as_a_whole_path(self, command, is_swept):
+        """``pytest-5`` is not ``pytest-52``: the name ends at a separator, a space or the end."""
+        processes = [listed(pid=2000, ppid=1, pgid=2000, command=command)]
+
+        swept = processes_to_sweep(processes=processes, names=[RUN_DIRECTORY], own_pid=OWN_PID)
+
+        assert bool(swept) is is_swept
+
+    def test_a_swept_processs_descendants_are_swept_with_it(self):
+        processes = [
+            listed(pid=2000, ppid=1, pgid=2000, command=f'tool {RUN_DIRECTORY}/run.jsonl.gz'),
+            listed(pid=2001, ppid=2000, pgid=2000, command='python game.py'),
+        ]
+
+        swept = processes_to_sweep(processes=processes, names=[RUN_DIRECTORY], own_pid=OWN_PID)
+
+        assert [process.pid for process in swept] == [2000, 2001]
+
+    def test_a_group_is_killed_whole_only_when_every_member_is_swept(self):
+        """A pager in a terminal's job naming a log there loses only itself, not its shell's job."""
+        every_process = [
+            listed(pid=2000, ppid=1, pgid=2000, command='tool'),
+            listed(pid=2001, ppid=2000, pgid=2000, command='game'),
+            listed(pid=3000, ppid=1, pgid=3000, command='zsh'),
+            listed(pid=3001, ppid=3000, pgid=3000, command='less log'),
+            listed(pid=4000, ppid=OWN_PID, pgid=OWN_GROUP, command='a child in our group'),
+        ]
+        swept = [every_process[0], every_process[1], every_process[3], every_process[4]]
+
+        plan = kill_plan(processes=swept, every_process=every_process, own_group=OWN_GROUP)
+
+        assert plan == KillPlan(groups=(2000,), pids=(3001, 4000))
 
 
 @pytest.mark.skipif(sys.platform == 'win32', reason='the sweep kills process groups (POSIX)')

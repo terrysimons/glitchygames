@@ -7,11 +7,15 @@ it needs no game: stopped with SIGTERM to its group, the run leaves the child ru
 
 from __future__ import annotations
 
+import os
+import signal
 import sys
 import textwrap
+import time
 from typing import TYPE_CHECKING
 
 import pytest
+from scripts import reproduce_orphaned_test_processes as reproducer
 from scripts.reproduce_orphaned_test_processes import main, run_trial, swept_by_the_run
 
 from glitchygames.exit_codes import ExitCode
@@ -19,6 +23,8 @@ from glitchygames.exit_codes import ExitCode
 if TYPE_CHECKING:
     from pathlib import Path
 
+# How long a killed process may take to be reaped by launchd (or init)
+GONE_WITHIN_SECONDS = 10.0
 # A stand-in test: a child in a session of its own (naming the test's tmp_path, as a test's
 # children do), its pid written to child.pid, then a wait; its cleanup ends the child
 STAND_IN_TEST = textwrap.dedent(
@@ -110,3 +116,51 @@ def test_a_run_that_never_reaches_the_moment_is_reported(tmp_path: Path, capsys)
 
     assert status == ExitCode.INTERNAL_ERROR
     assert capsys.readouterr().out == "trial 1: the run never reached 'game'\n"
+
+
+@pytest.mark.skipif(sys.platform == 'win32', reason='process groups and SIGINT are POSIX')
+def test_a_run_that_never_reaches_the_moment_leaves_nothing_running(tmp_path, mocker):
+    """Giving up still sweeps: the script must not leave the orphans it measures (final review).
+
+    The stand-in starts its child, never writes ``child.pid`` (the ``game`` moment), and waits;
+    the script gives up after its (shortened) wait, stops the run and sweeps before the run's
+    temporary directory is removed.
+    """
+    mocker.patch.object(reproducer, 'MOMENT_TIMEOUT_SECONDS', 5.0)
+    child_pid_path = tmp_path / 'stand-in-child.pid'
+    test_path = tmp_path / 'test_never_ready.py'
+    test_path.write_text(
+        textwrap.dedent(
+            f"""
+            import subprocess
+            import sys
+            import time
+            from pathlib import Path
+
+
+            def test_starts_a_child_and_never_gets_ready(tmp_path):
+                child = subprocess.Popen(
+                    [sys.executable, '-c', 'import time; time.sleep(120)', str(tmp_path / 'tool')],
+                    start_new_session=True,
+                )
+                Path({str(child_pid_path)!r}).write_text(str(child.pid), encoding='utf-8')
+                time.sleep(120)
+            """
+        ),
+        encoding='utf-8',
+    )
+
+    status = main(['stop-command', 'game', '--test', str(test_path)])
+
+    assert status == ExitCode.INTERNAL_ERROR
+    child_pid = int(child_pid_path.read_text(encoding='utf-8'))
+    # A killed process lingers as a zombie until launchd (or init) reaps it: wait for it to go
+    deadline = time.monotonic() + GONE_WITHIN_SECONDS
+    while time.monotonic() < deadline:
+        try:
+            os.kill(child_pid, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.05)
+    os.kill(child_pid, signal.SIGKILL)
+    pytest.fail("the script left the stand-in test's child running")

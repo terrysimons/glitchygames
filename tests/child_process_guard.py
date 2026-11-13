@@ -29,6 +29,7 @@ from __future__ import annotations
 import contextlib
 import functools
 import os
+import re
 import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - records the suite's children; runs ps (fixed arguments, no shell)
 import sys
@@ -173,14 +174,15 @@ class ChildProcessGuard:
         if not running and not group_leaders:
             return []
         own_group = os.getpgrp()
+        listing = self.list_processes()
         leftovers = leftover_processes(
-            processes=self.list_processes(),
+            processes=listing,
             running=[process.pid for process in running],
             group_leaders=group_leaders,
             own_pid=os.getpid(),
             own_group=own_group,
         )
-        kill_processes(processes=leftovers, own_group=own_group)
+        kill_processes(processes=leftovers, every_process=listing, own_group=own_group)
         for process in running:
             with contextlib.suppress(subprocess.TimeoutExpired):
                 process.wait(timeout=REAP_TIMEOUT_SECONDS)
@@ -192,28 +194,132 @@ class ChildProcessGuard:
 RECORDING_GUARDS: list[ChildProcessGuard] = []
 
 
-def kill_processes(*, processes: Sequence[ListedProcess], own_group: int) -> None:
-    """SIGKILL each process: a group of its own as a whole, one in this process's group alone."""
-    for group in sorted({process.pgid for process in processes if process.pgid != own_group}):
+class KillPlan(BaseModel):
+    """How ``kill_processes`` kills: whole groups, and single processes."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    groups: tuple[int, ...]
+    pids: tuple[int, ...]
+
+
+def kill_plan(
+    *,
+    processes: Sequence[ListedProcess],
+    every_process: Sequence[ListedProcess],
+    own_group: int,
+) -> KillPlan:
+    """Decide how to kill ``processes``: a group whole only when every member of it is one.
+
+    A group with a member not being killed (a terminal job whose pager names a run's file; this
+    process's own group, the xdist controller and workers) loses only the processes chosen.
+
+    Args:
+        processes: The processes to kill.
+        every_process: Every process (to see each group's other members).
+        own_group: This process's group (never killed whole).
+
+    Returns:
+        The groups to kill whole and the other processes to kill one by one, each sorted.
+
+    """
+    chosen = {process.pid for process in processes}
+    whole_groups = {
+        group
+        for group in {process.pgid for process in processes}
+        if group != own_group
+        and all(member.pid in chosen for member in every_process if member.pgid == group)
+    }
+    return KillPlan(
+        groups=tuple(sorted(whole_groups)),
+        pids=tuple(
+            sorted(process.pid for process in processes if process.pgid not in whole_groups)
+        ),
+    )
+
+
+def kill_processes(
+    *,
+    processes: Sequence[ListedProcess],
+    every_process: Sequence[ListedProcess],
+    own_group: int,
+) -> None:
+    """SIGKILL each process as ``kill_plan`` decides; one already gone is no error.
+
+    Args:
+        processes: The processes to kill.
+        every_process: Every process (the listing ``processes`` came from).
+        own_group: This process's group.
+
+    """
+    plan = kill_plan(processes=processes, every_process=every_process, own_group=own_group)
+    for group in plan.groups:
         with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(group, signal.SIGKILL)
-    for process in processes:
-        if process.pgid == own_group:
-            with contextlib.suppress(ProcessLookupError, PermissionError):
-                os.kill(process.pid, signal.SIGKILL)
+    for pid in plan.pids:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.kill(pid, signal.SIGKILL)
+
+
+def processes_to_sweep(
+    *, processes: Sequence[ListedProcess], names: Sequence[str], own_pid: int
+) -> list[ListedProcess]:
+    """Choose what a sweep kills: processes naming a directory, and their descendants.
+
+    A name matches as a whole path: after the start, a space, ``=`` or a quote, and before the
+    end, a separator, a space or a quote (``pytest-5`` is not ``pytest-52``). This process and
+    its ancestors are never chosen: ``uv run pytest --basetemp=DIR`` names the directory too
+    (the final review, 2026-11-13, saw ``uv`` killed).
+
+    Args:
+        processes: Every process (``list_processes``).
+        names: The directory's spellings (as given and resolved).
+        own_pid: This process.
+
+    Returns:
+        The processes chosen, in the listing's order.
+
+    """
+    by_pid = {process.pid: process for process in processes}
+    ancestors: set[int] = set()
+    pid = own_pid
+    while pid in by_pid and pid not in ancestors:
+        ancestors.add(pid)
+        pid = by_pid[pid].ppid
+    ancestors.add(own_pid)
+    pattern = re.compile(
+        '|'.join(rf'(?:^|[\s=\'"]){re.escape(name)}(?=$|[/\s\'"])' for name in names)
+    )
+    chosen = {
+        process.pid
+        for process in processes
+        if process.pid not in ancestors and pattern.search(process.command)
+    }
+    while True:
+        descendants = {
+            process.pid
+            for process in processes
+            if process.ppid in chosen and process.pid not in chosen | ancestors
+        }
+        if not descendants:
+            break
+        chosen |= descendants
+    return [process for process in processes if process.pid in chosen]
 
 
 def sweep_processes_naming(
     *, directory: Path, list_every_process: Callable[[], list[ListedProcess]] | None = None
 ) -> list[ListedProcess]:
-    """Kill every process whose command line names ``directory``; return them.
+    """Kill every process whose command line names ``directory``, with its descendants.
 
     The backstop for a run that died hard (SIGKILL, a crash, ``os._exit``): nothing in it
     unwound, so neither its tests' cleanup nor the guard ran, and a child a test started in a
     session of its own outlived it. Called with the run's temporary directory once the run has
     ended: a test's children name its ``tmp_path`` (their scripts, files and outputs), and the
     directory is the run's alone. The path is matched as given and resolved (macOS's
-    ``/var`` is ``/private/var``). POSIX only: on Windows nothing is swept.
+    ``/var`` is ``/private/var``), as a whole path (``processes_to_sweep``), never in this
+    process or its ancestors; a group is killed whole only when every member is swept
+    (``kill_plan``). POSIX only: on Windows nothing is swept.
 
     Args:
         directory: The ended run's temporary directory.
@@ -227,14 +333,12 @@ def sweep_processes_naming(
     if sys.platform == 'win32':
         return []
     listing = (list_processes if list_every_process is None else list_every_process)()
-    names = {str(directory), str(directory.resolve())}
-    own_pid = os.getpid()
-    swept = [
-        process
-        for process in listing
-        if process.pid != own_pid and any(name in process.command for name in names)
-    ]
-    kill_processes(processes=swept, own_group=os.getpgrp())
+    swept = processes_to_sweep(
+        processes=listing,
+        names=sorted({str(directory), str(directory.resolve())}),
+        own_pid=os.getpid(),
+    )
+    kill_processes(processes=swept, every_process=listing, own_group=os.getpgrp())
     return swept
 
 
