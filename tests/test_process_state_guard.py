@@ -823,6 +823,7 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         'PRINCIPAL_LEVELS': CATALOG_SERIES,
         'REED_STOP_LEVELS': CATALOG_SERIES,
         'STRING_STOP_LEVELS': CATALOG_SERIES,
+        'CLOSED_REED_LEVELS': CATALOG_SERIES,
     },
     'audio/instruments/percussion.py': {
         'GLOCKENSPIEL': CATALOG_BUILD,
