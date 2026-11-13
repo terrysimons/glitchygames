@@ -1336,12 +1336,12 @@ M2 next)
 - Instrument catalog (`audio/instruments/`): `instruments.get('violin')` is an ordinary
   `Instrument` (built once per process), `instruments.entry(name)` its title, family and range
   (`lowest`/`highest`, sounding; None for unpitched drums, whose fixed tones ignore the pitch
-  given). 690 entries in 23 `Family`s (every size of each family, voices soprano to basso
+  given). 692 entries in 23 `Family`s (every size of each family, voices soprano to basso
   profundo on five vowels; `Tag.MECHANICAL` marks mechanical ones and `Tag.CHIP` sound-chip
   voices, `names(tag=...)` lists them;
-  `ALIASES` (read-only, as `CATALOG` is) maps 101 other names to catalog names, resolved by
+  `ALIASES` (read-only, as `CATALOG` is) maps 112 other names to catalog names, resolved by
   `get`/`entry`; a sound-alike is its own entry sharing a parent's build via `sounds_like`, with
-  optional sourced `sound_changes`; 187 in all, and a pitched one, as the plucked strings' and bowed strings' are,
+  optional sourced `sound_changes`; 189 in all, and a pitched one, as the plucked strings' and bowed strings' are,
   given). 684 entries in 23 `Family`s (every size of each family, voices soprano to basso
   profundo on five vowels; `Tag.MECHANICAL` marks mechanical ones and `Tag.CHIP` sound-chip
   voices, `names(tag=...)` lists them;

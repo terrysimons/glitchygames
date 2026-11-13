@@ -831,6 +831,17 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('mako', 'didgeridoo'),
         ('alpenhorn', 'alphorn'),
         ('fotuto', 'conch'),
+        ('cor anglais', 'english horn'),
+        ('baritone oboe', 'bass oboe'),
+        ('fagott', 'bassoon'),
+        ('cervelas', 'rackett'),
+        ('gyaling', 'suona'),
+        ('zurla', 'zurna'),
+        ('bombard', 'bombarde'),
+        ('surna', 'zurna'),
+        ('surnay', 'zurna'),
+        ('zournas', 'zurna'),
+        ('haidi', 'suona'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -862,6 +873,10 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 10's second half names the conch as the dung dkar, the hakgediya, the pututu, the
     shankha and the fotuto, the french horn as the waldhorn, the natural horn as the
     inventionshorn, the didgeridoo as the yidaki and the mako, and the alphorn as the alpenhorn.
+    Batch 11's first half names the english horn as the cor anglais, the bass oboe as the baritone
+    oboe, the bassoon as the fagott (its German name) and the rackett as the cervelas.
+    Batch 11's second half names the suona as the gyaling and the haidi, the zurna as the zurla,
+    the surna, the surnay and the zournas, and the bombarde as the bombard.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1640,6 +1655,42 @@ FLUTE_SOUND_ALIKE_PARENTS: dict[str, str] = {
 FLUTE_UNPITCHED_NAMES: frozenset[str] = frozenset()
 
 
+# The 23 double reeds that predate batch 11: their shared builds predate the anti-goal rule
+EXISTING_DOUBLE_REED_NAMES: frozenset[str] = frozenset({
+    'oboe',
+    'oboe d amore',
+    'english horn',
+    'bass oboe',
+    'heckelphone',
+    'bassoon',
+    'contrabassoon',
+    'sarrusophone',
+    'soprano shawm',
+    'alto shawm',
+    'tenor shawm',
+    'bass shawm',
+    'suona',
+    'zurna',
+    'bombarde',
+    'hichiriki',
+    'piri',
+    'soprano crumhorn',
+    'alto crumhorn',
+    'tenor crumhorn',
+    'bass crumhorn',
+    'rackett',
+    'duduk',
+})
+# Batch 11's double reeds with their own build, in the sheet's order. None: every row the sheet
+# ships is a sound-alike (plans/data/instrument-audit/batch-11.tsv)
+NEW_DOUBLE_REED_NAMES: list[str] = []
+# Batch 11's double reed sound-alikes and the entry each sounds like, in the sheet's order
+DOUBLE_REED_SOUND_ALIKE_PARENTS: dict[str, str] = {
+    'contraforte': 'contrabassoon',
+    'piccolo heckelphone': 'heckelphone',
+}
+
+
 # The 42 brass instruments that predate batch 10: their shared builds predate the anti-goal rule
 EXISTING_BRASS_NAMES: frozenset[str] = frozenset({
     'piccolo trumpet',
@@ -1789,6 +1840,9 @@ BATCH_FAMILIES: dict[Family, BatchFamily] = {
         FLUTE_SOUND_ALIKE_PARENTS,
         FLUTE_UNPITCHED_NAMES,
     ),
+    Family.DOUBLE_REEDS: BatchFamily(
+        EXISTING_DOUBLE_REED_NAMES, NEW_DOUBLE_REED_NAMES, DOUBLE_REED_SOUND_ALIKE_PARENTS
+    ),
     Family.BRASS: BatchFamily(EXISTING_BRASS_NAMES, NEW_BRASS_NAMES, BRASS_SOUND_ALIKE_PARENTS),
     Family.BOWED_STRINGS: BatchFamily(
         EXISTING_BOWED_NAMES, NEW_BOWED_NAMES, BOWED_SOUND_ALIKE_PARENTS
@@ -1923,10 +1977,12 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         for catalog_entry in instruments.entries()
         if catalog_entry.sounds_like is not None
     ]
-    # The catalog lists families in table order: flutes, brass, bowed strings, plucked strings,
-    # electronic, tuned percussion, drums, voices, then choirs (registry.FAMILY_TABLES)
+    # The catalog lists families in table order: flutes, double reeds, brass, bowed strings,
+    # plucked strings, electronic, tuned percussion, drums, voices, then choirs, as
+    # registry.FAMILY_TABLES lists them
     assert every_sound_alike == (
         list(FLUTE_SOUND_ALIKE_PARENTS)
+        + list(DOUBLE_REED_SOUND_ALIKE_PARENTS)
         + list(BRASS_SOUND_ALIKE_PARENTS)
         + list(BOWED_SOUND_ALIKE_PARENTS)
         + list(PLUCKED_SOUND_ALIKE_PARENTS)
@@ -2008,7 +2064,9 @@ def test_the_gangsa_pairs_its_fundamental_at_the_ombak_ratio():
 # buzzing, nasal quality'), and batch 10's for the didgeridoo, built without the moving formants
 # its page names (https://en.wikipedia.org/wiki/Didgeridoo: 'These formants, and especially their
 # variation during the inhalation and exhalation phases of circular breathing, give the
-# instrument its readily recognisable sound.')
+# instrument its readily recognisable sound.'), and batch 11's for the piri, built as a conical
+# shawm though its page says (https://en.wikipedia.org/wiki/Piri_(instrument)): 'It has a
+# cylindrical bore.'
 APPROXIMATING_NAMES = frozenset({
     'sitar',
     'tanpura',
@@ -2021,6 +2079,7 @@ APPROXIMATING_NAMES = frozenset({
     'hurdy gurdy',
     'dizi',
     'didgeridoo',
+    'piri',
 })
 
 
@@ -2123,3 +2182,19 @@ def test_no_brass_name_held_back_for_a_feature_is_listed():
     """No catalog name or alias is a brass instrument the sheet holds back for a feature."""
     assert set(BRASS_HELD_BACK) & set(instruments.names()) == set()
     assert set(BRASS_HELD_BACK) & set(instruments.ALIASES) == set()
+
+
+# Every name plans/data/instrument-audit/batch-11.tsv holds back for an engine feature or a build
+# of its own, with its waits_for: the WAIT rows whose reason is not "a sourced range", and the
+# alias rows that wait for one of them, in the sheet's order. None ships under that name or as an
+# alias until the engine or the build exists (decision 4; batch 11). The test matches exact names
+DOUBLE_REED_HELD_BACK: dict[str, str] = {
+    'aulos': 'a sourced drone tuning',
+    'balaban': 'its own build (a cylindrical bore)',
+}
+
+
+def test_no_double_reed_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a double reed the sheet holds back for a feature."""
+    assert set(DOUBLE_REED_HELD_BACK) & set(instruments.names()) == set()
+    assert set(DOUBLE_REED_HELD_BACK) & set(instruments.ALIASES) == set()
