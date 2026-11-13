@@ -36,6 +36,16 @@ The comparison is off, and the summary says why, in CI (`CI=true`), with `--dumm
 iteration), when `SDL_VIDEODRIVER` or `SDL_AUDIODRIVER` is set (that driver runs alone), and on a
 Linux machine without a display.
 
+!!! warning "Stopping a child run leaves nothing running"
+    The native run and the image re-runs are stopped (an interrupted run, a timeout, the end of the
+    session) as Ctrl-C stops a pytest run: SIGINT to the run's process group first, which every
+    xdist worker turns into an orderly `KeyboardInterrupt`, so each test's cleanup runs; SIGTERM,
+    then SIGKILL, follow a run that does not end. SIGTERM first, as before, killed the workers at
+    once, and a child a test had started in a session of its own was left running (BUGS.md #275).
+    Each child run also has a temporary directory of its own (`--basetemp`, under the system's
+    temporary directory); when it ends, any process naming it, left by a worker that died outright,
+    is killed and listed in the summary (`left running by the cocoa run (now killed): ...`).
+
 ## Tests whose frames vary
 
 A test whose frames are not expected to match between runs or drivers is marked

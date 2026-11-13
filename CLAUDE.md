@@ -1670,6 +1670,16 @@ the aggregate of the games it steps
   After each test the variables, display and mixer a test moved off the run's drivers (a
   constructed `--headless` engine moves them to `dummy`) are put back, the display showing the
   canvas (`tests/sdl_driver_isolation.py`; a few microseconds when nothing changed)
+- A test that leaves a process running fails (`tests/child_process_guard.py`, the harness's
+  autouse `no_child_process_left_running`, BUGS.md #275): every child a test starts through
+  `subprocess.Popen` is recorded, and at teardown each one still running, every process in a
+  group one led (`start_new_session`) and every descendant of either is killed and named. Stop a
+  child you start with its whole group (`process.stop_command`); stop a child pytest run with
+  `stop_command(first_signal=signal.SIGINT)`, as Ctrl-C does, so its workers unwind and each
+  test's cleanup runs (SIGTERM kills a worker with no cleanup). The run's controller, and the
+  driver comparison after each child run (each with a `--basetemp` of its own), kill and list
+  any process naming the run's temporary directory, left by a worker killed outright.
+  `uv run python -m scripts.reproduce_orphaned_test_processes MODE WHEN` reproduces the stops
 - All tests run with `no_unhandled_events=True` to catch unhandled events as bugs
 - The test display rule (`tests/display_canvas.py`): every test starts on the canvas (the default
   pattern; channel 3 with `GLITCHYGAMES_TEST_CANVAS=channel-3`), its display is presented after the
