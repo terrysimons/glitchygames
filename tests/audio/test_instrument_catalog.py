@@ -868,6 +868,15 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('pedal harp', 'concert harp'),
         ('lever harp', 'celtic harp'),
         ('folk harp', 'celtic harp'),
+        ('hackbrett', 'hammered dulcimer'),
+        ('dulcemele', 'hammered dulcimer'),
+        ('dultzimar', 'hammered dulcimer'),
+        ('darushimaa', 'hammered dulcimer'),
+        ('hakkebord', 'hammered dulcimer'),
+        ('hakkebraet', 'hammered dulcimer'),
+        ('hakkebrett', 'hammered dulcimer'),
+        ('hackbraede', 'hammered dulcimer'),
+        ('hammarharpa', 'hammered dulcimer'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
