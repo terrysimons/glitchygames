@@ -263,4 +263,54 @@ ALIASES: Final[dict[str, str]] = {
     # licensed chip, its tone channels the AY's; the differences are the clock pin and the
     # envelope table, not the square tone
     'ym2149': 'ay 3 8910',
+    # --- Batch 7's bowed strings, in the order of plans/data/instrument-audit/batch-7.tsv
+    # https://en.wikipedia.org/wiki/Hurdy-gurdy ("In Poland it is called 'cranked lyre' (lira
+    # korbowa)."): the Polish name for the hurdy gurdy; an alias is a name, not a build, so it
+    # does not share the approximating hurdy gurdy's sound as a sound-alike would
+    'lira korbowa': 'hurdy gurdy',
+    # https://musicbrainz.org/instrument/8f15287f-48c1-4a7c-a7f7-30653c490279 (the viol family
+    # lists the consort as "Soprano viol (treble)" and the first grouping as "Treble/Diskant or
+    # Dessus viol"); https://en.wikipedia.org/wiki/Viol ("treble (dessus in French)"): the
+    # catalog treble viol under another name
+    'soprano viol': 'treble viol',
+    # https://www.thedailystar.net/supplements/28th-anniversary-supplements/deshi-first/news/folk-musical-instruments-the-land-1704676
+    # ("the violin; popularly known as behala"): the violin's Bengali name, so an alias, not a
+    # sound-alike
+    'behala': 'violin',
+    # https://en.wikipedia.org/wiki/Morin_khuur (the Matouqin title redirects there; the Huqin
+    # page lists "Matouqin (馬頭琴) (Inner Mongolia)"): the Chinese name for the morin khuur
+    'matouqin': 'morin khuur',
+    # https://en.wikipedia.org/wiki/Kemenche (the Kemençe title redirects there and opens
+    # "Kemenche (Turkish: kemençe; Greek: κεμεντζές)"): the Turkish spelling of the catalog
+    # kemenche
+    'kemence': 'kemenche',
+    # --- Batch 8's voices, in the order of plans/data/instrument-audit/batch-8.tsv
+    # https://en.wikipedia.org/wiki/Contralto ("A contralto ... (sometimes alto) is a classical
+    # female singing voice whose vocal range is the lowest of such voice types."): the solo voice
+    # the catalog's alto ah is titled for ("Alto (contralto)"), F3 to F5 as the page gives it
+    'contralto': 'alto ah',
+    # https://en.wikipedia.org/wiki/Boy_soprano ("A boy soprano ... or boy treble ... is a young
+    # male singer with a voice in the soprano range, a range that is often still called the
+    # treble voice range"): the catalog's treble ah, titled "Treble (boy soprano)"
+    'boy soprano': 'treble ah',
+    # --- Batch 9's flutes, in the order of plans/data/instrument-audit/batch-9.tsv
+    # https://en.wikipedia.org/wiki/Tin_whistle ("The tin whistle, also known as the penny
+    # whistle, is a simple six-holed woodwind instrument."): another name for the tin whistle
+    'penny whistle': 'tin whistle',
+    # https://en.wikipedia.org/wiki/Pan_flute ("In Bolivia, the panpipes of the altiplano are
+    # known as jula-jula, and those of the Andean range as julu-julu."): the altiplano's Bolivian
+    # name for the panpipes, which the page does not tie to the siku, so the catalog's pan flute
+    'jula jula': 'pan flute',
+    # The same page and sentence: the Andean range's Bolivian name for the panpipes
+    'julu julu': 'pan flute',
+    # https://en.wikipedia.org/wiki/Pan_flute ("A pan flute (also known as panpipes or syrinx) is
+    # a musical instrument based on the principle of the closed tube"; "Ancient Greeks called
+    # this instrument Syrinx"): the Greek name for the catalog's pan flute
+    'syrinx': 'pan flute',
+    # https://www.windkanal.de/2-windkanal/88-give-your-spirit-a-voice ("In the original language
+    # of the Lakota, the flute is called Siyotanka and is also known as "love flute" and
+    # "courting flute". Today, the name Native American Flute or Native American Style Flute has
+    # generally prevailed."); https://www.horniman.ac.uk/object/M47-1991 ("Siyotanka, courting
+    # flute."): the Lakota name for the catalog's native american flute
+    'siyotanka': 'native american flute',
 }

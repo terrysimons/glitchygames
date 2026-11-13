@@ -788,6 +788,15 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             'context compares against the same one.'
         ),
     },
+    'audio/instruments/bowed_strings.py': {
+        'VIOLIN': CATALOG_BUILD,
+        'VIOLA': CATALOG_BUILD,
+        'CELLO': CATALOG_BUILD,
+        'DOUBLE_BASS': CATALOG_BUILD,
+        'VIOL': CATALOG_BUILD,
+        'FOLK_FIDDLE': CATALOG_BUILD,
+        'SPIKE_FIDDLE': CATALOG_BUILD,
+    },
     'audio/instruments/brass.py': {
         'HARMON_LEVELS': CATALOG_SERIES,
         'STRAIGHT_MUTE_LEVELS': CATALOG_SERIES,
@@ -801,6 +810,14 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         'TUBA': CATALOG_BUILD,
         'NATURAL': CATALOG_BUILD,
         'WOODEN_LIP_REED': CATALOG_BUILD,
+    },
+    'audio/instruments/flutes.py': {
+        'METAL_FLUTE': CATALOG_BUILD,
+        'WOODEN_FLUTE': CATALOG_BUILD,
+        'RECORDER': CATALOG_BUILD,
+        'WHISTLE': CATALOG_BUILD,
+        'END_BLOWN': CATALOG_BUILD,
+        'VESSEL': CATALOG_BUILD,
     },
     'audio/instruments/keyboards.py': {
         'PRINCIPAL_LEVELS': CATALOG_SERIES,
@@ -831,15 +848,6 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             'catalog), a frozen Instrument computed from its name alone.'
         ),
     },
-    'audio/instruments/strings.py': {
-        'VIOLIN': CATALOG_BUILD,
-        'VIOLA': CATALOG_BUILD,
-        'CELLO': CATALOG_BUILD,
-        'DOUBLE_BASS': CATALOG_BUILD,
-        'VIOL': CATALOG_BUILD,
-        'FOLK_FIDDLE': CATALOG_BUILD,
-        'SPIKE_FIDDLE': CATALOG_BUILD,
-    },
     'audio/instruments/timbres.py': {
         'HARMONIC_FIELD_NAMES': (
             'R16: a tuple of strings, its harmonics unpacked from a generator expression, '
@@ -848,22 +856,27 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         'HIGHEST_HARMONIC': 'R16: an int, the length of HARMONIC_FIELD_NAMES.',
     },
     'audio/instruments/voices.py': {
-        'VOICES': (
+        '_VOICE_BUILDS': (
             'R16: a tuple of frozen CatalogEntry values, unpacked from a function the rules '
             'cannot read.'
         ),
-        'CHOIRS': (
+        '_CHOIR_BUILDS': (
             'R16: a tuple of frozen CatalogEntry values, returned by a function the rules '
             'cannot read.'
         ),
+        # The rules treat a name bound to a reported name as reported (reported_names), so the
+        # concatenations are reported because _VOICE_BUILDS and _CHOIR_BUILDS are: each is those
+        # reasoned tuples plus a literal tuple of frozen CatalogEntry values
+        'VOICES': (
+            'R16: _VOICE_BUILDS (above) plus the voice sound-alikes, both tuples of frozen '
+            'CatalogEntry values; reported only because _VOICE_BUILDS is.'
+        ),
+        'CHOIRS': (
+            'R16: _CHOIR_BUILDS (above) plus the choir sound-alikes, both tuples of frozen '
+            'CatalogEntry values; reported only because _CHOIR_BUILDS is.'
+        ),
     },
     'audio/instruments/winds.py': {
-        'METAL_FLUTE': CATALOG_BUILD,
-        'WOODEN_FLUTE': CATALOG_BUILD,
-        'RECORDER': CATALOG_BUILD,
-        'WHISTLE': CATALOG_BUILD,
-        'END_BLOWN': CATALOG_BUILD,
-        'VESSEL': CATALOG_BUILD,
         'FREE_REED_LEVELS': CATALOG_SERIES,
     },
     'audio/library.py': {

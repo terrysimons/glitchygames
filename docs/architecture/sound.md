@@ -265,7 +265,7 @@ the sound never plays where the picture does not (`--headless`, tests, replays, 
 
 ## The instrument catalog
 
-`glitchygames.audio.instruments` holds 682 ready-made instruments in 23 families. Each is an
+`glitchygames.audio.instruments` holds 688 ready-made instruments in 23 families. Each is an
 ordinary `Instrument`, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:
@@ -284,14 +284,14 @@ instruments.get('slapstick')                             # an alias: the same in
 
 | Family | Entries | Examples |
 | --- | --- | --- |
-| `flutes` | 30 | piccolo to contrabass flute, wooden flutes, sopranino to contrabass recorders, whistles, shakuhachi, ocarinas |
+| `flutes` | 33 | piccolo to contrabass flute, wooden flutes, sopranino to subcontrabass recorders, whistles, shakuhachi, ocarinas, and 3 sound-alikes (csakan, subcontrabass recorder, ryuteki) |
 | `clarinets` | 9 | E-flat to contrabass clarinet, basset horn, chalumeau |
 | `saxophones` | 8 | sopranino to contrabass, C melody |
 | `double reeds` | 23 | oboe family, bassoon and contrabassoon, shawms, crumhorns, suona, duduk |
 | `bagpipes` | 8 | Highland, uilleann, smallpipes, gaita, gaida, musette (drones built in) |
 | `free reeds` | 13 | accordions (dry, musette, bass), bandoneon, concertina, harmonicas, melodicas, sheng |
 | `brass` | 42 | piccolo trumpet to contrabass tuba, alto to contrabass trombone, mutes, historic and folk horns |
-| `bowed strings` | 27 | violin to double bass, sections, pizzicato, viols, erhu, hurdy-gurdy |
+| `bowed strings` | 29 | violin to double bass, sections, pizzicato, viols, erhu, hurdy-gurdy, and 2 sound-alikes (viola pomposa, bowed psaltery) |
 | `plucked strings` | 92 | guitars (nylon, steel, twelve-string, electric clean to distortion), basses, ukuleles, banjos, mandolins, lutes (angelique), sitar, koto, qanun, tar, ruan, chapman stick, and 27 sound-alikes |
 | `harps` | 7 | concert, lever, wire-strung, triple harp, lyre, kora |
 | `struck strings` | 5 | hammered dulcimer, cimbalom, santur, yangqin, berimbau |
@@ -305,7 +305,7 @@ instruments.get('slapstick')                             # an alias: the same in
 | `drums and percussion` | 237 | kits (kicks, snares, toms, hi-hats, cymbals), hand drums (daf, dhol, kendang, mridangam), gongs, shakers, blocks, and 131 sound-alikes |
 | `noise makers` | 5 | whip crack, diaphone, air horn, vehicle horn, party horn |
 | `sound effects` | 8 | thunder sheet, rain machine, ocean drum, cannon, crash box, coconut shells, door slam |
-| `voices` | 55 | soprano, mezzo, alto, treble, countertenor, tenor, baritone, bass and basso profundo on ah, eh, ee, oh, oo and humming; whistling |
+| `voices` | 56 | soprano, mezzo, alto, treble, countertenor, tenor, baritone, bass and basso profundo on ah, eh, ee, oh, oo and humming; whistling; and 1 sound-alike (basso buffo, of bass ah) |
 | `choirs` | 13 | soprano, alto, tenor and bass sections on ah, oh and oo; children's choir |
 
 - Names and families are lowercase words separated by spaces (`'tenor saxophone'`, `'double
@@ -318,13 +318,13 @@ instruments.get('slapstick')                             # an alias: the same in
   stays in the family the instrument sounds like.
   `instruments.names(tag=...)` and `entries(tag=...)` list the entries carrying it, and combine
   with `family=`.
-- `instruments.ALIASES` (read-only, as `instruments.CATALOG` is) maps another name to its
-  catalog name: `slapstick` to `whip`, `zanza` to `mbira`, `cylinder music box` and `disc music
-  box` to `music box`, `wurlitzer electronic piano` to `reed electric piano`, `hohner clavinet`
-  to `clavinet`, `rain box` to `rain machine`, `horse hooves` to `coconut shells`, `tavil` to
-  `thavil` and `riq` to `daf` (73 in all, among them `kanun` to `qanun`, `ud` to `oud` and
-  `neapolitan mandolin` to `mandolin`). `get` and `entry` resolve an alias, while `names` and
-  `entries` list catalog names only.
+- `instruments.ALIASES` (read-only, as `instruments.CATALOG` is) maps another name to its catalog
+  name: `slapstick` to `whip`, `contralto` to `alto ah`, `boy soprano` to `treble ah`, `zanza` to
+  `mbira`, `cylinder music box` and `disc music box` to `music box`, `wurlitzer electronic piano`
+  to `reed electric piano`, `hohner clavinet` to `clavinet`, `rain box` to `rain machine`, `horse
+  hooves` to `coconut shells`, `tavil` to `thavil` and `riq` to `daf` (85 in all, among them
+  `kanun` to `qanun`, `ud` to `oud` and `neapolitan mandolin` to `mandolin`). `get` and `entry`
+  resolve an alias, while `names` and `entries` list catalog names only.
 - A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
   (`bamboula` and `conga`, `tombak` and `darbuka doum`), so it is an entry of its own, listed by
   `names` and `entries`, whose `CatalogEntry.sounds_like` names the parent whose build it
@@ -337,8 +337,11 @@ instruments.get('slapstick')                             # an alias: the same in
   Assembly refuses a `sounds_like` that names no entry, itself or another sound-alike. The 131
   drum ones are in `drum_sound_alikes.py`, the family's builds in `drums.py`; the 27 plucked
   string ones are in `plucked_sound_alikes.py`, the builds in `plucked_strings.py`; the 11
-  tuned percussion ones are in `tuned_sound_alikes.py` and the 10 electronic ones in
-  `electronic_sound_alikes.py` (179 sound-alikes in all).
+  tuned percussion ones are in `tuned_sound_alikes.py`, the 10 electronic ones in
+  `electronic_sound_alikes.py` and the 2 bowed string ones (`viola pomposa`, `bowed psaltery`) in
+  `bowed_sound_alikes.py`, the builds in `bowed_strings.py`; the voices' one (`basso buffo ah`, of
+  `bass ah`) is in `voice_sound_alikes.py`, the builds in `voices.py`; the flutes' 3 (`csakan`, `subcontrabass recorder`, `ryuteki`) are
+  in `flute_sound_alikes.py`, the builds in `flutes.py` (185 sound-alikes in all).
 - Each entry has a `title`, a `family` and its playing range, `lowest` and `highest` (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (`pitch='A4'`); it does not change

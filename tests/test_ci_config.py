@@ -6,6 +6,8 @@ import itertools
 import json
 import re
 import shlex
+import shutil
+import socket
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
@@ -364,6 +366,141 @@ def test_docs_deploy_with_no_measure_measures_nothing():
     assert not any('measure' in command for command in commands)
     assert ('python', '-m', 'scripts.build_browser_bundle', 'all') in commands
     assert ('mkdocs', 'gh-deploy', '--strict', '--config-file', 'zensical.yml') in commands
+
+
+# How ``nox -s docs-serve`` runs mkdocs: in a fresh environment of its own from uv.lock, removed
+# when it ends (noxfile.docs_serve)
+DOCS_SERVE_IN_A_FRESH_ENVIRONMENT = (
+    'uv',
+    'run',
+    '--isolated',
+    '--frozen',
+    '--no-editable',
+    '--all-packages',
+    '--all-extras',
+    '--python',
+    '3.14',
+)
+
+
+def free_local_port() -> int:
+    """Return a port nothing listens on at 127.0.0.1 (the system's pick, released at once).
+
+    Returns:
+        The port.
+
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(('127.0.0.1', 0))
+        return probe.getsockname()[1]
+
+
+@pytest.mark.parametrize(
+    ('arguments', 'address'),
+    [
+        ([], ('127.0.0.1', 8000)),
+        (['--dev-addr', '127.0.0.1:8001'], ('127.0.0.1', 8001)),
+        (['-a', 'localhost:8002'], ('localhost', 8002)),
+        (['--dev-addr=192.0.2.1:8003'], ('192.0.2.1', 8003)),
+        (['--dirty', '-a', '127.0.0.1:8004', '--dev-addr', '127.0.0.1:8005'], ('127.0.0.1', 8005)),
+    ],
+)
+def test_docs_serve_reads_its_address_as_mkdocs_serve_does(arguments, address):
+    """``--dev-addr`` or ``-a``, joined by ``=`` or not, the last one given; else 127.0.0.1:8000."""
+    import noxfile
+
+    assert noxfile._docs_serve_address(arguments=arguments) == address
+
+
+def test_docs_serve_runs_mkdocs_in_a_fresh_environment_of_its_own():
+    """Each run has its own environment, so a second run never deletes the first's.
+
+    The session's own venv (``reuse_venv=False``) was recreated by every run, before the
+    session's code ran: a second ``docs-serve`` deleted the first's packages in the middle of
+    its build (2026-11-13: Material's ``favicon.png`` vanished mid-copy).
+    """
+    import noxfile
+
+    address = f'127.0.0.1:{free_local_port()}'
+    session = RecordingSession(posargs=['--dev-addr', address])
+
+    noxfile.docs_serve(session)
+
+    serve = (*DOCS_SERVE_IN_A_FRESH_ENVIRONMENT, 'mkdocs', 'serve', '--strict')
+    assert session.commands == [(*serve, '--config-file', 'zensical.yml', '--dev-addr', address)]
+    assert session.environments[session.commands[0]] == {'VIRTUAL_ENV': None}
+
+
+LISTENER_COMMAND = '/home/someone/.venv/bin/python /home/someone/.venv/bin/server --port 8000'
+
+
+def expected_holder(*, listing: str, command: str) -> str:
+    """Return how the refusal names the listener, on this machine.
+
+    Returns:
+        `` (by pid N: COMMAND)`` (``ps``'s command line, else ``lsof``'s short name), or ``''``
+        without ``lsof`` or a listener it found.
+
+    """
+    if shutil.which('lsof') is None or not listing:
+        return ''
+    if shutil.which('ps') is not None and command:
+        return f' (by pid 71400: {command})'
+    return ' (by pid 71400: python3.14)'
+
+
+@pytest.mark.parametrize(
+    ('listing', 'command'),
+    [
+        ('p71400\ncpython3.14\n', LISTENER_COMMAND),
+        ('p71400\ncpython3.14\n', ''),
+        ('', ''),
+    ],
+    ids=['named-by-its-command-line', 'named-by-lsof', 'unnamed'],
+)
+def test_docs_serve_refuses_a_taken_address_before_building(listing, command):
+    """A taken address stops the session at once, naming who holds it and a free one.
+
+    mkdocs binds its address only after the whole build (about five minutes), so it failed late
+    (2026-11-13: ports 8000-8002 all held by Python servers). ``lsof`` finds the listener and
+    ``ps`` its command line (``lsof``'s short name was ``python3.14`` for all three); without
+    ``lsof``, or when it finds none, the message names only the address.
+    """
+    import noxfile
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(('127.0.0.1', 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+        session = RecordingSession(
+            posargs=['--dev-addr', f'127.0.0.1:{port}'],
+            outputs={'lsof': listing, 'ps': f'{command}\n'},
+        )
+
+        with pytest.raises(RuntimeError) as refusal:
+            noxfile.docs_serve(session)
+
+    message = str(refusal.value)
+    holder = expected_holder(listing=listing, command=command)
+    assert message.startswith(f'127.0.0.1:{port} is in use{holder}: ')
+    assert re.search(r'nox -s docs-serve -- --dev-addr 127\.0\.0\.1:\d+$', message)
+    assert not any('mkdocs' in command for command in session.commands)
+
+
+def test_docs_serve_suggests_an_address_that_is_free():
+    """The suggested port is one nothing listens on, after the taken one."""
+    import noxfile
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(('127.0.0.1', 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+
+        suggested = noxfile._free_port_after(host='127.0.0.1', port=port)
+
+        assert suggested > port
+        assert not noxfile._address_in_use(host='127.0.0.1', port=suggested)
+        assert noxfile._address_in_use(host='127.0.0.1', port=port)
 
 
 def circleci_workflow_job(*, name: str) -> str:

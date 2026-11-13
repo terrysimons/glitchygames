@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The RPG Sprite Page — Bitmappy × MasterHUB deck</title>
+<meta name="description" content="Design reference: the MasterHUB deck wired to the bitmappy editor — the top-down RPG 'Magic Mushroom' sprite page, laid out like the physical hub.">
+<style>
+  :root {
+    --bg: #0f1420; --panel: #19202e; --panel-2: #212a3b; --edge: #2e3a4f;
+    --fg: #eef2f8; --muted: #8d9bb5; --faint: #5d6a82;
+    --accent: #5aa9ff; --dir: #233450; --dir-edge: #3f6aa6;
+    --center: #273a24; --center-edge: #5fa14e;
+    --future: #171d28; --future-edge: #283244;
+    --r: #ff6b6b; --g: #57d08a; --b: #5aa9ff;
+    --onion: #e8c84a; --alpha: #d86bd8; --fps: #5ad17a; --range: #e8943a; --zoom: #46c2cf;
+    --said: #5fa14e; --guess: #c99a4a;
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #eef1f6; --panel: #ffffff; --panel-2: #f3f6fb; --edge: #d6ddea;
+      --fg: #18202e; --muted: #5a6680; --faint: #93a0b8;
+      --accent: #2b6fd6; --dir: #e4ecfa; --dir-edge: #a9c3ee;
+      --center: #e2f1df; --center-edge: #6bb45a;
+      --future: #eef1f6; --future-edge: #dbe2ee;
+      --said: #3d7d2f; --guess: #9a6f1e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1420; --panel: #19202e; --panel-2: #212a3b; --edge: #2e3a4f;
+    --fg: #eef2f8; --muted: #8d9bb5; --faint: #5d6a82;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  img { max-width: 100%; }
+  body { background: var(--bg); color: var(--fg); margin: 0;
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1100px; margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 28px; }
+  h1 { font-size: 1.4rem; margin: 0 0 2px; letter-spacing: .2px; text-wrap: balance; }
+  .sub { color: var(--muted); margin: 0 0 22px; font-size: .95rem; }
+  .page-tag { display: inline-block; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--accent); border: 1px solid var(--edge); border-radius: 999px; padding: 3px 10px; margin-bottom: 14px; }
+
+  /* Laid out like the physical hub: keys big top-left, rollers under them, knobs/dial stacked right. */
+  .decks { display: grid; gap: 16px; align-items: start; grid-template-columns: 1fr; }
+  @media (min-width: 860px) {
+    .decks {
+      grid-template-columns: minmax(0, 1fr) 190px 300px;
+      grid-template-areas:
+        "base   base   base"
+        "keys   roll   right"
+        "faders faders right"
+        "mile   mile   mile";
+    }
+    .a-keys { grid-area: keys; } .a-roll { grid-area: roll; } .a-right { grid-area: right; }
+    .a-faders { grid-area: faders; } .a-base { grid-area: base; } .a-mile { grid-area: mile; }
+    .a-keys, .a-roll { align-self: stretch; }
+    .a-right { display: flex; flex-direction: column; gap: 16px; align-self: stretch; }
+    .a-faders { align-self: stretch; display: flex; flex-direction: column; }
+    .a-faders .faders { order: 1; margin-top: auto; }
+    .a-keys { display: flex; flex-direction: column; }
+    .a-keys .keys { order: 1; }
+    .a-roll { display: flex; flex-direction: column; }
+    .a-roll .rollers { order: 1; }
+    .a-right > .panel:first-child { display: flex; flex-direction: column; }
+    .a-right > .panel:first-child .knobs { order: 1; }
+  }
+  .panel { background: var(--panel); border: 1px solid var(--edge); border-radius: 16px; padding: 18px; }
+  .panel h2 { font-size: .82rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+    margin: 0 0 14px; font-weight: 600; }
+  .module { font-size: .72rem; color: var(--faint); font-weight: 400; }
+
+  /* Keys: 3 columns x 5 rows as the eye sees it (M4315 mounted 90 degrees), real 72x72 buttons. */
+  .keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; max-width: 348px; margin: 0 auto; }
+  .key { border-radius: var(--radius); aspect-ratio: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    border: 1px solid var(--edge); background: var(--panel-2); text-align: center; gap: 2px; position: relative; }
+  .key .lead { font-size: 1.4rem; font-weight: 700; line-height: 1; }
+  .key .cap { font-size: .6rem; color: var(--muted); }
+  .key .cap.name { color: var(--accent); font-weight: 600; font-size: .56rem; line-height: 1.1; }
+  .key.dir { background: var(--dir); border-color: var(--dir-edge); }
+  .key.dir .lead { color: var(--fg); }
+  .key.center { background: var(--center); border-color: var(--center-edge); }
+  .key.nav .lead { color: var(--accent); }
+  .key.nav .cap { color: var(--muted); font-size: .6rem; }
+  .pager { display: flex; gap: 8px; justify-content: center; align-items: center; }
+  .pager.vertical { flex-direction: column; }
+  .pager .key { width: 76px; height: 76px; flex: none; }
+  .rollers { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  .rollunit { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+  .wheel { width: 50px; height: 116px; border-radius: 14px; border: 1px solid var(--edge);
+    background: repeating-linear-gradient(90deg, var(--panel) 0 3px, var(--panel-2) 3px 6px);
+    box-shadow: inset 0 3px 6px rgba(0,0,0,.28), inset 0 -3px 6px rgba(0,0,0,.28); }
+  .rollbtn { display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    padding: 4px 10px; border-radius: 9px; border: 1px solid var(--edge); background: var(--panel-2); }
+  .rollbtn .lead { color: var(--accent); font-weight: 700; font-size: .9rem; line-height: 1; }
+  .rollbtn .cap { color: var(--muted); font-size: .56rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+  .rollicon { width: 48px; height: 60px; border-radius: 10px; border: 1px solid var(--edge);
+    background: var(--panel-2); display: grid; place-items: center; }
+  .rollicon .lead { font-size: 1.4rem; font-weight: 700; }
+  .pagegrid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(5, 1fr); gap: 2px; width: 28px; height: 44px; }
+  .pagegrid i { display: block; background: var(--dir-edge); border-radius: 1px; }
+  .keyanno { order: 2; width: 100%; max-width: 348px; margin: 10px auto 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .brace { width: 100%; height: 11px; border: 2px solid var(--faint); border-top: none; border-radius: 0 0 9px 9px; }
+  .brace.sub { width: 100%; border-top: 2px solid var(--faint); border-bottom: none; border-radius: 9px 9px 0 0; margin-top: 12px; }
+  .annolbl { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+  .pageicon { width: 42px; height: 58px; border: 1px solid var(--edge); border-radius: 8px; background: var(--panel-2); display: grid; place-items: center; margin-top: 2px; }
+  .sprite { width: 40px; height: 40px; border-radius: 6px; image-rendering: pixelated;
+    background: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABbElEQVR4nO1XwXWDMAyV/BiqHcS+Z4R2kGYE7maQZCv6RBARig2yTcsl/4KfLPS/ZUsYHGGEM+FOZYe3ADh/C7oSZwRcndgRRvw3AUjkMUIMa1urCFdCrhEhvmSlFLjXB1Ir1wgQqrcDtwQQOa1yIYqwCKExg2y1IjqLE5PJLGghvB2lIjrL6rfSL1Ejwlkds6Sh7WA6y97rPd8VVSDCWUqOyemphbBN2kvEoq4CKYDTO/jBFGzw/lERLCDsVwbmBPjhSeq9XxPNczk7i6kW4OfAWwQSOT967gnochMUlAJwcBpPq0r0AFB+/G51J0SqgkTvn0h16WUOXDCkn5DMAL2I4VlGOTEpUhnjkI8RQdb0S3+YcvJAzbfAWZwosA5+u/xszh8qQHZHJv7sv6fx1+Wj6U7gLE5EQESSmMetFxO0ngEWkMO1v//tGbj298PJCaYMLM5zmjkbLKrlYoo1/4Ys5IhrOb5/TuFk/AJa3dTV9gcUpgAAAABJRU5ErkJggg==") center / contain no-repeat; }
+  .swatch { width: 40px; height: 40px; border-radius: 6px; background: #aa00aa; border: 1px solid color-mix(in srgb, var(--fg) 15%, transparent); }
+  .ips-screen { width: 240px; height: 240px; max-width: 100%; border-radius: 50%; border: 3px solid var(--edge);
+    background: #0a0d14; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; margin: 4px auto 14px;
+    box-shadow: inset 0 0 30px rgba(0, 0, 0, .65), 0 0 0 11px #05070c, 0 0 0 12px rgba(255, 255, 255, .08); }
+  .ips-screen .sprite { width: 128px; height: 128px; }
+  .ips-label { color: var(--accent); font-size: .74rem; font-weight: 700; letter-spacing: .04em; text-align: center; text-shadow: 0 0 6px rgba(90, 169, 255, .35); }
+  .ips-caption { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .ips-cap { color: var(--muted); font-size: .62rem; letter-spacing: .04em; text-align: center; }
+  .center .cap { color: var(--center-edge); font-weight: 600; }
+  .dialbox { flex: 1 1 auto; display: flex; flex-direction: column; }
+  .dialbox .ips-screen { margin-top: auto; margin-bottom: 0; }
+
+  .knobs { display: grid; grid-template-areas: "blue blue" "red green"; justify-content: center; gap: 14px 30px; }
+  .knobs .knob { justify-self: center; }
+  .knob.r { grid-area: red; } .knob.g { grid-area: green; } .knob.b { grid-area: blue; }
+  .knob { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+  .dialface { width: 58px; height: 58px; border-radius: 50%; border: 2px solid var(--edge);
+    background: radial-gradient(circle at 50% 38%, var(--panel-2), var(--panel)); position: relative;
+    box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--tint) 22%, transparent); }
+  .dialface::after { content: ""; position: absolute; left: 50%; top: 8px; width: 3px; height: 15px; border-radius: 3px;
+    background: var(--tint); transform: translateX(-50%); }
+  .knob .lbl { font-size: .9rem; font-weight: 700; color: var(--tint); }
+
+  .faders { display: flex; gap: 18px; justify-content: center; align-items: end; }
+  .fader { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .track { width: 14px; height: 96px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--edge);
+    position: relative; }
+  .thumb { position: absolute; left: 50%; transform: translateX(-50%); width: 24px; height: 16px; border-radius: 5px;
+    background: var(--faint); border: 1px solid var(--edge); }
+  .fader.onion .thumb { background: var(--onion); border-color: var(--onion); box-shadow: 0 0 10px color-mix(in srgb, var(--onion) 60%, transparent); }
+  .fader.alpha .thumb { background: var(--alpha); border-color: var(--alpha); box-shadow: 0 0 10px color-mix(in srgb, var(--alpha) 60%, transparent); }
+  .fader.fps .thumb { background: var(--fps); border-color: var(--fps); box-shadow: 0 0 10px color-mix(in srgb, var(--fps) 60%, transparent); }
+  .fader.range .thumb { background: var(--range); border-color: var(--range); box-shadow: 0 0 10px color-mix(in srgb, var(--range) 60%, transparent); }
+  .fader.zoom .thumb { background: var(--zoom); border-color: var(--zoom); box-shadow: 0 0 10px color-mix(in srgb, var(--zoom) 60%, transparent); }
+  .fader .lbl { font-size: .62rem; color: var(--muted); text-align: center; min-height: 2.4em; }
+  .fader.onion .lbl { color: var(--onion); font-weight: 600; }
+  .fader.alpha .lbl { color: var(--alpha); font-weight: 600; }
+  .fader.fps .lbl { color: var(--fps); font-weight: 600; }
+  .fader.range .lbl { color: var(--range); font-weight: 600; }
+  .fader.zoom .lbl { color: var(--zoom); font-weight: 600; }
+
+  .tbd { color: var(--muted); font-size: .86rem; }
+  .tbd b { color: var(--fg); font-weight: 600; }
+  .note { margin-top: 14px; font-size: .82rem; color: var(--muted); }
+
+  .legend { margin-top: 22px; display: flex; gap: 18px; flex-wrap: wrap; font-size: .8rem; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .dot { width: 11px; height: 11px; border-radius: 3px; }
+  .dot.said { background: var(--said); }
+  .dot.guess { background: transparent; border: 1px dashed var(--guess); }
+  .tag { font-size: .6rem; text-transform: uppercase; letter-spacing: .07em; padding: 1px 6px; border-radius: 5px; }
+  .tag.guess { color: var(--guess); border: 1px dashed var(--guess); }
+  .tag.todo { color: var(--accent); border: 1px solid var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="page-tag">Page 1 · Top-down RPG</div>
+  <h1>The RPG Sprite Page</h1>
+  <p class="sub">Laid out like the physical hub: keys top-left, the rollers in the skinny column beside them, knobs top-right with the dial tucked beneath, faders across the bottom.
+    Green&nbsp;= settled; dashed&nbsp;= still a guess.</p>
+
+  <div class="decks">
+    <!-- CENTER-LEFT: keys (big) -->
+    <div class="panel a-keys">
+      <h2>Keys <span class="module">· M4315 · 3×5, seen as 5×3 (mounted 90°) · 72×72</span></h2>
+      <div class="keys">
+        <div class="key nav"><span class="lead">←</span><span class="cap">Prev Sprite</span></div>
+        <div class="key"><div class="sprite"></div><span class="cap">Sprite</span><span class="cap name">Magic Mushroom</span></div>
+        <div class="key nav"><span class="lead">→</span><span class="cap">Next Sprite</span></div>
+        <div class="key dir"><span class="lead">NW</span></div>
+        <div class="key dir"><span class="lead">N</span></div>
+        <div class="key dir"><span class="lead">NE</span></div>
+        <div class="key dir"><span class="lead">W</span></div>
+        <div class="key center"><div class="sprite"></div><span class="cap">idle · S</span></div>
+        <div class="key dir"><span class="lead">E</span></div>
+        <div class="key dir"><span class="lead">SW</span></div>
+        <div class="key dir"><span class="lead">S</span></div>
+        <div class="key dir"><span class="lead">SE</span></div>
+        <div class="key nav"><span class="lead">←</span><span class="cap">Prev Color</span></div>
+        <div class="key"><div class="swatch"></div><span class="cap">Palette</span></div>
+        <div class="key nav"><span class="lead">→</span><span class="cap">Next Color</span></div>
+      </div>
+      <p class="note">Middle 3×3 = direction grid; center shows the active sprite (idle, S); press a direction →
+        that direction's film strip. Top row: <b>Prev · sprite · Next</b>; bottom row: <b>Prev · palette · Next</b>.</p>
+      <div class="keyanno">
+        <div class="brace"></div>
+        <div class="annolbl">RPG Sprite Page</div>
+        <div class="brace sub"></div>
+        <div class="pageicon"><div class="pagegrid"></div></div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: knobs on top, IPS dial butted against their bottom edge -->
+    <div class="a-right">
+      <div class="panel">
+        <h2>Knobs <span class="module">· M003K</span></h2>
+        <div class="knobs">
+          <div class="knob b" style="--tint: var(--b)"><div class="dialface"></div><span class="lbl">B</span></div>
+          <div class="knob r" style="--tint: var(--r)"><div class="dialface"></div><span class="lbl">R</span></div>
+          <div class="knob g" style="--tint: var(--g)"><div class="dialface"></div><span class="lbl">G</span></div>
+        </div>
+        <p class="note">Your <b>"dials"</b> (rotary encoders) — R/G/B color (set + reflect), each channel on the
+          0–255 knob plus the 0–100 LED layering we already have.</p>
+      </div>
+      <div class="panel dialbox">
+        <h2>IPS dial <span class="module">· M131E · "the knob" · 240×240</span></h2>
+        <p class="note"><b>The navigator.</b> Turn to move the selection across the editor
+          (canvas · film-strip parent · each slider · color wheel · mini view); <b>press</b> to activate that
+          element; <b>double-press</b> (quick) to go back. First milestone: a press just <b>prints what was clicked</b>.</p>
+        <p class="note">Its screen shows <b>whatever is on the center key</b> (the active sprite). In the
+          filmstrip it <b>scrubs</b> frames — the <b>selected frame</b> (not playing), with the strip as a
+          <b>background</b> cue; double-press backs out.</p>
+        <div class="ips-screen"><div class="sprite"></div><div class="ips-caption"><div class="ips-cap">Sprite</div><div class="ips-label">Magic Mushroom</div></div></div>
+      </div>
+    </div>
+
+    <!-- BESIDE KEYS: rollers — two wheels, each ← Prev / Next → -->
+    <div class="panel a-roll">
+      <h2>Rollers <span class="module">· M032LE · two wheels</span></h2>
+      <div class="rollers">
+        <div class="rollunit">
+          <div class="rollbtn"><span class="lead">←</span><span class="cap">Prev</span></div>
+          <div class="wheel"></div>
+          <div class="rollbtn"><span class="cap">Next</span><span class="lead">→</span></div>
+          <div class="rollicon"><span class="lead">?</span></div>
+        </div>
+        <div class="rollunit">
+          <div class="rollbtn"><span class="lead">←</span><span class="cap">Prev</span></div>
+          <div class="wheel"></div>
+          <div class="rollbtn"><span class="cap">Next</span><span class="lead">→</span></div>
+          <div class="rollicon"><div class="pagegrid"></div></div>
+        </div>
+      </div>
+      <p class="note">Two wheels, each <b>← Prev / Next →</b>. Lower wheel <b>flips pages</b> — back/forward
+        through the swappable 15-key layouts (orientation-aware; the hub owns the turn). Upper wheel
+        <span class="tag todo">?</span> — job TBD. <b>Not</b> used in the film strip; the <b>dial</b> scrubs there.</p>
+    </div>
+
+    <!-- BOTTOM-LEFT: faders -->
+    <div class="panel a-faders">
+      <h2>Sliders <span class="module">· M005S</span></h2>
+      <div class="faders">
+        <div class="fader zoom"><div class="track"><div class="thumb" style="bottom: 45%"></div></div><span class="lbl">Zoom</span></div>
+        <div class="fader fps"><div class="track"><div class="thumb" style="bottom: 60%"></div></div><span class="lbl">Speed · FPS</span></div>
+        <div class="fader range"><div class="track"><div class="thumb" style="bottom: 35%"></div></div><span class="lbl">Onion range</span></div>
+        <div class="fader alpha"><div class="track"><div class="thumb" style="bottom: 70%"></div></div><span class="lbl">Alpha · 0–100</span></div>
+        <div class="fader onion"><div class="track"><div class="thumb" style="bottom: 25%"></div></div><span class="lbl">Onion · 0–100</span></div>
+      </div>
+      <p class="note">Set-and-hold values (absolute sliders can't track the color, so none carry it).
+        L→R: zoom (cyan), speed/FPS (green), onion range (amber) · alpha (magenta) · onion opacity (yellow).</p>
+    </div>
+
+    <!-- BOTTOM-RIGHT: base edge LED -->
+    <div class="panel a-base">
+      <h2>Base edge LED <span class="module">· M0064</span></h2>
+      <p class="note"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#aa00aa;vertical-align:-1px;margin-right:6px"></span>The <b>selected color</b> from the color well — the current paint color (the RGB knobs are its channels).</p>
+    </div>
+
+    <!-- FULL WIDTH: first milestone -->
+    <div class="panel a-mile">
+      <h2>First milestone</h2>
+      <p class="tbd">The IPS dial selects an editor region and a <b>press prints what was clicked</b> —
+        proving the hardware→editor bridge before wiring up what each selection actually does.</p>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot said"></span> settled</span>
+    <span><span class="dot guess"></span> still a guess</span>
+  </div>
+</div>
+
+<script>
+  // The sprite cells show the user's own purple mushroom (bitmappy sprite -> examples/webhid/shroom3.png,
+  // 32x32 RGBA, magenta chroma keyed transparent), embedded as a data URI. A 3x5 page grid fills the pager.
+  (function () {
+    document.querySelectorAll(".pagegrid").forEach(function (el) {
+      for (var k = 0; k < 15; k++) el.appendChild(document.createElement("i"));
+    });
+  })();
+
+  // Live wiring: a host page (RPG Sprite Studio) posts the current sprite; show it on every sprite
+  // cell (the center key + the dial) and update the name labels. Harmless when opened standalone.
+  window.addEventListener("message", function (e) {
+    var d = e.data || {};
+    if (d.type !== "sprite" || !d.url) return;
+    document.querySelectorAll(".sprite").forEach(function (el) { el.style.backgroundImage = "url('" + d.url + "')"; });
+    if (d.name) {
+      var label = document.querySelector(".ips-label"); if (label) label.textContent = d.name;
+      document.querySelectorAll(".cap.name").forEach(function (el) { el.textContent = d.name; });
+    }
+  });
+
+  // Report our full height to a host page (RPG Sprite Studio) so it can scale us to fit the screen.
+  // postMessage works cross-origin and under file://, where reading our document from the host would not.
+  function reportDeckSize() {
+    parent.postMessage({ type: "deckSize", height: document.documentElement.scrollHeight }, "*");
+  }
+  window.addEventListener("load", reportDeckSize);
+  window.addEventListener("resize", reportDeckSize);
+  if (window.ResizeObserver) { try { new ResizeObserver(reportDeckSize).observe(document.body); } catch (e) {} }
+</script>
+</body>
+</html>

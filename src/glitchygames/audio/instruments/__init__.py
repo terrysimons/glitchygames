@@ -16,9 +16,10 @@ noise, layered sources with their own envelopes and pitches, filters and drive; 
 ``timbres``), so it plays, caches and renders offline like any other. The voices come in every
 range (soprano, mezzo-soprano, alto, treble, countertenor, tenor, baritone, bass, basso
 profundo) on five vowels, and the families' sizes have their variants (sopranino to contrabass
-saxophones and recorders, alto to contrabass trombones, piccolo to contrabass flutes, and so
-on). They are synthesized approximations: there are no recorded samples, vibrato or moving
-filters in the engine yet, so sustained tones are steady and a vowel is truest mid-range.
+saxophones, sopranino to subcontrabass recorders, alto to contrabass trombones, piccolo to
+contrabass flutes, and so on). They are synthesized approximations: there are no recorded
+samples, vibrato or moving filters in the engine yet, so sustained tones are steady and a vowel
+is truest mid-range.
 
 Three families hold the instruments that are neither struck bars nor blown: plucked idiophones
 (``kalimba``, ``mbira``, ``music box``, ``sansula``), friction instruments (``glass harmonica``,
@@ -55,6 +56,33 @@ basses, ukuleles, banjos, mandolins, lutes such as ``angelique``, zithers such a
 (``requinto guitar`` and ``classical guitar``, ``liuqin`` and ``pipa``). The family is pitched,
 so a pitched sound-alike gives its own sourced range, a requinto's span being its own: it
 shares its parent's build, not its range.
+
+Bowed strings (29 entries) holds the family's builds in ``bowed_strings.py`` (violin to double
+bass, sections, pizzicato, viols, ``erhu``, ``hurdy gurdy``) and its sound-alikes in
+``bowed_sound_alikes.py`` (``viola pomposa`` and ``viola``, ``bowed psaltery`` and ``violin``). The
+family is pitched, so each sound-alike gives its own sourced range. Instruments that need
+sympathetic strings or a buzzing bridge wait, and ``sarangi``, ``hardanger fiddle``, ``viola d
+amore``, ``nyckelharpa`` and ``hurdy gurdy`` stay as the approximations they were, never a parent.
+
+Flutes (33 entries) hold their builds in ``flutes.py`` (``piccolo`` to ``contrabass flute``,
+``recorder`` sizes, ``tin whistle``, ``shakuhachi``, ``pan flute``, ``ocarina``) and their
+sound-alikes in ``flute_sound_alikes.py`` (``csakan`` and ``soprano recorder``, ``subcontrabass
+recorder`` and ``contrabass recorder``, ``ryuteki`` and ``bansuri``). ``winds.py`` keeps the five
+reed families. The family is pitched, so each sound-alike gives its own sourced range (sounding,
+stated, never hedged or extreme). A flute whose sound is a moving one (``slide whistle``,
+``pea whistle``), a buzzing membrane (``qudi``, ``daegeum``) or a voice (``tsuur``) waits, and
+``dizi`` stays as the approximation it was, never a parent. ``penny whistle``, ``syrinx`` and
+three more names are aliases.
+
+Voices (56 entries) and choirs (13 entries) hold their builds in ``voices.py`` (``soprano ah`` to
+``basso profundo hum``, ``whistling``, ``choir soprano ah``, ``childrens choir``), which shares one
+formant table between the two families, and their sound-alikes in ``voice_sound_alikes.py``, one
+table per family (``basso buffo ah``, a sound-alike of ``bass ah``; the choirs' table is empty).
+An entry is a voice type, a voice device or a choir part: singing techniques, styles and genres
+are not instruments. A voice type that no source sets apart in sound is a sound-alike of the type
+its source names, on ``ah`` alone, and it gives its own sourced range (stated, never hedged or
+extreme). Everything that needs moving formants (throat singing, ``yodel``), a vibrato, or a
+buzzing membrane (``kazoo``, ``swazzle``) waits, and ``contralto`` and ``boy soprano`` are aliases.
 
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and

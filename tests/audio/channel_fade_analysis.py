@@ -14,6 +14,7 @@ import operator
 import os
 import sys
 from pathlib import Path
+from typing import Protocol
 
 import numpy as np
 
@@ -61,6 +62,23 @@ MINIMUM_DELAYED_STEAL_TRIALS = TRIAL_COUNT // 2 + 1
 
 # How often a worker waiting for another worker's recording looks for it
 WAIT_POLL_SECONDS = 0.05
+# How many times a case is recorded before a lost trial fails it (record). A stall long enough to
+# swallow a 200 ms silence between trials is rare (seen twice, both on CircleCI's Windows job:
+# 2026-11-11 and 2026-11-13), so three short recordings in a row point at the machine
+RECORDING_ATTEMPTS = 3
+
+
+class RecordingAttempt(Protocol):
+    """Makes one recording of a probe case into a partial file (``record_attempt``)."""
+
+    def __call__(self, case: str, *, partial: Path) -> str | None:
+        """Record ``case`` into ``partial``.
+
+        Returns:
+            The failure's output when the recording could not be made, else None.
+
+        """
+        ...
 
 
 def recording_directory(base_temporary: Path) -> Path:
@@ -106,13 +124,58 @@ def shared_recording(case: str, directory: Path) -> np.ndarray:
     return read_recording(path)
 
 
-def record(case: str, *, path: Path, failed: Path) -> None:
-    """Record a probe case through SDL's disk audio driver in a child process.
+def record(case: str, *, path: Path, failed: Path, attempt: RecordingAttempt | None = None) -> None:
+    """Record a probe case through SDL's disk audio driver, again when a trial was lost.
 
-    The child writes beside ``path``; the file is moved into place only when it finished, and a
-    failure leaves its output in ``failed`` for the waiting workers.
+    The child writes beside ``path``; the file is moved into place only when it finished and
+    holds all TRIAL_COUNT trials. The disk driver writes nothing while its thread is starved, so
+    on a loaded machine a silence between two trials can vanish and the two record as one
+    (CircleCI Windows: the CRT skip 2026-11-11, job 3303's bus fade 2026-11-13, each 5 of 6).
+    Such a recording is made again, up to RECORDING_ATTEMPTS times; the callers' exact trial
+    count stays, so a merged trial is never analysed as one. A failure (the child's, or every
+    attempt short) leaves its message in ``failed`` for the waiting workers.
+
+    Args:
+        case: The probe case.
+        path: Where the finished recording goes.
+        failed: Where a failure's message goes.
+        attempt: Makes one recording into the partial file (tests pass a stand-in); None is
+            ``record_attempt``, the probe's child process.
+
+    Raises:
+        AssertionError: The child failed, or every attempt lost a trial.
+
     """
+    attempt = record_attempt if attempt is None else attempt
     partial = path.with_suffix('.partial')
+    trial_counts: list[int] = []
+    for _ in range(RECORDING_ATTEMPTS):
+        child_failure = attempt(case, partial=partial)
+        if child_failure is not None:
+            failed.write_text(child_failure, encoding='utf-8')
+        assert child_failure is None, child_failure
+        trial_counts.append(len(trial_chunks(read_recording(partial))))
+        if trial_counts[-1] == TRIAL_COUNT:
+            partial.replace(path)
+            return
+        partial.unlink()
+    message = (
+        f'{RECORDING_ATTEMPTS} recordings of {case} each lost a trial (trial counts '
+        f'{", ".join(str(count) for count in trial_counts)}, of {TRIAL_COUNT}): the disk audio '
+        "driver's thread stalled through a silence between trials on every attempt"
+    )
+    failed.write_text(message, encoding='utf-8')
+    raise AssertionError(message)
+
+
+def record_attempt(case: str, *, partial: Path) -> str | None:
+    """Record a probe case once, through SDL's disk audio driver in a child process.
+
+    Returns:
+        The child's output when it failed (or its exit status, when it printed nothing), else
+        None: the recording is in ``partial``.
+
+    """
     environment = {
         **os.environ,
         'SDL_AUDIODRIVER': 'disk',
@@ -127,9 +190,8 @@ def record(case: str, *, path: Path, failed: Path) -> None:
         working_directory=REPOSITORY_ROOT,
     )
     if result.returncode != 0:
-        failed.write_text(result.stdout or f'exit {result.returncode}', encoding='utf-8')
-    assert result.returncode == 0, result.stdout
-    partial.replace(path)
+        return result.stdout or f'exit {result.returncode}'
+    return None
 
 
 def read_recording(path: Path) -> np.ndarray:
@@ -147,7 +209,8 @@ def trial_chunks(samples: np.ndarray) -> list[range]:
 
     The probe plays TRIAL_COUNT trials, so the TRIAL_COUNT - 1 longest silences of at least
     TRIAL_SEPARATING_SAMPLES separate them; a shorter one (a late sleep inside a trial) stays in
-    its trial. Fewer such silences give fewer trials, which the callers' count check catches.
+    its trial. Fewer such silences give fewer trials: ``record`` records such a recording again,
+    and the callers' count check catches one that reaches them.
     The disk driver writes whole chunks from the file's start, so chunk ``i`` is samples
     ``i * 512 .. (i + 1) * 512``.
 
