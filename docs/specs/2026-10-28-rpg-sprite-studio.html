@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RPG Sprite Studio</title>
+<style>
+  /* Background matches the deck / instruction page. */
+  :root { --bg: #0f1420; --edge: #2e3a4f; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg: #eef1f6; --edge: #d6ddea; } }
+  :root[data-theme="dark"] { --bg: #0f1420; --edge: #2e3a4f; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body { margin: 0; background: var(--bg); }
+
+  .app { display: flex; gap: 10px; padding: 10px; height: 100%; align-items: stretch; }
+  .pane { border: 1px solid var(--edge); border-radius: 12px; overflow: hidden; background: var(--bg); min-width: 0; min-height: 0; }
+  .pane.deck { flex: none; }                 /* width + height set by JS to the scaled deck */
+  .pane.editor { flex: 1 1 auto; }
+  .pane iframe { border: 0; width: 100%; height: 100%; display: block; background: var(--bg); }
+
+  @media (max-width: 999px) {
+    .app { flex-direction: column; }
+    .pane.deck { width: 100% !important; }
+    .pane.editor { min-height: 70vh; }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <!-- LEFT: our deck page, exactly as the artifact (the local file is the same V55 content), scaled to fit -->
+    <div class="pane deck">
+      <iframe id="deck" src="2026-10-28-bitmappy-masterhub-deck.html" title="The RPG Sprite Page deck"></iframe>
+    </div>
+    <!-- RIGHT: bitmappy, loaded from the deployed play/ site -->
+    <div class="pane editor">
+      <iframe id="bitmappy" src="https://terrysimons.github.io/glitchygames/play/bitmappy/"
+        title="bitmappy editor" allow="clipboard-read; clipboard-write"></iframe>
+    </div>
+  </div>
+
+<script>
+  // The deck renders at its full design width; we scale it down so its WHOLE height fits the screen,
+  // then size the left pane to the scaled deck so bitmappy takes the rest. The deck's real height
+  // arrives by postMessage (works under file://, where reading its document would not).
+  var DESIGN_WIDTH = 1140;
+  var deckHeight = 1300;          // sensible default until the deck reports its real height
+  var MAX_DECK_FRACTION = 0.58;   // never let the deck eat more than this share of the width
+
+  function layout() {
+    var app = document.querySelector(".app");
+    var pane = document.querySelector(".pane.deck");
+    var frame = document.getElementById("deck");
+    if (!app || window.innerWidth < 1000) { // stacked layout: let CSS handle it
+      frame.style.transform = "none"; frame.style.width = ""; frame.style.height = "";
+      pane.style.width = ""; pane.style.height = ""; return;
+    }
+    var availHeight = app.clientHeight;
+    var scale = availHeight / deckHeight;                       // fill the height
+    var maxWidth = app.clientWidth * MAX_DECK_FRACTION;
+    if (DESIGN_WIDTH * scale > maxWidth) scale = maxWidth / DESIGN_WIDTH;
+    frame.style.width = DESIGN_WIDTH + "px";
+    frame.style.height = deckHeight + "px";
+    frame.style.transformOrigin = "top left";
+    frame.style.transform = "scale(" + scale + ")";
+    pane.style.width = Math.ceil(DESIGN_WIDTH * scale) + "px";
+    pane.style.height = Math.ceil(deckHeight * scale) + "px";
+  }
+
+  window.addEventListener("message", function (e) {
+    if (e.data && e.data.type === "deckSize" && e.data.height) { deckHeight = e.data.height; layout(); }
+  });
+  document.getElementById("deck").addEventListener("load", layout);
+  window.addEventListener("resize", layout);
+  window.addEventListener("load", layout);
+  layout();
+</script>
+</body>
+</html>

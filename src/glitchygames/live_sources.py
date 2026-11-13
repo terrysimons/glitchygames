@@ -14,6 +14,7 @@ import pygame
 from glitchygames import clock
 from glitchygames.input.devices import LiveDeviceRegistry
 from glitchygames.input.state import capture_live_snapshot
+from glitchygames.render_target import is_inner_context
 from glitchygames.sources import without_discarded_scope_posts
 from glitchygames.state.manager import DiskSaveManager
 from glitchygames.state.sandbox import save_namespace_snapshot
@@ -147,8 +148,12 @@ class LiveSources:
 
     @property
     def presents_frames(self: Self) -> bool:
-        """Live play presents every frame."""
-        return True
+        """Live play presents every frame, unless it draws on a render target its host shows.
+
+        An inner context (glitchygames/render_target.py) never presents the window: its host
+        shows the render target.
+        """
+        return not is_inner_context()
 
     @property
     def draws_overlay(self: Self) -> bool:

@@ -19,6 +19,7 @@ from glitchygames.events import (
     WindowEvent,
     WindowEvents,
     WindowGeometryEvent,
+    set_event_types_allowed,
 )
 
 LOG = logging.getLogger('game.window')
@@ -215,7 +216,7 @@ class WindowEventManager(ResourceManager):
         """
         super().__init__(game=game)
         try:
-            pygame.event.set_allowed(WINDOW_EVENTS)
+            set_event_types_allowed(event_types=WINDOW_EVENTS, allowed=True)
         except pygame.error:
             LOG.debug('Failed to set allowed window events: pygame not fully initialized')
         self.proxies = [WindowEventManager.WindowEventProxy(game=game)]

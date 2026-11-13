@@ -30,10 +30,11 @@ from typing import (
 import pygame
 
 from glitchygames.engine_context import ContextSlot, current_context
+from glitchygames.render_target import is_inner_context
 
 if TYPE_CHECKING:
     import builtins
-    from collections.abc import Callable, Iterator, KeysView, ValuesView
+    from collections.abc import Callable, Iterator, KeysView, Sequence, ValuesView
     from types import MemberDescriptorType
 
     from glitchygames.tracing import JsonValue
@@ -253,15 +254,42 @@ def allow_every_event_type(*, native_window_messages: bool) -> None:
     as allowed while SDL ignores it, and a snapshot-and-restore of the blocked types (the
     replay's input blocking) would then enable it.
 
+    In an inner context it changes nothing (``set_event_types_allowed``): SDL's blocked types
+    stay the outer game's.
+
     Args:
         native_window_messages: Whether SYSWMEVENT is allowed too.
 
     """
-    pygame.event.set_allowed(None)
-    if native_window_messages:
-        pygame.event.set_allowed(pygame.SYSWMEVENT)
+    set_event_types_allowed(event_types=None, allowed=True)
+    set_event_types_allowed(event_types=pygame.SYSWMEVENT, allowed=native_window_messages)
+
+
+def set_event_types_allowed(*, event_types: int | Sequence[int] | None, allowed: bool) -> None:
+    """Allow or block event types at SDL, unless the current engine context is inner.
+
+    SDL's blocked event types are one set per process, and belong to the context that owns the
+    window and SDL's queue (audit row S6, plans/2026-10-25-engine-context.md). An inner context
+    (glitchygames/render_target.py ``is_inner_context``: an Arcade tile) posts to and drains a
+    queue of its own (``recording.private_event_queue``) and never reads SDL's, so its blocked
+    state is moot: building or stepping its engine (``allow_every_event_type``, each event
+    manager's constructor, a recording's ``--input-mode joystick``) leaves SDL's set as the
+    outer game had it. Every engine call that changes SDL's blocked types goes through here,
+    except the replay's own input blocking (glitchygames/replay/input_blocking.py), which an
+    inner context never reaches (its replay doors drain the private queue instead).
+
+    Args:
+        event_types: One event type, several, or None for every type (pygame's rule).
+        allowed: True to allow them (``pygame.event.set_allowed``), False to block them
+            (``pygame.event.set_blocked``).
+
+    """
+    if is_inner_context():
+        return
+    if allowed:
+        pygame.event.set_allowed(event_types)
     else:
-        pygame.event.set_blocked(pygame.SYSWMEVENT)
+        pygame.event.set_blocked(event_types)
 
 
 class GameOptionsProvider(Protocol):

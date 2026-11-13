@@ -19,6 +19,7 @@ from glitchygames.events import (
     MouseMotionEvent,
     MouseWheelEvent,
     ResourceManager,
+    set_event_types_allowed,
 )
 
 LOG = logging.getLogger('game.mouse')
@@ -438,7 +439,7 @@ class MouseEventManager(ResourceManager):
 
         """
         super().__init__(game=game)
-        pygame.event.set_allowed(MOUSE_EVENTS)
+        set_event_types_allowed(event_types=MOUSE_EVENTS, allowed=True)
         self.proxies = [MouseEventManager.MouseEventProxy(game=game)]
 
     @classmethod
