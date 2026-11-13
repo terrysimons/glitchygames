@@ -99,8 +99,8 @@ Double reeds (25 entries) hold the family's builds in ``double_reeds.py`` (``obo
 horn``, ``bassoon``, ``contrabassoon``, ``heckelphone``, ``sarrusophone``, the shawms, the
 crumhorns, ``suona``, ``zurna``, ``duduk``) and their sound-alikes in
 ``double_reed_sound_alikes.py`` (``contraforte`` and ``contrabassoon``, ``piccolo heckelphone``
-and ``heckelphone``). ``winds.py`` keeps the clarinets, saxophones,
-bagpipes and free reeds. The family is pitched, so each sound-alike gives its own sourced range
+and ``heckelphone``). ``winds.py`` keeps the clarinets, saxophones
+and free reeds. The family is pitched, so each sound-alike gives its own sourced range
 (sounding, stated, never hedged, "comfortable" or "theoretical"). A double reed whose range no
 source states waits (most of them, among them the other sarrusophone sizes, the folk shawms and
 ``aulos``; ``balaban`` waits for a build that models its cylindrical bore), and ``piri`` stays as
