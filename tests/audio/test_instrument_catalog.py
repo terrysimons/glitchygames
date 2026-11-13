@@ -2787,6 +2787,35 @@ def test_a_sixteen_foot_harpsichord_sounds_its_lower_choir():
         assert -12.0 in semitones, name
 
 
+def attack_peak_offsets(name: str, ratios: tuple[float, ...]) -> tuple[list[float], float]:
+    """How far the entry's attack spectrum's nearest peak is from each ratio's frequency.
+
+    The attack (0.005 to 0.155 s), where the upper partials, which ring shorter than the
+    fundamental, are still strong: a window over the held note would find only the fundamental.
+    The peaks are the local maxima above 2% of the strongest.
+
+    Returns:
+        Each ratio's offset in hertz from the nearest peak, and the tolerance: the tighter of a
+        tenth of the fundamental (so 2.76 is not 3.0) and four FFT bins.
+    """
+    note = instruments.entry(name).middle_note()
+    hertz = float(note.to_hz())
+    samples = render_sound(
+        spec_for(instruments.get(name), name=name, pitch=note.name, length=1.0)
+    ).samples
+    attack = samples[round(0.005 * SAMPLE_RATE) : round(0.155 * SAMPLE_RATE)]
+    magnitude = np.abs(np.fft.rfft(attack * np.hanning(len(attack))))
+    frequencies = np.fft.rfftfreq(len(attack), 1 / SAMPLE_RATE)
+    is_peak = (
+        (magnitude[1:-1] > magnitude[:-2])
+        & (magnitude[1:-1] >= magnitude[2:])
+        & (magnitude[1:-1] > 0.02 * np.max(magnitude))
+    )
+    peak_frequencies = frequencies[1:-1][is_peak]
+    offsets = [float(np.min(np.abs(peak_frequencies - ratio * hertz))) for ratio in ratios]
+    return offsets, min(hertz / 10.0, 4.0 * SAMPLE_RATE / len(attack))
+
+
 def test_a_keyed_idiophone_sounds_its_sourced_partials():
     """The keyboards with sourced partial ratios are the table's, each sounding them."""
     with_ratios = {
@@ -2797,22 +2826,6 @@ def test_a_keyed_idiophone_sounds_its_sourced_partials():
     assert list(with_ratios) == list(KEYBOARD_PARTIAL_RATIOS)
     for name, ratios in KEYBOARD_PARTIAL_RATIOS.items():
         assert with_ratios[name] == ratios, name
-        catalog_entry = instruments.entry(name)
-        note = catalog_entry.middle_note()
-        hertz = float(note.to_hz())
-        samples = render_sound(
-            spec_for(instruments.get(name), name=name, pitch=note.name, length=1.0)
-        ).samples
-        held = samples[round(0.1 * SAMPLE_RATE) : round(0.9 * SAMPLE_RATE)]
-        magnitude = np.abs(np.fft.rfft(held * np.hanning(len(held))))
-        frequencies = np.fft.rfftfreq(len(held), 1 / SAMPLE_RATE)
-        # The spectrum's peaks: local maxima above 1% of the strongest
-        is_peak = (
-            (magnitude[1:-1] > magnitude[:-2])
-            & (magnitude[1:-1] >= magnitude[2:])
-            & (magnitude[1:-1] > 0.01 * np.max(magnitude))
-        )
-        peak_frequencies = frequencies[1:-1][is_peak]
-        for ratio in ratios:
-            nearest = float(np.min(np.abs(peak_frequencies - ratio * hertz)))
-            assert nearest <= hertz / 4.0, (name, ratio, nearest)
+        offsets, tolerance = attack_peak_offsets(name, ratios)
+        for ratio, offset in zip(ratios, offsets, strict=True):
+            assert offset <= tolerance, (name, ratio, offset, tolerance)
