@@ -76,7 +76,9 @@ from glitchygames.randomness import (
     stream_seed,
 )
 from glitchygames.recording import (
+    PRIVATE_EVENT_QUEUE_SLOT,
     live_game_code_running,
+    private_event_queue,
     reset_internal_post_tracking,
     set_live_game_code_running,
     start_tracking_internal_posts,
@@ -1195,6 +1197,21 @@ def check_render_target(*, first: EngineContext, second: EngineContext) -> None:
     assert default_context().value(slot=RENDER_TARGET_SLOT).started_engine is None
 
 
+def check_private_event_queue(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own private event queue, off in the default context."""
+    first_event = pygame.event.Event(pygame.USEREVENT, value=1)
+    with first.active():
+        private_event_queue().enabled = True
+        private_event_queue().events.append(first_event)
+    with second.active():
+        second_reading = (private_event_queue().enabled, list(private_event_queue().events))
+
+    assert second_reading == (False, [])
+    assert first.value(slot=PRIVATE_EVENT_QUEUE_SLOT).events == [first_event]
+    assert not private_event_queue().enabled
+    assert private_event_queue().events == []
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -1216,6 +1233,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.events.base.unhandled_event_types': check_unhandled_event_types,
     'glitchygames.sprites.sprite.counters': check_sprite_counters,
     'glitchygames.render_target.target': check_render_target,
+    'glitchygames.recording.private_event_queue': check_private_event_queue,
 }
 
 
