@@ -20,21 +20,6 @@ BOWED_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
     # --- Batch 7's sound-alikes (the European and modern bowed strings), in the order of
     # plans/data/instrument-audit/batch-7.tsv: each a distinct instrument, verified by its source,
     # that no fetched source sets apart in sound from the entry it names (``sounds_like``)
-    # Sound-alike of the viola (no fetched source sets it apart in sound):
-    # https://en.wikipedia.org/wiki/Viola_pomposa ("the bottom four tuned conventionally of a
-    # standard viola (C3-G3-D4-A4)" with "a high violin E string (E5)"; "a sound which is less
-    # resonant than a viola, though still slightly more resonant than a violin"): a viola with one
-    # more string, its tone between the viola's and the violin's. Range, from the same page: "has a
-    # range from C3 to A6 (or even higher) with fingered notes": C3 is the lowest open string, A6
-    # the compass the page states; "(or even higher)" and the harmonics "to C8" are not taken
-    CatalogEntry(
-        'viola pomposa',
-        'Viola pomposa',
-        Family.BOWED_STRINGS,
-        'C3',
-        'A6',
-        sounds_like='viola',
-    ),
     # Sound-alike of the violin (no fetched source sets it apart in sound):
     # https://renwks.com/products/psaltery-bow/psaltery-bow.htm (Renaissance Workshop Company, a
     # maker: "Strung in fine gauge steel music wire."; "A simple horsehair bow can be passed
@@ -51,5 +36,20 @@ BOWED_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
         'F3',
         'F5',
         sounds_like='violin',
+    ),
+    # Sound-alike of the viola (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Viola_pomposa ("the bottom four tuned conventionally of a
+    # standard viola (C3-G3-D4-A4)" with "a high violin E string (E5)"; "a sound which is less
+    # resonant than a viola, though still slightly more resonant than a violin"): a viola with one
+    # more string, its tone between the viola's and the violin's. Range, from the same page: "has a
+    # range from C3 to A6 (or even higher) with fingered notes": C3 is the lowest open string, A6
+    # the compass the page states; "(or even higher)" and the harmonics "to C8" are not taken
+    CatalogEntry(
+        'viola pomposa',
+        'Viola pomposa',
+        Family.BOWED_STRINGS,
+        'C3',
+        'A6',
+        sounds_like='viola',
     ),
 )

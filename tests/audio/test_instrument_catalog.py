@@ -1587,8 +1587,8 @@ NEW_BOWED_NAMES: list[str] = []
 # Batch 7's sound-alikes and the entry each sounds like, in the sheet's order (Tasks 3 and 5
 # fill it)
 BOWED_SOUND_ALIKE_PARENTS: dict[str, str] = {
-    'viola pomposa': 'viola',
     'bowed psaltery': 'violin',
+    'viola pomposa': 'viola',
 }
 
 
