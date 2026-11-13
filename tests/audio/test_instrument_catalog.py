@@ -2157,8 +2157,7 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
     ]
     # The catalog lists families in table order: flutes, clarinets, double reeds, bagpipes, free
     # reeds, brass, bowed strings, plucked strings, keyboards, organs, electronic, tuned
-    # percussion, drums,
-    # voices, then choirs, as registry.FAMILY_TABLES lists them
+    # percussion, drums, voices, then choirs, as registry.FAMILY_TABLES lists them
     assert every_sound_alike == (
         list(FLUTE_SOUND_ALIKE_PARENTS)
         + list(CLARINET_SOUND_ALIKE_PARENTS)
@@ -2903,16 +2902,18 @@ def test_a_keyed_idiophone_sounds_its_sourced_partials():
             assert offset <= tolerance, (name, ratio, offset, tolerance)
 
 
-# Batch 16's free reeds with fixed drones (_droned_reed), each with its drone notes as the sheet
-# writes them (highest first), sounding at equal temperament under every note, in catalog order:
-# the builds, then their sound-alikes (plans/data/instrument-audit/batch-16.tsv)
+# Batch 16's free reeds with fixed drones, each with its drone notes as the sheet writes them
+# (highest first), sounding at equal temperament under every note, in catalog order: the builds,
+# then their sound-alikes (plans/data/instrument-audit/batch-16.tsv). No free reed builder takes
+# drones yet, so the table stays empty until one is added
 FREE_REED_DRONES: dict[str, tuple[str, ...]] = {}
 # Batch 16's free reed sound-alikes whose sourced detune between reed sets differs from their
-# parent's, each with its cents (sound_changes={'cents': ...}), in the sheet's order
+# parent's, each with its cents (sound_changes={'cents': ...} once a builder takes cents), in the
+# sheet's order
 # (plans/data/instrument-audit/batch-16.tsv)
 FREE_REED_DETUNES: dict[str, float] = {}
 # Batch 16's free reed sound-alikes with a sourced reed set an octave above the unison
-# (sound_changes={'footages': (8.0, 4.0)}), in the sheet's order
+# (sound_changes={'footages': (8.0, 4.0)} once a builder takes footages), in the sheet's order
 # (plans/data/instrument-audit/batch-16.tsv)
 FREE_REED_REED_SETS: dict[str, tuple[float, ...]] = {}
 # Every name plans/data/instrument-audit/batch-16.tsv holds back for any reason but a sourced
@@ -3015,14 +3016,11 @@ def synthetic_free_reed_sound_alike() -> CatalogEntry:
     )
 
 
-def test_a_sound_alikes_keywords_start_from_its_parents_build():
-    """The helper reads the parent's build keywords, not the sound-alike's own (it has none)."""
-    keywords = effective_free_reed_keywords(synthetic_free_reed_sound_alike())
-    assert keywords['low_pass'] == 6000.0
+def test_a_sound_alikes_keywords_start_from_its_parents_build_and_take_its_sound_changes():
+    """The helper starts from the parent's build keywords, which the entry's own lack.
 
-
-def test_a_sound_alikes_sound_changes_override_its_parents_keywords():
-    """Its ``sound_changes`` replace the parent's value and leave the parent's other keywords."""
+    Its ``sound_changes`` replace the parent's value and leave the parent's other keywords.
+    """
     keywords = effective_free_reed_keywords(synthetic_free_reed_sound_alike())
     assert keywords == {'cents': 9.0, 'low_pass': 6000.0}
 
