@@ -2108,10 +2108,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
   `llanera harp`, `paraguayan harp`, `adungu`, `ardin`, `donso ngoni`, `ennanga`, `gravikord`,
   `kamale ngoni`, `kundi`, `ngombi`, `saung gauk`, `seperewa` and `simbi`; and 5 because their
   target waits: `arpa paraguaya` for `paraguayan harp`, `arpa llanera` for `llanera harp`, `saung`
-  for `saung gauk`, `ombi` for `ngombi` and `kamele ngoni` for `kamale ngoni`), 4 became aliases
-  (`welsh harp` of `triple harp`, `pedal harp` of `concert harp`, `lever harp` and `folk harp` of
-  `celtic harp`) and 20 were dropped (SHIP 0, SOUND_ALIKE 0, WAIT 23, ALIAS 4, DROP 20; nothing is
-  held back); the family stayed at 7 entries (704 in all, 126 aliases and 197 sound-alikes).
+  for `saung gauk`, `ombi` for `ngombi` and `kamele ngoni` for `kamale ngoni`), 3 became aliases
+  (`pedal harp` of `concert harp`, `lever harp` and `folk harp` of `celtic harp`) and 21 were
+  dropped (SHIP 0, SOUND_ALIKE 0, WAIT 23, ALIAS 3, DROP 21; nothing is held back); the family
+  stayed at 7 entries (704 in all, 125 aliases and 197 sound-alikes).
   `harps.py` now holds the harps (moved unchanged from `strings.py`, the before-and-after record
   of all 704 builds finding `changed: []`), `strings.py` keeps only the struck strings
   (`STRUCK_STRINGS`), and `harp_sound_alikes.py` holds the family's sound-alikes (empty; `HARPS`
@@ -5129,29 +5129,34 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Priority**: Medium (before the harps batch builds on the same catalog)
 
 ### 87. Sound Engine: The Owner's Checks on Instrument Catalog Batch 17 — TODO
-- **Goal**: confirm or overturn the calls made while batch 17 of #70 ran, and listen to its four
-  aliases (`welsh harp`, `pedal harp`, `lever harp` and `folk harp`). Nothing was built and no
-  sound-alike was added: the harps stayed at 7 entries (704 in all, 126 aliases, 197
-  sound-alikes), with 23 waits, 4 aliases and 20 drops in the sheet's 47 rows (SHIP 0,
-  SOUND_ALIKE 0, WAIT 23, ALIAS 4, DROP 20). The harps moved out of `strings.py` into `harps.py`
+- **Goal**: confirm or overturn the calls made while batch 17 of #70 ran, and listen to its three
+  aliases (`pedal harp`, `lever harp` and `folk harp`). Nothing was built and no
+  sound-alike was added: the harps stayed at 7 entries (704 in all, 125 aliases, 197
+  sound-alikes), with 23 waits, 3 aliases and 21 drops in the sheet's 47 rows (SHIP 0,
+  SOUND_ALIKE 0, WAIT 23, ALIAS 3, DROP 21). The harps moved out of `strings.py` into `harps.py`
   and `harp_sound_alikes.py`, and `strings.py` now holds only the struck strings
 - **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
   level, filter and release is sound design unless a source is cited in the code; the folder is
   `build/instruments/harps/`):
   - [ ] The sound-alikes beside their parents: none shipped (so no `sound_changes` beside a
     parent)
-  - [ ] The aliases, each of the entry it names: `welsh harp` (of `triple harp`), `pedal harp` (of
+  - [ ] The aliases, each of the entry it names: `pedal harp` (of
     `concert harp`), `lever harp` and `folk harp` (both of `celtic harp`); each sounds as its
     target does
 - **Calls to confirm** (each in `plans/data/instrument-audit/batch-17.tsv`; the sheet's 47 rows:
-  SHIP 0, SOUND_ALIKE 0, WAIT 23, ALIAS 4, DROP 20):
+  SHIP 0, SOUND_ALIKE 0, WAIT 23, ALIAS 3, DROP 21):
   - [ ] Every WAIT (23 rows), by reason, with each row's "Engine limit, once ranged" note:
     - 18 for a sourced range:
       - the frame harps, each a sound-alike of one of the four catalog frame harps by parent rule
         2 once ranged, builder unchanged: `andean harp`, `arpa jarocha`, `cross strung harp`,
-        `llanera harp`, `paraguayan harp`, `adungu`, `ennanga`, `kundi`, `ngombi` and
-        `saung gauk` (the last four have no sourced traits: a skin soundboard, a trough body, a
-        deer-hide belly and left-hand stopping are no trait, rule 7)
+        `llanera harp` and `paraguayan harp`
+      - the arched or open harps (not frame harps, though the nearest catalog frame harp is their
+        parent), each a sound-alike by parent rule 2 once ranged, builder unchanged: `adungu`,
+        `ennanga`, `kundi`, `ngombi` and `saung gauk` (the last four have no sourced traits: a
+        skin soundboard, a trough body, a deer-hide belly and left-hand stopping are no trait,
+        rule 7). The `ennanga` page's «small metallic rattling pieces» are uncited, and the plan
+        named that passage as a trait to check: a call for you once the `ennanga` is ranged (if
+        it is a trait, the row needs a rattle build of its own, like `ardin` and `simbi`)
       - `baroque triple harp`: a sound-alike of `triple harp` by parent rule 1 once ranged (its
         page says «creating the ''arpa tripla'' or triple harp»)
       - the harp-lutes, each a sound-alike of `kora` once ranged (rule 1: `donso ngoni` and
@@ -5207,12 +5212,12 @@ This document tracks planned future features for the GlitchyGames project. Featu
       `baroque triple harp` is a version of the Welsh one («One common version»)
   - [ ] Generic, ambiguous, one-off and unsourced rows, with the words "no fetched source describes
     it" on every row whose page was not found: `celestial harp` is the one row that carries them.
-    The dropped rows (20):
+    The dropped rows (21):
     - already decided (7): `aeolian harp`, `partch kithara`, `sasando`, `swarmandal`, `begena`,
       `krar` and `nyatiti`, each left as `batch-4.tsv` decided it
     - a generic term: `telyn`, `angular harp` (322.12) and `egyptian arched harp` (322.11)
     - an ambiguous name: `konghou` (a zither and two harps; `gonghu` follows it as its Korean
-      name), `clarsach` and `clairseach` (below), `chang` (a Persian angular harp, the Uyghur and
+      name), `clarsach`, `clairseach` and `welsh harp` (below), `chang` (a Persian angular harp, the Uyghur and
       Uzbek dulcimers and an Afghan jew's harp: decided here once, for the struck strings batch)
       and `harp lute` (Light's 1795 dital harp, and the class name)
     - a one-off: `queen mary harp`
@@ -5233,12 +5238,19 @@ This document tracks planned future features for the GlitchyGames project. Featu
       family three ways («Celtic harps ... or more generically as folk harps ... or as lever
       harps») and the Folk harp redirect goes to a section of the Harp page, not to the Celtic
       harp page as Lever harp's does. The alternative is DROP "a generic term for mid-size harps
-      without pedals" (a Paraguayan or Andean harp is a folk harp too)
-    - `welsh harp` is an ALIAS of `triple harp`, its reading following the page's own dates:
-      Talbot's 1680s "Welsh harp" was a large diatonic gothic-style harp with bray pins, and the
-      triple harp «became generally known» by the name by the early 18th century. Reading the
-      later use as the name's current one is an inference from those dates. The Welsh Harp
-      disambiguation page lists only one instrument
+      without pedals"
+    - `welsh harp` went from ALIAS of `triple harp` to DROP as an ambiguous name, the same ground
+      `clarsach` and `clairseach` were dropped on: the Triple harp page gives the name to Talbot's
+      1680s large diatonic gothic-style harp with bray pins (this sheet's `gothic harp`) and, by
+      the early 18th century, to the triple harp, so the sources send it to two instruments.
+      Reading the later use as the name's only current one is an inference from those dates. The
+      Welsh Harp disambiguation page lists only one instrument. Cost: one alias (126 to 125). The
+      two reversals stand or fall together: confirm both drops or restore both aliases
+    - `gothic harp`, `ardin` and `simbi` will need builds of their own once ranged (bray pins,
+      rattles and a drummed resonator), but no test stops them shipping as plain sound-alikes then:
+      they wait for a sourced range, not for a feature, and `HARP_HELD_BACK` covers only the waits
+      other than a range, so they stay out of it. The range comes first, and a reviewer must catch
+      the build need at that point
     - `pedal harp` (of `concert harp`: «also known as the concert harp») and `lever harp` (of
       `celtic harp`: the Lever harp page redirects to Celtic harp) stand; both are also
       Hornbostel-Sachs class names (322.222, 322.221), as their targets' classes are

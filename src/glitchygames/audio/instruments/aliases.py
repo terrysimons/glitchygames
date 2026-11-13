@@ -485,24 +485,15 @@ ALIASES: Final[dict[str, str]] = {
     'richter harmonica': 'harmonica',
     # --- Batch 17's harps: the frame harps, in the order of
     # plans/data/instrument-audit/batch-17.tsv (half A; its other rows drop or wait)
-    # https://en.wikipedia.org/wiki/Welsh_Harp (the Welsh harp page redirects to a disambiguation
-    # page whose only instrument is «* [[Welsh triple harp]] or triple harp, a traditional musical
-    # instrument») and https://en.wikipedia.org/wiki/Triple_harp ("It was so popular that by the
-    # beginning of the 18th century the triple harp became generally known as the ""Welsh harp"""):
-    # the same instrument, so the catalog's triple harp. The page records an older use, "As late as
-    # the 1680s, Talbot was describing the triple harp as the English harp, and the Welsh harp he
-    # describes appears to be a large, diatonic gothic-style harp, with bray pins"; the later usage
-    # being the name's current one is an inference from those dates
-    'welsh harp': 'triple harp',
     # https://en.wikipedia.org/wiki/Pedal_harp ("The pedal harp (also known as the concert harp) is
     # a large and technologically modern harp", with "hornbostel_sachs = 322.222"): the concert
     # harp's other name, so the catalog's concert harp
     'pedal harp': 'concert harp',
     # https://en.wikipedia.org/wiki/Celtic_harp ("hornbostel_sachs=322.221", "manually tuned frame
     # harp"; the Lever harp page redirects to it) and https://en.wikipedia.org/wiki/Harp ("they are
-    # frequently referred to broadly as ""Celtic harps"" due to their region of revival and popular
-    # association, or more generically as ""folk harps"" due to their use in non-classical music,
-    # or as ""lever harps"" to contrast their modifying mechanism with the larger pedal harp"):
+    # frequently referred to broadly as 'Celtic harps' due to their region of revival and popular
+    # association, or more generically as 'folk harps' due to their use in non-classical music,
+    # or as 'lever harps' to contrast their modifying mechanism with the larger pedal harp"):
     # one family of mid-size harps without pedals, which is the catalog's celtic harp
     'lever harp': 'celtic harp',
     # https://en.wikipedia.org/wiki/Harp#Folk,_lever,_and_Celtic_instruments (the quote above; the
