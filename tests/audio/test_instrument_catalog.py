@@ -877,6 +877,10 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('hakkebrett', 'hammered dulcimer'),
         ('hackbraede', 'hammered dulcimer'),
         ('hammarharpa', 'hammered dulcimer'),
+        ('oprekelj', 'hammered dulcimer'),
+        ('cimbale', 'hammered dulcimer'),
+        ('cymbaly', 'hammered dulcimer'),
+        ('chimbaly', 'hammered dulcimer'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -923,8 +927,8 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 17's frame harps name the concert harp as the pedal harp, and the celtic harp as the
     lever harp and the folk harp.
     Batch 18's hammered dulcimers name the hammered dulcimer as the hackbrett, the dulcemele, the
-    dultzimar, the darushimaa, the hakkebord, the hakkebraet, the hakkebrett, the hackbraede and
-    the hammarharpa.
+    dultzimar, the darushimaa, the hakkebord, the hakkebraet, the hakkebrett, the hackbraede, the
+    hammarharpa, the oprekelj, the cimbale, the cymbaly and the chimbaly.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 

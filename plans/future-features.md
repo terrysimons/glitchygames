@@ -2142,16 +2142,16 @@ This document tracks planned future features for the GlitchyGames project. Featu
   `telyn` (dropped as a generic term), `wind harp` (dropped with its target `aeolian harp`) or
   `harp lute` (dropped as an ambiguous name) again. Batch 18 (struck strings) is done: of its 67 sheet rows
   (20 candidates and 47 audit alias names) none shipped as a build of its own and none became a
-  sound-alike, 32 wait (22 for a sourced range: `khim`, `yanggeum`, `yoochin`, `yangzi`, `rgyud
-  mang`, `dan tam thap luc`, `santouri`, `oprekelj`, `cimbale`, `cymbaly`, `tsimbl`, `chimbaly`,
-  `hudie qin`, `ground bow`, `malunga`, `quijongo`, `tambourin a cordes`, `utogardon`,
+  sound-alike, 27 wait (17 for a sourced range: `khim`, `yanggeum`, `yoochin`, `yangzi`, `rgyud
+  mang`, `dan tam thap luc`, `santouri`, `hudie qin`, `ground bow`, `malunga`, `quijongo`, `tambourin a cordes`, `utogardon`,
   `mbulumbumba`, `gunga`, `medio` and `violinha`; and 10 because their target waits: `ttun ttun`,
   `salmo`, `chicoten` and `toum toum` for `tambourin a cordes`, `galinga`, `gayumba`,
-  `tumbandera`, `tingo talango` and `angbindi` for `ground bow`, and `berra boi` for `gunga`), 9
+  `tumbandera`, `tingo talango` and `angbindi` for `ground bow`, and `berra boi` for `gunga`), 13
   became aliases (`hackbrett`, `dulcemele`, `dultzimar`, `darushimaa`, `hakkebord`, `hakkebraet`,
-  `hakkebrett`, `hackbraede` and `hammarharpa`, all of `hammered dulcimer`) and 26 were dropped
-  (SHIP 0, SOUND_ALIKE 0, WAIT 32, ALIAS 9, DROP 26; nothing is held back); the family stayed at
-  5 entries (704 in all, 134 aliases and 197 sound-alikes). The module move: `strings.py` is now
+  `hakkebrett`, `hackbraede`, `hammarharpa`, `oprekelj`, `cimbale`, `cymbaly` and `chimbaly`, all
+  of `hammered dulcimer`) and 27 were dropped (SHIP 0, SOUND_ALIKE 0, WAIT 27, ALIAS 13, DROP 27;
+  nothing is held back); the family stayed at 5 entries (704 in all, 138 aliases and 197
+  sound-alikes). The module move: `strings.py` is now
   `struck_strings.py` (renamed with `git mv`; `strings.py` is gone and nothing re-exports it; every
   other family module is named for its family, which answers #87's question), the before-and-after
   record of all 704 builds finding `changed: []`, and `struck_sound_alikes.py` holds the family's
@@ -2161,11 +2161,13 @@ This document tracks planned future features for the GlitchyGames project. Featu
   keyed or pedal-driven struck string is a keyboard (`fotdella`, `marxophone`) and a plucked
   zither a plucked string, and a string or course count, bridges, a tuning, a material, the
   beaters, a size or a body is no trait, so each ranged row would be a sound-alike. The versions
-  ruling moved rows: `yoochin`, `yangzi` and `rgyud mang` went from ALIAS to WAIT (versions on the
-  Sinosphere list with `yanggeum` and `khim`), and `cimbale`, `oprekelj`, `tsimbl` and `chimbaly`
-  from ALIAS and `cymbaly` from DROP to WAIT (versions of the cimbalom: a name on the
-  "Adaptations" list is not shown to be the same instrument); `urucungo` and `madimba lungungu`
-  were dropped as generic terms. `STRUCK_HELD_BACK`, the guard for every wait that is not for a
+  ruling moved rows, by sub-list of the Hammered dulcimer page's "Adaptations" list: `yoochin`,
+  `yangzi` and `rgyud mang` went from ALIAS to WAIT (the Sinosphere sub-list describes an
+  instrument spreading, so its names are versions, as `yanggeum` and `khim` are). The cimbalom
+  sub-list's heading is etymology, like the Graeco-Roman and Germanic ones, so its names are
+  names: `cimbale`, `oprekelj` and `chimbaly` stayed aliases, `cymbaly` (de:Zymbal calls it
+  «Hackbretter») became one, and `tsimbl` and `tambal` (each also redirects to Cimbalom) were
+  dropped as ambiguous; `urucungo` and `madimba lungungu` were dropped as generic terms. `STRUCK_HELD_BACK`, the guard for every wait that is not for a
   range or a target, holds nothing (no name), and no struck string carries `sound_changes`. The
   base of the branch is `9a8dcfbe` (batch 17's tip). The audit's unclosed gaps (Hawaiian and
   African struck zithers; the Salzburg hackbrett's 128 strings; the pantaleon's 276; the Uyghur
@@ -5405,12 +5407,12 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Priority**: Medium (before the struck strings batch builds on the same catalog)
 
 ### 88. Sound Engine: The Owner's Checks on Instrument Catalog Batch 18 — TODO
-- **Goal**: confirm or overturn the calls made while batch 18 of #70 ran, and listen to its nine
+- **Goal**: confirm or overturn the calls made while batch 18 of #70 ran, and listen to its thirteen
   aliases (`hackbrett`, `dulcemele`, `dultzimar`, `darushimaa`, `hakkebord`, `hakkebraet`,
-  `hakkebrett`, `hackbraede` and `hammarharpa`, all of `hammered dulcimer`). Nothing was built and
-  no sound-alike was added: the struck strings stayed at 5 entries (704 in all, 134 aliases and
-  197 sound-alikes), with 32 waits, 9 aliases and 26 drops in the sheet's 67 rows (SHIP 0,
-  SOUND_ALIKE 0, WAIT 32, ALIAS 9, DROP 26). The struck strings moved out of `strings.py`, which
+  `hakkebrett`, `hackbraede`, `hammarharpa`, `oprekelj`, `cimbale`, `cymbaly` and `chimbaly`, all
+  of `hammered dulcimer`). Nothing was built and no sound-alike was added: the struck strings
+  stayed at 5 entries (704 in all, 138 aliases and 197 sound-alikes), with 27 waits, 13 aliases
+  and 27 drops in the sheet's 67 rows (SHIP 0, SOUND_ALIKE 0, WAIT 27, ALIAS 13, DROP 27). The struck strings moved out of `strings.py`, which
   was renamed `struck_strings.py`, and `struck_sound_alikes.py` holds the family's sound-alikes
   (none yet)
 - **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
@@ -5419,14 +5421,16 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - [ ] The sound-alikes beside their parents: none shipped (so no `sound_changes` beside a
     parent)
   - [ ] The aliases, each of the entry it names: `hackbrett`, `dulcemele`, `dultzimar`,
-    `darushimaa`, `hakkebord`, `hakkebraet`, `hakkebrett`, `hackbraede` and `hammarharpa` (all of
-    `hammered dulcimer`); each sounds as its target does
+    `darushimaa`, `hakkebord`, `hakkebraet`, `hakkebrett`, `hackbraede`, `hammarharpa`, `oprekelj`,
+    `cimbale`, `cymbaly` and `chimbaly` (all of `hammered dulcimer`); each sounds as its target
+    does
 - **Calls to confirm** (each in `plans/data/instrument-audit/batch-18.tsv`; the sheet's 67 rows:
-  SHIP 0, SOUND_ALIKE 0, WAIT 32, ALIAS 9, DROP 26):
-  - [ ] Every WAIT (32 rows), by reason, with each row's "Engine limit, once ranged" note:
-    - 22 for a sourced range:
+  SHIP 0, SOUND_ALIKE 0, WAIT 27, ALIAS 13, DROP 27):
+  - [ ] Every WAIT (27 rows), by reason, with each row's "Engine limit, once ranged" note:
+    - 17 for a sourced range:
       - the Sinosphere dulcimers, versions of the hammered dulcimer's spread (one rule for all
-        six, the controller's ruling): `khim`, `yanggeum`, `dan tam thap luc`, and `yoochin`,
+        six, the controller's ruling by sub-list: the Sinosphere sub-list's sentence describes an
+        instrument spreading): `khim`, `yanggeum`, `dan tam thap luc`, and `yoochin`,
         `yangzi` and `rgyud mang` (the last three went from ALIAS to WAIT; `yangzi` and `rgyud
         mang` name the same Tibetan instrument and wait together). Once ranged each is a
         sound-alike by parent rule 1: `hammered dulcimer` for the first three; the last three sit
@@ -5435,11 +5439,6 @@ This document tracks planned future features for the GlitchyGames project. Featu
         sentence names), and `yangqin` is the other reading
       - the versions of the santur and yangqin: `santouri` (`santur`; de:Zymbal: «abgeleitete»)
         and `hudie qin` (`yangqin`: «a form of the instrument»)
-      - the cimbalom's versions, from the Hammered dulcimer page's list headed «variants of the
-        ''[[cimbalom]]''» (the controller's ruling: a name on the "Adaptations" list is not shown
-        to be the same instrument; `tsimbl` redirects to Cimbalom): `cimbale`, `oprekelj`,
-        `tsimbl` and `chimbaly` (went from ALIAS to WAIT) and `cymbaly` (from DROP to WAIT; de:Zymbal
-        calls it «namensverwandt»). Once ranged, sound-alikes of `cimbalom` by parent rule 1
       - the struck bows: `ground bow`, `malunga`, `quijongo` and `mbulumbumba` (each a
         sound-alike of `berimbau` once ranged, rule 2 or 1; `mbulumbumba` is Kubik's «variety»,
         «identical in construction and playing technique», a relative and no alias), and the
@@ -5522,36 +5521,49 @@ This document tracks planned future features for the GlitchyGames project. Featu
     - the berimbau's «122 to 127 cm» bow length is one period's length tied to a technique, no
       compass and no category's size
   - [ ] Generic, ambiguous (past or present senses), one-off and unsourced rows, with the words "no
-    fetched source describes it" on every row whose page was not found. The dropped rows (26):
+    fetched source describes it" on every row whose page was not found. The dropped rows (27):
     - already decided (3): `chang` (batch 17), `dolceola` (batch 15) and `harmonic canon`
       (batch 4), each left as its sheet decided it
     - to keyboards (2): `marxophone` (flagged above) and `fotdella`
-    - an ambiguous name (12): `celestaphone` (the Phonoharp zither, Weidman's glass-plate
+    - an ambiguous name (13): `celestaphone` (the Phonoharp zither, Weidman's glass-plate
       xylophone and Musser's glockenspiel), `pantaleon` (the square piano too), `santoor` (the
       catalog's `santur`, the Iraqi santur and the Indian instrument; a later pass could add
       `indian santoor`), `cimbule`, `cimbal` and `zymbal` (each given to both the cimbalom and a
-      hammered dulcimer), `tambal` (flagged: reading the Romanian țambal as the cimbalom rests on
-      one German sentence and is indirect; the alternative is an alias of `hammered dulcimer`),
-      `tympanon` (a Greek frame drum), `tiompan` (a medieval lyre or lute), `salterio` (the
+      hammered dulcimer), `tsimbl` and `tambal` (one rule: each is on the Hammered dulcimer page's
+      cimbalom sub-list, whose names are names of the hammered dulcimer, and each one's own English
+      title redirects to Cimbalom, a catalog entry, so each names both; the alternative for either
+      is an alias of `hammered dulcimer`), `tympanon` (a Greek frame drum), `tiompan` (a medieval lyre or lute), `salterio` (the
       psaltery), `zhu` (a struck wooden box, 柷, and the zither, 筑) and `kalinga` (the ground bow
       and Rwanda's dynastic drum)
     - a generic term (4): `tsymbaly` (the page lists Hutsul, semi-concert and concert types), and
       `urucungo`, `madimba lungungu` and `hungu` (terms for any musical bow: the controller's
       ruling that the Berimbau page's own text, «terms used for musical bow», outweighs its infobox
       listing; this cost the half's two aliases of `berimbau`, the same rule as batch 15's `spinet`
-      and batch 17's folk-harp caution)
+      and batch 17's folk-harp caution. It overrides two precedents, for you to confirm: batch 7's
+      `matouqin`, where a redirect became an alias, and batch 5's `sanza` and `sansa`, where
+      infobox names became aliases; `urucungo` redirects to Berimbau and is in its infobox names)
     - no fetched source describes it (5): `pianoharp`, `xinjiang yangqin` (the ambiguous-target
       ruling's row: only a news feature uses the name, in passing, and it held a journalist's email
       address, so it was deleted, below), `harmonic generator` (only a Make: post), `nondo` (also a
       one-off: its title redirects to a place) and `umbulumbumba` (no saved page holds that
       spelling)
   - [ ] The reversals and calls in the aliases, each for you to overturn:
-    - `yoochin`, `yangzi` and `rgyud mang` went from ALIAS to WAIT (versions on the Sinosphere
-      list, as `yanggeum` and `khim`), and `cimbale`, `oprekelj`, `tsimbl` and `chimbaly` from
-      ALIAS and `cymbaly` from DROP to WAIT (versions of the cimbalom). Cost: seven aliases; if you
-      read the "Adaptations" list as a list of names, restore them as aliases of `hammered
-      dulcimer`
-    - `hackbrett` and the eight other aliases stand: de:Hackbrett says «Im englischen Sprachraum
+    - The "Adaptations" list is ruled by sub-list (the controller's ruling after the final
+      review, which reversed the half-A fix round's ruling that «a name on the "Adaptations" list
+      is not shown to be the same instrument»; that wording contradicted the alias basis, since the
+      nine shipped aliases rest on the same list). The Sinosphere sub-list («The santur was also
+      spread to the [[Sinosphere]] via the Chinese [[yangqin]]») describes an instrument spreading,
+      so `yoochin`, `yangzi` and `rgyud mang` stay WAIT versions, with `yanggeum` and `khim`
+      (cost: three aliases; restore them as aliases of `hammered dulcimer` if you read the list as
+      names). The cimbalom sub-list's heading («variants of the ''[[cimbalom]]'' from Latin
+      cymbalum») is etymology, like the Graeco-Roman and Germanic headings, so its names are
+      names: `cimbale`, `oprekelj` and `chimbaly` are aliases of `hammered dulcimer` again and
+      `cymbaly` is one (de:Zymbal: «Namensverwandte Hackbretter heißen in Polen cymbaly»), while
+      `tsimbl` and `tambal` are on the list and each one's own English title redirects to
+      Cimbalom, so both DROP as ambiguous by one rule. Cost if you disagree: four aliases (WAIT
+      them as sound-alikes of `cimbalom` by parent rule 1) and the two drops (aliases of `hammered
+      dulcimer` or of `cimbalom`)
+    - `hackbrett` and the eight other original aliases stand: de:Hackbrett says «Im englischen Sprachraum
       heißt das Hackbrett heute noch dulcimer», and the other names are national names on the
       Hammered dulcimer page's list, each on its own line (`hakkebrett` shares a stem with
       `hackbrett`). The Salzburg model is a version of the Hackbrett, and a later pass may want
@@ -5570,7 +5582,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
     minor), and Task 1 showed each new guard failing on a wrong table (a held-back `cimbalom`,
     `berimbau` missing from the existing names, a sound-alike parents table naming `cimbalom`),
     and each helper failing when broken (a `names_listed` that returns nothing, an
-    `entries_with_sound_changes` that ignores the family)
+    `entries_with_sound_changes` with its test inverted: `if not ...`, so `ORGANS` gave 18 names)
   - [ ] The two-half split as explicit lists (half A, the hammered dulcimers and hammered zithers,
     38 rows; half B, the struck bows, string drums and the rest, 29 rows), the sheets researched
     in parallel, and the shared files (the names file, the half lists and the check scripts)
@@ -5607,7 +5619,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Follow-ups**:
   - [ ] The audit's gaps (`plans/data/instrument-audit/struck-strings.md`, listed in #70) and the
     out-of-scope names are a later pass over this family
-  - [ ] Ranging the 22 range WAITs from maker, museum and scholarly sources (each row's notes
+  - [ ] Ranging the 17 range WAITs from maker, museum and scholarly sources (each row's notes
     record what was searched; Grove Online was behind a paywall and not reached)
   - [ ] Check the 5 earlier entries against sources (ranges and builds), starting with the bugs
     above
@@ -5621,11 +5633,13 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - [ ] The two sheet halves were researched in parallel, and pushes and stacked PRs were made
     without asking (the owner, 2026-11-12, #78)
   - [ ] Fetches that failed, and how each was handled: Wikipedia 404s (`Hudie_qin`,
-    `Butterfly_harp`, `Yoochin`, `Oprekelj`, `Hakkebord`, `Cimbale`, `Berra-boi`) were noted in the
-    rows and never saved; the redirects (en `Hackbrett`, `Tympanon`, `Tsimbl`, `Țambal`, `Tambal`)
+    `Butterfly_harp`, `Yoochin`, `Oprekelj`, `Hakkebord`, `Cimbale` and, in half B, `Berra-boi`,
+    `Chicotén`, `Toum-toum`, `Violinha`, `Madimba_lungungu`, `Mbulumbumba` and `Umbulumbumba`) were
+    noted in the rows and never saved; the redirects (en `Hackbrett`, `Tympanon`, `Tsimbl`, `Țambal`, `Tambal`)
     were fetched as redirects and then replaced by the page they point to; the NMM eMuseum record
-    (403, no archive copy), Kubik 1965 on core.ac.uk (403: its text is unread), `zgmzyq.cn` (400),
-    `magyarmuseum.org` (404) and the quijongo page (429 to WebFetch) were not saved
+    (403, no archive copy), Kubik 1965 on core.ac.uk (403: its text is unread) and `zgmzyq.cn` (400) were not saved. Two more come from the Task 4
+    review, not the implementer's report: `magyarmuseum.org` (404) and the quijongo page (429 to
+    WebFetch; it was the Met record)
   - [ ] A half-A worker deleted a saved page that held a journalist's email address (a China Daily
     feature that names "Xinjiang yangqin" in passing), rather than keeping or quoting it; no row
     quotes it, so the row's notes carry the lead only as «no fetched source describes it». No saved
@@ -5635,20 +5649,27 @@ This document tracks planned future features for the GlitchyGames project. Featu
     17's rule for institutions). The quote check lists the page for the controller, and no row
     quotes the address
   - [ ] The reversals and re-rulings, each after a review round, so the sheet's own history holds
-    the first readings: half A had one fix commit (`40f09c37`: the seven version rows from ALIAS
-    or DROP to WAIT, and the notes of `tambal` and `marxophone`), and half B one (`0d01dd68`:
+    the first readings: half A had one fix commit (`40f09c37`: the eight version rows, seven from ALIAS and
+    `cymbaly` from DROP, to WAIT, and the notes of `tambal` and `marxophone`; the final review's
+    fix returned five of them, four to ALIAS and `tsimbl` to DROP, leaving three version rows:
+    `yoochin`, `yangzi` and `rgyud mang`), and half B one (`0d01dd68`:
     notes only, the berimbau categories, the string counts, `hungu` and `harmonic generator`);
     half B's own phase 2 applied the controller's rulings on `urucungo`, `madimba lungungu`,
     `ground bow` and `zhu`
   - [ ] The folded-in fixes of Task 6: `test_the_batch_aliases_resolve`'s docstring gained its
-    batch 18 sentence (the review's spec gap); the nine new alias comments in `aliases.py` now
-    quote the page's en dash, not an ASCII hyphen (ruff refuses an en dash in a comment, so each
-    such line carries `# ruff: ignore[ambiguous-unicode-character-comment]`); and `berra boi`'s notes say «These categories
+    batch 18 sentence (the review's spec gap); the nine new alias comments in `aliases.py` first
+    quoted the page's en dash, which ruff refuses in a comment, so ten lines carried `# ruff:
+    ignore[ambiguous-unicode-character-comment]` and ran past 100 columns; the final review's fix
+    removed the pragmas and writes each en dash as a hyphen, as every earlier batch does, with a
+    note in the batch 18 header comment; and `berra boi`'s notes say «These categories
     relate to sound, not to size.» where they said "the same size"
   - [ ] Parked minors from the reviews: the comments naming `plans/data/instrument-audit/batch-18.tsv`
     were committed before the sheet, and the sheet landed in Task 2's commit, before the branch is
     pushed, as every earlier batch did; the batch-18 check scripts in `build/` are untracked and
     cited in no comment
+  - [ ] The controller's brief claimed batch 15 sent dulcimers here; it did not (#70)
+  - [ ] The gap: no tracked test stops one of the 27 WAIT names from being added later as an alias;
+    only the untracked `build/batch-18-code-check.py` does
   - [ ] The branch's base is `9a8dcfbe` (batch 17's tip)
   - [ ] Task 6's full run had no load flake: `uv run pytest` passed (26256 passed, 8 skipped, 6
     xfailed, 100% coverage, no warnings), the audio subset under `-W default` passed (2757 passed,

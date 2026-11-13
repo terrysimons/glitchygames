@@ -504,42 +504,62 @@ ALIASES: Final[dict[str, str]] = {
     # --- Batch 18's struck strings: the hammered dulcimers and hammered zithers, in the order of
     # plans/data/instrument-audit/batch-18.tsv (half A; its other rows drop or wait). Each name is
     # one the Hammered dulcimer page lists in its "Adaptations around the world" section (the
-    # infobox's names line points there); each alias takes its target's range
+    # infobox's names line points there); each alias takes its target's range. Each quote writes
+    # the page's en dash as a hyphen
     # https://de.wikipedia.org/wiki/Hackbrett ("Das Hackbrett ist ein Typ einer Kastenzither,
     # deren Saiten mit Klöppeln angeschlagen werden", and "Im englischen Sprachraum heißt das
     # Hackbrett heute noch dulcimer") and https://en.wikipedia.org/wiki/Hammered_dulcimer ("*
-    # Austria, Germany and Switzerland – Hackbrett"): the German name of the hammered dulcimer  # ruff: ignore[ambiguous-unicode-character-comment]
+    # Austria, Germany and Switzerland - Hackbrett"): the German name of the hammered dulcimer
     # itself, so the catalog's hammered dulcimer. The Salzburg model is a version of it, not this
     # name
     'hackbrett': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Hispanosphere – dulcémele", among the  # ruff: ignore[ambiguous-unicode-character-comment]
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Hispanosphere - dulcémele", among the
     # names derived from "The Graeco-Roman word dulcimer"; the catalog name drops the accent): the
     # Spanish-speaking world's name, so the catalog's hammered dulcimer
     'dulcemele': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Israel – דולצימר dultzimar", among the  # ruff: ignore[ambiguous-unicode-character-comment]
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Israel - דולצימר dultzimar", among the
     # names derived from "The Graeco-Roman word dulcimer"): the Hebrew name, so the catalog's
     # hammered dulcimer
     'dultzimar': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Japan – darushimaa (ダルシマー)",  # ruff: ignore[ambiguous-unicode-character-comment]
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Japan - darushimaa (ダルシマー)",
     # among the names derived from "The Graeco-Roman word dulcimer"): the Japanese name, so the
     # catalog's hammered dulcimer
     'darushimaa': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Belgium – hakkebord", with "* Netherlands  # ruff: ignore[ambiguous-unicode-character-comment]
-    # – hakkebord", under "Germanic nations:"): the Dutch name, so the catalog's hammered dulcimer  # ruff: ignore[ambiguous-unicode-character-comment]
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Belgium - hakkebord", with "* Netherlands
+    # - hakkebord", under "Germanic nations:"): the Dutch name, so the catalog's hammered dulcimer
     'hakkebord': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Denmark – hakkebræt", under "Germanic  # ruff: ignore[ambiguous-unicode-character-comment]
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Denmark - hakkebræt", under "Germanic
     # nations:"; the catalog name writes æ as ae): the Danish name, so the catalog's hammered
     # dulcimer
     'hakkebraet': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Norway – hakkebrett", under "Germanic  # ruff: ignore[ambiguous-unicode-character-comment]
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Norway - hakkebrett", under "Germanic
     # nations:"): the Norwegian name, so the catalog's hammered dulcimer. It shares a stem with
     # hackbrett but is decided on its own line of the page
     'hakkebrett': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Sweden – hackbräde, hammarharpa", under  # ruff: ignore[ambiguous-unicode-character-comment]
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Sweden - hackbräde, hammarharpa", under
     # "Germanic nations:"; the catalog name writes ä as ae): one of two Swedish names, so the
     # catalog's hammered dulcimer
     'hackbraede': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer (the same line, "* Sweden – hackbräde,  # ruff: ignore[ambiguous-unicode-character-comment]
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer (the same line, "* Sweden - hackbräde,
     # hammarharpa"): the other Swedish name, so the catalog's hammered dulcimer
     'hammarharpa': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Slovenia - cimbale, oprekelj", under
+    # "Others were transmitted under variants of the cimbalom from Latin cymbalum:"; the sub-list's
+    # heading is a word's etymology, like the Graeco-Roman and Germanic ones, so its names are
+    # names): the Slovenian name, so the catalog's hammered dulcimer. The page captions a photo
+    # "Tuning of a hammered dulcimer (southeastern Slovenia)" on a file named for it
+    'oprekelj': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Slovenia - cimbale, oprekelj", and "*
+    # Croatian - cimbal, cimbale, cimbule", under the same cimbalom sub-list): the Slovenian and
+    # Croatian name, so the catalog's hammered dulcimer. The Cimbalom page gives the cimbalom
+    # cimbal and cimbule, never cimbale
+    'cimbale': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Poland - cymbaly", under the same
+    # cimbalom sub-list) and https://de.wikipedia.org/wiki/Zymbal ("Namensverwandte Hackbretter
+    # heißen in Polen cymbaly", hammered dulcimers related by name): the Polish name, so the
+    # catalog's hammered dulcimer, not the cimbalom
+    'cymbaly': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Russia - chimbaly", under the same
+    # cimbalom sub-list): the Russian name, so the catalog's hammered dulcimer
+    'chimbaly': 'hammered dulcimer',
 }

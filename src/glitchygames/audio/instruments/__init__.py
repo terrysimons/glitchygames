@@ -196,9 +196,10 @@ beaters, a size or a body is no trait, so a struck string of another form or siz
 of the catalog struck string its source relates it to, or else of the one whose lowest note is
 nearest its own, and gives its own sourced range. No struck string shipped as a new build or
 sound-alike, so none carries ``sound_changes``. Every struck string row waits for a sourced range
-(22 names) or for its target (10 names), 26 were dropped, and the 9 names of the ``hammered
+(17 names) or for its target (10 names), 27 were dropped, and the 13 names of the ``hammered
 dulcimer`` (``hackbrett``, ``dulcemele``, ``dultzimar``, ``darushimaa``, ``hakkebord``,
-``hakkebraet``, ``hakkebrett``, ``hackbraede`` and ``hammarharpa``) are aliases.
+``hakkebraet``, ``hakkebrett``, ``hackbraede``, ``hammarharpa``, ``oprekelj``, ``cimbale``,
+``cymbaly`` and ``chimbaly``) are aliases.
 
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and
