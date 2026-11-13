@@ -1906,6 +1906,24 @@ NEW_STRUCK_NAMES: list[str] = []
 STRUCK_SOUND_ALIKE_PARENTS: dict[str, str] = {}
 
 
+# The 8 saxophones that predate batch 19: their shared builds predate the anti-goal rule
+EXISTING_SAXOPHONE_NAMES: frozenset[str] = frozenset({
+    'sopranino saxophone',
+    'soprano saxophone',
+    'alto saxophone',
+    'c melody saxophone',
+    'tenor saxophone',
+    'baritone saxophone',
+    'bass saxophone',
+    'contrabass saxophone',
+})
+# Batch 19's saxophones with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-19.tsv)
+NEW_SAXOPHONE_NAMES: list[str] = []
+# Batch 19's saxophone sound-alikes and the entry each sounds like, in the sheet's order
+SAXOPHONE_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+
+
 # The 42 brass instruments that predate batch 10: their shared builds predate the anti-goal rule
 EXISTING_BRASS_NAMES: frozenset[str] = frozenset({
     'piccolo trumpet',
@@ -2057,6 +2075,9 @@ BATCH_FAMILIES: dict[Family, BatchFamily] = {
     ),
     Family.CLARINETS: BatchFamily(
         EXISTING_CLARINET_NAMES, NEW_CLARINET_NAMES, CLARINET_SOUND_ALIKE_PARENTS
+    ),
+    Family.SAXOPHONES: BatchFamily(
+        EXISTING_SAXOPHONE_NAMES, NEW_SAXOPHONE_NAMES, SAXOPHONE_SOUND_ALIKE_PARENTS
     ),
     Family.DOUBLE_REEDS: BatchFamily(
         EXISTING_DOUBLE_REED_NAMES, NEW_DOUBLE_REED_NAMES, DOUBLE_REED_SOUND_ALIKE_PARENTS
@@ -2212,12 +2233,14 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         for catalog_entry in instruments.entries()
         if catalog_entry.sounds_like is not None
     ]
-    # The catalog lists families in table order: flutes, clarinets, double reeds, bagpipes, free
-    # reeds, brass, bowed strings, plucked strings, harps, struck strings, keyboards, organs,
-    # electronic, tuned percussion, drums, voices, then choirs, as registry.FAMILY_TABLES lists them
+    # The catalog lists families in table order: flutes, clarinets, saxophones, double reeds,
+    # bagpipes, free reeds, brass, bowed strings, plucked strings, harps, struck strings,
+    # keyboards, organs, electronic, tuned percussion, drums, voices, then choirs, as
+    # registry.FAMILY_TABLES lists them
     assert every_sound_alike == (
         list(FLUTE_SOUND_ALIKE_PARENTS)
         + list(CLARINET_SOUND_ALIKE_PARENTS)
+        + list(SAXOPHONE_SOUND_ALIKE_PARENTS)
         + list(DOUBLE_REED_SOUND_ALIKE_PARENTS)
         + list(BAGPIPE_SOUND_ALIKE_PARENTS)
         + list(FREE_REED_SOUND_ALIKE_PARENTS)
@@ -3204,3 +3227,21 @@ def test_no_struck_string_name_held_back_for_a_feature_is_listed():
 def test_no_struck_string_sound_alike_changes_its_parents_build():
     """No struck string sound-alike carries sound_changes: this batch adds none."""
     assert entries_with_sound_changes(Family.STRUCK_STRINGS) == []
+
+
+# Every name plans/data/instrument-audit/batch-19.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for sub-audio fundamentals, an engine feature, a build
+# of its own, a sourced reed and bore or a range above C8, and the alias rows that wait for one of
+# them, in the sheet's order. None ships under that name or as an alias until the reason is met
+# (decision 4; batch 19). The test matches exact names
+SAXOPHONE_HELD_BACK: dict[str, str] = {}
+
+
+def test_no_saxophone_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a saxophone the sheet holds back."""
+    assert names_listed(SAXOPHONE_HELD_BACK) == set()
+
+
+def test_no_saxophone_sound_alike_changes_its_parents_build():
+    """No saxophone sound-alike carries sound_changes: this batch adds none."""
+    assert entries_with_sound_changes(Family.SAXOPHONES) == []

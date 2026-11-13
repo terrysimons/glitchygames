@@ -2,7 +2,8 @@
 
 The flutes are in the sibling module ``flutes.py``, the clarinets in ``clarinets.py``, the double
 reeds in ``double_reeds.py``, the bagpipes in ``bagpipes.py``, the free reeds in
-``free_reeds.py``.
+``free_reeds.py``. The family's sound-alikes, listed instruments that share another entry's build,
+are in ``saxophone_sound_alikes.py``.
 
 Ranges are sounding pitch, after the standard orchestration ranges (Adler, *The Study of
 Orchestration*; Vienna Symphonic Library's instrument pages); folk instruments' are typical of the
@@ -16,6 +17,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Final
 
 from glitchygames.audio.instruments.catalog import CatalogEntry, Family
+from glitchygames.audio.instruments.saxophone_sound_alikes import SAXOPHONE_SOUND_ALIKES
 from glitchygames.audio.instruments.timbres import blown, falling_series
 
 if TYPE_CHECKING:
@@ -38,7 +40,7 @@ def _saxophone(*, low_pass: float) -> Instrument:
     )
 
 
-SAXOPHONES: Final[tuple[CatalogEntry, ...]] = (
+_SAXOPHONE_BUILDS: Final[tuple[CatalogEntry, ...]] = (
     CatalogEntry(
         'sopranino saxophone',
         'Sopranino saxophone',
@@ -104,3 +106,5 @@ SAXOPHONES: Final[tuple[CatalogEntry, ...]] = (
         partial(_saxophone, low_pass=2500.0),
     ),
 )
+
+SAXOPHONES: Final[tuple[CatalogEntry, ...]] = _SAXOPHONE_BUILDS + SAXOPHONE_SOUND_ALIKES
