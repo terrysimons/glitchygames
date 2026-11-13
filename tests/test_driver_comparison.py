@@ -223,6 +223,7 @@ class TestWorkersAndCommands:
             workers=4,
             coverage_loaded=True,
             directory=tmp_path,
+            basetemp=tmp_path / 'temporary',
         )
 
         assert command == [
@@ -238,12 +239,17 @@ class TestWorkersAndCommands:
             f'--junitxml={tmp_path / "junit.xml"}',
             '-o',
             f'cache_dir={tmp_path / "cache"}',
+            f'--basetemp={tmp_path / "temporary"}',
         ]
 
     def test_without_xdist_or_coverage_their_options_are_left_out(self, tmp_path):
         """No -n without xdist; no --no-cov without pytest-cov."""
         command = child_pytest_command(
-            arguments=[], workers=None, coverage_loaded=False, directory=tmp_path
+            arguments=[],
+            workers=None,
+            coverage_loaded=False,
+            directory=tmp_path,
+            basetemp=tmp_path / 'temporary',
         )
 
         assert '-n' not in command
@@ -478,3 +484,44 @@ class TestStoppingTheNativeRun:
             comparison.stop_native_run()
             if child_pid is not None and process_exists(pid=child_pid):
                 os.kill(child_pid, signal.SIGKILL)
+
+    def test_what_a_native_run_left_running_is_killed_named_and_its_directory_removed(
+        self, request, tmp_path
+    ):
+        """The sweep after the native run: a process naming its ``--basetemp`` is killed.
+
+        The backstop for a worker that died hard (no cleanup ran there): its tests' children
+        name their ``tmp_path``, inside the run's temporary directory.
+        """
+        comparison = DriverComparison(
+            config=request.config,
+            native=NativeDrivers(video='dummy', audio='dummy'),
+            native_workers=2,
+            output=tmp_path / 'comparison',
+        )
+        native_temporary = tmp_path / 'native-temporary'
+        comparison.native_temporary = native_temporary
+        game = native_temporary / 'popen-gw0' / 'test_a0' / 'game.py'
+        game.parent.mkdir(parents=True)
+        with (tmp_path / 'output.txt').open('w', encoding='utf-8') as output:
+            left_behind = start_command(
+                command=[sys.executable, '-c', 'import time; time.sleep(60)', str(game)],
+                environment=os.environ,
+                output=output,
+            )
+            try:
+                lines = comparison.sweep_native_run()
+
+                left_behind.wait(timeout=STAND_IN_WAIT_SECONDS)
+            finally:
+                if left_behind.poll() is None:
+                    left_behind.kill()
+                left_behind.wait()
+
+        named = f'{sys.executable} -c import time; time.sleep(60) {game}'
+        assert lines == [
+            f'left running by the dummy-2 run (now killed): pid {left_behind.pid}: {named}'
+        ]
+        assert left_behind.returncode == -signal.SIGKILL
+        assert not (tmp_path / 'native-temporary').exists()
+        assert comparison.sweep_native_run() == []

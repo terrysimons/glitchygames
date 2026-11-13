@@ -159,6 +159,7 @@ PROCESS_STATE_AUTOUSE_FIXTURES = {
     'restore_gil_switch_interval': 'the GIL switch interval is one per process',
     'ensure_pygame_graceful_quit': 'pygame, the display and the mixer are one per process',
     'inner_runs_keep_their_order': 'PYTEST_ADDOPTS is the process environment, read by inner runs',
+    'no_child_process_left_running': 'child processes belong to the process, never a context',
 }
 
 
