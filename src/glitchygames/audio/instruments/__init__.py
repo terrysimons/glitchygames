@@ -67,12 +67,12 @@ amore``, ``nyckelharpa`` and ``hurdy gurdy`` stay as the approximations they wer
 Flutes (33 entries) hold their builds in ``flutes.py`` (``piccolo`` to ``contrabass flute``,
 ``recorder`` sizes, ``tin whistle``, ``shakuhachi``, ``pan flute``, ``ocarina``) and their
 sound-alikes in ``flute_sound_alikes.py`` (``csakan`` and ``soprano recorder``, ``subcontrabass
-recorder`` and ``contrabass recorder``, ``ryuteki`` and ``bansuri``). ``winds.py`` keeps the five
-reed families. The family is pitched, so each sound-alike gives its own sourced range (sounding,
-stated, never hedged or extreme). A flute whose sound is a moving one (``slide whistle``,
-``pea whistle``), a buzzing membrane (``qudi``, ``daegeum``) or a voice (``tsuur``) waits, and
-``dizi`` stays as the approximation it was, never a parent. ``penny whistle``, ``syrinx`` and
-three more names are aliases.
+recorder`` and ``contrabass recorder``, ``ryuteki`` and ``bansuri``). ``winds.py`` keeps the
+clarinets, saxophones, bagpipes and free reeds. The family is pitched, so each sound-alike gives its
+own sourced range (sounding, stated, never hedged or extreme). A flute whose sound is a moving one
+(``slide whistle``, ``pea whistle``), a buzzing membrane (``qudi``, ``daegeum``) or a voice
+(``tsuur``) waits, and ``dizi`` stays as the approximation it was, never a parent. ``penny
+whistle``, ``syrinx`` and three more names are aliases.
 
 Voices (56 entries) and choirs (13 entries) hold their builds in ``voices.py`` (``soprano ah`` to
 ``basso profundo hum``, ``whistling``, ``choir soprano ah``, ``childrens choir``), which shares one

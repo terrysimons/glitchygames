@@ -13,6 +13,7 @@ from glitchygames.audio.instruments.aliases import ALIASES
 from glitchygames.audio.instruments.bowed_strings import BOWED_STRINGS
 from glitchygames.audio.instruments.brass import BRASS
 from glitchygames.audio.instruments.catalog import ENTRY_NAME_PATTERN, CatalogEntry, Family, Tag
+from glitchygames.audio.instruments.double_reeds import DOUBLE_REEDS
 from glitchygames.audio.instruments.drums import DRUMS_AND_PERCUSSION
 from glitchygames.audio.instruments.electronic import ELECTRONIC
 from glitchygames.audio.instruments.flutes import FLUTES
@@ -27,7 +28,6 @@ from glitchygames.audio.instruments.voices import CHOIRS, VOICES
 from glitchygames.audio.instruments.winds import (
     BAGPIPES,
     CLARINETS,
-    DOUBLE_REEDS,
     FREE_REEDS,
     SAXOPHONES,
 )
