@@ -107,6 +107,8 @@ def test_the_runs_own_sweep_is_read_from_its_terminal_summary():
     assert swept_by_the_run(log_text='1 passed\n') == []
 
 
+# Giving up ends the run's group (os.killpg), which Windows does not have; the script is POSIX
+@pytest.mark.skipif(sys.platform == 'win32', reason='process groups and SIGINT are POSIX')
 def test_a_run_that_never_reaches_the_moment_is_reported(tmp_path: Path, capsys):
     """A test that ends before it starts a child: INTERNAL_ERROR, said in one line."""
     path = tmp_path / 'test_quick.py'

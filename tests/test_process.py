@@ -216,6 +216,29 @@ class TestStopCommandOnEveryPlatform:
         child.wait.assert_not_called()
         group_signal.assert_not_called()
 
+    def test_a_child_that_ends_at_the_first_request_is_only_reaped(self, mocker, platform):
+        """Asked once and ended within the grace: waited for once, never asked again or killed.
+
+        On POSIX only the real-process tests (skipped on Windows) took this path, so the Windows
+        job left its ``return`` uncovered (#192's build-and-test-windows).
+        """
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.return_value = 0
+        group_signal = mocker.patch.object(process.os, 'killpg', create=True)
+
+        stop_command(process=child)
+
+        child.wait.assert_called_once_with(timeout=process.STOP_GRACE_SECONDS)
+        if platform == 'win32':
+            child.terminate.assert_called_once_with()
+            child.kill.assert_not_called()
+            group_signal.assert_not_called()
+        else:
+            assert [call.args for call in group_signal.call_args_list] == [
+                (4242, signal.SIGTERM)
+            ]
+
     def test_a_child_that_outlives_the_grace_period_is_killed_and_reaped(self, mocker, platform):
         child = mocker.Mock(pid=4242)
         child.poll.return_value = None
