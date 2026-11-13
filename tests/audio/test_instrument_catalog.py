@@ -796,8 +796,11 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('etherwave', 'theremin'),
         ('chip sawtooth', 'sid sawtooth'),
         ('ym2149', 'ay 3 8910'),
-        ('soprano viol', 'treble viol'),
         ('lira korbowa', 'hurdy gurdy'),
+        ('soprano viol', 'treble viol'),
+        ('behala', 'violin'),
+        ('matouqin', 'morin khuur'),
+        ('kemence', 'kemenche'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):

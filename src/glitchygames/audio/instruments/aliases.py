@@ -264,13 +264,24 @@ ALIASES: Final[dict[str, str]] = {
     # envelope table, not the square tone
     'ym2149': 'ay 3 8910',
     # --- Batch 7's bowed strings, in the order of plans/data/instrument-audit/batch-7.tsv
+    # https://en.wikipedia.org/wiki/Hurdy-gurdy ("In Poland it is called 'cranked lyre' (lira
+    # korbowa)."): the Polish name for the hurdy gurdy; an alias is a name, not a build, so it
+    # does not share the approximating hurdy gurdy's sound as a sound-alike would
+    'lira korbowa': 'hurdy gurdy',
     # https://musicbrainz.org/instrument/8f15287f-48c1-4a7c-a7f7-30653c490279 (the viol family
     # lists the consort as "Soprano viol (treble)" and the first grouping as "Treble/Diskant or
     # Dessus viol"); https://en.wikipedia.org/wiki/Viol ("treble (dessus in French)"): the
     # catalog treble viol under another name
     'soprano viol': 'treble viol',
-    # https://en.wikipedia.org/wiki/Hurdy-gurdy ("In Poland it is called 'cranked lyre' (lira
-    # korbowa)."): the Polish name for the hurdy gurdy; an alias is a name, not a build, so it
-    # does not share the approximating hurdy gurdy's sound as a sound-alike would
-    'lira korbowa': 'hurdy gurdy',
+    # https://www.thedailystar.net/supplements/28th-anniversary-supplements/deshi-first/news/folk-musical-instruments-the-land-1704676
+    # ("the violin; popularly known as behala"): the violin's Bengali name, so an alias, not a
+    # sound-alike
+    'behala': 'violin',
+    # https://en.wikipedia.org/wiki/Morin_khuur (the Matouqin title redirects there; the Huqin
+    # page lists "Matouqin (馬頭琴) (Inner Mongolia)"): the Chinese name for the morin khuur
+    'matouqin': 'morin khuur',
+    # https://en.wikipedia.org/wiki/Kemenche (the Kemençe title redirects there and opens
+    # "Kemenche (Turkish: kemençe; Greek: κεμεντζές)"): the Turkish spelling of the catalog
+    # kemenche
+    'kemence': 'kemenche',
 }
