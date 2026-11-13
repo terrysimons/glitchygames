@@ -14,6 +14,7 @@ from glitchygames.audio.instruments.bagpipes import BAGPIPES
 from glitchygames.audio.instruments.bowed_strings import BOWED_STRINGS
 from glitchygames.audio.instruments.brass import BRASS
 from glitchygames.audio.instruments.catalog import ENTRY_NAME_PATTERN, CatalogEntry, Family, Tag
+from glitchygames.audio.instruments.clarinets import CLARINETS
 from glitchygames.audio.instruments.double_reeds import DOUBLE_REEDS
 from glitchygames.audio.instruments.drums import DRUMS_AND_PERCUSSION
 from glitchygames.audio.instruments.electronic import ELECTRONIC
@@ -27,7 +28,7 @@ from glitchygames.audio.instruments.plucked_strings import PLUCKED_STRINGS
 from glitchygames.audio.instruments.sound_effects import SOUND_EFFECTS
 from glitchygames.audio.instruments.strings import HARPS, STRUCK_STRINGS
 from glitchygames.audio.instruments.voices import CHOIRS, VOICES
-from glitchygames.audio.instruments.winds import CLARINETS, FREE_REEDS, SAXOPHONES
+from glitchygames.audio.instruments.winds import FREE_REEDS, SAXOPHONES
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
