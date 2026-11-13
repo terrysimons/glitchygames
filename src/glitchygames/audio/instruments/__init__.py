@@ -16,9 +16,10 @@ noise, layered sources with their own envelopes and pitches, filters and drive; 
 ``timbres``), so it plays, caches and renders offline like any other. The voices come in every
 range (soprano, mezzo-soprano, alto, treble, countertenor, tenor, baritone, bass, basso
 profundo) on five vowels, and the families' sizes have their variants (sopranino to contrabass
-saxophones and recorders, alto to contrabass trombones, piccolo to contrabass flutes, and so
-on). They are synthesized approximations: there are no recorded samples, vibrato or moving
-filters in the engine yet, so sustained tones are steady and a vowel is truest mid-range.
+saxophones, sopranino to subcontrabass recorders, alto to contrabass trombones, piccolo to
+contrabass flutes, and so on). They are synthesized approximations: there are no recorded
+samples, vibrato or moving filters in the engine yet, so sustained tones are steady and a vowel
+is truest mid-range.
 
 Three families hold the instruments that are neither struck bars nor blown: plucked idiophones
 (``kalimba``, ``mbira``, ``music box``, ``sansula``), friction instruments (``glass harmonica``,
@@ -62,6 +63,16 @@ bass, sections, pizzicato, viols, ``erhu``, ``hurdy gurdy``) and its sound-alike
 family is pitched, so each sound-alike gives its own sourced range. Instruments that need
 sympathetic strings or a buzzing bridge wait, and ``sarangi``, ``hardanger fiddle``, ``viola d
 amore``, ``nyckelharpa`` and ``hurdy gurdy`` stay as the approximations they were, never a parent.
+
+Flutes (33 entries) hold their builds in ``flutes.py`` (``piccolo`` to ``contrabass flute``,
+``recorder`` sizes, ``tin whistle``, ``shakuhachi``, ``pan flute``, ``ocarina``) and their
+sound-alikes in ``flute_sound_alikes.py`` (``csakan`` and ``soprano recorder``, ``subcontrabass
+recorder`` and ``contrabass recorder``, ``ryuteki`` and ``bansuri``). ``winds.py`` keeps the five
+reed families. The family is pitched, so each sound-alike gives its own sourced range (sounding,
+stated, never hedged or extreme). A flute whose sound is a moving one (``slide whistle``,
+``pea whistle``), a buzzing membrane (``qudi``, ``daegeum``) or a voice (``tsuur``) waits, and
+``dizi`` stays as the approximation it was, never a parent. ``penny whistle``, ``syrinx`` and
+three more names are aliases.
 
 Voices (56 entries) and choirs (13 entries) hold their builds in ``voices.py`` (``soprano ah`` to
 ``basso profundo hum``, ``whistling``, ``choir soprano ah``, ``childrens choir``), which shares one

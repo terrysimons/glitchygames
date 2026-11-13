@@ -211,7 +211,7 @@ the sound never plays where the picture does not (`--headless`, tests, replays, 
 
 ## The instrument catalog
 
-`glitchygames.audio.instruments` holds 685 ready-made instruments in 23 families. Each is an
+`glitchygames.audio.instruments` holds 688 ready-made instruments in 23 families. Each is an
 ordinary `Instrument`, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:
@@ -230,7 +230,7 @@ instruments.get('slapstick')                             # an alias: the same in
 
 | Family | Entries | Examples |
 | --- | --- | --- |
-| `flutes` | 30 | piccolo to contrabass flute, wooden flutes, sopranino to contrabass recorders, whistles, shakuhachi, ocarinas |
+| `flutes` | 33 | piccolo to contrabass flute, wooden flutes, sopranino to subcontrabass recorders, whistles, shakuhachi, ocarinas, and 3 sound-alikes (csakan, subcontrabass recorder, ryuteki) |
 | `clarinets` | 9 | E-flat to contrabass clarinet, basset horn, chalumeau |
 | `saxophones` | 8 | sopranino to contrabass, C melody |
 | `double reeds` | 23 | oboe family, bassoon and contrabassoon, shawms, crumhorns, suona, duduk |
@@ -268,7 +268,7 @@ instruments.get('slapstick')                             # an alias: the same in
   name: `slapstick` to `whip`, `contralto` to `alto ah`, `boy soprano` to `treble ah`, `zanza` to
   `mbira`, `cylinder music box` and `disc music box` to `music box`, `wurlitzer electronic piano`
   to `reed electric piano`, `hohner clavinet` to `clavinet`, `rain box` to `rain machine`, `horse
-  hooves` to `coconut shells`, `tavil` to `thavil` and `riq` to `daf` (80 in all, among them
+  hooves` to `coconut shells`, `tavil` to `thavil` and `riq` to `daf` (85 in all, among them
   `kanun` to `qanun`, `ud` to `oud` and `neapolitan mandolin` to `mandolin`). `get` and `entry`
   resolve an alias, while `names` and `entries` list catalog names only.
 - A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
@@ -286,7 +286,8 @@ instruments.get('slapstick')                             # an alias: the same in
   tuned percussion ones are in `tuned_sound_alikes.py`, the 10 electronic ones in
   `electronic_sound_alikes.py` and the 2 bowed string ones (`viola pomposa`, `bowed psaltery`) in
   `bowed_sound_alikes.py`, the builds in `bowed_strings.py`; the voices' one (`basso buffo ah`, of
-  `bass ah`) is in `voice_sound_alikes.py`, the builds in `voices.py` (182 sound-alikes in all).
+  `bass ah`) is in `voice_sound_alikes.py`, the builds in `voices.py`; the flutes' 3 (`csakan`, `subcontrabass recorder`, `ryuteki`) are
+  in `flute_sound_alikes.py`, the builds in `flutes.py` (185 sound-alikes in all).
 - Each entry has a `title`, a `family` and its playing range, `lowest` and `highest` (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (`pitch='A4'`); it does not change

@@ -1750,10 +1750,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 8 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 9 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
   batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682
-  after batch 6, 684 after batch 7, 685 after batch 8) toward every instrument a game might
+  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9) toward every instrument a game might
   want, in one verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates,
   only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
@@ -1831,7 +1831,30 @@ This document tracks planned future features for the GlitchyGames project. Featu
   trù, Albanian iso-polyphony, Maori karanga and the other traditions it did not research; MIMO,
   the Met, Horniman and Grove unconsulted) are a later pass over these families. `vox humana`
   and `voix celeste` are organ stops: the organs batch decides them. `kazoo` and `swazzle` are
-  decided here (each waits for a buzzing membrane). Next: flutes
+  decided here (each waits for a buzzing membrane).
+  Batch 9 (flutes) is done: of its 146 sheet rows (119 candidates and 27 audit alias names) none
+  shipped as a build of its own, 3 became sound-alikes (`csakan` of `soprano recorder`,
+  Ab4-Eb7; `subcontrabass recorder` of `contrabass recorder`, F1-G3; `ryuteki` of `bansuri`,
+  E5-D7, each giving its own sourced range), 131 wait (94 for a sourced range, 18 because their
+  target waits, 5 for a build of their own, 3 for a pitch LFO (vibrato), 3 for a pitch LFO
+  (portamento between notes), 3 for a buzzing membrane, 2 for a sourced drone tuning, 1 for
+  sub-audio fundamentals, 1 for more than four sources, 1 for moving formants), 5 became aliases
+  (`penny whistle`, `jula jula`, `julu julu`, `syrinx`, `siyotanka`) and 7 were dropped; the
+  family grew from 30 to 33 entries (688 in all, 85 aliases and 185 sound-alikes). `flutes.py`
+  now holds the family (moved unchanged from `winds.py`, which keeps the five reed families) and
+  `flute_sound_alikes.py` its sound-alikes. Most rows wait because the range rule stays strict:
+  a flute's source rarely states both notes as sounding pitch. The audit's "Gaps you could not
+  close" (`plans/data/instrument-audit/flutes.md`: MIMO, the Met, Horniman and Grove
+  unconsulted; `List_of_flutes` unresolved; the `satara`, `jodi pava`, `pulangkuzhal`, the
+  Persian ney sizes, `kiz neyi`, `sring`, `shoor`, `choor`, `shembeko`, `suling degung`, Korean
+  `ji`, Chinese `yue`, `koudi`, `pfeife`, `piffero`, `txistu`, `galoubet`, `flabiol`,
+  `tubulum`, keyboard-flute hybrids and bamboo flute sizes by key it suspected but did not
+  confirm) are a later pass over this family. The hand-offs are decided here: `steam whistle`
+  (waits for a sourced range), `boatswains call` (a sourced range), `pea whistle` (a pitch LFO,
+  vibrato), `duck call` (a build of its own: its source names reeds), `bird whistle` (a pitch
+  LFO, vibrato), `singing bird box` (a pitch LFO, portamento), `hydraulophone` (a sourced
+  range; `hs` none) and `pigeon whistle` (more than four sources). `serinette` and `flute clock`
+  are barrel organs, so the organs batch decides them. Next: brass
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
@@ -1849,7 +1872,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sheet `plans/data/instrument-audit/batch-7.tsv`
 - **Plan (batch 8)**: `plans/2026-11-12-instrument-catalog-batch-8-implementation.md`; audit
   sheet `plans/data/instrument-audit/batch-8.tsv`
-- **Status**: Batches 1, 2, 3, 4, 5, 6, 7 and 8 done (requested by the owner 2026-11-06)
+- **Plan (batch 9)**: `plans/2026-11-12-instrument-catalog-batch-9-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-9.tsv`
+- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8 and 9 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
@@ -2709,6 +2734,205 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Found**: batch 8's reviews (2026-11-12)
 - **Status**: TODO
 - **Priority**: Medium (before the flutes batch builds on the same catalog)
+
+### 79. Sound Engine: The Owner's Checks on Instrument Catalog Batch 9 — TODO
+- **Goal**: confirm or overturn the calls made while batch 9 of #70 ran, and listen to its new
+  instruments (flutes 30 to 33 entries). Almost every candidate waits or drops: 0 built, 3
+  sound-alikes, 131 waits, 5 aliases and 7 drops in the sheet's 146 rows. The plan's Task 2 (the
+  two recorder retitles) was skipped by ruling: see the recorder naming call below
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+  every level, filter, ring and click is sound design unless a source is cited in the code; the
+  folder is `build/instruments/flutes/`). No new build was added, so there is nothing new to hear
+  as a build, and the listening is the sound-alikes and the aliases under their parents, which
+  must sound alike by design:
+  - [ ] The new builds: none (0 SHIP rows)
+  - [ ] The 3 sound-alikes beside their parents: `csakan` (Ab4-Eb7) beside `soprano recorder`,
+    `subcontrabass recorder` (F1-G3) beside `contrabass recorder` (its low end is the lowest
+    note of any flute: listen for a quiet or wrong note at F1) and `ryuteki` (E5-D7) beside
+    `bansuri`
+  - [ ] The 5 aliases: `penny whistle` (of `tin whistle`), `jula jula`, `julu julu` and `syrinx`
+    (of `pan flute`) and `siyotanka` (of `native american flute`)
+  - [ ] The two recorders whose titles Task 2 would have changed, as they sound and read today:
+    `great bass recorder` and `contrabass recorder`
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-9.tsv`; the sheet's 146 rows:
+  SHIP 0, SOUND_ALIKE 3, WAIT 131, ALIAS 5, DROP 7):
+  - [ ] Every WAIT (131 rows), by reason:
+    - 94 for a sourced range: `bird flageolet`, `blown bottle`, `boatswains call`, `classical
+      flute`, `double contrabass flute`, `double flageolet`, `double ocarina`, `dvojnica`, `eb
+      soprano flute`, `flageolet`, `floyera`, `fluier`, `flute d amour`, `flutophone`, `frula`,
+      `fujara`, `garklein recorder`, `gemshorn`, `hydraulophone`, `kalyuka`, `koncovka`,
+      `renaissance flute`, `sixth flute`, `sopilka`, `soprano ocarina`, `steam whistle`,
+      `subcontrabass flute`, `subgreat bass recorder`, `tabor pipe`, `tenor ocarina`, `tilinca`,
+      `tonette`, `voice flute`, `willow flute`, `atenteben`, `blul`, `borrindo`, `chi flute`,
+      `chiflo`, `colombian gaita`, `danso`, `dilli kaval`, `embilta`, `firlinfeu`, `gasba`,
+      `hitoyogiri`, `hocchiku`, `huilacapitztli`, `junggeum`, `kagurabue`, `kawala`, `khlui`,
+      `koauau`, `koauau ponga ihu`, `komabue`, `limbe`, `nguru`, `nohkan`, `nose flute`,
+      `paixiao`, `palendag`, `palwei`, `pifano`, `pinkillo`, `quenacho`, `quills`, `rondador`,
+      `salamuri`, `saluang`, `sao truc`, `shabbaba`, `shinobue`, `shvi`, `siku`, `sodina`,
+      `sogeum`, `solomon panpipes`, `suling`, `sybyzgy`, `tarka`, `tempuku`, `tieu`, `tungso`,
+      `umtshingo`, `washint`, `wot`, `xun`, `fangufangu`, `kalaleng`, `bulalri`, `aangun`,
+      `nai`, `kuvytsi`, `venu`
+    - 18 because their target waits: `swanee whistle`, `lotus flute`, `piston flute` and `jazz
+      flute` (for `slide whistle`); `ohe hano ihu`, `ohe hanu ihu` and `pitung ilong` (for
+      `nose flute`); `antara` and `zampona` (for `siku`); `hun` and `tsuchibue` (for `xun`);
+      `geling` and `geshao` (for `pigeon whistle`); `bosuns call` (for `boatswains call`);
+      `police whistle` (for `pea whistle`); `salamiyya` (for `kawala`); `tongali` (for
+      `kalaleng`); `xipro` (for `chiflo`)
+    - 5 for a build of their own: `duck call`, `aztec death whistle`, `fulani flute`, `porutu`,
+      `putorino`
+    - 3 for a pitch LFO (vibrato): `bird whistle`, `pea whistle`, `water whistle`
+    - 3 for a pitch LFO (portamento between notes): `singing bird box`, `slide whistle`,
+      `whistling vessel`
+    - 3 for a buzzing membrane: `bangdi`, `daegeum`, `qudi`
+    - 2 for a sourced drone tuning: `algoza`, `lalingedan`
+    - 1 each for sub-audio fundamentals (`hyperbass flute`, C0), more than four sources
+      (`pigeon whistle`) and moving formants (`tsuur`)
+  - [ ] The range ruling (the owner kept it strict, 2026-11-09): a range is stated or an exact
+    span above the lowest note, in sounding pitch (a written range counts only when the same
+    source states the transposition), never hedged ("about", "usually up to"), never an extreme
+    ("advanced players", "possible altissimo"), never a width with no pitches (the ocarina
+    page's "an octave plus a fourth") or letters with no octaves (the hydraulophone page's "A to
+    E"); the key a source calls standard; maker and museum sources count, a retailer, blog or
+    forum does not; nothing below A0 (`hyperbass flute`, C0) or above C8 (no row needed it); a
+    one-note pipe has no range, and a set shared among players in hocket is dropped
+    (`embilta` waits; `nyanga panpipes` and `tshikona pipes` dropped). The ranges derived under
+    it: `csakan` Ab4-Eb7 (Wikipedia: written C4-G6, "a transposing instrument in A-flat", so a
+    minor sixth up; the parenthesised extended range left out); `subcontrabass recorder` F1-G3
+    (Paetzold by Kunath's manual, sounding range printed on a bass staff, read from the PDF at
+    1200 dpi); `ryuteki` E5-D7 (Koizumi record 466, `e"-d""`, the same as the Japanese
+    Wikipedia corpus; Stanford's wider span is extremes)
+  - [ ] The range rule's casualty `garklein recorder`: its page's only range ("C6-A7 (C8)") is
+    a sentence the page itself tags "[citation needed]". The controller ruled an uncited claim
+    is not a sourced range, so it waits. Ship it at C6-A7 if the owner accepts the uncited
+    sentence
+  - [ ] `tempuku` waits although the Koizumi record (391 and 392) gives `g-f"`: the record's
+    octave marks contradict the pipe length (29 cm), and the catalog's marks are unreliable for
+    these entries. The controller's ruling; ship it at G3-F5 if the owner trusts the record
+  - [ ] `bangsi` dropped ("no fetched source describes it"): its only source is a field
+    recording project's blog (Aural Archipelago), and a blog is not a source under the range
+    ruling. It also names a membrane, "almost like in a kazoo"
+  - [ ] `tungso` waits for a sourced range, not a buzzing membrane: its page says it "may have"
+    a membrane, "especially common in the folk variety" (optional, as for `khlui`, which also
+    waits only for a range)
+  - [ ] `tonette` waits: its page gives C4-D5, which reads as written pitch (Talk:Tonette says
+    the real range is an octave higher, C5-D6) and no source states a transposition, so ruling 2
+    leaves no range
+  - [ ] The ocarina sizes (`soprano ocarina`, `tenor ocarina`, `double ocarina`): makers' size
+    names disagree (STL Ocarina's tenor in C is A4-F6, which overlaps the catalog's "Ocarina
+    (alto C)", C5-F6), no source calls a size or key standard, so each waits. Each model page
+    gives a range for one key only
+  - [ ] The slide whistle waits for a pitch LFO (portamento between notes): its whole identity
+    is its glide, so `slide whistle` and its four alias names (`swanee whistle`, `lotus flute`,
+    `piston flute`, `jazz flute`) are `PORTAMENTO_NAMES` in the catalog test, refused as a build
+    or a sound-alike, and the alias rows wait for their target. Decided by the plan, not per
+    row; the engine has one glide per note (`pitch_curve`) but none between notes
+  - [ ] The recorder naming: one convention (great bass C3, contrabass F2, subgreat bass C2,
+    subcontrabass F1, the Paetzold/Mollenhauer one), and a name from the other convention is
+    never an alias because it would read as another size. The plan's Task 2 would have retitled
+    `great bass recorder` "Great bass recorder in C" and `contrabass recorder` "Contrabass
+    recorder in F" (the spec's finding: "Not a bug, but the titles could state the lowest note").
+    It was skipped by ruling, since existing entries change only for a cited bug and the spec says
+    this one is not one. Do you want the retitle? New recorder sizes state their key in the
+    title (`Subcontrabass recorder in F`)
+  - [ ] `dizi` among the approximations (`APPROXIMATING_NAMES`), never a parent: its page names a
+    membrane that gives "the final tone a buzzing, nasal quality", and a sound-alike would ship
+    the omission under a new name. A flute whose source names that buzz as its sound waits for a
+    buzzing membrane (`bangdi`, `daegeum`, `qudi`); one that has none today is built like any
+    other (`junggeum`, `sogeum`: they wait only for a range)
+  - [ ] The moving-sound ruling: a slide between notes waits for a pitch LFO (portamento); a
+    warble or trill that the device itself makes (`pea whistle`, `water whistle`, `bird
+    whistle`) waits for a pitch LFO (vibrato), and `singing bird box` and `whistling vessel`
+    for the portamento one; a trill or vibrato any player may add is technique, not the sound
+  - [ ] Flutes with a voice or a drone: `tsuur` waits for moving formants (throat singing,
+    the spec's row); `fulani flute`, `porutu` and `putorino` wait for a build of their own (a
+    sung or lip-buzzed voice that is not throat singing); `algoza` and `lalingedan` wait for a
+    sourced drone tuning (batch 7's ruling). A double flute whose pipes each play a melody is
+    played as two notes of one sequence
+  - [ ] Overtone flutes (`fujara`, `koncovka`, `kalyuka`, `willow flute`, `tilinca`) are flutes:
+    the harmonic series decides the notes, not the sound. They wait only for a sourced range
+  - [ ] No new shape: every flute shipped (3 sound-alikes) reuses the six existing ones, so no
+    stopped-pipe trait was added (see the `pan flute` bug below)
+  - [ ] Unpitched flutes (`FLUTE_UNPITCHED_NAMES`, empty): `aztec death whistle` waits for a
+    build of its own, since a sound-alike is pitched exactly when its parent is and no flute is
+    unpitched
+  - [ ] The boundary hand-offs: `duck call` stays in flutes (the spec: "duck calls and signal
+    whistles go in flutes (they are edge-blown)") but waits for a build of its own. Its page
+    names reeds ("Early duck call tools were basic woodwind instruments ... single, double, or
+    triple reed call") and also says "a duck call is like a traditional whistle", describing
+    whistle-type teal calls. The noise makers audit read it as a reed call. Which family is
+    right? `hydraulophone` is in flutes under the spec, with `hs` `none` (its page gives no
+    class) and waits for a range (letters with no octaves). `steam whistle` waits for a range;
+    its page relates it to no catalog entry, so no cross-family sound-alike of `calliope` was made
+  - [ ] Sizes and keys as sound-alikes: the concert flute's and recorders' sizes and the folk
+    flutes in other keys ship as a sound-alike of the entry nearest in register that their source
+    relates them to, with their own range, or wait. Only `csakan`, `subcontrabass recorder` and
+    `ryuteki` qualified
+  - [ ] One-offs and unsourced rows dropped: `ringflute` and `clackamore` (one-offs),
+    `bangsi` and `gezi shao` (no fetched source describes them), `lingbu` (a term for all
+    Tibetan flutes), `nyanga panpipes` and `tshikona pipes` (ensembles of one-note pipes played
+    in hocket)
+  - [ ] The aliases: `jula jula` and `julu julu` point at `pan flute` (the Pan flute page names
+    them as Bolivian panpipe names; the audit's `siku` was not related by any fetched source) and
+    `syrinx` too; `penny whistle` at `tin whistle`; `siyotanka` at `native american flute`
+  - [ ] The module move: the family moved unchanged from `winds.py` to `flutes.py` (its table is
+    `_FLUTE_BUILDS + FLUTE_SOUND_ALIKES`, the sound-alikes in `flute_sound_alikes.py`), and
+    `winds.py` keeps the five reed families (clarinets, saxophones, double reeds, bagpipes, free
+    reeds); the process-state guard's six build names moved with it
+  - [ ] The two-half split by an explicit list (half A, the European, orchestral and modern
+    flutes with the whistles and calls, 47 candidates; half B, the traditional flutes of Asia,
+    Africa, the Americas and Oceania with every panpipe, 72), the two sheets researched in
+    parallel, and Tasks 1, 3 and 5 run together
+  - [ ] Task 2 skipped by ruling (the recorder retitles, above), and the pushes and stacked PRs
+    made without asking (the owner, 2026-11-12, #78)
+  - [ ] Engine features named beyond the spec's table, for its "What the engine cannot make
+    yet": none new. Every wait names a feature the spec or an earlier batch already named (a
+    pitch LFO, a buzzing membrane, moving formants, more than four sources, sub-audio
+    fundamentals, a sourced drone tuning) or `its own build`
+- **Bugs to report** (found while building batch 9; none fixed here):
+  - [ ] `dizi` is built as `METAL_FLUTE` (the piccolo's build) with no buzz, although its page
+    gives the membrane "the final tone a buzzing, nasal quality". It is in `APPROXIMATING_NAMES`
+  - [ ] `pan flute` uses `END_BLOWN`, which keeps the even harmonics at full level, but the Pan
+    flute page says "The pan flute's tubes are stopped at one end" and that overblowing gives
+    "odd harmonics". The page states the stopped pipe and its odd overblown series, not the
+    timbre in so many words, so no change was made here
+  - [ ] `sopranino recorder` (F5-G7) has no source comment in `flutes.py`: the audit records the
+    Recorder page as "soprano C5-D7 (G7)", so its G7 may be an extreme, as the soprano's
+    parenthetical is
+  - [ ] `ocarina` is titled "Ocarina (alto C)" with C5-F6 and has no source comment; STL
+    Ocarina's maker page puts a C ocarina at A4-F6, and size names differ across makers
+  - [ ] Wikipedia's Recorder table showed "Musical scores are temporarily disabled due to a
+    security issue", so its written and sounding range images could not be read; several recorder
+    sizes might get ranges once they render again
+  - [ ] The Koizumi catalog (Geidai) holds object records with stated ranges for many flutes
+    (`frula`, `dvojnica` and others in half A) that half A did not use
+  - [ ] The reviews found no other existing range that a fetched source contradicts; none of the
+    30 earlier flutes was re-ranged against its page
+- **Incidents and process**:
+  - [ ] Pushes and stacked PRs happen without asking (the owner, 2026-11-12), and the two sheets
+    were researched in parallel
+  - [ ] Parked minors from the reviews: the code check's "already" exemption skips a row rather
+    than requiring its resolution (`build/batch-9-code-check.py`, cosmetic); the four aliases in
+    `aliases.py` and the matching test parameters were first written out of sheet order
+    (`syrinx` before `jula jula` and `julu julu`), and the header comment of that block still
+    named `build/batch-9-half-a.tsv` at the time of Task 6's review (check both are fixed); the
+    garklein notes' "the Recorder page's table agrees" quotes only a size name
+  - [ ] Wikipedia's API rate-limited bursts, and Kunath's product pages and the Met returned
+    404 or 429
+- **Follow-ups**:
+  - [ ] The audit's gaps (`plans/data/instrument-audit/flutes.md`, listed in #70) are a later
+    pass over this family
+  - [ ] Ranging the 94 range WAITs from maker and museum sources (the Koizumi catalog, MIMO, the
+    Met, the Horniman, Kunath and Moeck model pages), each row's notes recording what was searched
+  - [ ] `serinette` and `flute clock`: the organs batch decides them
+  - [ ] The sheet's cells contain stray quote characters (some cells are CSV-quoted), so read it
+    with Python's csv module rather than splitting on tabs
+  - [ ] The engine changes that unblock the waits above, most rows first: the 94 range waits need
+    no engine feature, then a pitch LFO (vibrato 3, portamento 3 and the slide whistle's 4
+    aliases), a buzzing membrane (3, and `dizi`'s fix), a sourced drone tuning (2), then a build of
+    their own (5), moving formants (1), sub-audio fundamentals (1) and more than four sources (1)
+- **Found**: batch 9's reviews (2026-11-12)
+- **Status**: TODO
+- **Priority**: Medium (before the brass batch builds on the same catalog)
 
 ### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
 - **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,
