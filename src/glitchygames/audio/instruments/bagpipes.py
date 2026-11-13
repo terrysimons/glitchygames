@@ -39,6 +39,11 @@ HIGHLAND_LEVELS: Final[tuple[float, ...]] = (
 DRONE_LEVELS: Final[tuple[float, ...]] = (1.0, 0.7, 0.55, 0.4, 0.3, 0.22, 0.15, 0.1)
 SWEET_CHANTER_LEVELS: Final[tuple[float, ...]] = (1.0, 0.55, 0.4, 0.26, 0.17, 0.1, 0.06, 0.035)
 SMOOTH_DRONE_LEVELS: Final[tuple[float, ...]] = (1.0, 0.3, 0.12, 0.05)
+# A cylindrical single-reed chanter: SWEET_CHANTER_LEVELS' odd harmonics with the even ones silent.
+# The odd-harmonics-only shape is sound design, from a closed cylinder favouring odd harmonics;
+# the bore itself is sourced (Alban Faust, a maker, https://www.albanfaust.se/en/the-instrumentmaker/:
+# "a single reed which sits on a cylindrically drilled chanter")
+CYLINDRICAL_CHANTER_LEVELS: Final[tuple[float, ...]] = (1.0, 0.0, 0.4, 0.0, 0.17, 0.0, 0.06, 0.0)
 
 
 def _bagpipe(  # ruff: ignore[too-many-arguments] - a chanter's traits and its drones
@@ -199,6 +204,38 @@ _BAGPIPE_BUILDS: Final[tuple[CatalogEntry, ...]] = (
             low_pass=3500.0,
             drive=0.0,
             breath=0.008,
+        ),
+    ),
+    # --- Batch 12's bagpipes, in the order of plans/data/instrument-audit/batch-12.tsv
+    # Alban Faust, a maker (https://www.albanfaust.se/en/the-instrumentmaker/): "The Swedish
+    # bagpipes is a so-called clarinet-instrument, as the sound is produced through a single reed
+    # which sits on a cylindrically drilled chanter. Traditionally it is a mouth blown instrument
+    # with one short drone (high tuned) which is identical to the lowest tone on the chanter (6
+    # fingering)." Range and drone: Leif Eriksson, a maker writing of his own bagpipes
+    # (https://tongang.se/leif/leif/bagpipes_2.html): "The normal key for the Swedish bagpipe is
+    # a', the lowest tone being e', and the highest e'', with a', in the middle." and "The drone
+    # is normally tuned to the e' of the chanter." e' is E4 and e'' is E5 (Helmholtz notation), so
+    # the one drone sounds E4, 329.63 Hz equal-tempered at A4 = 440 Hz.
+    # Sourced: the cylindrical single-reed chanter (CYLINDRICAL_CHANTER_LEVELS), the range E4-E5
+    # and the one drone at E4. Sound design, copied unchanged from scottish smallpipes (the nearest
+    # in kind, a soft bagpipe; the Swedish bagpipes page,
+    # https://en.wikipedia.org/wiki/Swedish_bagpipes: "The tone of the instrument is quite soft"):
+    # the drone level 0.35 (that entry's lowest drone's), drone_levels, low_pass, drive, breath,
+    # and the builder's default attack and sustain
+    CatalogEntry(
+        'sackpipa',
+        'Säckpipa in A',
+        Family.BAGPIPES,
+        'E4',
+        'E5',
+        partial(
+            _bagpipe,
+            chanter_levels=CYLINDRICAL_CHANTER_LEVELS,
+            drones=((329.63, 0.35),),
+            drone_levels=SMOOTH_DRONE_LEVELS,
+            low_pass=4000.0,
+            drive=0.3,
+            breath=0.01,
         ),
     ),
 )

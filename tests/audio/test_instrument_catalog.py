@@ -842,6 +842,10 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('surnay', 'zurna'),
         ('zournas', 'zurna'),
         ('haidi', 'suona'),
+        ('irish pipes', 'uilleann pipes'),
+        ('lowland pipes', 'border pipes'),
+        ('half long pipes', 'border pipes'),
+        ('gaita galega', 'galician gaita'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -877,6 +881,8 @@ def test_the_batch_aliases_resolve(alias, target):
     oboe, the bassoon as the fagott (its German name) and the rackett as the cervelas.
     Batch 11's second half names the suona as the gyaling and the haidi, the zurna as the zurla,
     the surna, the surnay and the zournas, and the bombarde as the bombard.
+    Batch 12's bagpipes name the uilleann pipes as the irish pipes, the border pipes as the
+    lowland pipes and the half long pipes, and the galician gaita as the gaita galega.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1706,8 +1712,9 @@ EXISTING_BAGPIPE_NAMES: frozenset[str] = frozenset({
     'bulgarian gaida',
     'musette de cour',
 })
-# Batch 12's bagpipes with their own build, in the sheet's order (none yet: the code tasks fill it)
-NEW_BAGPIPE_NAMES: list[str] = []
+# Batch 12's bagpipes with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-12.tsv)
+NEW_BAGPIPE_NAMES: list[str] = ['sackpipa']
 # Batch 12's bagpipe sound-alikes and the entry each sounds like, in the sheet's order (none yet)
 BAGPIPE_SOUND_ALIKE_PARENTS: dict[str, str] = {}
 # Batch 12's bagpipe sound-alikes whose sourced drones differ from their parent's, with their
@@ -2098,7 +2105,10 @@ def test_the_gangsa_pairs_its_fundamental_at_the_ombak_ratio():
 # variation during the inhalation and exhalation phases of circular breathing, give the
 # instrument its readily recognisable sound.'), and batch 11's for the piri, built as a conical
 # shawm though its page says (https://en.wikipedia.org/wiki/Piri_(instrument)): 'It has a
-# cylindrical bore.'
+# cylindrical bore.', and batch 12's for the scottish smallpipes, built with an every-harmonic
+# chanter though the Bagpipe Society's guide says
+# (https://www.bagpipesociety.org.uk/guide/scottish-smallpipes/): 'With its cylindrical bore, the
+# sound is characteristically lilting'
 APPROXIMATING_NAMES = frozenset({
     'sitar',
     'tanpura',
@@ -2112,6 +2122,7 @@ APPROXIMATING_NAMES = frozenset({
     'dizi',
     'didgeridoo',
     'piri',
+    'scottish smallpipes',
 })
 
 
@@ -2259,6 +2270,7 @@ def test_a_retuned_bagpipe_sounds_its_sourced_drones():
     ]
     assert retuned == list(BAGPIPE_RETUNED_DRONES)
     for name, drone_notes in BAGPIPE_RETUNED_DRONES.items():
+        assert drone_notes, name
         catalog_entry = instruments.entry(name)
         assert set(catalog_entry.sound_changes) == {'drones'}, name
         drone_hertz = [
@@ -2268,3 +2280,36 @@ def test_a_retuned_bagpipe_sounds_its_sourced_drones():
         ]
         assert drone_hertz == [round(float(Note(note).to_hz()), 2) for note in drone_notes], name
         assert instruments.get(name) != instruments.get(catalog_entry.sounds_like or ''), name
+
+
+def test_a_cylindrical_chanter_sounds_odd_harmonics():
+    """A cylindrical chanter's even harmonics are far below its odd ones; a conical one's are not.
+
+    The chanter alone (its drones removed), at its middle note: a closed cylinder favours odd
+    harmonics (Alban Faust, a maker, https://www.albanfaust.se/en/the-instrumentmaker/: "a
+    single reed which sits on a cylindrically drilled chanter"), where every older bagpipe's
+    chanter has every harmonic.
+    """
+
+    def relative_harmonics(name: str) -> list[float]:
+        catalog_entry = instruments.entry(name)
+        build = catalog_entry.build
+        assert isinstance(build, partial), name
+        chanter = build.func(**{**build.keywords, 'drones': ()})
+        note = catalog_entry.middle_note()
+        hertz = float(note.to_hz())
+        samples = render_sound(spec_for(chanter, name=name, pitch=note.name, length=1.0)).samples
+        held = samples[round(0.1 * SAMPLE_RATE) : round(0.9 * SAMPLE_RATE)]
+        magnitude = np.abs(np.fft.rfft(held * np.hanning(len(held))))
+        frequencies = np.fft.rfftfreq(len(held), 1 / SAMPLE_RATE)
+        peaks = [
+            float(np.max(magnitude[np.abs(frequencies - harmonic * hertz) < hertz / 4.0]))
+            for harmonic in (1, 2, 3, 4)
+        ]
+        return [peak / peaks[0] for peak in peaks]
+
+    cylinder = relative_harmonics('sackpipa')
+    highland = relative_harmonics('highland bagpipe')
+    assert cylinder[1] < 0.05
+    assert cylinder[3] < 0.05
+    assert highland[1] > 0.3
