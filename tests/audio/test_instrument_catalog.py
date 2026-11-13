@@ -858,6 +858,7 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('organ trompette', 'pipe organ reed'),
         ('air calliope', 'calliope'),
         ('calliaphone', 'calliope'),
+        ('fender rhodes', 'tine electric piano'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -898,6 +899,7 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 13's organ stops name the pipe organ principal as the open diapason (its English name)
     and the pipe organ reed as the organ trompette (the trumpet stop's French name), and its
     organs as instruments name the calliope as the air calliope and the calliaphone.
+    Batch 15's pianos name the tine electric piano as the fender rhodes.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
