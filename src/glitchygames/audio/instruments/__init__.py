@@ -187,6 +187,19 @@ stated, never hedged). No harp shipped as a new build or sound-alike, so none ca
 row waits for a sourced range (18 names) or for its target (5 names), 21 were dropped, and ``pedal
 harp``, ``lever harp`` and ``folk harp`` are aliases.
 
+Struck strings (5 entries) hold the family's builds in ``struck_strings.py`` (``hammered dulcimer``,
+``cimbalom``, ``santur``, ``yangqin`` and ``berimbau``) and their sound-alikes in
+``struck_sound_alikes.py`` (none yet). A struck string is sounded by a beater in the player's hand
+(Hornbostel-Sachs suffix 4: the hammered dulcimers, 314.122-4, and the struck bows, 311.12), while
+a keyed struck string is a keyboard. A string or course count, bridges, a tuning, a material, the
+beaters, a size or a body is no trait, so a struck string of another form or size is a sound-alike
+of the catalog struck string its source relates it to, or else of the one whose lowest note is
+nearest its own, and gives its own sourced range. No struck string shipped as a new build or
+sound-alike, so none carries ``sound_changes``. Every struck string row waits for a sourced range
+(22 names) or for its target (10 names), 26 were dropped, and the 9 names of the ``hammered
+dulcimer`` (``hackbrett``, ``dulcemele``, ``dultzimar``, ``darushimaa``, ``hakkebord``,
+``hakkebraet``, ``hakkebrett``, ``hackbraede`` and ``hammarharpa``) are aliases.
+
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and
 ``gangsa``) and its sound-alikes in ``tuned_sound_alikes.py`` (``alto xylophone`` and

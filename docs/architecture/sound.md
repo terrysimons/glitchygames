@@ -240,7 +240,7 @@ instruments.get('slapstick')                             # an alias: the same in
 | `bowed strings` | 29 | violin to double bass, sections, pizzicato, viols, erhu, hurdy-gurdy, and 2 sound-alikes (viola pomposa, bowed psaltery) |
 | `plucked strings` | 92 | guitars (nylon, steel, twelve-string, electric clean to distortion), basses, ukuleles, banjos, mandolins, lutes (angelique), sitar, koto, qanun, tar, ruan, chapman stick, and 27 sound-alikes |
 | `harps` | 7 | concert, celtic (lever), wire-strung, triple harp, lyre, kora, harp guitar (no sound-alikes yet) |
-| `struck strings` | 5 | hammered dulcimer, cimbalom, santur, yangqin, berimbau |
+| `struck strings` | 5 | hammered dulcimer, cimbalom, santur, yangqin, berimbau (no sound-alikes yet) |
 | `keyboards` | 11 | pianos, fortepiano, harpsichords, virginal, clavichord, celesta, toy piano (no sound-alikes yet) |
 | `organs` | 19 | pipe organ stops and plenum, positive, combo and theatre organs, calliope, stopped diapason, cornet and organ clarinet, and 7 sound-alikes (bourdon, salicional, voix céleste, oboe, krummhorn, tuba, post horn) |
 | `electromechanical` | 11 | electric pianos (tine, reed), Clavinet, Pianet, tonewheel organ registrations and percussion |
@@ -268,7 +268,7 @@ instruments.get('slapstick')                             # an alias: the same in
   name: `slapstick` to `whip`, `contralto` to `alto ah`, `boy soprano` to `treble ah`, `zanza` to
   `mbira`, `cylinder music box` and `disc music box` to `music box`, `wurlitzer electronic piano`
   to `reed electric piano`, `fender rhodes` to `tine electric piano`, `hohner clavinet` to
-  `clavinet`, `rain box` to `rain machine`, `horse hooves` to `coconut shells`, `tavil` to `thavil` and `riq` to `daf`, `richter harmonica` to `harmonica`, `pedal harp` to `concert harp` and `lever harp` to `celtic harp` (125 in all, among them
+  `clavinet`, `rain box` to `rain machine`, `horse hooves` to `coconut shells`, `tavil` to `thavil` and `riq` to `daf`, `richter harmonica` to `harmonica`, `pedal harp` to `concert harp` and `lever harp` to `celtic harp`, and nine names (`hackbrett`, `dulcemele`, `dultzimar`, `darushimaa`, `hakkebord`, `hakkebraet`, `hakkebrett`, `hackbraede`, `hammarharpa`) to `hammered dulcimer` (134 in all, among them
   `kanun` to `qanun`, `ud` to `oud` and `neapolitan mandolin` to `mandolin`). `get` and `entry`
   resolve an alias, while `names` and `entries` list catalog names only.
 - A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
@@ -296,8 +296,8 @@ instruments.get('slapstick')                             # an alias: the same in
   the bagpipes' table (`bagpipe_sound_alikes.py`) is empty so far, and so are the keyboards'
   (`keyboard_sound_alikes.py`, the builds in `keyboards.py`) and the free reeds'
   (`free_reed_sound_alikes.py`, the builds in `free_reeds.py`; `winds.py` now holds only the
-  saxophones) and the harps' (`harp_sound_alikes.py`, the builds in `harps.py`; the struck strings'
-  builds are in `struck_strings.py`). `electromechanical.py` holds the
+  saxophones), the harps' (`harp_sound_alikes.py`, the builds in `harps.py`) and the struck
+  strings' (`struck_sound_alikes.py`, the builds in `struck_strings.py`). `electromechanical.py` holds the
   electromechanical instruments that shared that module. There are 197 sound-alikes in all. A bagpipe's drones are fixed pitches inside its build, so a bagpipe
   sound-alike in another tuning would carry its own drones as `sound_changes` (each at the pitch
   its source gives, equal-tempered like the chanter).

@@ -922,6 +922,9 @@ def test_the_batch_aliases_resolve(alias, target):
     tuning, and the catalog's harmonica is the Richter-tuned diatonic in C).
     Batch 17's frame harps name the concert harp as the pedal harp, and the celtic harp as the
     lever harp and the folk harp.
+    Batch 18's hammered dulcimers name the hammered dulcimer as the hackbrett, the dulcemele, the
+    dultzimar, the darushimaa, the hakkebord, the hakkebraet, the hakkebrett, the hackbraede and
+    the hammarharpa.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 

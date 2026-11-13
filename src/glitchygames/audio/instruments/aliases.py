@@ -508,38 +508,38 @@ ALIASES: Final[dict[str, str]] = {
     # https://de.wikipedia.org/wiki/Hackbrett ("Das Hackbrett ist ein Typ einer Kastenzither,
     # deren Saiten mit Klöppeln angeschlagen werden", and "Im englischen Sprachraum heißt das
     # Hackbrett heute noch dulcimer") and https://en.wikipedia.org/wiki/Hammered_dulcimer ("*
-    # Austria, Germany and Switzerland - Hackbrett"): the German name of the hammered dulcimer
+    # Austria, Germany and Switzerland – Hackbrett"): the German name of the hammered dulcimer  # ruff: ignore[ambiguous-unicode-character-comment]
     # itself, so the catalog's hammered dulcimer. The Salzburg model is a version of it, not this
     # name
     'hackbrett': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Hispanosphere - dulcémele", among the
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Hispanosphere – dulcémele", among the  # ruff: ignore[ambiguous-unicode-character-comment]
     # names derived from "The Graeco-Roman word dulcimer"; the catalog name drops the accent): the
     # Spanish-speaking world's name, so the catalog's hammered dulcimer
     'dulcemele': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Israel - דולצימר dultzimar", among the
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Israel – דולצימר dultzimar", among the  # ruff: ignore[ambiguous-unicode-character-comment]
     # names derived from "The Graeco-Roman word dulcimer"): the Hebrew name, so the catalog's
     # hammered dulcimer
     'dultzimar': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Japan - darushimaa (ダルシマー)",
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Japan – darushimaa (ダルシマー)",  # ruff: ignore[ambiguous-unicode-character-comment]
     # among the names derived from "The Graeco-Roman word dulcimer"): the Japanese name, so the
     # catalog's hammered dulcimer
     'darushimaa': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Belgium - hakkebord", with "* Netherlands
-    # - hakkebord", under "Germanic nations:"): the Dutch name, so the catalog's hammered dulcimer
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Belgium – hakkebord", with "* Netherlands  # ruff: ignore[ambiguous-unicode-character-comment]
+    # – hakkebord", under "Germanic nations:"): the Dutch name, so the catalog's hammered dulcimer  # ruff: ignore[ambiguous-unicode-character-comment]
     'hakkebord': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Denmark - hakkebræt", under "Germanic
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Denmark – hakkebræt", under "Germanic  # ruff: ignore[ambiguous-unicode-character-comment]
     # nations:"; the catalog name writes æ as ae): the Danish name, so the catalog's hammered
     # dulcimer
     'hakkebraet': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Norway - hakkebrett", under "Germanic
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Norway – hakkebrett", under "Germanic  # ruff: ignore[ambiguous-unicode-character-comment]
     # nations:"): the Norwegian name, so the catalog's hammered dulcimer. It shares a stem with
     # hackbrett but is decided on its own line of the page
     'hakkebrett': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Sweden - hackbräde, hammarharpa", under
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Sweden – hackbräde, hammarharpa", under  # ruff: ignore[ambiguous-unicode-character-comment]
     # "Germanic nations:"; the catalog name writes ä as ae): one of two Swedish names, so the
     # catalog's hammered dulcimer
     'hackbraede': 'hammered dulcimer',
-    # https://en.wikipedia.org/wiki/Hammered_dulcimer (the same line, "* Sweden - hackbräde,
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer (the same line, "* Sweden – hackbräde,  # ruff: ignore[ambiguous-unicode-character-comment]
     # hammarharpa"): the other Swedish name, so the catalog's hammered dulcimer
     'hammarharpa': 'hammered dulcimer',
 }
