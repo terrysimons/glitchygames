@@ -864,6 +864,7 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('air calliope', 'calliope'),
         ('calliaphone', 'calliope'),
         ('fender rhodes', 'tine electric piano'),
+        ('richter harmonica', 'harmonica'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -905,6 +906,8 @@ def test_the_batch_aliases_resolve(alias, target):
     and the pipe organ reed as the organ trompette (the trumpet stop's French name), and its
     organs as instruments name the calliope as the air calliope and the calliaphone.
     Batch 15's pianos name the tine electric piano as the fender rhodes.
+    Batch 16's free reeds name the harmonica as the richter harmonica (a Richter layout is a
+    tuning, and the catalog's harmonica is the Richter-tuned diatonic in C).
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -2990,6 +2993,38 @@ def test_the_free_reed_guards_helpers_read_real_builds():
         'low_pass': 6000.0,
     }
     assert tone_wave('harmonica') == wave_from_levels(FREE_REED_LEVELS)
+
+
+def synthetic_free_reed_sound_alike() -> CatalogEntry:
+    """A free reed sound-alike built here, since no sheet row ships one.
+
+    It sounds like the musette accordion (a parent with its own ``cents`` and ``low_pass``) and
+    changes only the ``cents``.
+
+    Returns:
+        The entry, which is in no catalog.
+    """
+    return CatalogEntry(
+        'test free reed sound alike',
+        'Test free reed sound-alike',
+        Family.FREE_REEDS,
+        'C3',
+        'C6',
+        sounds_like='musette accordion',
+        sound_changes={'cents': 9.0},
+    )
+
+
+def test_a_sound_alikes_keywords_start_from_its_parents_build():
+    """The helper reads the parent's build keywords, not the sound-alike's own (it has none)."""
+    keywords = effective_free_reed_keywords(synthetic_free_reed_sound_alike())
+    assert keywords['low_pass'] == 6000.0
+
+
+def test_a_sound_alikes_sound_changes_override_its_parents_keywords():
+    """Its ``sound_changes`` replace the parent's value and leave the parent's other keywords."""
+    keywords = effective_free_reed_keywords(synthetic_free_reed_sound_alike())
+    assert keywords == {'cents': 9.0, 'low_pass': 6000.0}
 
 
 def test_no_free_reed_name_held_back_for_a_feature_is_listed():
