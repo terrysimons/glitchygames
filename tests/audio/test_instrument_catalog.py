@@ -1695,7 +1695,7 @@ EXISTING_CLARINET_NAMES: frozenset[str] = frozenset({
 # (plans/data/instrument-audit/batch-14.tsv)
 NEW_CLARINET_NAMES: list[str] = []
 # Batch 14's clarinet sound-alikes and the entry each sounds like, in the sheet's order
-CLARINET_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+CLARINET_SOUND_ALIKE_PARENTS: dict[str, str] = {'c clarinet': 'clarinet'}
 
 
 # The 23 double reeds that predate batch 11: their shared builds predate the anti-goal rule
