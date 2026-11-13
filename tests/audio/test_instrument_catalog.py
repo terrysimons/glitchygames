@@ -166,6 +166,7 @@ def test_every_voice_range_sings_every_vowel_and_hums(voice):
             'bass recorder',
             'great bass recorder',
             'contrabass recorder',
+            'subcontrabass recorder',
         ),
         ('alto trombone', 'trombone', 'bass trombone', 'contrabass trombone'),
         ('piccolo', 'flute', 'alto flute', 'bass flute', 'contra alto flute', 'contrabass flute'),
@@ -803,6 +804,7 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('kemence', 'kemenche'),
         ('contralto', 'alto ah'),
         ('boy soprano', 'treble ah'),
+        ('penny whistle', 'tin whistle'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -825,6 +827,7 @@ def test_the_batch_aliases_resolve(alias, target):
     families, the organs' combo organ as the Vox Continental.
     Batch 6's second half names the SID's sawtooth as the chiptune sawtooth, and the
     AY-3-8910 as Yamaha's licensed YM2149; both targets are sound-alike entries.
+    Batch 9's first half names the tin whistle as the penny whistle.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1594,7 +1597,10 @@ EXISTING_FLUTE_NAMES = frozenset({
 # are coded (plans/data/instrument-audit/batch-9.tsv)
 NEW_FLUTE_NAMES: list[str] = []
 # Batch 9's flute sound-alikes and the entry each sounds like, in the sheet's order
-FLUTE_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+FLUTE_SOUND_ALIKE_PARENTS: dict[str, str] = {
+    'csakan': 'soprano recorder',
+    'subcontrabass recorder': 'contrabass recorder',
+}
 # Batch 9's flutes that are unpitched (a whistle its source calls noise), in the sheet's order
 FLUTE_UNPITCHED_NAMES: frozenset[str] = frozenset()
 

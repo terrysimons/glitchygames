@@ -293,4 +293,8 @@ ALIASES: Final[dict[str, str]] = {
     # male singer with a voice in the soprano range, a range that is often still called the
     # treble voice range"): the catalog's treble ah, titled "Treble (boy soprano)"
     'boy soprano': 'treble ah',
+    # --- Batch 9's flutes, in the order of build/batch-9-half-a.tsv
+    # https://en.wikipedia.org/wiki/Tin_whistle ("The tin whistle, also known as the penny
+    # whistle, is a simple six-holed woodwind instrument."): another name for the tin whistle
+    'penny whistle': 'tin whistle',
 }
