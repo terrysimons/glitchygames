@@ -868,6 +868,21 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('pedal harp', 'concert harp'),
         ('lever harp', 'celtic harp'),
         ('folk harp', 'celtic harp'),
+        ('hackbrett', 'hammered dulcimer'),
+        ('dulcemele', 'hammered dulcimer'),
+        ('dultzimar', 'hammered dulcimer'),
+        ('darushimaa', 'hammered dulcimer'),
+        ('hakkebord', 'hammered dulcimer'),
+        ('hakkebraet', 'hammered dulcimer'),
+        ('hakkebrett', 'hammered dulcimer'),
+        ('hackbraede', 'hammered dulcimer'),
+        ('hammarharpa', 'hammered dulcimer'),
+        ('oprekelj', 'hammered dulcimer'),
+        ('cimbale', 'hammered dulcimer'),
+        ('cymbaly', 'hammered dulcimer'),
+        ('chimbaly', 'hammered dulcimer'),
+        ('soprillo', 'soprillo saxophone'),
+        ('sopranissimo saxophone', 'soprillo saxophone'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -913,6 +928,11 @@ def test_the_batch_aliases_resolve(alias, target):
     tuning, and the catalog's harmonica is the Richter-tuned diatonic in C).
     Batch 17's frame harps name the concert harp as the pedal harp, and the celtic harp as the
     lever harp and the folk harp.
+    Batch 18's hammered dulcimers name the hammered dulcimer as the hackbrett, the dulcemele, the
+    dultzimar, the darushimaa, the hakkebord, the hakkebraet, the hakkebrett, the hackbraede, the
+    hammarharpa, the oprekelj, the cimbale, the cymbaly and the chimbaly.
+    Batch 19's saxophones name the soprillo saxophone (a sound-alike entry) as the soprillo and
+    the sopranissimo saxophone.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1875,6 +1895,43 @@ NEW_HARP_NAMES: list[str] = []
 HARP_SOUND_ALIKE_PARENTS: dict[str, str] = {}
 
 
+# The 5 struck strings that predate batch 18: their shared builds predate the anti-goal rule
+EXISTING_STRUCK_NAMES: frozenset[str] = frozenset({
+    'hammered dulcimer',
+    'cimbalom',
+    'santur',
+    'yangqin',
+    'berimbau',
+})
+# Batch 18's struck strings with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-18.tsv)
+NEW_STRUCK_NAMES: list[str] = []
+# Batch 18's struck string sound-alikes and the entry each sounds like, in the sheet's order
+STRUCK_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+
+
+# The 8 saxophones that predate batch 19: their shared builds predate the anti-goal rule
+EXISTING_SAXOPHONE_NAMES: frozenset[str] = frozenset({
+    'sopranino saxophone',
+    'soprano saxophone',
+    'alto saxophone',
+    'c melody saxophone',
+    'tenor saxophone',
+    'baritone saxophone',
+    'bass saxophone',
+    'contrabass saxophone',
+})
+# Batch 19's saxophones with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-19.tsv)
+NEW_SAXOPHONE_NAMES: list[str] = []
+# Batch 19's saxophone sound-alikes and the entry each sounds like, in the sheet's order
+SAXOPHONE_SOUND_ALIKE_PARENTS: dict[str, str] = {
+    'soprillo saxophone': 'sopranino saxophone',
+    'tubax in eb': 'contrabass saxophone',
+    'heckelphone clarinet': 'alto saxophone',
+}
+
+
 # The 42 brass instruments that predate batch 10: their shared builds predate the anti-goal rule
 EXISTING_BRASS_NAMES: frozenset[str] = frozenset({
     'piccolo trumpet',
@@ -2027,6 +2084,9 @@ BATCH_FAMILIES: dict[Family, BatchFamily] = {
     Family.CLARINETS: BatchFamily(
         EXISTING_CLARINET_NAMES, NEW_CLARINET_NAMES, CLARINET_SOUND_ALIKE_PARENTS
     ),
+    Family.SAXOPHONES: BatchFamily(
+        EXISTING_SAXOPHONE_NAMES, NEW_SAXOPHONE_NAMES, SAXOPHONE_SOUND_ALIKE_PARENTS
+    ),
     Family.DOUBLE_REEDS: BatchFamily(
         EXISTING_DOUBLE_REED_NAMES, NEW_DOUBLE_REED_NAMES, DOUBLE_REED_SOUND_ALIKE_PARENTS
     ),
@@ -2044,6 +2104,9 @@ BATCH_FAMILIES: dict[Family, BatchFamily] = {
         EXISTING_PLUCKED_NAMES, NEW_PLUCKED_NAMES, PLUCKED_SOUND_ALIKE_PARENTS
     ),
     Family.HARPS: BatchFamily(EXISTING_HARP_NAMES, NEW_HARP_NAMES, HARP_SOUND_ALIKE_PARENTS),
+    Family.STRUCK_STRINGS: BatchFamily(
+        EXISTING_STRUCK_NAMES, NEW_STRUCK_NAMES, STRUCK_SOUND_ALIKE_PARENTS
+    ),
     Family.KEYBOARDS: BatchFamily(
         EXISTING_KEYBOARD_NAMES, NEW_KEYBOARD_NAMES, KEYBOARD_SOUND_ALIKE_PARENTS
     ),
@@ -2178,12 +2241,14 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         for catalog_entry in instruments.entries()
         if catalog_entry.sounds_like is not None
     ]
-    # The catalog lists families in table order: flutes, clarinets, double reeds, bagpipes, free
-    # reeds, brass, bowed strings, plucked strings, harps, keyboards, organs, electronic, tuned
-    # percussion, drums, voices, then choirs, as registry.FAMILY_TABLES lists them
+    # The catalog lists families in table order: flutes, clarinets, saxophones, double reeds,
+    # bagpipes, free reeds, brass, bowed strings, plucked strings, harps, struck strings,
+    # keyboards, organs, electronic, tuned percussion, drums, voices, then choirs, as
+    # registry.FAMILY_TABLES lists them
     assert every_sound_alike == (
         list(FLUTE_SOUND_ALIKE_PARENTS)
         + list(CLARINET_SOUND_ALIKE_PARENTS)
+        + list(SAXOPHONE_SOUND_ALIKE_PARENTS)
         + list(DOUBLE_REED_SOUND_ALIKE_PARENTS)
         + list(BAGPIPE_SOUND_ALIKE_PARENTS)
         + list(FREE_REED_SOUND_ALIKE_PARENTS)
@@ -2191,6 +2256,7 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         + list(BOWED_SOUND_ALIKE_PARENTS)
         + list(PLUCKED_SOUND_ALIKE_PARENTS)
         + list(HARP_SOUND_ALIKE_PARENTS)
+        + list(STRUCK_SOUND_ALIKE_PARENTS)
         + list(KEYBOARD_SOUND_ALIKE_PARENTS)
         + list(ORGAN_SOUND_ALIKE_PARENTS)
         + list(ELECTRONIC_SOUND_ALIKE_PARENTS)
@@ -3151,3 +3217,41 @@ def test_no_harp_name_held_back_for_a_feature_is_listed():
 def test_no_harp_sound_alike_changes_its_parents_build():
     """No harp sound-alike carries sound_changes: this batch adds none, as the sheet rules."""
     assert entries_with_sound_changes(Family.HARPS) == []
+
+
+# Every name plans/data/instrument-audit/batch-18.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for an engine feature, a build of its own, a drone
+# tuning, sub-audio fundamentals or a range above C8, and the alias rows that wait for one of
+# them, in the sheet's order. None ships under that name or as an alias until the reason is met
+# (decision 4; batch 18). The test matches exact names
+STRUCK_HELD_BACK: dict[str, str] = {}
+
+
+def test_no_struck_string_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a struck string the sheet holds back."""
+    assert names_listed(STRUCK_HELD_BACK) == set()
+
+
+def test_no_struck_string_sound_alike_changes_its_parents_build():
+    """No struck string sound-alike carries sound_changes: this batch adds none."""
+    assert entries_with_sound_changes(Family.STRUCK_STRINGS) == []
+
+
+# Every name plans/data/instrument-audit/batch-19.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for sub-audio fundamentals, an engine feature, a build
+# of its own, a sourced reed and bore or a range above C8, and the alias rows that wait for one of
+# them, in the sheet's order. None ships under that name or as an alias until the reason is met
+# (decision 4; batch 19). The test matches exact names
+SAXOPHONE_HELD_BACK: dict[str, str] = {
+    'bb tubax': 'sub-audio fundamentals',
+}
+
+
+def test_no_saxophone_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a saxophone the sheet holds back."""
+    assert names_listed(SAXOPHONE_HELD_BACK) == set()
+
+
+def test_no_saxophone_sound_alike_changes_its_parents_build():
+    """No saxophone sound-alike carries sound_changes: this batch adds none."""
+    assert entries_with_sound_changes(Family.SAXOPHONES) == []

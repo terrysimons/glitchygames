@@ -3,8 +3,8 @@
 The sound is made by a double reed on a conical or cylindrical pipe: Hornbostel-Sachs 422.1 (oboes,
 single or in sets, capped or not). The family's sound-alikes, listed instruments that share another
 entry's build, are in ``double_reed_sound_alikes.py``. The bagpipes are in the sibling module
-``bagpipes.py``, the clarinets in ``clarinets.py``, the saxophones in ``winds.py`` and the free
-reeds in ``free_reeds.py``.
+``bagpipes.py``, the clarinets in ``clarinets.py``, the saxophones in ``saxophones.py`` and the
+free reeds in ``free_reeds.py``.
 
 Ranges are sounding pitch, after the standard orchestration ranges (Adler, *The Study of
 Orchestration*; Vienna Symphonic Library's instrument pages); folk instruments' are typical of the
