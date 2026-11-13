@@ -1339,7 +1339,7 @@ M2 next)
   given). 704 entries in 23 `Family`s (every size of each family, voices soprano to basso
   profundo on five vowels; `Tag.MECHANICAL` marks mechanical ones and `Tag.CHIP` sound-chip
   voices, `names(tag=...)` lists them;
-  `ALIASES` (read-only, as `CATALOG` is) maps 126 other names to catalog names, resolved by
+  `ALIASES` (read-only, as `CATALOG` is) maps 125 other names to catalog names, resolved by
   `get`/`entry`; a sound-alike is its own entry sharing a parent's build via `sounds_like`, with
   optional sourced `sound_changes`; 197 in all, and a pitched one, as the plucked strings' and bowed strings' are,
   gives its own sourced range), each built by a shape in `timbres.py` (`blown`, `plucked`, `struck`, `rubbed`,
