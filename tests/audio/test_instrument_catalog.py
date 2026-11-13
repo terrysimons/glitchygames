@@ -168,7 +168,13 @@ def test_every_voice_range_sings_every_vowel_and_hums(voice):
             'contrabass recorder',
             'subcontrabass recorder',
         ),
-        ('alto trombone', 'trombone', 'bass trombone', 'contrabass trombone'),
+        (
+            'soprano trombone',
+            'alto trombone',
+            'trombone',
+            'bass trombone',
+            'contrabass trombone',
+        ),
         ('piccolo', 'flute', 'alto flute', 'bass flute', 'contra alto flute', 'contrabass flute'),
         ('choir soprano ah', 'choir alto ah', 'choir tenor ah', 'choir bass ah'),
     ],
@@ -809,6 +815,12 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('julu julu', 'pan flute'),
         ('syrinx', 'pan flute'),
         ('siyotanka', 'native american flute'),
+        ('b flat piccolo trumpet', 'piccolo trumpet'),
+        ('tenor tuba', 'euphonium'),
+        ('treble cornett', 'cornett'),
+        ('cornet a pistons', 'cornet'),
+        ('tenor horn', 'alto horn'),
+        ('zink', 'cornett'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -834,6 +846,9 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 9's first half names the tin whistle as the penny whistle, and its second half names the
     pan flute as the jula jula, the julu julu and the syrinx and the native american flute as the
     siyotanka.
+    Batch 10's first half names the piccolo trumpet as the B-flat piccolo trumpet, the euphonium
+    as the tenor tuba, the cornett as the treble cornett and the zink, the cornet as the cornet a
+    pistons, and the alto horn as the tenor horn.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1661,7 +1676,10 @@ EXISTING_BRASS_NAMES: frozenset[str] = frozenset({
 NEW_BRASS_NAMES: list[str] = []
 # Batch 10's brass sound-alikes and the entry each sounds like, in the sheet's order (Tasks 3 and
 # 5 fill it)
-BRASS_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+BRASS_SOUND_ALIKE_PARENTS: dict[str, str] = {
+    'bass wagner tuba': 'wagner tuba',
+    'soprano trombone': 'trumpet',
+}
 
 
 # The 27 bowed strings that predate batch 7: their shared builds predate the anti-goal rule
@@ -2078,7 +2096,14 @@ def test_nothing_waiting_for_a_glide_between_notes_is_listed():
 # of its own, with its waits_for: the WAIT rows whose reason is not "a sourced range", and the
 # alias rows that wait for one of them, in the sheet's order. None ships under that name or as an
 # alias until the engine or the build exists (decision 4; batch 10). The test matches exact names
-BRASS_HELD_BACK: dict[str, str] = {}
+BRASS_HELD_BACK: dict[str, str] = {
+    'bazooka': 'moving formants',
+    'didjeribone': 'moving formants',
+    'subcontrabass tuba': 'sub-audio fundamentals',
+    'sudrophone': 'a buzzing membrane',
+    'tenor cornett': 'its own build',
+    'vienna horn': 'its own build',
+}
 
 
 def test_no_brass_name_held_back_for_a_feature_is_listed():

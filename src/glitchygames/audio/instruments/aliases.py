@@ -313,4 +313,28 @@ ALIASES: Final[dict[str, str]] = {
     # generally prevailed."); https://www.horniman.ac.uk/object/M47-1991 ("Siyotanka, courting
     # flute."): the Lakota name for the catalog's native american flute
     'siyotanka': 'native american flute',
+    # --- Batch 10's brass, in the order of plans/data/instrument-audit/batch-10.tsv
+    # https://en.wikipedia.org/wiki/Piccolo_trumpet ("Most piccolo trumpets are built to play in
+    # either B-flat or A, using a separate leadpipe for each key."): one instrument set to
+    # either key by its leadpipe, so the key-first name is the catalog's piccolo trumpet
+    'b flat piccolo trumpet': 'piccolo trumpet',
+    # https://en.wikipedia.org/wiki/Tuba ("The euphonium, pitched in 9' B-flat a fourth above
+    # the bass tuba in F, is sometimes referred to as a tenor tuba, particularly by British
+    # composers."): another name for the euphonium
+    'tenor tuba': 'euphonium',
+    # https://en.wikipedia.org/wiki/Cornett ("The ordinary curved treble cornett is made by
+    # splitting a length of wood, usually walnut, boxwood or other tonewoods like plum, cherry
+    # or pear."): the page makes the ordinary cornett the treble
+    'treble cornett': 'cornett',
+    # https://collections.ed.ac.uk/stcecilias/record/99179 ("In French the instrument was called
+    # cornet a pistons (cornet with pistons - meaning valves) to distinguish it from its
+    # predecessor the cornet de poste (post horn)."): the French name for the catalog's cornet
+    'cornet a pistons': 'cornet',
+    # https://en.wikipedia.org/wiki/Tenor_horn ("The tenor horn (British English; alto horn in
+    # American English, sometimes E-flat horn) is a brass instrument in the saxhorn family
+    # pitched in E-flat with three piston valves."): the British name for the alto horn
+    'tenor horn': 'alto horn',
+    # https://en.wikipedia.org/wiki/Cornett ("The cornett (Italian: cornetto, German: Zink) is a
+    # lip-reed wind instrument"): the German name for the cornett
+    'zink': 'cornett',
 }
