@@ -3125,6 +3125,12 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # A game's preferred default target FPS (0.0 = uncapped); None uses the engine default.
     # An explicit --target-fps on the command line always wins.
     TARGET_FPS: ClassVar[float | None] = None
+    # How many inner games (Arcade tiles, glitchygames/inner_game.py) this game runs at once as a
+    # host. Its engine declares their mixer channels with its own partition at construction, in
+    # one growth before anything plays (glitchygames.audio.reserve_inner_game_channels, Arcade
+    # sub-plan 4, decision 4); never declare them in setup(), after the CRT power-on's sound
+    # started. 0: no inner games.
+    INNER_GAMES: ClassVar[int] = 0
     # The longest frame time (seconds) this scene's dt_tick and camera aim receive; after a
     # hitch (a window drag, focus loss) they advance at most this much, so physics cannot
     # tunnel. None passes the real frame time. Pacing, FPS statistics and the frame services

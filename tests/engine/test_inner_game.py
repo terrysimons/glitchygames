@@ -95,6 +95,9 @@ SMALL_LIVE_POOL = 2
 # A recording asking for more library channels than a heard set holds (32): it replays silent
 TOO_BIG_STAND_IN_PACKAGE = 'inner_game_too_big'
 TOO_BIG_LIBRARY_CHANNELS = 33
+# A recording asking for a larger live pool than declared per inner game (4): it fails alone
+BIG_POOL_STAND_IN_PACKAGE = 'inner_game_big_pool'
+BIG_LIVE_POOL = 5
 # The inner games every test may build at once (reserve_inner_game_channels, the host's call)
 DECLARED_INNER_GAMES = 3
 # The outer game's own sound: long enough to outlast every step a test runs
@@ -390,6 +393,47 @@ def too_big_recording(recorded_too_big_stand_in: tuple[StandInGame, Path], tmp_p
     """
     _game, shared_recording = recorded_too_big_stand_in
     return copy_recording(recording=shared_recording, path=tmp_path / 'too-big.jsonl.gz')
+
+
+@pytest.fixture(scope='module')
+def recorded_big_pool_stand_in(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> tuple[StandInGame, Path]:
+    """Record a stand-in with --live-voice-pool 5 (more than declared per game), once per module.
+
+    A replay takes its recording's options (only replay-local ones are this run's), so the pool
+    is the recording's: an argument given to the inner game would not change it.
+
+    Returns:
+        The stand-in game and its recording (each test copies it before reading it).
+
+    """
+    root = tmp_path_factory.mktemp('inner-game-big-pool')
+    game = write_stand_in_game(directory=root / 'site-packages', package=BIG_POOL_STAND_IN_PACKAGE)
+    recording = record_stand_in_game_once(
+        game=game,
+        path=root / 'recorded.jsonl.gz',
+        extra_arguments=('--live-voice-pool', str(BIG_LIVE_POOL)),
+    )
+    return game, recording
+
+
+@pytest.fixture
+def big_pool_stand_in(
+    recorded_big_pool_stand_in: tuple[StandInGame, Path], monkeypatch: pytest.MonkeyPatch
+) -> Generator[StandInGame]:
+    """Install the big-pool stand-in as a command in this process.
+
+    Yields:
+        The stand-in game; its package is forgotten afterwards.
+
+    """
+    game, _recording = recorded_big_pool_stand_in
+    monkeypatch.syspath_prepend(game.install_directory)
+    try:
+        yield game
+    finally:
+        sys.modules.pop(game.package, None)
 
 
 @pytest.fixture
@@ -1361,6 +1405,7 @@ class TestInnerChannels:
         assert finished_partition is not None
         assert inner_partition(finished) is None
         assert heard_set_of(finished) is None
+        assert finished.audible is False
         assert finished.context.value(slot=AUDIO_ENGINE_SLOT).engine is None
         assert inner_partition(next_game) == finished_partition
         next_game.finish()
@@ -1444,6 +1489,30 @@ class TestInnerChannels:
         assert partition is not None
         assert inner_partition(next_game) == partition
         next_game.finish()
+
+    def test_a_live_pool_larger_than_declared_fails_alone(
+        self,
+        stand_in: StandInGame,
+        recording: Path,
+        big_pool_stand_in: StandInGame,
+        recorded_big_pool_stand_in: tuple[StandInGame, Path],
+        tmp_path: Path,
+    ):
+        """A recording with --live-voice-pool 5 of the 4 declared: FAILED; another runs on."""
+        running = replay_stand_in(game=stand_in, path=recording, name='running')
+        _game, shared_recording = recorded_big_pool_stand_in
+        big_pool_recording = copy_recording(
+            recording=shared_recording, path=tmp_path / 'big-pool.jsonl.gz'
+        )
+
+        refused = replay_stand_in(game=big_pool_stand_in, path=big_pool_recording, name='refused')
+        running_steps = play_to_the_end(running)
+
+        assert refused.outcome.state is InnerGameState.FAILED
+        assert refused.outcome.error is not None
+        assert refused.outcome.error.startswith('InnerGameChannelsError: --live-voice-pool 5')
+        assert running_steps > 0
+        assert running.outcome.state is InnerGameState.ENDED, running.outcome
 
     def test_a_tile_too_big_for_a_heard_set_replays_silent_and_refuses_to_be_heard(
         self, too_big_stand_in: StandInGame, too_big_recording: Path

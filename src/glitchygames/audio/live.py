@@ -41,9 +41,15 @@ from glitchygames.audio.synth import (
     to_sound,
     tremolo,
 )
-from glitchygames.audio.voices import reserve_channels, reserved_channel_count
+from glitchygames.audio.voices import (
+    InnerGameChannelsError,
+    inner_game_channels_declared,
+    reserve_channels,
+    reserved_channel_count,
+)
 from glitchygames.engine_context import current_context
 from glitchygames.randomness import numpy_stream
+from glitchygames.render_target import is_inner_context
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -66,16 +72,27 @@ def reserve_live_voice_pool(pool_size: int) -> tuple[int, ...]:
     wrapper over ``voices.reserve_channels`` (no library channels) until the engine reserves
     the whole partition itself (impl spec 7.1; removed in M2).
 
+    It is the outer game's before any inner game: an inner context's live voices use the live
+    pool its engine took, and once inner games' channels are declared the legacy count it
+    would pass on counts them, so both are refused.
+
     Returns:
         The reserved channel indices (empty without a mixer or with pool_size 0).
 
     Raises:
         ValueError: If pool_size is negative.
+        InnerGameChannelsError: In an inner context, or with inner games' channels declared.
 
     """
     if pool_size < 0:
         message = f'pool_size must be >= 0, got {pool_size}'
         raise ValueError(message)
+    if is_inner_context() or inner_game_channels_declared():
+        message = (
+            'reserve_live_voice_pool is for an outer game before it declares inner games: an '
+            "inner game's live voices use the live pool its engine took"
+        )
+        raise InnerGameChannelsError(message)
     if pool_size == 0 or pygame.mixer.get_init() is None:
         return ()
     # A second engine in one process (a test run, a launcher) finds the pool it grew already

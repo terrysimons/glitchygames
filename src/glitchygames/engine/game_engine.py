@@ -1712,6 +1712,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # The mixer's channels: live voices, the sound library's, the legacy rest (set as the
         # event managers are made; None before)
         self.channel_partition: ChannelPartition | None = None
+        self._partition_a_host_now()
         self.drop_manager: DropEventManager
         self.controller_manager: ControllerEventManager | None = None
         self.touch_manager: TouchEventManager
@@ -2885,6 +2886,16 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 self.log.error('Cannot play the CRT power-on sequence with %s', flag)
                 exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
+    def _partition_a_host_now(self: Self) -> None:
+        """Partition the mixer at construction when the game is a host (it sets INNER_GAMES).
+
+        Its inner games' channels are declared with the partition in the same one growth, before
+        the CRT power-on or anything else plays (Arcade sub-plan 4, decision 4). Other games
+        partition on first use, as before.
+        """
+        if int(getattr(self.game, 'INNER_GAMES', 0)) > 0:
+            self.reserved_channel_partition()
+
     def reserved_channel_partition(self: Self) -> ChannelPartition:
         """Partition the mixer's channels once per run, and return the partition (impl 7.1).
 
@@ -2902,6 +2913,10 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         (``voices.inner_context_partition``; Arcade sub-plan 4, decisions 4 and 5), so the
         outer's partition and reservation stay as they are. With none declared, or every live
         pool held, it raises ``InnerGameChannelsError`` (the inner game fails alone).
+
+        A host's engine (its scene class sets ``INNER_GAMES``) declares its inner games' channels
+        with its own partition, in the same one growth, here at construction: before the CRT
+        power-on or anything else plays (Arcade sub-plan 4, decision 4).
 
         Returns:
             The partition (empty without a mixer).
@@ -2923,6 +2938,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 live_pool=live_pool,
                 library_channels=library_channels,
                 legacy_channels=LEGACY_CHANNELS,
+                # Looked up by name, as TARGET_FPS is: a game may be any scene class
+                inner_games=int(getattr(self.game, 'INNER_GAMES', 0)),
             )
         self.live_voice_channels = partition.live
         if pygame.mixer.get_init() is not None:

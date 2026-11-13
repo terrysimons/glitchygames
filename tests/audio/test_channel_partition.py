@@ -22,6 +22,7 @@ from glitchygames.audio.voices import (
     give_back_heard_set,
     heard_set_start,
     inner_context_partition,
+    inner_game_channels_declared,
     release_channels,
     release_inner_context_channels,
     reserve_channels,
@@ -587,6 +588,80 @@ class TestTheDeclaration:
 
         assert legacy == LEGACY_ABOVE_THE_INNER_GAMES
 
+    def test_a_growth_while_a_channel_plays_is_refused(self, mocker):
+        """BUGS.md #145: a sound playing, the mixer too small: refused; nothing grown, declared."""
+        start_reserved_mixer()
+        playing = pygame.mixer.Sound(buffer=bytes(44100 * 4 * 4)).play()
+        set_num_channels = mocker.spy(pygame.mixer, 'set_num_channels')
+
+        with pytest.raises(InnerGameChannelsError, match=r'BUGS\.md #145.*Scene\.INNER_GAMES'):
+            reserve_inner_game_channels(games=GAMES)
+
+        assert playing is not None
+        assert playing.get_busy()
+        set_num_channels.assert_not_called()
+        assert pygame.mixer.get_num_channels() == 44
+        assert not inner_game_channels_declared()
+        pygame.mixer.stop()
+
+    def test_declaring_again_while_a_channel_plays_needs_no_growth_and_is_allowed(self):
+        """The mixer already holds them (an earlier declaration): nothing grows, so it may play."""
+        declared_mixer()
+        playing = pygame.mixer.Sound(buffer=bytes(44100 * 4 * 4)).play()
+
+        layout = reserve_inner_game_channels(games=GAMES)
+
+        assert playing is not None
+        assert playing.get_busy()
+        assert layout.live_pools == (FIRST_LIVE_POOL, SECOND_LIVE_POOL)
+        pygame.mixer.stop()
+
+    def test_an_engines_partition_declares_its_inner_games_in_the_same_one_growth(self, mocker):
+        """reserve_channels(inner_games=2) on a fresh mixer: one set_num_channels, the layout."""
+        start_mixer(channels=2)
+        release_channels()
+        set_num_channels = mocker.spy(pygame.mixer, 'set_num_channels')
+
+        partition = reserve_channels(
+            live_pool=4, library_channels=32, legacy_channels=8, inner_games=GAMES
+        )
+        inner = partition_in(EngineContext(name='tile'))
+
+        set_num_channels.assert_called_once_with(116)
+        assert partition == ChannelPartition(
+            live=(0, 1, 2, 3), library=tuple(range(4, 36)), legacy_count=8
+        )
+        assert inner.live == FIRST_LIVE_POOL
+        assert unreserved_channel_ids() == LEGACY_ABOVE_THE_INNER_GAMES
+
+    def test_an_engines_declaration_while_an_inner_game_holds_channels_is_refused(self):
+        """A second host engine while the first one's inner games run: refused."""
+        declared_mixer()
+        partition_in(EngineContext(name='running'))
+
+        with pytest.raises(ChannelsHeldError, match='before an engine declares its own'):
+            reserve_channels(live_pool=4, library_channels=32, legacy_channels=8, inner_games=1)
+
+    def test_a_negative_inner_game_count_is_refused(self):
+        """inner_games is a count."""
+        start_reserved_mixer()
+
+        with pytest.raises(ValueError, match='inner_games'):
+            reserve_channels(live_pool=4, library_channels=32, legacy_channels=8, inner_games=-1)
+
+    def test_the_live_pool_wrapper_is_refused_after_a_declaration_and_in_an_inner_context(self):
+        """reserve_live_voice_pool would count the inner games' channels as legacy: refused."""
+        declared_mixer()
+
+        with pytest.raises(InnerGameChannelsError, match='reserve_live_voice_pool'):
+            reserve_live_voice_pool(4)
+        release_channels()
+        inner = EngineContext(name='tile')
+        with inner.active():
+            set_render_target(surface=pygame.Surface((8, 8)))
+            with pytest.raises(InnerGameChannelsError, match='reserve_live_voice_pool'):
+                reserve_live_voice_pool(4)
+
     def test_releasing_the_channels_forgets_the_declaration(self):
         """Shutdown's release: an inner game built afterwards fails (nothing declared)."""
         declared_mixer()
@@ -921,6 +996,26 @@ class TestHeardSets:
         assert handle.is_playing
         library = [state.index for state in table.snapshot() if state.group == 'library']
         assert library == list(range(32))
+
+    def test_a_heard_tiles_steal_flashes_its_heard_set_channel(self):
+        """The debug panel's steal flash names the mixer channel the snapshot shows."""
+        declared_mixer()
+        context = EngineContext(name='tile')
+        table = tile_table(context, partition_in(context, live_pool=0, library_channels=1))
+        make_heard(context)
+        play_long(table, context)
+        with context.active():
+            table.play(
+                baked_sound(seconds=LONG_SOUND_SECONDS),
+                owner=GAME_SCENE,
+                **(PLAY_DEFAULTS | {'priority': 60}),
+            )
+        stolen = table.recently_stolen_channels()
+        shown = [state.index for state in table.snapshot() if state.group == 'library']
+        pygame.mixer.stop()
+
+        assert stolen == frozenset({HEARD_SET_A[0]})
+        assert shown == [HEARD_SET_A[0]]
 
     def test_a_silenced_heard_channel_is_marked_and_the_snapshot_shows_the_set(self):
         """FrameSilencer's channel numbers are mixer channels: the heard set's."""

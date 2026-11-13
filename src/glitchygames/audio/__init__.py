@@ -44,6 +44,7 @@ from glitchygames.audio.recipes import (
 from glitchygames.audio.synth import Envelope, Waveform
 from glitchygames.audio.tts import MacOSTTS, get_tts_backend
 from glitchygames.audio.voices import (
+    ChannelsHeldError,
     InnerGameChannelLayout,
     InnerGameChannelsError,
     SoundHandle,
@@ -60,6 +61,7 @@ __all__ = [
     'AudioEngine',
     'AudioUnavailableError',
     'CacheMode',
+    'ChannelsHeldError',
     'ControllerAudio',
     'Envelope',
     'Harmonics',
