@@ -2499,9 +2499,11 @@ This document tracks planned future features for the GlitchyGames project. Featu
     `talharpa` and `jouhikko` ("a close relative", not the same), `organistrum` and `symphonia`
     (the symphonia a smaller box-shaped successor)
   - [ ] The `hs` column, assigned by the instrument's body type (`321.322-71` box lutes,
-    `321.321-71` bowl lutes, `321.22-71` lyres, `321.322-72` wheel lutes, `314.122-71` board
-    zithers) where no fetched page gives a Hornbostel-Sachs class, as with `viola pomposa`,
-    `bowed psaltery` and `viola organista`. Confirm the classes, or ask for each to be sourced
+    `321.321-71` bowl lutes, `321.22-71` lyres, `321.322-72` wheel lutes, `314.122-71` and
+    `314.122-72` board zithers, and the sheet's other cells: `31`, `311`, `312.22-71`, `321`,
+    `321.31-71`, `321.311-71`, `321.312-71`, `321.313-71` and `321.321`) where no fetched page
+    gives a Hornbostel-Sachs class, as with `viola pomposa`, `bowed psaltery` and
+    `viola organista`. Confirm the classes, or ask for each to be sourced
   - [ ] chinesemusic.co.uk (Chinese Music Online) rejected as a range source for `banhu` and
     `jinghu` on its source type only (an ensemble's education page, not a maker, museum or
     encyclopedia); it also contradicts itself on the gaohu and jinghu spans
@@ -2526,8 +2528,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - [ ] The catalog's `kemenche` (A3-A6) does not say which kemençe it is (the classical bowl
     kemençe and the Black Sea box kemençe differ), which blocks `politiki lyra` and the
     `black sea kemence` row
-  - [ ] The existing viol tops (D6, G5, D5) are unsourced under this batch's range rule: no
-    source comment gives a highest note
+  - [ ] The existing viol tops (treble D6, tenor G5, bass D5, violone G4) are unsourced under
+    this batch's range rule: no source comment gives a highest note
 - **Follow-ups**:
   - [ ] The audit's "Gaps you could not close" (`plans/data/instrument-audit/bowed-strings.md`)
     are a later pass over this family, along with ranging the 90 range WAIT rows from maker and

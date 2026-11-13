@@ -1585,10 +1585,10 @@ EXISTING_BOWED_NAMES = frozenset({
     'kemenche',
     'hurdy gurdy',
 })
-# Batch 7's entries with their own build, in the sheet's order (Tasks 3 and 5 fill it)
+# Batch 7's entries with their own build, in the sheet's order. None: every row the sheet
+# ships is a sound-alike (plans/data/instrument-audit/batch-7.tsv)
 NEW_BOWED_NAMES: list[str] = []
-# Batch 7's sound-alikes and the entry each sounds like, in the sheet's order (Tasks 3 and 5
-# fill it)
+# Batch 7's sound-alikes and the entry each sounds like, in the sheet's order
 BOWED_SOUND_ALIKE_PARENTS: dict[str, str] = {
     'bowed psaltery': 'violin',
     'viola pomposa': 'viola',
