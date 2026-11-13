@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import sys
 import time
 from typing import TYPE_CHECKING, TextIO
@@ -466,7 +467,8 @@ class DriverComparison:
             try:
                 process.wait(timeout=IMAGE_RUN_TIMEOUT_SECONDS)
             except TimeoutExpired:
-                stop_command(process=process)
+                # As Ctrl-C, so its tests' cleanup runs (stop_native_run)
+                stop_command(process=process, first_signal=signal.SIGINT)
             log.close()
         return images_report(
             request=request,
@@ -478,9 +480,16 @@ class DriverComparison:
         ).splitlines()
 
     def stop_native_run(self) -> None:
-        """Stop the native run (with its workers) if it is still running."""
+        """Stop the native run (with its workers) if it is still running.
+
+        As Ctrl-C stops a pytest run: SIGINT to its group first, which every worker turns into
+        an orderly KeyboardInterrupt, so each test's ``finally`` and fixture teardown stop what
+        the test started; SIGTERM (no handler in pytest) killed the workers at once and left a
+        test's child in a session of its own running (BUGS.md #275). SIGTERM, then SIGKILL,
+        follow a run that does not end (``stop_command``).
+        """
         if self.native_process is not None:
-            stop_command(process=self.native_process)
+            stop_command(process=self.native_process, first_signal=signal.SIGINT)
         self.close_native_log()
 
     def close_native_log(self) -> None:

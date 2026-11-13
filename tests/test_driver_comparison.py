@@ -9,12 +9,16 @@ for a driver difference.
 
 from __future__ import annotations
 
+import os
+import signal
 import sys
 import textwrap
+import time
 from pathlib import Path
 
 import pytest
 
+from glitchygames.process import start_command
 from glitchygames.testing.frame_fingerprints import (
     FINGERPRINTS_OPTION,
     FINGERPRINTS_VARIABLE,
@@ -28,6 +32,7 @@ from tests.driver_comparison import (
     DUMMY_ONLY_OPTION,
     MAC_BACKGROUND_APP_VARIABLE,
     OUTPUT_PARTS,
+    DriverComparison,
     NativeDrivers,
     child_pytest_command,
     comparison_skip_reason,
@@ -353,3 +358,123 @@ class TestEndToEnd:
             '*The dummy-2 run failed (1 listed):*',
             '*FAILED test_fails_second.py::test_fails_in_the_second_run*',
         ])
+
+
+# How long the stopping test waits for its stand-in run to start, or for a process to be gone
+STAND_IN_WAIT_SECONDS = 60.0
+STAND_IN_POLL_SECONDS = 0.05
+# A stand-in test that starts a child in a session of its own (as a test of the engine's tools
+# starts the tool it checks), writes the child's pid where it is told, then waits to be stopped;
+# its cleanup ends the child
+TEST_STARTING_A_SESSION_CHILD = textwrap.dedent(
+    """
+    import os
+    import subprocess
+    import sys
+    import time
+    from pathlib import Path
+
+
+    def test_starts_a_session_child_and_waits():
+        child = subprocess.Popen(
+            [sys.executable, '-c', 'import time; time.sleep(120)'], start_new_session=True
+        )
+        try:
+            Path(os.environ['STAND_IN_CHILD_PID']).write_text(str(child.pid), encoding='utf-8')
+            time.sleep(120)
+        finally:
+            child.kill()
+            child.wait()
+    """
+)
+
+
+def process_exists(*, pid: int) -> bool:
+    """Tell whether a process (not an unreaped zombie of this one) still exists.
+
+    Returns:
+        True while signal 0 reaches it.
+
+    """
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def written_pid(*, path: Path, log_path: Path) -> int:
+    """Wait for the stand-in test to write its child's pid; return it.
+
+    Returns:
+        The pid.
+
+    Raises:
+        AssertionError: If none is written within STAND_IN_WAIT_SECONDS (with the run's log).
+
+    """
+    deadline = time.monotonic() + STAND_IN_WAIT_SECONDS
+    while time.monotonic() < deadline:
+        text = path.read_text(encoding='utf-8') if path.exists() else ''
+        if text:
+            return int(text)
+        time.sleep(STAND_IN_POLL_SECONDS)
+    raise AssertionError(log_path.read_text(encoding='utf-8'))
+
+
+@pytest.mark.skipif(sys.platform == 'win32', reason='process groups and SIGINT are POSIX')
+class TestStoppingTheNativeRun:
+    """Stopping the native run lets its tests clean up: nothing they started is left running."""
+
+    def test_a_stopped_native_run_leaves_no_process_its_tests_started(self, request, tmp_path):
+        """``stop_native_run`` stops the run as Ctrl-C does, so every test's cleanup runs.
+
+        It stopped the run's group with SIGTERM, which pytest does not handle: each xdist worker
+        died at once, no ``finally`` ran, and a child a test had started in a session of its own
+        (outside the group) was left running (BUGS.md #275; the triage reproduced it 4 of 4).
+        """
+        (tmp_path / 'pytest.ini').write_text('[pytest]\n', encoding='utf-8')
+        (tmp_path / 'test_stand_in.py').write_text(TEST_STARTING_A_SESSION_CHILD, encoding='utf-8')
+        child_pid_path = tmp_path / 'child.pid'
+        comparison = DriverComparison(
+            config=request.config,
+            native=NativeDrivers(video='dummy', audio='dummy'),
+            native_workers=2,
+            output=tmp_path / 'comparison',
+        )
+        comparison.native_log = (tmp_path / 'native.log').open('w', encoding='utf-8')
+        comparison.native_process = start_command(
+            command=[
+                sys.executable,
+                '-m',
+                'pytest',
+                '-c',
+                str(tmp_path / 'pytest.ini'),
+                '--rootdir',
+                str(tmp_path),
+                '-p',
+                'no:cacheprovider',
+                '-n',
+                '2',
+                str(tmp_path / 'test_stand_in.py'),
+            ],
+            environment={**os.environ, 'STAND_IN_CHILD_PID': str(child_pid_path)},
+            output=comparison.native_log,
+        )
+        child_pid = None
+        try:
+            child_pid = written_pid(path=child_pid_path, log_path=tmp_path / 'native.log')
+
+            comparison.stop_native_run()
+
+            deadline = time.monotonic() + STAND_IN_WAIT_SECONDS
+            while process_exists(pid=child_pid) and time.monotonic() < deadline:
+                time.sleep(STAND_IN_POLL_SECONDS)
+            assert not process_exists(pid=child_pid), 'the stand-in test left its child running'
+            assert comparison.native_process.returncode is not None
+        finally:
+            comparison.stop_native_run()
+            if child_pid is not None and process_exists(pid=child_pid):
+                os.kill(child_pid, signal.SIGKILL)
