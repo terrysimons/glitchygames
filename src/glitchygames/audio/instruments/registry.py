@@ -19,8 +19,9 @@ from glitchygames.audio.instruments.drums import DRUMS_AND_PERCUSSION
 from glitchygames.audio.instruments.electronic import ELECTRONIC
 from glitchygames.audio.instruments.flutes import FLUTES
 from glitchygames.audio.instruments.idiophones import FRICTION_INSTRUMENTS, PLUCKED_IDIOPHONES
-from glitchygames.audio.instruments.keyboards import ELECTROMECHANICAL, KEYBOARDS, ORGANS
+from glitchygames.audio.instruments.keyboards import ELECTROMECHANICAL, KEYBOARDS
 from glitchygames.audio.instruments.noise_makers import NOISE_MAKERS
+from glitchygames.audio.instruments.organs import ORGANS
 from glitchygames.audio.instruments.percussion import TUNED_PERCUSSION
 from glitchygames.audio.instruments.plucked_strings import PLUCKED_STRINGS
 from glitchygames.audio.instruments.sound_effects import SOUND_EFFECTS

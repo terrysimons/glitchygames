@@ -1,5 +1,6 @@
 """The instrument catalog: every entry builds, renders across its range and plays its pitch."""
 
+from fractions import Fraction
 from functools import partial
 from typing import NamedTuple
 
@@ -9,6 +10,7 @@ import pytest
 from glitchygames.audio import instruments
 from glitchygames.audio.instrument import Filter, Instrument
 from glitchygames.audio.instruments import CatalogEntry, Family, Tag
+from glitchygames.audio.instruments.organs import FLUTE_STOP_LEVELS
 from glitchygames.audio.instruments.registry import (
     FAMILY_TABLES,
     aliases_from,
@@ -218,6 +220,7 @@ def test_harmonic_instruments_sound_their_note(name):
     entry = instruments.entry(name)
     note = entry.middle_note()
     hertz = float(note.to_hz()) / (2.0 if name in SIXTEEN_FOOT_ORGANS else 1.0)
+    hertz *= 8.0 / footage_feet(ORGAN_STOP_FOOTAGES.get(name, '8'))
     samples = rendered(instruments.get(name), pitch=note.name, name=name)
     held = samples[round(0.15 * SAMPLE_RATE) : round(0.35 * SAMPLE_RATE)]
     found = best_period_near(held, hertz=hertz)
@@ -1067,11 +1070,12 @@ SOUND_EFFECT_NAMES = [
 # Every catalog entry that a source sets apart from its parent (empty today): it is its own
 # sound, so it gets the one-shot checks as the new drums do. A retuned bagpipe is left out: it
 # sustains, so the one-shot checks do not apply; test_a_retuned_bagpipe_sounds_its_sourced_drones
+# checks it. A stop at another footage sustains too; test_an_organ_stop_sounds_at_its_footage
 # checks it
 CHANGED_SOUND_ALIKE_NAMES = [
     catalog_entry.name
     for catalog_entry in instruments.entries()
-    if catalog_entry.sound_changes and catalog_entry.family != Family.BAGPIPES
+    if catalog_entry.sound_changes and catalog_entry.family not in {Family.BAGPIPES, Family.ORGANS}
 ]
 # Batch 3's new entries, in the sheet's order: the membranophones, then the idiophones
 NEW_DRUM_NAMES = [
@@ -1723,6 +1727,33 @@ BAGPIPE_SOUND_ALIKE_PARENTS: dict[str, str] = {}
 BAGPIPE_RETUNED_DRONES: dict[str, tuple[str, ...]] = {}
 
 
+# The 9 organs that predate batch 13: their shared builds predate the anti-goal rule
+EXISTING_ORGAN_NAMES: frozenset[str] = frozenset({
+    'pipe organ principal',
+    'pipe organ flute',
+    'pipe organ reed',
+    'pipe organ string',
+    'pipe organ plenum',
+    'positive organ',
+    'combo organ',
+    'theatre organ',
+    'calliope',
+})
+# Batch 13's organs with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-13.tsv)
+NEW_ORGAN_NAMES: list[str] = []
+# Batch 13's organ sound-alikes and the entry each sounds like, in the sheet's order (none yet)
+ORGAN_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+# Batch 13's organ entries that sound at a footage other than 8' (a one-rank stop, through
+# _pipe_stop's footage), with the footage as the sheet writes it: the range is the keys at 8'
+# pitch and the stop sounds 12 x log2(8 / footage) semitones from them
+# (plans/data/instrument-audit/batch-13.tsv)
+ORGAN_STOP_FOOTAGES: dict[str, str] = {}
+# Batch 13's self-playing organs (Tag.MECHANICAL), in catalog order: the builds, then the
+# sound-alikes, each in the sheet's order (plans/data/instrument-audit/batch-13.tsv)
+MECHANICAL_ORGAN_NAMES: list[str] = []
+
+
 # The 42 brass instruments that predate batch 10: their shared builds predate the anti-goal rule
 EXISTING_BRASS_NAMES: frozenset[str] = frozenset({
     'piccolo trumpet',
@@ -1885,6 +1916,7 @@ BATCH_FAMILIES: dict[Family, BatchFamily] = {
     Family.PLUCKED_STRINGS: BatchFamily(
         EXISTING_PLUCKED_NAMES, NEW_PLUCKED_NAMES, PLUCKED_SOUND_ALIKE_PARENTS
     ),
+    Family.ORGANS: BatchFamily(EXISTING_ORGAN_NAMES, NEW_ORGAN_NAMES, ORGAN_SOUND_ALIKE_PARENTS),
     Family.ELECTRONIC: BatchFamily(
         EXISTING_ELECTRONIC_NAMES,
         NEW_ELECTRONIC_NAMES,
@@ -2006,7 +2038,7 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         for name, parent in row.sound_alike_parents.items():
             assert name in listed_in_family, name
             assert instruments.entry(name).sounds_like == parent, name
-            if name in BAGPIPE_RETUNED_DRONES:
+            if instruments.entry(name).sound_changes:
                 assert instruments.get(name) != instruments.get(parent), name
             else:
                 assert instruments.get(name) == instruments.get(parent), name
@@ -2016,7 +2048,7 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         if catalog_entry.sounds_like is not None
     ]
     # The catalog lists families in table order: flutes, double reeds, bagpipes, brass, bowed
-    # strings, plucked strings, electronic, tuned percussion, drums, voices, then choirs, as
+    # strings, plucked strings, organs, electronic, tuned percussion, drums, voices, then choirs, as
     # registry.FAMILY_TABLES lists them
     assert every_sound_alike == (
         list(FLUTE_SOUND_ALIKE_PARENTS)
@@ -2025,6 +2057,7 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         + list(BRASS_SOUND_ALIKE_PARENTS)
         + list(BOWED_SOUND_ALIKE_PARENTS)
         + list(PLUCKED_SOUND_ALIKE_PARENTS)
+        + list(ORGAN_SOUND_ALIKE_PARENTS)
         + list(ELECTRONIC_SOUND_ALIKE_PARENTS)
         + list(TUNED_SOUND_ALIKE_PARENTS)
         + SOUND_ALIKE_NAMES
@@ -2314,3 +2347,80 @@ def test_a_cylindrical_chanter_sounds_odd_harmonics():
     assert cylinder[1] < 0.05
     assert cylinder[3] < 0.05
     assert highland[1] > 0.6
+
+
+# Every name plans/data/instrument-audit/batch-13.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for an engine feature, a build of its own, a sourced
+# footage or a sourced detune, and the alias rows that wait for one of them, in the sheet's order.
+# None ships under that name or as an alias until the reason is met (decision 4; batch 13). The
+# test matches exact names
+ORGAN_HELD_BACK: dict[str, str] = {}
+
+
+def test_no_organ_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is an organ the sheet holds back."""
+    assert set(ORGAN_HELD_BACK) & set(instruments.names()) == set()
+    assert set(ORGAN_HELD_BACK) & set(instruments.ALIASES) == set()
+
+
+def footage_feet(footage: str) -> float:
+    """A footage as the sheet writes it ('16', '2 2/3') in feet.
+
+    Returns:
+        The footage in feet.
+    """
+    return float(sum(Fraction(part) for part in footage.split()))
+
+
+def built_footage(catalog_entry: CatalogEntry) -> float:
+    """The footage an organ entry sounds at: its own change, its parent's, or its build's keyword.
+
+    Returns:
+        The footage in feet (8.0 for an entry built at its keys' pitch).
+    """
+    if 'footage' in catalog_entry.sound_changes:
+        return float(catalog_entry.sound_changes['footage'])
+    if catalog_entry.sounds_like is not None:
+        return built_footage(instruments.entry(catalog_entry.sounds_like))
+    if isinstance(catalog_entry.build, partial):
+        return float(catalog_entry.build.keywords.get('footage', 8.0))
+    return 8.0
+
+
+def test_blown_moves_its_tone_by_its_semitones():
+    """A blown tone given semitones sounds that far from the note; none leaves it unchanged."""
+    for semitones, expected_hertz in ((12.0, 440.0), (-12.0, 110.0)):
+        instrument = blown(FLUTE_STOP_LEVELS, attack=0.04, release=0.15, semitones=semitones)
+        samples = rendered(instrument, pitch='A3', name=f'blown {semitones}')
+        held = samples[round(0.15 * SAMPLE_RATE) : round(0.35 * SAMPLE_RATE)]
+        found = best_period_near(held, hertz=expected_hertz)
+        assert abs(1200.0 * np.log2(found / expected_hertz)) < 30.0, (semitones, found)
+    assert blown(FLUTE_STOP_LEVELS, attack=0.04, release=0.15) == blown(
+        FLUTE_STOP_LEVELS, attack=0.04, release=0.15, semitones=0.0
+    )
+
+
+def test_an_organ_stop_sounds_at_its_footage():
+    """The organ entries not at 8' are exactly ORGAN_STOP_FOOTAGES, each at its footage.
+
+    A sound-alike that changes anything changes only its footage, which the harmonic test measures.
+    """
+    organ_entries = instruments.entries(family=Family.ORGANS)
+    off_unison = {
+        catalog_entry.name: catalog_entry
+        for catalog_entry in organ_entries
+        if built_footage(catalog_entry) != 8.0
+    }
+    assert set(off_unison) == set(ORGAN_STOP_FOOTAGES)
+    for name, footage in ORGAN_STOP_FOOTAGES.items():
+        assert built_footage(off_unison[name]) == pytest.approx(footage_feet(footage)), name
+    for catalog_entry in organ_entries:
+        if catalog_entry.sound_changes:
+            assert set(catalog_entry.sound_changes) == {'footage'}, catalog_entry.name
+
+
+def test_the_mechanical_organs_are_tagged():
+    """The self-playing organs, and only they, carry Tag.MECHANICAL."""
+    assert instruments.names(family=Family.ORGANS, tag=Tag.MECHANICAL) == tuple(
+        MECHANICAL_ORGAN_NAMES
+    )
