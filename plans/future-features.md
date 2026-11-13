@@ -1750,10 +1750,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 16 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 17 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
   batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682
-  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11, 693 after batch 12, 703 after batch 13, 704 after batches 14, 15 and 16) toward every instrument a game might
+  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11, 693 after batch 12, 703 after batch 13, 704 after batches 14, 15, 16 and 17) toward every instrument a game might
   want, in one verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates,
   only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
@@ -2102,7 +2102,45 @@ This document tracks planned future features for the GlitchyGames project. Featu
   waiting for `khene`; `ken` is dropped as ambiguous), `bayan` (its own row, waiting for a
   sourced range), `melodeon` (dropped as ambiguous), `pianica` (dropped as a maker's name),
   `triola` and `accordina` (rows of their own, waiting for a sourced range), `claviola` (dropped
-  as ambiguous) or `richter harmonica` (an alias) again. Next: harps (batch 17)
+  as ambiguous) or `richter harmonica` (an alias) again. Batch 17 (harps) is done: of its 47 sheet rows (30 candidates and 17 audit alias names)
+  none shipped as a build of its own and none became a sound-alike, 23 wait (18 for a sourced
+  range: `andean harp`, `arpa jarocha`, `baroque triple harp`, `cross strung harp`, `gothic harp`,
+  `llanera harp`, `paraguayan harp`, `adungu`, `ardin`, `donso ngoni`, `ennanga`, `gravikord`,
+  `kamale ngoni`, `kundi`, `ngombi`, `saung gauk`, `seperewa` and `simbi`; and 5 because their
+  target waits: `arpa paraguaya` for `paraguayan harp`, `arpa llanera` for `llanera harp`, `saung`
+  for `saung gauk`, `ombi` for `ngombi` and `kamele ngoni` for `kamale ngoni`), 4 became aliases
+  (`welsh harp` of `triple harp`, `pedal harp` of `concert harp`, `lever harp` and `folk harp` of
+  `celtic harp`) and 20 were dropped (SHIP 0, SOUND_ALIKE 0, WAIT 23, ALIAS 4, DROP 20; nothing is
+  held back); the family stayed at 7 entries (704 in all, 126 aliases and 197 sound-alikes).
+  `harps.py` now holds the harps (moved unchanged from `strings.py`, the before-and-after record
+  of all 704 builds finding `changed: []`), `strings.py` keeps only the struck strings
+  (`STRUCK_STRINGS`), and `harp_sound_alikes.py` holds the family's sound-alikes (empty; `HARPS`
+  is `_HARP_BUILDS + HARP_SOUND_ALIKES`). The boundary rulings: a harp's strings run
+  perpendicular to its soundboard (Hornbostel-Sachs 322) and a harp-lute's at right angles to it
+  across a notched bridge (323), and a string count, rows, a tuning action, a tuning, a material, a
+  size or a body is no trait, so each ranged row would be a sound-alike; harp-lutes are decided
+  here (batch 4's hand-off, and the catalog's `kora`), while the lyre (321.2) stays with the
+  plucked strings' decisions and the catalog's `lyre` and `harp guitar` stay unchanged and are
+  never a parent unless a row's source names them (#74). `HARP_HELD_BACK`, the guard for every
+  wait that is not for a range or a target, holds nothing, and no harp carries `sound_changes`.
+  The base of the branch is `1ecc25d9` (batch 16's tip). The audit's unclosed gaps (the konghou
+  subtypes `wo`, `shu` and `feng shou konghou`, `sogonghu`, `sugonghu`, `wagonghu`, `kudaragoto`
+  and `kugo`; the Pokot harp, Bagirmi, the Kotoko galdyama trio, the Tibetan and Ottoman harps
+  (`cenk`); the harp guitar variants Dyer Style 8, Gibson Style U, Knutsen and contraguitar) and
+  the out-of-scope names (`yazh` and `yaal`, `vajra`, `kafir harp`, `padhar harp`, `bolon`,
+  `kinnor`, `hook harp`, `dital harp`, `electric harp`, `double harp` and `arpa doppia`,
+  `gonggu`, and the harp names a page mentions in passing) are a later pass over this family. The hand-offs are decided
+  here: `donso ngoni` and `kamele ngoni` (batch 4's DROPs to harps: the first waits for a sourced
+  range, the second for its target `kamale ngoni`); the seven already-decided rows are left as
+  `batch-4.tsv` decided them (`aeolian harp`, `partch kithara`, `sasando`, `swarmandal`, `begena`,
+  `krar` and `nyatiti`, each DROP "Already decided" naming that sheet); `chang` is decided here
+  once, as an ambiguous name (a Persian angular harp, the Uyghur and Uzbek dulcimers and an Afghan
+  jew's harp), so the struck strings batch treats the name as already decided: DROP; each row
+  dropped to plucked strings, keyboards or another family stays for a later pass of that family
+  (none were dropped to struck strings or keyboards); and the alias names are decided here, so no
+  later batch decides `pedal harp`, `lever harp`, `folk harp`, `clarsach` (dropped as ambiguous),
+  `telyn` (dropped as a generic term), `wind harp` (dropped with its target `aeolian harp`) or
+  `harp lute` (dropped as an ambiguous name) again. Next: struck strings (batch 18)
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
@@ -2136,7 +2174,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sheet `plans/data/instrument-audit/batch-15.tsv`
 - **Plan (batch 16)**: `plans/2026-11-12-instrument-catalog-batch-16-implementation.md`; audit
   sheet `plans/data/instrument-audit/batch-16.tsv`
-- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 and 16 done (requested by the owner 2026-11-06)
+- **Plan (batch 17)**: `plans/2026-11-12-instrument-catalog-batch-17-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-17.tsv`
+- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 and 17 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
@@ -5087,6 +5127,221 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Found**: batch 16's reviews (2026-11-13)
 - **Status**: TODO
 - **Priority**: Medium (before the harps batch builds on the same catalog)
+
+### 87. Sound Engine: The Owner's Checks on Instrument Catalog Batch 17 — TODO
+- **Goal**: confirm or overturn the calls made while batch 17 of #70 ran, and listen to its four
+  aliases (`welsh harp`, `pedal harp`, `lever harp` and `folk harp`). Nothing was built and no
+  sound-alike was added: the harps stayed at 7 entries (704 in all, 126 aliases, 197
+  sound-alikes), with 23 waits, 4 aliases and 20 drops in the sheet's 47 rows (SHIP 0,
+  SOUND_ALIKE 0, WAIT 23, ALIAS 4, DROP 20). The harps moved out of `strings.py` into `harps.py`
+  and `harp_sound_alikes.py`, and `strings.py` now holds only the struck strings
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+  level, filter and release is sound design unless a source is cited in the code; the folder is
+  `build/instruments/harps/`):
+  - [ ] The sound-alikes beside their parents: none shipped (so no `sound_changes` beside a
+    parent)
+  - [ ] The aliases, each of the entry it names: `welsh harp` (of `triple harp`), `pedal harp` (of
+    `concert harp`), `lever harp` and `folk harp` (both of `celtic harp`); each sounds as its
+    target does
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-17.tsv`; the sheet's 47 rows:
+  SHIP 0, SOUND_ALIKE 0, WAIT 23, ALIAS 4, DROP 20):
+  - [ ] Every WAIT (23 rows), by reason, with each row's "Engine limit, once ranged" note:
+    - 18 for a sourced range:
+      - the frame harps, each a sound-alike of one of the four catalog frame harps by parent rule
+        2 once ranged, builder unchanged: `andean harp`, `arpa jarocha`, `cross strung harp`,
+        `llanera harp`, `paraguayan harp`, `adungu`, `ennanga`, `kundi`, `ngombi` and
+        `saung gauk` (the last four have no sourced traits: a skin soundboard, a trough body, a
+        deer-hide belly and left-hand stopping are no trait, rule 7)
+      - `baroque triple harp`: a sound-alike of `triple harp` by parent rule 1 once ranged (its
+        page says «creating the ''arpa tripla'' or triple harp»)
+      - the harp-lutes, each a sound-alike of `kora` once ranged (rule 1: `donso ngoni` and
+        `kamale ngoni` «share their basic design», `gravikord` is «based on the West African
+        kora», `seperewa` is «similar to» it): `donso ngoni`, `gravikord`, `kamale ngoni` and
+        `seperewa` (a pickup is no trait, boundary ruling 8; a box resonator and thumbs are no
+        trait)
+      - `gothic harp`: `its own build (bray pins)` once ranged, since the Grinnell record states
+        the bray buzz for the instrument and no builder buzzes a string against a pin
+      - `ardin`: `its own build (rattles)` (a ring plate and strings that act as jingles) and `its
+        own build (a drummed resonator)` once ranged; `simbi`: the same two builds (the jingle on
+        the neck and a gourd tapped with sticks); neither is a plain sound-alike (rule 7)
+    - 5 because their target waits: `arpa paraguaya` (for `paraguayan harp`), `arpa llanera` (for
+      `llanera harp`), `saung` (for `saung gauk`), `ombi` (for `ngombi`) and `kamele ngoni` (for
+      `kamale ngoni`)
+  - [ ] The module move: `harps.py` (the 7 harp entries, out of `strings.py`, comments included,
+    identical to the removed section but for its `_HARP_BUILDS` name and the new `HARPS =
+    _HARP_BUILDS + HARP_SOUND_ALIKES`) and `harp_sound_alikes.py` (empty). The before-and-after
+    record of all 704 builds found `changed: []`. Should `strings.py` be renamed now that it holds
+    only the struck strings (`STRUCK_STRINGS`)?
+  - [ ] The boundary rulings, each row they moved, and the Hornbostel-Sachs codes this plan
+    checked (322 and its subclasses, 323, 321.2, 321.322, 311.112, 314.22 and the suffixes): a
+    harp's strings run perpendicular to its soundboard (322) and a harp-lute's at right angles to
+    it across a notched bridge (323). `gravikord`'s class is `none` (the controller's ruling: 323
+    had been inferred from «based on the West African kora», and no fetched page says harp-lute
+    or notched bridge). The Triple harp infobox's "3.2.2" is no class (Wikipedia's, not the
+    catalog's), so `baroque triple harp` is 322.212 from its «fully chromatic» text
+  - [ ] Harp-lutes in harps (batch 4's hand-off and the catalog's `kora`), and `lyre` (321.2) and
+    `harp guitar` (321.322) kept in harps but never a rule-2 parent: #74's question, still open
+  - [ ] A harp as a sound-alike (counts, rows, tuning actions, tunings, materials, sizes, bodies
+    and colour words no trait; no SHIP and no `sound_changes` in this batch; bray pins, rattles
+    and a drummed resonator wait), and any row the SHIP ruling sent to the controller: none
+  - [ ] The parent ruling (the source's relation first, the only way to `lyre`, `harp guitar` or
+    another family; else the nearest lowest note among the four frame harps, or `kora` for a
+    harp-lute), and each sound-alike's parent: none shipped; the cases once ranged are above
+  - [ ] The range ruling (one source states both ends; one source's row compasses joined; levers
+    and pedals as stated; a count, a width, a tuning, a hedge, an image chart or a general rule no
+    range; a model's page ranges that model only; a bare name of several sizes with none standard
+    waits, "became widespread" no standard), and every derived range: none was derived, since
+    every row waits. The rulings that decided it:
+    - `saung gauk` waits though its page says «from C3 to F5»: the Saung page attaches that
+      compass to U Sa's 13-string harp, one size among the 13-, 14- and 16-string harps it names,
+      with none called standard (range ruling 6), and the Koizumi archive's record 329 («range:
+      G-c'''», G2-C6) is one object's (ruling 4). The first reading, that C3-F5 was on no fetched
+      page, was false; the review caught it, and the row now quotes the passage and rules on it
+    - `gravikord`'s «left side G1 to E5, right side C2 to E5» is solfege degrees (Sol1, Do2) from
+      an uncited Tuning section, a tuning list and no compass, and the maker's «3 1/2 octave
+      range» is a width
+    - `paraguayan harp` and `llanera harp`: Camac's and Salvi's compasses are one model's or one
+      object's; the Wikipedia pages give counts and widths («4+ to nearly 8 octaves depending on
+      the maker»)
+    - `triple harp`'s page gives only «about five octaves» (a width, hedged), and
+      `baroque triple harp` is a version of the Welsh one («One common version»)
+  - [ ] Generic, ambiguous, one-off and unsourced rows, with the words "no fetched source describes
+    it" on every row whose page was not found: `celestial harp` is the one row that carries them.
+    The dropped rows (20):
+    - already decided (7): `aeolian harp`, `partch kithara`, `sasando`, `swarmandal`, `begena`,
+      `krar` and `nyatiti`, each left as `batch-4.tsv` decided it
+    - a generic term: `telyn`, `angular harp` (322.12) and `egyptian arched harp` (322.11)
+    - an ambiguous name: `konghou` (a zither and two harps; `gonghu` follows it as its Korean
+      name), `clarsach` and `clairseach` (below), `chang` (a Persian angular harp, the Uyghur and
+      Uzbek dulcimers and an Afghan jew's harp: decided here once, for the struck strings batch)
+      and `harp lute` (Light's 1795 dital harp, and the class name)
+    - a one-off: `queen mary harp`
+    - its target is dropped: `gonghu` (for `konghou`) and `wind harp` (for `aeolian harp`)
+    - not another name for the target: `domu` (the African harp page names it beside `kundi` as a
+      separate harp, and Grove's Domo entry says «Resembles kundi.»)
+  - [ ] The reversals and calls in the aliases, each for you to overturn:
+    - `baroque triple harp` went from ALIAS to WAIT. Rule 8 needs a source that makes two names
+      one instrument, and the Triple harp page calls the Welsh triple harp «One common version»
+      of the type, while the catalog's `triple harp` is the "Welsh triple harp". Once ranged it is
+      a sound-alike of `triple harp` (rule 1). Cost: one alias
+    - `clarsach` and `clairseach` are dropped as ambiguous names, which overturns the brief's
+      expected aliases of `wire strung harp`: the Celtic harp page gives both names to the whole
+      Celtic harp (old wire-strung and modern lever harps) and the Harp page gives «Celtic harp, or
+      Clàrsach, a modern replica», so the sources send the names to two catalog entries. Cost: two
+      aliases
+    - `folk harp` stays an ALIAS of `celtic harp` but is flagged for you: the Harp page names one
+      family three ways («Celtic harps ... or more generically as folk harps ... or as lever
+      harps») and the Folk harp redirect goes to a section of the Harp page, not to the Celtic
+      harp page as Lever harp's does. The alternative is DROP "a generic term for mid-size harps
+      without pedals" (a Paraguayan or Andean harp is a folk harp too)
+    - `welsh harp` is an ALIAS of `triple harp`, its reading following the page's own dates:
+      Talbot's 1680s "Welsh harp" was a large diatonic gothic-style harp with bray pins, and the
+      triple harp «became generally known» by the name by the early 18th century. Reading the
+      later use as the name's current one is an inference from those dates. The Welsh Harp
+      disambiguation page lists only one instrument
+    - `pedal harp` (of `concert harp`: «also known as the concert harp») and `lever harp` (of
+      `celtic harp`: the Lever harp page redirects to Celtic harp) stand; both are also
+      Hornbostel-Sachs class names (322.222, 322.221), as their targets' classes are
+    - `andean harp` is WAIT rather than DROP "no fetched source describes it", a judgment call:
+      Wikipedia has no page (Andean_harp, Arpa_andina and Peruvian_harp return 404), and the Penn
+      Museum record names its object only «Harp», from «Peru», in the «Andean» culture area
+    - the `its target` rows' `alias_of` is filled here (`arpa paraguaya`, `arpa llanera`, `saung`,
+      `ombi`, `kamele ngoni`), as batches 3-8 did; batches 9-16 left it empty. The form check
+      allows both
+  - [ ] `HARP_HELD_BACK` and the sound-change guard, the helper test that exercises them on real
+    builds both ways, and the wrong-table runs that showed each failing: `HARP_HELD_BACK`
+    holds nothing (every wait is for a range or for a target that waits only for a range). Task 1
+    tested the helpers on a real build both ways (`names_listed` finds a real name and a real
+    alias and drops a non-name; `entries_with_sound_changes` gives `['bourdon']` over the organs
+    and `[]` over the harps) and showed each guard failing on a wrong table (a held-back
+    `concert harp`, `lyre` missing from the existing names, a `names_listed` that ignores aliases,
+    an `entries_with_sound_changes` that ignores the family, a harp entry forced to report
+    `sound_changes`)
+  - [ ] The two-half split as explicit lists (half A, the frame harps and the names that are no
+    harp, 25 rows; half B, the open harps, harp-lutes and lyres, 22 rows), the sheets researched in
+    parallel, and the shared files (the names file, the half lists and the check scripts)
+    written up front by a setup agent. Tasks 3 and 5 were one code task: Task 3 shipped the four
+    aliases (`aliases.py`), and Task 5 changed nothing (no commit: half B has no SHIP,
+    SOUND_ALIKE or ALIAS row, so it only ran the code check, `matches 47 rows`)
+  - [ ] Engine features named beyond the spec's table, for its "What the engine cannot make yet":
+    a string buzzing against a bray pin (`gothic harp`), rattles on the instrument (`ardin`,
+    `simbi`) and a drummed resonator (`ardin`, `simbi`)
+- **Bugs to report** (found while building batch 17; none fixed here):
+  - [ ] The 7 earlier harp entries carry no source comment for their ranges or builds
+  - [ ] The catalog `concert harp` tops out at G#7, while the Pedal harp page gives Cb1 to Gb7
+    (uncited): the sheet's `pedal harp` row records the lead, and the catalog's top note is
+    unsourced either way
+  - [ ] The ranges of `triple harp` and `celtic harp` (C2-C7 and C2-A6) have no source: the Triple
+    harp page gives only «The compass of the triple harp is about five octaves» (hedged, a width),
+    and the Celtic harp pages give only widths («They range from two to six octaves»). The `triple
+    harp` is titled "Welsh triple harp", a version of the type its page calls «One common version»
+  - [ ] The catalog `kora` is F2-C6: the Kora page's range is an image, and the Grinnell lead
+    gives D2-F5 (a lead from the plan's Global Constraints, not checked further this batch)
+  - [ ] `lyre` (321.2) and `harp guitar` (321.322) sit in harps, not in plucked strings (#74)
+  - [ ] The Triple harp infobox's "3.2.2" is no Hornbostel-Sachs class (Wikipedia's, not the
+    catalog's)
+  - [ ] The Adungu page is tagged `{{AI-generated` (August 2026); the `adungu` row quotes it only
+    for its class and for the sizes and tuning that keep it waiting
+  - [ ] 17 DeprecationWarnings appear under `-W default`: `speech_recognition/__init__.py:7`
+    imports `aifc` (removed in Python 3.13), which the `standard-aifc` backport satisfies. It is
+    third-party and present before this batch (#86 records it), and a new warning would be a new
+    finding
+- **Follow-ups**:
+  - [ ] The audit's gaps (`plans/data/instrument-audit/harps.md`, listed in #70) and the
+    out-of-scope names are a later pass over this family
+  - [ ] Ranging the 18 range WAITs from maker, museum and scholarly sources (each row's notes
+    record what was searched; the compasses found were single models or objects, widths, tuning
+    lists or one string count's compass)
+  - [ ] Check the 7 earlier entries against sources (ranges and builds), starting with the bugs
+    above
+  - [ ] The engine changes that unblock the waits above, most rows first: the 15 range waits that
+    are plain sound-alikes once ranged need no engine feature (the frame harps and harp-lutes
+    above); `gothic harp` needs a string buzzing against a bray pin, and `ardin` and `simbi`
+    rattles and a drummed resonator
+- **Incidents and process**:
+  - [ ] Batch 16 is PR #197 on batch 15 (#196)
+  - [ ] The Pi hook was skipped while the Pis were unreachable, so pushes skip it
+  - [ ] The two sheet halves were researched in parallel, and pushes and stacked PRs were made
+    without asking (the owner, 2026-11-12, #78)
+  - [ ] Saved error pages: the controller scanned earlier batches' saved pages and found 4
+    Wikimedia 404 pages (batch 12: `mechawka`, `mutsianka`, `tulug`; batch 15: `octavator`). All
+    four were genuine 404s saved as evidence, and every row was a DROP noting "returned 404", so no
+    decision rests on a failed fetch. Each page held the machine's public IP under "Sensitive
+    client information", which the controller redacted; they were in `build/`, which is
+    gitignored, and no tracked file held it. New ruling: a 404 goes in the row's notes and is never
+    saved. Fetch with `curl -fsS`, because plain curl saves error pages (curl without `-f` wrote
+    Wikimedia's "Wikimedia Error" page with exit 0 for 4 of 25 fetches while the plan was written).
+    The quote check refuses an error page
+  - [ ] The controller redacted the gravikord maker's email address from a saved page
+    (`build/batch-17-pages/gravikord--2.txt`: a gitignored folder, and no row quotes it). The Penn
+    Museum's institutional contacts (`andean-harp--2.txt`: a digital-media address and a
+    switchboard number) were left as they are: an institution's public contacts, not personal
+    data
+  - [ ] The reversals and re-rulings, each after a review round, so the sheet's own history holds
+    the first readings: half A had one fix commit (`16ae47ed`: `baroque triple harp` from ALIAS to
+    WAIT, the `arpa` aliases naming their targets, and the notes of `welsh harp`, `folk harp` and
+    `andean harp`), and half B one (`b4a85dd8`: `saung gauk`'s C3-F5 quoted and ruled on,
+    `gravikord`'s class made `none`, `ennanga`'s trough zither hatnote)
+  - [ ] A process bug in half A's fetching: macOS's filesystem is case-insensitive, so the scratch
+    copy of the `Welsh_harp` redirect was overwritten by `Welsh_Harp`, the disambiguation page;
+    the quote check caught it and the page was fetched again. Anyone saving Wikipedia titles that
+    differ only in case into one directory here will hit the same thing
+  - [ ] The brief's Task 1 expected the move first and the guards after, each shown failing on a
+    wrong table before the commit (batch 16's guards imported the moved module, so their RED was
+    an ImportError); this batch did that
+  - [ ] Parked minors from the reviews: the comments naming `plans/data/instrument-audit/batch-17.tsv`
+    were committed before the sheet (Task 1), and the sheet landed in Task 2's commit, before the
+    branch is pushed, as every earlier batch did; the sound-change test
+    (`test_no_harp_sound_alike_changes_its_parents_build`) repeats the last assert of the helper
+    test; `build/batch-17-code-check.py` is untracked and cited in no comment
+  - [ ] The branch's base is `1ecc25d9` (batch 16's tip)
+  - [ ] Task 6's full run had no load flake: `uv run pytest` passed (26244 passed, 8 skipped, 6
+    xfailed, 100% coverage), the audio subset under `-W default` passed (2745 passed, 3 xfailed,
+    the 17 known `speech_recognition` warnings and no other), and `nox -s lint-docs` passed on its
+    own afterwards
+- **Found**: batch 17's reviews (2026-11-13)
+- **Status**: TODO
+- **Priority**: Medium (before the struck strings batch builds on the same catalog)
 
 ### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
 - **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,
