@@ -7,8 +7,9 @@ from the parent and change their details? ... I want them to all show up." Each 
 its own name, so a person finds it by the name they know, and each builds its parent's
 instrument through ``sounds_like`` (assembled in ``registry.sound_alikes_from``). It gives its own
 sourced range, since a sound-alike of another size plays another span. A true alias, another name
-for the same instrument, stays in ``aliases.py``. A sound-alike harpsichord whose source gives it
-a 16' choir its parent lacks carries it as ``sound_changes``, its only change. The family's builds
+for the same instrument, stays in ``aliases.py``. When a row needs it,
+a sound-alike harpsichord whose source gives it a 16' choir its parent lacks will carry it as
+``sound_changes``, its only change (the builder keyword arrives with that row). The family's builds
 are in ``keyboards.py``.
 """
 

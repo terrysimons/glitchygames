@@ -267,8 +267,8 @@ instruments.get('slapstick')                             # an alias: the same in
 - `instruments.ALIASES` (read-only, as `instruments.CATALOG` is) maps another name to its catalog
   name: `slapstick` to `whip`, `contralto` to `alto ah`, `boy soprano` to `treble ah`, `zanza` to
   `mbira`, `cylinder music box` and `disc music box` to `music box`, `wurlitzer electronic piano`
-  to `reed electric piano`, `fender rhodes` to `tine electric piano`, `hohner clavinet` to `clavinet`, `rain box` to `rain machine`, `horse
-  hooves` to `coconut shells`, `tavil` to `thavil` and `riq` to `daf` (121 in all, among them
+  to `reed electric piano`, `fender rhodes` to `tine electric piano`, `hohner clavinet` to
+  `clavinet`, `rain box` to `rain machine`, `horse hooves` to `coconut shells`, `tavil` to `thavil` and `riq` to `daf` (121 in all, among them
   `kanun` to `qanun`, `ud` to `oud` and `neapolitan mandolin` to `mandolin`). `get` and `entry`
   resolve an alias, while `names` and `entries` list catalog names only.
 - A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
@@ -294,8 +294,8 @@ instruments.get('slapstick')                             # an alias: the same in
   `double_reeds.py`; the clarinets' 1 (`c clarinet`, of `clarinet`) is in `clarinet_sound_alikes.py`, the builds in `clarinets.py`; the organs' 7 (`bourdon`, `salicional`, `voix celeste`, `organ oboe`, `organ
   krummhorn`, `organ tuba`, `posthorn`) are in `organ_sound_alikes.py`, the builds in `organs.py`;
   the bagpipes' table (`bagpipe_sound_alikes.py`) is empty so far, and so is the keyboards'
-  (`keyboard_sound_alikes.py`, the builds in `keyboards.py`; `electromechanical.py` holds the
-  electromechanical instruments that shared it) (197 sound-alikes in all). A bagpipe's drones are fixed pitches inside its build, so a bagpipe
+  (`keyboard_sound_alikes.py`, the builds in `keyboards.py`). `electromechanical.py` holds the
+  electromechanical instruments that shared that module. There are 197 sound-alikes in all. A bagpipe's drones are fixed pitches inside its build, so a bagpipe
   sound-alike in another tuning would carry its own drones as `sound_changes` (each at the pitch
   its source gives, equal-tempered like the chanter).
 - Each entry has a `title`, a `family` and its playing range, `lowest` and `highest` (sounding

@@ -4627,9 +4627,20 @@ This document tracks planned future features for the GlitchyGames project. Featu
     Cost if wrong: one cross-family sound-alike of `glockenspiel`, C5-C8, recoverable the moment a
     source says sounding. `harpsichord sixteen foot` waits for a sourced range: Neupert's
     "harpsichord Hass" page gives "keyboard compass: 5 octaves (F1 - f3)" and "lower manual: 8',
-    4', 16'", which is one maker's model, not the generic instrument's (range ruling 6: several
-    makers, none standard); its sub-audio point stays in the notes as its next wait, and it left
+    4', 16'", which is one maker's model, not the generic instrument's (range ruling 4, the model-page
+    rule: a model's page ranges that model only); its sub-audio point stays in the notes as its next wait, and it left
     `KEYBOARD_HELD_BACK`. Cost if wrong: none, it waits either way. Was a model page enough?
+  - [ ] Already decided (12 DROP rows, each naming the earliest sheet that decided it; #70
+    forbids deciding them again): `rhodes celeste` and `rhodes piano bass` (batch-2.tsv DROP: the
+    tine electric piano covers the register), `yamaha cp electric grand` (batch-2.tsv WAIT, a
+    sourced range), `bulbul tarang` and `taishogoto` (batch-4.tsv WAIT, plucked strings),
+    `chamberlin`, `mellotron` and `optigan` (batch-2.tsv WAIT, electromechanical tape or optical
+    replay; batch-6.tsv also dropped each as already decided, and the earliest sheet is the one
+    named), `geigenwerk` and `viola organista` (batch-7.tsv WAIT, bowed strings), `orchestrion` and
+    `panharmonicon` (batch-13.tsv WAIT, organs). Cost if wrong: a name that should have been
+    researched again stays dropped, recoverable by an owner call on the earlier sheet
+  - [ ] The setup's `luthéal` ruling: the candidate lists keep the accent, the sheet's row is named
+    `lutheal` and its audit_name is `luthéal`
   - [ ] The choir ruling (`sixteen_foot` if added, its copied level and offset) and the keyed
     idiophone ruling (`_keyed_idiophone` if added, the copied celesta values, the new wait name `a
     sourced partial series`): neither builder was added, because no row shipped. The wait name
