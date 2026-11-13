@@ -174,6 +174,19 @@ reed shipped as a new build or sound-alike, so none carries a detune, a reed set
 range (43 names) or for its target (15 names), 8 were dropped and ``richter harmonica`` is an
 alias of ``harmonica``.
 
+Harps (7 entries) hold the family's builds in ``harps.py`` (``concert harp``, ``celtic harp``,
+``wire strung harp``, ``triple harp``, ``lyre``, ``kora`` and ``harp guitar``) and their
+sound-alikes in ``harp_sound_alikes.py`` (none yet). ``strings.py`` now holds only the struck
+strings. A harp's strings run perpendicular to its soundboard (Hornbostel-Sachs 322) and a
+harp-lute's at right angles to it across a notched bridge (323). A string count, rows, a tuning
+action, a tuning, a material, a size or a body is no trait, so a harp of another form or size is a
+sound-alike of the catalog harp its source relates it to (``kora`` for a harp-lute), or else of the
+frame harp whose lowest note is nearest its own, and gives its own sourced range (sounding, stated,
+never hedged). No harp shipped as a new build or sound-alike, so none carries ``sound_changes``,
+and a harp that needs bray pins, rattles or a drummed resonator waits. Every harp row waits for a
+sourced range (18 names) or for its target (5 names), 20 were dropped, and ``welsh harp``, ``pedal
+harp``, ``lever harp`` and ``folk harp`` are aliases.
+
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and
 ``gangsa``) and its sound-alikes in ``tuned_sound_alikes.py`` (``alto xylophone`` and
