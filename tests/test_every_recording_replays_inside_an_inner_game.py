@@ -30,6 +30,10 @@ none, and a switched-away tile's were stopped) and every chunk on a tile's live 
 volume 0. At the switch away, what the tile had sounding is checked off the mixer at once
 (``Tile.switch_away``). A tile whose game plays plain sounds (``PLAYS_PLAIN_SOUNDS``) must have
 been heard while heard, and no other may have played one, so the switched run proves something.
+Review Focus 4's "the newly heard game's next sound is heard" is shown here for plain plays only
+(the goldens' heard sounds are plain); the voice table's and live voices' are covered by unit
+tests (tests/audio/test_channel_partition.py, tests/audio/test_live.py and
+tests/engine/test_inner_game.py).
 
 The outer partitions the mixer and declares its tiles' channels first, as an Arcade does at
 startup (``inner_game_channels``). The tiles run inside an outer window of another size than

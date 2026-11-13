@@ -826,16 +826,31 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   stopped (`release_inner_context_channels`); a heard set still sounding when it is taken again
   (heard games switched faster than the 50 ms fade) is stopped too (`take_heard_set`). Each is a
   hard cut, which may click; only the voice table's voices fade (50 ms, stepped per mixer chunk,
-  as the impl spec's risks R4 and R5 say). A fade for plain plays is not possible from outside
-  (`Channel.fadeout` is ignored on a channel already fading, so a game's own long fade would run
-  on), and live chunks would need their fade rendered in. Listen while switching quickly; the
-  fallback is the owner's decision.
+  as the impl spec's risks R4 and R5 say). A `Channel.fadeout(50)` for plain plays is possible
+  (only a channel the game itself already fades ignores it, its own fade then running on), but
+  it would keep the channel busy for about 50 ms after the switch, so the proof's invariant (no
+  unreserved channel plays while no tile is heard, `assert_no_tile_is_heard`) and a quick switch
+  back would both have to allow a channel still fading out, and SDL_mixer steps that fade once
+  per 11.6 ms chunk, so it is a few plateaus, not a ramp. Live chunks would need their fade
+  rendered in. Listen while switching quickly; the fallback is the owner's decision.
 - **`Scene.INNER_GAMES` declares only the default sizes** (two heard sets of 32 library
   channels, 4 live channels per inner game). A host needing more (a tile recorded with
   `--sound-channels` above 32 replays silent and refuses to be heard; one with
   `--live-voice-pool` above 4 fails) calls `reserve_inner_game_channels(games=...,
   heard_set_channels=..., live_channels_per_game=...)` after `GameEngine(...)` and before
   `start()`. A class attribute for the sizes (or a model) would let a scene say it too.
+- **A host-context `FrameSilencer` would cut every inner game's sound.** In the default
+  context (not inner) `FrameSilencer.silence_frame` (`src/glitchygames/replay/silence.py`)
+  still calls `pygame.mixer.stop()`, which would stop the heard set, every tile's live pool and
+  the tiles' plain plays, not only the host's own sounds. Unreached today: the Arcade host
+  never rebuilds frames or plays an instant replay. Before a host does, give the default
+  context's silencer the inner one's rule (stop only its own channels: the outer partition's
+  live and library channels and the plain plays it started).
+- **The host must finish every inner game it drops** (`InnerGame.finish()`; rule 6 of
+  `src/glitchygames/inner_game.py`). Nothing gives a dropped game's live pool back (no
+  `__del__`), so an Arcade looping tiles that drops them unfinished exhausts its declaration;
+  the next build then fails naming the contexts still holding pools. A host-side registry (or a
+  weak-reference finaliser that only logs) could catch the mistake earlier.
 - **`pygame.mixer.music` is still one per process** (row S4 of
   `plans/2026-10-25-engine-context.md`): a silent inner game's music would be heard, and its
   `pause`/`unpause` reach the host's. No game uses music today; `FrameSilencer` in an inner

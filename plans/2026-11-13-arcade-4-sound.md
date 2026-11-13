@@ -178,5 +178,6 @@ outside an inner context only), `src/glitchygames/inner_game.py` (`finish`: the 
 - [x] Tests: Review Focus 2 and 4: each pair's digests still equal their solo replays with every
   tile silent and with the first tile switched audible at a frame and back; a switched-away
   tile's sounds stop.
-- [x] Docs; `uv run pytest`, `nox -s lint`, `nox -s static-analysis`, `nox -s compare-drivers --
-  --drivers native --fail-on-difference`; commit (`Audio: only the heard game is heard; the proof with switching`).
+- [x] Docs; `uv run pytest`, `nox -s lint`, `nox -s static-analysis`; commit (`Audio: only the
+  heard game is heard; the proof with switching`).
+- [ ] `nox -s compare-drivers -- --drivers native --fail-on-difference` (the controller runs it).

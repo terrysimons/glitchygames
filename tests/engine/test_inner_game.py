@@ -54,7 +54,9 @@ from glitchygames.inner_game import (
 )
 from glitchygames.render_target import render_target
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES
+from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.scenes import Scene, SceneManager
+from tests import demo_runs
 from tests.audio.voice_support import (
     LEGACY_CHANNELS,
     LIBRARY_CHANNELS,
@@ -1491,6 +1493,8 @@ class TestInnerChannels:
         assert refused.outcome.state is InnerGameState.FAILED
         assert refused.outcome.error is not None
         assert f'all {DECLARED_INNER_GAMES} inner games declared' in refused.outcome.error
+        # The contexts still holding the pools are named (a host that dropped one unfinished)
+        assert "'running 0', 'running 1', 'running 2'" in refused.outcome.error
         assert inner_partition(refused) is None
         assert still_running == [True] * DECLARED_INNER_GAMES
         assert all(game.outcome.state is InnerGameState.ENDED for game in running)
@@ -1637,6 +1641,80 @@ class TestInnerChannels:
         assert tile_sound.get_volume() == 0.0
         assert busy_after_the_finish == [outer_partition.live[0]]
         assert tile_voice.state is VoiceState.STOPPED
+
+
+# A host engine's command line: small, quiet, unpaced (it runs one frame, then quits)
+HOST_ENGINE_ARGUMENTS = ('--resolution', '320x240', '--log-level', 'warning', '--target-fps', '0')
+# The heard sets a late declaration asks for: smaller than the default, so only this call says so
+LATE_HEARD_SET_CHANNELS = 16
+
+
+@pytest.fixture
+def engine_run_environment(mocker: MockerFixture) -> Generator[None]:
+    """Let the test construct and start a real engine, leaving pygame usable for later tests.
+
+    Yields:
+        None, while the environment is in place.
+
+    """
+    yield from demo_runs.engine_run_environment(mocker)
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+def test_a_declaration_after_game_engine_lies_above_its_partition_and_survives_its_start(
+    small_channels_stand_in: StandInGame,
+    small_channels_recording: Path,
+    mocker: MockerFixture,
+):
+    """GameEngine(...) without INNER_GAMES, then reserve_inner_game_channels, then start().
+
+    The documented route for other sizes, on a real engine (the golden-trace harness's, whose
+    plain window the dummy driver can open). The engine had not partitioned yet (it does as
+    ``start()`` makes its event managers), so the declaration has it partition first: the heard
+    sets lie above its library, and ``start()``'s own partition finds it made and keeps the
+    declaration, so a tile built in the host's first frame is heard on the first heard set.
+    """
+    release_channels()
+    seen: dict[str, object] = {}
+
+    def build_and_hear_a_tile(scene: Scene, dt: float) -> None:
+        """The host's first frame: a tile built, made heard, played to its end; then quit."""
+        del dt
+        inner_game = replay_stand_in(game=small_channels_stand_in, path=small_channels_recording)
+        seen['declared'] = voices.inner_game_channels_declared()
+        inner_game.set_audible(audible=True)
+        seen['heard_set'] = heard_set_of(inner_game)
+        play_to_the_end(inner_game)
+        seen['outcome'] = inner_game.outcome
+        scene.scene_manager.quit()
+
+    host_game = type(
+        'LateDeclaringHost',
+        (Scene,),
+        {'NAME': 'LateDeclaringHost', 'dt_tick': build_and_hear_a_tile},
+    )
+    mocker.patch.object(sys, 'argv', ['late-declaring-host', *HOST_ENGINE_ARGUMENTS])
+    engine = GoldenTraceEngine(game=host_game)
+    partition_before_the_declaration = engine.channel_partition
+
+    layout = reserve_inner_game_channels(games=2, heard_set_channels=LATE_HEARD_SET_CHANNELS)
+    partition = engine.channel_partition
+    engine.start()
+
+    assert partition_before_the_declaration is None
+    assert partition is not None
+    assert partition.library == tuple(range(LIVE_POOL, LIVE_POOL + LIBRARY_CHANNELS))
+    assert engine.channel_partition is partition
+    first_heard_set_start = LIVE_POOL + LIBRARY_CHANNELS
+    assert layout.heard_sets[0] == tuple(
+        range(first_heard_set_start, first_heard_set_start + LATE_HEARD_SET_CHANNELS)
+    )
+    assert seen['declared'] is True
+    assert seen['heard_set'] == first_heard_set_start
+    outcome = seen['outcome']
+    assert isinstance(outcome, InnerGameOutcome)
+    assert outcome.state is InnerGameState.ENDED, outcome
+    assert outcome.diverged is False
 
 
 def outer_heard_set_start(*, set_number: int) -> int:

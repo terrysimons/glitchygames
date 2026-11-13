@@ -1,6 +1,8 @@
 """Tests for the live/library/legacy channel partition (impl spec 7.1, AUD-MIX-008)."""
 
 import contextlib
+import logging
+from typing import ClassVar
 
 import pygame
 import pytest
@@ -15,6 +17,7 @@ from glitchygames.audio.voices import (
     ChannelsHeldError,
     InnerGameChannelLayout,
     InnerGameChannelsError,
+    MixerBusyError,
     SoundHandle,
     VoiceCounters,
     VoiceTable,
@@ -561,10 +564,42 @@ class TestTheDeclaration:
         assert layout == InnerGameChannelLayout(heard_sets=(), live_pools=(), legacy_count=0)
         assert partition == ChannelPartition(live=(), library=(), legacy_count=0)
 
-    def test_an_unpartitioned_mixer_has_the_inner_games_channels_from_zero(self):
-        """No default partition: the heard sets start at channel 0."""
+    def test_a_declaration_on_an_unpartitioned_mixer_without_an_engine_is_refused(self, mocker):
+        """No partition and no engine to make one: refused, naming the ways; nothing changed.
+
+        Declared from channel 0, the first partition made afterwards would cover the inner
+        games' channels and forget them, and the first inner game built would fail.
+        """
         start_mixer(channels=2)
         release_channels()
+        set_num_channels = mocker.spy(pygame.mixer, 'set_num_channels')
+
+        with pytest.raises(
+            InnerGameChannelsError,
+            match=r'not partitioned yet.*GameEngine.*Scene\.INNER_GAMES.*default_channel_partition',
+        ):
+            reserve_inner_game_channels(games=1, heard_set_channels=2, live_channels_per_game=1)
+
+        set_num_channels.assert_not_called()
+        assert not inner_game_channels_declared()
+        assert reserved_channel_count() == 0
+
+    def test_a_declaration_from_an_inner_context_asks_no_engine_to_partition(self):
+        """An inner engine never partitions: declared there, it lies above the outer partition."""
+        start_reserved_mixer()
+        inner = EngineContext(name='tile')
+
+        with inner.active():
+            set_render_target(surface=pygame.Surface((8, 8)))
+            layout = reserve_inner_game_channels(games=GAMES)
+
+        assert layout.heard_sets == (HEARD_SET_A, HEARD_SET_B)
+        assert reserved_channel_count() == 36
+
+    def test_a_partition_without_reserved_channels_still_counts_as_one(self):
+        """--live-voice-pool 0 --sound-channels 0: partitioned, so the declaration starts at 0."""
+        start_mixer(channels=2)
+        reserve_channels(live_pool=0, library_channels=0, legacy_channels=8)
 
         layout = reserve_inner_game_channels(
             games=1, heard_set_channels=2, live_channels_per_game=1
@@ -705,15 +740,66 @@ class TestADefaultPartitionAfterTheDeclaration:
         with pytest.raises(ChannelsHeldError, match=r'channels 0-39.*finish them first'):
             reserve_channels(live_pool=4, library_channels=36, legacy_channels=8)
 
-    def test_a_larger_one_with_nothing_held_forgets_the_declaration(self):
-        """The host declares again above it: until then an inner game fails."""
+    def test_a_larger_one_with_nothing_held_forgets_the_declaration(self, caplog):
+        """The host declares again above it: until then an inner game fails; never silently."""
         declared_mixer()
 
-        partition = reserve_channels(live_pool=4, library_channels=40, legacy_channels=8)
+        with caplog.at_level(logging.WARNING, logger='game.audio.voices'):
+            partition = reserve_channels(live_pool=4, library_channels=40, legacy_channels=8)
 
         assert partition.library == tuple(range(4, 44))
+        assert "covers the inner games' channels declared from channel 36" in caplog.text
         with pytest.raises(InnerGameChannelsError, match='no channels are declared'):
             partition_in(EngineContext(name='tile'))
+
+
+class TestAGrowthWhileAChannelPlays:
+    """BUGS.md #145: no partition grows the mixer while a channel plays (MixerBusyError)."""
+
+    def test_a_partition_that_must_grow_is_refused_and_changes_nothing(self, mocker):
+        """A sound playing on a mixer too small: refused; nothing grown, nothing reserved."""
+        start_mixer(channels=2)
+        release_channels()
+        playing = long_plain_sound().play()
+        set_num_channels = mocker.spy(pygame.mixer, 'set_num_channels')
+
+        with pytest.raises(MixerBusyError, match=r'grow the mixer to 44 channels.*BUGS\.md #145'):
+            reserve_channels(live_pool=4, library_channels=32, legacy_channels=8)
+
+        assert playing is not None
+        assert playing.get_busy()
+        set_num_channels.assert_not_called()
+        assert pygame.mixer.get_num_channels() == 8
+        assert reserved_channel_count() == 0
+        pygame.mixer.stop()
+
+    def test_a_refused_partition_keeps_the_declaration_it_would_have_covered(self):
+        """Refused before the declaration is forgotten: inner games still build."""
+        declared_mixer()
+        playing = long_plain_sound().play()
+
+        with pytest.raises(MixerBusyError):
+            reserve_channels(live_pool=4, library_channels=200, legacy_channels=8)
+        inner = partition_in(EngineContext(name='tile'))
+
+        assert playing is not None
+        assert inner_game_channels_declared()
+        assert inner.live == FIRST_LIVE_POOL
+        pygame.mixer.stop()
+
+    def test_a_partition_that_needs_no_growth_is_made_while_a_channel_plays(self, mocker):
+        """A second engine's partition of the same sizes: nothing grows, so a sound may play."""
+        start_reserved_mixer()
+        playing = long_plain_sound().play()
+        set_num_channels = mocker.spy(pygame.mixer, 'set_num_channels')
+
+        partition = reserve_channels(live_pool=4, library_channels=32, legacy_channels=8)
+
+        assert playing is not None
+        assert playing.get_busy()
+        assert partition.library == tuple(range(4, 36))
+        set_num_channels.assert_not_called()
+        pygame.mixer.stop()
 
 
 class TestInnerPartitions:
@@ -744,7 +830,11 @@ class TestInnerPartitions:
         partition_in(EngineContext(name='first'))
         partition_in(EngineContext(name='second'))
 
-        with pytest.raises(InnerGameChannelsError, match='all 2 inner games declared'):
+        with pytest.raises(
+            InnerGameChannelsError,
+            match=r"all 2 inner games declared are running \('first', 'second'\): finish one "
+            r'\(InnerGame\.finish\(\), also for one the host dropped\)',
+        ):
             partition_in(EngineContext(name='third'))
 
     def test_an_inner_game_with_nothing_declared_is_refused(self):
@@ -1105,6 +1195,43 @@ def long_plain_sound() -> pygame.mixer.Sound:
     return pygame.mixer.Sound(buffer=bytes(44100 * 4 * 4))
 
 
+class AdvancingChannel(pygame.mixer.Channel):
+    """A real channel whose playing chunk ends right after the first read of it (a race).
+
+    The mixer thread may end a chunk between two reads; here it happens at once after the
+    first ``get_sound`` or ``get_queue``: ``Channel.stop`` starts the queued chunk (pygame-ce
+    2.5.8), as the chunk's end would.
+    """
+
+    advancing_channel_ids: ClassVar[set[int]] = set()
+
+    def get_sound(self):
+        """Read the playing chunk, then let it end.
+
+        Returns:
+            The chunk playing when read.
+        """
+        sound = super().get_sound()
+        self._advance_once()
+        return sound
+
+    def get_queue(self):
+        """Read the queued chunk, then let the playing one end.
+
+        Returns:
+            The chunk queued when read.
+        """
+        queued = super().get_queue()
+        self._advance_once()
+        return queued
+
+    def _advance_once(self):
+        """End the playing chunk the first time, on a channel that advances."""
+        if self.id in AdvancingChannel.advancing_channel_ids:
+            AdvancingChannel.advancing_channel_ids.discard(self.id)
+            super().stop()
+
+
 def play_plain_followed(context: EngineContext, sound: pygame.mixer.Sound) -> pygame.mixer.Channel:
     """Play a plain sound inside an inner context, followed (an audible tile's step).
 
@@ -1206,6 +1333,57 @@ class TestOnlyTheHeardTileIsHeard:
         assert started == (channel.id,)
         assert not channel.get_busy()
         assert plain_plays_of(context) == ()
+
+    def test_a_plain_play_started_after_going_silent_in_the_call_is_stopped_as_it_ends(self):
+        """Silent mid-call (a finish), then a plain play: stopped at the call's end, not kept.
+
+        The default context's sound playing beside it plays on.
+        """
+        declared_mixer()
+        default_sound = long_plain_sound()
+        default_channel = default_sound.play()
+        assert default_channel is not None
+        context = EngineContext(name='tile')
+        partition_in(context)
+        make_heard(context)
+
+        with context.active(), plain_plays_followed():
+            set_audible(audible=False)
+            give_back_heard_set()
+            late_channel = long_plain_sound().play()
+            assert late_channel is not None
+            busy_inside_the_call = late_channel.get_busy()
+
+        assert busy_inside_the_call
+        assert not late_channel.get_busy()
+        assert plain_plays_of(context) == ()
+        assert default_channel.get_sound() is default_sound
+        pygame.mixer.stop()
+
+    def test_a_chunk_moving_from_the_queue_between_the_reads_is_muted(self, mocker):
+        """The playing chunk ends right after the first read: the one that took over is muted.
+
+        Read the playing chunk first, the queued one would have moved to playing before the
+        queue was read, and be missed at volume 1.
+        """
+        declared_mixer()
+        context = EngineContext(name='tile')
+        partition = partition_in(context)
+        make_heard(context)
+        live_channel = pygame.mixer.Channel(partition.live[0])
+        playing_chunk = long_plain_sound()
+        queued_chunk = long_plain_sound()
+        live_channel.play(playing_chunk)
+        live_channel.queue(queued_chunk)
+        AdvancingChannel.advancing_channel_ids = {partition.live[0]}
+        mocker.patch('pygame.mixer.Channel', AdvancingChannel)
+
+        make_silent(context)
+
+        assert AdvancingChannel.advancing_channel_ids == set()
+        assert pygame.mixer.Channel(partition.live[0]).get_sound() is queued_chunk
+        assert queued_chunk.get_volume() == 0.0
+        pygame.mixer.stop()
 
     def test_going_silent_mutes_the_chunks_on_its_live_pool(self):
         """The chunk playing and the one queued are at volume 0 at once; the channel plays on."""

@@ -159,25 +159,31 @@ risks R4 and R5).
 ## Inner games
 
 An outer game (the Arcade) runs other games inside itself as inner games
-([Engine context](engine_context.md), "Inner contexts"), and only one of them is heard (Arcade
+([Engine context](engine_context.md), "Inner contexts"), and only the one it watches is heard (Arcade
 sub-plan 4, `plans/2026-11-13-arcade-4-sound.md`; `src/glitchygames/audio/route.py` and the
 docstring of `src/glitchygames/audio/voices.py` are the contract):
 
 - **One audio route per engine context.** The default context (an ordinary game, or the Arcade
-  itself) is audible; a new inner game is silent, and its host makes at most one heard with
-  `InnerGame.set_audible(audible=True)` (`InnerGame.audible` tells which). What a game sees
+  itself) is audible; a new inner game is silent, and its host makes one heard with
+  `InnerGame.set_audible(audible=True)` (`InnerGame.audible` tells which). Keeping one heard is
+  the host's job: the engine lets two be heard at once, one per heard set (the next made heard
+  before the last is silenced, a crossfade), and refuses a third (`InnerGameChannelsError`). What a game sees
   (`is_playing`, voice endings, steals, a live voice made or refused) is the same heard or
   silent, so every tile replays as it does alone.
 - **Declared once, before anything plays.** An ordinary game's partition is exactly as above.
   A host declares how many inner games it runs: `INNER_GAMES = 6` on its scene class (its
   engine declares them at construction, before the CRT power-on plays), or
   `glitchygames.audio.reserve_inner_game_channels(games=..., heard_set_channels=32,
-  live_channels_per_game=4)` after `GameEngine(...)` and before `start()`. The mixer grows that
+  live_channels_per_game=4)` after `GameEngine(...)` and before `start()` (it has that engine
+  partition first, so the inner games' channels lie above its partition; without an engine the
+  mixer must be partitioned already, or the declaration is refused). The mixer grows that
   once, right above the default partition, to two **heard sets** of library channels and a
   **live pool** per inner game, with the legacy channels above them all; it never grows again
   (growing it while a sound plays corrupts pygame's channel table: BUGS.md #145, so a growth
-  then is refused). A second host's declaration while inner games hold channels raises
-  `ChannelsHeldError`; finish them first.
+  then is refused, by the declaration and by any partition, `MixerBusyError`). A second host's
+  declaration while inner games hold channels raises `ChannelsHeldError`; finish them first.
+  A host finishes every inner game it drops (`InnerGame.finish()`): an unfinished one keeps
+  its live pool, so a host looping tiles without finishing them runs out of its declaration.
 - **An inner build never partitions the mixer.** Its sound library has its recording's
   `--sound-channels` as slots, so its steals and drops are the game's alone, and plays them on
   a heard set only while it is heard: the two sets alternate, so the game switched away from

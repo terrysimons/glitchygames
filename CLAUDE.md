@@ -1320,12 +1320,17 @@ M2 next)
   away from (unless `persist=True`) and pause behind a pause screen
 - Inner games' sound (Arcade sub-plan 4, plans/2026-11-13-arcade-4-sound.md; `audio/route.py`,
   `audio/voices.py`'s docstring the rules): one audio route per engine context (`is_audible()`,
-  `set_audible(*, audible)`): the default context is audible, a new inner game silent, and the
-  host makes at most one heard (`InnerGame.set_audible`). The default partition is unchanged; a
-  host declares its inner games once, before anything plays (`Scene.INNER_GAMES` on its scene
-  class, declared at its engine's construction before the CRT power-on, or
-  `reserve_inner_game_channels(games=...)` after `GameEngine(...)` and before `start()`), and
-  the mixer grows that once (never again: BUGS.md #145) to two heard sets of 32 library
+  `set_audible(*, audible)`): the default context is audible, a new inner game silent, and
+  keeping one heard is the host's job (`InnerGame.set_audible`): the engine lets two be heard at
+  once, one per heard set (the next made heard before the last is silenced, a crossfade), and
+  refuses a third. The default partition is
+  unchanged; a host declares its inner games once, before anything plays (`Scene.INNER_GAMES`
+  on its scene class, declared at its engine's construction before the CRT power-on, or
+  `reserve_inner_game_channels(games=...)` after `GameEngine(...)` and before `start()`, which
+  has that engine partition first so the declaration lies above its partition; without an
+  engine the mixer must be partitioned already, else refused), and the mixer grows that once
+  (never again: BUGS.md #145; any partition or declaration that would grow it while a channel
+  plays is refused, `MixerBusyError` / `InnerGameChannelsError`) to two heard sets of 32 library
   channels and a live pool of 4 per inner game, the legacy channels above them all. An inner
   build never partitions: its voice table has its recording's `--sound-channels` as slots,
   played on a heard set only while heard (the sets alternate: the old one fades out on its set
@@ -1337,7 +1342,10 @@ M2 next)
   plays still sounding and mutes its live chunks, never the host's or another tile's sound.
   `FrameSilencer` in an inner context stops only that context's channels. A tile without a
   declaration or past its count fails alone (`InnerGameChannelsError`); a second host's
-  declaration while inner games hold channels raises `ChannelsHeldError`. The proof:
+  declaration while inner games hold channels raises `ChannelsHeldError`. The host must call
+  `InnerGame.finish()` on every inner game it drops (no `__del__`): an unfinished one keeps its
+  live pool, so an Arcade looping tiles without finishing them runs out of its declaration (the
+  failing build's error names the contexts still holding one). The proof:
   `tests/test_every_recording_replays_inside_an_inner_game.py` (every pair silent, and with one
   tile switched heard and back: the same digests and pixels)
 - Measured (`tests/audio/test_channel_fades.py`, SDL's disk driver): SDL_mixer changes a

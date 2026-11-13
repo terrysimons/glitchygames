@@ -9,8 +9,10 @@ An inner context (an Arcade tile; Arcade sub-plan 4, decisions 4 and 5) never pa
 mixer. A silent context's table touches no channel (below), so only the heard inner game needs
 library channels: the host declares once, at startup and before anything plays, how many inner
 games it runs (``Scene.INNER_GAMES``, declared with its engine's own partition at construction,
-or ``reserve_inner_game_channels`` after ``GameEngine(...)`` and before ``start()``; a growth
-while a channel plays is refused), and the mixer grows that once to hold, right above
+or ``reserve_inner_game_channels`` after ``GameEngine(...)`` and before ``start()``, which has
+that engine partition first; without an engine the mixer must be partitioned already, else the
+declaration is refused; a growth while a channel plays is refused, by a declaration and by any
+partition, ``MixerBusyError``), and the mixer grows that once to hold, right above
 the default partition (which keeps its channels), two heard sets of library channels and a live
 pool per inner game, with the legacy channels above them all (as many as before) and the
 reservation raised over everything below the legacy channels, so a plain ``Sound.play()`` never
@@ -19,10 +21,14 @@ table without SDL's audio lock while sound plays (BUGS.md #145). An inner contex
 (``inner_context_partition``) has its recording's ``--sound-channels`` as logical slots, so its
 steals and drops are those of the game run alone; while it is heard it holds one heard set
 (``take_heard_set``) and slot ``i`` plays on that set's channel ``i``. The two sets alternate:
-the game made silent fades out on its set while the newly heard one starts on the other. Its live
-voices take a live pool at build. An inner game built with none declared, or past the declared
-count, fails alone (``InnerGameChannelsError``), and ``release_inner_context_channels`` gives
-everything back at its finish. ``release_channels`` (shutdown) forgets the declaration.
+the game made silent fades out on its set while the newly heard one starts on the other.
+Keeping one inner game heard is the host's job: two may be heard at once, one per heard set (the
+next made heard before the last is silenced), and a third is refused. Its live voices take a
+live pool at build. An inner game built with none declared, or past the declared count, fails
+alone (``InnerGameChannelsError``, naming the contexts holding the pools), and
+``release_inner_context_channels`` gives everything back at its finish, which the host must call
+for every inner game it drops (nothing else gives them back). ``release_channels`` (shutdown)
+forgets the declaration.
 
 Each library channel is one slot of the table. A play takes the lowest free channel its bus may
 use (bus reservations: ``Bus.reserved_channels``), else steals a playing voice of lower or
@@ -102,6 +108,7 @@ from pydantic import BaseModel, ConfigDict
 
 from glitchygames.audio.route import AUDIO_ROUTE_SLOT
 from glitchygames.engine_context import ContextSlot, current_context
+from glitchygames.render_target import is_inner_context
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Generator
@@ -287,6 +294,14 @@ class InnerGameChannelsError(RuntimeError):
     """An inner game cannot have the channels it asks for (it fails alone; the message says why)."""
 
 
+class MixerBusyError(RuntimeError):
+    """The mixer would grow while a channel plays (BUGS.md #145).
+
+    ``set_num_channels`` reallocates pygame's channel table without SDL's audio lock, so a
+    partition that must grow the mixer is made before anything plays (at the engine's start).
+    """
+
+
 def _check_channel_counts(**counts: int) -> None:
     """Refuse a negative channel count, naming it.
 
@@ -380,6 +395,12 @@ def reserve_channels(
     default sizes, in the same one growth: the partition and the declaration are made at the
     engine's construction, before anything plays (``reserve_inner_game_channels``).
 
+    A partition that covers channels declared for inner games with none held forgets the
+    declaration (a new outer engine after an earlier host's), with a warning naming it: the
+    host declares again, above this partition. One that would cover them while an inner game
+    holds some (a new outer engine while inner games run), or declare its own while one does,
+    raises ``ChannelsHeldError`` (``_declaration_kept_by_a_partition``).
+
     Args:
         live_pool: Channels for live voices (``--live-voice-pool``).
         library_channels: Channels for the voice table (``--sound-channels``).
@@ -390,8 +411,8 @@ def reserve_channels(
         The partition (empty without a mixer).
 
     Raises:
-        ChannelsHeldError: If the partition would cover the declared inner games' channels while
-            an inner game holds some (a new outer engine while inner games run).
+        MixerBusyError: If the mixer must grow while a channel plays (BUGS.md #145); nothing is
+            changed.
     """
     _check_channel_counts(
         live_pool=live_pool,
@@ -402,24 +423,9 @@ def reserve_channels(
     if pygame.mixer.get_init() is None:
         return ChannelPartition(live=(), library=(), legacy_count=0)
     requested_count = live_pool + library_channels
-    declaration = _declared_inner_game_channels()
-    if declaration is not None and requested_count > declaration.base:
-        if declaration.holds_anything():
-            message = (
-                f'the partition asks for channels 0-{requested_count - 1}, but inner games hold '
-                f'channels from channel {declaration.base}: finish them first, then call '
-                f'{RESERVE_INNER_GAME_CHANNELS_CALL} again'
-            )
-            raise ChannelsHeldError(message)
-        # Nothing held: the declaration is forgotten (the host declares again, above this one)
-        _inner_game_channels.forget()
-        declaration = None
-    if inner_games > 0 and declaration is not None and declaration.holds_anything():
-        message = (
-            'inner games hold channels of the earlier declaration: finish them before an engine '
-            'declares its own'
-        )
-        raise ChannelsHeldError(message)
+    declaration, covered_declaration = _declaration_kept_by_a_partition(
+        requested_count=requested_count, inner_games=inner_games
+    )
     top = 0 if declaration is None else declaration.top
     if inner_games > 0:
         top = max(top, requested_count + inner_game_channel_count(games=inner_games))
@@ -427,10 +433,27 @@ def reserve_channels(
     # The channel table only grows. A second engine in one process (a test run, a launcher)
     # finds the count it set already there: changing it again would be needless, and every
     # set_num_channels reallocates pygame's channel table while the audio thread may still finish
-    # a sound on it (BUGS.md #145). A smaller count would also stop sounds on the removed
-    # channels (pygame-ce 2.5.8). A restarted mixer is back at its default count, so it grows
-    # again.
-    if pygame.mixer.get_num_channels() < total_channels:
+    # a sound on it (BUGS.md #145), so a growth while a channel plays is refused. A smaller count
+    # would also stop sounds on the removed channels (pygame-ce 2.5.8). A restarted mixer is back
+    # at its default count, so it grows again.
+    grows = pygame.mixer.get_num_channels() < total_channels
+    if grows and pygame.mixer.get_busy():
+        message = (
+            f'the partition must grow the mixer to {total_channels} channels while a channel '
+            "plays, which corrupts pygame's channel table (BUGS.md #145): partition before "
+            'anything plays (the engine does as its event managers are made, in start())'
+        )
+        raise MixerBusyError(message)
+    if covered_declaration is not None:
+        log.warning(
+            "A partition of channels 0-%d covers the inner games' channels declared from "
+            'channel %d: the declaration is forgotten; declare them again (%s)',
+            requested_count - 1,
+            covered_declaration.base,
+            RESERVE_INNER_GAME_CHANNELS_CALL,
+        )
+        _inner_game_channels.forget()
+    if grows:
         pygame.mixer.set_num_channels(total_channels)
     channel_count = pygame.mixer.get_num_channels()
     reserved_count = min(requested_count, channel_count)
@@ -454,6 +477,43 @@ def reserve_channels(
     )
 
 
+def _declaration_kept_by_a_partition(
+    *, requested_count: int, inner_games: int
+) -> tuple[_InnerGameChannels | None, _InnerGameChannels | None]:
+    """Which declaration a partition of ``0 .. requested_count-1`` keeps, and which it covers.
+
+    Args:
+        requested_count: The partition's reserved channels (live pool and library).
+        inner_games: The inner games the partition declares too (0: none).
+
+    Returns:
+        The declaration kept (None without one, or when covered) and the one the partition
+        covers with nothing held (None when none), which the caller forgets once nothing can
+        refuse the partition.
+
+    Raises:
+        ChannelsHeldError: If the partition covers a declaration an inner game holds channels
+            of, or declares its own while one does.
+    """
+    declaration = _declared_inner_game_channels()
+    if declaration is not None and requested_count > declaration.base:
+        if declaration.holds_anything():
+            message = (
+                f'the partition asks for channels 0-{requested_count - 1}, but inner games hold '
+                f'channels from channel {declaration.base}: finish them first, then call '
+                f'{RESERVE_INNER_GAME_CHANNELS_CALL} again'
+            )
+            raise ChannelsHeldError(message)
+        return None, declaration
+    if inner_games > 0 and declaration is not None and declaration.holds_anything():
+        message = (
+            'inner games hold channels of the earlier declaration: finish them before an engine '
+            'declares its own'
+        )
+        raise ChannelsHeldError(message)
+    return declaration, None
+
+
 def reserve_inner_game_channels(
     *,
     games: int,
@@ -474,6 +534,17 @@ def reserve_inner_game_channels(
     the mixer never grows again: growing it while sound plays reallocates pygame's channel table
     without SDL's audio lock (BUGS.md #145), so a growth with a channel playing is refused.
 
+    The inner games' channels lie above the outer's partition, so it is made first: when the
+    current context's engine has not partitioned yet (``INNER_GAMES`` unset: it partitions as
+    ``start()`` makes its event managers), this call has it partition now
+    (``GameEngine.reserved_channel_partition``, with its own options), so the engine's own
+    partition later finds it made and the declaration stays. Without an engine the mixer must
+    already be partitioned (``glitchygames.audio.engine.default_channel_partition()``, or an
+    engine's): declared on an unpartitioned mixer, the inner games' channels would start at
+    channel 0, and the first partition made afterwards (an engine's start, or a scene manager's
+    first ``audio``) would cover them and forget them, so the first inner game built would fail
+    far from the cause. That is refused here instead.
+
     Declaring again is allowed only while no inner game holds a channel (finish them first);
     the mixer then only grows, never shrinks. Without a mixer nothing is declared (an inner game
     built then fails alone).
@@ -491,6 +562,9 @@ def reserve_inner_game_channels(
     Raises:
         ValueError: If ``games`` is below 1 or a channel count is negative.
         ChannelsHeldError: If an inner game holds channels of an earlier declaration.
+        InnerGameChannelsError: If the mixer is not partitioned and no engine can partition it
+            now, or the mixer must grow while a channel plays (BUGS.md #145; the engine's own
+            partition made here refuses that growth with ``MixerBusyError``).
     """
     if games < 1:
         message = f'games must be >= 1, got {games}'
@@ -507,6 +581,16 @@ def reserve_inner_game_channels(
             'reserve_inner_game_channels again'
         )
         raise ChannelsHeldError(message)
+    _partition_with_the_current_engine()
+    if not _mixer_partitioned():
+        message = (
+            "the mixer is not partitioned yet, so the inner games' channels would start at "
+            'channel 0, where the outer partition made later would cover and forget them: '
+            'declare after GameEngine(...) (it partitions now), set Scene.INNER_GAMES on the '
+            'host scene class, or partition first '
+            '(glitchygames.audio.engine.default_channel_partition())'
+        )
+        raise InnerGameChannelsError(message)
     layout = _lay_out_inner_game_channels(
         games=games,
         heard_set_channels=heard_set_channels,
@@ -515,6 +599,36 @@ def reserve_inner_game_channels(
     )
     _apply_the_reservation()
     return layout
+
+
+def _partition_with_the_current_engine() -> None:
+    """Have the current context's engine partition the mixer now, if it has not yet.
+
+    An engine whose game sets no ``INNER_GAMES`` partitions as ``start()`` makes its event
+    managers; a declaration made before that (after ``GameEngine(...)``) must lie above that
+    partition, so it is made first, with the engine's own options. Nothing happens in an inner
+    context (its engine never partitions), without an engine, or once it partitioned.
+    """
+    if is_inner_context():
+        return
+    # Imported here: the engine imports the audio package, which imports this module
+    from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
+
+    engine = current_context().value(slot=CURRENT_ENGINE_SLOT).engine
+    if engine is not None and engine.channel_partition is None:
+        engine.reserved_channel_partition()
+
+
+def _mixer_partitioned() -> bool:
+    """Whether a partition was made on the running mixer (``reserve_channels``).
+
+    Returns:
+        True when the last partition's channel count is the running mixer's.
+    """
+    return (
+        bool(_partitioned_mixer)
+        and pygame.mixer.get_num_channels() == _partitioned_mixer['channel_count']
+    )
 
 
 def _lay_out_inner_game_channels(
@@ -555,8 +669,8 @@ def _lay_out_inner_game_channels(
             raise InnerGameChannelsError(message)
         pygame.mixer.set_num_channels(top + legacy_count)
     channel_count = pygame.mixer.get_num_channels()
-    if _partitioned_mixer:
-        _partitioned_mixer['channel_count'] = channel_count
+    # Every caller partitioned first (reserve_channels, or a declaration on a partitioned mixer)
+    _partitioned_mixer['channel_count'] = channel_count
     declared = _inner_game_channels
     declared.channel_count = channel_count
     declared.base = base
@@ -642,6 +756,8 @@ class _InnerChannelsHolder:
             channels while followed (``plain_plays_followed``), by channel, as last seen.
         sounds_at_call_start: Each unreserved channel's sound when the followed call under way
             began, or None outside one.
+        context_name: The name of the context holding them (an exhausted declaration's error
+            names each holder), set when its live pool is taken.
     """
 
     partition: ChannelPartition | None = None
@@ -650,6 +766,7 @@ class _InnerChannelsHolder:
     generation: int = 0
     plain_plays: dict[int, pygame.mixer.Sound] = dataclasses.field(default_factory=dict)
     sounds_at_call_start: dict[int, pygame.mixer.Sound | None] | None = None
+    context_name: str = ''
 
 
 # Each engine context's inner-game channels (glitchygames.engine_context; Arcade sub-plan 4,
@@ -720,13 +837,20 @@ def inner_context_partition(*, live_pool: int, library_channels: int) -> Channel
         if pool_holder is None
     ]
     if not free_pools:
+        holder_names = ', '.join(
+            repr(pool_holder.context_name)
+            for pool_holder in declaration.live_pool_holders
+            if pool_holder is not None
+        )
         message = (
-            f'all {len(declaration.live_pool_holders)} inner games declared are running: '
-            f'finish one, or declare more ({RESERVE_INNER_GAME_CHANNELS_CALL})'
+            f'all {len(declaration.live_pool_holders)} inner games declared are running '
+            f'({holder_names}): finish one (InnerGame.finish(), also for one the host dropped), '
+            f'or declare more ({RESERVE_INNER_GAME_CHANNELS_CALL})'
         )
         raise InnerGameChannelsError(message)
     pool_index = free_pools[0]
     declaration.live_pool_holders[pool_index] = holder
+    holder.context_name = current_context().name
     partition = ChannelPartition(
         live=declaration.live_pool_channels(index=pool_index)[:live_pool],
         library=tuple(range(library_channels)),
@@ -926,6 +1050,17 @@ def plain_plays_followed() -> Generator[None]:
     with the very sound object, so a channel whose followed sound ended and that now plays
     another context's sound is never taken for this one's.
 
+    A context that went silent inside the body (a finish, which makes it silent) has its plain
+    plays stopped then; a plain play the body started after that is stopped as the body ends,
+    since nothing would stop it later.
+
+    One edge pygame cannot tell apart: a ``Sound`` object shared by two audible contexts (the
+    host and its heard game, or two heard games at once). When this context's
+    followed play of it ends and the other context plays the same object on the channel it
+    left, the channel still plays "that very sound", so it is taken for this context's play and
+    stopped when this context goes silent. Only one shared object played plain is affected
+    (each game loads its own sounds, and the engine's shared samples play on the voice table).
+
     Yields:
         Nothing; the body's plain plays are followed.
     """
@@ -936,6 +1071,11 @@ def plain_plays_followed() -> Generator[None]:
     finally:
         holder.plain_plays = _plain_play_sounds(holder)
         holder.sounds_at_call_start = None
+        if not current_context().value(slot=AUDIO_ROUTE_SLOT).audible:
+            # Started after the context went silent in the body: never heard past it
+            for channel_index in holder.plain_plays:
+                pygame.mixer.Channel(channel_index).stop()
+            holder.plain_plays = {}
 
 
 def plain_play_channel_indices() -> tuple[int, ...]:
@@ -968,7 +1108,11 @@ def stop_plain_plays_and_mute_the_live_pool() -> None:
         return
     for channel_index in holder.partition.live:
         channel = pygame.mixer.Channel(channel_index)
-        for chunk in (channel.get_sound(), channel.get_queue()):
+        # The queue first: a chunk ending between the two reads moves the queued one to playing,
+        # which the second read then finds (read the other way, it would be missed at volume 1)
+        queued_chunk = channel.get_queue()
+        playing_chunk = channel.get_sound()
+        for chunk in (playing_chunk, queued_chunk):
             if chunk is not None:
                 chunk.set_volume(0.0)
 

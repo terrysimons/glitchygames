@@ -53,8 +53,8 @@ The rules:
    host declares its inner games once, before anything plays (``INNER_GAMES`` on its scene
    class, which its engine declares at construction, or
    ``glitchygames.audio.reserve_inner_game_channels(games=...)`` after ``GameEngine(...)`` and
-   before ``start()``; never in ``setup()``, after the CRT power-on's sound started), and the
-   mixer never grows again. An inner game's engine never
+   before ``start()``, which has that engine partition first; never in ``setup()``, after the
+   CRT power-on's sound started), and the mixer never grows again. An inner game's engine never
    partitions the mixer: its build takes a live pool for its live voices, and its sound
    library has its recording's ``--sound-channels`` as slots, played on one of two heard sets
    only while it is heard (``set_audible(audible=True)`` takes one; the sets alternate between
@@ -66,14 +66,25 @@ The rules:
    reads False afterwards), stops its live voices, discards
    its context's audio engine (never ``release_channels``, the process's) and gives its heard
    set and live pool back; so does a build that failed, each part contained as the finish's.
-7. **Only the heard game is heard** (decision 6): while an inner game is audible its plain
-   ``Sound.play()`` plays are heard on the unreserved channels, and followed: each build, step
-   and finish notes the channels it started a sound on (``plain_plays_followed``: an
-   unreserved channel playing another sound after the call than before it; the host runs no
-   code inside the call). When it goes silent (``set_audible(audible=False)``, or its finish),
-   its heard voices fade over 50 ms, the plain plays it started that still play that very
-   sound are stopped, and the chunks on its live pool are muted. The host's own sounds, and
-   another inner game's, are never stopped, even on a channel one of its sounds left.
+   The host must call ``finish()`` on every inner game it drops before its end: nothing gives
+   the channels back otherwise (no ``__del__``: when a collection would run is not the host's
+   to choose), so a host looping tiles that drops them unfinished runs out of its declared
+   live pools, and the failing build's error names the contexts still holding them.
+7. **Only the heard game is heard** (decisions 1 and 6). Keeping one inner game heard is the
+   host's job: the engine lets two be heard at once, one on each heard set (a host may make the
+   next game heard before it silences the last, a crossfade), and refuses a third
+   (``InnerGameChannelsError`` from ``set_audible(audible=True)``). While an inner game is
+   audible its plain ``Sound.play()`` plays are heard on the unreserved channels, and
+   followed: each build, step and finish notes the channels it started a sound on
+   (``plain_plays_followed``: an unreserved channel playing another sound after the call than
+   before it; the host runs no code inside the call). When it goes silent
+   (``set_audible(audible=False)``, or its finish), its heard voices fade over 50 ms, the plain
+   plays it started that still play that very sound are stopped, and the chunks on its live
+   pool are muted. The host's own sounds, and
+   another inner game's, are never stopped, even on a channel one of its sounds left, except
+   when both play the very same ``Sound`` object (``plain_plays_followed``'s edge). A plain play
+   the game starts after it went silent within the same call (its finish) is stopped as the
+   call ends.
 
 A recorded quit (every golden ends with its game's quit control) ends only its inner game:
 the QUIT is posted to and drained from the context's private queue, never SDL's.
@@ -312,7 +323,7 @@ class InnerGame:
         self._run_ended_by: str | None = None
         self._finished = False
         with self._context.active():
-            # Silent from its creation (rule 5): its host makes at most one inner game audible
+            # Silent from its creation (rule 5): keeping one inner game heard is its host's job
             set_audible(audible=False)
         with self._context.active(), self._plain_plays_kept_off_the_mixer():
             try:

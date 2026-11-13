@@ -25,6 +25,7 @@ from pydantic import BaseModel, ConfigDict
 
 from glitchygames.audio.engine import (
     AudioEngine,
+    default_channel_partition,
     discard_audio_engine,
     existing_audio_engine,
     install_audio_engine,
@@ -1235,6 +1236,8 @@ def check_audio_route(*, first: EngineContext, second: EngineContext) -> None:
 
 def check_inner_channels(*, first: EngineContext, second: EngineContext) -> None:
     """Each context keeps its own inner channels, none in the default context; released apart."""
+    # The outer partition first, as a host's engine makes it: a declaration lies above it
+    default_channel_partition()
     reserve_inner_game_channels(games=2, heard_set_channels=2, live_channels_per_game=1)
     with first.active():
         first_partition = inner_context_partition(live_pool=1, library_channels=2)

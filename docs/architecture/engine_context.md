@@ -121,7 +121,8 @@ the contract; `plans/2026-11-12-arcade-3-inner-game.md`):
    prints, is the outcome's `report`, logged at INFO.
 9. **Only the heard game is heard** (Arcade sub-plan 4, `plans/2026-11-13-arcade-4-sound.md`;
    [Sound](sound.md), "Inner games"): each context has an audio route (`is_audible()`); a new
-   inner game is silent and its host makes at most one heard (`InnerGame.set_audible`). The host
+   inner game is silent and keeping one heard is its host's job (`InnerGame.set_audible`; the
+   engine lets two be heard at once, one per heard set, and refuses a third). The host
    declares its inner games once, before anything plays (`Scene.INNER_GAMES`, or
    `reserve_inner_game_channels`), and the mixer grows that once to two heard sets and a live
    pool per inner game; an inner build never partitions the mixer. A silent tile touches no
