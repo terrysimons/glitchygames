@@ -437,4 +437,34 @@ ALIASES: Final[dict[str, str]] = {
     # Portuguese: Gaita galega, Spanish: Gaita gallega) is the traditional instrument of Galicia
     # and northern Portugal."): the Galician name of the catalog's galician gaita
     'gaita galega': 'galician gaita',
+    # --- Batch 13's organs: the organ stops, in the order of
+    # plans/data/instrument-audit/batch-13.tsv
+    # http://www.organstops.org/o/OpenDiapason.html (the Encyclopedia of Organ Stops; its
+    # Principal entry lists the stop's names "Principal English" "Diapason English" "Open
+    # Diapason English") and Audsley, Organ-Stops and Their Artistic Registration (1921,
+    # https://archive.org/download/cu31924086010331/cu31924086010331_djvu.txt), DIAPASON: "Ger.,
+    # Prinzipal. Ital., Principale. Fr., Montre."; OPEN DIAPASON, of the manual: "In the former it
+    # is invariably of 8 ft.": the English name of the principal stop, the catalog's pipe organ
+    # principal (8')
+    'open diapason': 'pipe organ principal',
+    # Audsley, Organ-Stops and Their Artistic Registration (1921,
+    # https://archive.org/download/cu31924086010331/cu31924086010331_djvu.txt), TRUMPET:
+    # "TRUMPET.— Fr., Trompette. Ger., Trompete." "The manual lingual stop, of 8 ft. pitch, to
+    # which these names are given by the organ-builders of different countries" (OCR errors in the
+    # archive.org text corrected); the Encyclopedia of Organ Stops
+    # (http://www.organstops.org/t/Trumpet.html) lists "Trompette French" among the stop's names:
+    # the French name of the trumpet stop, the catalog's pipe organ reed ("Pipe organ, trumpet
+    # 8'")
+    'organ trompette': 'pipe organ reed',
+    # --- Batch 13's organs: the organs as instruments, in the order of
+    # plans/data/instrument-audit/batch-13.tsv
+    # https://en.wikipedia.org/wiki/Calliope_(instrument) ("is an American musical instrument that
+    # produces sound by sending a gas, originally steam or, more recently, compressed air, through
+    # large whistles—originally locomotive whistles."): the calliope blown by compressed air, the
+    # same whistles, which no source sets apart in sound; the catalog's calliope
+    'air calliope': 'calliope',
+    # https://en.wikipedia.org/wiki/Calliope_(instrument)#Calliaphone ("The air-driven calliope is
+    # sometimes called a calliaphone, the name given to it by Norman Baker"): the air calliope's
+    # other name, so the catalog's calliope
+    'calliaphone': 'calliope',
 }

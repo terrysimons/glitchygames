@@ -1750,10 +1750,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 12 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 13 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
   batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682
-  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11, 693 after batch 12) toward every instrument a game might
+  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11, 693 after batch 12, 703 after batch 13) toward every instrument a game might
   want, in one verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates,
   only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
@@ -1932,7 +1932,51 @@ This document tracks planned future features for the GlitchyGames project. Featu
   chanter) wait for a sourced range, `ciaramella` stays batch 11's (the sheet's row drops it,
   naming batch 11's), `electronic bagpipe` is dropped to the electronic family (an electrophone
   that imitates the Highland pipe; the electronic batch is done, so a later electronic pass
-  decides it), and no name the sheets found belongs to the organs batch. Next: organs
+  decides it), and no name the sheets found belongs to the organs batch.
+  Batch 13 (organs) is done: of its 70 sheet rows (64 candidates and 6 audit alias names) 3
+  shipped as builds of their own (`stopped diapason`, with `STOPPED_FLUTE_LEVELS`; `cornet
+  organ`, five unbroken ranks summed into one wave by `compound_stop_levels`; and `organ
+  clarinet`, with `CLOSED_REED_LEVELS`), 7 became sound-alikes (`bourdon` of `stopped diapason`
+  at 16', C2-G4 on the pedal; `salicional` and `voix celeste` of `pipe organ string`; `organ
+  oboe`, `organ tuba` and `posthorn` of `pipe organ reed`; `organ krummhorn` of `organ
+  clarinet`, each giving its own sourced range), 32 wait (14 for a sourced range, 5 for a sourced
+  footage, 5 for a range above C8, 2 for more than four sources, 3 for a build of their own, 1
+  for a pitch and amplitude LFO and 2 because their target waits), 4 became aliases (`open
+  diapason` of `pipe organ principal`, `organ trompette` of `pipe organ reed`, `air calliope` and
+  `calliaphone` of `calliope`) and 24 were dropped; the family grew from 9 to 19 entries (703 in
+  all, 120 aliases and 196 sound-alikes). `organs.py` now holds the family (moved unchanged from
+  `keyboards.py`, which keeps the keyboards and the electromechanical instruments; its table is
+  `_ORGAN_BUILDS`, and `ORGANS` is `_ORGAN_BUILDS + ORGAN_SOUND_ALIKES`) and
+  `organ_sound_alikes.py` its sound-alikes. The footage mechanism is new: a stop sounds at its
+  footage against its keys (`_pipe_stop`'s `footage`, carried by `blown`'s `semitones`), and a
+  sound-alike stop at another footage than its parent carries it as
+  `sound_changes={'footage': ...}` (`bourdon`, the only one; the test table is
+  `ORGAN_STOP_FOOTAGES`). No self-playing organ shipped (each waits for a sourced range), so
+  `Tag.MECHANICAL` is still only on the `music box` and `MECHANICAL_ORGAN_NAMES` is empty.
+  `ORGAN_HELD_BACK`, the guard for every wait that is not for a range, holds 16 names
+  (`diaphonic diapason`, `gedeckt`, `kinura`, `larigot`, `nasard`, `organ bombarde`, `organ
+  mixture`, `organ trombone`, `piccolo organ`, `rohrflote`, `scharff`, `sesquialtera`,
+  `spitzflote`, `tierce`, `vox humana` and `bible regal`). The base of the branch is `5cbbf882`
+  (batch 12's final review fixes). The audit's "Gaps you could not close"
+  (`plans/data/instrument-audit/organs.md`: the hydraulis's Aquincum data; the MIMO and Met regal
+  and barrel organ records unopened; the kinura, posthorn and diaphonic diapason needing a theatre
+  organ source; Lowrey, Baldwin and the Compton Electrone unread; the Cavaillé-Coll stops (flûte
+  harmonique, gambe), the Spanish horizontal reeds (trompeta real, chirimía), the Dutch hoboy,
+  schalmei and rankett stops, the Welte Philharmonie organ, Wurlitzer opus lists, Allen, Rodgers
+  and digital organs; theatre organ percussion, which is tuned percussion's; the bell organ) are a
+  later pass over this family. The hand-offs are decided here: `vox humana` (waits for the
+  tremulant, with `kinura`, `regal` and `bible regal` sharing a short-resonator trait),
+  `voix celeste` (a sound-alike), `serinette` and `flute clock` (each waits for a sourced
+  range), `kinura` (waits for a build of its own) and `band organ` (waits for a sourced range)
+  are decided here; `dulciana` and `gemshorn` stay as earlier sheets decided them (batch 11's
+  and batch 9's); `orchestrion` and `reed organ` are decided here (`orchestrion` waits for a
+  sourced range, `reed organ` is dropped to free reeds), so the keyboards and free reeds batches
+  must not decide them again; `orchestrelle` is the free reeds batch's; each electric organ is
+  dropped to electronic or electromechanical for a later pass of those families (`lowrey organ`,
+  `baldwin organ` and `farfisa` to electronic, `compton electrone` and `choralcelo` to
+  electromechanical, `hammond b3` and `telharmonium` already decided there, `vox continental`
+  an existing alias of `combo organ`); and `chromelodeon` is dropped to free reeds. No name the
+  sheets found belongs to the clarinets batch. Next: clarinets
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
@@ -1958,7 +2002,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sheet `plans/data/instrument-audit/batch-11.tsv`
 - **Plan (batch 12)**: `plans/2026-11-12-instrument-catalog-batch-12-implementation.md`; audit
   sheet `plans/data/instrument-audit/batch-12.tsv`
-- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 and 12 done (requested by the owner 2026-11-06)
+- **Plan (batch 13)**: `plans/2026-11-12-instrument-catalog-batch-13-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-13.tsv`
+- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 and 13 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
@@ -3889,6 +3935,303 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Found**: batch 12's reviews (2026-11-13)
 - **Status**: TODO
 - **Priority**: Medium (before the organs batch builds on the same catalog)
+
+### 83. Sound Engine: The Owner's Checks on Instrument Catalog Batch 13 — TODO
+- **Goal**: confirm or overturn the calls made while batch 13 of #70 ran, and listen to its new
+  instruments (organs 9 to 19 entries). Three builds, 7 sound-alikes, 32 waits, 4 aliases and 24
+  drops in the sheet's 70 rows (SHIP 3, SOUND_ALIKE 7, WAIT 32, ALIAS 4, DROP 24). Several calls
+  were reversed during the batch (the list below): `open diapason` and `organ trompette` became
+  aliases (the first was a sound-alike in the plan), `organ bombarde` went from shipping to
+  waiting for a footage, the 6 organs held back for an engine feature (`fairground organ`, `dance
+  organ`, `orchestrion`, `panharmonicon`, `regal`, `band organ`) wait for a range first, and
+  `carousel organ` was dropped
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+  level, filter, chiff and release is sound design unless a source is cited in the code; the
+  folder is `build/instruments/organs/`):
+  - [ ] The new builds: `stopped diapason` (`STOPPED_FLUTE_LEVELS`, the flute stop's levels with
+    the even harmonics silent: Audsley, a covered pipe's missing even harmonics; listen for a
+    hollow, flute-like tone against `pipe organ flute`, whose second harmonic is 0.1 where this
+    one's is 0.0003), `cornet organ` (five unbroken ranks, 8', 4', 2 2/3', 2' and 1 3/5', summed
+    into one wave by `compound_stop_levels`, C4-C7: listen for a bright, reedy flute chorus, not
+    a single pipe, and for the top notes, whose upper ranks sound as high as E9) and `organ
+    clarinet` (`CLOSED_REED_LEVELS`, odd harmonics only: Encyclopedia of Organ Stops, half-length
+    cylindrical resonators; listen for a hollow reed against `pipe organ reed`, whose second
+    harmonic is 0.75 where this one's is 0)
+  - [ ] The sound-alikes beside their parents (each sounds as its parent does, except `bourdon`):
+    `bourdon` (of `stopped diapason`, at 16': an octave below it, on the pedal keys C2-G4, so it
+    sounds C1-G3), `salicional` and `voix celeste` (of `pipe organ string`), `organ oboe`, `organ
+    tuba` and `posthorn` (of `pipe organ reed`) and `organ krummhorn` (of `organ clarinet`). The
+    stops at another footage than 8' are named here: only `bourdon` (16'); the other six are 8'
+  - [ ] The 4 aliases beside their parents, which are the same instrument by name: `open
+    diapason` (of `pipe organ principal`), `organ trompette` (of `pipe organ reed`), `air
+    calliope` and `calliaphone` (of `calliope`)
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-13.tsv`; the sheet's 70 rows:
+  SHIP 3, SOUND_ALIKE 7, WAIT 32, ALIAS 4, DROP 24):
+  - [ ] Every WAIT (32 rows), by reason:
+    - 14 for a sourced range: `band organ`, `chamber organ`, `dance organ`, `fairground organ`,
+      `flute clock`, `hydraulis`, `orchestrion`, `panharmonicon`, `perroquette`, `portative
+      organ`, `pyrophone`, `regal`, `serinette`, `street organ`. Range first: the six held back
+      for an engine limit (the fairground and dance organs, `orchestrion`, `panharmonicon`,
+      `regal` and `band organ`) have no sourced range either, so they wait for one, and each
+      row's notes keep its engine limit ("Engine limit, once ranged": a fairground organ's drums
+      and percussion, which the spec counts as more than four sources; a regal's short
+      resonators). `band organ` waits for a range directly, not for its target
+    - 5 for a sourced footage: `gedeckt`, `organ bombarde`, `organ trombone`, `rohrflote`,
+      `spitzflote`. The sources give the stop at several footages with none usual, or disagree
+      (Audsley alone gives the bombarde at 16', against the Encyclopedia's "16', 8'"; the same
+      split made the trombone wait)
+    - 5 for a range above C8: `larigot` (1 1/3'), `nasard` (2 2/3' on the manual), `piccolo organ` (2'), `sesquialtera` (2 2/3' and 1 3/5') and `tierce` (1 3/5')
+    - 2 for more than four sources: `organ mixture` and `scharff`, whose ranks break back across
+      the compass (see the compound-stop call below: the blocker is the breaks)
+    - 3 for a build of their own: `diaphonic diapason` (the diaphone's beating pallet), `kinura`
+      (inharmonic partials) and `bible regal` (beating reeds in tiny pipes, not quite an inch
+      long)
+    - 1 for a pitch and amplitude LFO (the tremulant): `vox humana`
+    - 2 because their target waits: `fire organ` (for `pyrophone`) and `bird organ` (for
+      `serinette`)
+    - `ORGAN_HELD_BACK` holds the 16 that wait for something other than a range (the 5 + 5 + 2 +
+      3 + 1 above), every one a name no test lets into the catalog or the aliases
+  - [ ] The stop-or-setting ruling: an organ stop is an entry (it is a rank or a named set of
+    ranks of pipes of its own, with its own voicing, and a game asks for it by name: the catalog's
+    `pipe organ` stops already are), while a registration (several stops drawn together, as `pipe
+    organ plenum` already is), the tremulant, the couplers and the swell are settings, a technique
+    the player applies, unless a cited source makes one part of a stop's own sound (the vox
+    humana's tremulant, which is why it waits). Confirm, in particular that `pipe organ plenum`
+    stays an entry
+  - [ ] The footage ruling: a stop sounds at its footage against its keys (8' at the key, 16' an
+    octave below, 4' an octave above, 2 2/3' a twelfth above), through `_pipe_stop`'s `footage`,
+    carried by `blown`'s new `semitones` (the chiff is not moved). Footage is pitch, never timbre,
+    so a footage difference alone is never a SHIP: a stop at another footage than a catalog stop
+    is a sound-alike with `sound_changes={'footage': ...}` (`bourdon` is the only one). A source
+    that gives a stop at several footages with none usual makes the row wait for `a sourced
+    footage`, a source wait this batch added. Confirm footage as pitch, and the footage
+    sound-alikes
+  - [ ] The sounding span: a stop's sounding span, its keys moved by its first rank's footage,
+    must lie between A0 and C8 (range ruling 8), so a 2' stop on C2-C7 sounds C4-C9 and waits for
+    a range above C8, which is the one reason `larigot`, `nasard`, `piccolo organ`,
+    `sesquialtera` and `tierce` wait. The question: would you relax it (a stop may sound above C8
+    when its keys do not), which would ship five stops at once
+  - [ ] The cornet's top ranks sound up to E9 while `piccolo organ` waits: the rules judge only
+    the first rank's span (rules 4 and 6), so `cornet organ` (C4-C7 on the keys, its 2' and 1 3/5'
+    ranks sounding to C9 and E9) ships and the 2' `piccolo organ` waits for the same notes. Either
+    the cornet's upper ranks are above the span too, or the span is a pitch-of-the-key rule
+    and the piccolo ships; this is the previous call's inconsistency
+  - [ ] Compound stop against mixture: a compound stop whose ranks are all unbroken harmonics 1 to
+    32 of the key is one wave (as `pipe organ plenum`'s nine drawbars are one wave), a SHIP built
+    with `compound_stop_levels` (the cornet: its source calls the five ranks unbroken, "all of
+    wide scale"). A mixture whose source says its ranks break back across the compass (`organ
+    mixture`, `scharff`) is the spec's "large mixtures" and waits for `more than four sources`,
+    but that label hides the real blocker: the breaks, the key at which each rank steps back an
+    octave, which one fixed wave per entry cannot make, not the number of ranks. `compound_stop_levels`
+    refuses a footage that is not 8/n (stricter than the plan). Confirm both the rule and the
+    label (or a new wait name for the breaks)
+  - [ ] The range ruling for organs (the owner kept the range rule strict, 2026-11-09): a stop's
+    range is its keys at 8' pitch, with the stop's footage from a fetched source; the division's
+    standard compass (the AGO's, from a source that calls it standard) is the stop's own range,
+    unless the stop's own source states one; a keyless organ's range is its sounding notes; never
+    hedged ("about", "usually", "common"), a width ("61 notes", "five octaves"), a pipe or tune
+    count, a footage alone ("at 2' pitch"), note letters with no octave, a key or one pitch;
+    museum, maker and organ-reference sources over an uncited Wikipedia line; nothing below A0 or
+    above C8; a one-note instrument has no range; a cited Wikipedia line counts when its citation
+    supports it. The stop range rule: every one-rank stop takes its keys, never a sibling's or the
+    parent's, and every derived range and footage is in the sheet's `notes`: `stopped diapason`,
+    `organ clarinet`, `organ oboe`, `organ krummhorn`, `organ tuba`, `posthorn`, `salicional` and
+    `voix celeste` C2-C7 on the 61-note manual (the Pipe organ page, cited to the AGO's Pipe Organ
+    Guide: "sixty-one notes (five octaves, from C to c⁗)", c⁗ read as C7 by the page's own
+    Helmholtz notation), all at 8'; `cornet organ` C4-C7 (the Encyclopedia of Organ Stops: "usually
+    from middle C upwards") with the five ranks 8' + 4' + 2 2/3' + 2' + 1 3/5';
+    `bourdon` C2-G4 on the pedal at 16'. Confirm the rule and each derived range
+  - [ ] `bourdon` on the pedal (C2-G4 keys, sounding C1-G3): Audsley says the 16' bourdon "most
+    frequently appears, in English and American instruments of moderate dimensions, in the Pedal
+    Organ" and the Encyclopedia calls it "possibly the single most common 16' pedal stop"; the
+    pedal's compass is the AGO guide's "Some have 30 notes-to F above middle C; others have 32-to
+    G above middle C", with low C the lowest written note (the OSI brochure's "CCC to G" is the
+    same board read at 16'). The row first took the manual (C2-C7) and was ruled onto the pedal. If
+    "CCC to G" is the keys, the range is an octave lower (C1-G3 keys, C0 sounding: sub-audio)
+  - [ ] `posthorn` is ranged on the church console (C2-C7, the Pipe organ page's AGO line) though
+    it is a theatre stop (the Encyclopedia of Organ Stops: "The English Post Horn was originally
+    designed by Hope-Jones as a 16' Reed"): a theatre-compass gap, the same gap the audit left for the kinura and the diaphonic diapason
+    (needing a theatre organ source). Is the church compass acceptable for it?
+  - [ ] `organ clarinet`'s full-manual range (C2-C7) is borderline: Audsley says English builders
+    "very frequently" make it of tenor-C form (a short compass), a competing compass, though his
+    "should be carried, in all cases" to the full manual is a recommendation, not a statement of
+    what is usual. The full manual stands under ruling 3; confirm or give it the tenor-C range
+  - [ ] Celestes: a celeste is "an organ stop consisting of either one or two ranks of pipes
+    slightly out of tune" (the Voix céleste page). One rank beats only against another stop drawn
+    with it, which is a registration, a setting, so `voix celeste` is a sound-alike of `pipe organ
+    string` with no change; two ranks would ship as `_pipe_stop(..., chorus_cents=...)` only with a
+    sourced detune in cents, else the row waits for `a sourced detune`, the second source wait this
+    batch added. No row used either: `chorus_cents` was not added. Confirm the ruling, and that
+    one rank's few cents sharp is no trait
+  - [ ] Organ-only parents: a stop's parent is an organ stop chosen by its family from its own
+    page or an organ reference (a principal `pipe organ principal`, a flute `pipe organ flute`, a
+    string `pipe organ string`, a chorus reed `pipe organ reed`), never another family's entry:
+    `organ oboe` is a reed stop, not the double reed, and `organ krummhorn` is not the crumhorn
+    (its parent is `organ clarinet`, a closed reed). Confirm
+  - [ ] `STOPPED_FLUTE_LEVELS`, `CLOSED_REED_LEVELS` and `compound_stop_levels` (`chorus_cents`
+    was not added), each with the trait its source names: `STOPPED_FLUTE_LEVELS` is `(1.0, 0.0,
+    0.12, 0.0, 0.02)`, `FLUTE_STOP_LEVELS` with the even harmonics silent (Audsley, The Organ of
+    the Twentieth Century, 1919: the covered pipe's missing even harmonics, "Covered pipes cannot
+    give the uneven upper partial tones"); `CLOSED_REED_LEVELS` is `falling_series(count=28,
+    decibels_per_octave=2.5,
+    odd_only=True)` (the Encyclopedia of Organ Stops, Clarinet: cylindrical resonators of half
+    length, reinforcing the odd-numbered harmonics), with a line in the process-state guard's
+    `CATALOG_SERIES`; `compound_stop_levels` places each rank's levels at harmonic 8/footage and
+    normalises. Every level and `chiff` is copied from the parent's table and marked sound design.
+    The test `test_a_stopped_or_closed_stop_sounds_odd_harmonics` measures them (stopped
+    diapason h2 0.0003, organ clarinet h2 0.0, against 0.10 and 0.75 for the open flute and reed)
+  - [ ] The short-resonator trait: `kinura`, `vox humana`, `regal` and `bible regal` share it
+    (Encyclopedia of Organ Stops: the kinura "of the Regal class"; Audsley: the vox humana's
+    resonators of cylindrical form, covered at the top; the regal and bible regal's tiny pipes,
+    "not intended to reinforce the vibrations" in EB1911), but none was built: three wait for a
+    build of their own or the tremulant and the regals for a range first. Decide them together
+    once one is ranged (a `SHORT_RESONATOR_LEVELS` table, or all four wait)
+  - [ ] The mechanical organs: no self-playing organ shipped (each waits for a sourced range:
+    `serinette`, `flute clock`, `street organ`, `fairground organ`, `dance organ`, `band organ`,
+    `orchestrion`, `panharmonicon`, `perroquette`), so `Tag.MECHANICAL` is still only on the
+    `music box` and `MECHANICAL_ORGAN_NAMES` is empty. A keyless organ's sources give a pipe count,
+    a tune count or a footage ("ten pipes", "2' pitch") rather than notes, which ruling 5 refuses;
+    a fairground organ's or orchestrion's drums and cymbals would count as more than four sources
+    (the spec names the orchestrion). Confirm, and say whether a pipe count with a footage should
+    ever range a keyless organ
+  - [ ] The calliope ruling: `air calliope` and `calliaphone` are aliases of `calliope` (the
+    Calliope page: "The air-driven calliope is sometimes called a calliaphone", the name Norman
+    Baker gave it; steam and air are the same instrument blown by another gas), and no row made the
+    steam's pitch drift with temperature its sound, so none waits for a pitch LFO. The catalog's
+    `calliope` (C3-G5) stays, unsourced (Bugs, below)
+  - [ ] `open diapason` and `organ trompette` are aliases, not sound-alikes: the Encyclopedia of
+    Organ Stops lists "Open Diapason English" among the principal's names and "Trompette French"
+    among the trumpet's, and neither cites a trait, so decision 8's "a true alias stays an alias"
+    decides them alike. The plan had `open diapason` a sound-alike. Confirm both
+  - [ ] The boundary: free-reed organs (`reed organ`, `chromelodeon`) are dropped to free reeds
+    (H-S 412.132; the `orchestrelle` is the free reeds batch's); electric organs are dropped to
+    electronic or electromechanical (`lowrey organ` and `baldwin organ`, H-S 53; `compton
+    electrone`, H-S 52; `choralcelo`, H-S 51: piano strings vibrated by electromagnets), both
+    batches done, so #70 lists each for a later pass; `hammond b3`, `telharmonium` and `vox
+    continental` were already decided; the pyrophone and the hydraulis are organs, so both wait
+    for a range
+  - [ ] `farfisa` is dropped as a maker's name, not one instrument (the Farfisa page is the
+    company's: "a manufacturer of electronics ... founded in 1946", making many models), as
+    `baldwin organ` and `lowrey organ` are. If you want it, it is an electronic organ
+    alias
+  - [ ] `choralcelo` is dropped to electromechanical on 120years.net (Wikipedia's page is a 404):
+    the site was accepted as a source in batch 6, but it is a history site, not a museum, maker or
+    organ reference (the range rule's list). Confirm it as the source
+  - [ ] The bible regal's Met free-reed ambiguity: the Met's two "Bible Regal" records (502605 and
+    505061) are classified "Aerophone-Free Reed-harmonium", so museums give the name to later
+    free-reed instruments as well as the Renaissance beating-reed regal. No single source gives
+    the name to both, so `bible regal` stays its own row (waiting for a build of its own: EB1911
+    sets it apart, "unpleasantly harsh tone, due to their tiny pipes, not quite an inch long";
+    Edinburgh MIMEd 4331 gives "Compass 49 notes, C₂ - C₆", the one range any regal has), not an
+    alias of `regal`, and `regal organ` is dropped as the audit's name for `regal`. A range from
+    MIMEd would still leave the name ambiguous
+  - [ ] Generic and ambiguous terms dropped: `barrel organ` (a class: its page covers street,
+    chamber and church barrel organs; the page is tagged `{{original research}}`), `limonaire` (the
+    generic French term for fairground organs after Gavioli, the Limonaire Frères page), `carousel
+    organ` (no fetched page uses the name; reversed from a target alias of `fairground organ`, as
+    `regal organ`), and `dulciana` and `gemshorn` as earlier sheets decided them (batch 11's DROP:
+    also the dulcian's Italian name; batch 9's WAIT: the vessel flute, whose page says the organ
+    stop is modelled on it). Already decided, so decided here: dulciana, gemshorn and
+    `hydraulophone` (batch 9's WAIT, flutes: the sheet's row is DROP "Already decided")
+  - [ ] One-offs and the in-production line: `componium`, `apollonicon`, `sea organ`, `beer bottle
+    organ`, `bubble organ`, `uberorgan` and `sequential resonation machine` are dropped as one-off
+    instruments (one maker's or artist's design not in production), `hydraulis` and `portative
+    organ` are not (makers build reconstructions today, and museums hold the type). The Audsley
+    quotes in the code comments are corrected from the OCR text (".A.merican" to "American",
+    "naroes" to "names", "organ- builders" and "depart- ment" unhyphenated): the sheet keeps the
+    scan's text, the code comments the reading
+  - [ ] The module move: `organs.py` holds the family (moved unchanged from `keyboards.py`, which
+    keeps the keyboards and the electromechanical instruments; the way batches 9, 11 and 12 moved
+    their families), its table is `_ORGAN_BUILDS` and `ORGANS` is `_ORGAN_BUILDS +
+    ORGAN_SOUND_ALIKES`, and the process-state guard's three `falling_series` lines
+    (`PRINCIPAL_LEVELS`, `REED_STOP_LEVELS`, `STRING_STOP_LEVELS`) moved with the tables, with a
+    fourth for `CLOSED_REED_LEVELS`. The before-and-after record of all 693 builds found `changed:
+    []`
+  - [ ] `ORGAN_HELD_BACK`, the guard for every non-range wait: 16 names (above), refused as a
+    catalog name or an alias by a test and compared with the sheet by the code check. The plan's
+    dispatch said `bible regal` only (the half B ruling); the plan's rule, the brief and the code
+    check all require every wait that is not for a range, which brings in half A's 15
+  - [ ] The two-half split as explicit lists (half A, the organ stops, 29 candidates; half B, the
+    organs as instruments and the 6 audit alias names, 41 rows), the two sheets researched in
+    parallel, and the shared files (the names file, the candidate lists and the three check
+    scripts) written up front by a setup agent. Tasks 3 and 5 (the two halves' code) went to one
+    implementer, since half B shipped only two aliases and held back `bible regal`. No code task
+    was skipped by ruling
+  - [ ] Engine features named beyond the spec's table, for its "What the engine cannot make yet":
+    `a sourced footage` and `a sourced detune` (source waits this plan added; the first has 5 rows,
+    the second none), `its own build (the diaphone's beating pallet)`, `its own build
+    (inharmonic partials)`, `its own build (beating reeds in tiny pipes, not quite an inch long)`,
+    `a pitch and amplitude LFO (the tremulant)`, and mixtures' breaks (under `more than four
+    sources`)
+- **Bugs to report** (found while building batch 13; none fixed here):
+  - [ ] The 9 earlier entries carry no source comment (`combo organ` is already in #76), and no
+    range or build of theirs was checked against a source beyond the entries named here. No
+    fetched page contradicts `calliope`'s C3-G5 or `positive organ`'s C2-C6 (the Calliope page
+    gives only counts: "25 to 67 whistles, but 32 is traditional"), and nothing contradicted
+    `pipe organ plenum`'s drawbars or `theatre organ (tibia)`'s static chorus, though no source
+    was fetched for either, so both stay leads
+  - [ ] Wikipedia's regal page attaches a trait to all regals that its cited source gives only to
+    the bible regal: the page says the resonators are "not intended to reinforce the
+    vibrations", but its cited source, EB1911, says it of the bible regal's tiny pipes. The regal
+    row's 5 1/2 in. pipe length (EB1911) likewise describes the organ's regal pipes, not the table
+    instrument
+  - [ ] The cornet's top ranks sound up to E9, over the catalog's C8 limit (see the sounding-span
+    call): a check of the span on the first rank only lets a build past it
+  - [ ] The audit's "UNVERIFIED" existence rows (`kinura`, `posthorn` and `diaphonic diapason`
+    were marked "(existence and range) UNVERIFIED") were all confirmed from the Encyclopedia of
+    Organ Stops, but none from a theatre organ source
+  - [ ] A warning to understand: `pytest -W error` fails on a DeprecationWarning at import
+    ("aifc was removed in Python 3.13", from the standard-aifc package that `speech_recognition`
+    imports). It is third-party and present before this batch (#81 records it); a new warning in
+    these runs would be a new finding
+- **Follow-ups**:
+  - [ ] The audit's gaps (`plans/data/instrument-audit/organs.md`, listed in #70) are a later pass
+    over this family
+  - [ ] Ranging the 14 range WAITs from museum, maker and organ-reference sources (MIMO, the Met
+    once it answers, Edinburgh MIMEd, the Museum Speelklok, the Deutsches Musikautomaten-Museum,
+    organa.it's `portative` sizes, the Edinburgh, Colonial Williamsburg and Met chamber organs
+    (several sizes, none standard), Audsley's and the Encyclopedia of Organ Stops' other stops),
+    each row's notes recording what was searched; `regal` (MIMEd 4331's C2-C6, "Compass 49
+    notes") and the fairground organs are the best leads
+  - [ ] Check the 9 earlier entries against sources (ranges, builds, `theatre organ (tibia)`'s
+    static chorus and `pipe organ plenum`'s drawbars)
+  - [ ] The engine changes that unblock the waits above, most rows first: the 14 range waits need
+    no engine feature, the 5 footage waits need a source that fixes one footage (or the owner's
+    pick of the usual one), the 5 above-C8 waits need only the span ruling relaxed, the 2 mixtures
+    need breaks (a rank that steps back an octave at a note), a short-resonator build opens
+    `kinura`, `vox humana`, `regal` and `bible regal`, the tremulant needs a pitch and amplitude
+    LFO, and `diaphonic diapason` needs the diaphone's beating pallet
+  - [ ] The sheet's cells contain stray quote characters (some cells are CSV-quoted), so read it
+    with Python's csv module rather than splitting on tabs
+- **Incidents and process**:
+  - [ ] The Pi hook was skipped while the Pis were unreachable (the owner, 2026-11-13)
+  - [ ] The syft pin is 1.57.1 on the stack (the owner's choice, batch 12's note)
+  - [ ] Batch 11 was squash-merged into batch 10, and batch 12 merged batch 10's tip, batch 13's
+    base is batch 12's `5cbbf882`
+  - [ ] The controller's code check (`build/batch-13-code-check.py`) had a bug: its DROP and WAIT
+    branch asserted that no such name was in `CATALOG` or `ALIASES`, but `vox continental` is an
+    "Already decided" DROP that existed before the batch (batch 6's alias of `combo organ`) and
+    must still resolve. It was fixed so a DROP whose notes begin "Already decided" and whose name
+    was in the catalog before the batch must still be there, and the check prints `matches 70
+    rows`
+  - [ ] The two sheet halves were researched in parallel, and pushes and stacked PRs were made
+    without asking (the owner, 2026-11-12, #78)
+  - [ ] The reversals above (`open diapason` and `organ trompette`, `organ bombarde`, the six
+    held-back organs, `carousel organ` and the cornet's comparison) each followed a review round:
+    the half A sheet had one fix commit and half B one, so the sheet's own history holds the first
+    readings
+  - [ ] Parked minors from the reviews: the semitones test's -12 case would have passed with
+    `semitones` ignored (tightened in Tasks 3 and 5, which now also assert the tone repeats at its
+    expected period); `compound_stop_levels` refuses a non-harmonic footage (stricter than the
+    plan); the sheet's `organ oboe` row has no Encyclopedia URL, so its comment cites Audsley
+    only; `regal`'s 5 1/2 in. pipe inference and the `portative organ` and `chamber organ` rows'
+    museum and maker checks (several sizes, none standard) are in their notes; the quote check
+    accepts the raw Encyclopedia HTML only for passages without tags or entities (one cornet
+    passage quotes `Chemin&eacute;e` verbatim); each ranged row's saved page copy holds the 800 KB
+    Audsley text, in the gitignored `build/`
+- **Found**: batch 13's reviews (2026-11-13)
+- **Status**: TODO
+- **Priority**: Medium (before the clarinets batch builds on the same catalog)
 
 ### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
 - **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,

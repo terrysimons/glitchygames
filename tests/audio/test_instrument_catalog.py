@@ -1,6 +1,10 @@
 """The instrument catalog: every entry builds, renders across its range and plays its pitch."""
 
+import ast
+import csv
+from fractions import Fraction
 from functools import partial
+from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
@@ -9,6 +13,7 @@ import pytest
 from glitchygames.audio import instruments
 from glitchygames.audio.instrument import Filter, Instrument
 from glitchygames.audio.instruments import CatalogEntry, Family, Tag
+from glitchygames.audio.instruments.organs import FLUTE_STOP_LEVELS, compound_stop_levels
 from glitchygames.audio.instruments.registry import (
     FAMILY_TABLES,
     aliases_from,
@@ -218,6 +223,7 @@ def test_harmonic_instruments_sound_their_note(name):
     entry = instruments.entry(name)
     note = entry.middle_note()
     hertz = float(note.to_hz()) / (2.0 if name in SIXTEEN_FOOT_ORGANS else 1.0)
+    hertz *= 8.0 / footage_feet(ORGAN_STOP_FOOTAGES.get(name, '8'))
     samples = rendered(instruments.get(name), pitch=note.name, name=name)
     held = samples[round(0.15 * SAMPLE_RATE) : round(0.35 * SAMPLE_RATE)]
     found = best_period_near(held, hertz=hertz)
@@ -846,6 +852,10 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('lowland pipes', 'border pipes'),
         ('half long pipes', 'border pipes'),
         ('gaita galega', 'galician gaita'),
+        ('open diapason', 'pipe organ principal'),
+        ('organ trompette', 'pipe organ reed'),
+        ('air calliope', 'calliope'),
+        ('calliaphone', 'calliope'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -883,6 +893,9 @@ def test_the_batch_aliases_resolve(alias, target):
     the surna, the surnay and the zournas, and the bombarde as the bombard.
     Batch 12's bagpipes name the uilleann pipes as the irish pipes, the border pipes as the
     lowland pipes and the half long pipes, and the galician gaita as the gaita galega.
+    Batch 13's organ stops name the pipe organ principal as the open diapason (its English name)
+    and the pipe organ reed as the organ trompette (the trumpet stop's French name), and its
+    organs as instruments name the calliope as the air calliope and the calliaphone.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1067,11 +1080,12 @@ SOUND_EFFECT_NAMES = [
 # Every catalog entry that a source sets apart from its parent (empty today): it is its own
 # sound, so it gets the one-shot checks as the new drums do. A retuned bagpipe is left out: it
 # sustains, so the one-shot checks do not apply; test_a_retuned_bagpipe_sounds_its_sourced_drones
+# checks it. A stop at another footage sustains too; test_an_organ_stop_sounds_at_its_footage
 # checks it
 CHANGED_SOUND_ALIKE_NAMES = [
     catalog_entry.name
     for catalog_entry in instruments.entries()
-    if catalog_entry.sound_changes and catalog_entry.family != Family.BAGPIPES
+    if catalog_entry.sound_changes and catalog_entry.family not in {Family.BAGPIPES, Family.ORGANS}
 ]
 # Batch 3's new entries, in the sheet's order: the membranophones, then the idiophones
 NEW_DRUM_NAMES = [
@@ -1723,6 +1737,41 @@ BAGPIPE_SOUND_ALIKE_PARENTS: dict[str, str] = {}
 BAGPIPE_RETUNED_DRONES: dict[str, tuple[str, ...]] = {}
 
 
+# The 9 organs that predate batch 13: their shared builds predate the anti-goal rule
+EXISTING_ORGAN_NAMES: frozenset[str] = frozenset({
+    'pipe organ principal',
+    'pipe organ flute',
+    'pipe organ reed',
+    'pipe organ string',
+    'pipe organ plenum',
+    'positive organ',
+    'combo organ',
+    'theatre organ',
+    'calliope',
+})
+# Batch 13's organs with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-13.tsv)
+NEW_ORGAN_NAMES: list[str] = ['cornet organ', 'organ clarinet', 'stopped diapason']
+# Batch 13's organ sound-alikes and the entry each sounds like, in the sheet's order
+ORGAN_SOUND_ALIKE_PARENTS: dict[str, str] = {
+    'bourdon': 'stopped diapason',
+    'organ krummhorn': 'organ clarinet',
+    'organ oboe': 'pipe organ reed',
+    'organ tuba': 'pipe organ reed',
+    'posthorn': 'pipe organ reed',
+    'salicional': 'pipe organ string',
+    'voix celeste': 'pipe organ string',
+}
+# Batch 13's organ entries that sound at a footage other than 8' (a one-rank stop, through
+# _pipe_stop's footage), with the footage as the sheet writes it: the range is the keys at 8'
+# pitch and the stop sounds 12 x log2(8 / footage) semitones from them
+# (plans/data/instrument-audit/batch-13.tsv)
+ORGAN_STOP_FOOTAGES: dict[str, str] = {'bourdon': '16'}
+# Batch 13's self-playing organs (Tag.MECHANICAL), in catalog order: the builds, then the
+# sound-alikes, each in the sheet's order (plans/data/instrument-audit/batch-13.tsv)
+MECHANICAL_ORGAN_NAMES: list[str] = []
+
+
 # The 42 brass instruments that predate batch 10: their shared builds predate the anti-goal rule
 EXISTING_BRASS_NAMES: frozenset[str] = frozenset({
     'piccolo trumpet',
@@ -1885,6 +1934,7 @@ BATCH_FAMILIES: dict[Family, BatchFamily] = {
     Family.PLUCKED_STRINGS: BatchFamily(
         EXISTING_PLUCKED_NAMES, NEW_PLUCKED_NAMES, PLUCKED_SOUND_ALIKE_PARENTS
     ),
+    Family.ORGANS: BatchFamily(EXISTING_ORGAN_NAMES, NEW_ORGAN_NAMES, ORGAN_SOUND_ALIKE_PARENTS),
     Family.ELECTRONIC: BatchFamily(
         EXISTING_ELECTRONIC_NAMES,
         NEW_ELECTRONIC_NAMES,
@@ -2006,7 +2056,7 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         for name, parent in row.sound_alike_parents.items():
             assert name in listed_in_family, name
             assert instruments.entry(name).sounds_like == parent, name
-            if name in BAGPIPE_RETUNED_DRONES:
+            if instruments.entry(name).sound_changes:
                 assert instruments.get(name) != instruments.get(parent), name
             else:
                 assert instruments.get(name) == instruments.get(parent), name
@@ -2016,7 +2066,7 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         if catalog_entry.sounds_like is not None
     ]
     # The catalog lists families in table order: flutes, double reeds, bagpipes, brass, bowed
-    # strings, plucked strings, electronic, tuned percussion, drums, voices, then choirs, as
+    # strings, plucked strings, organs, electronic, tuned percussion, drums, voices, then choirs, as
     # registry.FAMILY_TABLES lists them
     assert every_sound_alike == (
         list(FLUTE_SOUND_ALIKE_PARENTS)
@@ -2025,6 +2075,7 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         + list(BRASS_SOUND_ALIKE_PARENTS)
         + list(BOWED_SOUND_ALIKE_PARENTS)
         + list(PLUCKED_SOUND_ALIKE_PARENTS)
+        + list(ORGAN_SOUND_ALIKE_PARENTS)
         + list(ELECTRONIC_SOUND_ALIKE_PARENTS)
         + list(TUNED_SOUND_ALIKE_PARENTS)
         + SOUND_ALIKE_NAMES
@@ -2314,3 +2365,245 @@ def test_a_cylindrical_chanter_sounds_odd_harmonics():
     assert cylinder[1] < 0.05
     assert cylinder[3] < 0.05
     assert highland[1] > 0.6
+
+
+# Every name plans/data/instrument-audit/batch-13.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for an engine feature, a build of its own, a sourced
+# footage or a sourced detune, and the alias rows that wait for one of them, in the sheet's order.
+# None ships under that name or as an alias until the reason is met (decision 4; batch 13). The
+# test matches exact names
+ORGAN_HELD_BACK: dict[str, str] = {
+    'diaphonic diapason': "its own build (the diaphone's beating pallet)",
+    'gedeckt': 'a sourced footage',
+    'kinura': 'its own build (inharmonic partials)',
+    'larigot': 'a range above C8',
+    'nasard': 'a range above C8',
+    'organ bombarde': 'a sourced footage',
+    'organ mixture': 'more than four sources',
+    'organ trombone': 'a sourced footage',
+    'piccolo organ': 'a range above C8',
+    'rohrflote': 'a sourced footage',
+    'scharff': 'more than four sources',
+    'sesquialtera': 'a range above C8',
+    'spitzflote': 'a sourced footage',
+    'tierce': 'a range above C8',
+    'vox humana': 'a pitch and amplitude LFO (the tremulant)',
+    'bible regal': 'its own build (beating reeds in tiny pipes, not quite an inch long)',
+}
+
+
+def test_no_organ_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is an organ the sheet holds back."""
+    assert set(ORGAN_HELD_BACK) & set(instruments.names()) == set()
+    assert set(ORGAN_HELD_BACK) & set(instruments.ALIASES) == set()
+
+
+def footage_feet(footage: str) -> float:
+    """A footage as the sheet writes it ('16', '2 2/3') in feet.
+
+    Returns:
+        The footage in feet.
+    """
+    return float(sum(Fraction(part) for part in footage.split()))
+
+
+def built_footage(catalog_entry: CatalogEntry) -> float:
+    """The footage an organ entry sounds at: its own change, its parent's, or its build's keyword.
+
+    Returns:
+        The footage in feet (8.0 for an entry built at its keys' pitch).
+    """
+    if 'footage' in catalog_entry.sound_changes:
+        return float(catalog_entry.sound_changes['footage'])
+    if catalog_entry.sounds_like is not None:
+        return built_footage(instruments.entry(catalog_entry.sounds_like))
+    if isinstance(catalog_entry.build, partial):
+        return float(catalog_entry.build.keywords.get('footage', 8.0))
+    return 8.0
+
+
+def test_blown_moves_its_tone_by_its_semitones():
+    """A blown tone given semitones sounds that far from the note; none leaves it unchanged.
+
+    An octave down repeats at twice the note's period, but so would the unmoved note (two of its
+    periods), so the tone must also repeat better at the expected period than at half of it, as
+    test_harmonic_instruments_sound_their_note checks: the unmoved A3 repeats equally well at
+    both.
+    """
+    for semitones, expected_hertz in ((12.0, 440.0), (-12.0, 110.0)):
+        instrument = blown(FLUTE_STOP_LEVELS, attack=0.04, release=0.15, semitones=semitones)
+        samples = rendered(instrument, pitch='A3', name=f'blown {semitones}')
+        held = samples[round(0.15 * SAMPLE_RATE) : round(0.35 * SAMPLE_RATE)]
+        found = best_period_near(held, hertz=expected_hertz)
+        assert abs(1200.0 * np.log2(found / expected_hertz)) < 30.0, (semitones, found)
+        whole = repetition_at(held, period_seconds=1.0 / expected_hertz)
+        half = repetition_at(held, period_seconds=0.5 / expected_hertz)
+        assert whole > half + 0.05, (semitones, whole, half)
+    assert blown(FLUTE_STOP_LEVELS, attack=0.04, release=0.15) == blown(
+        FLUTE_STOP_LEVELS, attack=0.04, release=0.15, semitones=0.0
+    )
+
+
+def test_an_organ_stop_sounds_at_its_footage():
+    """The organ entries not at 8' are exactly ORGAN_STOP_FOOTAGES, each at its footage.
+
+    A sound-alike that changes anything changes only its footage, which the harmonic test measures.
+    """
+    organ_entries = instruments.entries(family=Family.ORGANS)
+    off_unison = {
+        catalog_entry.name: catalog_entry
+        for catalog_entry in organ_entries
+        if built_footage(catalog_entry) != 8.0
+    }
+    assert set(off_unison) == set(ORGAN_STOP_FOOTAGES)
+    for name, footage in ORGAN_STOP_FOOTAGES.items():
+        assert built_footage(off_unison[name]) == pytest.approx(footage_feet(footage)), name
+    for catalog_entry in organ_entries:
+        if catalog_entry.sound_changes:
+            assert set(catalog_entry.sound_changes) == {'footage'}, catalog_entry.name
+
+
+def test_the_mechanical_organs_are_tagged():
+    """The self-playing organs, and only they, carry Tag.MECHANICAL."""
+    assert instruments.names(family=Family.ORGANS, tag=Tag.MECHANICAL) == tuple(
+        MECHANICAL_ORGAN_NAMES
+    )
+
+
+def eight_foot_relative_harmonics(name: str) -> list[float]:
+    """An organ entry's harmonics 1 to 4 at 8', relative to the first, at its middle note.
+
+    The entry's own build with ``footage`` set to 8.0, so a stop of another footage is measured
+    at its keys, as test_a_cylindrical_chanter_sounds_odd_harmonics measures a chanter.
+
+    Returns:
+        The peaks at harmonics 1 to 4, each divided by the first.
+    """
+    catalog_entry = instruments.entry(name)
+    build = catalog_entry.build
+    assert isinstance(build, partial), name
+    instrument = build.func(*build.args, **{**build.keywords, 'footage': 8.0})
+    note = catalog_entry.middle_note()
+    hertz = float(note.to_hz())
+    samples = render_sound(spec_for(instrument, name=name, pitch=note.name, length=1.0)).samples
+    held = samples[round(0.1 * SAMPLE_RATE) : round(0.9 * SAMPLE_RATE)]
+    magnitude = np.abs(np.fft.rfft(held * np.hanning(len(held))))
+    frequencies = np.fft.rfftfreq(len(held), 1 / SAMPLE_RATE)
+    peaks = [
+        float(np.max(magnitude[np.abs(frequencies - harmonic * hertz) < hertz / 4.0]))
+        for harmonic in (1, 2, 3, 4)
+    ]
+    return [peak / peaks[0] for peak in peaks]
+
+
+def test_a_stopped_or_closed_stop_sounds_odd_harmonics():
+    """A stopped flue's and a closed reed's even harmonics are far below their odd ones.
+
+    A stopped flue pipe gives no even harmonics (Audsley, The Organ of the Twentieth Century,
+    https://archive.org/download/organoftwentieth00audsuoft/organoftwentieth00audsuoft_djvu.txt:
+    "Covered pipes cannot give the uneven upper partial tones, such as the first or octave and
+    the third or super-octave"), and the clarinet stop's half-length cylindrical resonators
+    "reinforce the odd-numbered harmonics" (the Encyclopedia of Organ Stops,
+    http://www.organstops.org/c/Clarinet.html). The stopped diapason (STOPPED_FLUTE_LEVELS) and
+    the organ clarinet (CLOSED_REED_LEVELS) are set against the open stops they are made from,
+    pipe organ flute and pipe organ reed, each at 8' at its middle note (F#4 for all four).
+    Measured: the stopped diapason's second and fourth 0.00032 and the flute's second 0.100; the
+    organ clarinet's second and fourth 0.00000 and the reed's second 0.750. The bounds (under
+    0.01; above 0.05 and 0.5) keep room either side.
+    """
+    stopped_flute = eight_foot_relative_harmonics('stopped diapason')
+    open_flute = eight_foot_relative_harmonics('pipe organ flute')
+    closed_reed = eight_foot_relative_harmonics('organ clarinet')
+    open_reed = eight_foot_relative_harmonics('pipe organ reed')
+    assert stopped_flute[1] < 0.01
+    assert stopped_flute[3] < 0.01
+    assert open_flute[1] > 0.05
+    assert closed_reed[1] < 0.01
+    assert closed_reed[3] < 0.01
+    assert open_reed[1] > 0.5
+
+
+def test_a_compound_stop_sums_its_ranks_as_harmonics():
+    """A compound stop's ranks sit at harmonics 8 / footage of the key, summed and normalised.
+
+    The footage ruling's rule 4 (plans/2026-11-12-instrument-catalog-batch-13-implementation.md):
+    an 8' and a 4' rank of (1.0, 0.5) sum to (1.0, 1.5, 0.0, 0.5), divided by its loudest 1.5;
+    a 2 2/3' rank sounds the twelfth, harmonic 3, and a 1 3/5' rank the seventeenth, harmonic 5.
+    A rank off the harmonic series, or above harmonic 32, is refused.
+    """
+    assert compound_stop_levels((1.0, 0.5), (8.0, 4.0)) == pytest.approx((
+        1.0 / 1.5,
+        1.0,
+        0.0,
+        0.5 / 1.5,
+    ))
+    assert compound_stop_levels((1.0,), (8.0 / 3.0,)) == (0.0, 0.0, 1.0)
+    assert compound_stop_levels((1.0,), (1.6,)) == (0.0, 0.0, 0.0, 0.0, 1.0)
+    with pytest.raises(ValueError, match='harmonic'):
+        compound_stop_levels((1.0,), (3.0,))
+    with pytest.raises(ValueError, match='32'):
+        compound_stop_levels((1.0, 0.5), (0.25,))
+
+
+def _sheet_number(node: ast.expr) -> float:
+    """Read a footage the sheet writes as a number or a division of numbers (``8.0 / 3.0``).
+
+    Only number literals and ``/`` are accepted, so nothing in the sheet is ever executed.
+
+    Returns:
+        The footage the node spells out.
+
+    Raises:
+        AssertionError: The sheet writes the footage some other way.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, int | float):
+        return float(node.value)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        return _sheet_number(node.left) / _sheet_number(node.right)
+    message = f'the sheet writes a footage this test does not read: {ast.unparse(node)}'
+    raise AssertionError(message)
+
+
+def test_the_cornet_organ_ships_the_levels_its_sheet_row_names():
+    """The cornet's own build matches the builder cell of its row in batch-13.tsv.
+
+    The cell reads ``_pipe_stop(compound_stop_levels(FLUTE_STOP_LEVELS, (8.0, 4.0, 8.0 / 3.0,
+    2.0, 1.6)), chiff=0.02)``. The footages are read out of the cell and run through
+    compound_stop_levels, so the sheet and the shipped build can not drift apart.
+    """
+    sheet = Path(__file__).parents[2] / 'plans' / 'data' / 'instrument-audit' / 'batch-13.tsv'
+    with sheet.open(encoding='utf-8', newline='') as sheet_file:
+        rows = [
+            row
+            for row in csv.DictReader(sheet_file, delimiter='\t')
+            if row['name'] == 'cornet organ'
+        ]
+    assert len(rows) == 1
+    builder_cell = rows[0]['builder'].split(', as an inline partial')[0]
+    builder_call = ast.parse(builder_cell, mode='eval').body
+    assert isinstance(builder_call, ast.Call)
+    compound_call = builder_call.args[0]
+    assert isinstance(compound_call, ast.Call)
+    footages_node = compound_call.args[1]
+    assert isinstance(footages_node, ast.Tuple)
+    footages = tuple(_sheet_number(element) for element in footages_node.elts)
+    expected = compound_stop_levels(FLUTE_STOP_LEVELS, footages)
+
+    build = instruments.entry('cornet organ').build
+    assert isinstance(build, partial)
+    assert build.args[0] == expected
+    assert build.keywords == {'chiff': 0.02}
+    assert all(level > 0.0 for level in expected[:5])
+    assert max(expected) == 1.0
+
+
+def test_compound_stop_levels_refuses_empty_levels_and_a_footage_of_zero():
+    """Empty levels, no ranks and a footage of zero or less each raise a ValueError saying so."""
+    with pytest.raises(ValueError, match='at least one harmonic level'):
+        compound_stop_levels((), (8.0,))
+    with pytest.raises(ValueError, match='at least one rank'):
+        compound_stop_levels((1.0,), ())
+    with pytest.raises(ValueError, match='above zero'):
+        compound_stop_levels((1.0,), (0.0,))
+    with pytest.raises(ValueError, match='above zero'):
+        compound_stop_levels((1.0,), (-8.0,))
