@@ -83,7 +83,7 @@ repos:
     - id: compare-drivers
       name: compare-drivers (dummy vs the native driver, each its own run)
       language: system
-      entry: uv run --extra dev nox -s compare-drivers -- --drivers native --fail-on-difference
+      entry: uv run --extra dev nox -s compare-drivers -- --drivers native --fail-on-difference --workers auto --skip-when-frames-cannot-change
       pass_filenames: false
       stages: [pre-push]
 

@@ -67,12 +67,11 @@ amore``, ``nyckelharpa`` and ``hurdy gurdy`` stay as the approximations they wer
 Flutes (33 entries) hold their builds in ``flutes.py`` (``piccolo`` to ``contrabass flute``,
 ``recorder`` sizes, ``tin whistle``, ``shakuhachi``, ``pan flute``, ``ocarina``) and their
 sound-alikes in ``flute_sound_alikes.py`` (``csakan`` and ``soprano recorder``, ``subcontrabass
-recorder`` and ``contrabass recorder``, ``ryuteki`` and ``bansuri``). ``winds.py`` keeps the five
-reed families. The family is pitched, so each sound-alike gives its own sourced range (sounding,
-stated, never hedged or extreme). A flute whose sound is a moving one (``slide whistle``,
-``pea whistle``), a buzzing membrane (``qudi``, ``daegeum``) or a voice (``tsuur``) waits, and
-``dizi`` stays as the approximation it was, never a parent. ``penny whistle``, ``syrinx`` and
-three more names are aliases.
+recorder`` and ``contrabass recorder``, ``ryuteki`` and ``bansuri``). The family is pitched, so each
+sound-alike gives its own sourced range (sounding, stated, never hedged or extreme). A flute whose
+sound is a moving one (``slide whistle``, ``pea whistle``), a buzzing membrane (``qudi``,
+``daegeum``) or a voice (``tsuur``) waits, and ``dizi`` stays as the approximation it was, never a
+parent. ``penny whistle``, ``syrinx`` and three more names are aliases.
 
 Voices (56 entries) and choirs (13 entries) hold their builds in ``voices.py`` (``soprano ah`` to
 ``basso profundo hum``, ``whistling``, ``choir soprano ah``, ``childrens choir``), which shares one
@@ -83,6 +82,55 @@ are not instruments. A voice type that no source sets apart in sound is a sound-
 its source names, on ``ah`` alone, and it gives its own sourced range (stated, never hedged or
 extreme). Everything that needs moving formants (throat singing, ``yodel``), a vibrato, or a
 buzzing membrane (``kazoo``, ``swazzle``) waits, and ``contralto`` and ``boy soprano`` are aliases.
+
+Brass (44 entries) holds the family's builds in ``brass.py`` (``piccolo trumpet`` to
+``tuba``, the trombones, the mutes, ``natural horn``, ``alphorn``, ``serpent``) and its
+sound-alikes in ``brass_sound_alikes.py`` (``bass wagner tuba`` and ``wagner tuba``, ``soprano
+trombone`` and ``trumpet``). The family is pitched, so each sound-alike gives its own sourced
+range (sounding, stated, never hedged or extreme: a written range counts only with the
+transposition its source states). A brass instrument whose sound is a moving one (``bazooka``,
+``didjeribone``) or a buzzing membrane (``sudrophone``) waits, as does ``subcontrabass tuba``
+(sub-audio fundamentals), or one that needs a build of its own (``tenor cornett``, ``vienna
+horn``), and ``didgeridoo`` stays as the approximation it was,
+never a parent, though it has aliases (``yidaki``, ``mako``). The shells are aliases of ``conch``
+only where a source presents the name as the conch itself.
+
+Double reeds (25 entries) hold the family's builds in ``double_reeds.py`` (``oboe``, ``english
+horn``, ``bassoon``, ``contrabassoon``, ``heckelphone``, ``sarrusophone``, the shawms, the
+crumhorns, ``suona``, ``zurna``, ``duduk``) and their sound-alikes in
+``double_reed_sound_alikes.py`` (``contraforte`` and ``contrabassoon``, ``piccolo heckelphone``
+and ``heckelphone``). ``winds.py`` keeps the clarinets, saxophones
+and free reeds. The family is pitched, so each sound-alike gives its own sourced range
+(sounding, stated, never hedged, "comfortable" or "theoretical"). A double reed whose range no
+source states waits (most of them, among them the other sarrusophone sizes, the folk shawms and
+``aulos``; ``balaban`` waits for a build that models its cylindrical bore), and ``piri`` stays as
+the approximation it was, never a parent. ``cor anglais``,
+``fagott``, ``bombard`` and eight more names are aliases.
+
+Bagpipes (9 entries) hold the family's builds in ``bagpipes.py`` (``highland bagpipe``,
+``uilleann pipes``, ``border pipes``, ``galician gaita``, ``bulgarian gaida``, ``musette de cour``
+and ``sackpipa``, the family's first cylindrical chanter) and their sound-alikes in
+``bagpipe_sound_alikes.py`` (none yet). ``winds.py`` keeps the clarinets, saxophones and free
+reeds. A bagpipe's drones are fixed pitches inside its build, so a sound-alike in another tuning
+carries its own drones as ``sound_changes``. The family is pitched, so a sound-alike gives its own
+sourced range (sounding, stated, never hedged) and sourced drones. A bagpipe whose range no source
+states waits (nearly all of them), and ``scottish smallpipes`` joins ``piri`` as an approximation
+(a cylindrical bore the build lacks), never a parent. ``irish pipes``, ``lowland pipes``, ``half
+long pipes`` and ``gaita galega`` are aliases.
+
+Organs (19 entries) hold the family's builds in ``organs.py`` (the ``pipe organ`` stops and
+``plenum``, ``positive organ``, ``theatre organ``, ``calliope``, and the batch's ``stopped
+diapason``, ``cornet organ`` and ``organ clarinet``) and their sound-alikes in
+``organ_sound_alikes.py`` (``salicional``, ``voix celeste``, ``organ oboe``, ``organ krummhorn``,
+``organ tuba``, ``posthorn`` and ``bourdon``). ``keyboards.py`` keeps the keyboards and the
+electromechanical instruments. A stop sounds at its footage against its keys (a 16' an octave
+below, a 4' an octave above), and a sound-alike stop at another footage than its parent carries it
+as ``sound_changes`` (``bourdon``, the stopped diapason at 16'). A stop's range is its keys at 8'
+pitch. A stop whose footage no source gives, whose sounding span passes C8 (the 2' stops and high
+mutations), whose mixture breaks back or whose tone needs a tremulant waits (16 names are held back
+for such a reason), and ``open diapason``, ``organ trompette``, ``air calliope`` and
+``calliaphone`` are aliases. No self-playing organ shipped (each waits for a sourced range), so
+``Tag.MECHANICAL`` is still only on the ``music box``.
 
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and

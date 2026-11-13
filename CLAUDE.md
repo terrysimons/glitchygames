@@ -132,7 +132,7 @@ nox -s timer-report        # Report this machine's timer accuracy: VM?, CPU shar
 nox -s replay-metrics      # (the project's editable install) Rebaseline every golden replay + bundled demo headless; append run-ledger rows to test-results/replay-metrics/pending.jsonl (skips this commit+machine; `-- --force`, `-- --allow-dirty`, `-- --only TEXT`)
 nox -s test-linux-x11      # Tests on Linux in Docker: X11 windows on XQuartz, sound on the Mac's PulseAudio (starts it; `pulseaudio --kill` stops it; macOS)
 nox -s test-linux-ci       # Tests as CircleCI's Linux job runs them, in Docker: its amd64 image, 2 GB without swap, 1 CPU, serial, CI=true, the RSS guard (read from .circleci/config.yml); results in test-results/linux-ci/
-nox -s compare-drivers     # N-way matrix: dummy x2, native, x11-macos, x11-linux (whatever runs here), each its own run; `-- --drivers a,b` (`native`: every native driver here), `-- tests/x`; report test-results/driver-comparison/nox/matrix.md. A pre-push hook runs `-- --drivers native --fail-on-difference`: a driver difference stops the push (BUGS.md #254)
+nox -s compare-drivers     # N-way matrix: dummy x2, native, x11-macos, x11-linux (whatever runs here), each its own run; `-- --drivers a,b` (`native`: every native driver here), `-- tests/x`; report test-results/driver-comparison/nox/matrix.md. Each run has 4 workers (`-- --workers N`, `-- --workers auto` every core). A pre-push hook runs `-- --drivers native --fail-on-difference --workers auto --skip-when-frames-cannot-change`: a driver difference stops the push (BUGS.md #254), and a push whose every path is under plans/, docs/, quality/, .circleci/ or .github/, or is root Markdown, skips the comparison (no frame can change; `_path_cannot_change_frames`)
 nox -s build-sdl-x11       # Build SDL with x11 for macOS (cached in ~/Library/Caches/glitchygames/sdl-x11; SDL_DYNAMIC_API loads it) and check it on XQuartz
 
 # --- Code quality ---
@@ -1339,18 +1339,12 @@ M2 next)
 - Instrument catalog (`audio/instruments/`): `instruments.get('violin')` is an ordinary
   `Instrument` (built once per process), `instruments.entry(name)` its title, family and range
   (`lowest`/`highest`, sounding; None for unpitched drums, whose fixed tones ignore the pitch
-  given). 688 entries in 23 `Family`s (every size of each family, voices soprano to basso
+  given). 703 entries in 23 `Family`s (every size of each family, voices soprano to basso
   profundo on five vowels; `Tag.MECHANICAL` marks mechanical ones and `Tag.CHIP` sound-chip
   voices, `names(tag=...)` lists them;
-  `ALIASES` (read-only, as `CATALOG` is) maps 85 other names to catalog names, resolved by
+  `ALIASES` (read-only, as `CATALOG` is) maps 120 other names to catalog names, resolved by
   `get`/`entry`; a sound-alike is its own entry sharing a parent's build via `sounds_like`, with
-  optional sourced `sound_changes`; 185 in all, and a pitched one, as the plucked strings' and bowed strings' are,
-  given). 684 entries in 23 `Family`s (every size of each family, voices soprano to basso
-  profundo on five vowels; `Tag.MECHANICAL` marks mechanical ones and `Tag.CHIP` sound-chip
-  voices, `names(tag=...)` lists them;
-  `ALIASES` (read-only, as `CATALOG` is) maps 78 other names to catalog names, resolved by
-  `get`/`entry`; a sound-alike is its own entry sharing a parent's build via `sounds_like`, with
-  optional sourced `sound_changes`; 181 in all, and a pitched one, as the plucked strings' and bowed strings' are,
+  optional sourced `sound_changes`; 196 in all, and a pitched one, as the plucked strings' and bowed strings' are,
   gives its own sourced range), each built by a shape in `timbres.py` (`blown`, `plucked`, `struck`, `rubbed`,
   `drum`, `with_drones`) from overtone series (`falling_series`, `plucked_series`,
   `formant_series`); `tests/audio/test_instrument_catalog.py` renders every entry across its

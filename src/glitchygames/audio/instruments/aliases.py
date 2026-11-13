@@ -313,4 +313,158 @@ ALIASES: Final[dict[str, str]] = {
     # generally prevailed."); https://www.horniman.ac.uk/object/M47-1991 ("Siyotanka, courting
     # flute."): the Lakota name for the catalog's native american flute
     'siyotanka': 'native american flute',
+    # --- Batch 10's brass, in the order of plans/data/instrument-audit/batch-10.tsv
+    # https://en.wikipedia.org/wiki/Piccolo_trumpet ("Most piccolo trumpets are built to play in
+    # either B-flat or A, using a separate leadpipe for each key."): one instrument set to
+    # either key by its leadpipe, so the key-first name is the catalog's piccolo trumpet
+    'b flat piccolo trumpet': 'piccolo trumpet',
+    # https://en.wikipedia.org/wiki/Tuba ("The euphonium, pitched in 9' B-flat a fourth above
+    # the bass tuba in F, is sometimes referred to as a tenor tuba, particularly by British
+    # composers."): another name for the euphonium
+    'tenor tuba': 'euphonium',
+    # https://en.wikipedia.org/wiki/Cornett ("The ordinary curved treble cornett is made by
+    # splitting a length of wood, usually walnut, boxwood or other tonewoods like plum, cherry
+    # or pear."): the page makes the ordinary cornett the treble
+    'treble cornett': 'cornett',
+    # https://collections.ed.ac.uk/stcecilias/record/99179 ("In French the instrument was called
+    # cornet a pistons (cornet with pistons - meaning valves) to distinguish it from its
+    # predecessor the cornet de poste (post horn)."): the French name for the catalog's cornet
+    'cornet a pistons': 'cornet',
+    # https://en.wikipedia.org/wiki/Tenor_horn ("The tenor horn (British English; alto horn in
+    # American English, sometimes E-flat horn) is a brass instrument in the saxhorn family
+    # pitched in E-flat with three piston valves."): the British name for the alto horn
+    'tenor horn': 'alto horn',
+    # https://en.wikipedia.org/wiki/Cornett ("The cornett (Italian: cornetto, German: Zink) is a
+    # lip-reed wind instrument"): the German name for the cornett
+    'zink': 'cornett',
+    # --- Batch 10's second half: the natural horns and trumpets, shells and animal horns
+    # https://en.wikipedia.org/wiki/Conch_(instrument) ("In Tibet it is known as dung-dkar or
+    # dungkar."): the Tibetan name for the catalog's conch
+    'dung dkar': 'conch',
+    # https://en.wikipedia.org/wiki/Hakgediya ("The hakgediya is a type of conch shell (the
+    # shell of a large marine gastropod mollusk) which is used as a kind of trumpet"): the conch
+    # shell blown as a trumpet, with no trait of its own (its notes vary only in volume)
+    'hakgediya': 'conch',
+    # https://en.wikipedia.org/wiki/Titanostrombus_galeatus ("The shells of this species were
+    # used as a wind instruments by the Chavín," "They are still used for this purpose in the
+    # Andes, where they are known as pututu."): the Andean name for the catalog's conch
+    'pututu': 'conch',
+    # https://en.wikipedia.org/wiki/Conch_(instrument) ("The sacred chank, Turbinella pyrum, is
+    # known in India as the shankha"): the Indian name for the catalog's conch
+    'shankha': 'conch',
+    # https://en.wikipedia.org/wiki/French_horn (infobox, other names: "German: Horn, Waldhorn,
+    # Ventilhorn"): a German name for the catalog's french horn
+    'waldhorn': 'french horn',
+    # https://en.wikipedia.org/wiki/Natural_horn ("In 1753 Anton Hampel alongside Johann
+    # Werner,[who?] developed the Inventionshorn, built with a fixed mouthpiece so that the horn
+    # remained at the same distance no matter how many crooks were added."): the natural horn
+    # with crooks, no valves, by a design name
+    'inventionshorn': 'natural horn',
+    # https://en.wikipedia.org/wiki/Didgeridoo ("Yiḏaki (transcribed yidaki in English,
+    # sometimes spelt yirdaki) is one of the most commonly used names"): a name for the
+    # catalog's didgeridoo
+    'yidaki': 'didgeridoo',
+    # https://en.wikipedia.org/wiki/Didgeridoo ("In the Bininj Kunwok language of West Arnhem
+    # Land it is known as mako (pronounced, and sometimes spelt, as mago)."): the West Arnhem
+    # Land name for the catalog's didgeridoo
+    'mako': 'didgeridoo',
+    # https://en.wikipedia.org/wiki/Alphorn ("The alphorn (German: Alphorn, Alpenhorn; French:
+    # cor des Alpes; Italian: corno alpino) is a traditional lip-reed wind instrument."):
+    # another name for the catalog's alphorn
+    'alpenhorn': 'alphorn',
+    # https://en.wikipedia.org/wiki/Conch_(instrument) ("The Arawak word 'fotuto' was used to
+    # describe this instrument, and is still used to this day to refer to conch instruments,"):
+    # another name for the catalog's conch
+    'fotuto': 'conch',
+    # --- Batch 11's double reeds, in the order of plans/data/instrument-audit/batch-11.tsv
+    # https://en.wikipedia.org/wiki/Cor_anglais ("The cor anglais ... or English horn (mainly
+    # North America), is a double-reed woodwind instrument in the oboe family."): another name
+    # for the catalog's english horn
+    'cor anglais': 'english horn',
+    # https://en.wikipedia.org/wiki/Bass_oboe ("The bass oboe or baritone oboe is a double reed
+    # instrument in the woodwind family."): another name for the catalog's bass oboe
+    'baritone oboe': 'bass oboe',
+    # https://en.wikipedia.org/wiki/Bassoon ("The term for bassoon used in classical music scores
+    # and parts is often its Italian name fagotto (plural fagotti), which referred initially to
+    # the dulcian. This word, adopted in many other European languages as fagot, fagote, or in
+    # German, Fagott, comes from an Old French word meaning a bundle of sticks."): the German
+    # name of the modern bassoon
+    'fagott': 'bassoon',
+    # https://en.wikipedia.org/wiki/Rackett ("The rackett, raggett, cervelas, or sausage bassoon
+    # is a Renaissance-era double reed wind instrument"): another name for the catalog's rackett
+    'cervelas': 'rackett',
+    # https://en.wikipedia.org/wiki/Gyaling ("As its name indicates, it is the Chinese double reed
+    # Suona horn (much like the Iranian sorna) used mainly in Tibetan monasteries during puja
+    # (chanting and prayer)"): the suona under its Tibetan name
+    'gyaling': 'suona',
+    # https://en.wikipedia.org/wiki/Zurna ("Also called sunay, birbynė, lettish horn, zurla or
+    # zurle, surla, sornai, zournas, zurma, or zurnes."): another name for the catalog's zurna
+    'zurla': 'zurna',
+    # https://en.wikipedia.org/wiki/Bombard_(musical_instrument) ("The bombard (Breton: bombard,
+    # talabard, French: bombarde) is a contemporary family of oboes widely used to play
+    # traditional Breton music, where it is considered emblematic."): the Breton instrument that
+    # is the catalog's bombarde
+    'bombard': 'bombarde',
+    # https://en.wikipedia.org/wiki/Surna (a disambiguation page: "Zurna or Surna, a
+    # multinational outdoor wind instrument" and "Sorna or Surna, an ancient Iranian woodwind
+    # instrument"): the name also covers the sorna, a distinct instrument that is not in the
+    # catalog, so it stands for the zurna, the disambiguation's first sense
+    'surna': 'zurna',
+    # https://en.wikipedia.org/wiki/Zurna (its Persian name: "Persian: karna/Kornay/surnay"):
+    # another name for the catalog's zurna. The Sorna page gives "surnāy" for the sorna too, so
+    # like surna it stands for the zurna, the sense the Zurna page gives directly
+    'surnay': 'zurna',
+    # https://en.wikipedia.org/wiki/Zurna ("Also called sunay, birbynė, lettish horn, zurla or
+    # zurle, surla, sornai, zournas, zurma, or zurnes." and "Greek: ζουρνάς"): the Greek name of
+    # the catalog's zurna
+    'zournas': 'zurna',
+    # https://en.wikipedia.org/wiki/Suona ("The suona, also called dida, laba or haidi, is a
+    # traditional double-reeded Chinese musical instrument."): another name for the catalog's
+    # suona
+    'haidi': 'suona',
+    # --- Batch 12's bagpipes, in the order of plans/data/instrument-audit/batch-12.tsv
+    # https://en.wikipedia.org/wiki/Uilleann_pipes ("also known as Union pipes and sometimes called
+    # Irish pipes, are the characteristic national bagpipe of Ireland."): another name for the
+    # catalog's uilleann pipes
+    'irish pipes': 'uilleann pipes',
+    # https://en.wikipedia.org/wiki/Border_pipes ("Other names have been used for the instrument:
+    # Lowland pipes and reel pipes in Scotland, and half-long pipes in Northumberland and
+    # Durham."): another name for the catalog's border pipes
+    'lowland pipes': 'border pipes',
+    # The same page: the Northumbrian name of the catalog's border pipes
+    'half long pipes': 'border pipes',
+    # https://en.wikipedia.org/wiki/Galician_gaita ("The Galician gaita (Galician: Gaita galega,
+    # Portuguese: Gaita galega, Spanish: Gaita gallega) is the traditional instrument of Galicia
+    # and northern Portugal."): the Galician name of the catalog's galician gaita
+    'gaita galega': 'galician gaita',
+    # --- Batch 13's organs: the organ stops, in the order of
+    # plans/data/instrument-audit/batch-13.tsv
+    # http://www.organstops.org/o/OpenDiapason.html (the Encyclopedia of Organ Stops; its
+    # Principal entry lists the stop's names "Principal English" "Diapason English" "Open
+    # Diapason English") and Audsley, Organ-Stops and Their Artistic Registration (1921,
+    # https://archive.org/download/cu31924086010331/cu31924086010331_djvu.txt), DIAPASON: "Ger.,
+    # Prinzipal. Ital., Principale. Fr., Montre."; OPEN DIAPASON, of the manual: "In the former it
+    # is invariably of 8 ft.": the English name of the principal stop, the catalog's pipe organ
+    # principal (8')
+    'open diapason': 'pipe organ principal',
+    # Audsley, Organ-Stops and Their Artistic Registration (1921,
+    # https://archive.org/download/cu31924086010331/cu31924086010331_djvu.txt), TRUMPET:
+    # "TRUMPET.— Fr., Trompette. Ger., Trompete." "The manual lingual stop, of 8 ft. pitch, to
+    # which these names are given by the organ-builders of different countries" (OCR errors in the
+    # archive.org text corrected); the Encyclopedia of Organ Stops
+    # (http://www.organstops.org/t/Trumpet.html) lists "Trompette French" among the stop's names:
+    # the French name of the trumpet stop, the catalog's pipe organ reed ("Pipe organ, trumpet
+    # 8'")
+    'organ trompette': 'pipe organ reed',
+    # --- Batch 13's organs: the organs as instruments, in the order of
+    # plans/data/instrument-audit/batch-13.tsv
+    # https://en.wikipedia.org/wiki/Calliope_(instrument) ("is an American musical instrument that
+    # produces sound by sending a gas, originally steam or, more recently, compressed air, through
+    # large whistles—originally locomotive whistles."): the calliope blown by compressed air, the
+    # same whistles, which no source sets apart in sound; the catalog's calliope
+    'air calliope': 'calliope',
+    # https://en.wikipedia.org/wiki/Calliope_(instrument)#Calliaphone ("The air-driven calliope is
+    # sometimes called a calliaphone, the name given to it by Norman Baker"): the air calliope's
+    # other name, so the catalog's calliope
+    'calliaphone': 'calliope',
 }

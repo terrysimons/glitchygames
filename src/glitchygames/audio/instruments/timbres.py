@@ -286,6 +286,7 @@ def blown(  # ruff: ignore[too-many-arguments] - each keyword is one physical tr
     drive: float = 0.0,
     chorus_cents: float = 0.0,
     bite_levels: Sequence[float] | None = None,
+    semitones: float = 0.0,
 ) -> Instrument:
     """A sustained tone: a wind, a bowed string, an organ pipe or a voice.
 
@@ -303,17 +304,22 @@ def blown(  # ruff: ignore[too-many-arguments] - each keyword is one physical tr
         chorus_cents: When above 0, a second copy of the tone this many cents sharp (two
             players, or a slightly unsteady pitch beating against itself).
         bite_levels: A brighter series that fades after the attack, or None.
+        semitones: Moves the tone's pitched layers this many semitones from the note (an organ
+            stop of another footage); the breath stays.
 
     Returns:
         The instrument.
     """
     tone_wave = wave_from_levels(levels)
-    sources: dict[str, Source] = {'tone': Source(tone_wave)}
+    sources: dict[str, Source] = {'tone': Source(tone_wave, semitones=semitones)}
     if chorus_cents > 0.0:
-        sources['chorus'] = Source(tone_wave, detune_cents=chorus_cents, level=CHORUS_LEVEL)
+        sources['chorus'] = Source(
+            tone_wave, semitones=semitones, detune_cents=chorus_cents, level=CHORUS_LEVEL
+        )
     if bite_levels is not None:
         sources['bite'] = Source(
             wave_from_levels(bite_levels),
+            semitones=semitones,
             level=0.6,
             envelope=envelope(
                 attack=attack, decay=BITE_DECAY_SECONDS, sustain=BITE_SUSTAIN, release=release
