@@ -33,7 +33,7 @@ from glitchygames.audio.waves import Harmonics, Wave
 # electrophone list is at https://en.wikipedia.org/wiki/Electrophone ("51=electrically actuated
 # acoustic instruments", "52=electrically amplified acoustic instruments"; it calls the Hammond
 # organ "an electromechanical instrument, as it used both mechanical elements and electronic
-# parts"). The ten moved entries keep their builders and their ranges unchanged; each cites its
+# parts"). The eleven moved entries keep their builders and their ranges unchanged; each cites its
 # sources below, as the audit sheet plans/data/instrument-audit/batch-2.tsv does.
 
 
