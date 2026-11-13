@@ -1612,6 +1612,58 @@ FLUTE_SOUND_ALIKE_PARENTS: dict[str, str] = {
 FLUTE_UNPITCHED_NAMES: frozenset[str] = frozenset()
 
 
+# The 42 brass instruments that predate batch 10: their shared builds predate the anti-goal rule
+EXISTING_BRASS_NAMES: frozenset[str] = frozenset({
+    'piccolo trumpet',
+    'trumpet',
+    'c trumpet',
+    'd trumpet',
+    'bass trumpet',
+    'trumpet straight mute',
+    'trumpet cup mute',
+    'trumpet harmon mute',
+    'cornet',
+    'soprano cornet',
+    'flugelhorn',
+    'bugle',
+    'post horn',
+    'french horn',
+    'descant horn',
+    'french horn stopped',
+    'natural horn',
+    'wagner tuba',
+    'mellophone',
+    'alto horn',
+    'baritone horn',
+    'euphonium',
+    'alto trombone',
+    'trombone',
+    'bass trombone',
+    'contrabass trombone',
+    'trombone cup mute',
+    'trombone plunger',
+    'sackbut',
+    'cimbasso',
+    'f tuba',
+    'e flat tuba',
+    'tuba',
+    'sousaphone',
+    'cornett',
+    'serpent',
+    'ophicleide',
+    'alphorn',
+    'shofar',
+    'conch',
+    'didgeridoo',
+    'vuvuzela',
+})
+# Batch 10's brass with its own build, in the sheet's order (Tasks 3 and 5 fill it)
+NEW_BRASS_NAMES: list[str] = []
+# Batch 10's brass sound-alikes and the entry each sounds like, in the sheet's order (Tasks 3 and
+# 5 fill it)
+BRASS_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+
+
 # The 27 bowed strings that predate batch 7: their shared builds predate the anti-goal rule
 EXISTING_BOWED_NAMES = frozenset({
     'violin',
@@ -1706,6 +1758,7 @@ BATCH_FAMILIES: dict[Family, BatchFamily] = {
         FLUTE_SOUND_ALIKE_PARENTS,
         FLUTE_UNPITCHED_NAMES,
     ),
+    Family.BRASS: BatchFamily(EXISTING_BRASS_NAMES, NEW_BRASS_NAMES, BRASS_SOUND_ALIKE_PARENTS),
     Family.BOWED_STRINGS: BatchFamily(
         EXISTING_BOWED_NAMES, NEW_BOWED_NAMES, BOWED_SOUND_ALIKE_PARENTS
     ),
@@ -1839,10 +1892,11 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         for catalog_entry in instruments.entries()
         if catalog_entry.sounds_like is not None
     ]
-    # The catalog lists families in table order: flutes, bowed strings, plucked strings,
+    # The catalog lists families in table order: flutes, brass, bowed strings, plucked strings,
     # electronic, tuned percussion, drums, voices, then choirs (registry.FAMILY_TABLES)
     assert every_sound_alike == (
         list(FLUTE_SOUND_ALIKE_PARENTS)
+        + list(BRASS_SOUND_ALIKE_PARENTS)
         + list(BOWED_SOUND_ALIKE_PARENTS)
         + list(PLUCKED_SOUND_ALIKE_PARENTS)
         + list(ELECTRONIC_SOUND_ALIKE_PARENTS)
@@ -1920,7 +1974,10 @@ def test_the_gangsa_pairs_its_fundamental_at_the_ombak_ratio():
 # nothing new shares their sound: batch 4's sitar ruling, batch 7's for the bowed ones, and
 # batch 9's for the dizi, built without the membrane its page names
 # (https://en.wikipedia.org/wiki/Dizi_(instrument): 'adding harmonics to give the final tone a
-# buzzing, nasal quality')
+# buzzing, nasal quality'), and batch 10's for the didgeridoo, built without the moving formants
+# its page names (https://en.wikipedia.org/wiki/Didgeridoo: 'These formants, and especially their
+# variation during the inhalation and exhalation phases of circular breathing, give the
+# instrument its readily recognisable sound.')
 APPROXIMATING_NAMES = frozenset({
     'sitar',
     'tanpura',
@@ -1932,6 +1989,7 @@ APPROXIMATING_NAMES = frozenset({
     'nyckelharpa',
     'hurdy gurdy',
     'dizi',
+    'didgeridoo',
 })
 
 
@@ -2014,3 +2072,16 @@ def test_nothing_waiting_for_a_glide_between_notes_is_listed():
     """No catalog name or alias is an instrument held back for a glide between notes."""
     assert PORTAMENTO_NAMES & set(instruments.names()) == set()
     assert PORTAMENTO_NAMES & set(instruments.ALIASES) == set()
+
+
+# Every name plans/data/instrument-audit/batch-10.tsv holds back for an engine feature or a build
+# of its own, with its waits_for: the WAIT rows whose reason is not "a sourced range", and the
+# alias rows that wait for one of them, in the sheet's order. None ships under that name or as an
+# alias until the engine or the build exists (decision 4; batch 10). The test matches exact names
+BRASS_HELD_BACK: dict[str, str] = {}
+
+
+def test_no_brass_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a brass instrument the sheet holds back for a feature."""
+    assert set(BRASS_HELD_BACK) & set(instruments.names()) == set()
+    assert set(BRASS_HELD_BACK) & set(instruments.ALIASES) == set()
