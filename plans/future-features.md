@@ -1750,10 +1750,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 11 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 12 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
   batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682
-  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11) toward every instrument a game might
+  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11, 693 after batch 12) toward every instrument a game might
   want, in one verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates,
   only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
@@ -1901,7 +1901,38 @@ This document tracks planned future features for the GlitchyGames project. Featu
   `piffero`; the bagpipe, `ciaramedda`, is the bagpipes batch's), `musette` (the bagpipe) and
   `dulciana` (the organ stop) are dropped as ambiguous names (the unambiguous `oboe musette`
   waits for `piccolo oboe`), and `piffero` is decided as the shawm (it waits for a sourced range;
-  batch 9's flute gap list names the fife sense, which is that batch's). Next: bagpipes
+  batch 9's flute gap list names the fife sense, which is that batch's).
+  Batch 12 (bagpipes) is done: of its 91 sheet rows (66 candidates and 25 audit alias names) 1
+  shipped as a build of its own (`sackpipa`, the Swedish bagpipe: Säckpipa in A, E4-E5, one drone
+  at E4, and the family's first cylindrical chanter, `CYLINDRICAL_CHANTER_LEVELS`), none became a
+  sound-alike, 62 wait (57 for a sourced range and 5 because their target waits), 4 became aliases
+  (`irish pipes` of `uilleann pipes`, `lowland pipes` and `half long pipes` of `border pipes`,
+  `gaita galega` of `galician gaita`) and 24 were dropped; the family grew from 8 to 9 entries
+  (693 in all, 116 aliases and 189 sound-alikes). `bagpipes.py` now holds the family (moved
+  unchanged from `winds.py`, which keeps the clarinets, saxophones and free reeds; its table is
+  `_BAGPIPE_BUILDS`, and `BAGPIPES` is `_BAGPIPE_BUILDS + BAGPIPE_SOUND_ALIKES`) and
+  `bagpipe_sound_alikes.py` its sound-alikes (empty). The retuned sound-alike mechanism is in
+  place, a sound-alike whose sourced drones differ from its parent's carrying
+  `sound_changes={'drones': ...}` (decision 8's first shipped use, listed in the test table
+  `BAGPIPE_RETUNED_DRONES`), but none shipped: the one candidate, the Czech `dudy`, went back to
+  waiting for a range. `scottish smallpipes` joins `APPROXIMATING_NAMES`, never a parent (the
+  Bagpipe Society's guide: "With its cylindrical bore"), and `BAGPIPE_HELD_BACK`, the guard for
+  every wait that is not for a range, holds nothing. Nearly every row waits because the range
+  rule stays strict: a bagpipe's source gives a key, a width, note letters with no octave or a
+  relation, almost never both sounding notes. The base of the branch is `c0f9e622` (batch 11's
+  fix commit). The audit's "Gaps you could not close"
+  (`plans/data/instrument-audit/bagpipes.md`: absolute chanter ranges for nearly everything; MIMO
+  and Grove unreached, the National Museum of Scotland and Edinburgh (MIMEd) records unread; `karkm`, `shyuvr`,
+  `puvama`, `shapar`, `muchosa`, `samponha`, `sourdeline`, `loure`, `pipasso`, `musette bressane`,
+  `musette bechonnet`, the Lincolnshire, Yorkshire and Lancashire pipes, `il-qrajna`,
+  `sierszenki`, `kozioł biały` and `czarny`; the Central Asian, Tibetan, East and Southeast Asian,
+  sub-Saharan and Latin American bagpipes; the Galician gaita's other keys, `grileira`,
+  `redonda` and `tumbal`) are a later pass over this family. The hand-offs are decided here:
+  `zukra` (a Libyan bagpipe, its bag form this family's) and `ciaramedda` (the Sicilian double
+  chanter) wait for a sourced range, `ciaramella` stays batch 11's (the sheet's row drops it,
+  naming batch 11's), `electronic bagpipe` is dropped to the electronic family (an electrophone
+  that imitates the Highland pipe; the electronic batch is done, so a later electronic pass
+  decides it), and no name the sheets found belongs to the organs batch. Next: organs
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
@@ -1925,7 +1956,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sheet `plans/data/instrument-audit/batch-10.tsv`
 - **Plan (batch 11)**: `plans/2026-11-12-instrument-catalog-batch-11-implementation.md`; audit
   sheet `plans/data/instrument-audit/batch-11.tsv`
-- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 and 11 done (requested by the owner 2026-11-06)
+- **Plan (batch 12)**: `plans/2026-11-12-instrument-catalog-batch-12-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-12.tsv`
+- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 and 12 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
@@ -3539,6 +3572,323 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Found**: batch 11's reviews (2026-11-12)
 - **Status**: TODO
 - **Priority**: Medium (before the bagpipes batch builds on the same catalog)
+
+### 82. Sound Engine: The Owner's Checks on Instrument Catalog Batch 12 — TODO
+- **Goal**: confirm or overturn the calls made while batch 12 of #70 ran, and listen to its new
+  instrument (bagpipes 8 to 9 entries). Almost every candidate waits or drops: 1 built, 0
+  sound-alikes, 62 waits, 4 aliases and 24 drops in the sheet's 91 rows. Several calls were
+  reversed during the batch (see the list below): `dudy` shipped and then went back to waiting,
+  `brian boru bagpipes`, `sac de gemecs` and `parkapzuk` wait for a range rather than for an
+  engine feature, and `union pipes`, `biniou braz`, `tulug` and `mushak baja` were dropped
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+  level, filter, drone level and click is sound design unless a source is cited in the code; the
+  folder is `build/instruments/bagpipes/`):
+  - [ ] The new build: `sackpipa` (Säckpipa in A, E4-E5, one drone at E4), the family's first
+    cylindrical chanter (`CYLINDRICAL_CHANTER_LEVELS`: odd harmonics only, sound design marked so
+    in its comment). Listen for a hollow, clarinet-like chanter against `scottish smallpipes`
+    (whose levels, drone levels, low pass, drive and breath it copies; the sources call the
+    säckpipa's tone "quite soft" and "warm, soft"), a quiet single drone, and the same instrument
+    at both ends of its octave. The trait test measures the chanter alone: at A#4 (the middle
+    note of E4-E5, not the sources' tonic A4) the second and fourth harmonics are 0.0002 of the
+    first and the third is 0.387, against the Highland pipe's even harmonics above 0.6
+  - [ ] The sound-alikes beside their parents: none shipped (0 SOUND_ALIKE rows), so there are no
+    retuned sound-alikes to hear and no drones to compare. The mechanism is in place and tested
+    with an empty table (`BAGPIPE_RETUNED_DRONES`)
+  - [ ] The 4 aliases beside their parents, which are the same instrument by name: `irish pipes`
+    (of `uilleann pipes`), `lowland pipes` and `half long pipes` (of `border pipes`) and `gaita
+    galega` (of `galician gaita`)
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-12.tsv`; the sheet's 91 rows:
+  SHIP 1, SOUND_ALIKE 0, WAIT 62, ALIAS 4, DROP 24):
+  - [ ] Every WAIT (62 rows), by reason:
+    - 57 for a sourced range: `baghet`, `biniou koz`, `boha`, `bousine`, `brian boru bagpipes`,
+      `cabrette`, `caramusa`, `cornemuse du centre`, `cornish bagpipes`, `gaita asturiana`, `gaita
+      de boto`, `gaita de saco`, `gaita sanabresa`, `gaita transmontana`, `great irish warpipes`,
+      `odrecillo`, `pastoral pipes`, `sac de gemecs`, `scottish smallpipes in d`, `surdelina`,
+      `surdullina`, `veuze`, `ciaramedda`, `chabrette`, `cabreiresa`, `askomandoura`, `cimpoi`,
+      `dankiyo`, `dudmaisis`, `dudy`, `dzhura gaida`, `gudastviri`, `istarski mih`, `jirba`, `kaba
+      gaida`, `latvian dudas`, `macedonian gaida`, `magyar duda`, `marktsackpfeife`, `mashak`,
+      `ney anban`, `parkapzuk`, `polish dudy`, `sakkipilli`, `sorbian dudy`, `sruti upanga`, `swiss
+      sackpfeife`, `tadghtita`, `titti`, `torupill`, `tsampouna`, `tulum`, `volynka`, `zaqq`,
+      `zukra`, `zummarah bi soan`, `schaferpfeife`
+    - 5 because their target waits: `chabretta` (for `chabrette`), `gaita mirandesa` (for `gaita
+      transmontana`), `masak been` (for `mashak`), `xeremies` (for `sac de gemecs`) and `guda` (for
+      `tulum`)
+    - 0 for an engine feature, a build of its own, a sourced drone tuning or a sourced chanter
+      bore: `BAGPIPE_HELD_BACK` is empty
+  - [ ] The range ruling (the owner kept the range rule strict, 2026-11-09): a range is stated or
+    an exact span above the lowest note, in sounding pitch, never hedged ("about", "typically",
+    "commonly", "usually", "practically", "can reach"); a compass relative to a tonic counts only
+    when the same source fixes the tonic's octave; no extension or extreme (a note in parentheses,
+    a player's top, an optional key); a width ("nine notes"), a key alone, note letters with no
+    octave, a relation to a sibling ("an octave above the bombarde") or a tessitura is no range;
+    the key the source calls standard, usual or most common (a key in the row's own name is
+    ranged in that key); a maker's, museum's or piping society's page outranks an uncited
+    Wikipedia line, and a retailer, blog, forum or tune book is not a source; nothing below A0 or
+    above C8; a one-note instrument has no range; a Wikipedia range counts only with a citation
+    in the raw wikitext that supports it. The one range derived under it: `sackpipa` E4-E5 (Leif
+    Eriksson, a maker writing of his own pipes: "The normal key for the Swedish bagpipe is a', the
+    lowest tone being e', and the highest e'', with a', in the middle."). It stands although the
+    maker's own page says "I do not make bagpipes for sale anymore": a maker's stated normal key
+    counts whether or not he still sells (the controller's ruling; confirm it)
+  - [ ] The nominal-pitch ruling (a bagpipe's note names are often its own, not concert pitch): a
+    nominal range counts only with the same source's sounding pitch for a named note, the shift
+    being the nearest equal-tempered semitone (A4 = 440 Hz) from the stated pitch, a span's
+    midpoint, and a pitch within 10 cents of halfway between two semitones decides nothing. It
+    shifted no shipped row. It held `gaita asturiana` (its tonic C5 sounds "between concert C and
+    C#", within the margin) and the catalog's `highland bagpipe` range (Ab4-Bb5, the page's G4-A5
+    nominal range a semitone up) agrees with it. Confirm the rule, in particular the 10-cent
+    margin
+  - [ ] The drone ruling: a drone is sourced when a source gives its note with an octave, a hertz
+    figure, or an interval from a chanter note whose sounding pitch it fixes; a droneless pipe
+    says so; unison drones count once; muted drones are left out; at most two distinct pitches
+    (`with_drones` keeps room for two beside the chanter's breath); keyed drones are notes of the
+    sequence; and every drone sounds its derived note equal-tempered at A4 = 440 Hz like the
+    chanter, in hertz to two decimals, a source's hertz figure deciding which note and not the
+    drone's pitch. The one derived drone is `sackpipa`'s E4 (329.63 Hz, Eriksson: "The drone is
+    normally tuned to the e' of the chanter."). Equal-tempered drones are this plan's call and
+    differ from the older entries' (Bugs to report): confirm
+  - [ ] The retuned sound-alikes, decision 8's first shipped use of `sound_changes`: a sound-alike
+    whose sourced drones differ from its parent's by more than 5 cents (or in number) carries
+    `sound_changes={'drones': ((hertz, level), ...)}`, each drone at its derived note with the
+    level of the parent's drone of the same rank (the parent's levels copied unchanged), and only
+    `drones` may change. The tests changed for it: `CHANGED_SOUND_ALIKE_NAMES` no longer holds
+    the bagpipes, the sound-alike test's equality skips the retuned (they must differ from the
+    parent) and `test_a_retuned_bagpipe_sounds_its_sourced_drones` pins each one's drones. None
+    ships: the table `BAGPIPE_RETUNED_DRONES` is empty. That test's `assert drone_notes` fails for
+    a droneless retuned bagpipe (`drones=()`, as the plan allowed), so a later batch that ships
+    one must relax it to the hertz list. Retuned sound-alikes were considered for
+    `marktsackpfeife` (a `highland bagpipe` sound-alike at G4-A5 with drones E3 and A2, refused
+    below) and `dudy` (a `sackpipa` sound-alike with an E♭1 drone, below)
+  - [ ] `dudy` was shipped and then went back to waiting (a sourced range). Pavel Číp & synové (a
+    dudy maker, histnastroje.cz/dudy-lidove/) give the bore ("Vrtání píšťal válcové. Tvorba tónu
+    pomocí jednoduchého nárazného jazýčku.": cylindrical, a simple beating reed), the most used
+    key (Es dur), the tone row «B-d-Es-f-g-a-b-c'», "neúplné nony" and a drone "o dvě oktávy níž
+    než základní tón". Fix round 1 read the row as B♭2-C4 with an E♭1 drone (38.89 Hz) as a retuned
+    `sackpipa` sound-alike; the re-review found that no source states the sounding octave: the row
+    is mixed-case, not strict Helmholtz (a capital Es between a small d and a small f), and the
+    pipe lengths point to a nominal row an octave low (a closed cylinder sounding B♭2 needs about
+    0.74 m, and one sounding 38.89 Hz about 2.2 m). The Číp page is its lead, and a source that
+    fixes the sounding octave (a maker, museum or society) would close it. This call is the
+    owner's to confirm, with the octave doubt. `sorbian dudy` and `polish dudy` wait for a range on
+    their own pages
+  - [ ] The chanter ruling (Hornbostel-Sachs 422.1 a double reed, 422.2 a single reed, then single
+    or a set, then 1 cylindrical or 2 conical): the `hs` cell holds the chanter's class from a
+    page's infobox, its category, or a source sentence naming the reed and bore, and a ranged row
+    with no sourced bore waits for `a sourced chanter bore`, a source wait this plan added (no row
+    waits for it in the end). Every existing bagpipe is built with an every-harmonic chanter, that
+    is a cone, so a sound-alike of an existing bagpipe has a conical chanter and a cylindrical
+    chanter ships as its own build or waits. `CYLINDRICAL_CHANTER_LEVELS` is `SWEET_CHANTER_LEVELS`'s
+    odd harmonics with the even ones silent (`(1.0, 0.0, 0.4, 0.0, 0.17, 0.0, 0.06, 0.0)`), sound
+    design, and `sackpipa` is its first build. The trait its source names is the bore (Alban
+    Faust, a maker: "a single reed which sits on a cylindrically drilled chanter"); the drone
+    levels, low pass 4000, drive 0.3 and breath 0.01 are copied from `scottish smallpipes`, and the
+    process-state guard asked for no line (a literal tuple of floats). Confirm the rule and
+    `sackpipa` as its first build
+  - [ ] `scottish smallpipes`, `northumbrian smallpipes` and `musette de cour` are never parents (the
+    form check refuses them): each page names a cylindrical chanter, uncited, and each is built
+    with an every-harmonic chanter. `scottish smallpipes` joins `APPROXIMATING_NAMES` (like `piri`,
+    batch 11): the Bagpipe Society, a piping society, writes "With its cylindrical bore, the sound
+    is characteristically lilting" (its guide to the Scottish smallpipes), so the cited trait the
+    build lacks is the reason, and `piri` and `dizi` are the precedent. `northumbrian smallpipes`
+    and `musette de cour` stay out (their lines are uncited; the ruling that kept the uncited
+    `hichiriki` out). Should either join it?
+  - [ ] `marktsackpfeife` is refused as a musician's site, not shipped. The Marktsackpfeife page's
+    range ("It features a range from one whole tone lower than the tonic (A = 440Hz) to one octave
+    above it", g' to a'') sits in an uncited Tuning section, so it is no range (ruling 10), and
+    the only other page is Sönke Kraft's personal site ("standard scale range g¹ a¹ b¹ – a² ...
+    Long drone sounds on tone A, short drone sounds on tone e⁰"), which is not a maker or society
+    (batch 9's `quenacho` precedent). If you accept Kraft's page, the row becomes a retuned
+    sound-alike of `highland bagpipe`, G4-A5, `drones=((164.81, 0.45), (110.0, 0.55))` (E3 and A2;
+    the saved page is `marktsackpfeife--2.txt`). It would be the batch's only retuned sound-alike
+  - [ ] One-note instruments waiting for a range: `sruti upanga`, a drone with no chanter ("It is
+    used merely as a drone; the holes ... are wholly or partially stopped with wax so as to tune
+    the instrument to the pitch desired"). Should one ship as a fixed-pitch entry? (the same
+    question as #80's one-note horns and shells and #81's `ottu`)
+  - [ ] Double chanters: two melodic pipes are notes of one sequence (batch 9's double-pipe
+    ruling), so the `ciaramedda`, `zukra` and `surdelina` ranges would run from the lower pipe's
+    lowest note to the upper's highest. A pair in unison that a source says is "tuned slightly
+    apart" to beat has a sourced trait no bagpipe build can make (`with_drones` keeps only the
+    chanter's tone and breath sources), so it would wait for `its own build (a detuned double
+    chanter)`: `parkapzuk`'s page says so ("the chanters are tuned slightly apart, giving a
+    'beat'"), but it waits for a range first (rule 6; its page is unsure even of one or two
+    chanters, "Some sources indicate that the parkapzuk is single chantered"), so the engine wait
+    is only in its notes. That is a name beyond the spec's table for "What the engine cannot make
+    yet": `its own build (a detuned double chanter)`
+  - [ ] Three or more drones as an engine limit: `with_drones` has room for two beside the
+    chanter's breath, so a source giving three distinct sounding pitches would wait for `more than
+    four sources` (the spec's name). `brian boru bagpipes` ("a single tenor drone pitched one
+    octave below the chanter, a baritone drone pitched one fifth below the tenor drone, and a bass
+    drone pitched two octaves below the chanter") and `sac de gemecs` (three drones, "two octaves
+    below the tonic of the chanter", a fifth above that and an octave below the chanter) have
+    three pitches, but each waits for a range first (neither source fixes the chanter's pitch),
+    so the limit is in their notes and not a wait. Both were first held back for the engine
+    limit and reversed to a range wait by the controller, so `BAGPIPE_HELD_BACK` holds nothing
+  - [ ] No new approximation: grace notes, closed (staccato) fingering, regulators' chords, flea
+    holes and bellows are technique or notes of a sequence (the spec's Non-goals), except where a
+    source names a closed chanter as the instrument's own sound
+  - [ ] Sizes and keys as sound-alikes, other names as aliases: none of the sizes shipped
+    (`scottish smallpipes in d`, `kaba gaida`, `dzhura gaida`, the dudy sizes wait for a range).
+    The 4 aliases rest on a cited page naming the catalog's own entry: `irish pipes` (the Uilleann
+    pipes page, "also known as Union pipes and sometimes called Irish pipes", cited to UNESCO),
+    `lowland pipes` and `half long pipes` ("Other names have been used for the instrument: Lowland
+    pipes and reel pipes in Scotland, and half-long pipes in Northumberland and Durham", the Border
+    pipes page) and `gaita galega` (the Galician gaita page). `xeremies` is an alias too, of
+    `sac de gemecs`, waiting for it (the Xeremia page, cited to Genovart Espinosa: "while in
+    Catalonia it is known as sac de gemecs"; its drone difference is uncited and hedged, "often
+    dummy drones", a configuration of the same pipe, and the page also gives the name to Ibiza's
+    bagless `reclam de xeremies`). No new size chain
+  - [ ] `union pipes`, `biniou braz`, `tulug` and `mushak baja` are dropped. `union pipes` is
+    ambiguous: the Pastoral pipes page also names it (its infobox, "|names= '''Union pipes'''"),
+    and the National Museum of Scotland's record A.1947.105 ("Union or Pastoral bagpipe") is
+    named but not quoted (its data request was refused by the permission classifier, and the
+    collection page is a script-drawn shell). `biniou braz` ("In Brittany, the great Highland
+    bagpipe is known as the binioù braz") rests on uncited lines, the standard that also refused
+    `great irish warpipes` ("one and the same as the Scottish great Highland bagpipe", in an
+    `{{Unreferenced section}}`, so it waits as its own row). `tulug` rests only on the uncited List
+    of bagpipes line, which carries the hidden comment "Isn't the Azerbaijani bagpipe called a
+    'tulug'?", and `mushak baja` only on the Mashak page's lead sentence with no reference of its
+    own (the cited paragraph says "masak baja"; `masak been` waits for `mashak` on that paragraph).
+    Each drop is "no cited source gives it as another name" (union pipes: ambiguous). If you read
+    the lines as enough, they are aliases of `highland bagpipe` (biniou braz) and `tulum` and
+    `mashak` (the other two)
+  - [ ] `zampogna` is dropped as a generic term ("a generic term for a number of Italian double
+    chantered bagpipes", "there are dozens"), though it is the name people would most likely type
+    for an Italian bagpipe: it resolves to nothing, and `surdullina` and `ciaramedda` lose their
+    parent. If you want it typed anyway, it is a WAIT for a sourced range or an alias of a
+    chosen type
+  - [ ] Generic and ambiguous terms dropped: `doedelzak` (the Dutch and Flemish word for
+    bagpipes), `welsh pibgod` (one of several Welsh words for bagpipes), `dudelsack` and
+    `sackpfeife` (the German words for any bagpipe; the Schäferpfeife page's "also known as the
+    Sackpfeife" arguably meets the exception, and `schaferpfeife` itself waits), `habban` (the Gulf coast's Holi bagpipe and, in Oman, a
+    nativized Highland pipe: "While the term itself is generic"), `gajdy`, `gajde` and `gayda` (each given to several bagpipes), `reel pipes`
+    (a half-set Highland pipe and the Border pipes' other name), `piva` (also the Istrian
+    `istarski mih`'s name), `bock` (the Bohemian bock and the Großer or Praetorius Bock: the
+    Met's separate records agree), `mizwad` (the Tunisian mezoued, its own instrument; Baines's
+    claim that it is the zukra is uncited and disputed), `coimbra` (a city: the bagpipe is the
+    gaita-de-fole coimbrã, with no page) and `mutsianka` (the audit's "(memory)" row; the list gives
+    it to the Belarusian duda). `cornemuse du centre` is decided as one instrument, not dropped
+    as generic (its page's lead, cited to Grove, names one type in many keys)
+  - [ ] One-offs, reconstructions and unsourced rows: `zetland pipes` is dropped as a one-off (one maker's
+    design, Royce Lerwick's, out of production since about 2000), `gaita alistana` and `mechawka` for
+    no fetched source (the en and es pages are 404; the Wendish Museum's records answered 404 and
+    503), `electronic bagpipe` as the electronic family's (below). The in-production line stands:
+    a maker's current model page or a museum's holding makes a type
+  - [ ] The boundaries: `ciaramella` is dropped, "already decided" by batch 11's WAIT (its target,
+    `piffero`, the mouth-blown shawm), and the bagpipe is `ciaramedda`, an instrument row of its
+    own (the Ciaramedda page: "a type of zampogna with equal length double chanters", "often only
+    the middle drone is reeded while the other two remain muted"; it waits for a range).
+    `zukra` waits for a range (a bagpipe in the south and west of Libya, a double clarinet played
+    by mouth in the east, so its bag form is this family's) and `mizwad` is a different
+    instrument (above). `electronic bagpipe` is dropped to the electronic family (an electrophone
+    that emulates the Highland pipe, among others), whose batch is done: #70 lists it for a
+    later electronic pass
+  - [ ] The naming ruling: a key goes in the title after the name, as the bagpipes' titles have it
+    (`scottish smallpipes in d`, "Scottish smallpipes in D"), so `sackpipa` is "Säckpipa in A" and
+    the dudy row is "Dudy (Czech bock)"
+  - [ ] The module move: `bagpipes.py` holds the family (moved unchanged from `winds.py`, the way
+    batches 9 and 11 moved the flutes and double reeds), its table is `_BAGPIPE_BUILDS` and
+    `BAGPIPES` is `_BAGPIPE_BUILDS + BAGPIPE_SOUND_ALIKES`; `winds.py` keeps the clarinets,
+    saxophones and free reeds. The before-and-after record found `changed: []`. The moved
+    code dropped its "# --- Bagpipes ---" banner (harmless in a one-section module)
+  - [ ] `BAGPIPE_HELD_BACK`, the guard for every non-range wait: empty, refused as a catalog name
+    or an alias by a test and compared with the sheet by the code check. The plan expected it to
+    hold `brian boru bagpipes`, `sac de gemecs` and `parkapzuk` (an engine limit, an engine limit
+    and a detuned double chanter), and each was ruled back to a range wait, which is checked first
+  - [ ] The two-half split as explicit lists (half A, the bagpipes of Western Europe with the
+    electronic bagpipe, 31 candidates and 13 alias names, 44 rows; half B, those of Central,
+    Northern and Eastern Europe, the Balkans, the Mediterranean islands, the Caucasus, the Middle
+    East, North Africa and South Asia, 35 candidates and 12 alias names, 47 rows), the two sheets
+    researched in parallel, and the shared files (the names file, the candidate lists and the
+    three check scripts) written up front by a setup agent. Tasks 3 and 5 (the two halves' code)
+    went to one implementer, since half A had only 4 aliases and half B ships nothing but
+    `sackpipa`. No code task was skipped by ruling
+  - [ ] Engine features named beyond the spec's table, for its "What the engine cannot make yet":
+    `its own build (a detuned double chanter)` (above; in `parkapzuk`'s notes, no row waits for
+    it) and `a sourced chanter bore` (a source wait this plan added, with no row on it)
+- **Bugs to report** (found while building batch 12; none fixed here):
+  - [ ] `highland bagpipe`'s drones (240 and 120 Hz) are 51 cents above its chanter's B♭ (233.08
+    and 116.54 Hz), though its page says "The drones are tuned to this tonic note" (the sentence is
+    in the paragraph cited to Macpherson). Kraft's page ("c. a¹ = 472 Hz") agrees with the offset
+    as a pitch, but the engine's chanter is equal-tempered, so the drones beat against it
+  - [ ] The drone tunings and counts on three pages do not match their builds, each built with
+    two drones: the Northumbrian smallpipes page's "three will usually be tuned to the tonic,
+    dominant and octave tonic" against the build's two octave G drones (196 and 98 Hz); the Border
+    pipes page's three drones "typically tuned A, a, e'" (or "A, a, a") against its two (220 and
+    110 Hz; no source fixes the octave of the page's letters); and the uilleann pipes' three
+    drones (the chanter's lowest note, an octave below and two octaves below: D4, D3 and D2 for a
+    D4 chanter) against its two (D3 and D2). The two-drone limit of `with_drones` explains them,
+    so they are leads, not cited bugs
+  - [ ] Every existing bagpipe is built with an every-harmonic chanter (`HIGHLAND_LEVELS` or
+    `SWEET_CHANTER_LEVELS`), a cone, though three pages name a cylindrical chanter, uncited:
+    `scottish smallpipes` ("The instrument has a cylindrically bored chanter"; now supported by
+    the Bagpipe Society's "With its cylindrical bore", so it is in `APPROXIMATING_NAMES`),
+    `northumbrian smallpipes` ("The cylindrically bored chanter has a number of metal keys") and
+    `musette de cour` ("Both the chanters and the drones have a cylindrical bore and use a double
+    reed")
+  - [ ] `bulgarian gaida`'s chanter bore: the evidence is mixed, so this is a lead, not a bug. It
+    is built with `HIGHLAND_LEVELS`. The Cimpoi page (cited to Sachs) puts the Eastern European
+    bagpipes in a "cylindrical chanter bore and the use of single reeds" group and says its Type
+    3 is "virtually identical to Bulgarian bagpipes"; Kraft's page lists "Gaide" among
+    cylindrical single-reed chanters; against that, the Kaba gaida page gives 422.112
+  - [ ] `scottish smallpipes` is now in `APPROXIMATING_NAMES`: its cylindrical bore is the build's
+    missing trait (above), and a name is added to the list only for a cited one
+  - [ ] `winds.py`'s docstring calls the folk ranges "typical of the common keys" without a
+    source (moved with the clarinets and free reeds; `sound.md` repeats the phrase)
+  - [ ] The 8 earlier entries carry no source comment, and no range or build of theirs was checked
+    against a source beyond the entries named above
+  - [ ] A warning to understand: `pytest -W error` fails on a DeprecationWarning at import
+    ("aifc was removed in Python 3.13", from the standard-aifc package that
+    `speech_recognition` imports). It is third-party and present before this batch (#81 records
+    it); a new warning in these runs would be a new finding
+- **Leads** (not sources under the ruling, so no row was ranged from them):
+  - [ ] The cornemuse du centre's range, from the Lowland and Border Pipers' Society's magazine
+    (LBPS Common Stock, December 2012, "Cauld wind in the Massif Central"): "The most common
+    nowadays is the 16# in G." and "The range is from lower F to C' (one octave higher)". It
+    describes the Béchonnet model and gives letters with no octave and no sounding pitch (ruling
+    5), so it only names a standard size
+  - [ ] The macedonian gaida's cylindrical bore, from the Bagpipe Society's article on the Macedonian
+    gajda: "predominant cylindrical bore (which is responsible, together with the single reed, for
+    the sound of the chanter)", with "a range, or ambitus, of an octave" (a width), the key "A" and
+    the lowest note "E" (no octaves). It would make the gaida a cylinder like `sackpipa`
+  - [ ] `dudy`'s Číp page (above), the drones of `brian boru bagpipes` and `sac de gemecs` (three
+    pitches each) and `marktsackpfeife`'s Kraft page (above)
+  - [ ] The Met's Binioù kozh (503854) and Scottish small pipe (501860) records (HTTP 429 on the
+    first fetch, so unread), and the Met's open-access API, which gave names and classes only
+- **Follow-ups**:
+  - [ ] The audit's gaps (`plans/data/instrument-audit/bagpipes.md`, listed in #70) are a later
+    pass over this family
+  - [ ] Ranging the 57 range WAITs from maker, museum and piping-society sources (MIMO, the Met
+    once it answers, the Edinburgh (MIMEd) and National Museum of Scotland records, the Horniman,
+    Alban Faust's chart, the Czech makers Janovec, Konrady and Číp), each row's notes recording
+    what was searched; `dudy`, `cornemuse du centre` and `macedonian gaida` are the best leads
+  - [ ] Check the 8 earlier entries' drones, ranges and builds against sources (the Highland pipe's
+    drones against its chanter, the three drone counts above, the gaida's bore, the three
+    cylindrical chanters); none was checked beyond the entries named above
+  - [ ] The engine changes that unblock the waits above, most rows first: the 57 range waits need
+    no engine feature, the 5 target waits follow their targets, and a detuned double chanter
+    (`parkapzuk`) and a third drone (`brian boru bagpipes`, `sac de gemecs`) are the only engine
+    features, both behind a range
+  - [ ] The sheet's cells contain stray quote characters (some cells are CSV-quoted), so read it
+    with Python's csv module rather than splitting on tabs
+- **Incidents and process**:
+  - [ ] The Pi hook was skipped while the Pis were unreachable (the owner, 2026-11-13)
+  - [ ] The syft pin was bumped to 1.57.1 on the stack (the owner's choice)
+  - [ ] The two sheet halves were researched in parallel, and pushes and stacked PRs were made
+    without asking (the owner, 2026-11-12, #78)
+  - [ ] The reversals above (`union pipes`, `biniou braz`, `xeremies`, `brian boru bagpipes`,
+    `sac de gemecs`, `parkapzuk`, `tulug`, `mushak baja` and `dudy`) each followed a review round:
+    the half A sheet had one fix commit, half B two, so the sheet's own history holds the first
+    readings
+  - [ ] Parked minors from the reviews: Task 1's banner (above) and its `assert drone_notes`
+    (added in Task 3's commit); the `tulum` row's "(Laz: guda)" quote is a rendering of a
+    template, not literal text; the Herri Musika record quoted in `dudy` was fetched and not
+    saved (its row is unranged); the `sakkipilli` and `sackpipa` rows apply the generic-term
+    exception (each page also makes the word one revived instrument's name); `volynka`'s `hs` is
+    `none` (its infobox gives 421.111-12, a flute's class); `tulum`, `zukra` and `dzhura gaida`
+    take their `hs` from Kraft's page, cited for the class only
+- **Found**: batch 12's reviews (2026-11-13)
+- **Status**: TODO
+- **Priority**: Medium (before the organs batch builds on the same catalog)
 
 ### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
 - **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,
