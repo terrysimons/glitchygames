@@ -821,6 +821,16 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('cornet a pistons', 'cornet'),
         ('tenor horn', 'alto horn'),
         ('zink', 'cornett'),
+        ('dung dkar', 'conch'),
+        ('hakgediya', 'conch'),
+        ('pututu', 'conch'),
+        ('shankha', 'conch'),
+        ('waldhorn', 'french horn'),
+        ('inventionshorn', 'natural horn'),
+        ('yidaki', 'didgeridoo'),
+        ('mako', 'didgeridoo'),
+        ('alpenhorn', 'alphorn'),
+        ('fotuto', 'conch'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -849,6 +859,9 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 10's first half names the piccolo trumpet as the B-flat piccolo trumpet, the euphonium
     as the tenor tuba, the cornett as the treble cornett and the zink, the cornet as the cornet a
     pistons, and the alto horn as the tenor horn.
+    Batch 10's second half names the conch as the dung dkar, the hakgediya, the pututu, the
+    shankha and the fotuto, the french horn as the waldhorn, the natural horn as the
+    inventionshorn, the didgeridoo as the yidaki and the mako, and the alphorn as the alpenhorn.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 

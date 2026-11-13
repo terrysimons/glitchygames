@@ -337,4 +337,43 @@ ALIASES: Final[dict[str, str]] = {
     # https://en.wikipedia.org/wiki/Cornett ("The cornett (Italian: cornetto, German: Zink) is a
     # lip-reed wind instrument"): the German name for the cornett
     'zink': 'cornett',
+    # --- Batch 10's second half: the natural horns and trumpets, shells and animal horns
+    # https://en.wikipedia.org/wiki/Conch_(instrument) ("In Tibet it is known as dung-dkar or
+    # dungkar."): the Tibetan name for the catalog's conch
+    'dung dkar': 'conch',
+    # https://en.wikipedia.org/wiki/Hakgediya ("The hakgediya is a type of conch shell (the
+    # shell of a large marine gastropod mollusk) which is used as a kind of trumpet"): the conch
+    # shell blown as a trumpet, with no trait of its own (its notes vary only in volume)
+    'hakgediya': 'conch',
+    # https://en.wikipedia.org/wiki/Titanostrombus_galeatus ("The shells of this species were
+    # used as a wind instruments by the Chavín," "They are still used for this purpose in the
+    # Andes, where they are known as pututu."): the Andean name for the catalog's conch
+    'pututu': 'conch',
+    # https://en.wikipedia.org/wiki/Conch_(instrument) ("The sacred chank, Turbinella pyrum, is
+    # known in India as the shankha"): the Indian name for the catalog's conch
+    'shankha': 'conch',
+    # https://en.wikipedia.org/wiki/French_horn (infobox, other names: "German: Horn, Waldhorn,
+    # Ventilhorn"): a German name for the catalog's french horn
+    'waldhorn': 'french horn',
+    # https://en.wikipedia.org/wiki/Natural_horn ("In 1753 Anton Hampel alongside Johann
+    # Werner,[who?] developed the Inventionshorn, built with a fixed mouthpiece so that the horn
+    # remained at the same distance no matter how many crooks were added."): the natural horn
+    # with crooks, no valves, by a design name
+    'inventionshorn': 'natural horn',
+    # https://en.wikipedia.org/wiki/Didgeridoo ("Yiḏaki (transcribed yidaki in English,
+    # sometimes spelt yirdaki) is one of the most commonly used names"): a name for the
+    # catalog's didgeridoo
+    'yidaki': 'didgeridoo',
+    # https://en.wikipedia.org/wiki/Didgeridoo ("In the Bininj Kunwok language of West Arnhem
+    # Land it is known as mako (pronounced, and sometimes spelt, as mago)."): the West Arnhem
+    # Land name for the catalog's didgeridoo
+    'mako': 'didgeridoo',
+    # https://en.wikipedia.org/wiki/Alphorn ("The alphorn (German: Alphorn, Alpenhorn; French:
+    # cor des Alpes; Italian: corno alpino) is a traditional lip-reed wind instrument."):
+    # another name for the catalog's alphorn
+    'alpenhorn': 'alphorn',
+    # https://en.wikipedia.org/wiki/Conch_(instrument) ("The Arawak word 'fotuto' was used to
+    # describe this instrument, and is still used to this day to refer to conch instruments,"):
+    # another name for the catalog's conch
+    'fotuto': 'conch',
 }
