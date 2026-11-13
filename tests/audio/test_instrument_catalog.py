@@ -851,6 +851,8 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('gaita galega', 'galician gaita'),
         ('open diapason', 'pipe organ principal'),
         ('organ trompette', 'pipe organ reed'),
+        ('air calliope', 'calliope'),
+        ('calliaphone', 'calliope'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -889,7 +891,8 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 12's bagpipes name the uilleann pipes as the irish pipes, the border pipes as the
     lowland pipes and the half long pipes, and the galician gaita as the gaita galega.
     Batch 13's organ stops name the pipe organ principal as the open diapason (its English name)
-    and the pipe organ reed as the organ trompette (the trumpet stop's French name).
+    and the pipe organ reed as the organ trompette (the trumpet stop's French name), and its
+    organs as instruments name the calliope as the air calliope and the calliaphone.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -2382,6 +2385,7 @@ ORGAN_HELD_BACK: dict[str, str] = {
     'spitzflote': 'a sourced footage',
     'tierce': 'a range above C8',
     'vox humana': 'a pitch and amplitude LFO (the tremulant)',
+    'bible regal': 'its own build (beating reeds in tiny pipes, not quite an inch long)',
 }
 
 

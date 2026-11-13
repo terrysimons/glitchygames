@@ -455,4 +455,15 @@ ALIASES: Final[dict[str, str]] = {
     # stop's names: the French name of the trumpet stop, the catalog's pipe organ reed ("Pipe
     # organ, trumpet 8'")
     'organ trompette': 'pipe organ reed',
+    # --- Batch 13's organs: the organs as instruments, in the order of
+    # plans/data/instrument-audit/batch-13.tsv
+    # https://en.wikipedia.org/wiki/Calliope_(instrument) ("is an American musical instrument that
+    # produces sound by sending a gas, originally steam or, more recently, compressed air, through
+    # large whistles—originally locomotive whistles."): the calliope blown by compressed air, the
+    # same whistles, which no source sets apart in sound; the catalog's calliope
+    'air calliope': 'calliope',
+    # https://en.wikipedia.org/wiki/Calliope_(instrument)#Calliaphone ("The air-driven calliope is
+    # sometimes called a calliaphone, the name given to it by Norman Baker"): the air calliope's
+    # other name, so the catalog's calliope
+    'calliaphone': 'calliope',
 }
