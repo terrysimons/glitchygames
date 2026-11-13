@@ -10,7 +10,13 @@ if TYPE_CHECKING:
 
 import pygame
 
-from glitchygames.events import APP_EVENTS, AppEvents, HashableEvent, ResourceManager
+from glitchygames.events import (
+    APP_EVENTS,
+    AppEvents,
+    HashableEvent,
+    ResourceManager,
+    set_event_types_allowed,
+)
 
 LOG = logging.getLogger(__name__)
 
@@ -80,7 +86,7 @@ class AppEventManager(ResourceManager):
         super().__init__(game)
         # Ensure app-related events are enabled
         try:
-            pygame.event.set_allowed(APP_EVENTS)
+            set_event_types_allowed(event_types=APP_EVENTS, allowed=True)
         except pygame.error:
             LOG.debug('Failed to set allowed app events: pygame not fully initialized')
         self.game: Any = game
