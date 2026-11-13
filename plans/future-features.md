@@ -2905,20 +2905,21 @@ This document tracks planned future features for the GlitchyGames project. Featu
     sizes might get ranges once they render again
   - [ ] The Koizumi catalog (Geidai) holds object records with stated ranges for many flutes
     (`frula`, `dvojnica` and others in half A) that half A did not use
-  - [ ] The reviews found no other existing range that a fetched source contradicts; none of the
-    30 earlier flutes was re-ranged against its page
+  - [ ] The 30 earlier flutes were not checked against their pages in this batch: the reviews
+    found no other existing range that a fetched source contradicts, but none was looked for
+    beyond the entries named above
 - **Incidents and process**:
   - [ ] Pushes and stacked PRs happen without asking (the owner, 2026-11-12), and the two sheets
     were researched in parallel
   - [ ] Parked minors from the reviews: the code check's "already" exemption skips a row rather
-    than requiring its resolution (`build/batch-9-code-check.py`, cosmetic); the four aliases in
-    `aliases.py` and the matching test parameters were first written out of sheet order
-    (`syrinx` before `jula jula` and `julu julu`), and the header comment of that block still
-    named `build/batch-9-half-a.tsv` at the time of Task 6's review (check both are fixed); the
-    garklein notes' "the Recorder page's table agrees" quotes only a size name
+    than requiring its resolution (`build/batch-9-code-check.py`, cosmetic)
   - [ ] Wikipedia's API rate-limited bursts, and Kunath's product pages and the Met returned
     404 or 429
 - **Follow-ups**:
+  - [ ] Check the 30 earlier flutes' ranges against their pages (none was checked in this batch)
+  - [ ] The sheet's other waits (the buzzing membrane, vibrato, the drone tuning and the
+    like) have no catalog guard yet: only `PORTAMENTO_NAMES` holds names back, and the one-off
+    code check is the only other guard
   - [ ] The audit's gaps (`plans/data/instrument-audit/flutes.md`, listed in #70) are a later
     pass over this family
   - [ ] Ranging the 94 range WAITs from maker and museum sources (the Koizumi catalog, MIMO, the

@@ -805,9 +805,9 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('contralto', 'alto ah'),
         ('boy soprano', 'treble ah'),
         ('penny whistle', 'tin whistle'),
-        ('syrinx', 'pan flute'),
         ('jula jula', 'pan flute'),
         ('julu julu', 'pan flute'),
+        ('syrinx', 'pan flute'),
         ('siyotanka', 'native american flute'),
     ],
 )
@@ -832,7 +832,7 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 6's second half names the SID's sawtooth as the chiptune sawtooth, and the
     AY-3-8910 as Yamaha's licensed YM2149; both targets are sound-alike entries.
     Batch 9's first half names the tin whistle as the penny whistle, and its second half names the
-    pan flute as the syrinx, the jula jula and the julu julu and the native american flute as the
+    pan flute as the jula jula, the julu julu and the syrinx and the native american flute as the
     siyotanka.
     """
     assert instruments.entry(alias) is instruments.entry(target)
@@ -1599,8 +1599,8 @@ EXISTING_FLUTE_NAMES = frozenset({
     'ocarina',
     'bass ocarina',
 })
-# Batch 9's flutes with their own build, in the sheet's order. Empty until the sheet's rows
-# are coded (plans/data/instrument-audit/batch-9.tsv)
+# Batch 9's flutes with their own build, in the sheet's order. None: every row the sheet
+# ships is a sound-alike (plans/data/instrument-audit/batch-9.tsv)
 NEW_FLUTE_NAMES: list[str] = []
 # Batch 9's flute sound-alikes and the entry each sounds like, in the sheet's order
 FLUTE_SOUND_ALIKE_PARENTS: dict[str, str] = {
@@ -1915,11 +1915,12 @@ def test_the_gangsa_pairs_its_fundamental_at_the_ombak_ratio():
     )
 
 
-# Entries that imitate a feature the engine lacks (sympathetic strings by a detuned copy, a
-# buzzing bridge by drive). They predate decision 4 and stay, but nothing new shares their
-# sound: batch 4's sitar ruling, batch 7's for the bowed ones, and batch 9's for the dizi, built
-# without the membrane its page names (https://en.wikipedia.org/wiki/Dizi_(instrument): 'adding
-# harmonics to give the final tone a buzzing, nasal quality')
+# Entries that imitate or omit a feature the engine lacks (sympathetic strings by a detuned copy,
+# a buzzing bridge by drive, or no membrane at all). They predate decision 4 and stay, but
+# nothing new shares their sound: batch 4's sitar ruling, batch 7's for the bowed ones, and
+# batch 9's for the dizi, built without the membrane its page names
+# (https://en.wikipedia.org/wiki/Dizi_(instrument): 'adding harmonics to give the final tone a
+# buzzing, nasal quality')
 APPROXIMATING_NAMES = frozenset({
     'sitar',
     'tanpura',
@@ -1935,7 +1936,7 @@ APPROXIMATING_NAMES = frozenset({
 
 
 def test_no_sound_alike_shares_an_approximated_sound():
-    """No sound-alike takes the build of an entry that imitates a missing engine feature."""
+    """No sound-alike takes the build of an entry that imitates or omits a missing feature."""
     parents = {catalog_entry.sounds_like for catalog_entry in instruments.entries()}
     assert parents & APPROXIMATING_NAMES == set()
     assert set(instruments.names()).issuperset(APPROXIMATING_NAMES)
@@ -1993,13 +1994,19 @@ def test_nothing_waiting_for_moving_formants_is_listed():
 
 # The slide whistle's sound is its glide between notes, which the engine cannot make (it has one
 # glide per note and no LFO): it and its names wait for a pitch LFO (portamento between notes),
-# batch 4's dan bau ruling, under its name, a qualified name or an alias (decision 4; batch 9)
+# batch 4's dan bau ruling (decision 4; batch 9). The test matches exact names, in the catalog or
+# the aliases, and the set holds every name plans/data/instrument-audit/batch-9.tsv held back for
+# portamento: the slide whistle, its four other names (swanee whistle, lotus flute, piston flute,
+# jazz flute; https://en.wikipedia.org/wiki/Slide_whistle), the singing bird box (a piston pipe
+# moved along by a cam) and the whistling vessel (its pitch moves as the vessel tilts)
 PORTAMENTO_NAMES = frozenset({
     'slide whistle',
     'swanee whistle',
     'lotus flute',
     'piston flute',
     'jazz flute',
+    'singing bird box',
+    'whistling vessel',
 })
 
 

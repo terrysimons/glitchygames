@@ -18,9 +18,9 @@ from glitchygames.audio.instruments.catalog import CatalogEntry, Family
 
 FLUTE_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
     # --- Batch 9's sound-alikes (the European, orchestral and modern flutes, whistles and
-    # calls), in the order of build/batch-9-half-a.tsv: each a distinct instrument, verified by
-    # its source, that no fetched source sets apart in sound from the entry it names
-    # (``sounds_like``)
+    # calls), in the order of plans/data/instrument-audit/batch-9.tsv: each a distinct
+    # instrument, verified by its source, that no fetched source sets apart in sound from the
+    # entry it names (``sounds_like``)
     # Sound-alike of the soprano recorder (no fetched source sets it apart in sound):
     # https://en.wikipedia.org/wiki/Csakan ("A type of duct flute, the csakan was originally a
     # recorder crafted in the shape of a walking stick with a mouthpiece in the handle"; "Modern
