@@ -295,8 +295,10 @@ recorded the same options; ten tiles with different games and resolutions make t
    tile, each a bundled-demo test.
    Only PaddleSlap had one (its rally); the other games had only their golden replays, so they
    get theirs here beside Bitmappy and the dt, joystick and text-input demos.
-3. **A game inside the Arcade** = engine context sub-plans 3, 4, 6 and 7: an inner engine built
-   from options (not `sys.argv`), drawing offscreen (a render target per context), its own event
+3. **A game inside the Arcade** ([2026-11-12-arcade-3-inner-game.md](2026-11-12-arcade-3-inner-game.md),
+   branch `arcade-3-inner-game`: the full-Arcade spike's engine changes made real) = engine
+   context sub-plans 3, 4, 6 and 7: an inner engine (the game's own command, a hosted start),
+   drawing offscreen (a render target per context), its own event
    queue and internal-post tracker, contained errors, and nothing touching the window, SDL's
    environment, signals or `pygame.quit()`. Proof: every golden replay and bundled demo replayed
    in an inner context equals its headless replay, frame for frame, several at once.
@@ -307,7 +309,8 @@ recorded the same options; ten tiles with different games and resolutions make t
    the replay viewer's inner game moves onto the core, in its own context. Looping,
    fast-forward, poster frames, the frame budget.
 6. **The Arcade screen, reel and chime:** the app `src/apps/arcade/`, `uv run arcade`, ten tiles
-   (5x2), the highlight, input, the idle time-out, each tile's debug overlay (the spike's
+   in three visually separate sections (games, apps, demos; Decisions, 2026-11-12), the
+   selected one shown in the showcase area at the top, the highlight, input, the idle time-out, each tile's debug overlay (the spike's
    overlay rules and its opaque-tile fix become this sub-plan's tests, as Testing above says).
 7. **Launching in the same process:** discovery by entry point, a live game owning the window in
    a fresh context, return with the highlight kept, window size.
@@ -340,6 +343,20 @@ frame budget against `INNER_FRAME_BUDGET_SECONDS`.
   the demos need their demo recordings first (sub-plan 2).
 - **The order** (2026-11-08): the engine context plan is folded into these sub-plans (Sub-plans,
   above), and benchmarks are part of each.
+- **The grid is grouped by kind** (the owner, 2026-11-12): games, apps and demos each in their
+  own visually separate section of the grid (six games; Bitmappy; the dt, text-input and
+  joystick demos). Whatever is selected, from any section, goes up to the showcase area at the
+  top, scaled up and heard, as before. This replaces the single 5x2 grid of "The tile count"
+  and the ASCII picture under "What it is"; sub-plan 6 (the Arcade screen) builds it, and the
+  mockup (`reference_arcade_mockup`) is redrawn to match when that sub-plan is written.
+- **No changes must be required for a game to be wrapped** (2026-11-12). A tile or a launched
+  game is the game's installed command run as it is; the engine answers whatever the game asks
+  of the process (display, window, events, arguments) from the game's context. No sub-plan may
+  require a game, demo or app to change to be shown or played in the Arcade.
+- **Build on the full-Arcade spike** (2026-11-12): `arcade_spike_in_process.py` (the main
+  checkout's `.superpowers/arcade-spike/`) proved the design: each game's own command in its
+  own context, a hosted start, a render target and an event queue per context. Sub-plans reuse
+  it unless they name an improvement.
 
 - One process, in-process engine contexts (D1); child processes are not a fallback (the browser
   has none). Launching a game is in-process too.
