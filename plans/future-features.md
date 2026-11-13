@@ -4906,8 +4906,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
     `chromelodeon` is dropped as a one-off (batch 13's hand-off) and `pitch pipe` as a generic
     term ("any device used as a pitch reference"; `chromatic pitch pipe` decides the free reed
     instrument). `khromka` went from SOUND_ALIKE back to WAIT (below)
-  - [ ] The reed organ ruling, recorded (no question): the controller ruled `reed organ` a half-A
-    candidate decided here, since a DROP naming a family is a hand-off (batch 15's `claviharp`
+  - [ ] The reed organ ruling, recorded (no question): `batch-13.tsv`'s own row says «The boundary
+    ruling sends it to free reeds (also a free_reeds.md row; this sheet decides the name, #70)»,
+    and this ruling overrides that "this sheet decides the name, #70". The controller ruled `reed
+    organ` a half-A candidate decided here, since a DROP naming a family is a hand-off (batch 15's `claviharp`
     and `dolceola`), and #70's "so the keyboards and free reeds batches must not decide them
     again" is right for `orchestrion` and a slip of the pen for `reed organ`, as #70's batch 16
     paragraph records. It waits for a sourced range; once ranged it is a sound-alike of
@@ -4967,8 +4969,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
     19th-century reed organ), `u` (the Japanese u, a larger sho, and the Goryeo-period name of the
     saenghwang: WAIT for a sourced range as a size of `sho` is equally defensible, see the bugs),
     `ken` (the khaen and the Vietnamese ken, a double reed), `claviola` (Hohner's free reed and F.
-    Stichel's 1904 self-playing piano trademark; this decides the name for #85's keyboards list
-    too), `pianica` (a maker's name for the melodica of every size; Yamaha's P-37E is f-f''' (F3-F6),
+    Stichel's 1904 self-playing piano trademark; this decides the name for #70's batch 15
+    gaps list too), `pianica` (a maker's name for the melodica of every size; Yamaha's P-37E is f-f''' (F3-F6),
     the catalog's alto melodica, but only for that model). Rows of their own rather than aliases:
     `bayan`, `khromka` and `piano accordion` (their pages say "a type of"), `triola` (Seydel's
     single-tone children's harmonica in two models, none standard), `accordina` (a button-layout
@@ -5005,8 +5007,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - [ ] The 13 earlier free reed entries carry no source comment for their ranges or builds
   - [ ] The catalog `accordion` F3-A6 has no source: the `piano accordion` page's F3-A6 is a
     written range whose sounding notes depend on the stops, and the infobox is uncited (the
-    `khromka` and `piano accordion` rows). The `concertina` is titled English, a lead from the
-    plan's Global Constraints that this batch did not check against a source
+    `khromka` and `piano accordion` rows)
   - [ ] The catalog `sheng` is G3-A6 and no fetched source gives A6 for any sheng. The Chinese
     Sheng page's one cited range, Hu 2014, gives G3-F#6 for "today's mainstream modern sheng"
     (目前的主流现代笙), which arguably is "most common" for the bare `sheng` (range ruling 6); the
@@ -5051,6 +5052,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
     no engine feature; `bawu` and `hulusi` a free reed sounding a fingered pipe; `sho` a spectrum
     that changes with the note (`a sourced partial series`); `tremolo harmonica` a second detuned
     reed set with a sourced number; `khene` and `keluri` a sourced drone tuning
+  - [ ] The catalog `concertina` is titled English, G3-C7 (a lead from the plan's Global
+    Constraints; no defect found: the Concertina page states no compass for any system, and no
+    English concertina page was fetched). To check: a source for G3-C7 as the treble English
+    compass, and whether the bare name `concertina` should mean one system
   - [ ] Leads for later passes: the side-blown `sneng` (#80), the removed concertina names and the
     template's unresearched names (`orthotonophonium`, `harmoneon`, `lap organ`)
 - **Incidents and process**:
@@ -5075,6 +5080,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
     saenghwang's historical name and a WAIT is equally defensible; `soprano sheng`'s Hu 2014 line
     is recorded as a lead against the catalog's A6
   - [ ] The branch's base is `d4c1e3eb` (batch 15's tip)
+  - [ ] Task 6's full-suite run had one load flake: `test_command_crash_boundary.py`'s signal test,
+    case [2], hit its 60 s subprocess timeout under xdist load. It passed alone and on the full
+    rerun. A load-flaky test worth a look; batch 14's #84 had a similar native-window flake under
+    load
 - **Found**: batch 16's reviews (2026-11-13)
 - **Status**: TODO
 - **Priority**: Medium (before the harps batch builds on the same catalog)

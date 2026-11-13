@@ -7,9 +7,9 @@ from the parent and change their details? ... I want them to all show up." Each 
 its own name, so a person finds it by the name they know, and each builds its parent's
 instrument through ``sounds_like`` (assembled in ``registry.sound_alikes_from``). It gives its own
 sourced range, since a sound-alike of another size plays another span. A true alias, another name
-for the same instrument, stays in ``aliases.py``. A sound-alike whose source gives it a detune
-between its reed sets, an octave reed set or drones its parent lacks carries them as
-``sound_changes``, its only changes. The family's builds are in ``free_reeds.py``.
+for the same instrument, stays in ``aliases.py``. Once the builders take them, a sound-alike whose
+source gives it a detune between its reed sets, an octave reed set or drones its parent lacks will
+carry them as ``sound_changes``, its only changes. The family's builds are in ``free_reeds.py``.
 """
 
 from __future__ import annotations
