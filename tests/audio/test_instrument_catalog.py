@@ -881,6 +881,8 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('cimbale', 'hammered dulcimer'),
         ('cymbaly', 'hammered dulcimer'),
         ('chimbaly', 'hammered dulcimer'),
+        ('soprillo', 'soprillo saxophone'),
+        ('sopranissimo saxophone', 'soprillo saxophone'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -929,6 +931,8 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 18's hammered dulcimers name the hammered dulcimer as the hackbrett, the dulcemele, the
     dultzimar, the darushimaa, the hakkebord, the hakkebraet, the hakkebrett, the hackbraede, the
     hammarharpa, the oprekelj, the cimbale, the cymbaly and the chimbaly.
+    Batch 19's saxophones name the soprillo saxophone (a sound-alike entry) as the soprillo and
+    the sopranissimo saxophone.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1921,7 +1925,10 @@ EXISTING_SAXOPHONE_NAMES: frozenset[str] = frozenset({
 # (plans/data/instrument-audit/batch-19.tsv)
 NEW_SAXOPHONE_NAMES: list[str] = []
 # Batch 19's saxophone sound-alikes and the entry each sounds like, in the sheet's order
-SAXOPHONE_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+SAXOPHONE_SOUND_ALIKE_PARENTS: dict[str, str] = {
+    'soprillo saxophone': 'sopranino saxophone',
+    'tubax in eb': 'contrabass saxophone',
+}
 
 
 # The 42 brass instruments that predate batch 10: their shared builds predate the anti-goal rule
@@ -3234,7 +3241,9 @@ def test_no_struck_string_sound_alike_changes_its_parents_build():
 # of its own, a sourced reed and bore or a range above C8, and the alias rows that wait for one of
 # them, in the sheet's order. None ships under that name or as an alias until the reason is met
 # (decision 4; batch 19). The test matches exact names
-SAXOPHONE_HELD_BACK: dict[str, str] = {}
+SAXOPHONE_HELD_BACK: dict[str, str] = {
+    'bb tubax': 'sub-audio fundamentals',
+}
 
 
 def test_no_saxophone_name_held_back_for_a_feature_is_listed():

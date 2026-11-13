@@ -562,4 +562,17 @@ ALIASES: Final[dict[str, str]] = {
     # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Russia - chimbaly", under the same
     # cimbalom sub-list): the Russian name, so the catalog's hammered dulcimer
     'chimbaly': 'hammered dulcimer',
+    # --- Batch 19's saxophones, in the order of plans/data/instrument-audit/batch-19.tsv (half A;
+    # its other rows drop or wait). Each alias names the soprillo saxophone, a sound-alike entry of
+    # the same sheet. Each quote writes the page's markup as plain text
+    # https://en.wikipedia.org/wiki/Soprillo ("The soprillo, also known as the piccolo saxophone or
+    # rarely sopranissimo saxophone, is the highest pitched and smallest saxophone." and, of its
+    # maker, "He called it the soprillo"): the page is titled by this name and the catalog entry
+    # takes the family's "<size> saxophone" form, so it is the same instrument
+    'soprillo': 'soprillo saxophone',
+    # https://en.wikipedia.org/wiki/Soprillo (the same sentence: "or rarely sopranissimo
+    # saxophone"): a names sentence for the same instrument. The page gives the bare word
+    # "sopranissimo" to a 1960 prototype "of the same pitch", which it counts as the first piccolo
+    # saxophone, so the name is not given to two instruments
+    'sopranissimo saxophone': 'soprillo saxophone',
 }
