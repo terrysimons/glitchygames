@@ -1,4 +1,4 @@
-"""Clarinets: single reeds on a cylindrical bore, the E-flat to the contrabass clarinet, the basset horn and the chalumeau.
+"""Clarinets: cylindrical single reeds, E-flat to contrabass clarinet, basset horn and chalumeau.
 
 Ranges are sounding pitch (a B-flat clarinet's written C sounds B-flat), after the standard
 orchestration ranges (Adler, *The Study of Orchestration*; Vienna Symphonic Library's instrument
@@ -7,7 +7,7 @@ harmonics. A single reed on a conical bore is a saxophone, not a clarinet. The f
 sound-alikes, listed instruments that share another entry's build, are in
 ``clarinet_sound_alikes.py``. The saxophones and the free reeds are in the sibling module
 ``winds.py``.
-"""  # ruff: ignore[line-too-long] (the first line is the family's one-line summary)
+"""
 
 from __future__ import annotations
 
