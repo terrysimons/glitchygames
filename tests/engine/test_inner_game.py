@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 import pygame
 import pytest
 
+from glitchygames import events
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
 from glitchygames.engine_context import current_context, default_context
@@ -77,6 +78,10 @@ QUIET = ('--log-level', 'error')
 SDL_DRIVER_VARIABLES = ('SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')
 # A user event the tests leave in SDL's queue: an inner game must neither take it nor add to it
 SENTINEL_EVENT_TYPE = pygame.USEREVENT + 7
+# An outer game's blocked event types other than the engine's own (every type allowed but
+# SYSWMEVENT): an inner engine allowing every type, or a manager allowing its own, would show
+OUTER_BLOCKED_TYPES = (*events.CONTROLLER_EVENTS, pygame.MOUSEWHEEL)
+OUTER_ALLOWED_TYPES = (pygame.SYSWMEVENT,)
 
 
 @pytest.fixture(scope='module')
@@ -138,6 +143,42 @@ def sentinel_in_sdl_queue() -> Generator[pygame.event.Event]:
         yield sentinel
     finally:
         pygame.event.clear()
+
+
+@pytest.fixture
+def outer_blocked_types() -> Generator[dict[int, bool]]:
+    """Set an outer game's own blocked event types at SDL; put back what was there afterwards.
+
+    Yields:
+        Each type's blocked state as the outer game set it.
+
+    """
+    changed_types = (*OUTER_BLOCKED_TYPES, *OUTER_ALLOWED_TYPES)
+    before = {event_type: pygame.event.get_blocked(event_type) for event_type in changed_types}
+    pygame.event.set_blocked(list(OUTER_BLOCKED_TYPES))
+    pygame.event.set_allowed(list(OUTER_ALLOWED_TYPES))
+    try:
+        yield blocked_states(event_types=changed_types)
+    finally:
+        pygame.event.set_blocked([
+            event_type for event_type, was_blocked in before.items() if was_blocked
+        ])
+        pygame.event.set_allowed([
+            event_type for event_type, was_blocked in before.items() if not was_blocked
+        ])
+
+
+def blocked_states(*, event_types: tuple[int, ...]) -> dict[int, bool]:
+    """Return SDL's blocked state for each event type.
+
+    Args:
+        event_types: The types to read.
+
+    Returns:
+        Each type's ``pygame.event.get_blocked``.
+
+    """
+    return {event_type: pygame.event.get_blocked(event_type) for event_type in event_types}
 
 
 def process_state() -> dict[str, object]:
@@ -213,12 +254,13 @@ class TestAReplayInsideItsContext:
         inner_game = replay_stand_in(game=stand_in, path=recording)
 
         assert inner_game.outcome == InnerGameOutcome(
-            state=InnerGameState.RUNNING, frames_run=0, report=None, error=None
+            state=InnerGameState.RUNNING, frames_run=0, report=None, diverged=None, error=None
         )
         running_steps = play_to_the_end(inner_game)
 
         outcome = inner_game.outcome
         assert outcome.state is InnerGameState.ENDED, outcome
+        assert outcome.diverged is False
         assert outcome.error is None
         assert outcome.report is not None
         assert outcome.report.startswith('Replay matched'), outcome.report
@@ -270,6 +312,7 @@ class TestAReplayInsideItsContext:
 
         assert outcome.state is InnerGameState.ENDED
         assert outcome.frames_run == 1
+        assert outcome.diverged is True
         assert outcome.report is not None
         assert outcome.report.startswith('Replay diverged at frame 1'), outcome.report
 
@@ -351,6 +394,7 @@ class TestADivergence:
 
         outcome = inner_game.outcome
         assert outcome.state is InnerGameState.ENDED, outcome
+        assert outcome.diverged is True
         assert outcome.error is None
         assert outcome.report is not None
         assert outcome.report.startswith(f'Replay diverged at frame {TAMPERED_FRAME}')
@@ -382,6 +426,7 @@ class TestAFailure:
         assert outcome.state is InnerGameState.FAILED
         assert outcome.frames_run == 0
         assert outcome.report is None
+        assert outcome.diverged is None
         assert outcome.error == 'the game exited with UNUSABLE_INPUT (65)'
         assert not inner_game.step()
         assert inner_game.finish() == outcome
@@ -504,6 +549,45 @@ class TestAFailure:
         assert inner_game.outcome.state is InnerGameState.FAILED
         assert inner_game.outcome.error == 'RuntimeError: first'
 
+    def test_a_game_failing_to_begin_its_frames_is_finished(
+        self,
+        stand_in: StandInGame,
+        recording: Path,
+        mocker: MockerFixture,
+        sentinel_in_sdl_queue: pygame.event.Event,
+    ):
+        """Built, then begin_frames raising: FAILED, and the run finished as any other (rule 4).
+
+        The frames end, the recording and the timer close and the replay's result is settled;
+        no engine is left current in the inner context, and nothing in the process changed.
+        """
+        before = process_state()
+        mocker.patch.object(SceneManager, 'begin_frames', side_effect=RuntimeError('no frames'))
+        end_frames = mocker.spy(SceneManager, 'end_frames')
+        stop_trace_recording = mocker.spy(GameEngine, 'stop_trace_recording')
+
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+
+        outcome = inner_game.outcome
+        assert outcome.state is InnerGameState.FAILED
+        assert outcome.error == 'RuntimeError: no frames'
+        assert outcome.frames_run == 0
+        assert outcome.diverged is True
+        assert outcome.report is not None
+        assert outcome.report.startswith('Replay stopped at frame 0'), outcome.report
+        assert 'the run ended with RuntimeError: no frames' in outcome.report
+        end_frames.assert_called_once()
+        stop_trace_recording.assert_called_once()
+        assert not inner_game.step()
+        assert inner_game.finish() == outcome
+        with inner_game.context.active():
+            assert current_context().value(slot=CURRENT_ENGINE_SLOT).engine is None
+        assert current_context() is default_context()
+        assert process_state() == before
+        assert queued_without_pumping() == [
+            (sentinel_in_sdl_queue.type, dict(sentinel_in_sdl_queue.dict))
+        ]
+
     def test_a_keyboard_interrupt_is_not_contained(
         self, stand_in: StandInGame, recording: Path, mocker: MockerFixture
     ):
@@ -581,6 +665,31 @@ class TestTheProcessAfterwards:
         with inner_game.context.active():
             assert current_context().value(slot=CURRENT_ENGINE_SLOT).engine is None
         assert sys.argv == argv_before
+
+    def test_the_outer_games_blocked_event_types_survive_building_stepping_and_finishing(
+        self, stand_in: StandInGame, recording: Path, outer_blocked_types: dict[int, bool]
+    ):
+        """Row S6: the inner engine's and its managers' allowing changes nothing at SDL.
+
+        The outer game blocks the controller events and the mouse wheel and allows SYSWMEVENT,
+        none of them the engine's own choice: after the build, a step and the finish, each is
+        as the outer game set it.
+        """
+        event_types = tuple(outer_blocked_types)
+
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        after_build = blocked_states(event_types=event_types)
+        inner_game.step()
+        after_step = blocked_states(event_types=event_types)
+        inner_game.finish()
+        after_finish = blocked_states(event_types=event_types)
+
+        assert inner_game.outcome.state is InnerGameState.ENDED, inner_game.outcome
+        assert after_build == outer_blocked_types
+        assert after_step == outer_blocked_types
+        assert after_finish == outer_blocked_types
+        assert outer_blocked_types[pygame.MOUSEWHEEL] is True
+        assert outer_blocked_types[pygame.SYSWMEVENT] is False
 
 
 class TestRefusals:

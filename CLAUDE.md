@@ -1239,8 +1239,12 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   replays: live play, tool flags, `--rebaseline`, `--audit`, `--compare-trace`, `--profile`,
   `--list-input-devices`, `--help`, `--version` raise `InnerGameRefusedError` before anything is
   built. An `Exception` or `SystemExit` fails only that game; it writes nothing to stdout (the
-  report is the outcome's, logged at INFO). Still shared: the mixer (sub-plan 4), SDL's key
-  repeat and `pygame.register_quit` (`plans/future-work.md`). The proof:
+  report is the outcome's, logged at INFO). SDL's blocked event types are never changed from an
+  inner context (`events.set_event_types_allowed`, the one way the engine blocks or allows).
+  Still shared (`plans/future-work.md`): the mixer (sub-plan 4), SDL's key repeat, text input
+  start/stop, Bitmappy's mouse visibility, `pygame.freetype`'s default resolution (an inner
+  `FontManager`'s `--font-dpi`), `SDL_MOUSE_FOCUS_CLICKTHROUGH` when unset and
+  `pygame.register_quit`. The proof:
   `tests/test_every_recording_replays_inside_an_inner_game.py` (every golden and bundled demo,
   interleaved beside another inside a window of another size, matches its solo replay's digests
   and pixels; Bitmappy's demo and the text-input demo's key repeat are strict xfails); ten

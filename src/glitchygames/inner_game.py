@@ -29,15 +29,18 @@ The rules:
    ``SystemExit`` (a game's ``sys.exit()``, the engine's ``exit_with``, argparse's exit) raised
    while building, stepping or finishing makes the outcome ``FAILED`` with the error's text; the
    host and every other inner game go on. ``KeyboardInterrupt`` and ``GeneratorExit`` propagate.
-   A build that fails leaves no engine current in the inner context and hands none over.
+   A build that fails leaves no engine current in the inner context and hands none over; one
+   that fails after its engine was built (in ``begin_frames``) is finished as rule 4 says.
 3. **An inner game writes nothing to stdout** (decision 3): the replay's report, which a headless
    replay prints, is the outcome's ``report`` and is logged at INFO.
 4. **Finishing leaves the process as it was.** ``finish()`` ends the frames, closes any
    recording and the timer, and settles the replay's result, as the engine's teardown would,
    but never quits pygame, restores signal handlers or SDL's driver variables (a hosted start
-   changed none of them) or exits. SDL's queue, its blocked event types and the window are never
-   touched; the default context is current again after every call. The process-wide mixer is
-   still shared (Arcade sub-plan 4, sound).
+   changed none of them) or exits. SDL's queue, its blocked event types
+   (``events.set_event_types_allowed``) and the window are never touched; the default context
+   is current again after every call. The process-wide mixer is still shared (Arcade sub-plan
+   4, sound), and so are SDL's key repeat, text input and cursor visibility and pygame's default
+   font resolution (plans/future-work.md).
 
 A recorded quit (every golden ends with its game's quit control) ends only its inner game:
 the QUIT is posted to and drained from the context's private queue, never SDL's.
@@ -128,6 +131,10 @@ class InnerGameOutcome(BaseModel):
         frames_run: How many frames ran to their end.
         report: The replay's report once settled (``Replay matched N frames ...``, a divergence,
             or where a failure stopped it); None before, or when the game was never built.
+        diverged: Once the report is settled, whether the replay diverged
+            (``ReplayReport.is_failure``): a frame differed, or the run ended before the
+            recording did (``ReplaySources.finish_run`` makes that a length divergence; the
+            state is then ``FAILED``). False when it matched; None while ``report`` is None.
         error: The failure's text when ``state`` is ``FAILED``, else None.
 
     """
@@ -137,6 +144,7 @@ class InnerGameOutcome(BaseModel):
     state: InnerGameState
     frames_run: int
     report: str | None
+    diverged: bool | None
     error: str | None
 
 
@@ -254,6 +262,7 @@ class InnerGame:
         self._frames_run = 0
         self._state = InnerGameState.RUNNING
         self._report: str | None = None
+        self._diverged: bool | None = None
         self._error: str | None = None
         # What ended the run early (the failure, described), for the replay's report
         self._run_ended_by: str | None = None
@@ -261,13 +270,22 @@ class InnerGame:
         with self._context.active():
             try:
                 engine = self._build(command_line=command_line)
-                self._frame_start_seconds = engine.scene_manager.begin_frames()
             except CONTAINED_ERRORS as error:
                 self._fail(error=error)
                 self._forget_a_half_built_engine()
                 self._finished = True
+                return
+            self._engine = engine
+            try:
+                self._frame_start_seconds = engine.scene_manager.begin_frames()
+            except CONTAINED_ERRORS as error:
+                self._fail(error=error)
+                began_its_frames = False
             else:
-                self._engine = engine
+                began_its_frames = True
+        if not began_its_frames:
+            # The engine was built: its run is finished as any other (rule 4)
+            self.finish()
 
     @classmethod
     def replay(
@@ -328,6 +346,7 @@ class InnerGame:
             state=self._state,
             frames_run=self._frames_run,
             report=self._report,
+            diverged=self._diverged,
             error=self._error,
         )
 
@@ -506,4 +525,5 @@ class InnerGame:
             replay_sources=replay_sources, run_ended_by=self._run_ended_by
         )
         self._report = report.text
+        self._diverged = report.is_failure
         LOG.info('Inner game %s: %s', self._context.name, report.text)

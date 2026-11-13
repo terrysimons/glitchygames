@@ -117,9 +117,15 @@ the contract; `plans/2026-11-12-arcade-3-inner-game.md`):
 8. **An inner game writes nothing to stdout**: the replay's report, which a headless replay
    prints, is the outcome's `report`, logged at INFO.
 
-Still shared with the outer game: the mixer (Arcade sub-plan 4), SDL's key repeat (one per
-process: the text-input demo's tile changes the outer game's, `plans/future-work.md`), and
-`pygame.register_quit` (every engine build adds one, never removed). The proof is
+An inner game never changes SDL's blocked event types: every engine call that blocks or allows
+goes through `events.set_event_types_allowed`, which changes nothing in an inner context (its
+private queue is all it reads). What an inner game can still change in the process (each in
+`plans/future-work.md`): the shared mixer (Arcade sub-plan 4), SDL's key repeat (the text-input
+demo's tile changes the outer game's), text input start and stop (the engine's text widgets),
+the mouse cursor's visibility (Bitmappy's canvas), pygame's default font resolution (an inner
+`FontManager` sets it from its `--font-dpi`), `SDL_MOUSE_FOCUS_CLICKTHROUGH` when unset
+(`os.environ.setdefault`), and `pygame.register_quit` (every engine build adds one, never
+removed). The proof is
 `tests/test_every_recording_replays_inside_an_inner_game.py`: every golden and bundled demo,
 replayed as an inner game beside another, unevenly interleaved, inside an outer window of
 another size, matches its solo headless replay's digests frame for frame and draws the pixels it

@@ -2129,7 +2129,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         if input_mode is InputMode.JOYSTICK:
             self.controller_manager = None
-            pygame.event.set_blocked(events.CONTROLLER_EVENTS)
+            events.set_event_types_allowed(event_types=events.CONTROLLER_EVENTS, allowed=False)
             LOG.info('Input mode: joystick (controller events blocked)')
         else:
             self.controller_manager = ControllerEventManager(game=self.scene_manager)
@@ -2252,7 +2252,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             # at SDL: the live game (joystick mode) keeps them blocked, and the scope's events
             # come from the recording, not SDL
             self.controller_manager = ControllerEventManager(game=self.scene_manager)
-            pygame.event.set_blocked(events.CONTROLLER_EVENTS)
+            events.set_event_types_allowed(event_types=events.CONTROLLER_EVENTS, allowed=False)
         self.joystick_manager.joysticks = (
             self.joystick_manager.open_connected_joysticks()
             if adopted is None

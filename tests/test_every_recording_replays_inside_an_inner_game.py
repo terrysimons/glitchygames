@@ -30,7 +30,11 @@ same after a tile has run (the plan's Review Focus 4: the text-input demo sets i
 its setup, and the engine's input box another on each key release while it is active). Each
 recording is replayed alone as an inner game to check it
 (``test_a_tile_leaves_the_outer_key_repeat_as_it_was``); one known to change it
-(``CHANGES_THE_OUTER_KEY_REPEAT``) is ``xfail(strict=True)`` with its entry.
+(``CHANGES_THE_OUTER_KEY_REPEAT``) is ``xfail(strict=True)`` with its entry. After every
+recording replayed alone, the outer window's size and caption and SDL's blocked event types
+(one set per process, row S6 of plans/2026-10-25-engine-context.md) are checked too: the outer
+game sets blocked types of its own (``OUTER_BLOCKED_TYPES``, ``OUTER_ALLOWED_TYPES``) that no
+engine sets, so a tile allowing every type, or a manager allowing its own, would show.
 
 A repository test (tests/test_suite_collection.py ``REPOSITORY_TEST_FILES``): it replays our
 members' recordings through their console scripts.
@@ -45,7 +49,9 @@ from typing import TYPE_CHECKING
 
 import pygame
 import pytest
+from pydantic import BaseModel, ConfigDict
 
+from glitchygames import events
 from glitchygames.engine_context import current_context, default_context
 from glitchygames.exit_codes import ExitCode
 from glitchygames.inner_game import InnerGame, InnerGameState
@@ -57,7 +63,7 @@ from tests.display_canvas import show_canvas_on_new_display
 from tests.workspace_goldens import every_golden_and_bundled_demo
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Iterable
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Every golden, then every bundled demo: (console script, recording)
@@ -88,8 +94,12 @@ INTERLEAVED_STEPS = ((1, 2), (3, 1), (2, 3), (1, 1), (4, 2))
 # reference child gets (children.headless_replay_arguments)
 QUIET = ('--log-level', 'warning')
 DIGEST_OPTION = '--replay-digest'
-# The report a matched replay starts with (ReplayResult.report)
-MATCHED_REPORT_START = 'Replay matched'
+# The outer game's own blocked event types, none the engine's choice (it allows every type but
+# SYSWMEVENT): a tile that changed SDL's blocked set would show (row S6)
+OUTER_BLOCKED_TYPES = (*events.CONTROLLER_EVENTS, pygame.MOUSEWHEEL)
+OUTER_ALLOWED_TYPES = (pygame.SYSWMEVENT,)
+# The outer window's caption: an inner game never names the window
+OUTER_CAPTION = 'The Arcade (outer game)'
 
 
 @pytest.fixture
@@ -106,6 +116,36 @@ def outer_window() -> pygame.Surface:
 
 
 @pytest.fixture
+def outer_process_state(outer_window: pygame.Surface) -> Generator[OuterProcessState]:
+    """Set the outer game's caption and own blocked event types; put back both afterwards.
+
+    Yields:
+        The outer window's size and caption and SDL's blocked state for each type set.
+
+    """
+    changed_types = (*OUTER_BLOCKED_TYPES, *OUTER_ALLOWED_TYPES)
+    caption_before = pygame.display.get_caption()
+    before = blocked_states(event_types=changed_types)
+    pygame.display.set_caption(OUTER_CAPTION)
+    pygame.event.set_blocked(list(OUTER_BLOCKED_TYPES))
+    pygame.event.set_allowed(list(OUTER_ALLOWED_TYPES))
+    try:
+        yield OuterProcessState(
+            window_size=outer_window.get_size(),
+            caption=pygame.display.get_caption(),
+            blocked=blocked_states(event_types=changed_types),
+        )
+    finally:
+        pygame.display.set_caption(*caption_before)
+        pygame.event.set_blocked([
+            event_type for event_type, was_blocked in before.items() if was_blocked
+        ])
+        pygame.event.set_allowed([
+            event_type for event_type, was_blocked in before.items() if not was_blocked
+        ])
+
+
+@pytest.fixture
 def outer_key_repeat() -> Generator[tuple[int, int]]:
     """Read the outer game's key repeat before the test, and put it back afterwards.
 
@@ -118,6 +158,67 @@ def outer_key_repeat() -> Generator[tuple[int, int]]:
         yield delay, interval
     finally:
         pygame.key.set_repeat(delay, interval)
+
+
+class OuterProcessState(BaseModel):
+    """What the outer game set in the process, which no tile may change (read-only).
+
+    Attributes:
+        window_size: The outer window's size.
+        caption: The outer window's caption (``pygame.display.get_caption``).
+        blocked: SDL's blocked state for each event type the outer game set.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    window_size: tuple[int, int]
+    caption: tuple[str, str]
+    blocked: dict[int, bool]
+
+    @classmethod
+    def now(cls, *, event_types: Iterable[int]) -> OuterProcessState:
+        """Read the window's size and caption and SDL's blocked state for each type.
+
+        Args:
+            event_types: The types to read.
+
+        Returns:
+            The state as it is now.
+
+        """
+        window = pygame.display.get_surface()
+        assert window is not None
+        return cls(
+            window_size=window.get_size(),
+            caption=pygame.display.get_caption(),
+            blocked=blocked_states(event_types=tuple(event_types)),
+        )
+
+
+def blocked_states(*, event_types: tuple[int, ...]) -> dict[int, bool]:
+    """Return SDL's blocked state for each event type.
+
+    Args:
+        event_types: The types to read.
+
+    Returns:
+        Each type's ``pygame.event.get_blocked``.
+
+    """
+    return {event_type: pygame.event.get_blocked(event_type) for event_type in event_types}
+
+
+def assert_the_outer_process_state_is_unchanged(*, expected: OuterProcessState, label: str) -> None:
+    """Check the outer window and SDL's blocked event types are as the outer game set them.
+
+    Args:
+        expected: What the outer game set.
+        label: The recording, for the message.
+
+    """
+    now = OuterProcessState.now(event_types=expected.blocked)
+    assert now == expected, f'{label} changed the outer process state from {expected} to {now}'
 
 
 def recording_id(*, console_script: str, recording: Path) -> str:
@@ -305,8 +406,7 @@ class Tile:
         """
         outcome = self.inner_game.outcome
         assert outcome.state is InnerGameState.ENDED, f'{self.label}: {outcome}'
-        assert outcome.report is not None
-        assert outcome.report.startswith(MATCHED_REPORT_START), f'{self.label}: {outcome.report}'
+        assert outcome.diverged is False, f'{self.label}: {outcome.report}'
         digests, divergence = read_digest_file(path=self.digest_path)
         assert divergence is None, f'{self.label}: {divergence}'
         return digests
@@ -355,15 +455,16 @@ def test_a_recording_replays_inside_a_tile_beside_another_as_it_does_alone(
     tile: tuple[str, Path],
     partner: tuple[str, Path],
     tmp_path: Path,
-    outer_window: pygame.Surface,
+    outer_process_state: OuterProcessState,
     outer_key_repeat: tuple[int, int],
 ):
     """Interleaved unevenly, each tile matches its solo child replay and draws what it draws alone.
 
-    The outer window and key repeat are the fixtures': the window is another size than any
-    tile's, and a tile that changes the repeat is put back (its own test checks it).
+    The outer window, its blocked event types and key repeat are the fixtures': the window is
+    another size than any tile's, and a tile that changes the repeat is put back (its own test
+    checks it). After each recording replayed alone the window and blocked types are unchanged.
     """
-    assert outer_window.get_size() == OUTER_WINDOW_SIZE
+    assert outer_process_state.window_size == OUTER_WINDOW_SIZE
     assert outer_key_repeat == pygame.key.get_repeat()
     cases = (('tile', *tile), ('partner', *partner))
     references = {
@@ -382,6 +483,7 @@ def test_a_recording_replays_inside_a_tile_beside_another_as_it_does_alone(
         interleaved = tiles[name]
         assert interleaved.matched_digests() == references[name], interleaved.label
         alone = play_alone(console_script=script, recording=recording, work_directory=tmp_path)
+        assert_the_outer_process_state_is_unchanged(expected=outer_process_state, label=alone.label)
         alone.matched_digests()
         assert interleaved.pixel_hashes == alone.pixel_hashes, (
             f'{interleaved.label}: its pixels beside another tile differ from its pixels alone'
@@ -422,14 +524,19 @@ def test_a_tile_leaves_the_outer_key_repeat_as_it_was(
     console_script: str,
     recording: Path,
     tmp_path: Path,
-    outer_window: pygame.Surface,
+    outer_process_state: OuterProcessState,
     outer_key_repeat: tuple[int, int],
 ):
-    """Review Focus 4: a recording replayed to its end as an inner game leaves SDL's key repeat."""
-    assert outer_window.get_size() == OUTER_WINDOW_SIZE
+    """Review Focus 4: a recording replayed to its end as an inner game leaves SDL's key repeat.
 
-    play_alone(console_script=console_script, recording=recording, work_directory=tmp_path)
+    And the outer window's size and caption and SDL's blocked event types (row S6), checked
+    first: the strict xfail of a known key-repeat change must fail on the key repeat alone.
+    """
+    assert outer_process_state.window_size == OUTER_WINDOW_SIZE
 
+    alone = play_alone(console_script=console_script, recording=recording, work_directory=tmp_path)
+
+    assert_the_outer_process_state_is_unchanged(expected=outer_process_state, label=alone.label)
     key_repeat_after = pygame.key.get_repeat()
     assert key_repeat_after == outer_key_repeat, (
         f'{recording_id(console_script=console_script, recording=recording)} changed the outer '

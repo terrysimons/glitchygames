@@ -174,7 +174,8 @@ inside a tile. The owner left it failing (2026-11-12; `plans/future-work.md`).
 - Produces:
   - `InnerGameState(StrEnum)`: `RUNNING`, `ENDED`, `FAILED`.
   - `InnerGameOutcome(BaseModel, frozen, extra='forbid')`: `state`, `frames_run: int`,
-    `report: str | None`, `error: str | None`.
+    `report: str | None`, `diverged: bool | None` (added by the final review's fixes),
+    `error: str | None`.
   - `InnerGameRefusedError(ValueError)`.
   - `InnerGame.replay(*, command: str, path: Path, name: str, size: tuple[int, int],
     arguments: Sequence[str] = ()) -> InnerGame`: refuses decision 5's arguments; makes
@@ -223,6 +224,22 @@ inside a tile. The owner left it failing (2026-11-12; `plans/future-work.md`).
 - [x] **Step 4: Update the documents**, then `uv run pytest`, `nox -s lint`,
   `nox -s static-analysis`; expected green.
 - [x] **Step 5: Commit** (`Inner game: every golden and bundled demo replays inside an inner context as it does alone`)
+
+### The final review's fixes (2026-11-12)
+
+- [x] An inner context never changes SDL's blocked event types (row S6): every engine call
+  that blocks or allows goes through `events.set_event_types_allowed`
+  (`src/glitchygames/events/base.py`), which changes nothing in an inner context:
+  `allow_every_event_type`, the ten event managers' constructors and the two
+  `--input-mode joystick` blocks. Tested with an outer game's own blocked types across a
+  build, a step and the finish, and after every recording replayed alone in the proof.
+- [x] `InnerGameOutcome.diverged` (`ReplayReport.is_failure`), which the proof reads instead of
+  the report's text.
+- [x] A build that fails in `begin_frames()`, after its engine was built, is finished as any
+  other run (frames ended, recording and timer closed, the replay settled).
+- [x] The documents say what an inner game can still change in the process (row S2's key
+  repeat, text input and mouse visibility; row S8's font resolution and environment default;
+  the mixer; `register_quit`), and `plans/future-work.md` holds sub-plan 4's audio-engine item.
 
 The branch ends with the whole suite green, `nox -s compare-drivers -- --drivers native
 --fail-on-difference` clean, a PR, CI green and the owner's merge.
