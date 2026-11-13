@@ -5,8 +5,8 @@ by bellows: Hornbostel-Sachs' -62 suffix, "with flexible air reservoir". Its cha
 or two, a double reed (an oboe, 422.1) or a single reed (a clarinet, 422.2), conical or
 cylindrical. A bagpipe's chanter sounds over fixed drones, and ranges are sounding pitch. The
 family's sound-alikes, listed instruments that share another entry's build, are in
-``bagpipe_sound_alikes.py``. The other reed families are in the sibling modules ``winds.py`` and
-``double_reeds.py``.
+``bagpipe_sound_alikes.py``. The clarinets are in the sibling module ``clarinets.py``, the other
+reed families in the sibling modules ``winds.py`` and ``double_reeds.py``.
 """
 
 from __future__ import annotations

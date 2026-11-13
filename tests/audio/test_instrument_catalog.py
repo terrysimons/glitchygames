@@ -1679,6 +1679,25 @@ FLUTE_SOUND_ALIKE_PARENTS: dict[str, str] = {
 FLUTE_UNPITCHED_NAMES: frozenset[str] = frozenset()
 
 
+# The 9 clarinets that predate batch 14: their shared builds predate the anti-goal rule
+EXISTING_CLARINET_NAMES: frozenset[str] = frozenset({
+    'e flat clarinet',
+    'clarinet',
+    'a clarinet',
+    'basset horn',
+    'alto clarinet',
+    'bass clarinet',
+    'contra alto clarinet',
+    'contrabass clarinet',
+    'chalumeau',
+})
+# Batch 14's clarinets with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-14.tsv)
+NEW_CLARINET_NAMES: list[str] = []
+# Batch 14's clarinet sound-alikes and the entry each sounds like, in the sheet's order
+CLARINET_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+
+
 # The 23 double reeds that predate batch 11: their shared builds predate the anti-goal rule
 EXISTING_DOUBLE_REED_NAMES: frozenset[str] = frozenset({
     'oboe',
@@ -1921,6 +1940,9 @@ BATCH_FAMILIES: dict[Family, BatchFamily] = {
         FLUTE_SOUND_ALIKE_PARENTS,
         FLUTE_UNPITCHED_NAMES,
     ),
+    Family.CLARINETS: BatchFamily(
+        EXISTING_CLARINET_NAMES, NEW_CLARINET_NAMES, CLARINET_SOUND_ALIKE_PARENTS
+    ),
     Family.DOUBLE_REEDS: BatchFamily(
         EXISTING_DOUBLE_REED_NAMES, NEW_DOUBLE_REED_NAMES, DOUBLE_REED_SOUND_ALIKE_PARENTS
     ),
@@ -2065,11 +2087,12 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         for catalog_entry in instruments.entries()
         if catalog_entry.sounds_like is not None
     ]
-    # The catalog lists families in table order: flutes, double reeds, bagpipes, brass, bowed
-    # strings, plucked strings, organs, electronic, tuned percussion, drums, voices, then choirs, as
-    # registry.FAMILY_TABLES lists them
+    # The catalog lists families in table order: flutes, clarinets, double reeds, bagpipes, brass,
+    # bowed strings, plucked strings, organs, electronic, tuned percussion, drums, voices, then
+    # choirs, as registry.FAMILY_TABLES lists them
     assert every_sound_alike == (
         list(FLUTE_SOUND_ALIKE_PARENTS)
+        + list(CLARINET_SOUND_ALIKE_PARENTS)
         + list(DOUBLE_REED_SOUND_ALIKE_PARENTS)
         + list(BAGPIPE_SOUND_ALIKE_PARENTS)
         + list(BRASS_SOUND_ALIKE_PARENTS)
@@ -2607,3 +2630,70 @@ def test_compound_stop_levels_refuses_empty_levels_and_a_footage_of_zero():
         compound_stop_levels((1.0,), (0.0,))
     with pytest.raises(ValueError, match='above zero'):
         compound_stop_levels((1.0,), (-8.0,))
+
+
+# Batch 14's double clarinets with a drone pipe, each with its drone notes as the sheet writes them
+# (highest first), sounding at equal temperament under every note, in catalog order: the builds,
+# then the sound-alikes that share one's drones (plans/data/instrument-audit/batch-14.tsv)
+CLARINET_DRONES: dict[str, tuple[str, ...]] = {}
+# Batch 14's double clarinets whose unison pipes are tuned apart, each with its sourced detune in
+# cents, the chorus copy of _clarinet, in catalog order: the builds, then their sound-alikes
+# (plans/data/instrument-audit/batch-14.tsv)
+CLARINET_DETUNES: dict[str, float] = {}
+# Every name plans/data/instrument-audit/batch-14.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for an engine feature, a build of its own, a sourced
+# reed and bore, a sourced drone tuning or a sourced detune, and the alias rows that wait for one of
+# them, in the sheet's order. None ships under that name or as an alias until the reason is met
+# (decision 4; batch 14). The test matches exact names
+CLARINET_HELD_BACK: dict[str, str] = {}
+
+
+def test_no_clarinet_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a clarinet the sheet holds back."""
+    assert set(CLARINET_HELD_BACK) & set(instruments.names()) == set()
+    assert set(CLARINET_HELD_BACK) & set(instruments.ALIASES) == set()
+
+
+def test_a_clarinet_sounds_its_sourced_drones():
+    """A clarinet with a drone pipe sounds each drone at its sourced note, equal-tempered.
+
+    The drones are the build's sources named ``drone_...``, at fixed hertz (A4 = 440 Hz, two
+    decimals, as the catalog's builds write hertz), highest first. The clarinets with drones are
+    exactly the ones the table lists, so a later task that ships one without listing it fails here.
+    """
+    with_drones = [
+        catalog_entry.name
+        for catalog_entry in instruments.entries(family=Family.CLARINETS)
+        if any(
+            source_name.startswith('drone_')
+            for source_name, _source in instruments.get(catalog_entry.name).sources
+        )
+    ]
+    assert with_drones == list(CLARINET_DRONES)
+    for name, drone_notes in CLARINET_DRONES.items():
+        drone_hertz = [
+            float(source.pitch)
+            for source_name, source in instruments.get(name).sources
+            if source_name.startswith('drone_')
+        ]
+        assert drone_hertz == [round(float(Note(note).to_hz()), 2) for note in drone_notes], name
+        assert name in NOT_PERIODIC_AT_THE_NOTE, name
+
+
+def test_a_detuned_clarinet_beats_at_its_sourced_cents():
+    """A clarinet with a chorus source beats at the detune its sheet row sources.
+
+    The clarinets with a chorus source are exactly the ones the table lists.
+    """
+    with_chorus = [
+        catalog_entry.name
+        for catalog_entry in instruments.entries(family=Family.CLARINETS)
+        if any(
+            source_name == 'chorus'
+            for source_name, _source in instruments.get(catalog_entry.name).sources
+        )
+    ]
+    assert with_chorus == list(CLARINET_DETUNES)
+    for name, cents in CLARINET_DETUNES.items():
+        chorus_source = dict(instruments.get(name).sources)['chorus']
+        assert chorus_source.detune_cents == pytest.approx(cents), name
