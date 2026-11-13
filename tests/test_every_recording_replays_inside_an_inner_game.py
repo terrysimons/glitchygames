@@ -20,10 +20,11 @@ inside a tile (``DIVERGES_INSIDE_A_TILE``) is passed over for the next one, so i
 pair short. Its own case is ``xfail(strict=True)``, naming the plans/future-work.md entry: it
 fails until the bug is fixed, and then the strict xfail fails, so the mark is removed.
 
-The tiles run inside an outer window of another size than any of them (``OUTER_WINDOW_SIZE``,
-an Arcade's): a game that measures the window instead of its own screen is caught, as it would
-be in the Arcade. The test display (800x600) is as wide as the 800x480 demos, and hid Bitmappy's
-divergence.
+The outer partitions the mixer and declares its tiles' channels first, as an Arcade does at
+startup (``inner_game_channels``). The tiles run inside an outer window of another size than
+any of them (``OUTER_WINDOW_SIZE``, an Arcade's): a game that measures the window instead of
+its own screen is caught, as it would be in the Arcade. The test display (800x600) is as wide as
+the 800x480 demos, and hid Bitmappy's divergence.
 
 The outer game's key repeat (``pygame.key.get_repeat()``: SDL's, one per process) must be the
 same after a tile has run (the plan's Review Focus 4: the text-input demo sets its own repeat in
@@ -52,6 +53,9 @@ import pytest
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames import events
+from glitchygames.audio import reserve_inner_game_channels
+from glitchygames.audio.engine import DEFAULT_LIBRARY_CHANNELS, DEFAULT_LIVE_POOL, LEGACY_CHANNELS
+from glitchygames.audio.voices import reserve_channels
 from glitchygames.engine_context import current_context, default_context
 from glitchygames.exit_codes import ExitCode
 from glitchygames.inner_game import InnerGame, InnerGameState
@@ -100,6 +104,23 @@ OUTER_BLOCKED_TYPES = (*events.CONTROLLER_EVENTS, pygame.MOUSEWHEEL)
 OUTER_ALLOWED_TYPES = (pygame.SYSWMEVENT,)
 # The outer window's caption: an inner game never names the window
 OUTER_CAPTION = 'The Arcade (outer game)'
+# The tiles a case builds at once at most: its pair, and the tile replayed alone for its pixels
+DECLARED_TILES = 3
+
+
+@pytest.fixture(autouse=True)
+def inner_game_channels() -> None:
+    """Partition the mixer as the outer game's engine does and declare the tiles' channels.
+
+    As an Arcade does at startup, before anything plays (``reserve_inner_game_channels``,
+    decision 4 of plans/2026-11-13-arcade-4-sound.md): without it no tile can be built.
+    """
+    reserve_channels(
+        live_pool=DEFAULT_LIVE_POOL,
+        library_channels=DEFAULT_LIBRARY_CHANNELS,
+        legacy_channels=LEGACY_CHANNELS,
+    )
+    reserve_inner_game_channels(games=DECLARED_TILES)
 
 
 @pytest.fixture

@@ -75,10 +75,11 @@ from glitchygames.audio.library import (
 from glitchygames.audio.pitch import Tuning
 from glitchygames.audio.voices import (
     DEFAULT_STOP_FADE_SECONDS,
+    LIBRARY_GROUP,
     ChannelPartition,
     ChannelState,
     VoiceTable,
-    context_channel_block,
+    inner_context_partition,
     reserve_channels,
 )
 from glitchygames.audio.waves import current_wave_registry
@@ -255,14 +256,14 @@ def default_channel_partition() -> ChannelPartition:
 
     For a scene manager without a game engine (tests, tools): ``reserve_channels`` only grows
     the channel table, so an engine's earlier partition loses no channel. An inner context never
-    partitions: it gets its channel block of the default sizes (``context_channel_block``;
-    Arcade sub-plan 4, decision 5).
+    partitions: it gets its inner partition of the default sizes (``inner_context_partition``;
+    Arcade sub-plan 4, decisions 4 and 5).
 
     Returns:
         The partition.
     """
     if is_inner_context():
-        return context_channel_block(
+        return inner_context_partition(
             live_pool=DEFAULT_LIVE_POOL, library_channels=DEFAULT_LIBRARY_CHANNELS
         )
     return reserve_channels(
@@ -688,9 +689,7 @@ class AudioEngine:
             channel_index: The mixer channel ``FrameSilencer`` stopped, or None after
                 ``pygame.mixer.stop()``.
         """
-        indices = self._partition.library if channel_index is None else (channel_index,)
-        for index in indices:
-            self._voices.silenced(index)
+        self._voices.silenced(channel_index)
 
     def fade_out_of_the_mixer(self) -> None:
         """Fade the context's heard voices over 50 ms: its route is about to turn silent.
@@ -863,7 +862,13 @@ class AudioEngine:
         """
         if not self._voices.reaches_the_mixer:
             return False
-        return any(pygame.mixer.Channel(index).get_busy() for index in self._partition.library)
+        # The snapshot names each library slot's mixer channel (an inner context's: in its heard
+        # set)
+        return any(
+            pygame.mixer.Channel(channel.index).get_busy()
+            for channel in self._voices.snapshot()
+            if channel.group == LIBRARY_GROUP
+        )
 
 
 def _contains(owners: Collection[object], owner: object) -> bool:

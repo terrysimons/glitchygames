@@ -31,10 +31,13 @@ from glitchygames.audio.engine import (
 )
 from glitchygames.audio.route import AUDIO_ROUTE_SLOT, is_audible, set_audible
 from glitchygames.audio.voices import (
-    CHANNEL_BLOCK_SLOT,
+    INNER_CHANNELS_SLOT,
     ChannelPartition,
-    context_channel_block,
-    free_context_channel_block,
+    heard_set_start,
+    inner_context_partition,
+    release_inner_context_channels,
+    reserve_inner_game_channels,
+    take_heard_set,
 )
 from glitchygames.audio.waves import Wave, current_wave_registry
 from glitchygames.backgrounds import (
@@ -1230,25 +1233,27 @@ def check_audio_route(*, first: EngineContext, second: EngineContext) -> None:
     assert is_audible()
 
 
-def check_channel_block(*, first: EngineContext, second: EngineContext) -> None:
-    """Each context keeps its own channel block, none in the default context; freed per context."""
+def check_inner_channels(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own inner channels, none in the default context; released apart."""
+    reserve_inner_game_channels(games=2, heard_set_channels=2, live_channels_per_game=1)
     with first.active():
-        first_block = context_channel_block(live_pool=1, library_channels=2)
+        first_partition = inner_context_partition(live_pool=1, library_channels=2)
+        take_heard_set()
     with second.active():
-        second_before_its_own = second.value(slot=CHANNEL_BLOCK_SLOT).partition
-        second_block = context_channel_block(live_pool=1, library_channels=2)
-        free_context_channel_block()
+        second_before_its_own = second.value(slot=INNER_CHANNELS_SLOT).partition
+        second_partition = inner_context_partition(live_pool=1, library_channels=2)
+        second_heard_set = heard_set_start()
+        release_inner_context_channels()
 
     assert second_before_its_own is None
-    assert not {*first_block.live, *first_block.library} & {
-        *second_block.live,
-        *second_block.library,
-    }
-    assert second.value(slot=CHANNEL_BLOCK_SLOT).partition is None
-    assert first.value(slot=CHANNEL_BLOCK_SLOT).partition == first_block
-    assert current_context().value(slot=CHANNEL_BLOCK_SLOT).partition is None
+    assert first_partition.live != second_partition.live
+    assert second_heard_set is None
+    assert second.value(slot=INNER_CHANNELS_SLOT).partition is None
+    assert first.value(slot=INNER_CHANNELS_SLOT).partition == first_partition
+    assert first.value(slot=INNER_CHANNELS_SLOT).heard_set_index == 0
+    assert current_context().value(slot=INNER_CHANNELS_SLOT).partition is None
     with first.active():
-        free_context_channel_block()
+        release_inner_context_channels()
 
 
 # Every engine slot, with the check that proves its values never leak between contexts. Each
@@ -1274,7 +1279,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.render_target.target': check_render_target,
     'glitchygames.recording.private_event_queue': check_private_event_queue,
     'glitchygames.audio.route.audio_route': check_audio_route,
-    'glitchygames.audio.voices.channel_block': check_channel_block,
+    'glitchygames.audio.voices.inner_channels': check_inner_channels,
 }
 
 

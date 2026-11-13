@@ -2897,9 +2897,11 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         empty partition is returned, and a later call (once the mixer runs) reserves.
 
         An inner context's engine (an Arcade tile) never partitions the mixer: its partition is
-        its context's channel block, of the same two sizes from its own options (the recording's),
-        above the outer game's channels (``voices.context_channel_block``; Arcade sub-plan 4,
-        decisions 4 and 5), so the outer's partition and reservation stay as they are.
+        its own options' (the recording's) library slots, played on a heard set while it is
+        heard, and a live pool from the channels its host declared at startup
+        (``voices.inner_context_partition``; Arcade sub-plan 4, decisions 4 and 5), so the
+        outer's partition and reservation stay as they are. With none declared, or every live
+        pool held, it raises ``InnerGameChannelsError`` (the inner game fails alone).
 
         Returns:
             The partition (empty without a mixer).
@@ -2908,12 +2910,12 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         if self.channel_partition is not None:
             return self.channel_partition
         from glitchygames.audio.engine import DEFAULT_LIBRARY_CHANNELS, LEGACY_CHANNELS
-        from glitchygames.audio.voices import context_channel_block, reserve_channels
+        from glitchygames.audio.voices import inner_context_partition, reserve_channels
 
         live_pool = int(self.options.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL))
         library_channels = int(self.options.get('sound_channels', DEFAULT_LIBRARY_CHANNELS))
         if is_inner_context():
-            partition = context_channel_block(
+            partition = inner_context_partition(
                 live_pool=live_pool, library_channels=library_channels
             )
         else:

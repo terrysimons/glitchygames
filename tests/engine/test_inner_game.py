@@ -29,9 +29,13 @@ from glitchygames.audio.live import LiveAudio, LiveVoice, VoiceState
 from glitchygames.audio.route import is_audible
 from glitchygames.audio.synth import Waveform
 from glitchygames.audio.voices import (
-    CHANNEL_BLOCK_SLOT,
+    INNER_CHANNELS_SLOT,
     ChannelPartition,
+    InnerGameChannelsError,
+    heard_set_start,
+    release_channels,
     reserve_channels,
+    reserve_inner_game_channels,
     reserved_channel_count,
 )
 from glitchygames.engine import GameEngine
@@ -84,10 +88,15 @@ CHIME_FRAME = 3
 # The live-voice stand-in's package (a live synth voice from LIVE_VOICE_FRAME on) and that frame
 LIVE_VOICE_STAND_IN_PACKAGE = 'inner_game_projector'
 LIVE_VOICE_FRAME = 2
-# The block sizes a recording asks for (--sound-channels, --live-voice-pool), not the defaults
-SMALL_BLOCK_STAND_IN_PACKAGE = 'inner_game_small_block'
+# The channel sizes a recording asks for (--sound-channels, --live-voice-pool), not the defaults
+SMALL_CHANNELS_STAND_IN_PACKAGE = 'inner_game_small_channels'
 SMALL_LIBRARY_CHANNELS = 6
 SMALL_LIVE_POOL = 2
+# A recording asking for more library channels than a heard set holds (32): it replays silent
+TOO_BIG_STAND_IN_PACKAGE = 'inner_game_too_big'
+TOO_BIG_LIBRARY_CHANNELS = 33
+# The inner games every test may build at once (reserve_inner_game_channels, the host's call)
+DECLARED_INNER_GAMES = 3
 # The outer game's own sound: long enough to outlast every step a test runs
 OUTER_SOUND_SECONDS = 8
 # Bytes per second of the harness's mixer (signed 16-bit, stereo)
@@ -253,7 +262,7 @@ def live_voice_recording(
 
 
 @pytest.fixture(scope='module')
-def recorded_small_block_stand_in(
+def recorded_small_channels_stand_in(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> tuple[StandInGame, Path]:
     """Record a stand-in with --sound-channels 6 --live-voice-pool 2, once per module.
@@ -262,9 +271,9 @@ def recorded_small_block_stand_in(
         The stand-in game and its recording (each test copies it before reading it).
 
     """
-    root = tmp_path_factory.mktemp('inner-game-small-block')
+    root = tmp_path_factory.mktemp('inner-game-small-channels')
     game = write_stand_in_game(
-        directory=root / 'site-packages', package=SMALL_BLOCK_STAND_IN_PACKAGE
+        directory=root / 'site-packages', package=SMALL_CHANNELS_STAND_IN_PACKAGE
     )
     recording = record_stand_in_game_once(
         game=game,
@@ -280,16 +289,16 @@ def recorded_small_block_stand_in(
 
 
 @pytest.fixture
-def small_block_stand_in(
-    recorded_small_block_stand_in: tuple[StandInGame, Path], monkeypatch: pytest.MonkeyPatch
+def small_channels_stand_in(
+    recorded_small_channels_stand_in: tuple[StandInGame, Path], monkeypatch: pytest.MonkeyPatch
 ) -> Generator[StandInGame]:
-    """Install the small-block stand-in as a command in this process.
+    """Install the small-channels stand-in as a command in this process.
 
     Yields:
         The stand-in game; its package is forgotten afterwards.
 
     """
-    game, _recording = recorded_small_block_stand_in
+    game, _recording = recorded_small_channels_stand_in
     monkeypatch.syspath_prepend(game.install_directory)
     try:
         yield game
@@ -298,22 +307,25 @@ def small_block_stand_in(
 
 
 @pytest.fixture
-def small_block_recording(
-    recorded_small_block_stand_in: tuple[StandInGame, Path], tmp_path: Path
+def small_channels_recording(
+    recorded_small_channels_stand_in: tuple[StandInGame, Path], tmp_path: Path
 ) -> Path:
-    """Return this test's own copy of the small-block stand-in's recording.
+    """Return this test's own copy of the small-channels stand-in's recording.
 
     Returns:
         The copy's path.
 
     """
-    _game, shared_recording = recorded_small_block_stand_in
+    _game, shared_recording = recorded_small_channels_stand_in
     return copy_recording(recording=shared_recording, path=tmp_path / 'small.jsonl.gz')
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def outer_partition() -> Generator[ChannelPartition]:
-    """Partition the mixer as an outer game's engine does (the defaults), every channel idle.
+    """Partition the mixer as an outer game's engine does, and declare the inner games' channels.
+
+    As a host does at startup, before anything plays (``reserve_inner_game_channels``: the
+    mixer grows once), so every test's inner games can be built; every channel idle.
 
     Yields:
         The outer partition; every channel is stopped afterwards, so no sound outlives the test.
@@ -323,10 +335,61 @@ def outer_partition() -> Generator[ChannelPartition]:
     partition = reserve_channels(
         live_pool=LIVE_POOL, library_channels=LIBRARY_CHANNELS, legacy_channels=LEGACY_CHANNELS
     )
+    reserve_inner_game_channels(games=DECLARED_INNER_GAMES)
     try:
         yield partition
     finally:
         pygame.mixer.stop()
+
+
+@pytest.fixture(scope='module')
+def recorded_too_big_stand_in(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> tuple[StandInGame, Path]:
+    """Record a stand-in with --sound-channels 33 (more than a heard set), once per module.
+
+    Returns:
+        The stand-in game and its recording (each test copies it before reading it).
+
+    """
+    root = tmp_path_factory.mktemp('inner-game-too-big')
+    game = write_stand_in_game(directory=root / 'site-packages', package=TOO_BIG_STAND_IN_PACKAGE)
+    recording = record_stand_in_game_once(
+        game=game,
+        path=root / 'recorded.jsonl.gz',
+        extra_arguments=('--sound-channels', str(TOO_BIG_LIBRARY_CHANNELS)),
+    )
+    return game, recording
+
+
+@pytest.fixture
+def too_big_stand_in(
+    recorded_too_big_stand_in: tuple[StandInGame, Path], monkeypatch: pytest.MonkeyPatch
+) -> Generator[StandInGame]:
+    """Install the too-big stand-in as a command in this process.
+
+    Yields:
+        The stand-in game; its package is forgotten afterwards.
+
+    """
+    game, _recording = recorded_too_big_stand_in
+    monkeypatch.syspath_prepend(game.install_directory)
+    try:
+        yield game
+    finally:
+        sys.modules.pop(game.package, None)
+
+
+@pytest.fixture
+def too_big_recording(recorded_too_big_stand_in: tuple[StandInGame, Path], tmp_path: Path) -> Path:
+    """Return this test's own copy of the too-big stand-in's recording.
+
+    Returns:
+        The copy's path.
+
+    """
+    _game, shared_recording = recorded_too_big_stand_in
+    return copy_recording(recording=shared_recording, path=tmp_path / 'too-big.jsonl.gz')
 
 
 @pytest.fixture
@@ -440,42 +503,39 @@ def play_to_the_end(inner_game: InnerGame) -> int:
     pytest.fail(f'{inner_game.context.name} did not end in {MOST_STEPS} steps')
 
 
-def reservation() -> tuple[int, int]:
+def reservation() -> tuple[int, list[int]]:
     """Return the mixer's reservation: as the engine remembers it, and as SDL picks channels.
 
-    An inner build takes a channel block above the outer partition and the legacy channels move
-    above every block (glitchygames/audio/voices.py), so the unreserved channels are the
-    mixer's highest ones (asserted), as many as before. Every channel must be idle.
+    The host declared the inner games' channels before the test (``outer_partition``), so an
+    inner build moves nothing: the legacy channels stay above them. Every channel must be idle.
 
     Returns:
-        ``reserved_channel_count()`` (the outer partition's) and how many channels
-        ``Sound.play()`` could get.
+        ``reserved_channel_count()`` (the outer partition's) and the channels ``Sound.play()``
+        would get.
 
     """
-    unreserved = unreserved_channel_ids()
-    channel_count = pygame.mixer.get_num_channels()
-    assert unreserved == list(range(channel_count - len(unreserved), channel_count))
-    return reserved_channel_count(), len(unreserved)
+    return reserved_channel_count(), unreserved_channel_ids()
 
 
-def channel_block(inner_game: InnerGame) -> ChannelPartition | None:
-    """Return the inner game's channel block (its context's), or None when it holds none.
+def inner_partition(inner_game: InnerGame) -> ChannelPartition | None:
+    """Return the inner game's partition (its context's), or None when it holds none.
 
     Returns:
-        The block's partition.
+        The partition.
 
     """
-    return inner_game.context.value(slot=CHANNEL_BLOCK_SLOT).partition
+    return inner_game.context.value(slot=INNER_CHANNELS_SLOT).partition
 
 
-def block_channels(partition: ChannelPartition) -> set[int]:
-    """Return every channel of a partition's live pool and library.
+def heard_set_of(inner_game: InnerGame) -> int | None:
+    """Return the first channel of the heard set the inner game holds.
 
     Returns:
-        The channel indices.
+        The channel index, or None while it holds none.
 
     """
-    return {*partition.live, *partition.library}
+    with inner_game.context.active():
+        return heard_set_start()
 
 
 def busy_channel_ids() -> list[int]:
@@ -1091,7 +1151,6 @@ class TestRefusals:
         assert inner_game.outcome.error == 'the game exited with ARGUMENT_PARSER_ERROR (2)'
 
 
-@pytest.mark.usefixtures('outer_partition')
 class TestPlainSoundPlays:
     """Decisions 1 and 2 of plans/2026-11-13-arcade-4-sound.md: a silent game's plain plays.
 
@@ -1211,100 +1270,226 @@ class TestPlainSoundPlays:
         assert outer_channel.get_sound() is outer_sound
 
 
-@pytest.mark.usefixtures('outer_partition')
-class TestChannelBlocks:
-    """Decisions 4, 5 and 7: a channel block per inner context; an inner build never partitions.
+class TestInnerChannels:
+    """Decisions 4, 5 and 7: the channels the host declared; an inner build never partitions.
 
     Review Focus 3 (a tile's live voice beside the outer's) and 5 (a recording's own sizes).
     """
 
-    def test_an_inner_build_takes_a_block_above_the_outer_partition_and_never_partitions(
+    def test_an_inner_build_takes_a_live_pool_and_never_partitions_or_grows_the_mixer(
         self,
         stand_in: StandInGame,
         recording: Path,
         outer_partition: ChannelPartition,
         mocker: MockerFixture,
     ):
-        """The block has the default sizes, above the outer's channels; nothing re-partitions."""
+        """Logical slots (its recording's 32) and a live pool; the outer's reservation as it was."""
         before = reservation()
         partition_calls = mocker.spy(voices, 'reserve_channels')
+        set_num_channels = mocker.spy(pygame.mixer, 'set_num_channels')
 
         inner_game = replay_stand_in(game=stand_in, path=recording)
-        block = channel_block(inner_game)
+        partition = inner_partition(inner_game)
         with inner_game.context.active():
             engine = current_context().value(slot=CURRENT_ENGINE_SLOT).engine
         after_build = reservation()
         play_to_the_end(inner_game)
 
-        assert block is not None
+        assert partition is not None
         assert engine is not None
-        assert engine.channel_partition == block
-        assert len(block.library) == LIBRARY_CHANNELS
-        assert len(block.live) == LIVE_POOL
-        assert not block_channels(block) & block_channels(outer_partition)
+        assert engine.channel_partition == partition
+        assert partition.library == tuple(range(LIBRARY_CHANNELS))
+        assert partition.plays_on_a_heard_set
+        assert len(partition.live) == LIVE_POOL
+        assert not set(partition.live) & {*outer_partition.live, *outer_partition.library}
         partition_calls.assert_not_called()
+        set_num_channels.assert_not_called()
         assert after_build == before
         assert reservation() == before
 
-    def test_a_recordings_own_channel_options_size_its_block(
+    def test_a_recordings_own_channel_options_size_its_partition(
         self,
-        small_block_stand_in: StandInGame,
-        small_block_recording: Path,
-        outer_partition: ChannelPartition,
+        small_channels_stand_in: StandInGame,
+        small_channels_recording: Path,
     ):
         """Review Focus 5: --sound-channels 6 --live-voice-pool 2; the outer's unchanged."""
         before = reservation()
 
-        inner_game = replay_stand_in(game=small_block_stand_in, path=small_block_recording)
-        block = channel_block(inner_game)
+        inner_game = replay_stand_in(game=small_channels_stand_in, path=small_channels_recording)
+        partition = inner_partition(inner_game)
         after_build = reservation()
         play_to_the_end(inner_game)
 
-        assert block is not None
-        assert len(block.library) == SMALL_LIBRARY_CHANNELS
-        assert len(block.live) == SMALL_LIVE_POOL
-        assert not block_channels(block) & block_channels(outer_partition)
+        assert partition is not None
+        assert partition.library == tuple(range(SMALL_LIBRARY_CHANNELS))
+        assert len(partition.live) == SMALL_LIVE_POOL
         assert after_build == before
         assert reservation() == before
         assert inner_game.outcome.state is InnerGameState.ENDED, inner_game.outcome
 
-    def test_two_inner_games_hold_disjoint_blocks(
+    def test_two_inner_games_hold_their_own_live_pools(
         self, stand_in: StandInGame, recording: Path, tmp_path: Path
     ):
-        """Two tiles at once: their blocks share no channel."""
+        """Two tiles at once: their live pools share no channel."""
         second_recording = copy_recording(recording=recording, path=tmp_path / 'second.jsonl.gz')
         first = replay_stand_in(game=stand_in, path=recording, name='first')
         second = replay_stand_in(game=stand_in, path=second_recording, name='second')
-        first_block = channel_block(first)
-        second_block = channel_block(second)
+        first_partition = inner_partition(first)
+        second_partition = inner_partition(second)
         first.finish()
         second.finish()
 
-        assert first_block is not None
-        assert second_block is not None
-        assert not block_channels(first_block) & block_channels(second_block)
+        assert first_partition is not None
+        assert second_partition is not None
+        assert not set(first_partition.live) & set(second_partition.live)
 
-    def test_a_finished_inner_games_block_is_free_and_its_audio_engine_gone(
+    def test_a_finished_inner_games_channels_are_free_and_its_audio_engine_gone(
         self, stand_in: StandInGame, recording: Path, tmp_path: Path
     ):
-        """Decision 7: finish discards the audio engine and frees the block the next one takes."""
+        """Decision 7: finish discards the audio engine and frees what the next one takes."""
         finished = replay_stand_in(game=stand_in, path=recording, name='finished')
         with finished.context.active():
             audio_engine = SceneManager().audio  # made as a game's first sound would make it
-        finished_block = channel_block(finished)
+        finished_partition = inner_partition(finished)
+        finished.set_audible(audible=True)
         play_to_the_end(finished)
         next_recording = copy_recording(recording=recording, path=tmp_path / 'next.jsonl.gz')
 
         next_game = replay_stand_in(game=stand_in, path=next_recording, name='next')
 
         assert audio_engine is not None
-        assert finished_block is not None
-        assert channel_block(finished) is None
+        assert finished_partition is not None
+        assert inner_partition(finished) is None
+        assert heard_set_of(finished) is None
         assert finished.context.value(slot=AUDIO_ENGINE_SLOT).engine is None
-        assert channel_block(next_game) == finished_block
+        assert inner_partition(next_game) == finished_partition
         next_game.finish()
 
-    def test_a_tiles_live_voice_plays_beside_the_outer_ones_on_its_own_block(
+    def test_a_build_with_no_channels_declared_fails_alone(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """No reserve_inner_game_channels: FAILED, naming the call; nothing held afterwards."""
+        release_channels()
+        reserve_channels(
+            live_pool=LIVE_POOL, library_channels=LIBRARY_CHANNELS, legacy_channels=LEGACY_CHANNELS
+        )
+
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+
+        assert inner_game.outcome.state is InnerGameState.FAILED
+        assert inner_game.outcome.error is not None
+        assert inner_game.outcome.error.startswith('InnerGameChannelsError: no channels')
+        assert 'reserve_inner_game_channels' in inner_game.outcome.error
+        assert current_context() is default_context()
+
+    def test_a_build_past_the_declared_count_fails_alone_and_frees_its_failed_part(
+        self, stand_in: StandInGame, recording: Path, tmp_path: Path
+    ):
+        """Every declared game running: the next fails alone; the running ones go on."""
+        running = [
+            replay_stand_in(
+                game=stand_in,
+                path=copy_recording(recording=recording, path=tmp_path / f'{index}.jsonl.gz'),
+                name=f'running {index}',
+            )
+            for index in range(DECLARED_INNER_GAMES)
+        ]
+
+        refused = replay_stand_in(game=stand_in, path=recording, name='one too many')
+        still_running = [inner_game.step() for inner_game in running]
+        for inner_game in running:
+            play_to_the_end(inner_game)
+
+        assert refused.outcome.state is InnerGameState.FAILED
+        assert refused.outcome.error is not None
+        assert f'all {DECLARED_INNER_GAMES} inner games declared' in refused.outcome.error
+        assert inner_partition(refused) is None
+        assert still_running == [True] * DECLARED_INNER_GAMES
+        assert all(game.outcome.state is InnerGameState.ENDED for game in running)
+
+    def test_a_build_that_fails_gives_its_channels_back(
+        self, stand_in: StandInGame, recording: Path, tmp_path: Path
+    ):
+        """A replay refused after its engine took a live pool: the pool is free for the next."""
+        failed = replay_stand_in(game=stand_in, path=recording, size=ANOTHER_SIZE, name='failed')
+        next_recording = copy_recording(recording=recording, path=tmp_path / 'next.jsonl.gz')
+        next_game = replay_stand_in(game=stand_in, path=next_recording, name='next')
+        next_partition = inner_partition(next_game)
+        next_game.finish()
+
+        assert failed.outcome.state is InnerGameState.FAILED
+        assert inner_partition(failed) is None
+        assert next_partition is not None
+        assert next_partition.live == (100, 101, 102, 103)
+
+    def test_a_failing_release_is_the_games_failure_and_the_rest_still_runs(
+        self, stand_in: StandInGame, recording: Path, tmp_path: Path, mocker: MockerFixture
+    ):
+        """discard_audio_engine raising at finish: FAILED, and the channels are still given back."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        partition = inner_partition(inner_game)
+        # An injected failure in the finish's audio release
+        mocker.patch(
+            'glitchygames.inner_game.discard_audio_engine', side_effect=RuntimeError('no discard')
+        )
+
+        outcome = inner_game.finish()
+
+        assert outcome.state is InnerGameState.FAILED
+        assert outcome.error == 'RuntimeError: no discard'
+        assert inner_partition(inner_game) is None
+        mocker.stopall()
+        next_recording = copy_recording(recording=recording, path=tmp_path / 'next.jsonl.gz')
+        next_game = replay_stand_in(game=stand_in, path=next_recording, name='next')
+        assert partition is not None
+        assert inner_partition(next_game) == partition
+        next_game.finish()
+
+    def test_a_tile_too_big_for_a_heard_set_replays_silent_and_refuses_to_be_heard(
+        self, too_big_stand_in: StandInGame, too_big_recording: Path
+    ):
+        """--sound-channels 33: it matches to its end silent; set_audible(True) is refused."""
+        inner_game = replay_stand_in(game=too_big_stand_in, path=too_big_recording)
+
+        with pytest.raises(InnerGameChannelsError, match='--sound-channels 33'):
+            inner_game.set_audible(audible=True)
+        play_to_the_end(inner_game)
+
+        assert inner_game.audible is False
+        assert inner_game.outcome.state is InnerGameState.ENDED, inner_game.outcome
+        assert inner_game.outcome.diverged is False
+
+    def test_the_heard_sets_alternate_between_the_heard_games(
+        self,
+        stand_in: StandInGame,
+        recording: Path,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ):
+        """First heard on set A, then the second on set B, then the first on A again: no growth."""
+        set_num_channels = mocker.spy(pygame.mixer, 'set_num_channels')
+        second_recording = copy_recording(recording=recording, path=tmp_path / 'second.jsonl.gz')
+        first = replay_stand_in(game=stand_in, path=recording, name='first')
+        second = replay_stand_in(game=stand_in, path=second_recording, name='second')
+
+        first.set_audible(audible=True)
+        first_set = heard_set_of(first)
+        first.set_audible(audible=False)
+        second.set_audible(audible=True)
+        second_set = heard_set_of(second)
+        second.set_audible(audible=False)
+        first.set_audible(audible=True)
+        first_set_again = heard_set_of(first)
+        play_to_the_end(first)
+        play_to_the_end(second)
+
+        assert first_set == outer_heard_set_start(set_number=0)
+        assert second_set == outer_heard_set_start(set_number=1)
+        assert first_set_again == first_set
+        assert heard_set_of(second) is None
+        set_num_channels.assert_not_called()
+
+    def test_a_tiles_live_voice_plays_beside_the_outer_ones_on_its_own_pool(
         self,
         live_voice_stand_in: StandInGame,
         live_voice_recording: Path,
@@ -1312,7 +1497,7 @@ class TestChannelBlocks:
     ):
         """Review Focus 3: both create_voice calls succeed; distinct channels, both playing.
 
-        The silent tile's chunks play at volume 0 on its block; the outer's is heard. The
+        The silent tile's chunks play at volume 0 on its live pool; the outer's is heard. The
         finished tile's voice is stopped and its channel idle.
         """
         outer_voice = LiveAudio(channel_indices=outer_partition.live).create_voice(
@@ -1323,20 +1508,30 @@ class TestChannelBlocks:
         inner_game = replay_stand_in(game=live_voice_stand_in, path=live_voice_recording)
         for _step in range(LIVE_VOICE_FRAME + 1):
             assert inner_game.step()
-        block = channel_block(inner_game)
+        partition = inner_partition(inner_game)
         with inner_game.context.active():
             scene = SceneManager().active_scene
         tile_voice = vars(scene)['live_voice']  # the stand-in's own attribute
         busy_while_both_play = busy_channel_ids()
-        assert block is not None
-        tile_sound = pygame.mixer.Channel(block.live[0]).get_sound()
+        assert partition is not None
+        tile_sound = pygame.mixer.Channel(partition.live[0]).get_sound()
         inner_game.finish()
         busy_after_the_finish = busy_channel_ids()
         outer_voice.stop_now()
 
         assert isinstance(tile_voice, LiveVoice)
-        assert busy_while_both_play == [outer_partition.live[0], block.live[0]]
+        assert busy_while_both_play == [outer_partition.live[0], partition.live[0]]
         assert tile_sound is not None
         assert tile_sound.get_volume() == 0.0
         assert busy_after_the_finish == [outer_partition.live[0]]
         assert tile_voice.state is VoiceState.STOPPED
+
+
+def outer_heard_set_start(*, set_number: int) -> int:
+    """Return the first channel of a heard set, as the outer fixture's declaration laid it out.
+
+    Returns:
+        The default partition's 36 channels, then 32 per heard set.
+
+    """
+    return LIVE_POOL + LIBRARY_CHANNELS + set_number * LIBRARY_CHANNELS

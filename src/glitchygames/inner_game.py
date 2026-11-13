@@ -48,14 +48,19 @@ The rules:
    ``Sound.play()`` finds no free channel, returns None and starts nothing; the reservation is
    put back after each call, on every exit path. Sounds already playing (the heard game's) play
    on. An audible inner game's plain plays are heard.
-6. **An inner game has a channel block of its own** (decisions 4, 5 and 7): its engine never
-   partitions the mixer; its sound library's channels and its live voices' are its context's
-   block (``glitchygames.audio.voices.context_channel_block``), sized by its own options (the
-   recording's ``--sound-channels`` and ``--live-voice-pool``), above the outer game's channels
-   and every other inner game's, so their sounds never take each other's channels and the
-   outer's partition and reservation stay as they are. ``finish()`` stops its live voices,
-   discards its context's audio engine (never ``release_channels``, the process's) and frees the
-   block for the next inner game; so does a build that failed.
+6. **An inner game's channels come from its host's declaration** (decisions 4, 5 and 7): the
+   host calls ``glitchygames.audio.reserve_inner_game_channels(games=...)`` once at startup,
+   before anything plays, and the mixer never grows again. An inner game's engine never
+   partitions the mixer: its build takes a live pool for its live voices, and its sound
+   library has its recording's ``--sound-channels`` as slots, played on one of two heard sets
+   only while it is heard (``set_audible(audible=True)`` takes one; the sets alternate between
+   heard games, the old one fading out on its set while the new one starts on the other). So a
+   game's steals and drops are those of the game run alone. A build with none declared, or
+   with every declared live pool held, fails alone (``InnerGameChannelsError``, naming the
+   call); a game whose ``--sound-channels`` outnumber a heard set's channels replays silent,
+   and ``set_audible(audible=True)`` refuses it. ``finish()`` stops its live voices, discards
+   its context's audio engine (never ``release_channels``, the process's) and gives its heard
+   set and live pool back; so does a build that failed, each part contained as the finish's.
 
 A recorded quit (every golden ends with its game's quit control) ends only its inner game:
 the QUIT is posted to and drained from the context's private queue, never SDL's.
@@ -74,7 +79,12 @@ from pydantic import BaseModel, ConfigDict
 
 from glitchygames.audio.engine import discard_audio_engine
 from glitchygames.audio.route import AUDIO_ROUTE_SLOT, set_audible
-from glitchygames.audio.voices import every_channel_reserved, free_context_channel_block
+from glitchygames.audio.voices import (
+    every_channel_reserved,
+    give_back_heard_set,
+    release_inner_context_channels,
+    take_heard_set,
+)
 from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
 from glitchygames.engine_context import EngineContext, current_context
 from glitchygames.exit_codes import ExitCode
@@ -88,6 +98,7 @@ from glitchygames.replay.tools.registry import (
     REPLAY_FRAME_STREAM_OPTION,
     TOOLS,
 )
+from glitchygames.scenes.scene import release_live_voices_in_the_current_context
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Sequence
@@ -295,9 +306,8 @@ class InnerGame:
             except CONTAINED_ERRORS as error:
                 self._fail(error=error)
                 self._forget_a_half_built_engine()
-                # A build that failed after its engine asked for its channels (rule 6)
-                discard_audio_engine(wait_seconds=0.0)
-                free_context_channel_block()
+                # A build that failed after its engine took its channels (rule 6)
+                self._release_the_audio()
                 self._finished = True
                 return
             self._engine = engine
@@ -370,14 +380,26 @@ class InnerGame:
         return self._context.value(slot=AUDIO_ROUTE_SLOT).audible
 
     def set_audible(self: Self, *, audible: bool) -> None:
-        """Make the game's sound heard or silent (its context's audio route; rule 5).
+        """Make the game's sound heard or silent (its context's audio route; rules 5 and 6).
+
+        Heard, it takes a heard set to play its sound library on; silent, its heard voices fade
+        out on that set over 50 ms and it gives the set back. A game that cannot be heard (rule
+        6: finished, its ``--sound-channels`` outnumbering a heard set's channels, or two inner
+        games heard already) is refused with ``InnerGameChannelsError`` and nothing changes.
 
         Args:
             audible: True to hear the game, False to keep its sound off the mixer.
 
         """
         with self._context.active():
-            set_audible(audible=audible)
+            if audible:
+                # Refused (InnerGameChannelsError) before anything changes when it cannot be heard
+                take_heard_set()
+                set_audible(audible=True)
+            else:
+                # Its heard voices fade out on its heard set, which it then gives back
+                set_audible(audible=False)
+                give_back_heard_set()
 
     @property
     def outcome(self: Self) -> InnerGameOutcome:
@@ -440,14 +462,12 @@ class InnerGame:
                 self._stop_trace_recording,
                 self._close_timer,
                 self._settle_replay_report,
-                self._release_live_voices,
-                self._discard_the_audio_engine,
-                self._free_the_channel_block,
             ):
                 try:
                     finish_part(engine=engine)
                 except CONTAINED_ERRORS as error:
                     self._fail(error=error)
+            self._release_the_audio()
             self._forget_a_half_built_engine()
         self._engine = None
         if self._state is InnerGameState.RUNNING:
@@ -589,37 +609,27 @@ class InnerGame:
         self._diverged = report.is_failure
         LOG.info('Inner game %s: %s', self._context.name, report.text)
 
-    @staticmethod
-    def _release_live_voices(*, engine: GameEngine) -> None:
-        """Stop the game's live voices: their channels are its block's, freed next (rule 6).
+    def _release_the_audio(self: Self) -> None:
+        """Stop the live voices, discard the audio engine, give the channels back (rule 6).
 
-        Args:
-            engine: The inner game's engine.
-
+        Each part runs even when one before it failed, as the finish's parts do; a failure is
+        the inner game's (rule 2). Called inside the inner game's context.
         """
-        engine.scene_manager.release_live_voices()
+        for release_part in (
+            release_live_voices_in_the_current_context,
+            self._discard_the_audio_engine,
+            release_inner_context_channels,
+        ):
+            try:
+                release_part()
+            except CONTAINED_ERRORS as error:
+                self._fail(error=error)
 
     @staticmethod
-    def _discard_the_audio_engine(*, engine: GameEngine) -> None:
+    def _discard_the_audio_engine() -> None:
         """Close and forget the context's audio engine, waiting for no fade (rule 6).
 
         Its voices fade over 50 ms where they were heard; a silent context's touch no channel.
         Never ``release_channels``: the reservation is the process's, not this game's.
-
-        Args:
-            engine: The inner game's engine (unused: the audio engine is the context's).
-
         """
-        del engine
         discard_audio_engine(wait_seconds=0.0)
-
-    @staticmethod
-    def _free_the_channel_block(*, engine: GameEngine) -> None:
-        """Give the context's channel block back for the next inner game (rule 6).
-
-        Args:
-            engine: The inner game's engine (unused: the block is the context's).
-
-        """
-        del engine
-        free_context_channel_block()

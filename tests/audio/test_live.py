@@ -9,7 +9,7 @@ from glitchygames.audio.live import LiveAudio, LiveVoice, VoiceState, reserve_li
 from glitchygames.audio.recipes import Tremolo
 from glitchygames.audio.route import set_audible
 from glitchygames.audio.synth import Waveform
-from glitchygames.audio.voices import context_channel_block
+from glitchygames.audio.voices import inner_context_partition, reserve_inner_game_channels
 from glitchygames.engine_context import EngineContext
 from glitchygames.randomness import numpy_stream, reset_streams
 from tests.audio.library_support import stop_mixer
@@ -450,21 +450,23 @@ class TestLiveAudio:
         warning.assert_called_once_with('Audio unavailable; live voices are silent')
 
 
-class TestLiveVoicesOnChannelBlocks:
-    """An inner context's live voices on its own block (Arcade sub-plan 4, decision 4).
+class TestLiveVoicesOnLivePools:
+    """An inner context's live voices on its own live pool (Arcade sub-plan 4, decision 4).
 
-    A silent context's chunks still play, at volume 0, on its own block: the voice's lifecycle
+    A silent context's chunks still play, at volume 0, on its own pool: the voice's lifecycle
     reads its channel, so it is the same heard or silent.
     """
 
     @pytest.fixture(autouse=True)
     def partitioned_mixer(self):
-        """Partition a stereo mixer as an outer game's engine does; stop it afterwards.
+        """Partition a stereo mixer as an outer engine does, declare two inner games; stop it after.
 
         Yields:
             The default context's partition.
         """
-        yield start_reserved_mixer()
+        partition = start_reserved_mixer()
+        reserve_inner_game_channels(games=2)
+        yield partition
         pygame.mixer.stop()
         stop_mixer()
 
@@ -480,7 +482,7 @@ class TestLiveVoicesOnChannelBlocks:
         tile = EngineContext(name='tile')
         with tile.active():
             set_audible(audible=False)
-            block = context_channel_block(live_pool=4, library_channels=32)
+            block = inner_context_partition(live_pool=4, library_channels=32)
             tile_audio = LiveAudio(channel_indices=block.live)
             tile_voice = self._create(tile_audio)
             tile_voice.start()
@@ -500,11 +502,11 @@ class TestLiveVoicesOnChannelBlocks:
     def test_a_silent_contexts_chunks_play_at_volume_zero_and_a_heard_ones_at_full(
         self, partitioned_mixer
     ):
-        """Silent: every chunk at volume 0 on its block; once heard, the next chunk at 1."""
+        """Silent: every chunk at volume 0 on its pool; once heard, the next chunk at 1."""
         tile = EngineContext(name='tile')
         with tile.active():
             set_audible(audible=False)
-            block = context_channel_block(live_pool=4, library_channels=32)
+            block = inner_context_partition(live_pool=4, library_channels=32)
             tile_voice = self._create(LiveAudio(channel_indices=block.live))
             tile_voice.start()
             tile_voice.update()

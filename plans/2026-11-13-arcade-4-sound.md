@@ -85,14 +85,31 @@ Dropped: the routing spy (`MIXER_CALLS`).
    as idle; voices, their ends, steals and `is_playing` go on by frame time, as they already do.
    Going silent fades the context's playing voices over the existing 50 ms switch-away fade;
    going audible starts nothing already under way (a sound heard from its start only).
-4. **Live voices get a block per context inside main's partition**: the default context keeps
-   the live pool it has (channels 0-3); an inner context's live voices take a block above the
-   library's channels, the mixer grows to hold it, and the library's reservation is never
-   lowered. A silent context's chunks still play, at volume 0, on its own block (the spike's
-   rule: the voice's lifecycle reads its channel). The block is freed by `InnerGame.finish`.
-5. **An inner build never re-partitions**: the inner engine uses the outer game's partition;
-   a recording's non-default `--sound-channels` / `--live-voice-pool` are logged and ignored
-   inner (the outer's reservation never changes).
+4. **One heard set of library channels, swapped to whichever tile is heard; a small live pool
+   per tile** (the owner, 2026-11-13, after Task 3's review found that growing the mixer while
+   sound plays is BUGS.md #145's heap corruption: "a bigger mixer allocation at startup for the
+   arcade in particular", then "we just swap out the active set of 32"). A silent tile's voice
+   table touches no channel (decision 3), so only the heard tile needs library channels:
+   - **Grown once, at the host's startup, before anything plays**: the host declares how many
+     inner games it runs (`reserve_inner_game_channels(*, games: int, ...)`); the engine grows
+     the mixer once to the default partition (unchanged) + **two heard sets of 32 library
+     channels** + **4 live-voice channels per game**, with the legacy (plain `Sound.play()`)
+     channels above all of it and the reservation covering everything below them. The mixer
+     never grows again.
+   - **The heard set**: the heard tile's voice table plays its logical slots on one heard set.
+     When the heard tile changes, the old tile fades out on its set (decision 3's 50 ms) while
+     the new tile starts on the other set; the two sets alternate (the owner: "two sets of 32").
+     A tile whose recording asks for more library channels than a heard set holds replays
+     silent but cannot be made heard (a clear error from `set_audible(audible=True)`).
+   - **Live pools**: each inner game takes 4 live-voice channels from the capacity at build
+     (Mr. Muncher's projector reads its own channel, so a silent copy still needs real channels;
+     its chunks play at volume 0 while silent, the spike's rule); freed at `InnerGame.finish`.
+   - An inner game built with no capacity declared, or past the declared count, fails alone with
+     a clear error naming the call to make. The default context's partition is exactly as today.
+5. **A tile's table keeps its recording's size**: its logical slot count is the recording's
+   `--sound-channels` (and its live pool its `--live-voice-pool`, up to the per-game live
+   channels), so its steals and drops equal the game run alone; an inner build never
+   re-partitions the mixer, and the outer's reservation never changes.
 6. **When the heard game changes**, the old one goes silent (decision 3's fade, its live block to
    volume 0) and its plain `Sound.play()` sounds still on unreserved channels are stopped (the
    Arcade itself plays through its `AudioEngine`, never plain `Sound.play()`).
@@ -109,8 +126,8 @@ Dropped: the routing spy (`MIXER_CALLS`).
    the other's channel; `create_voice` succeeds in both. Test in Task 3.
 4. **The heard game switching while its sound plays**: the sound stops (fades) within the fade
    time, the new heard game's next sound is heard. Test in Task 4.
-5. **A tile whose recording asked for non-default channel options**: the outer's reservation is
-   unchanged after its build. Test in Task 3.
+5. **A tile whose recording asked for non-default channel options**: its block has those sizes
+   and the outer's reservation is unchanged after its build. Test in Task 3.
 
 ---
 
@@ -138,7 +155,7 @@ fades the context's voices). Tests: `tests/audio/` (the voice table's file).
   number plays to its end (Review Focus 1); going silent fades within 50 ms.
 - [ ] Implement; full suite; commit (`Audio: a silent context's voice table never touches the mixer`).
 
-### Task 3: Live voices on a block per context; an inner build never re-partitions
+### Task 3: The heard set and the live pools, grown once at startup; an inner build never re-partitions
 
 **Files:** `src/glitchygames/audio/live.py`, `src/glitchygames/audio/voices.py`
 (`reserve_channels`), `src/glitchygames/engine/game_engine.py` (`reserved_channel_partition`

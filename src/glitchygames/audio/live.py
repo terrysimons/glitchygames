@@ -10,8 +10,9 @@ start the queued sound, so fades are rendered into the samples and stop_now() ca
 twice; set_reserved(n) reserves channels 0..n-1; set_num_channels(smaller) stops sounds on the
 removed channels, so the pool is reserved once at startup and never resized.
 
-An inner context's pool is its channel block's live channels (``voices.context_channel_block``;
-Arcade sub-plan 4, decision 4), never the default context's. A voice belongs to the context it is
+An inner context's pool is the live pool its build took from the channels the host declared
+(``voices.inner_context_partition``; Arcade sub-plan 4, decision 4), never the default
+context's. A voice belongs to the context it is
 created in: while that context is silent (``glitchygames.audio.route``) its chunks still play on
 its own channel, at volume 0 (the voice's lifecycle reads its channel's busy and queue state, so
 it is the same heard or silent); each chunk takes the route as it is rendered, so a context

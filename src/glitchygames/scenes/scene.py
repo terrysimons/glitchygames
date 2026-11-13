@@ -248,6 +248,17 @@ def _scene_manager_for_class(*, scene_manager_class: type[SceneManager]) -> Scen
     return None
 
 
+def release_live_voices_in_the_current_context() -> None:
+    """Silence the current context's live voices and give their channels back.
+
+    For an inner game's finish, and a build that failed (glitchygames/inner_game.py, rule 6):
+    looked up without making a scene manager, so nothing happens without one.
+    """
+    scene_manager = _scene_manager_for_class(scene_manager_class=SceneManager)
+    if scene_manager is not None:
+        scene_manager.release_live_voices()
+
+
 def _current_engine_options(owner: type) -> dict[str, Any] | None:
     """Return the current context's manager's engine options (``SceneManager.OPTIONS`` on a class).
 
