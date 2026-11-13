@@ -296,8 +296,8 @@ instruments.get('slapstick')                             # an alias: the same in
   the bagpipes' table (`bagpipe_sound_alikes.py`) is empty so far, and so are the keyboards'
   (`keyboard_sound_alikes.py`, the builds in `keyboards.py`) and the free reeds'
   (`free_reed_sound_alikes.py`, the builds in `free_reeds.py`; `winds.py` now holds only the
-  saxophones) and the harps' (`harp_sound_alikes.py`, the builds in `harps.py`; `strings.py` now
-  holds only the struck strings). `electromechanical.py` holds the
+  saxophones) and the harps' (`harp_sound_alikes.py`, the builds in `harps.py`; the struck strings'
+  builds are in `struck_strings.py`). `electromechanical.py` holds the
   electromechanical instruments that shared that module. There are 197 sound-alikes in all. A bagpipe's drones are fixed pitches inside its build, so a bagpipe
   sound-alike in another tuning would carry its own drones as `sound_changes` (each at the pitch
   its source gives, equal-tempered like the chanter).

@@ -3,7 +3,8 @@
 A harp's strings run in a plane perpendicular to the soundboard (Hornbostel-Sachs 322); the kora is
 a harp-lute (323). The family's sound-alikes, listed instruments that share another entry's build,
 are in ``harp_sound_alikes.py``. Struck strings (dulcimers) are in the sibling module
-``strings.py``, bowed strings in ``bowed_strings.py``, plucked strings in ``plucked_strings.py``.
+``struck_strings.py``, bowed strings in ``bowed_strings.py``, plucked strings in
+``plucked_strings.py``.
 
 Ranges are sounding pitch, after the common tunings of the instruments. Timbres: a harp string
 is plucked and rings down (``plucked_series``).
