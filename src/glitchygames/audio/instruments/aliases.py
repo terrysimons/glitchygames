@@ -376,4 +376,21 @@ ALIASES: Final[dict[str, str]] = {
     # describe this instrument, and is still used to this day to refer to conch instruments,"):
     # another name for the catalog's conch
     'fotuto': 'conch',
+    # --- Batch 11's double reeds, in the order of plans/data/instrument-audit/batch-11.tsv
+    # https://en.wikipedia.org/wiki/Cor_anglais ("The cor anglais ... or English horn (mainly
+    # North America), is a double-reed woodwind instrument in the oboe family."): another name
+    # for the catalog's english horn
+    'cor anglais': 'english horn',
+    # https://en.wikipedia.org/wiki/Bass_oboe ("The bass oboe or baritone oboe is a double reed
+    # instrument in the woodwind family."): another name for the catalog's bass oboe
+    'baritone oboe': 'bass oboe',
+    # https://en.wikipedia.org/wiki/Bassoon ("The term for bassoon used in classical music scores
+    # and parts is often its Italian name fagotto (plural fagotti), which referred initially to
+    # the dulcian. This word, adopted in many other European languages as fagot, fagote, or in
+    # German, Fagott, comes from an Old French word meaning a bundle of sticks."): the German
+    # name of the modern bassoon
+    'fagott': 'bassoon',
+    # https://en.wikipedia.org/wiki/Rackett ("The rackett, raggett, cervelas, or sausage bassoon
+    # is a Renaissance-era double reed wind instrument"): another name for the catalog's rackett
+    'cervelas': 'rackett',
 }

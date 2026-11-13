@@ -12,9 +12,28 @@ for the same instrument, stays in ``aliases.py``. The family's builds are in ``d
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final
+from typing import Final
 
-if TYPE_CHECKING:
-    from glitchygames.audio.instruments.catalog import CatalogEntry
+from glitchygames.audio.instruments.catalog import CatalogEntry, Family
 
-DOUBLE_REED_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = ()
+DOUBLE_REED_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
+    # --- Batch 11's sound-alikes (the orchestral, modern and early European double reeds), in
+    # the order of plans/data/instrument-audit/batch-11.tsv: each a distinct instrument,
+    # verified by its source, that no fetched source sets apart in sound from the entry it names
+    # (``sounds_like``)
+    # Sound-alike of the heckelphone (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Piccolo_heckelphone ("Following the basic principle of the
+    # heckelphone, the piccolo heckelphone in F has an extremely wide bore with large tone
+    # holes."): the heckelphone's own wide bore, with no trait of its own. Range, from the same
+    # page: "A transposing instrument pitched in F, a perfect fourth above the oboe, its written
+    # range is from B3 to E6" (cited there to Grove): the sounding notes, a perfect fourth above
+    # the written B3 and E6, are E4 and A6
+    CatalogEntry(
+        'piccolo heckelphone',
+        'Piccolo heckelphone in F',
+        Family.DOUBLE_REEDS,
+        'E4',
+        'A6',
+        sounds_like='heckelphone',
+    ),
+)

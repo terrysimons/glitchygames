@@ -831,6 +831,10 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('mako', 'didgeridoo'),
         ('alpenhorn', 'alphorn'),
         ('fotuto', 'conch'),
+        ('cor anglais', 'english horn'),
+        ('baritone oboe', 'bass oboe'),
+        ('fagott', 'bassoon'),
+        ('cervelas', 'rackett'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -862,6 +866,8 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 10's second half names the conch as the dung dkar, the hakgediya, the pututu, the
     shankha and the fotuto, the french horn as the waldhorn, the natural horn as the
     inventionshorn, the didgeridoo as the yidaki and the mako, and the alphorn as the alpenhorn.
+    Batch 11's first half names the english horn as the cor anglais, the bass oboe as the baritone
+    oboe, the bassoon as the fagott (its German name) and the rackett as the cervelas.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1668,9 +1674,9 @@ EXISTING_DOUBLE_REED_NAMES: frozenset[str] = frozenset({
 })
 # Batch 11's double reeds with their own build, in the sheet's order. Filled in by the tasks that
 # add them (plans/data/instrument-audit/batch-11.tsv)
-NEW_DOUBLE_REED_NAMES: list[str] = []
+NEW_DOUBLE_REED_NAMES: list[str] = ['contraforte']
 # Batch 11's double reed sound-alikes and the entry each sounds like, in the sheet's order
-DOUBLE_REED_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+DOUBLE_REED_SOUND_ALIKE_PARENTS: dict[str, str] = {'piccolo heckelphone': 'heckelphone'}
 
 
 # The 42 brass instruments that predate batch 10: their shared builds predate the anti-goal rule
@@ -2011,6 +2017,32 @@ def test_the_pianet_settles_from_a_bright_strike():
         assert strike > 10.0 * settled, note.name
 
 
+def test_the_contraforte_carries_more_high_tone_than_the_contrabassoon():
+    """The contraforte's wider bore leaves more energy above 2200 Hz than the contrabassoon's.
+
+    The Contraforte page (https://en.wikipedia.org/wiki/Contraforte): "The contraforte uses a
+    different and wider bore than the contrabassoon to produce a distinct tone; the sound is more
+    even in strength and intonation across registers, remaining quite strong into the high
+    register, unlike a contrabassoon." The share of a one second note's energy above 2200 Hz (the
+    contrabassoon's low pass) is more than 1.5 times the contrabassoon's at A1, A2 and A3,
+    inside both ranges (measured 11.4, 4.2 and 1.9 times).
+    """
+    cutoff_hertz = 2200.0
+
+    def share_above_cutoff(name: str, pitch: str) -> float:
+        samples = render_sound(
+            spec_for(instruments.get(name), name=name, pitch=pitch, length=1.0)
+        ).samples
+        power = np.abs(np.fft.rfft(samples * np.hanning(len(samples)))) ** 2
+        frequencies = np.fft.rfftfreq(len(samples), 1 / SAMPLE_RATE)
+        return float(np.sum(power[frequencies > cutoff_hertz]) / np.sum(power))
+
+    for pitch in ('A1', 'A2', 'A3'):
+        contraforte = share_above_cutoff('contraforte', pitch)
+        contrabassoon = share_above_cutoff('contrabassoon', pitch)
+        assert contraforte > 1.5 * contrabassoon, pitch
+
+
 def test_the_gangsa_pairs_its_fundamental_at_the_ombak_ratio():
     """A gangsa note holds two fundamentals 228 / 220 = 1.036 apart, the pair's ombak.
 
@@ -2170,7 +2202,7 @@ def test_no_brass_name_held_back_for_a_feature_is_listed():
 # of its own, with its waits_for: the WAIT rows whose reason is not "a sourced range", and the
 # alias rows that wait for one of them, in the sheet's order. None ships under that name or as an
 # alias until the engine or the build exists (decision 4; batch 11). The test matches exact names
-DOUBLE_REED_HELD_BACK: dict[str, str] = {}
+DOUBLE_REED_HELD_BACK: dict[str, str] = {}  # half A holds nothing back
 
 
 def test_no_double_reed_name_held_back_for_a_feature_is_listed():

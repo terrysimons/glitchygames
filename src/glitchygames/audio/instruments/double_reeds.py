@@ -244,6 +244,28 @@ _DOUBLE_REED_BUILDS: Final[tuple[CatalogEntry, ...]] = (
         partial(_capped_reed, low_pass=2000.0),
     ),
     CatalogEntry('duduk', 'Duduk', Family.DOUBLE_REEDS, 'G3', 'C5', _duduk),
+    # --- Batch 11's double reeds with a build of their own, in the order of
+    # plans/data/instrument-audit/batch-11.tsv
+    # Sound: https://en.wikipedia.org/wiki/Contraforte ("The contraforte uses a different and
+    # wider bore than the contrabassoon to produce a distinct tone; the sound is more even in
+    # strength and intonation across registers, remaining quite strong into the high register,
+    # unlike a contrabassoon. It also lacks the distinct "rattle" of a contrabassoon"; the wider
+    # bore is cited there to Eppelsheim) and Eppelsheim's maker page
+    # https://www.eppelsheim.com/en/instruments/contraforte/ ("wide bore for a voluminous
+    # tone"), and Guntram Wolf's page (https://www.guntramwolf.de/de/instrumente/modern/bassoons/
+    # kontrafagott/kontraforte-english: "einen klaren, runden Klang"). Sound design, not
+    # sourced: low_pass 2800 (the contrabassoon's is 2200, so the tone carries higher into the
+    # high register) and drive 0.2 (half the contrabassoon's 0.4, for the clear tone without the
+    # rattle). Range, from the maker's page: "written range A1 - G 5, sounding A0 - G 4": the
+    # sounding range, an octave below the written one
+    CatalogEntry(
+        'contraforte',
+        'Contraforte',
+        Family.DOUBLE_REEDS,
+        'A0',
+        'G4',
+        partial(_double_reed, BASSOON_LEVELS, low_pass=2800.0, drive=0.2),
+    ),
 )
 
 DOUBLE_REEDS: Final[tuple[CatalogEntry, ...]] = _DOUBLE_REED_BUILDS + DOUBLE_REED_SOUND_ALIKES
