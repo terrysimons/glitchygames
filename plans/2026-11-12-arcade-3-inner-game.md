@@ -99,6 +99,10 @@ inside a tile. The owner left it failing (2026-11-12; `plans/future-work.md`).
    go on, the default context is current afterwards. Test in Task 3.
 4. **The text-input demo's key repeat** (`set_repeat(350)` in its setup): the check never looked
    at the Arcade's own repeat. Measure it in Task 4 and log a bug if a tile changes it.
+   **Measured** (Task 4): the text-input demo's tile leaves it at `(200, 200)` where the outer
+   game had `(0, 0)` (the demo's `set_repeat(350)`, then the engine's `InputBox` sets 200 on a
+   key release); every other recording leaves it. Logged in `plans/future-work.md` ("A tile
+   changes the outer game's key repeat"), held by a strict xfail.
 5. **A tile on a display format with per-pixel alpha** (cocoa): no alpha-0 byte in the render
    target after a frame. Test in Task 1.
 
@@ -133,7 +137,7 @@ inside a tile. The owner left it failing (2026-11-12; `plans/future-work.md`).
 - [x] **Step 2: Run them; expected FAIL where the port lacks the behaviour** (the opaque frame,
   the typed handoff)
 - [x] **Step 3: Implement**; `_show_frame` runs `make_opaque` on an unpresented inner frame.
-- [ ] **Step 4: Run `tests/`; expected PASS**
+- [x] **Step 4: Run `tests/`; expected PASS**
 - [x] **Step 5: Commit** (`Render target: an inner context draws on its own surface; the hosted start`)
 
 ### Task 2: The private event queue, made real
@@ -149,13 +153,13 @@ inside a tile. The owner left it failing (2026-11-12; `plans/future-work.md`).
 - Produces: the queue enabled for every inner context by `InnerGame` (Task 3); while enabled,
   `post_event`/`post_input_event` append there and the replay doors drain it, never SDL's.
 
-- [ ] **Step 1: Write the tests**: a post inner never reaches SDL's queue; an inner replay's
+- [x] **Step 1: Write the tests**: a post inner never reaches SDL's queue; an inner replay's
   pump leaves an owner's event in SDL's queue; the inner replay serves its own posts as
   internal (the spike's frame-30 theft).
-- [ ] **Step 2: Run them**; the port may already pass some; any that fail are fixed in Step 3
-- [ ] **Step 3: Implement what fails; replace the markers with real comments**
-- [ ] **Step 4: Run `tests/`; expected PASS**
-- [ ] **Step 5: Commit** (`Events: an inner context posts to and drains a queue of its own`)
+- [x] **Step 2: Run them**; the port may already pass some; any that fail are fixed in Step 3
+- [x] **Step 3: Implement what fails; replace the markers with real comments**
+- [x] **Step 4: Run `tests/`; expected PASS**
+- [x] **Step 5: Commit** (`Events: an inner context posts to and drains a queue of its own`)
 
 ### Task 3: `InnerGame`
 
@@ -205,20 +209,20 @@ inside a tile. The owner left it failing (2026-11-12; `plans/future-work.md`).
   `plans/2026-10-25-engine-context.md` (the rows and sub-plans this covers),
   `plans/2026-10-23-arcade-showcase.md` (item 3 done), `plans/future-work.md`
 
-- [ ] **Step 1: Write the proof test**, parametrized over every golden and bundled demo
+- [x] **Step 1: Write the proof test**, parametrized over every golden and bundled demo
   (`tests/workspace_goldens.every_golden_and_bundled_demo`), each paired with the next: the
   reference is a child headless replay with `--replay-digest`; both replayed as `InnerGame`s,
   stepped unevenly interleaved, each with its own digest. Each digest equals its reference;
   each tile's per-frame pixel hash interleaved equals the same recording alone. Bitmappy's
   `drawing` demo is `pytest.mark.xfail(strict=True, reason=...)` naming the future-work entry.
   Record the Arcade's `pygame.key.get_repeat()` before and after (Review Focus 4).
-- [ ] **Step 2: Run it**; expected PASS (Bitmappy XFAIL). A new failure is a real collision:
+- [x] **Step 2: Run it**; expected PASS (Bitmappy XFAIL). A new failure is a real collision:
   root-cause it, never relax the comparison.
-- [ ] **Step 3: Add `test_ten_inner_games_per_outer_frame`** (one call steps ten stand-in
+- [x] **Step 3: Add `test_ten_inner_games_per_outer_frame`** (one call steps ten stand-in
   `InnerGame`s once); run with `--benchmark-only -n 0`.
-- [ ] **Step 4: Update the documents**, then `uv run pytest`, `nox -s lint`,
+- [x] **Step 4: Update the documents**, then `uv run pytest`, `nox -s lint`,
   `nox -s static-analysis`; expected green.
-- [ ] **Step 5: Commit** (`Inner game: every golden and bundled demo replays inside an inner context as it does alone`)
+- [x] **Step 5: Commit** (`Inner game: every golden and bundled demo replays inside an inner context as it does alone`)
 
 The branch ends with the whole suite green, `nox -s compare-drivers -- --drivers native
 --fail-on-difference` clean, a PR, CI green and the owner's merge.

@@ -301,7 +301,13 @@ recorded the same options; ten tiles with different games and resolutions make t
    drawing offscreen (a render target per context), its own event
    queue and internal-post tracker, contained errors, and nothing touching the window, SDL's
    environment, signals or `pygame.quit()`. Proof: every golden replay and bundled demo replayed
-   in an inner context equals its headless replay, frame for frame, several at once.
+   in an inner context equals its headless replay, frame for frame, several at once. **Done**
+   (Tasks 1-4, 2026-11-12; `InnerGame` in `src/glitchygames/inner_game.py`, the proof
+   `tests/test_every_recording_replays_inside_an_inner_game.py`), with two bugs left open in
+   `plans/future-work.md`: Bitmappy's tile diverges at frame 0 (it measures the outer window; a
+   strict xfail) and the text-input demo's tile changes the outer game's key repeat (a strict
+   xfail). Still to do from the engine context's sub-plans: sub-plan 3's binding of a scene
+   manager to its context, its browser and thread rules, and the rest of row S8.
 4. **Sound only from the watched game** = engine context sub-plan 5: an audio route per context;
    silent tiles keep off the shared channels entirely; only the top frame or a launched game is
    heard.

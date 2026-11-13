@@ -110,14 +110,14 @@ tests of moved state (Decisions, 1).
 
 | # | State | Where | What it holds | How a context that does not own it is kept off it | Sub-plan |
 |---|---|---|---|---|---|
-| S1 | the display surface | `pygame.display`; opened by `GameEngine.initialize_display` and `src/glitchygames/display_mode.py:66`; 13 readers of `pygame.display.get_surface()` in the engine | the one window | only the presenting context presents; an inner context renders into a surface of its own (its render target) at its own resolution and never calls `set_mode` | 4 |
-| S2 | window services | caption (`src/glitchygames/engine/game_engine.py:1510`, `src/glitchygames/scenes/scene.py:2741`), icon (`game_engine.py:401-403, 1507`, the class attribute `GameEngine.icon`), cursor (`game_engine.py:1488`), grab (`game_engine.py:3353-3359`), key repeat and text input (`src/glitchygames/ui/text_widgets.py:1153-1197`, `src/glitchygames/ui/inputs.py:192`), mouse visibility (Bitmappy) | what the window does | set only from the presenting context; an inner context's calls are dropped (it gets no real input, so repeat and text input mean nothing to it) | 4 |
+| S1 | the display surface | `pygame.display`; opened by `GameEngine.initialize_display` and `src/glitchygames/display_mode.py:66`; 13 readers of `pygame.display.get_surface()` in the engine | the one window | only the presenting context presents; an inner context renders into a surface of its own (its render target) at its own resolution and never calls `set_mode` | 4; done in [Arcade 3](2026-11-12-arcade-3-inner-game.md) (`src/glitchygames/render_target.py`: the engine reads `display_surface()`; Bitmappy still reads `get_surface()` itself, `plans/future-work.md`) |
+| S2 | window services | caption (`src/glitchygames/engine/game_engine.py:1510`, `src/glitchygames/scenes/scene.py:2741`), icon (`game_engine.py:401-403, 1507`, the class attribute `GameEngine.icon`), cursor (`game_engine.py:1488`), grab (`game_engine.py:3353-3359`), key repeat and text input (`src/glitchygames/ui/text_widgets.py:1153-1197`, `src/glitchygames/ui/inputs.py:192`), mouse visibility (Bitmappy) | what the window does | set only from the presenting context; an inner context's calls are dropped (it gets no real input, so repeat and text input mean nothing to it) | 4; caption and icon done in [Arcade 3](2026-11-12-arcade-3-inner-game.md); the key repeat open (the text-input demo's tile changes the outer game's, `plans/future-work.md`) |
 | S3 | the mixer and its channels | `game_engine.py:2267-2276`; the mixer's channel partition (the live pool, the library, the reserved channels) `src/glitchygames/audio/voices.py:81` (`_partitioned_mixer`, which replaced `audio/live.py`'s `_pool_grown_mixer_channel_counts`); `release_channels` (`audio/voices.py:149-157`) clears it when any one context shuts down, so a second context still running loses its partition (open, sub-plan 5) | sound output | a context has an audio route: audible (the mixer) or silent (its sounds and live voices never reach the mixer); the pool belongs to the audible context | 5 |
 | S4 | the music stream | `pygame.mixer.music`; `src/glitchygames/replay/silence.py:147` (`_MUSIC_FOLLOWING`, which replaces `pygame.mixer.music.pause`/`unpause`) | one music track | music only from the audible context; a silent context's music calls are dropped | 5 |
-| S5 | SDL's event queue | read by `GameEngine._pump_events` through the live doors; written by `pygame.event.post` (`src/glitchygames/recording.py:596`) | real input and posted events | only the presenting context pumps it; an inner context gets its events from its doors (a recording) and its posts go to a queue of its own | 6 |
-| S6 | SDL's blocked and allowed event types | `src/glitchygames/events/base.py` (`allow_every_event_type`), `src/glitchygames/replay/input_blocking.py:142-151`, every event manager's `set_allowed` | which types SDL queues | an inner context never blocks or allows (its doors never read SDL) | 6 |
+| S5 | SDL's event queue | read by `GameEngine._pump_events` through the live doors; written by `pygame.event.post` (`src/glitchygames/recording.py:596`) | real input and posted events | only the presenting context pumps it; an inner context gets its events from its doors (a recording) and its posts go to a queue of its own | 6; done in [Arcade 3](2026-11-12-arcade-3-inner-game.md) (`recording.private_event_queue()`) |
+| S6 | SDL's blocked and allowed event types | `src/glitchygames/events/base.py` (`allow_every_event_type`), `src/glitchygames/replay/input_blocking.py:142-151`, every event manager's `set_allowed` | which types SDL queues | an inner context never blocks or allows (its doors never read SDL) | 6; done in [Arcade 3](2026-11-12-arcade-3-inner-game.md) |
 | S7 | the joystick subsystem | `src/glitchygames/input/devices.py` (`LiveDeviceRegistry`), `pygame.joystick.init` (`src/glitchygames/events/joystick.py`) | real pads | an inner context's devices are replay stand-ins (`ReplayJoystick`, `ReplayController`); it never rumbles | 6 |
-| S8 | process services | signal handlers (`game_engine.py:1798-1808`), `pygame.register_quit` (`:999`), `sys.setswitchinterval` (`:1037`), the SDL environment variables (`SDL_DRIVER_VARIABLES` `:173`, `SDL_NO_SIGNAL_HANDLERS` `:1033`), `pygame.init()` (`:1041`), `pygame.fastevent` (`:1049`); `GameEngine.PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS` (`game_engine.py:902`, rebound at `:1404, 1409`: whether this process's pygame started with SDL's signal handlers, in no context; the controller's ruling, 2026-10-29); `pygame.freetype.set_default_resolution` (`src/glitchygames/fonts/font_manager.py:307`, in `FontManager.__init__`: pygame's one default font resolution, set from the making context's `--font-dpi`, so the last `FontManager` made wins; a call, which `tests/test_process_state_guard.py` cannot see) | the process | set only by the outer (process-owning) engine; an inner engine never touches them | 7 |
+| S8 | process services | signal handlers (`game_engine.py:1798-1808`), `pygame.register_quit` (`:999`), `sys.setswitchinterval` (`:1037`), the SDL environment variables (`SDL_DRIVER_VARIABLES` `:173`, `SDL_NO_SIGNAL_HANDLERS` `:1033`), `pygame.init()` (`:1041`), `pygame.fastevent` (`:1049`); `GameEngine.PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS` (`game_engine.py:902`, rebound at `:1404, 1409`: whether this process's pygame started with SDL's signal handlers, in no context; the controller's ruling, 2026-10-29); `pygame.freetype.set_default_resolution` (`src/glitchygames/fonts/font_manager.py:307`, in `FontManager.__init__`: pygame's one default font resolution, set from the making context's `--font-dpi`, so the last `FontManager` made wins; a call, which `tests/test_process_state_guard.py` cannot see) | the process | set only by the outer (process-owning) engine; an inner engine never touches them | 7; partly done in [Arcade 3](2026-11-12-arcade-3-inner-game.md): an inner engine installs no signal handlers and never changes SDL's driver variables; it still calls `pygame.init()` (a no-op once started), `sys.setswitchinterval` and `pygame.register_quit` (one entry per inner game, never removed, `plans/future-work.md`), and sets the SDL signal hint only when unset |
 | S9 | the clipboard registry | `src/glitchygames/clipboard.py:133` | the player's clipboard (the browser page installs its own) | stays shared: it is the player's; an inner context gets no real input, so never pastes | none |
 | S10 | the user-files registry | `src/glitchygames/user_files.py:56` | the browser's file picker and downloads | stays shared: the player's | none |
 | S11 | the disk-save change observers | `src/glitchygames/state/manager.py:55` | the browser's IndexedDB flush | stays shared: demo contexts use `MemorySaveManager` and never call it | none |
@@ -400,21 +400,31 @@ its own is the playback core's decision.
 3. **Switching contract**: a scene manager bound to its context (a frame step elsewhere raises),
    switching only between a context's frames, an inner context's exception contained and its
    context marked failed, the browser rule (no switch across an `await`), the engine's threads,
-   the switch's cost measured.
+   the switch's cost measured. **Partly done** in [Arcade 3](2026-11-12-arcade-3-inner-game.md): `InnerGame` runs each frame
+   inside its context's switch and contains an inner game's `Exception` or `SystemExit` (the
+   failure belongs to the `InnerGame`, not the context: its decision 2); the binding, the
+   browser rule and the threads are still open.
 4. **The display and the window**: a render target per context (offscreen for inner contexts),
    the 13 `get_surface()` readers through it, window services only from the owning context.
+   **Done** in [Arcade 3](2026-11-12-arcade-3-inner-game.md) (rows S1 and S2), but for the key repeat and Bitmappy's own
+   `get_surface()` reads (`plans/future-work.md`).
 5. **Sound**: an audio route per context (audible or silent), the live-voice pool and music
    owned by the audible context, a guard on direct mixer use; the spec's "sound only from the
    context that has it" test.
 6. **Events and devices**: only the owning context pumps SDL; an inner context's posts go to a
    queue of its own (read by its doors, tracked by its own internal-post tracker, C19, already
    in the context since sub-plan 2); SDL blocking only by the owner; inner devices are replay
-   stand-ins, no rumble.
+   stand-ins, no rumble. **Done** in [Arcade 3](2026-11-12-arcade-3-inner-game.md) for replays (rows S5 and S6): the
+   private queue; a replay's devices were already stand-ins.
 7. **The inner engine**: a `GameEngine` built in a context that owns no process resource (no
    `pygame.init`, display mode, signals or SDL environment), from 4-6; two stand-in games in two
    contexts with frames interleaved, each equal frame for frame to running alone; each golden
    replay replayed in an inner context equal to its headless replay; ten contexts' cost per frame
-   measured.
+   measured. **Done** in [Arcade 3](2026-11-12-arcade-3-inner-game.md): `InnerGame` (`src/glitchygames/inner_game.py`) and the
+   hosted start; every golden and bundled demo, interleaved beside another, equal to its
+   headless replay (`tests/test_every_recording_replays_inside_an_inner_game.py`; Bitmappy's demo
+   a strict xfail); ten stand-in inner games per outer frame about 0.29 ms
+   (`test_ten_inner_games_per_outer_frame`). Row S8 is only partly done (above).
 8. **The replay viewer's inner game in its own context**: the first existing user; the viewer
    stays the outer game in the default context; every watched-replay test and golden replay
    unchanged.
