@@ -1263,6 +1263,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#inner-contexts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inner contexts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#read-only-views" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3059,7 +3070,7 @@
 <p>An engine context is the state one running game owns, so several games can run in one process
 (the Arcade's demo tiles; design: <code>plans/2026-10-25-engine-context.md</code>). Ordinary games never
 create one: they run in the default context, exactly as before.</p>
-<p>What is per game today: the seventeen slots below, and the engine's and the scene manager's own
+<p>What is per game today: the nineteen slots below, and the engine's and the scene manager's own
 attributes (an engine's <code>options</code>, <code>game</code>, <code>running_game</code>, <code>event_handlers</code> and its event
 bookkeeping; a scene manager's <code>engine_options</code>), which belong to the object, so two engines
 never share them. The old class-level names of that state (<code>GameEngine.OPTIONS</code>,
@@ -3068,9 +3079,11 @@ never share them. The old class-level names of that state (<code>GameEngine.OPTI
 <code>plans/2026-10-25-engine-context.md</code>): the display and window services, the mixer and music,
 <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s event queue and its blocked types, the joystick subsystem, the process services (signal
 handlers, the <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> environment, <code>pygame.init()</code>), the player's clipboard and files, and a few
-recursion guards and registries; later sub-plans keep an inner context off each of them. The
-engine does not run a game in another context yet; the one switch in <code>src/</code> is the sound-file
-loader's scratch context for building a file's waves (<code>src/glitchygames/audio/assets.py</code>).</p>
+recursion guards and registries; later sub-plans keep an inner context off each of them. A game
+runs in another context as an inner game: a recording replayed through the game's own command,
+unchanged, inside a context with a render target of its own (Inner contexts, below; Arcade
+sub-plan 3, <code>plans/2026-11-12-arcade-3-inner-game.md</code>). The sound-file loader also switches to a
+scratch context for building a file's waves (<code>src/glitchygames/audio/assets.py</code>).</p>
 <h2 id="rules">Rules<a class="headerlink" href="#rules" title="Permanent link">#</a></h2>
 <ol>
 <li>Per-context state is a <code>ContextSlot</code> (<code>src/glitchygames/engine_context.py</code>), declared once at
@@ -3191,10 +3204,81 @@ loader's scratch context for building a file's waves (<code>src/glitchygames/aud
 <td><code>src/glitchygames/sprites/sprite.py</code></td>
 <td><code>sprite_counters()</code> (the sprite creation counters and breakpoints the teardown report logs), <code>Sprite.break_when</code></td>
 </tr>
+<tr>
+<td><code>'glitchygames.render_target.target'</code></td>
+<td><code>src/glitchygames/render_target.py</code></td>
+<td><code>set_render_target</code>, <code>render_target</code>, <code>is_inner_context</code>, <code>display_surface</code>, <code>request_hosted_start</code>, <code>hosted_start_requested</code>, <code>note_started_engine</code>, <code>take_started_engine</code> (the context's render target and its hosted start)</td>
+</tr>
+<tr>
+<td><code>'glitchygames.recording.private_event_queue'</code></td>
+<td><code>src/glitchygames/recording.py</code></td>
+<td><code>private_event_queue</code> (an inner context's own event queue: its posts go there and its replay doors drain it, never <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s)</td>
+</tr>
 </tbody>
 </table>
 <p><code>tests/test_engine_context.py</code> proves, for every slot, that two contexts in one process never
 see each other's values; a slot added without such a check fails the suite.</p>
+<h2 id="inner-contexts">Inner contexts<a class="headerlink" href="#inner-contexts" title="Permanent link">#</a></h2>
+<p>An inner context runs a game inside another game (an Arcade tile). The rules
+(<code>src/glitchygames/render_target.py</code> and <code>src/glitchygames/inner_game.py</code>, whose docstrings are
+the contract; <code>plans/2026-11-12-arcade-3-inner-game.md</code>):</p>
+<ol>
+<li><strong>A context with a render target is inner</strong> (<code>is_inner_context()</code>). The default context has
+   none, so an ordinary game draws on the display as before. The engine reads
+   <code>display_surface()</code> (the render target, else the display) where it read
+   <code>pygame.display.get_surface()</code>.</li>
+<li><strong>An inner context owns no window or process service</strong> (audit rows S1 and S2): it never
+   opens, resizes, captions or presents the window, never sets its icon, and never changes <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s
+   driver variables or restarts the display or mixer (<code>--headless</code> included).</li>
+<li><strong>Its frames are drawn, never presented</strong>, and made opaque after each one (<code>make_opaque</code> on
+   the render target, BUGS.md #142's rule: in the display's format on cocoa the target carries
+   alpha, and its host copies it). Neither SCREEN shake nor any overlay (the debug overlay, a
+   replay's status bar, an onion skin) is drawn in it: those belong to the outer game.</li>
+<li><strong>It posts to a queue of its own</strong> (<code>private_event_queue()</code>, audit rows S5 and S6): while the
+   queue is enabled, <code>post_event</code> and <code>post_input_event</code> append there and the context's replay
+   doors drain it, never <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s queue, and never block real input at <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>. An inner game never
+   takes an event another context posted, nor leaves one for it to take; its recorded QUIT ends
+   only that game.</li>
+<li><strong><code>GameEngine.start()</code> in it is a hosted start</strong>: it builds the game up to its first frame,
+   keeps the engine for the host (<code>take_started_engine()</code>, once) and returns. No signal
+   handlers, no blocking loop, no crash boundary (whose teardown would quit pygame for every
+   context), and neither <code>_begin_start</code> nor <code>_begin_run</code> (no options block; <code>--profile</code> and
+   <code>--list-input-devices</code>, which those run, are refused rather than ignored). A context that asked with <code>request_hosted_start()</code> keeps
+   the request for its whole life, so a host makes a fresh context for each game.</li>
+<li><strong><code>InnerGame</code> is the host's handle</strong> (<code>src/glitchygames/inner_game.py</code>):
+   <code>InnerGame.replay(command=..., path=..., name=..., size=..., arguments=())</code> makes a fresh
+   context with a render target of <code>size</code> and its private queue enabled, and calls the
+   installed command's own entry point with <code>sys.argv</code> swapped to <code>--replay-trace PATH
+   --headless ...</code> for that call only. <code>step()</code> runs one unpaced frame; <code>finish()</code> ends the run
+   and settles the replay's result into <code>outcome</code> (<code>InnerGameOutcome</code>: <code>RUNNING</code>, <code>ENDED</code> or
+   <code>FAILED</code>, the frames run, the replay's report, the error), without quitting pygame or
+   exiting. Only recordings run inner: live play, every tool flag, <code>--rebaseline</code>, <code>--audit</code>,
+   <code>--compare-trace</code>, the frame stream, a watched replay's restart options, <code>--profile</code>,
+   <code>--list-input-devices</code>, <code>--help</code> and <code>--version</code> (with argparse's prefixes and short-flag
+   clusters) raise <code>InnerGameRefusedError</code> before anything is built.</li>
+<li><strong>A failure belongs to the inner game</strong>: an <code>Exception</code> or <code>SystemExit</code> while building,
+   stepping or finishing makes its outcome <code>FAILED</code>; the host and every other inner game go on,
+   and the default context is current again after every call. <code>KeyboardInterrupt</code> and
+   <code>GeneratorExit</code> propagate.</li>
+<li><strong>An inner game writes nothing to stdout</strong>: the replay's report, which a headless replay
+   prints, is the outcome's <code>report</code>, logged at INFO.</li>
+</ol>
+<p>An inner game never changes <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s blocked event types: every engine call that blocks or allows
+goes through <code>events.set_event_types_allowed</code>, which changes nothing in an inner context (its
+private queue is all it reads). What an inner game can still change in the process (each in
+<code>plans/future-work.md</code>): the shared mixer (Arcade sub-plan 4), <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s key repeat (the text-input
+demo's tile changes the outer game's), text input start and stop (the engine's text widgets),
+the mouse cursor's visibility (Bitmappy's canvas), pygame's default font resolution (an inner
+<code>FontManager</code> sets it from its <code>--font-dpi</code>), <code>SDL_MOUSE_FOCUS_CLICKTHROUGH</code> when unset
+(<code>os.environ.setdefault</code>), and <code>pygame.register_quit</code> (every engine build adds one, never
+removed). The proof is
+<code>tests/test_every_recording_replays_inside_an_inner_game.py</code>: every golden and bundled demo,
+replayed as an inner game beside another, unevenly interleaved, inside an outer window of
+another size, matches its solo headless replay's digests frame for frame and draws the pixels it
+draws alone (Bitmappy's demo is a strict xfail: it measures the outer window,
+<code>plans/future-work.md</code>). Ten stand-in inner games stepped once per outer frame cost about 0.29 ms
+on the machine it was measured on (<code>test_ten_inner_games_per_outer_frame</code>, an Apple M4 Max,
+2026-11-12).</p>
 <h2 id="read-only-views">Read-only views<a class="headerlink" href="#read-only-views" title="Permanent link">#</a></h2>
 <p>The class attributes that held one game's state are now read-only views. Each is read-only, the
 current game's, and <code>None</code> (or its empty default) outside a game; engine code reads the instance
@@ -3418,7 +3502,7 @@ best-of-five figures (slot read 61 ns, view 126 ns or 2.07 slot reads, <code>cur
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 11, 2026 18:59:50 UTC">November 11, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 13, 2026 08:46:54 UTC">November 13, 2026</span>
   </span>
 
     

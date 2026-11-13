@@ -5028,6 +5028,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#glitchygames.audio.instruments.voice_sound_alikes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        voice_sound_alikes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#glitchygames.audio.instruments.voices" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -47681,6 +47692,15 @@ bass, sections, pizzicato, viols, <code>erhu</code>, <code>hurdy gurdy</code>) a
 family is pitched, so each sound-alike gives its own sourced range. Instruments that need
 sympathetic strings or a buzzing bridge wait, and <code>sarangi</code>, <code>hardanger fiddle</code>, <code>viola d
 amore</code>, <code>nyckelharpa</code> and <code>hurdy gurdy</code> stay as the approximations they were, never a parent.</p>
+<p>Voices (56 entries) and choirs (13 entries) hold their builds in <code>voices.py</code> (<code>soprano ah</code> to
+<code>basso profundo hum</code>, <code>whistling</code>, <code>choir soprano ah</code>, <code>childrens choir</code>), which shares one
+formant table between the two families, and their sound-alikes in <code>voice_sound_alikes.py</code>, one
+table per family (<code>basso buffo ah</code>, a sound-alike of <code>bass ah</code>; the choirs' table is empty).
+An entry is a voice type, a voice device or a choir part: singing techniques, styles and genres
+are not instruments. A voice type that no source sets apart in sound is a sound-alike of the type
+its source names, on <code>ah</code> alone, and it gives its own sourced range (stated, never hedged or
+extreme). Everything that needs moving formants (throat singing, <code>yodel</code>), a vibrato, or a
+buzzing membrane (<code>kazoo</code>, <code>swazzle</code>) waits, and <code>contralto</code> and <code>boy soprano</code> are aliases.</p>
 <p>Tuned percussion (36 entries) holds the family's builds in <code>percussion.py</code> (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, <code>boomwhackers</code> and
 <code>gangsa</code>) and its sound-alikes in <code>tuned_sound_alikes.py</code> (<code>alto xylophone</code> and
@@ -55909,6 +55929,57 @@ for the same instrument, stays in <code>aliases.py</code>. The family's builds a
 
 
 
+<h3 id="glitchygames.audio.instruments.voice_sound_alikes" class="doc doc-heading">
+            <code>voice_sound_alikes</code>
+
+
+<a href="#glitchygames.audio.instruments.voice_sound_alikes" class="headerlink" title="Permanent link">#</a></h3>
+
+    <div class="doc doc-contents ">
+
+        <p>Voices' and choirs' sound-alikes: listed instruments that share another entry's build.</p>
+<p>A sound-alike is a distinct instrument, verified by its source, that no fetched source sets apart
+in sound from an existing entry. The owner ruled (2026-11-08) that each is a catalog entry of its
+own rather than an alias: "could we also consider making them full on instruments that inherit
+from the parent and change their details? ... I want them to all show up." Each is listed under
+its own name, so a person finds it by the name they know, and each builds its parent's
+instrument through <code>sounds_like</code> (assembled in <code>registry.sound_alikes_from</code>). It gives its own
+sourced range, since a sound-alike of another voice type sings another span. A true alias,
+another name for the same instrument, stays in <code>aliases.py</code>. The families' builds are in
+<code>voices.py</code>.</p>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
 <h3 id="glitchygames.audio.instruments.voices" class="doc doc-heading">
             <code>voices</code>
 
@@ -55926,7 +55997,8 @@ baritone the tenor's and bass's averaged, basso profundo the bass's, treble (a b
 soprano's. The harmonic levels are computed at the middle of each voice's range; the
 instrument's harmonics keep those levels at every pitch, so the vowel is truest mid-range (no
 formant filter moves with the note here). Choirs are three detuned voices; ranges are the usual
-choral ranges.</p>
+choral ranges. The sound-alikes (listed instruments that share another entry's build) are in
+<code>voice_sound_alikes.py</code>.</p>
 
 
 
