@@ -865,6 +865,10 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('calliaphone', 'calliope'),
         ('fender rhodes', 'tine electric piano'),
         ('richter harmonica', 'harmonica'),
+        ('welsh harp', 'triple harp'),
+        ('pedal harp', 'concert harp'),
+        ('lever harp', 'celtic harp'),
+        ('folk harp', 'celtic harp'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -908,6 +912,8 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 15's pianos name the tine electric piano as the fender rhodes.
     Batch 16's free reeds name the harmonica as the richter harmonica (a Richter layout is a
     tuning, and the catalog's harmonica is the Richter-tuned diatonic in C).
+    Batch 17's frame harps name the triple harp as the welsh harp, the concert harp as the pedal
+    harp, and the celtic harp as the lever harp and the folk harp.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
