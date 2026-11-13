@@ -638,12 +638,18 @@ class _InnerChannelsHolder:
         live_pool_index: The live pool it holds, or None.
         heard_set_index: The heard set it holds while heard, or None.
         generation: The declaration's generation it took them in.
+        plain_plays: The plain ``Sound.play()`` sounds the context started on unreserved
+            channels while followed (``plain_plays_followed``), by channel, as last seen.
+        sounds_at_call_start: Each unreserved channel's sound when the followed call under way
+            began, or None outside one.
     """
 
     partition: ChannelPartition | None = None
     live_pool_index: int | None = None
     heard_set_index: int | None = None
     generation: int = 0
+    plain_plays: dict[int, pygame.mixer.Sound] = dataclasses.field(default_factory=dict)
+    sounds_at_call_start: dict[int, pygame.mixer.Sound | None] | None = None
 
 
 # Each engine context's inner-game channels (glitchygames.engine_context; Arcade sub-plan 4,
@@ -829,6 +835,8 @@ def release_inner_context_channels() -> None:
     holder = current_context().value(slot=INNER_CHANNELS_SLOT)
     partition = holder.partition
     pool_index = holder.live_pool_index
+    # Going silent stopped them (stop_plain_plays_and_mute_the_live_pool): nothing to follow
+    holder.plain_plays = {}
     holder.partition = None
     holder.live_pool_index = None
     declaration = _current_declaration_for(holder)
@@ -839,6 +847,151 @@ def release_inner_context_channels() -> None:
         channel.stop()
         channel.stop()
     declaration.live_pool_holders[pool_index] = None
+
+
+def unreserved_channel_indices() -> range:
+    """The channels a plain ``Sound.play()`` may land on: every one above the reservation.
+
+    Read outside ``every_channel_reserved`` (which only borrows them): above the default
+    partition's reservation, or the declared inner games' channels when higher.
+
+    Returns:
+        The channel indices (empty without a mixer).
+    """
+    if pygame.mixer.get_init() is None:
+        return range(0)
+    return range(_logical_reserved_count(), pygame.mixer.get_num_channels())
+
+
+def _sounds_on(*, channel_indices: range) -> dict[int, pygame.mixer.Sound | None]:
+    """Each channel's sound now (``Channel.get_sound``: None while it plays nothing).
+
+    Args:
+        channel_indices: The channels to read.
+
+    Returns:
+        Each channel's sound, by channel.
+    """
+    return {
+        channel_index: pygame.mixer.Channel(channel_index).get_sound()
+        for channel_index in channel_indices
+    }
+
+
+def _plain_play_sounds(holder: _InnerChannelsHolder) -> dict[int, pygame.mixer.Sound]:
+    """The plain plays a context started that still play (the ``plain_plays_followed`` rules).
+
+    A followed one counts while its channel still plays that very sound (``get_sound`` is it):
+    once it ended, the channel may play another context's sound, which is never counted. In a
+    followed call under way, a channel playing another sound than when the call began counts
+    too: only that context ran since.
+
+    Args:
+        holder: The context's holder.
+
+    Returns:
+        Each such sound, by channel (empty without a mixer).
+    """
+    if pygame.mixer.get_init() is None:
+        return {}
+    channel_count = pygame.mixer.get_num_channels()
+    sounds = {
+        channel_index: sound
+        for channel_index, sound in holder.plain_plays.items()
+        if channel_index < channel_count
+        and pygame.mixer.Channel(channel_index).get_sound() is sound
+    }
+    sounds_at_call_start = holder.sounds_at_call_start
+    if sounds_at_call_start is not None:
+        sounds.update(
+            (channel_index, sound)
+            for channel_index, sound in _sounds_on(
+                channel_indices=unreserved_channel_indices()
+            ).items()
+            if sound is not None and sound is not sounds_at_call_start.get(channel_index)
+        )
+    return sounds
+
+
+@contextlib.contextmanager
+def plain_plays_followed() -> Generator[None]:
+    """Follow the plain ``Sound.play()`` sounds the current context starts in the body.
+
+    An audible inner game's build, steps and finish run inside it (``InnerGame``; Arcade
+    sub-plan 4, decision 6), so when it goes silent its plain plays still sounding are stopped
+    (``stop_plain_plays_and_mute_the_live_pool``) and no other context's are. pygame cannot say
+    who started a sound, so the body's are told apart by their channels: an unreserved channel
+    playing another sound after the body than before it was started by the body (a plain play
+    only ever takes a free channel; the host's code does not run inside it). Kept by channel
+    with the very sound object, so a channel whose followed sound ended and that now plays
+    another context's sound is never taken for this one's.
+
+    Yields:
+        Nothing; the body's plain plays are followed.
+    """
+    holder = current_context().value(slot=INNER_CHANNELS_SLOT)
+    holder.sounds_at_call_start = _sounds_on(channel_indices=unreserved_channel_indices())
+    try:
+        yield
+    finally:
+        holder.plain_plays = _plain_play_sounds(holder)
+        holder.sounds_at_call_start = None
+
+
+def plain_play_channel_indices() -> tuple[int, ...]:
+    """The unreserved channels playing a plain play the current context started (followed).
+
+    Returns:
+        The channel indices, lowest first (empty when it started none, or none still plays).
+    """
+    holder = current_context().value(slot=INNER_CHANNELS_SLOT)
+    return tuple(sorted(_plain_play_sounds(holder)))
+
+
+def stop_plain_plays_and_mute_the_live_pool() -> None:
+    """Take the current (inner) context's sound off the mixer now: it is going silent.
+
+    Decision 6 (Arcade sub-plan 4): its plain plays still sounding on unreserved channels
+    (followed: ``plain_plays_followed``) are stopped, and the live-voice chunks playing or
+    queued on its live pool are set to volume 0 (its later chunks are rendered at volume 0:
+    glitchygames.audio.live), so nothing of it is heard after the switch. Hard cuts, which may
+    click (a known limit, as the heard set's stop in ``take_heard_set``). Only the context's
+    own sounds and channels are touched: another context's sound on a channel is never stopped.
+    The voices' lifecycle reads only its channels' busy and queue state, never a volume, so
+    what the game sees is unchanged. Nothing happens without a mixer.
+    """
+    holder = current_context().value(slot=INNER_CHANNELS_SLOT)
+    for channel_index in _plain_play_sounds(holder):
+        pygame.mixer.Channel(channel_index).stop()
+    holder.plain_plays = {}
+    if holder.partition is None or _current_declaration_for(holder) is None:
+        return
+    for channel_index in holder.partition.live:
+        channel = pygame.mixer.Channel(channel_index)
+        for chunk in (channel.get_sound(), channel.get_queue()):
+            if chunk is not None:
+                chunk.set_volume(0.0)
+
+
+def current_inner_context_channel_indices() -> tuple[int, ...]:
+    """Every channel the current (inner) context's sound may be on right now.
+
+    Its heard set while it holds one, its live pool, and the unreserved channels playing its
+    plain plays (``plain_play_channel_indices``); never another context's channel. What a
+    ``FrameSilencer`` in an inner context may stop.
+
+    Returns:
+        The channel indices, lowest first (empty without a mixer or channels).
+    """
+    holder = current_context().value(slot=INNER_CHANNELS_SLOT)
+    channel_indices = set(_plain_play_sounds(holder))
+    declaration = _current_declaration_for(holder)
+    if holder.partition is not None and declaration is not None:
+        channel_indices.update(holder.partition.live)
+        start = _heard_set_start_for(holder)
+        if start is not None:
+            channel_indices.update(range(start, start + declaration.heard_set_channels))
+    return tuple(sorted(channel_indices))
 
 
 @contextlib.contextmanager

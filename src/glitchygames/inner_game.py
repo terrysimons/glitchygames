@@ -38,9 +38,10 @@ The rules:
    but never quits pygame, restores signal handlers or SDL's driver variables (a hosted start
    changed none of them) or exits. SDL's queue, its blocked event types
    (``events.set_event_types_allowed``) and the window are never touched; the default context
-   is current again after every call. The process-wide mixer is still shared (Arcade sub-plan
-   4, sound: rule 5), and so are SDL's key repeat, text input and cursor visibility and
-   pygame's default font resolution (plans/future-work.md).
+   is current again after every call. The mixer's channels are kept apart by rules 5 to 7 (Arcade
+   sub-plan 4); still shared are ``pygame.mixer.music`` (no game uses it), SDL's key repeat,
+   text input and cursor visibility and pygame's default font resolution
+   (plans/future-work.md).
 5. **A new inner game is silent** (plans/2026-11-13-arcade-4-sound.md, decisions 1 and 2): its
    context's audio route (glitchygames/audio/route.py) is made silent when the context is
    created, and its host switches it with ``set_audible``. While a silent inner game builds,
@@ -65,6 +66,14 @@ The rules:
    reads False afterwards), stops its live voices, discards
    its context's audio engine (never ``release_channels``, the process's) and gives its heard
    set and live pool back; so does a build that failed, each part contained as the finish's.
+7. **Only the heard game is heard** (decision 6): while an inner game is audible its plain
+   ``Sound.play()`` plays are heard on the unreserved channels, and followed: each build, step
+   and finish notes the channels it started a sound on (``plain_plays_followed``: an
+   unreserved channel playing another sound after the call than before it; the host runs no
+   code inside the call). When it goes silent (``set_audible(audible=False)``, or its finish),
+   its heard voices fade over 50 ms, the plain plays it started that still play that very
+   sound are stopped, and the chunks on its live pool are muted. The host's own sounds, and
+   another inner game's, are never stopped, even on a channel one of its sounds left.
 
 A recorded quit (every golden ends with its game's quit control) ends only its inner game:
 the QUIT is posted to and drained from the context's private queue, never SDL's.
@@ -86,6 +95,7 @@ from glitchygames.audio.route import AUDIO_ROUTE_SLOT, set_audible
 from glitchygames.audio.voices import (
     every_channel_reserved,
     give_back_heard_set,
+    plain_plays_followed,
     release_inner_context_channels,
     take_heard_set,
 )
@@ -384,10 +394,12 @@ class InnerGame:
         return self._context.value(slot=AUDIO_ROUTE_SLOT).audible
 
     def set_audible(self: Self, *, audible: bool) -> None:
-        """Make the game's sound heard or silent (its context's audio route; rules 5 and 6).
+        """Make the game's sound heard or silent (its context's audio route; rules 5 to 7).
 
         Heard, it takes a heard set to play its sound library on; silent, its heard voices fade
-        out on that set over 50 ms and it gives the set back. A game that cannot be heard (rule
+        out on that set over 50 ms and it gives the set back, and its plain ``Sound.play()``
+        sounds still playing are stopped and its live chunks muted (rule 7). A game that cannot
+        be heard (rule
         6: finished, its ``--sound-channels`` outnumbering a heard set's channels, or two inner
         games heard already) is refused with ``InnerGameChannelsError`` and nothing changes.
 
@@ -480,18 +492,21 @@ class InnerGame:
 
     @contextlib.contextmanager
     def _plain_plays_kept_off_the_mixer(self: Self) -> Generator[None]:
-        """Reserve every mixer channel for the body while the game is silent (rule 5).
+        """Reserve every mixer channel for the body while the game is silent (rules 5 and 7).
 
         Each build, step and finish runs inside it. One inside another (an inner game stepping
         its own inner game) is a nested ``every_channel_reserved``, which leaves the outermost's
-        reservation in place, so the reservation put back is always the host's.
+        reservation in place, so the reservation put back is always the host's. While the game
+        is audible its plain plays are heard, and followed instead (``plain_plays_followed``),
+        so going silent stops them (rule 7).
 
         Yields:
             Nothing; a silent game's plain ``Sound.play()`` finds no channel in the body.
 
         """
         if self.audible:
-            yield
+            with plain_plays_followed():
+                yield
             return
         with every_channel_reserved():
             yield

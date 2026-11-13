@@ -266,9 +266,10 @@ arc was lost. What follows is left.
 - **Process-wide state sub-plan 2 left open** (Task 16, 2026-11-10; the audit in
   `plans/2026-10-25-engine-context.md`). S20: `_warned_hertz_values`
   (`src/glitchygames/audio/pitch.py:79`) is not yet per context, so a second context never warns
-  about a frequency the first did; it has no owning sub-plan yet. S3: `release_channels`
-  (`src/glitchygames/audio/voices.py:149`) clears the mixer's partition when any one context
-  shuts down (sub-plan 5's, sound). S8: `FontManager.__init__` sets pygame's one default font
+  about a frequency the first did; it has no owning sub-plan yet. (S3, `release_channels`
+  clearing the partition when any one context shut down, is resolved by Arcade sub-plan 4: an
+  inner context never partitions the mixer nor calls it; only the outer engine's teardown
+  does.) S8: `FontManager.__init__` sets pygame's one default font
   resolution from its context's `--font-dpi`, so the last `FontManager` made wins (sub-plan 7's,
   the inner engine, which keeps an inner context off the process services).
 
@@ -804,20 +805,6 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   adds ten per loop, each called once at `pygame.quit()`. Harmless today (the classmethod holds
   no engine), but the list only grows. Register once per process, or not at all in an inner
   context (the host's own engine registers it).
-- **For Arcade sub-plan 4 (sound): an inner recording re-sizes the outer game's channels.** A
-  recording made with non-default `--sound-channels` or `--live-voice-pool` replays with them,
-  and its engine's channel partition calls `pygame.mixer.set_reserved` on the shared mixer, so a
-  tile re-sizes the outer game's reservation; inner voices also play on the shared mixer's
-  channels. Sub-plan 4's audio route (the spike's channel block per context) owns both.
-- **For Arcade sub-plan 4 (sound): `InnerGame.finish` never discards the inner context's audio
-  engine.** It ends the frames, closes the recording and timer and settles the replay, but never
-  calls `discard_audio_engine` (`src/glitchygames/audio/engine.py`), so a tile's `persist=True`
-  or looping voices outlive it on the shared mixer, and its compiled sounds stay cached until
-  the context is collected. The engine's own teardown (`GameEngine._shut_down_the_run`) pairs
-  it with `release_channels` (`src/glitchygames/audio/voices.py`), which is process-wide and
-  would clear the outer game's channel partition too, so copying that teardown would be wrong;
-  `discard_audio_engine` alone also waits up to 100 ms for the fades, inside the host's frame.
-  Sub-plan 4 decides how an inner context's voices end.
 - **The hosted start skips `_begin_start` (and `_begin_run`).** An inner game's `start()`
   builds the game and returns (`render_target.hosted_start_requested()`), so the startup options
   block is never logged for it, and `--profile` (`_begin_start`) and `--list-input-devices`
@@ -825,9 +812,39 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   inner game (at INFO, under its context's name) if a tile's options are ever needed in a bug
   report; profiling one tile would be a host's job (sub-plan 6).
 - **The proof's runtime.** `tests/test_every_recording_replays_inside_an_inner_game.py` runs
-  sixteen pairs (two child replays and four inner replays each) and sixteen key-repeat replays:
-  about 25 s of wall time under `-n auto` on an Apple M4 Max (about 160 s of CPU), the longest
-  case 14 s (Drawing Fire beside Mr. Muncher). Watch it as recordings are added.
+  sixteen pairs (two child replays and, since Arcade sub-plan 4, six inner replays each: the
+  pair silent, the pair with one tile switched heard and back, and each alone) and sixteen
+  key-repeat replays: about 32-40 s of wall time under `-n 8` on an Apple M4 Max (about 180-200
+  s of CPU, 2026-11-13), the longest case 24.5 s (Drawing Fire beside Mr. Muncher). Watch it as
+  recordings are added.
+
+## Arcade (sub-plan 4 follow-ups, 2026-11-13; plans/2026-11-13-arcade-4-sound.md)
+
+- **The owner's listening check: clicks when the heard game changes.** Switching a heard tile
+  silent stops its plain `Sound.play()` sounds and mutes its live chunks at once
+  (`voices.stop_plain_plays_and_mute_the_live_pool`), and a finished tile's live pool is
+  stopped (`release_inner_context_channels`); a heard set still sounding when it is taken again
+  (heard games switched faster than the 50 ms fade) is stopped too (`take_heard_set`). Each is a
+  hard cut, which may click; only the voice table's voices fade (50 ms, stepped per mixer chunk,
+  as the impl spec's risks R4 and R5 say). A fade for plain plays is not possible from outside
+  (`Channel.fadeout` is ignored on a channel already fading, so a game's own long fade would run
+  on), and live chunks would need their fade rendered in. Listen while switching quickly; the
+  fallback is the owner's decision.
+- **`Scene.INNER_GAMES` declares only the default sizes** (two heard sets of 32 library
+  channels, 4 live channels per inner game). A host needing more (a tile recorded with
+  `--sound-channels` above 32 replays silent and refuses to be heard; one with
+  `--live-voice-pool` above 4 fails) calls `reserve_inner_game_channels(games=...,
+  heard_set_channels=..., live_channels_per_game=...)` after `GameEngine(...)` and before
+  `start()`. A class attribute for the sizes (or a model) would let a scene say it too.
+- **`pygame.mixer.music` is still one per process** (row S4 of
+  `plans/2026-10-25-engine-context.md`): a silent inner game's music would be heard, and its
+  `pause`/`unpause` reach the host's. No game uses music today; `FrameSilencer` in an inner
+  context already leaves it alone. Route music through the audio route when a game first
+  plays it.
+- **A heard tile's live voices are heard from their next chunk.** Going audible starts nothing
+  already under way (decision 3); a live voice queues its next chunk by real time (every 100 ms),
+  so a tile switched heard is silent for up to 200 ms of its projector. Re-render the queued
+  chunk at the switch if that gap is ever heard.
 
 ## Games
 

@@ -32,6 +32,15 @@ wrappers are still in place (code that replaced them since keeps its own). A sil
 pause and resume always call pygame's functions, never the wrappers, so no silencer takes
 another's for the game's.
 
+In an inner context (an Arcade tile: glitchygames/render_target.py) the mixer is shared with the
+host and the other tiles, so the silencer touches only the context's own channels
+(``voices.current_inner_context_channel_indices``: its heard set while it holds one, its live
+pool, and the unreserved channels playing the plain plays it started): it never calls
+``pygame.mixer.stop()`` (each of its own busy channels is stopped instead, and the audio engine
+told of each), never stops the host's or another tile's sound, and leaves ``pygame.mixer.music``
+alone (the process's, not the tile's; no game uses it). No inner path reaches a silencer today
+(a rebuild is watched only, and no game uses instant replay), so this is a guard.
+
 A game that asks the mixer what is playing (``get_busy``, ``Channel.get_busy``) may get a
 different answer during silent frames than when they were recorded; audio is played, never
 compared, so a replay is unaffected unless game logic depends on it (which no recording could
@@ -45,8 +54,10 @@ from typing import TYPE_CHECKING, Self
 
 import pygame
 
+from glitchygames.render_target import is_inner_context
+
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
 
 class _MusicFollowing:
@@ -191,6 +202,21 @@ def _tell_the_audio_engine(*, channel_index: int | None) -> None:
         audio_engine.silenced(channel_index)
 
 
+def _channel_indices_to_silence() -> Sequence[int]:
+    """The channels a silencer may stop: every one, or an inner context's own only.
+
+    Returns:
+        Every channel of the mixer, or in an inner context only its own (the module docstring).
+
+    """
+    if is_inner_context():
+        # Imported when a frame is silenced: importing the replay package never imports audio
+        from glitchygames.audio.voices import current_inner_context_channel_indices
+
+        return current_inner_context_channel_indices()
+    return range(pygame.mixer.get_num_channels())
+
+
 class FrameSilencer:
     """Keeps frames silent while they run unseen (see the module docstring)."""
 
@@ -224,7 +250,7 @@ class FrameSilencer:
         self._is_following_music = True
         _MUSIC_FOLLOWING.add(silencer=self)
         if self.spares_playing_sounds and pygame.mixer.get_init() is not None:
-            for channel_index in range(pygame.mixer.get_num_channels()):
+            for channel_index in _channel_indices_to_silence():
                 playing_sound = pygame.mixer.Channel(channel_index).get_sound()
                 if playing_sound is not None:
                     self._spared_sounds[channel_index] = playing_sound
@@ -252,19 +278,34 @@ class FrameSilencer:
         """
         if pygame.mixer.get_init() is None:
             return
+        inner = is_inner_context()
         if self.spares_playing_sounds:
             self._stop_unspared_channels()
+        elif inner:
+            self._stop_own_channels()
         else:
             pygame.mixer.stop()
             _tell_the_audio_engine(channel_index=None)
-        if pygame.mixer.music.get_busy():
+        if not inner and pygame.mixer.music.get_busy():
             # pygame's own pause: the silencer's, not the game's
             _MUSIC_FOLLOWING.pygame_pause()()
             self._paused_music = True
 
+    @staticmethod
+    def _stop_own_channels() -> None:
+        """Stop each busy channel of the inner context's own (never the host's or another's)."""
+        for channel_index in _channel_indices_to_silence():
+            channel = pygame.mixer.Channel(channel_index)
+            if channel.get_busy():
+                channel.stop()
+                _tell_the_audio_engine(channel_index=channel_index)
+
     def _stop_unspared_channels(self: Self) -> None:
-        """Stop each busy channel not still playing the sound it played at ``begin``."""
-        for channel_index in range(pygame.mixer.get_num_channels()):
+        """Stop each busy channel not still playing the sound it played at ``begin``.
+
+        Only the inner context's own channels in an inner context (the module docstring).
+        """
+        for channel_index in _channel_indices_to_silence():
             channel = pygame.mixer.Channel(channel_index)
             spared_sound = self._spared_sounds.get(channel_index)
             if not channel.get_busy():

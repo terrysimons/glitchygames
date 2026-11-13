@@ -1193,8 +1193,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   engine (`current_engine()`), the internal-post tracker, the performance manager
   (`AdaptiveClamping()`), the shared event managers and `FontManager` (`ResourceManager`), the
   font options, the singleton sprites, the debug-events log set, the sprite counters
-  (`sprite_counters()`), the render target with its hosted start and the private event queue
-  (the table in
+  (`sprite_counters()`), the render target with its hosted start, the private event queue, the
+  audio route and the inner-game channels (the table in
   `docs/architecture/engine_context.md` lists each one's functions); each has an isolation check in `tests/test_engine_context.py`
   (`ISOLATION_CHECKS`), and a slot without one fails the suite
 - The old class-level names are read-only views (`src/glitchygames/read_only_views.py`):
@@ -1241,14 +1241,17 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   built. An `Exception` or `SystemExit` fails only that game; it writes nothing to stdout (the
   report is the outcome's, logged at INFO). SDL's blocked event types are never changed from an
   inner context (`events.set_event_types_allowed`, the one way the engine blocks or allows).
-  Still shared (`plans/future-work.md`): the mixer (sub-plan 4), SDL's key repeat, text input
+  A new inner game is silent (`audible`, `set_audible(*, audible)`; sub-plan 4: the mixer's
+  channels are kept apart, Sound Synthesis's "Inner games' sound"). Still shared
+  (`plans/future-work.md`): `pygame.mixer.music` (no game uses it), SDL's key repeat, text input
   start/stop, Bitmappy's mouse visibility, `pygame.freetype`'s default resolution (an inner
   `FontManager`'s `--font-dpi`), `SDL_MOUSE_FOCUS_CLICKTHROUGH` when unset and
   `pygame.register_quit`. The proof:
   `tests/test_every_recording_replays_inside_an_inner_game.py` (every golden and bundled demo,
   interleaved beside another inside a window of another size, matches its solo replay's digests
-  and pixels; Bitmappy's demo and the text-input demo's key repeat are strict xfails); ten
-  stand-in tiles per outer frame: `test_ten_inner_games_per_outer_frame`
+  and pixels, with every tile silent and with the first switched heard and back; Bitmappy's
+  demo and the text-input demo's key repeat are strict xfails); ten stand-in tiles per outer
+  frame: `test_ten_inner_games_per_outer_frame`
 
 **Source revision** (`src/glitchygames/build_info.py`, the contract): `source_revision()` names the
 engine's commit and how it is known, first answer wins: a git checkout (git: HEAD, its date,
@@ -1315,6 +1318,28 @@ M2 next)
   (`audio/buses.py`): `master` over `music`, `effects`, `ui`, `ambience` and `dialogue` (`ui`
   and `music` reserve two channels each). A scene's voices fade over 50 ms when it is switched
   away from (unless `persist=True`) and pause behind a pause screen
+- Inner games' sound (Arcade sub-plan 4, plans/2026-11-13-arcade-4-sound.md; `audio/route.py`,
+  `audio/voices.py`'s docstring the rules): one audio route per engine context (`is_audible()`,
+  `set_audible(*, audible)`): the default context is audible, a new inner game silent, and the
+  host makes at most one heard (`InnerGame.set_audible`). The default partition is unchanged; a
+  host declares its inner games once, before anything plays (`Scene.INNER_GAMES` on its scene
+  class, declared at its engine's construction before the CRT power-on, or
+  `reserve_inner_game_channels(games=...)` after `GameEngine(...)` and before `start()`), and
+  the mixer grows that once (never again: BUGS.md #145) to two heard sets of 32 library
+  channels and a live pool of 4 per inner game, the legacy channels above them all. An inner
+  build never partitions: its voice table has its recording's `--sound-channels` as slots,
+  played on a heard set only while heard (the sets alternate: the old one fades out on its set
+  while the new one starts on the other); its live voices take a live pool (chunks at volume 0
+  while silent). A silent tile touches no channel: its voice table makes no mixer call, and
+  while it builds, steps or finishes every channel is reserved (`every_channel_reserved`), so
+  its plain `Sound.play()` returns None. A heard tile's plain plays are followed
+  (`plain_plays_followed`); switching it silent fades its voices over 50 ms, stops its plain
+  plays still sounding and mutes its live chunks, never the host's or another tile's sound.
+  `FrameSilencer` in an inner context stops only that context's channels. A tile without a
+  declaration or past its count fails alone (`InnerGameChannelsError`); a second host's
+  declaration while inner games hold channels raises `ChannelsHeldError`. The proof:
+  `tests/test_every_recording_replays_inside_an_inner_game.py` (every pair silent, and with one
+  tile switched heard and back: the same digests and pixels)
 - Measured (`tests/audio/test_channel_fades.py`, SDL's disk driver): SDL_mixer changes a
   channel's level only between 512-frame chunks (11.6 ms), so `Channel.fadeout` of 10 or 20 ms
   is a plateau or two and a halt, a per-frame volume or bus fade steps once per chunk, and

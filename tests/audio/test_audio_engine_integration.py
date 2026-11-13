@@ -17,8 +17,10 @@ from glitchygames.audio.accounting import CompileRecord
 from glitchygames.audio.engine import AudioEngine, existing_audio_engine
 from glitchygames.audio.voices import (
     ChannelPartition,
+    ChannelsHeldError,
     inner_context_partition,
     inner_game_channels_declared,
+    release_inner_context_channels,
     reserved_channel_count,
 )
 from glitchygames.engine_context import EngineContext
@@ -382,3 +384,33 @@ class TestTheReservedPartition:
         set_num_channels.assert_not_called()
         assert pygame.mixer.get_num_channels() >= 116
         assert reserved_channel_count() == 36
+
+    def test_a_second_host_engine_while_the_first_ones_inner_games_hold_channels_is_refused(
+        self, mocker
+    ):
+        """ChannelsHeldError says what to do; once the inner game gave its channels back, it builds.
+
+        A second host in one process (a launcher starting another Arcade) would move the
+        declaration under the first one's running inner games.
+        """
+        host_game = type(
+            'HostGame', (Scene,), {'NAME': 'HostGame', 'INNER_GAMES': 2, 'dt_tick': _quit_at_once}
+        )
+        build_engine(mocker, game=host_game)
+        tile = EngineContext(name='tile')
+        with tile.active():
+            held = inner_context_partition(live_pool=4, library_channels=32)
+
+        with pytest.raises(
+            ChannelsHeldError,
+            match=r'^inner games hold channels of the earlier declaration: finish them before an '
+            r'engine declares its own$',
+        ):
+            build_engine(mocker, game=host_game)
+        with tile.active():
+            release_inner_context_channels()
+        second_host = build_engine(mocker, game=host_game)
+
+        assert held.live == (100, 101, 102, 103)
+        assert second_host.reserved_channel_partition().library == tuple(range(4, 36))
+        assert inner_game_channels_declared()

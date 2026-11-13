@@ -139,21 +139,21 @@ modify `src/glitchygames/inner_game.py` (`audible`, `set_audible`; the reservati
 silent build, step and finish, restored on every exit path). Tests: `tests/audio/test_route.py`,
 `tests/engine/test_inner_game.py`, `ISOLATION_CHECKS`.
 
-- [ ] Tests: a silent inner game whose step calls `Sound.play()` leaves every channel idle and
+- [x] Tests: a silent inner game whose step calls `Sound.play()` leaves every channel idle and
   the reservation as it was after the step (also after a step that raises); an audible one's
   play is heard (a channel busy); the outer's sound already playing on a channel plays on.
-- [ ] Implement; full suite; commit (`Audio route: a silent inner game's Sound.play() reaches no channel`).
+- [x] Implement; full suite; commit (`Audio route: a silent inner game's Sound.play() reaches no channel`).
 
 ### Task 2: The voice table muted in a silent context
 
 **Files:** `src/glitchygames/audio/voices.py`, `src/glitchygames/audio/engine.py` (going silent
 fades the context's voices). Tests: `tests/audio/` (the voice table's file).
 
-- [ ] Tests: a voice played in a silent context makes no mixer call (spy on `Channel` methods
+- [x] Tests: a voice played in a silent context makes no mixer call (spy on `Channel` methods
   only to assert absence) and its handle's `is_playing`, end and steals equal those of the same
   plays in an audible context frame for frame; the heard context's voice on the same channel
   number plays to its end (Review Focus 1); going silent fades within 50 ms.
-- [ ] Implement; full suite; commit (`Audio: a silent context's voice table never touches the mixer`).
+- [x] Implement; full suite; commit (`Audio: a silent context's voice table never touches the mixer`).
 
 ### Task 3: The heard set and the live pools, grown once at startup; an inner build never re-partitions
 
@@ -162,10 +162,10 @@ fades the context's voices). Tests: `tests/audio/` (the voice table's file).
 outside an inner context only), `src/glitchygames/inner_game.py` (`finish`: the block freed,
 `discard_audio_engine`). Tests: `tests/audio/test_live*.py`, `tests/engine/test_inner_game.py`.
 
-- [ ] Tests: Review Focus 3 and 5; a silent context's live chunks play at volume 0 on its own
+- [x] Tests: Review Focus 3 and 5; a silent context's live chunks play at volume 0 on its own
   block, never on the default context's; the library's reservation is unchanged after an inner
   build and after finish; a finished inner game's block is free again and its audio engine gone.
-- [ ] Implement; full suite; commit (`Audio: a live-voice block per context; an inner build keeps the outer's partition`).
+- [x] Implement; full suite; commit (`Audio: a live-voice block per context; an inner build keeps the outer's partition`).
 
 ### Task 4: Switching the heard game, the proof, and the documents
 
@@ -175,8 +175,8 @@ outside an inner context only), `src/glitchygames/inner_game.py` (`finish`: the 
 `docs/architecture/engine_context.md`, `plans/2026-10-23-arcade-showcase.md` (item 4 done),
 `plans/2026-10-25-engine-context.md` (rows S3, S4; sub-plan 5), `plans/future-work.md`.
 
-- [ ] Tests: Review Focus 2 and 4: each pair's digests still equal their solo replays with every
+- [x] Tests: Review Focus 2 and 4: each pair's digests still equal their solo replays with every
   tile silent and with the first tile switched audible at a frame and back; a switched-away
   tile's sounds stop.
-- [ ] Docs; `uv run pytest`, `nox -s lint`, `nox -s static-analysis`, `nox -s compare-drivers --
+- [x] Docs; `uv run pytest`, `nox -s lint`, `nox -s static-analysis`, `nox -s compare-drivers --
   --drivers native --fail-on-difference`; commit (`Audio: only the heard game is heard; the proof with switching`).

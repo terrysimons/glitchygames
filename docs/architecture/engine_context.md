@@ -4,13 +4,14 @@ An engine context is the state one running game owns, so several games can run i
 (the Arcade's demo tiles; design: `plans/2026-10-25-engine-context.md`). Ordinary games never
 create one: they run in the default context, exactly as before.
 
-What is per game today: the nineteen slots below, and the engine's and the scene manager's own
+What is per game today: the twenty-one slots below, and the engine's and the scene manager's own
 attributes (an engine's `options`, `game`, `running_game`, `event_handlers` and its event
 bookkeeping; a scene manager's `engine_options`), which belong to the object, so two engines
 never share them. The old class-level names of that state (`GameEngine.OPTIONS`,
 `SceneManager.OPTIONS`, `Sprite.SPRITE_COUNT`, ...) are now read-only views of the current game's
 (below). What is still one per process is the audit's shared rows (S1-S20 in
-`plans/2026-10-25-engine-context.md`): the display and window services, the mixer and music,
+`plans/2026-10-25-engine-context.md`): the display and window services, the mixer and music
+(an inner game's sound is kept off the channels the heard game uses: Inner contexts, rule 9),
 SDL's event queue and its blocked types, the joystick subsystem, the process services (signal
 handlers, the SDL environment, `pygame.init()`), the player's clipboard and files, and a few
 recursion guards and registries; later sub-plans keep an inner context off each of them. A game
@@ -67,6 +68,8 @@ scratch context for building a file's waves (`src/glitchygames/audio/assets.py`)
 | `'glitchygames.sprites.sprite.counters'` | `src/glitchygames/sprites/sprite.py` | `sprite_counters()` (the sprite creation counters and breakpoints the teardown report logs), `Sprite.break_when` |
 | `'glitchygames.render_target.target'` | `src/glitchygames/render_target.py` | `set_render_target`, `render_target`, `is_inner_context`, `display_surface`, `request_hosted_start`, `hosted_start_requested`, `note_started_engine`, `take_started_engine` (the context's render target and its hosted start) |
 | `'glitchygames.recording.private_event_queue'` | `src/glitchygames/recording.py` | `private_event_queue` (an inner context's own event queue: its posts go there and its replay doors drain it, never SDL's) |
+| `'glitchygames.audio.route.audio_route'` | `src/glitchygames/audio/route.py` | `is_audible`, `set_audible` (whether the context's sound is heard: the default context audible, a new inner game silent; `InnerGame.audible`, `InnerGame.set_audible`) |
+| `'glitchygames.audio.voices.inner_channels'` | `src/glitchygames/audio/voices.py` | `inner_context_partition`, `take_heard_set`, `give_back_heard_set`, `heard_set_start`, `release_inner_context_channels`, `plain_plays_followed`, `plain_play_channel_indices`, `stop_plain_plays_and_mute_the_live_pool`, `current_inner_context_channel_indices` (an inner context's channels: its partition, live pool, heard set while heard, and the plain plays it started while heard) |
 
 `tests/test_engine_context.py` proves, for every slot, that two contexts in one process never
 see each other's values; a slot added without such a check fails the suite.
@@ -116,11 +119,20 @@ the contract; `plans/2026-11-12-arcade-3-inner-game.md`):
    `GeneratorExit` propagate.
 8. **An inner game writes nothing to stdout**: the replay's report, which a headless replay
    prints, is the outcome's `report`, logged at INFO.
+9. **Only the heard game is heard** (Arcade sub-plan 4, `plans/2026-11-13-arcade-4-sound.md`;
+   [Sound](sound.md), "Inner games"): each context has an audio route (`is_audible()`); a new
+   inner game is silent and its host makes at most one heard (`InnerGame.set_audible`). The host
+   declares its inner games once, before anything plays (`Scene.INNER_GAMES`, or
+   `reserve_inner_game_channels`), and the mixer grows that once to two heard sets and a live
+   pool per inner game; an inner build never partitions the mixer. A silent tile touches no
+   channel (its plain plays find every channel reserved, its voice table makes no mixer call,
+   its live chunks play at volume 0 on its own pool); switching a heard tile silent fades its
+   voices, stops its plain plays and mutes its live chunks, never another context's sound.
 
 An inner game never changes SDL's blocked event types: every engine call that blocks or allows
 goes through `events.set_event_types_allowed`, which changes nothing in an inner context (its
 private queue is all it reads). What an inner game can still change in the process (each in
-`plans/future-work.md`): the shared mixer (Arcade sub-plan 4), SDL's key repeat (the text-input
+`plans/future-work.md`): `pygame.mixer.music` (no game uses it), SDL's key repeat (the text-input
 demo's tile changes the outer game's), text input start and stop (the engine's text widgets),
 the mouse cursor's visibility (Bitmappy's canvas), pygame's default font resolution (an inner
 `FontManager` sets it from its `--font-dpi`), `SDL_MOUSE_FOCUS_CLICKTHROUGH` when unset
@@ -129,7 +141,8 @@ removed). The proof is
 `tests/test_every_recording_replays_inside_an_inner_game.py`: every golden and bundled demo,
 replayed as an inner game beside another, unevenly interleaved, inside an outer window of
 another size, matches its solo headless replay's digests frame for frame and draws the pixels it
-draws alone (Bitmappy's demo is a strict xfail: it measures the outer window,
+draws alone, with every tile silent and with the first switched heard for the middle third of
+its recording and back (Bitmappy's demo is a strict xfail: it measures the outer window,
 `plans/future-work.md`). Ten stand-in inner games stepped once per outer frame cost about 0.29 ms
 on the machine it was measured on (`test_ten_inner_games_per_outer_frame`, an Apple M4 Max,
 2026-11-12).

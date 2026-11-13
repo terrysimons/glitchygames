@@ -11,7 +11,11 @@ The engine keeps a silent context off the mixer at each way sound reaches it: pl
 ``Sound.play()`` finds every channel reserved while a silent inner game builds, steps or
 finishes (``glitchygames.audio.voices.every_channel_reserved``, applied by ``InnerGame``); the
 ``AudioEngine``'s voice table makes no mixer call while its context is silent
-(``glitchygames.audio.voices``, decision 3).
+(``glitchygames.audio.voices``, decision 3); the old live voices' chunks play at volume 0
+(``glitchygames.audio.live``). When an audible context goes silent (the heard game changes,
+decision 6), what it still has sounding is taken off the mixer: its voices fade over 50 ms, its
+plain plays (followed while it was audible: ``voices.plain_plays_followed``) are stopped and its
+live chunks muted.
 """
 
 from __future__ import annotations
@@ -57,8 +61,11 @@ def set_audible(*, audible: bool) -> None:
 
     Going silent fades the context's heard voices first, while it is still audible, through its
     audio engine if it has one (``AudioEngine.fade_out_of_the_mixer``: the scene clean-up's 50 ms
-    fade; no engine is made just to tell it), and only then turns the route silent, after which
-    the voice table makes no mixer call. Going audible starts nothing already under way.
+    fade; no engine is made just to tell it), then stops the plain ``Sound.play()`` sounds it
+    started that still play and mutes its live pool's chunks (decision 6:
+    ``voices.stop_plain_plays_and_mute_the_live_pool``; never another context's sound), and only
+    then turns the route silent, after which the voice table makes no mixer call. Going audible
+    starts nothing already under way.
 
     Args:
         audible: True to hear the context's sound, False to keep it off the mixer.
@@ -68,8 +75,10 @@ def set_audible(*, audible: bool) -> None:
     if route.audible and not audible:
         # Imported here: the audio engine imports the voice table, which imports this module
         from glitchygames.audio.engine import existing_audio_engine
+        from glitchygames.audio.voices import stop_plain_plays_and_mute_the_live_pool
 
         audio_engine = existing_audio_engine()
         if audio_engine is not None:
             audio_engine.fade_out_of_the_mixer()
+        stop_plain_plays_and_mute_the_live_pool()
     route.audible = audible

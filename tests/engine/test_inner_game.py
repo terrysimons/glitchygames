@@ -1294,6 +1294,49 @@ class TestPlainSoundPlays:
         inner_game.finish()
         assert reservation() == before
 
+    def test_a_heard_games_plain_sound_stops_when_it_is_switched_away_from(
+        self, chiming_stand_in: StandInGame, chiming_recording: Path
+    ):
+        """Decision 6: its chime stops at once; the outer's plain sound beside it plays on.
+
+        The game then goes on silent: it still matches its recording to its end.
+        """
+        outer_sound = pygame.mixer.Sound(buffer=bytes(MIXER_BYTES_PER_SECOND * OUTER_SOUND_SECONDS))
+        outer_channel = outer_sound.play()
+        assert outer_channel is not None
+        inner_game = replay_stand_in(game=chiming_stand_in, path=chiming_recording)
+        inner_game.set_audible(audible=True)
+        step_past_the_chime(inner_game)
+        channel = chime_channel(inner_game)
+        assert channel is not None
+        busy_while_heard = busy_channel_ids()
+
+        inner_game.set_audible(audible=False)
+        busy_after_the_switch = busy_channel_ids()
+        play_to_the_end(inner_game)
+
+        assert busy_while_heard == sorted([outer_channel.id, channel.id])
+        assert busy_after_the_switch == [outer_channel.id]
+        assert outer_channel.get_sound() is outer_sound
+        assert inner_game.outcome.state is InnerGameState.ENDED, inner_game.outcome
+        assert inner_game.outcome.diverged is False
+
+    def test_a_heard_games_plain_sound_stops_when_it_finishes(
+        self, chiming_stand_in: StandInGame, chiming_recording: Path
+    ):
+        """Finishing goes silent first (rule 6): the chime still playing is stopped."""
+        inner_game = replay_stand_in(game=chiming_stand_in, path=chiming_recording)
+        inner_game.set_audible(audible=True)
+        step_past_the_chime(inner_game)
+        channel = chime_channel(inner_game)
+        assert channel is not None
+        busy_while_heard = busy_channel_ids()
+
+        inner_game.finish()
+
+        assert busy_while_heard == [channel.id]
+        assert busy_channel_ids() == []
+
     def test_the_outer_games_sound_plays_on_through_a_silent_games_steps(
         self, chiming_stand_in: StandInGame, chiming_recording: Path
     ):

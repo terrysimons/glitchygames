@@ -18,20 +18,25 @@ from glitchygames.audio.voices import (
     SoundHandle,
     VoiceCounters,
     VoiceTable,
+    current_inner_context_channel_indices,
     every_channel_reserved,
     give_back_heard_set,
     heard_set_start,
     inner_context_partition,
     inner_game_channels_declared,
+    plain_play_channel_indices,
+    plain_plays_followed,
     release_channels,
     release_inner_context_channels,
     reserve_channels,
     reserve_inner_game_channels,
     reserved_channel_count,
     take_heard_set,
+    unreserved_channel_indices,
 )
 from glitchygames.engine_context import EngineContext
 from glitchygames.render_target import set_render_target
+from glitchygames.replay.silence import FrameSilencer
 from tests.audio.library_support import start_mixer, stop_mixer
 from tests.audio.voice_support import (
     FRAME_SECONDS,
@@ -1089,3 +1094,264 @@ def _three_slot_answers(
                 table.voice_count,
             ))
     return answers
+
+
+def long_plain_sound() -> pygame.mixer.Sound:
+    """A plain sound longer than any test (four seconds of stereo 16-bit silence).
+
+    Returns:
+        The sound.
+    """
+    return pygame.mixer.Sound(buffer=bytes(44100 * 4 * 4))
+
+
+def play_plain_followed(context: EngineContext, sound: pygame.mixer.Sound) -> pygame.mixer.Channel:
+    """Play a plain sound inside an inner context, followed (an audible tile's step).
+
+    Returns:
+        The channel it took.
+    """
+    with context.active(), plain_plays_followed():
+        channel = sound.play()
+    assert channel is not None
+    return channel
+
+
+def plain_plays_of(context: EngineContext) -> tuple[int, ...]:
+    """The channels playing a plain play the context started.
+
+    Returns:
+        Their indices.
+    """
+    with context.active():
+        return plain_play_channel_indices()
+
+
+class TestOnlyTheHeardTileIsHeard:
+    """Decision 6: going silent stops a tile's plain plays and mutes its live pool, only its own."""
+
+    def test_a_heard_tiles_plain_play_stops_when_it_goes_silent_and_the_default_one_plays_on(
+        self,
+    ):
+        """The tile's sound stops at once; the default context's, playing beside it, plays on."""
+        declared_mixer()
+        default_sound = long_plain_sound()
+        default_channel = default_sound.play()
+        assert default_channel is not None
+        context = EngineContext(name='tile')
+        partition_in(context)
+        make_heard(context)
+        tile_sound = long_plain_sound()
+
+        tile_channel = play_plain_followed(context, tile_sound)
+        followed = plain_plays_of(context)
+        make_silent(context)
+
+        assert tile_channel.id in LEGACY_ABOVE_THE_INNER_GAMES
+        assert followed == (tile_channel.id,)
+        assert not tile_channel.get_busy()
+        assert plain_plays_of(context) == ()
+        assert default_channel.get_busy()
+        assert default_channel.get_sound() is default_sound
+        pygame.mixer.stop()
+
+    def test_a_channel_its_followed_sound_left_is_never_stopped(self):
+        """The tile's sound ended; the default context's sound now on that channel plays on."""
+        declared_mixer()
+        context = EngineContext(name='tile')
+        partition_in(context)
+        make_heard(context)
+        tile_channel = play_plain_followed(context, long_plain_sound())
+        tile_channel.stop()
+        default_sound = long_plain_sound()
+        tile_channel.play(default_sound)
+
+        followed = plain_plays_of(context)
+        make_silent(context)
+
+        assert followed == ()
+        assert tile_channel.get_busy()
+        assert tile_channel.get_sound() is default_sound
+        pygame.mixer.stop()
+
+    def test_a_sound_already_playing_when_the_call_began_is_not_the_tiles(self):
+        """Only a channel playing another sound after the call than before it is the tile's."""
+        declared_mixer()
+        default_channel = long_plain_sound().play()
+        assert default_channel is not None
+        context = EngineContext(name='tile')
+        partition_in(context)
+
+        with context.active(), plain_plays_followed():
+            during = plain_play_channel_indices()
+
+        assert during == ()
+        assert plain_plays_of(context) == ()
+        pygame.mixer.stop()
+
+    def test_going_silent_inside_a_followed_call_stops_what_the_call_started(self):
+        """A finish going silent: the play started in the same call is stopped, nothing kept."""
+        declared_mixer()
+        context = EngineContext(name='tile')
+        partition_in(context)
+        make_heard(context)
+
+        with context.active(), plain_plays_followed():
+            channel = long_plain_sound().play()
+            assert channel is not None
+            started = plain_play_channel_indices()
+            set_audible(audible=False)
+            give_back_heard_set()
+
+        assert started == (channel.id,)
+        assert not channel.get_busy()
+        assert plain_plays_of(context) == ()
+
+    def test_going_silent_mutes_the_chunks_on_its_live_pool(self):
+        """The chunk playing and the one queued are at volume 0 at once; the channel plays on."""
+        declared_mixer()
+        context = EngineContext(name='tile')
+        partition = partition_in(context)
+        make_heard(context)
+        live_channel = pygame.mixer.Channel(partition.live[0])
+        playing_chunk = long_plain_sound()
+        queued_chunk = long_plain_sound()
+        live_channel.play(playing_chunk)
+        live_channel.queue(queued_chunk)
+
+        make_silent(context)
+
+        assert live_channel.get_busy()
+        assert playing_chunk.get_volume() == 0.0
+        assert queued_chunk.get_volume() == 0.0
+        pygame.mixer.stop()
+
+    def test_a_restarted_mixer_forgets_the_followed_plays(self):
+        """A followed channel the restarted mixer no longer has is not asked about."""
+        declared_mixer()
+        context = EngineContext(name='tile')
+        partition = partition_in(context)
+        make_heard(context)
+        play_plain_followed(context, long_plain_sound())
+
+        stop_mixer()
+        start_mixer()
+        followed_after_the_restart = plain_plays_of(context)
+        stop_mixer()
+        followed_without_a_mixer = plain_plays_of(context)
+        with context.active():
+            set_audible(audible=False)
+        start_mixer()
+
+        assert partition.live == FIRST_LIVE_POOL
+        assert followed_after_the_restart == ()
+        assert followed_without_a_mixer == ()
+        assert unreserved_channel_indices() == range(8)
+
+    def test_without_a_mixer_there_is_no_unreserved_channel(self):
+        """Nothing to follow, nothing to read."""
+        stop_mixer()
+
+        assert unreserved_channel_indices() == range(0)
+
+    def test_an_inner_contexts_channels_are_its_heard_set_live_pool_and_plain_plays(self):
+        """Never the default context's, nor another tile's."""
+        declared_mixer()
+        long_plain_sound().play()
+        context = EngineContext(name='tile')
+        other = EngineContext(name='other')
+        partition_in(context)
+        partition_in(other)
+        with context.active():
+            silent_channels = current_inner_context_channel_indices()
+        make_heard(context)
+        tile_channel = play_plain_followed(context, long_plain_sound())
+
+        with context.active():
+            heard_channels = current_inner_context_channel_indices()
+        with EngineContext(name='never built').active():
+            channels_of_a_context_without_any = current_inner_context_channel_indices()
+        make_silent(context)
+
+        assert silent_channels == FIRST_LIVE_POOL
+        assert heard_channels == (*HEARD_SET_A, *FIRST_LIVE_POOL, tile_channel.id)
+        assert channels_of_a_context_without_any == ()
+        pygame.mixer.stop()
+
+
+def inner_tile(*, heard: bool) -> tuple[EngineContext, ChannelPartition]:
+    """An inner context (it has a render target) holding its channels, heard or silent.
+
+    Returns:
+        The context and its partition.
+    """
+    context = EngineContext(name='tile')
+    with context.active():
+        set_render_target(surface=pygame.Surface((8, 8)))
+    partition = partition_in(context)
+    if heard:
+        make_heard(context)
+    return context, partition
+
+
+class TestASilencerInAnInnerContext:
+    """FrameSilencer in an inner context stops only that context's channels (the guard)."""
+
+    def test_a_rebuilds_silence_stops_the_tiles_channels_and_no_other(self):
+        """Its heard set, live pool and plain play stop; the default's and another tile's go on."""
+        declared_mixer()
+        default_sound = long_plain_sound()
+        default_channel = default_sound.play()
+        assert default_channel is not None
+        _other, other_partition = inner_tile(heard=False)
+        other_live_channel = pygame.mixer.Channel(other_partition.live[0])
+        other_live_channel.play(long_plain_sound())
+        context, partition = inner_tile(heard=True)
+        heard_channel = pygame.mixer.Channel(HEARD_SET_A[0])
+        heard_channel.play(long_plain_sound())
+        live_channel = pygame.mixer.Channel(partition.live[0])
+        live_channel.play(long_plain_sound())
+        silencer = FrameSilencer()
+
+        with context.active(), plain_plays_followed():
+            plain_channel = long_plain_sound().play()
+            assert plain_channel is not None
+            silencer.begin()
+            silencer.silence_frame()
+            silencer.finish()
+
+        assert not heard_channel.get_busy()
+        assert not live_channel.get_busy()
+        assert not plain_channel.get_busy()
+        assert default_channel.get_sound() is default_sound
+        assert other_live_channel.get_busy()
+        make_silent(context)
+        pygame.mixer.stop()
+
+    def test_a_fast_forwards_silence_spares_the_tiles_playing_sounds_and_never_stops_others(
+        self,
+    ):
+        """What the tile played at begin plays on; its new sound stops; the default's plays on."""
+        declared_mixer()
+        context, partition = inner_tile(heard=True)
+        spared_sound = long_plain_sound()
+        spared_channel = play_plain_followed(context, spared_sound)
+        silencer = FrameSilencer(spares_playing_sounds=True)
+        live_channel = pygame.mixer.Channel(partition.live[0])
+        idle_channel = pygame.mixer.Channel(partition.live[1])
+
+        with context.active():
+            silencer.begin()
+            live_channel.play(long_plain_sound())
+            default_sound = long_plain_sound()
+            default_channel = pygame.mixer.Channel(LEGACY_ABOVE_THE_INNER_GAMES[-1])
+            default_channel.play(default_sound)
+            silencer.silence_frame()
+            silencer.finish()
+
+        assert spared_channel.get_sound() is spared_sound
+        assert not live_channel.get_busy()
+        assert not idle_channel.get_busy()
+        assert default_channel.get_sound() is default_sound
+        make_silent(context)
+        pygame.mixer.stop()

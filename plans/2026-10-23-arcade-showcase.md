@@ -311,7 +311,13 @@ recorded the same options; ten tiles with different games and resolutions make t
 4. **Sound only from the watched game** ([2026-11-13-arcade-4-sound.md](2026-11-13-arcade-4-sound.md),
    branch `arcade-4-sound`) = engine context sub-plan 5: an audio route per context;
    silent tiles keep off the shared channels entirely; only the top frame or a launched game is
-   heard.
+   heard. **Done** (Tasks 1-4, 2026-11-13; `src/glitchygames/audio/route.py`, the inner games'
+   channels in `src/glitchygames/audio/voices.py`, `InnerGame.set_audible`; the host declares
+   its inner games once with `Scene.INNER_GAMES`): every golden and bundled demo replays as a
+   tile exactly as alone with every tile silent and with one switched heard and back
+   (`tests/test_every_recording_replays_inside_an_inner_game.py`). Left in
+   `plans/future-work.md`: the owner's listening check of the switch's hard cuts,
+   `INNER_GAMES` declaring only the default sizes, and `pygame.mixer.music` (no game uses it).
 5. **One playback core, then `DemoPlayer`** (section 2 above), with engine context sub-plan 8:
    the replay viewer's inner game moves onto the core, in its own context. Looping,
    fast-forward, poster frames, the frame budget.
