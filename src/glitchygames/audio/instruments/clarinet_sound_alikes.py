@@ -31,7 +31,7 @@ CLARINET_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
     # page relates it to "the other two clarinets", the B-flat and the A; of those the clarinet
     # (D3) is nearest its lowest note E3. Range, from the same page: "On all clarinets the
     # written compass ranges from E3 - C7." and "On the C clarinet the sound is as written.", so
-    # the range sounds as given, E3-C7
+    # the range sounds as given, E3-C7.
     CatalogEntry(
         'c clarinet',
         'C clarinet',
