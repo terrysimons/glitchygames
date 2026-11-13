@@ -2734,12 +2734,14 @@ def test_a_detuned_clarinet_beats_at_its_sourced_cents():
         assert chorus_source.detune_cents == pytest.approx(cents), name
 
 
-# Batch 15's harpsichords that sound a 16' choir an octave below their keys (_harpsichord's
-# sixteen_foot), in catalog order: the builds, then the sound-alikes that add one through
-# sound_changes (plans/data/instrument-audit/batch-15.tsv)
+# Batch 15's harpsichords that sound a 16' choir an octave below their keys (a sixteen_foot keyword
+# on _harpsichord, added by the batch that first has a row needing it), in catalog order: the
+# builds, then the sound-alikes that add one through sound_changes
+# (plans/data/instrument-audit/batch-15.tsv)
 KEYBOARD_SIXTEEN_FOOT_NAMES: list[str] = []
-# Batch 15's keyboard idiophones built from their sourced partial ratios (_keyed_idiophone), in
-# catalog order: the builds, then their sound-alikes (plans/data/instrument-audit/batch-15.tsv)
+# Batch 15's keyboard idiophones built from their sourced partial ratios (a _keyed_idiophone
+# builder, added by the batch that first has a row needing it), in catalog order: the builds, then
+# their sound-alikes (plans/data/instrument-audit/batch-15.tsv)
 KEYBOARD_PARTIAL_RATIOS: dict[str, tuple[float, ...]] = {}
 # Every name plans/data/instrument-audit/batch-15.tsv holds back for any reason but a sourced
 # range, with its waits_for: the WAIT rows for an engine feature, a build of its own, a sourced
@@ -2776,6 +2778,22 @@ def effective_keyboard_keywords(catalog_entry: CatalogEntry) -> dict[str, object
     return keywords
 
 
+def has_octave_down_source(name: str) -> bool:
+    """Whether the entry's instrument has a source sounding an octave (-12 semitones) below.
+
+    Returns:
+        True when one of the instrument's sources is offset by -12.0 semitones.
+    """
+    semitones = [float(source.semitones) for _name, source in instruments.get(name).sources]
+    return -12.0 in semitones
+
+
+def test_the_octave_down_source_check_tells_builds_apart():
+    """The 16' guard's check finds bourdon's octave-down source and none on toy piano."""
+    assert has_octave_down_source('bourdon')
+    assert not has_octave_down_source('toy piano')
+
+
 def test_a_sixteen_foot_harpsichord_sounds_its_lower_choir():
     """The harpsichords with a 16' choir are the ones the table lists, each sounding it."""
     with_sixteen_foot = [
@@ -2785,8 +2803,7 @@ def test_a_sixteen_foot_harpsichord_sounds_its_lower_choir():
     ]
     assert with_sixteen_foot == KEYBOARD_SIXTEEN_FOOT_NAMES
     for name in KEYBOARD_SIXTEEN_FOOT_NAMES:
-        semitones = [float(source.semitones) for _name, source in instruments.get(name).sources]
-        assert -12.0 in semitones, name
+        assert has_octave_down_source(name), name
 
 
 def attack_peak_offsets(name: str, ratios: tuple[float, ...]) -> tuple[list[float], float]:
@@ -2816,6 +2833,20 @@ def attack_peak_offsets(name: str, ratios: tuple[float, ...]) -> tuple[list[floa
     peak_frequencies = frequencies[1:-1][is_peak]
     offsets = [float(np.min(np.abs(peak_frequencies - ratio * hertz))) for ratio in ratios]
     return offsets, min(hertz / 10.0, 4.0 * SAMPLE_RATE / len(attack))
+
+
+def test_the_attack_window_finds_the_toy_pianos_own_partials_and_no_others():
+    """Toy piano's own ratios are each within tolerance of a peak; 3.0 for 2.76 is not."""
+    own_ratios = (1.0, 2.76, 5.40)
+    offsets, tolerance = attack_peak_offsets('toy piano', own_ratios)
+    for ratio, offset in zip(own_ratios, offsets, strict=True):
+        assert offset <= tolerance, (ratio, offset, tolerance)
+
+    wrong_ratios = (1.0, 3.0, 5.40)
+    offsets, tolerance = attack_peak_offsets('toy piano', wrong_ratios)
+    assert offsets[0] <= tolerance
+    assert offsets[1] > tolerance
+    assert offsets[2] <= tolerance
 
 
 def test_a_keyed_idiophone_sounds_its_sourced_partials():
