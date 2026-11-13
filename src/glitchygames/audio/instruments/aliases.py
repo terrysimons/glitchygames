@@ -284,4 +284,13 @@ ALIASES: Final[dict[str, str]] = {
     # "Kemenche (Turkish: kemençe; Greek: κεμεντζές)"): the Turkish spelling of the catalog
     # kemenche
     'kemence': 'kemenche',
+    # --- Batch 8's voices, in the order of plans/data/instrument-audit/batch-8.tsv
+    # https://en.wikipedia.org/wiki/Contralto ("A contralto ... (sometimes alto) is a classical
+    # female singing voice whose vocal range is the lowest of such voice types."): the solo voice
+    # the catalog's alto ah is titled for ("Alto (contralto)"), F3 to F5 as the page gives it
+    'contralto': 'alto ah',
+    # https://en.wikipedia.org/wiki/Boy_soprano ("A boy soprano ... or boy treble ... is a young
+    # male singer with a voice in the soprano range, a range that is often still called the
+    # treble voice range"): the catalog's treble ah, titled "Treble (boy soprano)"
+    'boy soprano': 'treble ah',
 }

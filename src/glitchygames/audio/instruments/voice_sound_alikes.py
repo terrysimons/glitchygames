@@ -13,10 +13,28 @@ another name for the same instrument, stays in ``aliases.py``. The families' bui
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final
+from typing import Final
 
-if TYPE_CHECKING:
-    from glitchygames.audio.instruments.catalog import CatalogEntry
+from glitchygames.audio.instruments.catalog import CatalogEntry, Family
 
-VOICE_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = ()
+VOICE_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
+    # --- Batch 8's sound-alikes, in the order of plans/data/instrument-audit/batch-8.tsv
+    # Sound-alike of the bass (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Bass_(voice_type) ('basso buffo ("comical bass" light, agile
+    # bass or bass-baritone range)'; 'Buffo, literally "funny", basses are lyrical roles that
+    # demand from their practitioners a solid coloratura technique, a capacity for patter singing
+    # and ripe tonal qualities'): a kind of bass whose sourced words (light, agile, patter) are
+    # weight and agility, not a formant row of its own. Range, from
+    # https://en.wikipedia.org/wiki/Fach (Bass Fächer, "Spielbass / Bassbuffo / Lyric buffo"):
+    # "Range: From the E half an octave below low C (E2) to the F above middle C (F4)", which is
+    # E2 to F4 (the heading's "half an octave" is loose; the page fixes the note as E2)
+    CatalogEntry(
+        'basso buffo ah',
+        'Basso buffo (ah)',
+        Family.VOICES,
+        'E2',
+        'F4',
+        sounds_like='bass ah',
+    ),
+)
 CHOIR_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = ()

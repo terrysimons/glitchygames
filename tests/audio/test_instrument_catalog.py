@@ -801,6 +801,8 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('behala', 'violin'),
         ('matouqin', 'morin khuur'),
         ('kemence', 'kemenche'),
+        ('contralto', 'alto ah'),
+        ('boy soprano', 'treble ah'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -1626,7 +1628,7 @@ EXISTING_CHOIR_NAMES = frozenset(
 # are coded (plans/data/instrument-audit/batch-8.tsv)
 NEW_VOICE_NAMES: list[str] = []
 # Batch 8's voice sound-alikes and the entry each sounds like, in the sheet's order
-VOICE_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+VOICE_SOUND_ALIKE_PARENTS: dict[str, str] = {'basso buffo ah': 'bass ah'}
 # Batch 8's choirs with their own build, in the sheet's order
 NEW_CHOIR_NAMES: list[str] = []
 # Batch 8's choir sound-alikes and the entry each sounds like, in the sheet's order
@@ -1777,15 +1779,15 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         if catalog_entry.sounds_like is not None
     ]
     # The catalog lists families in table order: bowed strings, plucked strings, electronic, tuned
-    # percussion, voices, choirs, then drums
+    # percussion, drums, voices, then choirs (registry.FAMILY_TABLES)
     assert every_sound_alike == (
         list(BOWED_SOUND_ALIKE_PARENTS)
         + list(PLUCKED_SOUND_ALIKE_PARENTS)
         + list(ELECTRONIC_SOUND_ALIKE_PARENTS)
         + list(TUNED_SOUND_ALIKE_PARENTS)
+        + SOUND_ALIKE_NAMES
         + list(VOICE_SOUND_ALIKE_PARENTS)
         + list(CHOIR_SOUND_ALIKE_PARENTS)
-        + SOUND_ALIKE_NAMES
     )
 
 
@@ -1876,7 +1878,9 @@ def test_no_sound_alike_shares_an_approximated_sound():
 
 # The spec's "What the engine cannot make yet": "moving formants, vowel glides, vibrato |
 # overtone and throat singing, talk box, vocoder, yodel". Nothing in that row ships under its
-# name, a qualified name or an alias until the engine has the feature (decision 4; batch 8)
+# name or an alias until the engine has the feature (decision 4; batch 8). The test below matches
+# these names exactly: it does not catch a qualified name such as "khoomei voice", which the
+# sheet's form check (a SHIP or SOUND_ALIKE row's audit_name) refuses instead
 MOVING_FORMANT_NAMES = frozenset({
     'khoomei',
     'sygyt',
