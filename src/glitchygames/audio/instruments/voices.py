@@ -8,7 +8,8 @@ baritone the tenor's and bass's averaged, basso profundo the bass's, treble (a b
 soprano's. The harmonic levels are computed at the middle of each voice's range; the
 instrument's harmonics keep those levels at every pitch, so the vowel is truest mid-range (no
 formant filter moves with the note here). Choirs are three detuned voices; ranges are the usual
-choral ranges.
+choral ranges. The sound-alikes (listed instruments that share another entry's build) are in
+``voice_sound_alikes.py``.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from typing import TYPE_CHECKING, Final
 
 from glitchygames.audio.instruments.catalog import CatalogEntry, Family
 from glitchygames.audio.instruments.timbres import Formant, blown, formant_series
+from glitchygames.audio.instruments.voice_sound_alikes import CHOIR_SOUND_ALIKES, VOICE_SOUND_ALIKES
 from glitchygames.audio.pitch import Note
 
 if TYPE_CHECKING:
@@ -207,8 +209,10 @@ def _whistling() -> Instrument:
     return blown((1.0, 0.03), attack=0.04, release=0.08, breath=0.05, breath_low_pass=6000.0)
 
 
-VOICES: Final[tuple[CatalogEntry, ...]] = (
+_VOICE_BUILDS: Final[tuple[CatalogEntry, ...]] = (
     *_solo_entries(),
     CatalogEntry('whistling', 'Whistling', Family.VOICES, 'C5', 'C7', _whistling),
 )
-CHOIRS: Final[tuple[CatalogEntry, ...]] = _choir_entries()
+_CHOIR_BUILDS: Final[tuple[CatalogEntry, ...]] = _choir_entries()
+VOICES: Final[tuple[CatalogEntry, ...]] = _VOICE_BUILDS + VOICE_SOUND_ALIKES
+CHOIRS: Final[tuple[CatalogEntry, ...]] = _CHOIR_BUILDS + CHOIR_SOUND_ALIKES

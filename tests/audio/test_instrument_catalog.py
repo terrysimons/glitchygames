@@ -1595,6 +1595,44 @@ BOWED_SOUND_ALIKE_PARENTS: dict[str, str] = {
 }
 
 
+# The 68 voices and choirs that predate batch 8: their shared builds predate the anti-goal rule
+EXISTING_VOICE_NAMES = frozenset(
+    {
+        f'{voice} {sound}'
+        for voice in (
+            'soprano',
+            'mezzo soprano',
+            'alto',
+            'treble',
+            'countertenor',
+            'tenor',
+            'baritone',
+            'bass',
+            'basso profundo',
+        )
+        for sound in ('ah', 'eh', 'ee', 'oh', 'oo', 'hum')
+    }
+    | {'whistling'}
+)
+EXISTING_CHOIR_NAMES = frozenset(
+    {
+        f'choir {part} {sound}'
+        for part in ('soprano', 'alto', 'tenor', 'bass')
+        for sound in ('ah', 'oh', 'oo')
+    }
+    | {'childrens choir'}
+)
+# Batch 8's voices with their own build, in the sheet's order. Empty until the sheet's rows
+# are coded (plans/data/instrument-audit/batch-8.tsv)
+NEW_VOICE_NAMES: list[str] = []
+# Batch 8's voice sound-alikes and the entry each sounds like, in the sheet's order
+VOICE_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+# Batch 8's choirs with their own build, in the sheet's order
+NEW_CHOIR_NAMES: list[str] = []
+# Batch 8's choir sound-alikes and the entry each sounds like, in the sheet's order
+CHOIR_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+
+
 class BatchFamily(NamedTuple):
     """A family a batch grew: the entries that predate it, what it added and what is unpitched."""
 
@@ -1620,6 +1658,8 @@ BATCH_FAMILIES: dict[Family, BatchFamily] = {
     Family.TUNED_PERCUSSION: BatchFamily(
         EXISTING_TUNED_NAMES, NEW_TUNED_NAMES, TUNED_SOUND_ALIKE_PARENTS
     ),
+    Family.VOICES: BatchFamily(EXISTING_VOICE_NAMES, NEW_VOICE_NAMES, VOICE_SOUND_ALIKE_PARENTS),
+    Family.CHOIRS: BatchFamily(EXISTING_CHOIR_NAMES, NEW_CHOIR_NAMES, CHOIR_SOUND_ALIKE_PARENTS),
 }
 
 
@@ -1737,12 +1777,14 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         if catalog_entry.sounds_like is not None
     ]
     # The catalog lists families in table order: bowed strings, plucked strings, electronic, tuned
-    # percussion, then drums
+    # percussion, voices, choirs, then drums
     assert every_sound_alike == (
         list(BOWED_SOUND_ALIKE_PARENTS)
         + list(PLUCKED_SOUND_ALIKE_PARENTS)
         + list(ELECTRONIC_SOUND_ALIKE_PARENTS)
         + list(TUNED_SOUND_ALIKE_PARENTS)
+        + list(VOICE_SOUND_ALIKE_PARENTS)
+        + list(CHOIR_SOUND_ALIKE_PARENTS)
         + SOUND_ALIKE_NAMES
     )
 
@@ -1830,3 +1872,35 @@ def test_no_sound_alike_shares_an_approximated_sound():
     parents = {catalog_entry.sounds_like for catalog_entry in instruments.entries()}
     assert parents & APPROXIMATING_NAMES == set()
     assert set(instruments.names()).issuperset(APPROXIMATING_NAMES)
+
+
+# The spec's "What the engine cannot make yet": "moving formants, vowel glides, vibrato |
+# overtone and throat singing, talk box, vocoder, yodel". Nothing in that row ships under its
+# name, a qualified name or an alias until the engine has the feature (decision 4; batch 8)
+MOVING_FORMANT_NAMES = frozenset({
+    'khoomei',
+    'sygyt',
+    'kargyraa',
+    'borbangnadyr',
+    'ezengileer',
+    'chylandyk',
+    'dumchuktaar',
+    'byrlang',
+    'tibetan chant',
+    'umngqokolo',
+    'katajjaq',
+    'rekuhkara',
+    'yodel',
+    'tuvan ensemble',
+    'talk box',
+    'sonovox',
+    'vocoder',
+    'vocoder voice',
+    'voder',
+})
+
+
+def test_nothing_waiting_for_moving_formants_is_listed():
+    """No catalog name or alias is an instrument the spec holds back for moving formants."""
+    assert MOVING_FORMANT_NAMES & set(instruments.names()) == set()
+    assert MOVING_FORMANT_NAMES & set(instruments.ALIASES) == set()

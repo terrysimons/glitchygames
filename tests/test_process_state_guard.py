@@ -848,13 +848,24 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         'HIGHEST_HARMONIC': 'R16: an int, the length of HARMONIC_FIELD_NAMES.',
     },
     'audio/instruments/voices.py': {
-        'VOICES': (
+        '_VOICE_BUILDS': (
             'R16: a tuple of frozen CatalogEntry values, unpacked from a function the rules '
             'cannot read.'
         ),
-        'CHOIRS': (
+        '_CHOIR_BUILDS': (
             'R16: a tuple of frozen CatalogEntry values, returned by a function the rules '
             'cannot read.'
+        ),
+        # The rules treat a name bound to a reported name as reported (reported_names), so the
+        # concatenations are reported because _VOICE_BUILDS and _CHOIR_BUILDS are: each is those
+        # reasoned tuples plus a literal tuple of frozen CatalogEntry values
+        'VOICES': (
+            'R16: _VOICE_BUILDS (above) plus the voice sound-alikes, both tuples of frozen '
+            'CatalogEntry values; reported only because _VOICE_BUILDS is.'
+        ),
+        'CHOIRS': (
+            'R16: _CHOIR_BUILDS (above) plus the choir sound-alikes, both tuples of frozen '
+            'CatalogEntry values; reported only because _CHOIR_BUILDS is.'
         ),
     },
     'audio/instruments/winds.py': {
