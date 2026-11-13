@@ -1674,9 +1674,12 @@ EXISTING_DOUBLE_REED_NAMES: frozenset[str] = frozenset({
 })
 # Batch 11's double reeds with their own build, in the sheet's order. Filled in by the tasks that
 # add them (plans/data/instrument-audit/batch-11.tsv)
-NEW_DOUBLE_REED_NAMES: list[str] = ['contraforte']
+NEW_DOUBLE_REED_NAMES: list[str] = []
 # Batch 11's double reed sound-alikes and the entry each sounds like, in the sheet's order
-DOUBLE_REED_SOUND_ALIKE_PARENTS: dict[str, str] = {'piccolo heckelphone': 'heckelphone'}
+DOUBLE_REED_SOUND_ALIKE_PARENTS: dict[str, str] = {
+    'contraforte': 'contrabassoon',
+    'piccolo heckelphone': 'heckelphone',
+}
 
 
 # The 42 brass instruments that predate batch 10: their shared builds predate the anti-goal rule
@@ -2015,32 +2018,6 @@ def test_the_pianet_settles_from_a_bright_strike():
             samples[round(0.3 * SAMPLE_RATE) : round(0.4 * SAMPLE_RATE)], hertz=cutoff
         )
         assert strike > 10.0 * settled, note.name
-
-
-def test_the_contraforte_is_driven_less_than_the_contrabassoon_at_the_same_low_pass():
-    """The contraforte lacks the contrabassoon's "rattle": less saturation, at the same low pass.
-
-    The Contraforte page (https://en.wikipedia.org/wiki/Contraforte): "It also lacks the distinct
-    "rattle" of a contrabassoon"; Guntram Wolf: "einen klaren, runden Klang". The two builds share
-    a low pass (2200 Hz) and differ in drive (0.2 against 0.4), so less drive is the trait. Less
-    drive clips the peaks less, so the crest factor (peak over RMS, after the first 0.25 s) is
-    higher: 1.015, 1.015 and 1.015 times the contrabassoon's at A1, A2 and A3, inside both
-    ranges, so the test asks for more than 1.01 times. The share of energy above three times
-    the fundamental is 0.98 times the contrabassoon's, so the sources' "rounder" is not the
-    build's spectrum: it is a smaller, steadier difference, measured as less saturation.
-    """
-    assert instruments.entry('contraforte').playing_range == (Note('A0'), Note('G4'))
-
-    def crest_factor(name: str, pitch: str) -> float:
-        samples = render_sound(
-            spec_for(instruments.get(name), name=name, pitch=pitch, length=1.0)
-        ).samples[SAMPLE_RATE // 4 :]
-        return float(np.max(np.abs(samples)) / np.sqrt(np.mean(samples**2)))
-
-    for pitch in ('A1', 'A2', 'A3'):
-        contraforte = crest_factor('contraforte', pitch)
-        contrabassoon = crest_factor('contrabassoon', pitch)
-        assert contraforte > 1.01 * contrabassoon, pitch
 
 
 def test_the_gangsa_pairs_its_fundamental_at_the_ombak_ratio():

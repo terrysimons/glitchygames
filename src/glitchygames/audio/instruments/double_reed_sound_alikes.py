@@ -21,6 +21,24 @@ DOUBLE_REED_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
     # the order of plans/data/instrument-audit/batch-11.tsv: each a distinct instrument,
     # verified by its source, that no fetched source sets apart in sound from the entry it names
     # (``sounds_like``)
+    # Sound-alike of the contrabassoon (no sourced trait the engine can make audible):
+    # https://en.wikipedia.org/wiki/Contraforte ("The contraforte uses a different and wider bore
+    # than the contrabassoon to produce a distinct tone", cited there to Eppelsheim) and
+    # Eppelsheim's maker page https://www.eppelsheim.com/en/instruments/contraforte/ ("wide bore
+    # for a voluminous tone"). The wider bore is a sourced trait that the engine's double-reed
+    # build cannot distinguish: with the contrabassoon's low pass, drive is the only lever, and
+    # a lower one changes the crest factor by 1.5% and no sourced number gives it, so it builds
+    # the contrabassoon's sound (conical, 422.112, like its parent). Range, from the maker's
+    # page: "written range A1 - G 5, sounding A0 - G 4": the sounding range, an octave below
+    # the written one
+    CatalogEntry(
+        'contraforte',
+        'Contraforte',
+        Family.DOUBLE_REEDS,
+        'A0',
+        'G4',
+        sounds_like='contrabassoon',
+    ),
     # Sound-alike of the heckelphone (no fetched source sets it apart in sound):
     # https://en.wikipedia.org/wiki/Piccolo_heckelphone ("Following the basic principle of the
     # heckelphone, the piccolo heckelphone in F has an extremely wide bore with large tone
