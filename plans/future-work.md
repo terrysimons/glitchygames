@@ -181,7 +181,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | ~~`qlmanage -t -s 256 -o <dir> <sprite.toml>...` hangs with no output and the sprite thumbnail extension never launches~~ | `src/quicklook/tools/make_thumbnails.swift` | Found 2026-10-29 (`feat/sprite-quicklook`, plan Task 7). **Done** (explained, not an extension bug): on this macOS `qlmanage -t` only uses old generator plug-ins (its log says "missing or invalid generator for thumbnail" and its `com.apple.quicklook.thumbnail` discovery finds 0 extensions), and it hangs on any type without one (an unknown `.qqqzz` file hangs too). Through `QLThumbnailGenerator`, the API Finder uses, the extension draws sprites and declines other `.toml` files, which keep the plain document icon they had before (checked with the extension switched off). Check thumbnails with `swift tools/make_thumbnails.swift`. |
 | The multi-ball simulation tests write `ball.rect.x/y` for start positions and separations, which never took effect (the ball's position is `world_x`/`world_y`; rect was rebuilt from it, now by the engine), so every ball starts at its `reset()` serve position, not the drawn random one | `tests/game_objects/test_multi_ball_*.py` | Pre-existing test weakness found in feature/engine-world-space Task 9; set `world_x`/`world_y` instead and re-check the thresholds. |
 | CoreAudio flake: `AudioQueueStart -66681` stalled two of three full `uv run pytest` runs on the native (cocoa + coreaudio) driver on 2026-11-11, in `test_crt_power_on_sound` and `test_sound_cache`; the named tests pass alone | `tests/` (native driver child run), SDL's coreaudio driver | Found during Arcade sub-plan 2's verification. Same error as BUGS.md #266 (a held audio device), but no orphaned process was found this time; find what holds or starves the device under the full parallel run. |
-| The channel-fade device tests' live recordings can merge two trials under load: `test_the_crt_skip_fade_on_the_device_is_a_plateau_or_two_then_a_halt` failed `assert 5 == 6` (`len(recorded_trials) == TRIAL_COUNT`) on CircleCI's Windows job for #179, 2026-11-11; the bus-fade test has the same check | `tests/audio/test_channel_fades.py` (the `recordings` fixture, `trial_chunks` in `tests/audio/channel_fade_analysis.py`) | The exact count is deliberate (a merged trial would be analysed as one), so the fix belongs in the recording, not the assertion: a gap between trials that survives a stalled real-time disk-driver run (longer, or detected by marker tones rather than silence length), or a re-record when the count is short. Present since the tests landed in #147; #179 loosened only the report test, whose subject is the report. |
+| ~~The channel-fade device tests' live recordings can merge two trials under load: `test_the_crt_skip_fade_on_the_device_is_a_plateau_or_two_then_a_halt` failed `assert 5 == 6` (`len(recorded_trials) == TRIAL_COUNT`) on CircleCI's Windows job for #179, 2026-11-11; the bus-fade test has the same check~~ | `tests/audio/test_channel_fades.py` (the `recordings` fixture, `trial_chunks` in `tests/audio/channel_fade_analysis.py`) | The exact count is deliberate (a merged trial would be analysed as one), so the fix belongs in the recording, not the assertion: a gap between trials that survives a stalled real-time disk-driver run (longer, or detected by marker tones rather than silence length), or a re-record when the count is short. Present since the tests landed in #147; #179 loosened only the report test, whose subject is the report. **Done** 2026-11-13, after the bus-fade test failed the same way (CircleCI job 3303, Windows, `feat/instrument-catalog-batch-9`: trials 4 and 5 recorded as one 30-chunk trial; a re-run passed): `record` records a case again when a trial was lost, up to `RECORDING_ATTEMPTS` (3), and only a recording of every trial is moved into place; three short ones fail it naming each count. The exact count assertions stay. |
 | `TextSprite.update_text` renders with `FontManager.get_font()` and ignores `self.font`, so the `.font` Bitmappy sets on its slider labels does nothing | `src/glitchygames/ui/text_widgets.py` (`TextSprite.update_text`), Bitmappy's slider labels | Found in Arcade sub-plan 2 (Task 6, Bitmappy's demo). Use `self.font` when set, or stop setting it. |
 | The dt demo's square keeps moving off screen after it crosses: nothing clamps or wraps it | `src/demos/dt-demo/src/dt_demo/__init__.py` | Found in Arcade sub-plan 2 (Tasks 4-5). Clamp or wrap it, then re-record `timing.jsonl.gz` (a reviewed step). |
 | Stand-in pads log a misleading WARNING "Device enumeration ... is not in the recording" on a second `joystick_count` or on `name_for_index` | `src/glitchygames/input/stand_in_devices.py`, `src/glitchygames/input/devices.py` (~1371) | Found in Arcade sub-plan 2 (Task 7, the joystick demo's `pad`). The answer is right; the warning is noise. A stand-in registry should answer repeated enumerations without falling to the "not recorded" path. |
@@ -1083,6 +1083,28 @@ changes the outer game's key repeat (the plan's Review Focus 4).
     `pyproject.toml` does).
   - Then test that a built member wheel's recording names its game commit with source
     `build-stamp`.
+- **Make the pre-push driver comparison faster** (the owner, 2026-11-13). A push runs the suite
+  four times: `test-random` once (shuffled, `-n auto`: 80 s for 26,007 tests) and
+  `compare-drivers --drivers native --fail-on-difference` three times in file order, one run
+  after another at `_COMPARE_DRIVERS_WORKERS = 4` (dummy twice, cocoa once: 396 + 309 + 450 s,
+  about 19 minutes). The 4 workers were chosen "so the machine stays usable"
+  (`docs/quality/driver_comparison.md`), for the by-hand matrix with Docker and XQuartz. CI runs
+  neither: each CircleCI job runs `nox -s test` once. Steps, cheapest first:
+  - **Every core for the hook's comparison.** Measured 2026-11-13 on this Mac (16 logical
+    cores), `nox -s compare-drivers -- --drivers native -n auto`: 185 + 190 + 228 s, 10 minutes;
+    every configuration agreed on all 26,114 compared tests, nothing nondeterministic on dummy
+    (as at 4 workers), the `frames_vary` list unchanged but for a test #185 added. So: a
+    `--workers` option (or `-n auto` when `--drivers native` is the hook's), keeping 4 for the
+    by-hand matrix.
+  - **Why a run is still 2.3x the shuffled run** at the same width (185 s against 80 s; CPU
+    averaged 521% of 1600%): likely the frame-fingerprint plugin's hashing and writing of every
+    presented frame. Profile one run before changing anything.
+  - **Skip the comparison on a push that cannot change a frame** (option D): only plans, docs or
+    CI files changed. Needs a reliable list of the paths that can change frames; a docs-only
+    push (#187) then skips the whole comparison.
+  - Not done: folding `test-random` into the comparison (shuffling one dummy run). The comparison
+    passes on failing tests (`_PYTEST_FINISHED_CODES = [0, 1]`), and order-dependent frames would
+    read as "varies between runs" rather than fail; little to save (80 s).
 
 ## Upstream issues to file
 
