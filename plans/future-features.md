@@ -1750,10 +1750,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 9 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 10 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
   batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682
-  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9) toward every instrument a game might
+  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10) toward every instrument a game might
   want, in one verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates,
   only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
@@ -1854,7 +1854,27 @@ This document tracks planned future features for the GlitchyGames project. Featu
   vibrato), `duck call` (a build of its own: its source names reeds), `bird whistle` (a pitch
   LFO, vibrato), `singing bird box` (a pitch LFO, portamento), `hydraulophone` (a sourced
   range; `hs` none) and `pigeon whistle` (more than four sources). `serinette` and `flute clock`
-  are barrel organs, so the organs batch decides them. Next: brass
+  are barrel organs, so the organs batch decides them.
+  Batch 10 (brass) is done: of its 127 sheet rows (104 candidates and 23 audit alias names) none
+  shipped as a build of its own, 2 became sound-alikes (`bass wagner tuba` of `wagner tuba`,
+  Eb1-F5; `soprano trombone` of `trumpet`, E3-C6, each giving its own sourced range), 99 wait (80
+  for a sourced range, 13 because their target waits, 2 for a build of their own, 2 for moving
+  formants, 1 for sub-audio fundamentals, 1 for a buzzing membrane), 16 became aliases and 10
+  were dropped; the family grew from 42 to 44 entries (690 in all, 101 aliases and 187
+  sound-alikes). `brass.py` keeps the family's builds (its table is now `_BRASS_BUILDS`, and
+  `BRASS` is `_BRASS_BUILDS + BRASS_SOUND_ALIKES`) and `brass_sound_alikes.py` holds its
+  sound-alikes. `didgeridoo` joins `APPROXIMATING_NAMES`, never a parent, and `BRASS_HELD_BACK`
+  holds back six names (`bazooka`, `didjeribone`, `subcontrabass tuba`, `sudrophone`, `tenor
+  cornett`, `vienna horn`). Most rows wait because the range rule stays strict: a brass source
+  rarely states both notes as sounding pitch, and many give a written range with no
+  transposition, a hedge, a player's top or one note. The audit's "Gaps you could not close"
+  (`plans/data/instrument-audit/brass.md`: the list-of-brass page unread; MIMO, the Met and Grove
+  not swept; the African, Pacific, Amazonian, Native American and Southeast Asian horns beyond
+  Wikipedia's category, such as Moche clay trumpets and Philippine bamboo trumpets; the marching
+  and double-bell variants known only from memory) are a later pass over this family.
+  `corrugahorn` is decided (batch 1 waits it for a sourced range, in noise makers), but its
+  family question, noise makers or brass, is still open. The mutes are left to the
+  articulations design (the spec's Non-goals). Next: double reeds
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
@@ -1874,7 +1894,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sheet `plans/data/instrument-audit/batch-8.tsv`
 - **Plan (batch 9)**: `plans/2026-11-12-instrument-catalog-batch-9-implementation.md`; audit
   sheet `plans/data/instrument-audit/batch-9.tsv`
-- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8 and 9 done (requested by the owner 2026-11-06)
+- **Plan (batch 10)**: `plans/2026-11-12-instrument-catalog-batch-10-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-10.tsv`
+- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8, 9 and 10 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
@@ -2934,6 +2956,242 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Found**: batch 9's reviews (2026-11-12)
 - **Status**: TODO
 - **Priority**: Medium (before the brass batch builds on the same catalog)
+
+### 80. Sound Engine: The Owner's Checks on Instrument Catalog Batch 10 — TODO
+- **Goal**: confirm or overturn the calls made while batch 10 of #70 ran, and listen to its new
+  instruments (brass 42 to 44 entries). Almost every candidate waits or drops: 0 built, 2
+  sound-alikes, 99 waits, 16 aliases and 10 drops in the sheet's 127 rows. The plan's Task 5 had
+  no build or sound-alike to code (half B shipped only aliases), so only its alias steps ran
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+  every level, filter, ring and click is sound design unless a source is cited in the code; the
+  folder is `build/instruments/brass/`). No new build was added, so there is nothing new to hear
+  as a build, and the listening is the sound-alikes and the aliases beside their parents, which
+  must sound alike by design:
+  - [ ] The new builds: none (0 SHIP rows)
+  - [ ] The 2 sound-alikes beside their parents: `bass wagner tuba` (Eb1-F5) beside `wagner
+    tuba` (its low end is a pedal register: listen for a quiet or wrong note at Eb1) and
+    `soprano trombone` (E3-C6) beside `trumpet`
+  - [ ] The 16 aliases: `b flat piccolo trumpet` (of `piccolo trumpet`), `tenor tuba` (of
+    `euphonium`), `treble cornett` and `zink` (of `cornett`), `cornet a pistons` (of `cornet`),
+    `tenor horn` (of `alto horn`), `dung dkar`, `hakgediya`, `pututu`, `shankha` and `fotuto` (of
+    `conch`), `waldhorn` (of `french horn`), `inventionshorn` (of `natural horn`), `yidaki` and
+    `mako` (of `didgeridoo`) and `alpenhorn` (of `alphorn`)
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-10.tsv`; the sheet's 127 rows:
+  SHIP 0, SOUND_ALIKE 2, WAIT 99, ALIAS 16, DROP 10):
+  - [ ] Every WAIT (99 rows), by reason:
+    - 80 for a sourced range: `alto ophicleide`, `alto sackbut`, `baritone bugle`, `bass
+      cornett`, `bass flugelhorn`, `bass horn`, `bass sackbut`, `buccin`, `cc tuba`, `contrabass
+      bugle`, `contrabass ophicleide`, `contrabass saxhorn`, `cornettino`, `double bell
+      euphonium`, `e flat trumpet`, `firebird trumpet`, `flumpet`, `helicon`, `herald trumpet`,
+      `jazzophone`, `keyed bugle`, `keyed trumpet`, `kuhlohorn`, `mellophonium`, `mute cornett`,
+      `rotary valve trumpet`, `russian bassoon`, `saxotromba`, `saxtuba`, `slide trumpet`,
+      `sopranino saxhorn`, `soprano helicon`, `soprano saxhorn`, `superbone`, `valve trombone`,
+      `abeng`, `amakondere`, `birch trumpet`, `buccina`, `bucium`, `buisine`, `bukkehorn`,
+      `carnyx`, `cavalry trumpet`, `chazozra`, `cornu`, `dord`, `dungchen`, `erke`, `haotong`,
+      `holztrompete`, `horagai`, `kakaki`, `kangling`, `karnay`, `kombu`, `lituus`, `lur`,
+      `midwinter horn`, `nabal`, `nafir`, `natural trumpet`, `oliphant`, `putatara`, `ram singa`,
+      `salpinx`, `siwa`, `sneng`, `sringa`, `steerhorn`, `swedish cowhorn`, `tharai`, `tiba`,
+      `tochacatl`, `trembita`, `truba`, `trutruca`, `tuba romana`, `turi`, `waqra phuku`
+    - 13 because their target waits: `kent bugle` and `royal kent bugle` (for `keyed bugle`),
+      `basson russe` (for `russian bassoon`), `hatzotzerah` (for `chazozra`), `waza` (for
+      `kakaki`), `luren` (for `lur`), `kerana`, `karna`, `kernei`, `kurenay` and `kanay` (for
+      `karnay`), `trutruka` (for `trutruca`) and `tibetan horn` (for `dungchen`)
+    - 2 for a build of their own: `tenor cornett` and `vienna horn`
+    - 2 for moving formants: `bazooka` and `didjeribone`
+    - 1 each for sub-audio fundamentals (`subcontrabass tuba`) and a buzzing membrane
+      (`sudrophone`)
+  - [ ] The brass range rule (the owner kept the range rule strict, 2026-11-09): a range is
+    stated or an exact span above the lowest note, in sounding pitch; a written range counts only
+    with the transposition its own source states (a B-flat instrument sounds a tone below its
+    part, a horn in F a fifth below, a brass band's treble-clef part is never read as sounding),
+    with the arithmetic shown; no pedal note or player's top beyond the stated compass; harmonic
+    numbers only with a stated fundamental or named harmonic, never hedged; the key a source
+    calls standard (a key in the row's own name is ranged in that key); maker and museum sources
+    count, a retailer, blog or forum does not; nothing below A0 or above C8. The ranges derived
+    under it: `bass wagner tuba` Eb1-F5 (VSL's archived Wagner tuba range page, "(no
+    transposition)", its notation page writing the part a fifth above the sound; the lowest notes
+    are pedals VSL says cannot be played forte, kept because they are inside the stated range);
+    `soprano trombone` E3-C6 (Wikipedia: "similar to the B-flat trumpet, E3 to C6", read as stated
+    notes because the infobox calls the range sounding and the same as the trumpet's; a reviewer
+    may read "similar" as a hedge)
+  - [ ] One-note horns and shells, waiting for a range: `nafir`, `nabal`, `sneng`, `tuba romana`
+    (one or two pitches), `amakondere` and `cavalry trumpet`, and the shells, which a source says
+    "produce only one pitch". The catalog needs a lowest below a highest, so each waits. Should a
+    one-note horn or shell ship as a fixed-pitch entry instead?
+  - [ ] The shell rule: a shell is an alias of `conch` only when a source presents the name as
+    the conch itself (`shankha`, `dung dkar`, `pututu`, `fotuto`, `hakgediya`); a shell the
+    source gives its own traits (`horagai`: a fitted mouthpiece, three or five notes; `putatara`:
+    a carved wooden mouthpiece) waits for a sourced range. `hakgediya` ("a type of conch shell",
+    no trait of its own) is an alias while `shankha` ("known in India as the shankha", a species
+    name) is too: the line turns on a small difference in wording, the shakiest of the shell
+    decisions. `triton shell` is dropped (a shell species, not an instrument name)
+  - [ ] `carnyx` waits for a sourced range, not a build of its own: its page calls the replica's
+    resonances inharmonic, but that is which notes it plays, not a non-periodic tone, so it is
+    out of `BRASS_HELD_BACK`. An inharmonic build is the other reading
+  - [ ] `tenor cornett` and `vienna horn` wait for a build of their own, held in
+    `BRASS_HELD_BACK`: the tenor cornett's page says its bore is "more bugle-like" (the sentence
+    is cited, to Baines), and the Vienna horn's sources name a narrower, more conical bore and a
+    mellower sound. Their ranges are kept in the sheet's notes (`tenor cornett` C3-D5, `vienna
+    horn` B1-F5, "sounding" on VSL's archived page). The alternative is a sound-alike of `cornett`
+    and `french horn`
+  - [ ] `b flat piccolo trumpet` is an alias of `piccolo trumpet`, not a sound-alike: VSL's
+    archived page gives "D4 – G6" for the high B-flat piccolo but states neither written nor
+    sounding and no transposition, so the brass rule leaves no range, and the Piccolo trumpet
+    page says most are built to play in either B-flat or A. If the owner reads VSL's range as
+    sounding, it could be a sound-alike (D4-G6); if written, the sounding notes would be a minor
+    seventh higher
+  - [ ] The "an uncited line is not a source" reading (batch 9's `garklein recorder` ruling)
+    stands: the `buccin`'s infobox range E2 to B-flat 4 is on a page tagged as needing citations
+    and carries no `<ref>`, so it waits (the audit marked it VERIFIED). Ship it at E2-Bb4 if the
+    owner accepts the sentence
+  - [ ] `trembita` and `truba` wait on uncited cells: their infobox ranges are
+    `c<sup>1</sup>-g<sup>4</sup>` and `c<sup>3</sup>-g<sup>5</sup>`, uncited (the truba page is tagged for missing footnotes)
+    and the page does not say which octave convention its superscripts follow. The two readings
+    lie four octaves apart (`trembita` C4-G7 as Helmholtz, C1-G4 as scientific; `truba` C6-G8,
+    above C8, or C3-G5)
+  - [ ] `subcontrabass tuba` waits for sub-audio fundamentals, but the range ruling alone would
+    not hold it: its only note below A0 is the pedal Bb-1 (15 Hz), which the ruling excludes, and
+    Bb0 (29 Hz) is above A0. The wait rests on decision 4 (the spec's "sub-audio fundamentals"),
+    so ship it above A0 if the owner reads the pedal as outside the instrument
+  - [ ] `didgeridoo` among the approximations (`APPROXIMATING_NAMES`), never a parent: its page
+    says the moving formants "give the instrument its readily recognisable sound" and the
+    catalog's build has none, and a sound-alike would ship the omission under a new name. Its
+    aliases are allowed (`yidaki`, `mako`): an alias is the same instrument and adds no build. A
+    brass row whose source names the vocal tract's formants as its sound waits for moving
+    formants (`bazooka`: its "subtle harmonic overtones fluctuate" give it its "characteristic
+    warbling"; `didjeribone`); `jazzophone` waits for a range, not formants, because its wah is a
+    mute. `dord` waits for a range, not formants: its page gives the didgeridoo-like playing only
+    as something "some modern performers" believe
+  - [ ] Slides, valves and keys as note choice, not sound: `valve trombone`, `superbone`, `slide
+    trumpet`, `soprano trombone`, `bazooka` and the keyed and fingered rows are ranged and built
+    like any brass. No row waits for a pitch LFO (portamento between notes)
+  - [ ] The inharmonic ruling (`carnyx`, above): the family's builds make only whole harmonics,
+    and the harmonic-pitch test checks every brass entry repeats at its note's period; a row whose
+    source names inharmonic resonances as its sound would wait for a build of its own
+  - [ ] No new shape: no brass row shipped, so none of the nine shapes grew (`mute cornett`
+    names a horn-like integral mouthpiece and a flute-like sound, the best candidate for a new
+    shape, but waits for a range)
+  - [ ] Sizes and keys as sound-alikes, standard sizes as aliases: `bass wagner tuba` (of `wagner
+    tuba`) and `soprano trombone` (of `trumpet`, its source giving it the B-flat trumpet's bore,
+    bell and mouthpiece) are sound-alikes; `treble cornett` and `tenor horn` are aliases because
+    their sources call the catalog's own `cornett` and `alto horn` by those names; `tenor tuba`
+    is the euphonium's alias (the Tuba page's first sense; its second, the German Baryton, is not
+    in the catalog). The saxhorn sizes all wait: the Saxhorn page gives each name to two or three
+    sizes depending on the author. `soprano trombone` joins the trombones' size chain, first
+  - [ ] Mutes out of scope (the spec's Non-goals: "Articulations and ensemble patches (pizzicato,
+    mutes, string sections)"): the audit's four further mutes (trumpet bucket and plunger,
+    trombone straight and harmon) are not rows; the catalog's six mute entries predate this and
+    stay
+  - [ ] `corrugahorn`: noise makers or brass, still open from batch 1. It is dropped here as
+    already decided (batch-1.tsv waits it in noise makers for a sourced range); its family
+    question is the owner's
+  - [ ] One-offs, artefacts and unsourced rows dropped: `fluba` and `hosaphone` (one maker's or
+    player's design), `brudevaelte lur` (a single hoard; the `lur` row is the type), `savernake
+    horn` (a single surviving olifant; the `oliphant` row is the type) and `medieval lituus` (a
+    one-off reconstruction of an instrument "of an indeterminate nature"), `corno da tirarsi`
+    and `tromba da tirarsi` (no instrument or document survives, or only a hedge: "may have
+    been"), `swiss horn` (no fetched source names it: only an uncited fact site) and
+    `triton shell` (above). The line between a one-off and a type is a judgment: `firebird
+    trumpet`, `flumpet` and `soprano helicon` are in production, so they wait for a range
+    instead, as `sudrophone`, `saxtuba` and `saxotromba` do; the plan's literal "one maker's
+    design" would drop those too
+  - [ ] `turi` waits for a sourced range, not DROP: the Met's API record titled "Two Cast Brass
+    Side Blown Horns (Turi)" names the type, but it is a side-blown horn of Bastar, a different
+    form from the audit's "S-shaped trumpet" (the Dharohar museum lists "Turri, Turhi" as names
+    of the ransingha). It decides the Met's instrument, not the audit's lead; the Met's web page
+    returned 429
+  - [ ] `sneng` is the end-blown lip-blown horn (hs 423.121.21); the page's commoner side-blown
+    sneng is a free reed (422.33), which belongs to the free reeds and is decided nowhere
+  - [ ] `waza` waits for `kakaki` (the Kakaki page: 'also known as "Waza"'); the Sudanese `wazza`
+    is a different instrument and not a row. `ram singa`, `sringa` and `kombu` are decided each
+    on its own page, though the Ransingha and Sringa pages disagree on whether they are one
+    group
+  - [ ] `waldhorn` is an alias of `french horn` (its infobox lists "Horn, Waldhorn, Ventilhorn"),
+    `inventionshorn` of `natural horn` (the Natural horn page gives it as a development of that
+    instrument with no sound trait of its own). Modern German usage calls the valved orchestral
+    horn Waldhorn too, so the natural horn would be the other reading
+  - [ ] `BRASS_HELD_BACK`, the guard for every held name: six (`bazooka`, `didjeribone`,
+    `subcontrabass tuba`, `sudrophone`, `tenor cornett`, `vienna horn`), refused as a catalog name
+    or an alias by a test, and compared with the sheet by the code check. Every other wait is a
+    sourced range or a target that waits for one, so none is held. Unlike batch 9's
+    `PORTAMENTO_NAMES`, it holds every held name
+  - [ ] The two-half split by Hornbostel-Sachs class as explicit lists (half A, the chromatic
+    brass 423.2, 49 candidates; half B, the natural horns and trumpets 423.1 with the shells and
+    animal horns, 55), the two sheets researched in parallel, and the shared files written up
+    front by a setup agent. Half B shipped no build or sound-alike, so its code task ran only the
+    alias steps (Task 5, 10 aliases, by ruling); Task 3 added half A's 2 sound-alikes and 6
+    aliases
+  - [ ] Engine features named beyond the spec's table, for its "What the engine cannot make
+    yet": none new. Every wait names a feature the spec or an earlier batch already named
+    (moving formants, sub-audio fundamentals, a buzzing membrane) or `its own build`
+- **Bugs to report** (found while building batch 10; none fixed here):
+  - [ ] `didgeridoo` is built as a plain `_brass` build with drive, without the moving formants
+    its page names. It is in `APPROXIMATING_NAMES` now. Its C2-E2 also lies below the page's
+    "fundamental typically A2 to G3" (hedged, so it gives no range here, but the catalog's whole
+    span is below even the lowest typical fundamental)
+  - [ ] `conch` (C4-E4): the Conch page gives "Limited, typically only a few notes" and the
+    Horagai page says "most shell trumpets from other parts of the world ... produce only one
+    pitch". The catalog's four-semitone span would wait under this batch's rule (one note), and
+    six aliases now resolve to it
+  - [ ] `alphorn` (F#2-F#5) is harmonics 2 to 16 over the page's "most alphorns have a
+    fundamental tone of F#1": "most" is a hedge and the 16th partial is what "Accomplished
+    alphornists can command", a player's extreme. It would not pass the ruling (low priority)
+  - [ ] `cornett` (G3-D6): the Cornett page's infobox gives "The sounding range of the treble
+    cornett" as A3-D6 (cited to Herbert, Myers and Wallace 2019, p. 490); G3 is the lipped note
+    ("can be lowered a further whole tone to G by slackening the embouchure"), an extreme. The
+    page also gives the mute cornett "the same range ... G3 to A5", contradicting itself
+  - [ ] `wagner tuba` (tenor, E2-F4): VSL gives the tenor Wagner tuba in B-flat "Eb1 – Bb5 (no
+    transposition)", far wider at both ends (the new `bass wagner tuba` takes the same source)
+  - [ ] `tuba` (BB-flat, D1-F4): VSL's contrabass tuba range is "A0 – B3", for C and B-flat
+    tubas together, so not a clean contradiction, but worth a look
+  - [ ] The 42 earlier entries carry no source comment: `brass.py`'s module docstring cites
+    Adler and calls the folk instruments' ranges "typical", an unsourced claim. `ophicleide`
+    (B1-C5) agrees with its page's score and `alto horn` (A2-Eb5) with the Tenor horn page's
+    tessitura, but no other existing range was checked against a source
+  - [ ] Wikipedia's range scores render as "Musical scores are temporarily disabled due to a
+    security issue", so the audit's VERIFIED ranges can be read only from the wikitext, and the
+    audit's `buccin` range turned out to be uncited there
+- **Incidents and process**:
+  - [ ] One agent used a bare `git stash push` and `pop` once, to compare a type-checker
+    baseline (Task 3). No foreign stash was popped, nothing was left in the stash and no damage
+    was found; the dispatches now forbid `git stash`
+  - [ ] Parallel sheets, pushes and stacked PRs were made without asking (the owner,
+    2026-11-12, #78)
+  - [ ] Parked minors from the reviews: the code comments' quotes use ASCII for the B-flat sign,
+    en dash and "a" with a grave accent (likely for ruff's ambiguous-unicode rules) while the
+    sheet keeps the verbatim text; Task 1's `brass_sound_alikes.py` imported `CatalogEntry` under
+    `TYPE_CHECKING` for an empty table, and Task 3 moved it back to a runtime import
+  - [ ] A source-reading bug in the sheet's own process, caught and fixed: an extractor stripped
+    `<ref>`, `<sub>` and `<sup>` from raw wikitext and HTML, which first made the tenor cornett's
+    cited sentence look uncited and turned the trembita's and truba's superscript octaves into
+    "c-g". The generator now checks every quote against the unparsed page
+  - [ ] Pages the fetches could not reach: the Met's object pages (429, a Vercel checkpoint), the
+    National Music Museum eMuseum, Britannica and Iranica (403), and the Edinburgh `cornet a
+    pistons` record (read through WebFetch, whose extract matches the search listing)
+- **Leads** (not sources under the ruling, so no row was ranged from them):
+  - [ ] Leven's 2023 paper (Adoranten, `rockartscandinavia.com` `a23leven.pdf`, Tables 1 and 2):
+    measured eigenfrequencies of each lur replica (for example Rorlykke 95-938 Hz), which belong
+    to individual finds with different tunings, and the kombu's Sa, Pa' and Sa' as 262, 392 and
+    523 Hz (C4-C5). A journal paper is not a source type the ruling lists
+  - [ ] VSL's sample-library listing gives natural trumpets in Bb, C and D as F3-D6, G3-D6 and
+    A3-E6: a product's sampled range, not an instrument page, with no stated written or sounding
+    pitch and no standard key
+- **Follow-ups**:
+  - [ ] The audit's gaps (`plans/data/instrument-audit/brass.md`, listed in #70) are a later pass
+    over this family
+  - [ ] Ranging the 80 range WAITs from maker and museum sources (Wessex, Egger, Monk, the
+    Edinburgh and Horniman records, MIMO, the Met once it answers), each row's notes recording what
+    was searched; `post horn`, `hunting horn` and the bugle variants were not searched
+  - [ ] Check the 42 earlier entries' ranges against sources (none was checked beyond the entries
+    named above)
+  - [ ] The engine changes that unblock the waits above, most rows first: the 80 range waits need
+    no engine feature, then a build of their own (2), moving formants (2), sub-audio fundamentals
+    (1) and a buzzing membrane (1); the 13 target waits follow their targets
+  - [ ] The sheet's cells contain stray quote characters (some cells are CSV-quoted), so read it
+    with Python's csv module rather than splitting on tabs
+- **Found**: batch 10's reviews (2026-11-12)
+- **Status**: TODO
+- **Priority**: Medium (before the double reeds batch builds on the same catalog)
 
 ### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
 - **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,

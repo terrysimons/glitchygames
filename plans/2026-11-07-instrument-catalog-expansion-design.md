@@ -22,10 +22,12 @@
   `plans/2026-11-12-instrument-catalog-batch-8-implementation.md` and
   `plans/data/instrument-audit/batch-8.tsv`. Batch 9 (flutes) is done: see
   `plans/2026-11-12-instrument-catalog-batch-9-implementation.md` and
-  `plans/data/instrument-audit/batch-9.tsv`. The later batches are not yet planned.
+  `plans/data/instrument-audit/batch-9.tsv`. Batch 10 (brass) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-10-implementation.md` and
+  `plans/data/instrument-audit/batch-10.tsv`. The later batches are not yet planned.
 - **Depends on:** the instrument catalog (`src/glitchygames/audio/instruments/`, 431 instruments
   in 18 families when this was written, shipped with the sound engine M1; 439 in 21 after batch
-  1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682 after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9), its range audit, and the engine's four sources per instrument
+  1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682 after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10), its range audit, and the engine's four sources per instrument
   (`src/glitchygames/audio/instrument.py`).
 - **Tracked as:** `plans/future-features.md` #70.
 

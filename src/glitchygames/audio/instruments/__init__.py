@@ -84,6 +84,17 @@ its source names, on ``ah`` alone, and it gives its own sourced range (stated, n
 extreme). Everything that needs moving formants (throat singing, ``yodel``), a vibrato, or a
 buzzing membrane (``kazoo``, ``swazzle``) waits, and ``contralto`` and ``boy soprano`` are aliases.
 
+Brass (44 entries) holds the family's builds in ``brass.py`` (``piccolo trumpet`` to
+``tuba``, the trombones, the mutes, ``natural horn``, ``alphorn``, ``serpent``) and its
+sound-alikes in ``brass_sound_alikes.py`` (``bass wagner tuba`` and ``wagner tuba``, ``soprano
+trombone`` and ``trumpet``). The family is pitched, so each sound-alike gives its own sourced
+range (sounding, stated, never hedged or extreme: a written range counts only with the
+transposition its source states). A brass instrument whose sound is a moving one (``bazooka``,
+``didjeribone``) or a buzzing membrane (``sudrophone``) waits, or one that needs a build of its
+own (``tenor cornett``, ``vienna horn``), and ``didgeridoo`` stays as the approximation it was,
+never a parent, though it has aliases (``yidaki``, ``mako``). The shells are aliases of ``conch``
+only where a source presents the name as the conch itself.
+
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and
 ``gangsa``) and its sound-alikes in ``tuned_sound_alikes.py`` (``alto xylophone`` and
