@@ -235,9 +235,7 @@ class TestStopCommandOnEveryPlatform:
             child.kill.assert_not_called()
             group_signal.assert_not_called()
         else:
-            assert [call.args for call in group_signal.call_args_list] == [
-                (4242, signal.SIGTERM)
-            ]
+            assert [call.args for call in group_signal.call_args_list] == [(4242, signal.SIGTERM)]
 
     def test_a_child_that_outlives_the_grace_period_is_killed_and_reaped(self, mocker, platform):
         child = mocker.Mock(pid=4242)
