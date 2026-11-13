@@ -1681,14 +1681,13 @@ EXISTING_DOUBLE_REED_NAMES: frozenset[str] = frozenset({
     'rackett',
     'duduk',
 })
-# Batch 11's double reeds with their own build, in the sheet's order. Filled in by the tasks that
-# add them (plans/data/instrument-audit/batch-11.tsv)
+# Batch 11's double reeds with their own build, in the sheet's order. None: every row the sheet
+# ships is a sound-alike (plans/data/instrument-audit/batch-11.tsv)
 NEW_DOUBLE_REED_NAMES: list[str] = []
 # Batch 11's double reed sound-alikes and the entry each sounds like, in the sheet's order
 DOUBLE_REED_SOUND_ALIKE_PARENTS: dict[str, str] = {
     'contraforte': 'contrabassoon',
     'piccolo heckelphone': 'heckelphone',
-    'balaban': 'duduk',
 }
 
 
@@ -2191,6 +2190,7 @@ def test_no_brass_name_held_back_for_a_feature_is_listed():
 # alias until the engine or the build exists (decision 4; batch 11). The test matches exact names
 DOUBLE_REED_HELD_BACK: dict[str, str] = {
     'aulos': 'a sourced drone tuning',
+    'balaban': 'its own build (a cylindrical bore)',
 }
 
 

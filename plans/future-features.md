@@ -1753,7 +1753,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 ### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 11 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
   batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682
-  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 693 after batch 11) toward every instrument a game might
+  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11) toward every instrument a game might
   want, in one verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates,
   only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
@@ -1876,18 +1876,18 @@ This document tracks planned future features for the GlitchyGames project. Featu
   family question, noise makers or brass, is still open. The mutes are left to the
   articulations design (the spec's Non-goals).
   Batch 11 (double reeds) is done: of its 116 sheet rows (80 candidates and 36 audit alias names)
-  none shipped as a build of its own, 3 became sound-alikes (`contraforte` of `contrabassoon`,
-  A0-G4; `piccolo heckelphone` of `heckelphone`, E4-A6; `balaban` of `duduk`, G3-C5, each giving
-  its own sourced range), 81 wait (61 for a sourced range, 19 because their target waits, 1 for a
-  sourced drone tuning), 11 became aliases (`cor anglais`, `baritone oboe`, `fagott`, `cervelas`,
+  none shipped as a build of its own, 2 became sound-alikes (`contraforte` of `contrabassoon`,
+  A0-G4; `piccolo heckelphone` of `heckelphone`, E4-A6, each giving its own sourced range), 82 wait
+  (61 for a sourced range, 19 because their target waits, 1 for a sourced drone tuning, 1 for its
+  own build: `balaban`, a cylindrical bore), 11 became aliases (`cor anglais`, `baritone oboe`, `fagott`, `cervelas`,
   `gyaling`, `zurla`, `bombard`, `surna`, `surnay`, `zournas`, `haidi`) and 21 were dropped; the
-  family grew from 23 to 26 entries (693 in all, 112 aliases and 190 sound-alikes).
+  family grew from 23 to 25 entries (692 in all, 112 aliases and 189 sound-alikes).
   `double_reeds.py` now holds the family (moved unchanged from `winds.py`, which keeps the
   clarinets, saxophones, bagpipes and free reeds; its table is `_DOUBLE_REED_BUILDS`, and
   `DOUBLE_REEDS` is `_DOUBLE_REED_BUILDS + DOUBLE_REED_SOUND_ALIKES`) and
   `double_reed_sound_alikes.py` its sound-alikes. `piri` joins `APPROXIMATING_NAMES`, never a
   parent (its page cites a cylindrical bore the catalog's conical build lacks), and
-  `DOUBLE_REED_HELD_BACK` holds one name (`aulos`). Most rows wait because the range rule stays
+  `DOUBLE_REED_HELD_BACK` holds two names (`aulos`, `balaban`). Most rows wait because the range rule stays
   strict: a double reed's source rarely states both notes as sounding pitch, and many give a
   width, a hedge, a "theoretical" span or a written range with no transposition. The audit's
   "Gaps you could not close" (`plans/data/instrument-audit/double-reeds.md`: the quint and quart
@@ -3224,27 +3224,26 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ### 81. Sound Engine: The Owner's Checks on Instrument Catalog Batch 11 — TODO
 - **Goal**: confirm or overturn the calls made while batch 11 of #70 ran, and listen to its new
-  instruments (double reeds 23 to 26 entries). Almost every candidate waits or drops: 0 built, 3
-  sound-alikes, 81 waits, 11 aliases and 21 drops in the sheet's 116 rows. The plan's Task 5 added
-  only `balaban` and 7 aliases (the contraforte's own build was taken out in Task 3's second fix
-  round)
+  instruments (double reeds 23 to 25 entries). Almost every candidate waits or drops: 0 built, 2
+  sound-alikes, 82 waits, 11 aliases and 21 drops in the sheet's 116 rows. The plan's Task 5 added
+  only `balaban` and 7 aliases, and the final review's ruling then took `balaban` out (it waits for
+  its own build); the contraforte's own build was taken out in Task 3's second fix round
 - **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
   level, filter, ring and click is sound design unless a source is cited in the code; the folder is
   `build/instruments/double reeds/`). No new build was added, so there is nothing new to hear as a
   build, and the listening is the sound-alikes and the aliases beside their parents, which must
   sound alike by design:
   - [ ] The new builds: none (0 SHIP rows)
-  - [ ] The 3 sound-alikes beside their parents: `contraforte` (A0-G4) beside `contrabassoon` (A0 is
-    the catalog's floor: listen for a quiet or wrong note there), `piccolo heckelphone` (E4-A6)
+  - [ ] The 2 sound-alikes beside their parents: `contraforte` (A0-G4) beside `contrabassoon` (A0 is
+    the catalog's floor: listen for a quiet or wrong note there) and `piccolo heckelphone` (E4-A6)
     beside `heckelphone` (the top notes sit well above the parent's register: listen for a thin or
-    harsh tone) and `balaban` (G3-C5) beside `duduk` (it inherits the duduk's every-harmonic build,
-    see Bugs to report)
+    harsh tone)
   - [ ] The 11 aliases: `cor anglais` (of `english horn`), `baritone oboe` (of `bass oboe`),
     `fagott` (of `bassoon`), `cervelas` (of `rackett`), `gyaling` and `haidi` (of `suona`), `zurla`,
     `surna`, `surnay` and `zournas` (of `zurna`) and `bombard` (of `bombarde`)
 - **Calls to confirm** (each in `plans/data/instrument-audit/batch-11.tsv`; the sheet's 116 rows:
-  SHIP 0, SOUND_ALIKE 3, WAIT 81, ALIAS 11, DROP 21):
-  - [ ] Every WAIT (81 rows), by reason:
+  SHIP 0, SOUND_ALIKE 2, WAIT 82, ALIAS 11, DROP 21):
+  - [ ] Every WAIT (82 rows), by reason:
     - 61 for a sourced range: `alto sarrusophone`, `baritone sarrusophone`, `baroque oboe`, `bass
       sarrusophone`, `bassanelli`, `bassett nicolo`, `contrabass oboe`, `b flat contrabass
       sarrusophone`, `e flat contrabass sarrusophone`, `cornamuse`, `dulcian`, `great bass
@@ -3262,6 +3261,16 @@ This document tracks planned future features for the GlitchyGames project. Featu
       `nadaswaram`); `shahnai`, `sanayi`, `sahanai` (for `shehnai`); `hojeok`, `hojok`, `nallari`,
       `saenap` (for `taepyeongso`); `ghaita`, `ghayta` (for `rhaita`)
     - 1 for a sourced drone tuning: `aulos`
+    - 1 for its own build (a cylindrical bore): `balaban`, see the next item
+  - [ ] `balaban` waits for its own build (a cylindrical bore) (the controller's ruling after the
+    final review; it was a sound-alike of `duduk` at G3-C5 until then). Its page cites the bore
+    ("a double-reed pipe with cylindrical bore", and Encyclopaedia Iranica's "cylindrical-bore"),
+    and `_duduk` builds every harmonic (see Bugs to report), so a sound-alike would ship a cited
+    trait its build lacks: the reason `piri` is in `APPROXIMATING_NAMES`, and what spec decision 4
+    forbids. `duduk` itself stays because the Duduk page's "cylindrical body" is uncited. This call
+    is the owner's to confirm. `mey` and `guanzi` will meet the same question if they are ever
+    ranged, so the ruling decides all three; the sheet keeps `balaban`'s G3-C5 and the museum
+    quote in its notes. The range, once a cylinder build exists, is ready
   - [ ] The double reed range rule (the owner kept the range rule strict, 2026-11-09): a range is
     stated or an exact span above the lowest note, in sounding pitch with the source's own
     transposition (an English horn a fifth below its part, a contrabassoon an octave below), with
@@ -3274,16 +3283,16 @@ This document tracks planned future features for the GlitchyGames project. Featu
     so confirm them: a span a source calls "comfortable", "theoretical" or "practically" is no
     range, and a Wikipedia range counts only when its citation is in the raw text (the quote check
     finds every `Range:` passage in the saved raw page). The ranges derived under it: `contraforte`
-    A0-G4 (Eppelsheim's maker page: "written range A1 - G 5, sounding A0 - G 4"), `piccolo
+    A0-G4 (Eppelsheim's maker page: "written range A1 - G 5, sounding A0 - G 4") and `piccolo
     heckelphone` E4-A6 (Wikipedia, cited to Grove: written B3-E6, "pitched in F, a perfect fourth
-    above the oboe"; the uncited extension of a third is left out) and `balaban` G3-C5 (the
+    above the oboe"; the uncited extension of a third is left out). `balaban`'s G3-C5 (the
     Azerbaijan State Museum of Musical Culture: "from the \"sol\" of the small octave to the \"do\"
     of the second octave"; the next sentence, "The diapason can be expanded, depending upon the
-    mastery of the performer", is a player's extreme and is left out)
+    mastery of the performer", is a player's extreme and is left out) is kept in its WAIT row's notes
   - [ ] The quote ruling and the quote check: every `Range:` passage is quoted between «» from the
     raw page the worker saved (`build/batch-11-pages/`, gitignored), citations included, and
     `build/batch-11-quote-check.py` finds each in its saved page; it covers SHIP and SOUND_ALIKE
-    rows only, so the quoted passages of the seven sarrusophone WAIT rows were checked by a script
+    rows only, so the quoted passages of the eight sarrusophone WAIT rows were checked by a script
     of Task 2's. `balaban`'s page is served as Windows-1252 with no declared charset and was
     transcoded to UTF-8 so the check could read it, its text unchanged. The curly quotes in its code
     comment are written straight (ruff's ambiguous-unicode rule)
@@ -3297,6 +3306,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
     sound-alikes of `sarrusophone` at Ab3-F6, Db3-Bb5, Ab2-F5, Db2-Bb4, Ab1-F4 and Db1-Bb3. They
     would share the C contrabass's fixed 2500 Hz low pass, which would muffle the soprano's top
     (about 1.4 kHz at F6); no fetched source gives a sound difference
+  - [ ] `sopranino sarrusophone` is the eighth sarrusophone WAIT and differs from the six sizes
+    above: Wikipedia has no Sopranino sarrusophone page (404), so it has no infobox, only the
+    Sarrusophone page's uncited "theoretical ranges" list (E-flat sopranino: B-flat3 to G6, sounding
+    D-flat4 to B-flat6) and no transposition from Grove, so there is no cited score to accept
   - [ ] `b flat contrabass sarrusophone` waits for a sourced range like its siblings. Its infobox
     (written B♭3-G6, "three octaves and a second (B♭) lower than written") would sound A♭0-F3, below
     the catalog's A0, so if the siblings ship it waits next for sub-audio fundamentals (the spec's
@@ -3411,9 +3424,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
     `_duduk`)
   - [ ] Sizes and keys as sound-alikes, standard sizes and other names as aliases: `piccolo
     heckelphone` is a sound-alike of `heckelphone` (its source makes the wide bore "the basic
-    principle of the heckelphone"), `contraforte` of `contrabassoon` and `balaban` of `duduk`
-    ("almost identical, except for historical and geographical differences"; a relation, which is
-    why `mey` is not an alias and waits on its own); `cor anglais`, `baritone oboe` and `cervelas`
+    principle of the heckelphone"), and `contraforte` of `contrabassoon`;
+    `balaban` was a sound-alike of `duduk` ("almost identical, except for historical and
+    geographical differences"; a relation, which is why `mey` is not an alias and waits on its
+    own) until the final review's ruling made it wait for a cylindrical build; `cor anglais`, `baritone oboe` and `cervelas`
     are aliases because their sources call the catalog's own `english horn`, `bass oboe` and
     `rackett` by those names, and `gyaling` and `haidi` are aliases of `suona` (the Gyaling page:
     "it is the Chinese double reed Suona horn"; the Suona page: "also called dida, laba or haidi",
@@ -3421,7 +3435,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
     the shipped sound-alikes sits beside two or more catalog sizes a source names as one family. The
     `hne` sizes (`hne gyi`, `hne galay`) and `sopranino shawm`, `great bass shawm` and `great bass
     crumhorn` wait for a range
-  - [ ] `DOUBLE_REED_HELD_BACK`, the guard for every held name: one (`aulos`), refused as a catalog
+  - [ ] `DOUBLE_REED_HELD_BACK`, the guard for every held name: two (`aulos`, and `balaban` for its
+    own build), refused as a catalog
     name or an alias by a test, and compared with the sheet by the code check. Every other wait is a
     sourced range or a target that waits for one (the sarrusophones' `sub-audio fundamentals` was
     dropped from the guard when `b flat contrabass sarrusophone` went to a sourced range)
@@ -3430,7 +3445,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
     and oboes with the aulos, 46 candidates and 23 alias names, 69 rows), the two sheets researched
     in parallel, and the shared files written up front by a setup agent. No code task was skipped by
     ruling: Task 3 added half A's contraforte and piccolo heckelphone and 4 aliases, Task 5 half B's
-    balaban and 7 aliases, and each half's rulings were applied after the reviews (the six
+    balaban (later held back) and 7 aliases, and each half's rulings were applied after the reviews (the six
     sarrusophones, `terz heckelphone`, `contraforte`, `balaban`, `sorna`)
   - [ ] Engine features named beyond the spec's table, for its "What the engine cannot make yet":
     none new. The one feature wait, `aulos`, names batch 7's "a sourced drone tuning", and the
@@ -3453,10 +3468,11 @@ This document tracks planned future features for the GlitchyGames project. Featu
     G6" (cited, but hedged, so a lead). No fetched source supports A6
   - [ ] `_duduk` builds every harmonic (`falling_series(count=10, decibels_per_octave=9.0)`, no
     `odd_only`) though the duduk is modelled as a cylinder (the Duduk page: "The unflattened reed
-    and cylindrical body"; the form check treats it as 422.111; the module docstring says "a
+    and cylindrical body"; the form check treats it as 422.111; `winds.py`'s module docstring says "a
     clarinet (a closed cylinder) favours odd harmonics"; `_capped_reed` does use `odd_only=True`).
-    `balaban` is a sound-alike of the duduk, so it inherits this, and so would `mey` and `guanzi` if
-    they ship
+    `balaban` would have inherited this, so it waits for its own build (a cylindrical bore) instead
+    of shipping as a sound-alike, and `mey` and `guanzi` meet the same question if they are ever
+    ranged
   - [ ] `zurna` is built as a cone (`_folk_shawm`) against the Zurna page's "It has a cylindrical
     bore, and a bell opening out in a parabolic curve". The line is uncited, and the same page says
     "a conical brass tube" and sits in "Single oboes with conical bore", so this is a conflict to
@@ -3511,13 +3527,13 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - [ ] Ranging the 61 range WAITs from maker and museum sources (MIMO, the Met once it answers, the
     Horniman, the Edinburgh and Bate collections, the Koizumi catalogue, Moeck, Moulder and the
     Renaissance Workshop Company), each row's notes recording what was searched; the six
-    sarrusophone sizes and `b flat contrabass sarrusophone` are the quickest if you accept their
-    infobox scores
+    sarrusophone sizes with an infobox and `b flat contrabass sarrusophone` are the quickest if you
+    accept their infobox scores (the `sopranino sarrusophone` has none)
   - [ ] Check the 23 earlier entries' ranges and builds against sources (the crumhorns, the `oboe`,
     the `piri`, `hichiriki` and `zurna` bores, the `duduk`'s series; none was checked beyond the
     entries named above)
   - [ ] The engine changes that unblock the waits above, most rows first: the 61 range waits need no
-    engine feature, then a sourced drone tuning (1); the 19 target waits follow their targets
+    engine feature, then a sourced drone tuning (1) and a cylindrical build (1, `balaban`); the 19 target waits follow their targets
   - [ ] The sheet's cells contain stray quote characters (some cells are CSV-quoted), so read it
     with Python's csv module rather than splitting on tabs
 - **Found**: batch 11's reviews (2026-11-12)

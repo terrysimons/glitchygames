@@ -211,7 +211,7 @@ the sound never plays where the picture does not (`--headless`, tests, replays, 
 
 ## The instrument catalog
 
-`glitchygames.audio.instruments` holds 693 ready-made instruments in 23 families. Each is an
+`glitchygames.audio.instruments` holds 692 ready-made instruments in 23 families. Each is an
 ordinary `Instrument`, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:
@@ -233,7 +233,7 @@ instruments.get('slapstick')                             # an alias: the same in
 | `flutes` | 33 | piccolo to contrabass flute, wooden flutes, sopranino to subcontrabass recorders, whistles, shakuhachi, ocarinas, and 3 sound-alikes (csakan, subcontrabass recorder, ryuteki) |
 | `clarinets` | 9 | E-flat to contrabass clarinet, basset horn, chalumeau |
 | `saxophones` | 8 | sopranino to contrabass, C melody |
-| `double reeds` | 26 | oboe family, bassoon and contrabassoon, heckelphone, sarrusophone, shawms, crumhorns, suona, zurna, duduk, and 3 sound-alikes (contraforte, piccolo heckelphone, balaban) |
+| `double reeds` | 25 | oboe family, bassoon and contrabassoon, heckelphone, sarrusophone, shawms, crumhorns, suona, zurna, duduk, and 2 sound-alikes (contraforte, piccolo heckelphone) |
 | `bagpipes` | 8 | Highland, uilleann, smallpipes, gaita, gaida, musette (drones built in) |
 | `free reeds` | 13 | accordions (dry, musette, bass), bandoneon, concertina, harmonicas, melodicas, sheng |
 | `brass` | 44 | piccolo trumpet to contrabass tuba, alto to contrabass trombone, mutes, historic and folk horns, and 2 sound-alikes (bass wagner tuba, soprano trombone) |
@@ -289,9 +289,9 @@ instruments.get('slapstick')                             # an alias: the same in
   `bass ah`) is in `voice_sound_alikes.py`, the builds in `voices.py`; the flutes' 3 (`csakan`, `subcontrabass recorder`, `ryuteki`) are
   in `flute_sound_alikes.py`, the builds in `flutes.py`; and the brass's 2 (`bass wagner tuba`, of
   `wagner tuba`, and `soprano trombone`, of `trumpet`) are in `brass_sound_alikes.py`, the builds in
-  `brass.py`; and the double reeds' 3 (`contraforte`, of `contrabassoon`, `piccolo heckelphone`,
-  of `heckelphone`, and `balaban`, of `duduk`) are in `double_reed_sound_alikes.py`, the builds in
-  `double_reeds.py` (190 sound-alikes in all).
+  `brass.py`; and the double reeds' 2 (`contraforte`, of `contrabassoon`, and `piccolo heckelphone`,
+  of `heckelphone`) are in `double_reed_sound_alikes.py`, the builds in
+  `double_reeds.py` (189 sound-alikes in all).
 - Each entry has a `title`, a `family` and its playing range, `lowest` and `highest` (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (`pitch='A4'`); it does not change

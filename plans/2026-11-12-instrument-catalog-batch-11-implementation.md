@@ -294,7 +294,9 @@ Decisions made in this plan (my calls, for the owner to check in #81):
   cylindrical build exists), so they stay out of `APPROXIMATING_NAMES`, but the form check
   refuses them as parents, and #81 reports both builds as bugs for the owner to rule on. A row
   its source relates to them (a guan) SHIPs its own build, is a sound-alike of an entry built
-  with its bore that its source also relates it to, or WAITs.
+  with its bore that its source also relates it to, or WAITs. (The controller's ruling after the
+  final review reversed this: `piri` joins `APPROXIMATING_NAMES`, and `balaban` waits for its own
+  build because `_duduk` models no cylinder. The text above is the plan as written.)
 - **No new approximation.** No double reed joins `APPROXIMATING_NAMES`. The Hichiriki page says
   "The instrument is particularly noted for the embai ("salted plum seasoning"), a kind of
   pitch-gliding technique." (cited), and the Duduk page that players "bend" notes; a glide into a

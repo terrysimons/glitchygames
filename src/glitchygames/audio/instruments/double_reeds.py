@@ -7,8 +7,9 @@ module ``winds.py``.
 
 Ranges are sounding pitch, after the standard orchestration ranges (Adler, *The Study of
 Orchestration*; Vienna Symphonic Library's instrument pages); folk instruments' are typical of the
-common keys. Timbres follow the instruments' acoustics: double reeds (cones) have every harmonic
-and are brighter.
+common keys. Timbres follow the instruments' acoustics: the conical oboes, bassoons and shawms
+have every harmonic (the shawms bright and hard-driven), the capped crumhorns (cylinders) odd
+harmonics only, and the duduk a soft, falling series of its own.
 """
 
 from __future__ import annotations
