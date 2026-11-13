@@ -2270,7 +2270,6 @@ def test_a_retuned_bagpipe_sounds_its_sourced_drones():
     ]
     assert retuned == list(BAGPIPE_RETUNED_DRONES)
     for name, drone_notes in BAGPIPE_RETUNED_DRONES.items():
-        assert drone_notes, name
         catalog_entry = instruments.entry(name)
         assert set(catalog_entry.sound_changes) == {'drones'}, name
         drone_hertz = [
@@ -2279,7 +2278,8 @@ def test_a_retuned_bagpipe_sounds_its_sourced_drones():
             if source_name.startswith('drone_')
         ]
         assert drone_hertz == [round(float(Note(note).to_hz()), 2) for note in drone_notes], name
-        assert instruments.get(name) != instruments.get(catalog_entry.sounds_like or ''), name
+        assert catalog_entry.sounds_like is not None, name
+        assert instruments.get(name) != instruments.get(catalog_entry.sounds_like), name
 
 
 def test_a_cylindrical_chanter_sounds_odd_harmonics():
@@ -2288,7 +2288,8 @@ def test_a_cylindrical_chanter_sounds_odd_harmonics():
     The chanter alone (its drones removed), at its middle note: a closed cylinder favours odd
     harmonics (Alban Faust, a maker, https://www.albanfaust.se/en/the-instrumentmaker/: "a
     single reed which sits on a cylindrically drilled chanter"), where every older bagpipe's
-    chanter has every harmonic.
+    chanter has every harmonic. Here the cylinder's second and fourth are under 0.05 of the
+    first and the Highland pipe's second is above 0.6 (measured 0.815).
     """
 
     def relative_harmonics(name: str) -> list[float]:
@@ -2312,4 +2313,4 @@ def test_a_cylindrical_chanter_sounds_odd_harmonics():
     highland = relative_harmonics('highland bagpipe')
     assert cylinder[1] < 0.05
     assert cylinder[3] < 0.05
-    assert highland[1] > 0.3
+    assert highland[1] > 0.6

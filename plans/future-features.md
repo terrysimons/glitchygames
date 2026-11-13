@@ -3654,10 +3654,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
     `drones` may change. The tests changed for it: `CHANGED_SOUND_ALIKE_NAMES` no longer holds
     the bagpipes, the sound-alike test's equality skips the retuned (they must differ from the
     parent) and `test_a_retuned_bagpipe_sounds_its_sourced_drones` pins each one's drones. None
-    ships: the table `BAGPIPE_RETUNED_DRONES` is empty. That test's `assert drone_notes` fails for
-    a droneless retuned bagpipe (`drones=()`, as the plan allowed), so a later batch that ships
-    one must relax it to the hertz list. Retuned sound-alikes were considered for
-    `marktsackpfeife` (a `highland bagpipe` sound-alike at G4-A5 with drones E3 and A2, refused
+    ships: the table `BAGPIPE_RETUNED_DRONES` is empty. The test first asserted `drone_notes`,
+    which fails for a droneless retuned bagpipe (`drones=()`, as the plan allowed); the assert
+    was removed in the final review, so the test checks the hertz list alone. Retuned
+    sound-alikes were considered for `marktsackpfeife` (a `highland bagpipe` sound-alike at G4-A5 with drones E3 and A2, refused
     below) and `dudy` (a `sackpipa` sound-alike with an E♭1 drone, below)
   - [ ] `dudy` was shipped and then went back to waiting (a sourced range). Pavel Číp & synové (a
     dudy maker, histnastroje.cz/dudy-lidove/) give the bore ("Vrtání píšťal válcové. Tvorba tónu
@@ -3699,7 +3699,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
     Long drone sounds on tone A, short drone sounds on tone e⁰"), which is not a maker or society
     (batch 9's `quenacho` precedent). If you accept Kraft's page, the row becomes a retuned
     sound-alike of `highland bagpipe`, G4-A5, `drones=((164.81, 0.45), (110.0, 0.55))` (E3 and A2;
-    the saved page is `marktsackpfeife--2.txt`). It would be the batch's only retuned sound-alike
+    the saved page is the sheet row's). It would be the batch's only retuned sound-alike
   - [ ] One-note instruments waiting for a range: `sruti upanga`, a drone with no chanter ("It is
     used merely as a drone; the holes ... are wholly or partially stopped with wax so as to tune
     the instrument to the pitch desired"). Should one ship as a fixed-pitch entry? (the same
@@ -3879,8 +3879,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
     `sac de gemecs`, `parkapzuk`, `tulug`, `mushak baja` and `dudy`) each followed a review round:
     the half A sheet had one fix commit, half B two, so the sheet's own history holds the first
     readings
-  - [ ] Parked minors from the reviews: Task 1's banner (above) and its `assert drone_notes`
-    (added in Task 3's commit); the `tulum` row's "(Laz: guda)" quote is a rendering of a
+  - [ ] Parked minors from the reviews: Task 1's banner (above) and the `assert drone_notes`
+    (added in Task 3's commit, removed in the final review); the `tulum` row's "(Laz: guda)" quote is a rendering of a
     template, not literal text; the Herri Musika record quoted in `dudy` was fetched and not
     saved (its row is unranged); the `sakkipilli` and `sackpipa` rows apply the generic-term
     exception (each page also makes the word one revived instrument's name); `volynka`'s `hs` is

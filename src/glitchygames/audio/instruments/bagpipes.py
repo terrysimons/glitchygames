@@ -39,7 +39,7 @@ HIGHLAND_LEVELS: Final[tuple[float, ...]] = (
 DRONE_LEVELS: Final[tuple[float, ...]] = (1.0, 0.7, 0.55, 0.4, 0.3, 0.22, 0.15, 0.1)
 SWEET_CHANTER_LEVELS: Final[tuple[float, ...]] = (1.0, 0.55, 0.4, 0.26, 0.17, 0.1, 0.06, 0.035)
 SMOOTH_DRONE_LEVELS: Final[tuple[float, ...]] = (1.0, 0.3, 0.12, 0.05)
-# A cylindrical single-reed chanter: SWEET_CHANTER_LEVELS' odd harmonics with the even ones silent.
+# A cylindrical chanter: SWEET_CHANTER_LEVELS' odd harmonics with the even ones silent.
 # The odd-harmonics-only shape is sound design, from a closed cylinder favouring odd harmonics;
 # the bore itself is sourced (Alban Faust, a maker, https://www.albanfaust.se/en/the-instrumentmaker/:
 # "a single reed which sits on a cylindrically drilled chanter")
