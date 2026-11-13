@@ -20,6 +20,7 @@ from glitchygames.audio.instruments.drums import DRUMS_AND_PERCUSSION
 from glitchygames.audio.instruments.electromechanical import ELECTROMECHANICAL
 from glitchygames.audio.instruments.electronic import ELECTRONIC
 from glitchygames.audio.instruments.flutes import FLUTES
+from glitchygames.audio.instruments.free_reeds import FREE_REEDS
 from glitchygames.audio.instruments.idiophones import FRICTION_INSTRUMENTS, PLUCKED_IDIOPHONES
 from glitchygames.audio.instruments.keyboards import KEYBOARDS
 from glitchygames.audio.instruments.noise_makers import NOISE_MAKERS
@@ -29,7 +30,7 @@ from glitchygames.audio.instruments.plucked_strings import PLUCKED_STRINGS
 from glitchygames.audio.instruments.sound_effects import SOUND_EFFECTS
 from glitchygames.audio.instruments.strings import HARPS, STRUCK_STRINGS
 from glitchygames.audio.instruments.voices import CHOIRS, VOICES
-from glitchygames.audio.instruments.winds import FREE_REEDS, SAXOPHONES
+from glitchygames.audio.instruments.winds import SAXOPHONES
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
