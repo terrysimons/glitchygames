@@ -13,13 +13,9 @@ from glitchygames.audio.instruments.aliases import ALIASES
 from glitchygames.audio.instruments.brass import BRASS
 from glitchygames.audio.instruments.catalog import ENTRY_NAME_PATTERN, CatalogEntry, Family, Tag
 from glitchygames.audio.instruments.drums import DRUMS_AND_PERCUSSION
+from glitchygames.audio.instruments.electronic import ELECTRONIC
 from glitchygames.audio.instruments.idiophones import FRICTION_INSTRUMENTS, PLUCKED_IDIOPHONES
-from glitchygames.audio.instruments.keyboards import (
-    ELECTROMECHANICAL,
-    ELECTRONIC,
-    KEYBOARDS,
-    ORGANS,
-)
+from glitchygames.audio.instruments.keyboards import ELECTROMECHANICAL, KEYBOARDS, ORGANS
 from glitchygames.audio.instruments.noise_makers import NOISE_MAKERS
 from glitchygames.audio.instruments.percussion import TUNED_PERCUSSION
 from glitchygames.audio.instruments.plucked_strings import PLUCKED_STRINGS

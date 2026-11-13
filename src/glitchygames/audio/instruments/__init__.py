@@ -8,6 +8,7 @@ Usage:
     instruments.entry('alto saxophone').playing_range   # (Note('Db3'), Note('Ab5'))
     instruments.names(family=instruments.Family.BRASS)  # every brass instrument's name
     instruments.names(tag=instruments.Tag.MECHANICAL)   # every entry carrying a tag
+    instruments.names(tag=instruments.Tag.CHIP)         # every sound-chip voice
     instruments.get('slapstick')                        # an alias: the same instrument as 'whip'
 
 Every entry is an ``Instrument`` made from the engine's own parts (waves from overtone series,
@@ -23,13 +24,22 @@ Three families hold the instruments that are neither struck bars nor blown: pluc
 (``kalimba``, ``mbira``, ``music box``, ``sansula``), friction instruments (``glass harmonica``,
 ``glass harp``, ``terpodion``) and noise makers (``whip crack``, ``diaphone``, ``air horn``,
 ``vehicle horn``, ``party horn``). A ``Tag`` marks a quality across families (``Tag.MECHANICAL``,
-on the ``music box``), so ``names(tag=...)`` finds those wherever they sound.
+on the ``music box``; ``Tag.CHIP``, on the sound-chip voices such as ``chip square``, ``sn76489``
+and ``nes triangle``), so ``names(tag=...)`` finds those wherever they sound.
 
 Electromechanical takes the electric pianos (``tine electric piano``, ``reed electric
 piano``), the ``clavinet`` and the ``tonewheel organ ...`` registrations from keyboards and
 organs, and adds the ``hohner pianet``. Sound effects is a new family (``thunder sheet``,
 ``rain machine``, ``ocean drum``, ``cannon``, ``coconut shells``, ``door slam``), each effect
 playable as a note.
+
+Electronic (26 entries) holds the family's builds in ``electronic.py`` (``theremin``, ``ondes
+martenot``, the synth patches such as ``saw lead`` and ``synth pad``, the chiptune voices such as
+``chip square`` and ``nes triangle``) and its sound-alikes in ``electronic_sound_alikes.py``: sound
+chips (``sn76489``, ``ay 3 8910``, ``pc speaker``, ``sid sawtooth``) and drum-machine voices
+(``electronic tom``, ``electronic cowbell``, ``syndrum``). It is pitched, but the drum-machine
+voices are unpitched, as the drums' are, and a chip's range is its hertz at a sourced clock (from a
+chip page such as Wikipedia's or NESdev's, or a datasheet's formula), rounded inward to notes.
 
 Drums and percussion (237 entries) holds the family's builds in ``drums.py`` (hand drums such as
 ``daf``, ``dhol``, ``kendang`` and ``mridangam``, snares, gongs such as ``agung`` and ``jing``,
