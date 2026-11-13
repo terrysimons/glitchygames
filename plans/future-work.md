@@ -1108,7 +1108,9 @@ drafted issue text. Not posted yet:
   plugin the site uses (mkdocstrings, gen-files, macros, section-index, autorefs, search) and the
   hook in `scripts/mkdocs_hooks.py` (the complexity and performance generation, the caches it
   clears), then drop the `mkdocs<2.0` pin and the link, and update `CLAUDE.md`'s documentation
-  note and `tests/test_workspace_config.py`'s link test.
+  note and `tests/test_workspace_config.py`'s link test. The plan, written 2026-11-13 after a
+  trial build (hooks, gen-files and `gh-deploy` unsupported, page dates only planned, no strict
+  mode): `plans/2026-11-13-zensical-migration.md`. Not started (the owner, 2026-11-13).
 
 ## Raspberry Pi speedups (user request, 2026-11-04)
 
