@@ -1750,10 +1750,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 13 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 14 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
   batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682
-  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11, 693 after batch 12, 703 after batch 13) toward every instrument a game might
+  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11, 693 after batch 12, 703 after batch 13, 704 after batch 14) toward every instrument a game might
   want, in one verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates,
   only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
@@ -1976,7 +1976,46 @@ This document tracks planned future features for the GlitchyGames project. Featu
   `baldwin organ` and `farfisa` to electronic, `compton electrone` and `choralcelo` to
   electromechanical, `hammond b3` and `telharmonium` already decided there, `vox continental`
   an existing alias of `combo organ`); and `chromelodeon` is dropped to free reeds. No name the
-  sheets found belongs to the clarinets batch. Next: clarinets
+  sheets found belongs to the clarinets batch.
+  Batch 14 (clarinets) is done: of its 51 sheet rows (45 candidates and 6 audit alias names) 1
+  became a sound-alike (`c clarinet`, of `clarinet`, E3-C7 sounding as written: the Vienna
+  Symphonic Library's "On the C clarinet this is also the range of sounding pitches"), 40 wait
+  (33 for a sourced range, 3 for a sourced reed and bore, 4 because their target waits: `maui
+  xaphoon`, `pocket sax` and `xaphoon de catalunya` for `xaphoon`, `argul` for `arghul`) and 10
+  were dropped (SOUND_ALIKE 1, WAIT 40, DROP 10); nothing was built and no alias was added. The
+  family grew from 9 to 10 entries (704 in all, 120 aliases and 197 sound-alikes). `clarinets.py`
+  now holds the family (moved unchanged from `winds.py`, which keeps the saxophones and free
+  reeds; its table is `_CLARINET_BUILDS`, and `CLARINETS` is `_CLARINET_BUILDS +
+  CLARINET_SOUND_ALIKES`) and `clarinet_sound_alikes.py` its sound-alike. The bore boundary: a
+  clarinet is a single reed on a cylindrical bore (the saxophones' is a conical one), and a ranged
+  row whose sources give both or neither waits for `a sourced reed and bore`, a source wait this
+  batch added (the three `birbyne` sizes, whose encyclopedia gives the improved type "a
+  cylindrical or a conical bore"). No drone or detuned double clarinet shipped (the double
+  clarinets all wait for a sourced range), so `_drone_clarinet` and `chorus_cents` were not
+  added. `CLARINET_HELD_BACK`, the guard for every wait that is not for a range or a target,
+  holds 3 names (`birbyne`, `contrabass birbyne` and `tenor birbyne`, each `a sourced reed and
+  bore`). The base of the branch is `5bc859c7` (batch 13's HEAD, which merged batch 12's tip).
+  Hornbostel-Sachs has no 422.221 or 422.222 (MIMO: 422.22 "Sets of reedpipes with single
+  reeds", narrower only by -5 and -62), so the plan's bore split by those digits was dropped and
+  the form check reads a set's bore from the quoted source's words. The audit's "Gaps you could
+  not close" (`plans/data/instrument-audit/clarinets.md`: the folk pipes' ranges and timbres; Pku
+  and the other names not fetched; the reclam de xeremies page possibly mixed with another; the
+  pibgorn disambiguation page; MIMO, the Met, the Horniman and Grove not searched; the African,
+  Ethiopian and Berber, Indigenous American, Chinese and Korean, Caucasian and Spanish
+  single-reed pipes; the Clarinet family page's tail, the albisiphone and the contrabass
+  clarinets in other keys) and the saxophones audit's xaphoon keys (C, B-flat, D, G) are a later
+  pass over this family. The hand-offs are decided here: `tarogato`, `octavin`, `heckel clarina`
+  and `heckelphone clarinet` (each a conical single reed, H-S 422.212) and `sarune etek` (a
+  single reed with a conical bore, on a 2017 university journal article) are dropped to the
+  saxophones, so the saxophones batch decides them; the xaphoon's alias names are decided here
+  (`xaphoon` waits for a sourced range, and `maui xaphoon`, `pocket sax` and `xaphoon de
+  catalunya` wait for it), so the saxophones batch must not decide them again; `sneng` stays as
+  batch 10 decided it (WAIT, brass); `cifte` and `argun` are dropped (no cited page gives them as
+  the arghul's name: the Arghul page gives the cifte a section of its own), the cifte as its own
+  double clarinet being a lead for a later pass; no row was dropped to double reeds, free reeds
+  or bagpipes for a later pass of those families (`pey pok` and `tarpa` wait for a range, their
+  free reed being unsourced); and no name the sheets found belongs to the keyboards batch. Next:
+  keyboards
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
@@ -2004,7 +2043,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sheet `plans/data/instrument-audit/batch-12.tsv`
 - **Plan (batch 13)**: `plans/2026-11-12-instrument-catalog-batch-13-implementation.md`; audit
   sheet `plans/data/instrument-audit/batch-13.tsv`
-- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 and 13 done (requested by the owner 2026-11-06)
+- **Plan (batch 14)**: `plans/2026-11-12-instrument-catalog-batch-14-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-14.tsv`
+- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 and 14 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
@@ -4232,6 +4273,214 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Found**: batch 13's reviews (2026-11-13)
 - **Status**: TODO
 - **Priority**: Medium (before the clarinets batch builds on the same catalog)
+
+### 84. Sound Engine: The Owner's Checks on Instrument Catalog Batch 14 — TODO
+- **Goal**: confirm or overturn the calls made while batch 14 of #70 ran, and listen to its one
+  new instrument (clarinets 9 to 10 entries). Nothing was built, no alias was added, 1
+  sound-alike (`c clarinet`), 40 waits and 10 drops in the sheet's 51 rows (SHIP 0,
+  SOUND_ALIKE 1, WAIT 40, ALIAS 0, DROP 10). Two rows were reversed during the batch (the list
+  below): `d clarinet` went from a sound-alike to a wait, and `xaphoon` from ranged to a wait
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+  level, filter and release is sound design unless a source is cited in the code; the folder is
+  `build/instruments/clarinets/`):
+  - [ ] The new builds: none (no row shipped; no drone or detuned build, so `_drone_clarinet` and
+    `chorus_cents` were not added, and there is no droned build to compare with the catalog
+    clarinet its values would have been copied from)
+  - [ ] The sound-alike beside its parent (it sounds as its parent does): `c clarinet` (of
+    `clarinet`, E3-C7 sounding as written, against the parent's D3-Bb6)
+  - [ ] The aliases: none shipped
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-14.tsv`; the sheet's 51 rows:
+  SHIP 0, SOUND_ALIKE 1, WAIT 40, ALIAS 0, DROP 10):
+  - [ ] Every WAIT (40 rows), by reason:
+    - 33 for a sourced range: `b natural clarinet`, `basset clarinet`, `bohlen pierce clarinet`,
+      `clarinet d amore`, `d clarinet`, `low g clarinet`, `mock trumpet`, `octocontrabass
+      clarinet`, `piccolo clarinet`, `saxonette`, `venova`, `xaphoon`, `alboka`, `arghul`,
+      `bulban`, `dilli tuiduk`, `diplica`, `dozaleh`, `ganurags`, `launeddas`, `mijwiz`, `pepa`,
+      `pey pok`, `pibgorn`, `pilili`, `pungi`, `reclam de xeremies`, `sipsi`, `stock and horn`,
+      `tarpa`, `toleat`, `zhaleika` and `zummara`. Range first: a row's notes keep its next
+      blocker once ranged (`octocontrabass clarinet`: sub-audio fundamentals; `venova`: its own
+      build, a branched pipe; `xaphoon`: a sourced reed and bore; `mijwiz`: a sourced detune; the
+      double clarinets `arghul`, `launeddas`, `diplica` and `pungi`: their drones' tuning; `pilili`:
+      a sourced reed and bore)
+    - 3 for a sourced reed and bore: `birbyne`, `tenor birbyne` and `contrabass birbyne`
+    - 4 because their target waits: `maui xaphoon`, `pocket sax` and `xaphoon de catalunya` (for
+      `xaphoon`) and `argul` (for `arghul`)
+  - [ ] The bore boundary: a cylindrical single reed is this family's, a conical one the
+    saxophones' (Hornbostel-Sachs 422.211 against 422.212), a double reed, a free reed or a bag
+    another family's. Each row it moved: `tarogato`, `octavin`, `heckel clarina`, `heckelphone
+    clarinet` and `sarune etek` are dropped to the saxophones (each a single reed with a conical
+    bore, quoted in its row). The new wait name `a sourced reed and bore` holds a ranged row whose
+    sources give both reed and bore, or give two bores with none called usual: the three
+    `birbyne` sizes (the Visuotine lietuviu enciklopedija gives the improved type "a cylindrical
+    or a conical bore"), each ranged from that encyclopedia by its Helmholtz letters with octave
+    marks (a-f3, H-e2, Fis1-d1, read as A3-F6, B2-E5 and F#1-D4). Confirm the boundary, and that
+    Helmholtz letters with octave marks fix the octave (batch 7 accepted the bowed psaltery's
+    "f - f'''"): if not, the three move to `a sourced range` and leave `CLARINET_HELD_BACK`
+  - [ ] A cylindrical clarinet as a sound-alike: the catalog's `_clarinet` already favours odd
+    harmonics, so no new table; a SHIP only for drones or a sourced detune; bells, materials,
+    keys and colour words are no trait. `c clarinet` is the only one that shipped
+  - [ ] The parent ruling (the source's relation first, else the nearest lowest note, `chalumeau`
+    only by relation, sizes sharing their type's parent), and each sound-alike's parent:
+    `c clarinet` is of `clarinet` (VSL relates the C clarinet to "the other two clarinets", the B
+    flat and the A; `clarinet`'s D3 is 2 semitones from the C clarinet's E3, `a clarinet`'s C#3 and
+    `e flat clarinet`'s G3 each 3)
+  - [ ] The range ruling (sounding, a written range only with its stated transposition and a key
+    in the name not one, never hedged, a width, letters, a key or one pitch, makers' and museums'
+    pages over uncited Wikipedia lines, nothing below A0 or above C8, one-note instruments, cited
+    Wikipedia lines whose citation supports them), and every derived range: `c clarinet` E3-C7
+    (VSL: "On all clarinets the written compass ranges from E3 - C7. On the C clarinet this is
+    also the range of sounding pitches."). Two rows were reversed by it. `d clarinet` was a
+    sound-alike (F#3-D7 from VSL's written E3-C7 plus its "the D clarinet a major second"), but
+    VSL's compass line is a statement about notation ("This correlation between notation and
+    sound means that the written compass of all clarinets ranges from E3 to C7"), false for the
+    basset horn and the bass clarinet, and the E-flat page's cited Gangl line puts that sibling's
+    written top at G6, so the row waits (rulings 5 and 7: nothing from a generalisation or a
+    sibling); cost: one sound-alike, of `e flat clarinet`. `xaphoon` was ranged C4-C6 from
+    Wikipedia's lowest note (cited to Grove, unopened) and the maker's "Two complete octaves", two
+    sources for one range, so it waits (range ruling 1: one source). The Clarinet family page's
+    range cells are uncited (the contra-alto's and contrabass's written cells alone cite Blatter),
+    so they range nothing under ruling 10: `piccolo clarinet` (C4-Eb7), `b natural clarinet`
+    (Eb3-Bb6), `low g clarinet` (B2-G6) and `basset clarinet` (A2-A6) wait for it. Confirm the
+    rulings, and say whether an uncited family table should range anything
+  - [ ] The drone ruling and the double-pipes ruling (`_drone_clarinet` and `chorus_cents` if
+    added, with each value's source and the copied sound design: `sackpipa`'s 0.35 drone level,
+    the slope and low pass of the clarinet the parent ruling chose): neither was added, because no
+    double clarinet has a sourced range. The `mijwiz` is a detuned unison pair by Grove (via the
+    Double clarinet page, "often with one pipe tuned slightly higher than the other to produce
+    acoustic beats"), with no cents given, so once ranged it waits for `a sourced detune`; the
+    Koizumi Fumio archive (Tokyo University of the Arts) gives its specimens' lowest notes, spans
+    and drone pitches, each its own key and none called standard, so none is a range
+  - [ ] The Bohlen-Pierce clarinet's scale as no trait (the 13-step tritave is the pitches a
+    sequence asks for, not the instrument's sound): `bohlen pierce clarinet` waits for a sourced
+    range, since one maker (Fox) offers soprano, tenor and contra sizes with none called
+    standard. Fox's tuning table's altissimo top (1700.1 Hz) was ruled an extreme (range ruling 3);
+    its bore counted as sourced by reference ("the same bore, same mouthpiece" as the B-flat
+    clarinet, whose bore VSL gives as cylindrical)
+  - [ ] The makers' ruling (`xaphoon`, `venova`) and the one-off and unsourced rows, with the
+    words "no fetched source describes it" on every row whose page was not found: `xaphoon` is the
+    maker's product (its cylindrical bore only in Wikipedia's uncited lead and infobox, the maker
+    naming none, so it also waits for a reed and bore); `venova` (Yamaha: the YVS-100's specs give
+    only "fully chromatic 2-octave range", the alto's "F33-F57" and tenor's "C28-C52" use a
+    numbering the page does not name; Yamaha says a branched pipe makes the cylindrical bore sound
+    conical, which would wait for `its own build (a branched pipe)`). No row carries "no fetched
+    source describes it": every row's page was found (`toleat` is West Javanese, from Indonesian
+    Wikipedia, not the audit's "Philippines"; `sarune etek` has a journal article, below)
+  - [ ] `sarune etek` was dropped to the saxophones on a 2017 university journal article (Danny
+    Ivanno Ritonga, "Teknik Permainan Instrumen Musik Tradisional Batak Toba (Gondang Hasapi)",
+    Bahas 28(2), Universitas Negeri Medan: "berlidah tunggal", single-reed, bored "seperti bentuk
+    kerucut", like a cone). The controller accepted it as scholarship of the same tier as Grove:
+    range ruling 7 lists encyclopedias, makers, museums and conservatory references, not
+    journals. Confirm it; cost if wrong: only the reason and the #70 hand-off change, to DROP "no
+    fetched source describes it" (or WAIT `a sourced range`, its notes being do-re-mi-fa-sol with
+    no octave)
+  - [ ] Generic and ambiguous terms dropped (`hornpipe`, `memet`, `birbyne` and the rest, as
+    decided): `hornpipe` is a generic term (its page makes it "a specific instrument or a class",
+    the specific one being the `pibgorn`, which has its own row) and `memet` a generic term for the
+    ancient Egyptian single-reed pipes. `birbyne` is not an ambiguous name (its encyclopedia gives
+    the improved type a single reed), only one of uncertain bore. `cifte` and `argun` are dropped
+    because no cited page gives them as the arghul's name (the Arghul page gives the cifte a
+    section of its own, with Koizumi No. 611 and No. 610 "argun" with a drone as separate
+    specimens); `argul` is the arghul's alias, as the page spells it. `sneng` stays as batch 10
+    decided it (WAIT, brass: "a bamboo single-free-reed mouthpiece" is a free reed)
+  - [ ] The module move: `clarinets.py` holds the family (moved unchanged from `winds.py`, which
+    keeps the saxophones and free reeds; the way batches 9, 11, 12 and 13 moved their families),
+    its table is `_CLARINET_BUILDS` and `CLARINETS` is `_CLARINET_BUILDS +
+    CLARINET_SOUND_ALIKES`. The before-and-after record of all 703 builds found `changed: []`.
+    The module's first docstring line was 123 columns, closed at first with a `ruff: ignore` and
+    then shortened by the controller
+  - [ ] `CLARINET_HELD_BACK`, the guard for every non-range wait: 3 names (above), refused as a
+    catalog name or an alias by a test and compared with the sheet by the code check. The 4
+    target waits (`maui xaphoon`, `pocket sax`, `xaphoon de catalunya`, `argul`) are not held,
+    because their targets wait only for a range. `pilili` was held back for a reed and bore until
+    the review: its maker's "des1 - c2" tuning list (a seventh) sits on a page that says "a
+    diatonic scale of one octave", so it states no compass and the row waits for a range
+  - [ ] The two-half split as explicit lists (half A, the orchestral and modern clarinets, 17
+    candidates and 3 alias names, 20 rows; half B, the folk single-reed pipes, 28 candidates and 3
+    alias names, 31 rows), the sheets researched in parallel, and the shared files (the names
+    file, the candidate lists and the three check scripts) written up front by a setup agent. Task
+    5 skipped its Steps 2 and 3 by ruling (half B shipped nothing, so it only filled
+    `CLARINET_HELD_BACK` and ran the code check); Tasks 3 and 5 went to one implementer, and
+    Task 3 shipped only `c clarinet`
+  - [ ] The size chain left out: would you add the clarinet sizes to
+    `test_sized_families_descend_from_highest_to_lowest`? (It would test the 9 earlier entries'
+    unsourced ranges, so this batch did not.)
+  - [ ] Engine features named beyond the spec's table, for its "What the engine cannot make yet":
+    `a sourced reed and bore` (a source wait this plan added; 3 rows held back, plus the
+    `xaphoon` and `pilili` once ranged) and, once ranged, `its own build (a branched pipe)` for
+    `venova`, `a sourced detune` for `mijwiz` and `a sourced drone tuning` for the double
+    clarinets
+- **Bugs to report** (found while building batch 14; none fixed here):
+  - [ ] The 9 earlier entries carry no source comment, and no range or build of theirs was checked
+    against a source beyond those named here. VSL matches `clarinet` (D3-Bb6) and `a clarinet`
+    (C#3-A6) exactly, so both can be sourced as they stand
+  - [ ] `e flat clarinet`'s top note: the catalog has C7, but the E-flat clarinet page's cited
+    Gangl 2021 line says "Many orchestration and instrumentation books show the highest written
+    note for the E-flat clarinet as G6", which sounds Bb6; VSL's "all clarinets E3-C7" written
+    plus its "minor third higher" gives Eb7. Two sources, two different tops, neither the catalog's
+  - [ ] Five existing clarinet ranges differ from the Clarinet family page's, whose range cells
+    are uncited (so they are leads, not contradictions): basset horn F2-F6 against the catalog's
+    F2-F5, alto G2-Eb6 against Bb5, bass Bb1-Bb5 against F5, contra-alto Gb1-C5 against G4 and
+    contrabass Bb0-G4 against Bb3 (the audit's "Range checks")
+  - [ ] `chalumeau`'s F3-Bb4 has no source (the audit: "Wikipedia gives no per-size range ...
+    UNVERIFIED"); `mock trumpet` is not an alias of it (Dart calls it the chalumeau's English name
+    but Rice says it "predated the chalumeau", and its reed is idioglot)
+  - [ ] `winds.py`'s docstring sentence on folk ranges ("typical of the common keys") has no
+    source; `clarinets.py`'s docstring dropped it when the family moved (it holds no folk pipe)
+  - [ ] English Wikipedia's Tarpa and Pey pok pages cite sources that do not say what they are
+    cited for (free reeds: chandrakantha.com says only "a type of a hornpipe of the Pungi class";
+    Folkways FE 4082's notes say "single-reed" without saying free). Its Birbyne page gives a G6
+    top that the national encyclopedia gives as F6 (the other tenor and contrabass ranges are
+    uncited there too)
+  - [ ] The audit's "toleat: Philippines" is wrong (West Java), and its "sarune etek: rolled-leaf
+    bell? (memory)" is unconfirmed (the journal gives a wooden funnel resonator)
+  - [ ] A warning to understand: `pytest -W error` fails on a DeprecationWarning at import ("aifc
+    was removed in Python 3.13", from the standard-aifc package that `speech_recognition`
+    imports). It is third-party and present before this batch (#81 to #83 record it); a new
+    warning in these runs would be a new finding
+- **Follow-ups**:
+  - [ ] The audit's gaps (`plans/data/instrument-audit/clarinets.md`, listed in #70) are a later
+    pass over this family
+  - [ ] Ranging the 33 range WAITs from maker and museum sources (Buffet Crampon's Prestige Basset
+    page returned 404; MIMEd 16364 returned 403; Backun, Ripamonti, Orsi, Foag, Wurlitzer and
+    Leblanc gave only lowest notes), each row's notes recording what was searched
+  - [ ] Check the 9 earlier entries against sources (ranges and builds)
+  - [ ] The engine changes that unblock the waits above, most rows first: the 33 range waits need
+    no engine feature, the 3 birbyne need a source that gives one bore, `octocontrabass clarinet`
+    needs sub-audio fundamentals, `venova` a build of its own, `mijwiz` a sourced detune and the
+    double clarinets their drones' tuning
+  - [ ] The cifte as its own double clarinet (Koizumi No. 611: two fingered pipes; No. 610 "argun"
+    with a drone), the old folk birbyne (single or double reed) and the modified ganurags in five
+    sizes (VLE) are leads, all unranged
+- **Incidents and process**:
+  - [ ] The Pi hook was skipped while the Pis were unreachable, so pushes skip it (the owner,
+    2026-11-13)
+  - [ ] Batch 10 now carries batch 12 at the owner's request ("Merge 12 into 10 since 10 needs to
+    rerun anyway"). The merge first had to fix a stale `DOUBLE_REEDS` import that broke batch
+    10's import (fce13952)
+  - [ ] The plan had a defect: Hornbostel-Sachs has no 422.221 or 422.222 bore split (MIMO: 422.22
+    "Sets of reedpipes with single reeds", narrower only by -5 and -62; the Wikipedia list
+    agrees: "422.22 Sets of clarinets." with no split). The controller patched
+    `build/batch-14-form-check.py` to accept 422.22 for a set and take its bore from the quoted
+    bore words, and half B's `hs` cells were fixed to match
+  - [ ] The syft pin is 1.57.1 on the stack (the owner's choice, batch 12's note), and batch 14's
+    base is batch 13's HEAD `5bc859c7`, which merged batch 12's tip
+  - [ ] The two sheet halves were researched in parallel, and pushes and stacked PRs were made
+    without asking (the owner, 2026-11-12, #78)
+  - [ ] The reversals above (`d clarinet`, `xaphoon`, `pilili`) each followed a review round: the
+    half A sheet had one fix commit and half B one, so the sheet's own history holds the first
+    readings. `sarune etek` stayed a drop on the controller's ruling that a journal article is
+    scholarship
+  - [ ] The first full `uv run pytest` of Task 6 failed one test on the native (cocoa) run, `tests/engine/test_game_engine.py::TestReplayRestartExitStatus::test_a_status_no_exit_code_names_is_passed_through` (a `frames_vary` test: its watched replay shows the live window's mouse focus), while `nox -s lint-docs` ran beside it on the same machine; the test passed alone and the whole suite passed on the rerun (26216 passed, 100% coverage). Likely load or pointer state, not this batch (no engine code changed), but a flaky native-driver test is a finding
+  - [ ] Parked minors from the reviews: the `heckelphone clarinet` row now quotes its H-S line;
+    `alboka`'s Auñamendi paraphrase is marked as an unsaved lead (the page sits behind a bot wall,
+    read only through a fetch tool); `xaphoon de catalunya` counts an uncited Wikipedia paragraph
+    as the alias citation (ruling 10 covers ranges, bores, drones and traits, not alias names);
+    `test_no_clarinet_name_held_back...` passed vacuously until Task 5 filled the guard; the sheet's
+    cells contain stray quote characters (read it with Python's csv module); `c clarinet`'s comment
+    in `clarinet_sound_alikes.py` lacked a closing period (fixed by the controller)
+- **Found**: batch 14's reviews (2026-11-13)
+- **Status**: TODO
+- **Priority**: Medium (before the keyboards batch builds on the same catalog)
 
 ### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
 - **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,

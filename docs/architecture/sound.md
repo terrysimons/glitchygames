@@ -211,7 +211,7 @@ the sound never plays where the picture does not (`--headless`, tests, replays, 
 
 ## The instrument catalog
 
-`glitchygames.audio.instruments` holds 703 ready-made instruments in 23 families. Each is an
+`glitchygames.audio.instruments` holds 704 ready-made instruments in 23 families. Each is an
 ordinary `Instrument`, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:
@@ -231,7 +231,7 @@ instruments.get('slapstick')                             # an alias: the same in
 | Family | Entries | Examples |
 | --- | --- | --- |
 | `flutes` | 33 | piccolo to contrabass flute, wooden flutes, sopranino to subcontrabass recorders, whistles, shakuhachi, ocarinas, and 3 sound-alikes (csakan, subcontrabass recorder, ryuteki) |
-| `clarinets` | 9 | E-flat to contrabass clarinet, basset horn, chalumeau |
+| `clarinets` | 10 | E-flat to contrabass clarinet, basset horn, chalumeau, and 1 sound-alike (c clarinet) |
 | `saxophones` | 8 | sopranino to contrabass, C melody |
 | `double reeds` | 25 | oboe family, bassoon and contrabassoon, heckelphone, sarrusophone, shawms, crumhorns, suona, zurna, duduk, and 2 sound-alikes (contraforte, piccolo heckelphone) |
 | `bagpipes` | 9 | Highland, uilleann, smallpipes, gaita, gaida, musette, sackpipa (drones built in) |
@@ -291,9 +291,9 @@ instruments.get('slapstick')                             # an alias: the same in
   `wagner tuba`, and `soprano trombone`, of `trumpet`) are in `brass_sound_alikes.py`, the builds in
   `brass.py`; and the double reeds' 2 (`contraforte`, of `contrabassoon`, and `piccolo heckelphone`,
   of `heckelphone`) are in `double_reed_sound_alikes.py`, the builds in
-  `double_reeds.py`; the organs' 7 (`bourdon`, `salicional`, `voix celeste`, `organ oboe`, `organ
+  `double_reeds.py`; the clarinets' 1 (`c clarinet`, of `clarinet`) is in `clarinet_sound_alikes.py`, the builds in `clarinets.py`; the organs' 7 (`bourdon`, `salicional`, `voix celeste`, `organ oboe`, `organ
   krummhorn`, `organ tuba`, `posthorn`) are in `organ_sound_alikes.py`, the builds in `organs.py`;
-  and the bagpipes' table (`bagpipe_sound_alikes.py`) is empty so far (196 sound-alikes in all). A bagpipe's drones are fixed pitches inside its build, so a bagpipe
+  and the bagpipes' table (`bagpipe_sound_alikes.py`) is empty so far (197 sound-alikes in all). A bagpipe's drones are fixed pitches inside its build, so a bagpipe
   sound-alike in another tuning would carry its own drones as `sound_changes` (each at the pitch
   its source gives, equal-tempered like the chanter).
 - Each entry has a `title`, a `family` and its playing range, `lowest` and `highest` (sounding
