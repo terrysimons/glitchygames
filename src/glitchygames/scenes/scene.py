@@ -57,6 +57,7 @@ from glitchygames.recording import (
     post_input_event,
     set_live_game_code_running,
 )
+from glitchygames.render_target import display_surface, is_inner_context
 from glitchygames.scene_start import (
     ResumeBridge,
     SceneStartCapture,
@@ -306,7 +307,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         super().__init__()
 
         # None until the display is initialized (set later); get_surface() never raises
-        self.screen = pygame.display.get_surface()
+        self.screen = display_surface()
         self.update_type: str = 'update'
         # The engine's options (the game_engine setter sets them: the engine's own dict);
         # empty until an engine is set
@@ -422,7 +423,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
     def update_screen(self) -> None:
         """Update the screen reference when display becomes available."""
         if self.screen is None:
-            self.screen = pygame.display.get_surface()
+            self.screen = display_surface()
 
     @property
     def game_engine(self: Self) -> GameEngine | None:
@@ -1512,13 +1513,18 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         """Present the frame just run, unless the doors present frames themselves.
 
         A watched replay's frames are presented by its viewer's outer tick instead
-        (``EngineSources.presents_frames``; ``_present_held_frame``).
+        (``EngineSources.presents_frames``; ``_present_held_frame``). An inner context's frames
+        are never presented, whatever its doors say (a headless replay's present every frame):
+        its host shows the render target, which ``_show_frame`` only makes opaque.
 
         Args:
             full_update: True to flip the whole display (transitions); False to use the
                 configured update type.
 
         """
+        if is_inner_context():
+            self._show_frame(full_update=full_update)
+            return
         if active_sources().presents_frames:
             present_started_seconds = clock.measured_seconds()
             self._show_frame(full_update=full_update)
@@ -1540,6 +1546,10 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         the debug overlay or the doors' own overlay (a watched replay's status bar, drawn last:
         ``EngineSources.draw_overlay``).
 
+        An inner context's frame (glitchygames/render_target.py) is only made opaque: its host
+        shows the render target, so nothing here touches the window (decision 6 of
+        plans/2026-11-12-arcade-3-inner-game.md).
+
         Args:
             full_update: True to flip the whole display (transitions); False to use the
                 configured update type.
@@ -1548,8 +1558,11 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         if self.screen is not None:
             # Every presented frame is opaque: on a display with per-pixel alpha (cocoa) the
             # window shows alpha 0 as black, so a pixel copied from a surface carrying alpha 0
-            # would be a black hole only on macOS (glitchygames/opacity.py, BUGS.md #142)
+            # would be a black hole only on macOS (glitchygames/opacity.py, BUGS.md #142). A
+            # render target in the display's format has that alpha too, and its host copies it
             make_opaque(surface=self.screen)
+        if is_inner_context():
+            return
         # The overlay also draws during transitions (it reflects active_scene); captures stay clean
         offset_x, offset_y = self.screen_shake.offset
         pixel_offset = (round(offset_x), round(offset_y))
@@ -3007,6 +3020,10 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             # No NAME: the version alone, without a leading space
             caption = f'{caption} v{self.active_scene.VERSION}'.strip()
 
+        # The window's caption is its owner's: an inner context never sets it (row S2 of
+        # plans/2026-10-25-engine-context.md; glitchygames/render_target.py)
+        if is_inner_context():
+            return
         pygame.display.set_caption(caption, caption)
 
     def _configure_scene_fps(self) -> None:
@@ -3179,7 +3196,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # make every scene a reference cycle that only the cycle collector frees)
         self.next_scene: Scene | None = None
         self.rects = None
-        self.screen = pygame.display.get_surface()
+        self.screen = display_surface()
         assert self.screen is not None
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
@@ -3194,7 +3211,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         # Initial screen state.
 
-        self.screen = pygame.display.get_surface()
+        self.screen = display_surface()
         assert self.screen is not None
         # In the display's format (BUGS.md #143: convert() returns the converted surface)
         self.background = pygame.Surface(self.screen.get_size()).convert()

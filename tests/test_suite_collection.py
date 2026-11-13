@@ -1318,6 +1318,9 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/replay/test_replays_log_quietly.py': (
         "replays our members' goldens and bundled demos at the tools' log level"
     ),
+    'tests/test_every_recording_replays_inside_an_inner_game.py': (
+        "replays our members' goldens and bundled demos as inner games, beside each other"
+    ),
     'tests/replay/test_committed_recordings_present_every_frame.py': (
         'checks a watched 1x replay presents every frame of every committed recording'
     ),

@@ -455,6 +455,47 @@ def _internal_posts() -> InternalEventPosts:
     return current_context().value(slot=INTERNAL_POSTS_SLOT)
 
 
+@dataclasses.dataclass
+class PrivateEventQueue:
+    """An inner context's own event queue (audit rows S5 and S6).
+
+    SDL has one queue for the process, and the context that owns the window reads it. While
+    ``enabled``, this context's posts (``post_event``, ``post_input_event``) go here instead,
+    and its replay doors drain this instead of SDL's queue (and never block real input at SDL,
+    which belongs to the context that owns the window), so an inner game never takes an event
+    another context posted, nor leaves one for it to take.
+
+    An enabled queue accepts every post: SDL's blocking of an event type (``set_blocked``) does
+    not apply to it, and every post is reported as posted. Only replay doors drain it
+    (``ReplaySources``), so only a replaying context may enable it, or its posts would pile up
+    undrained: ``InnerGame`` (glitchygames/inner_game.py), the one that enables it, only replays.
+
+    Attributes:
+        enabled: True when the context posts to and drains this queue (an inner game's start
+            turns it on); False: SDL's queue is used, as for every ordinary game.
+        events: The posted events no drain has taken yet, in posting order.
+
+    """
+
+    enabled: bool = False
+    events: list[pygame.event.Event] = dataclasses.field(default_factory=list)
+
+
+PRIVATE_EVENT_QUEUE_SLOT: ContextSlot[PrivateEventQueue] = ContextSlot(
+    name='glitchygames.recording.private_event_queue', factory=PrivateEventQueue
+)
+
+
+def private_event_queue() -> PrivateEventQueue:
+    """Return the current engine context's private event queue.
+
+    Returns:
+        The queue (``enabled`` False on first read: SDL's queue is used).
+
+    """
+    return current_context().value(slot=PRIVATE_EVENT_QUEUE_SLOT)
+
+
 def start_tracking_internal_posts() -> None:
     """Become one more owner of the internal-post tracker (tracking runs from the first owner).
 
@@ -637,7 +678,13 @@ def _post_tracked(*, event: pygame.event.Event, is_input: bool) -> bool:
         True if pygame queued the event.
 
     """
-    was_posted = bool(pygame.event.post(event))
+    # An inner context's posts go to its own queue, never SDL's (audit row S5)
+    queue = private_event_queue()
+    if queue.enabled:
+        queue.events.append(event)
+        was_posted = True
+    else:
+        was_posted = bool(pygame.event.post(event))
     internal_posts = _internal_posts()
     if was_posted and internal_posts.is_tracking:
         post = (event.type, dict(event.dict))

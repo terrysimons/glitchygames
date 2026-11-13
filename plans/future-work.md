@@ -186,6 +186,8 @@ local branches are deleted. The decisions made on the way, for the record:
 | The dt demo's square keeps moving off screen after it crosses: nothing clamps or wraps it | `src/demos/dt-demo/src/dt_demo/__init__.py` | Found in Arcade sub-plan 2 (Tasks 4-5). Clamp or wrap it, then re-record `timing.jsonl.gz` (a reviewed step). |
 | Stand-in pads log a misleading WARNING "Device enumeration ... is not in the recording" on a second `joystick_count` or on `name_for_index` | `src/glitchygames/input/stand_in_devices.py`, `src/glitchygames/input/devices.py` (~1371) | Found in Arcade sub-plan 2 (Task 7, the joystick demo's `pad`). The answer is right; the warning is noise. A stand-in registry should answer repeated enumerations without falling to the "not recorded" path. |
 | The joystick demo would raise if a device connected while another scene was active | `src/demos/joystick-demo/src/joystick_demo/__init__.py` | Found in Arcade sub-plan 2. Matters once the Arcade hosts the demo beside other scenes. |
+| Bitmappy's Arcade tile diverges at frame 0: it sizes its film strip from `pygame.display.get_surface()`, which inside a tile is the Arcade's window, not the tile's 800x480 render target (`FilmStripSprite#0` rect expected `[350, 24, 450, 124]`, got width 6914 or 930) | `src/apps/bitmappy/src/bitmappy/film_strip_coordinator.py:348` (also `animated_canvas.py:1628`, `controllers/visual_indicators.py:326`) | Found 2026-11-12 by the ten-tile check of the full-Arcade spike ported to main (Arcade sub-plan 3); the other nine tiles match their solo replays exactly. Left failing for now (the owner, 2026-11-12). The two fixes on the table each bend a rule: an engine answer for `get_surface` while a tile's context is active (no pygame shims), or Bitmappy reading its scene's screen (no game changes). Held by a strict xfail in `tests/test_every_recording_replays_inside_an_inner_game.py` (Arcade sub-plan 3, Task 4), which runs the tiles inside a 1280x720 outer window: the test display (800x600) is as wide as the demo and hid it (width 930 there). |
+| A tile changes the outer game's key repeat (and other window and process settings): the text-input demo's tile leaves SDL's key repeat at `(200, 200)` where the outer game had `(0, 0)` (`pygame.key.get_repeat()`, one per process). The demo's `setup()` calls `pygame.key.set_repeat(350)` and the engine's `InputBox.on_key_up_event` calls `pygame.key.set_repeat(200)` on every key release while the box is active; the outer game (the Arcade) would then get repeated KEYDOWNs for its own held keys. A replay is unaffected (it serves recorded events). The same holds, unmeasured, for SDL's other one-per-process settings an inner game can still reach (found by the branch's final review, 2026-11-12): text input start and stop (the engine's text widgets, `src/glitchygames/ui/text_widgets.py:1218, 1260, 1274, 1328, 1503, 1509`: a tile's active text box would turn the outer game's IME text input on or off), the mouse cursor's visibility (Bitmappy's canvas, `src/apps/bitmappy/src/bitmappy/animated_canvas.py:1153, 1175`), pygame's default font resolution (`pygame.freetype.set_default_resolution` in `FontManager.__init__`, `src/glitchygames/fonts/font_manager.py:307`, from the inner game's `--font-dpi`: the last `FontManager` made wins) and `os.environ.setdefault('SDL_MOUSE_FOCUS_CLICKTHROUGH', '1')` (`src/glitchygames/engine/game_engine.py:1571`, harmless once the outer engine set it) | `src/glitchygames/ui/inputs.py:195` (the engine's), `src/demos/text-input-demo/src/text_input_demo/__init__.py:69` (the demo's; no game changes), also `src/glitchygames/ui/text_widgets.py` (1220, 1262, 1275, 1329, 1504, 1511) | Found 2026-11-12 by Arcade sub-plan 3's Task 4 (the plan's Review Focus 4): `test_a_tile_leaves_the_outer_key_repeat_as_it_was[text-input-demo/typing.jsonl.gz]`, a strict xfail naming this entry; every other recording leaves it. The repeat belongs to the context that owns the window: an inner context should keep its own (a slot) and never call SDL's, the way it keeps no caption and never changes SDL's blocked event types (`events.set_event_types_allowed`); the same for text input, the cursor's visibility (a Bitmappy call: the engine would need a door for it, since no game file changes) and the font resolution. The engine's own widgets setting the repeat on every key release is worth a look on its own. |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)
 
@@ -790,6 +792,43 @@ only replays; Part 2 Task 1).
   - `nox -s test` reported 30 skips to `uv run pytest`'s 8 at Task 8: confirm the extra 22 are
     optional-dependency skips (the voice tests) that main has too.
 
+## Arcade (sub-plan 3 follow-ups, 2026-11-12; plans/2026-11-12-arcade-3-inner-game.md)
+
+The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0, and a tile
+changes the outer game's key repeat (the plan's Review Focus 4).
+
+- **Every engine build adds a `pygame.register_quit` entry that is never removed.**
+  `GameEngine.__init__` registers its `quit_game` (`src/glitchygames/engine/game_engine.py`,
+  `pygame.register_quit(self.quit_game)`, a classmethod), and pygame has no way to unregister
+  one, so every `InnerGame` adds one for the life of the process: an Arcade looping ten tiles
+  adds ten per loop, each called once at `pygame.quit()`. Harmless today (the classmethod holds
+  no engine), but the list only grows. Register once per process, or not at all in an inner
+  context (the host's own engine registers it).
+- **For Arcade sub-plan 4 (sound): an inner recording re-sizes the outer game's channels.** A
+  recording made with non-default `--sound-channels` or `--live-voice-pool` replays with them,
+  and its engine's channel partition calls `pygame.mixer.set_reserved` on the shared mixer, so a
+  tile re-sizes the outer game's reservation; inner voices also play on the shared mixer's
+  channels. Sub-plan 4's audio route (the spike's channel block per context) owns both.
+- **For Arcade sub-plan 4 (sound): `InnerGame.finish` never discards the inner context's audio
+  engine.** It ends the frames, closes the recording and timer and settles the replay, but never
+  calls `discard_audio_engine` (`src/glitchygames/audio/engine.py`), so a tile's `persist=True`
+  or looping voices outlive it on the shared mixer, and its compiled sounds stay cached until
+  the context is collected. The engine's own teardown (`GameEngine._shut_down_the_run`) pairs
+  it with `release_channels` (`src/glitchygames/audio/voices.py`), which is process-wide and
+  would clear the outer game's channel partition too, so copying that teardown would be wrong;
+  `discard_audio_engine` alone also waits up to 100 ms for the fades, inside the host's frame.
+  Sub-plan 4 decides how an inner context's voices end.
+- **The hosted start skips `_begin_start` (and `_begin_run`).** An inner game's `start()`
+  builds the game and returns (`render_target.hosted_start_requested()`), so the startup options
+  block is never logged for it, and `--profile` (`_begin_start`) and `--list-input-devices`
+  (`_begin_run`) are refused by `InnerGame` (`REFUSED_FLAGS`) rather than silently ignored. Log the options block for an
+  inner game (at INFO, under its context's name) if a tile's options are ever needed in a bug
+  report; profiling one tile would be a host's job (sub-plan 6).
+- **The proof's runtime.** `tests/test_every_recording_replays_inside_an_inner_game.py` runs
+  sixteen pairs (two child replays and four inner replays each) and sixteen key-repeat replays:
+  about 25 s of wall time under `-n auto` on an Apple M4 Max (about 160 s of CPU), the longest
+  case 14 s (Drawing Fire beside Mr. Muncher). Watch it as recordings are added.
+
 ## Games
 
 - **Convert Drawing Fire to sprites** (the owner, 2026-11-07). It draws its soldiers, sandbags and bullets straight
@@ -1108,7 +1147,9 @@ drafted issue text. Not posted yet:
   plugin the site uses (mkdocstrings, gen-files, macros, section-index, autorefs, search) and the
   hook in `scripts/mkdocs_hooks.py` (the complexity and performance generation, the caches it
   clears), then drop the `mkdocs<2.0` pin and the link, and update `CLAUDE.md`'s documentation
-  note and `tests/test_workspace_config.py`'s link test.
+  note and `tests/test_workspace_config.py`'s link test. The plan, written 2026-11-13 after a
+  trial build (hooks, gen-files and `gh-deploy` unsupported, page dates only planned, no strict
+  mode): `plans/2026-11-13-zensical-migration.md`. Not started (the owner, 2026-11-13).
 
 ## Raspberry Pi speedups (user request, 2026-11-04)
 
