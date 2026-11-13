@@ -3322,7 +3322,7 @@ or two and a halt, as measured above). Otherwise the tail loops into the game an
 500 ms from frame 0's first audio update. <code>--crt-power-on-sound off</code> plays the picture silently;
 the sound never plays where the picture does not (<code>--headless</code>, tests, replays, recordings).</p>
 <h2 id="the-instrument-catalog">The instrument catalog<a class="headerlink" href="#the-instrument-catalog" title="Permanent link">#</a></h2>
-<p><code>glitchygames.audio.instruments</code> holds 671 ready-made instruments in 23 families. Each is an
+<p><code>glitchygames.audio.instruments</code> holds 682 ready-made instruments in 23 families. Each is an
 ordinary <code>Instrument</code>, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:</p>
@@ -3333,7 +3333,8 @@ and renders offline like any other:</p>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">instruments</span><span class="o">.</span><span class="n">entry</span><span class="p">(</span><span class="s1">'alto saxophone'</span><span class="p">)</span><span class="o">.</span><span class="n">playing_range</span>        <span class="c1"># (Note('Db3'), Note('Ab5'))</span>
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">instruments</span><span class="o">.</span><span class="n">names</span><span class="p">(</span><span class="n">family</span><span class="o">=</span><span class="n">instruments</span><span class="o">.</span><span class="n">Family</span><span class="o">.</span><span class="n">BRASS</span><span class="p">)</span>       <span class="c1"># every brass instrument</span>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="n">instruments</span><span class="o">.</span><span class="n">names</span><span class="p">(</span><span class="n">tag</span><span class="o">=</span><span class="n">instruments</span><span class="o">.</span><span class="n">Tag</span><span class="o">.</span><span class="n">MECHANICAL</span><span class="p">)</span>        <span class="c1"># every entry carrying a tag</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">instruments</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'slapstick'</span><span class="p">)</span>                             <span class="c1"># an alias: the same instrument as 'whip'</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">instruments</span><span class="o">.</span><span class="n">names</span><span class="p">(</span><span class="n">tag</span><span class="o">=</span><span class="n">instruments</span><span class="o">.</span><span class="n">Tag</span><span class="o">.</span><span class="n">CHIP</span><span class="p">)</span>              <span class="c1"># every sound-chip voice</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">instruments</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'slapstick'</span><span class="p">)</span>                             <span class="c1"># an alias: the same instrument as 'whip'</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -3416,8 +3417,8 @@ and renders offline like any other:</p>
 </tr>
 <tr>
 <td><code>electronic</code></td>
-<td>15</td>
-<td>theremin, ondes Martenot, leads, pads, basses, chiptune pulses</td>
+<td>26</td>
+<td>theremin, ondes Martenot, leads, pads, basses, chiptune pulses, sound-chip voices (NES triangle, AY-3-8910, SID sawtooth, SN76489, PC speaker) and drum-machine voices (TR-808 tom, conga, cowbell, clave, maracas; Syndrum); 10 of the 26 are sound-alikes of other entries</td>
 </tr>
 <tr>
 <td><code>tuned percussion</code></td>
@@ -3466,14 +3467,17 @@ and renders offline like any other:</p>
   reeds'</code>). <code>get</code>, <code>entry</code>, <code>names</code> and <code>entries</code> lowercase what they are given, so
   <code>instruments.get('Tenor Saxophone')</code> is the same instrument.</li>
 <li>A <code>Tag</code> marks a quality that cuts across families (the set is closed): <code>Tag.MECHANICAL</code>, on
-  the music box so far, stays in the family the instrument sounds like.
+  the music box, and <code>Tag.CHIP</code>, on the voices of sound chips (an integrated circuit made to
+  produce a computer's, console's or arcade machine's sound: the four generic <code>chip ...</code> entries
+  and <code>nes triangle</code>, <code>ay 3 8910</code>, <code>pc speaker</code>, <code>sid sawtooth</code>, <code>sn76489</code>; nine in all), each
+  stays in the family the instrument sounds like.
   <code>instruments.names(tag=...)</code> and <code>entries(tag=...)</code> list the entries carrying it, and combine
   with <code>family=</code>.</li>
 <li><code>instruments.ALIASES</code> (read-only, as <code>instruments.CATALOG</code> is) maps another name to its
   catalog name: <code>slapstick</code> to <code>whip</code>, <code>zanza</code> to <code>mbira</code>, <code>cylinder music box</code> and <code>disc music
   box</code> to <code>music box</code>, <code>wurlitzer electronic piano</code> to <code>reed electric piano</code>, <code>hohner clavinet</code>
   to <code>clavinet</code>, <code>rain box</code> to <code>rain machine</code>, <code>horse hooves</code> to <code>coconut shells</code>, <code>tavil</code> to
-  <code>thavil</code> and <code>riq</code> to <code>daf</code> (54 in all, among them <code>kanun</code> to <code>qanun</code>, <code>ud</code> to <code>oud</code> and
+  <code>thavil</code> and <code>riq</code> to <code>daf</code> (73 in all, among them <code>kanun</code> to <code>qanun</code>, <code>ud</code> to <code>oud</code> and
   <code>neapolitan mandolin</code> to <code>mandolin</code>). <code>get</code> and <code>entry</code> resolve an alias, while <code>names</code> and
   <code>entries</code> list catalog names only.</li>
 <li>A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
@@ -3487,8 +3491,9 @@ and renders offline like any other:</p>
   trait; each needs a cited source.
   Assembly refuses a <code>sounds_like</code> that names no entry, itself or another sound-alike. The 131
   drum ones are in <code>drum_sound_alikes.py</code>, the family's builds in <code>drums.py</code>; the 27 plucked
-  string ones are in <code>plucked_sound_alikes.py</code>, the builds in <code>plucked_strings.py</code> (158
-  sound-alikes in all).</li>
+  string ones are in <code>plucked_sound_alikes.py</code>, the builds in <code>plucked_strings.py</code>; the 11
+  tuned percussion ones are in <code>tuned_sound_alikes.py</code> and the 10 electronic ones in
+  <code>electronic_sound_alikes.py</code> (179 sound-alikes in all).</li>
 <li>Each entry has a <code>title</code>, a <code>family</code> and its playing range, <code>lowest</code> and <code>highest</code> (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (<code>pitch='A4'</code>); it does not change
@@ -3540,7 +3545,7 @@ line. A sound rendered alone is its compiled buffer, bit for bit.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 12, 2026 18:10:05 UTC">November 12, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 13, 2026 04:23:40 UTC">November 13, 2026</span>
   </span>
 
     
