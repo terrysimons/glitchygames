@@ -5,6 +5,9 @@ Orchestration*); historic and folk instruments' are typical. A brass tone's brig
 its bell and bore: a trumpet's harmonics fall slowly, a horn's and a tuba's fast. Each note also
 starts brighter than it holds (``bite``: the lips' first buzz), and mutes reshape the spectrum (a
 straight mute thins the low end, a cup mute darkens, a harmon mute leaves a nasal buzz).
+
+The family's sound-alikes, listed instruments that share another entry's build, are in
+``brass_sound_alikes.py``.
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ from __future__ import annotations
 from functools import partial
 from typing import TYPE_CHECKING, Final
 
+from glitchygames.audio.instruments.brass_sound_alikes import BRASS_SOUND_ALIKES
 from glitchygames.audio.instruments.catalog import CatalogEntry, Family
 from glitchygames.audio.instruments.timbres import Formant, blown, falling_series, formant_series
 
@@ -73,7 +77,7 @@ TUBA = partial(_brass, slope=8.0, low_pass=1800.0, attack=0.05, drive=0.2)
 NATURAL = partial(_brass, slope=6.0, low_pass=4000.0, attack=0.04, drive=0.5)
 WOODEN_LIP_REED = partial(_brass, slope=9.0, low_pass=2500.0, attack=0.04, drive=0.2, breath=0.015)
 
-BRASS: Final[tuple[CatalogEntry, ...]] = (
+_BRASS_BUILDS: Final[tuple[CatalogEntry, ...]] = (
     CatalogEntry('piccolo trumpet', 'Piccolo trumpet in A', Family.BRASS, 'Eb4', 'G6', TRUMPET),
     CatalogEntry('trumpet', 'B-flat trumpet', Family.BRASS, 'E3', 'C6', TRUMPET),
     CatalogEntry('c trumpet', 'C trumpet', Family.BRASS, 'F#3', 'D6', TRUMPET),
@@ -236,3 +240,6 @@ BRASS: Final[tuple[CatalogEntry, ...]] = (
         partial(_brass, slope=2.0, low_pass=7000.0, attack=0.03, drive=3.0),
     ),
 )
+
+
+BRASS: Final[tuple[CatalogEntry, ...]] = _BRASS_BUILDS + BRASS_SOUND_ALIKES

@@ -1750,10 +1750,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 9 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 13 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
   batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682
-  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9) toward every instrument a game might
+  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11, 693 after batch 12, 703 after batch 13) toward every instrument a game might
   want, in one verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates,
   only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
@@ -1854,7 +1854,129 @@ This document tracks planned future features for the GlitchyGames project. Featu
   vibrato), `duck call` (a build of its own: its source names reeds), `bird whistle` (a pitch
   LFO, vibrato), `singing bird box` (a pitch LFO, portamento), `hydraulophone` (a sourced
   range; `hs` none) and `pigeon whistle` (more than four sources). `serinette` and `flute clock`
-  are barrel organs, so the organs batch decides them. Next: brass
+  are barrel organs, so the organs batch decides them.
+  Batch 10 (brass) is done: of its 127 sheet rows (104 candidates and 23 audit alias names) none
+  shipped as a build of its own, 2 became sound-alikes (`bass wagner tuba` of `wagner tuba`,
+  Eb1-F5; `soprano trombone` of `trumpet`, E3-C6, each giving its own sourced range), 99 wait (80
+  for a sourced range, 13 because their target waits, 2 for a build of their own, 2 for moving
+  formants, 1 for sub-audio fundamentals, 1 for a buzzing membrane), 16 became aliases and 10
+  were dropped; the family grew from 42 to 44 entries (690 in all, 101 aliases and 187
+  sound-alikes). `brass.py` keeps the family's builds (its table is now `_BRASS_BUILDS`, and
+  `BRASS` is `_BRASS_BUILDS + BRASS_SOUND_ALIKES`) and `brass_sound_alikes.py` holds its
+  sound-alikes. `didgeridoo` joins `APPROXIMATING_NAMES`, never a parent, and `BRASS_HELD_BACK`
+  holds back six names (`bazooka`, `didjeribone`, `subcontrabass tuba`, `sudrophone`, `tenor
+  cornett`, `vienna horn`). Most rows wait because the range rule stays strict: a brass source
+  rarely states both notes as sounding pitch, and many give a written range with no
+  transposition, a hedge, a player's top or one note. The audit's "Gaps you could not close"
+  (`plans/data/instrument-audit/brass.md`: the list-of-brass page unread; MIMO, the Met and Grove
+  not swept; the African, Pacific, Amazonian, Native American and Southeast Asian horns beyond
+  Wikipedia's category, such as Moche clay trumpets and Philippine bamboo trumpets; the marching
+  and double-bell variants known only from memory) are a later pass over this family.
+  `corrugahorn` is decided (batch 1 waits it for a sourced range, in noise makers), but its
+  family question, noise makers or brass, is still open. The mutes are left to the
+  articulations design (the spec's Non-goals).
+  Batch 11 (double reeds) is done: of its 116 sheet rows (80 candidates and 36 audit alias names)
+  none shipped as a build of its own, 2 became sound-alikes (`contraforte` of `contrabassoon`,
+  A0-G4; `piccolo heckelphone` of `heckelphone`, E4-A6, each giving its own sourced range), 82 wait
+  (61 for a sourced range, 19 because their target waits, 1 for a sourced drone tuning, 1 for its
+  own build: `balaban`, a cylindrical bore), 11 became aliases (`cor anglais`, `baritone oboe`, `fagott`, `cervelas`,
+  `gyaling`, `zurla`, `bombard`, `surna`, `surnay`, `zournas`, `haidi`) and 21 were dropped; the
+  family grew from 23 to 25 entries (692 in all, 112 aliases and 189 sound-alikes).
+  `double_reeds.py` now holds the family (moved unchanged from `winds.py`, which keeps the
+  clarinets, saxophones, bagpipes and free reeds; its table is `_DOUBLE_REED_BUILDS`, and
+  `DOUBLE_REEDS` is `_DOUBLE_REED_BUILDS + DOUBLE_REED_SOUND_ALIKES`) and
+  `double_reed_sound_alikes.py` its sound-alikes. `piri` joins `APPROXIMATING_NAMES`, never a
+  parent (its page cites a cylindrical bore the catalog's conical build lacks), and
+  `DOUBLE_REED_HELD_BACK` holds two names (`aulos`, `balaban`). Most rows wait because the range rule stays
+  strict: a double reed's source rarely states both notes as sounding pitch, and many give a
+  width, a hedge, a "theoretical" span or a written range with no transposition. The audit's
+  "Gaps you could not close" (`plans/data/instrument-audit/double-reeds.md`: the quint and quart
+  bassoons, `fagottino` or `octavin`, the subcontrabassoon and the reed contrabass; the dulcian,
+  rackett and shawm sizes beyond the candidates; the Korean piri variants, the Okinawan rappa,
+  the Philippine, Uzbek and Tajik surnay, the Nepalese sahanai, the Mongolian and Tibetan shawms;
+  MIMO, the Met, the Horniman and Grove unconsulted; the Koizumi, Horniman and Edinburgh
+  catalogues not reached for the folk shawms) are a later pass over this family. The hand-offs are
+  decided here: `zukra` is dropped to the bagpipes batch (its page: "a Libyan bagpipe"),
+  `ciaramella` is decided (its fetched page makes the name the mouth-blown shawm, so it waits for
+  `piffero`; the bagpipe, `ciaramedda`, is the bagpipes batch's), `musette` (the bagpipe) and
+  `dulciana` (the organ stop) are dropped as ambiguous names (the unambiguous `oboe musette`
+  waits for `piccolo oboe`), and `piffero` is decided as the shawm (it waits for a sourced range;
+  batch 9's flute gap list names the fife sense, which is that batch's).
+  Batch 12 (bagpipes) is done: of its 91 sheet rows (66 candidates and 25 audit alias names) 1
+  shipped as a build of its own (`sackpipa`, the Swedish bagpipe: Säckpipa in A, E4-E5, one drone
+  at E4, and the family's first cylindrical chanter, `CYLINDRICAL_CHANTER_LEVELS`), none became a
+  sound-alike, 62 wait (57 for a sourced range and 5 because their target waits), 4 became aliases
+  (`irish pipes` of `uilleann pipes`, `lowland pipes` and `half long pipes` of `border pipes`,
+  `gaita galega` of `galician gaita`) and 24 were dropped; the family grew from 8 to 9 entries
+  (693 in all, 116 aliases and 189 sound-alikes). `bagpipes.py` now holds the family (moved
+  unchanged from `winds.py`, which keeps the clarinets, saxophones and free reeds; its table is
+  `_BAGPIPE_BUILDS`, and `BAGPIPES` is `_BAGPIPE_BUILDS + BAGPIPE_SOUND_ALIKES`) and
+  `bagpipe_sound_alikes.py` its sound-alikes (empty). The retuned sound-alike mechanism is in
+  place, a sound-alike whose sourced drones differ from its parent's carrying
+  `sound_changes={'drones': ...}` (decision 8's first shipped use, listed in the test table
+  `BAGPIPE_RETUNED_DRONES`), but none shipped: the one candidate, the Czech `dudy`, went back to
+  waiting for a range. `scottish smallpipes` joins `APPROXIMATING_NAMES`, never a parent (the
+  Bagpipe Society's guide: "With its cylindrical bore"), and `BAGPIPE_HELD_BACK`, the guard for
+  every wait that is not for a range, holds nothing. Nearly every row waits because the range
+  rule stays strict: a bagpipe's source gives a key, a width, note letters with no octave or a
+  relation, almost never both sounding notes. The base of the branch is `c0f9e622` (batch 11's
+  fix commit). The audit's "Gaps you could not close"
+  (`plans/data/instrument-audit/bagpipes.md`: absolute chanter ranges for nearly everything; MIMO
+  and Grove unreached, the National Museum of Scotland and Edinburgh (MIMEd) records unread; `karkm`, `shyuvr`,
+  `puvama`, `shapar`, `muchosa`, `samponha`, `sourdeline`, `loure`, `pipasso`, `musette bressane`,
+  `musette bechonnet`, the Lincolnshire, Yorkshire and Lancashire pipes, `il-qrajna`,
+  `sierszenki`, `kozioł biały` and `czarny`; the Central Asian, Tibetan, East and Southeast Asian,
+  sub-Saharan and Latin American bagpipes; the Galician gaita's other keys, `grileira`,
+  `redonda` and `tumbal`) are a later pass over this family. The hand-offs are decided here:
+  `zukra` (a Libyan bagpipe, its bag form this family's) and `ciaramedda` (the Sicilian double
+  chanter) wait for a sourced range, `ciaramella` stays batch 11's (the sheet's row drops it,
+  naming batch 11's), `electronic bagpipe` is dropped to the electronic family (an electrophone
+  that imitates the Highland pipe; the electronic batch is done, so a later electronic pass
+  decides it), and no name the sheets found belongs to the organs batch.
+  Batch 13 (organs) is done: of its 70 sheet rows (64 candidates and 6 audit alias names) 3
+  shipped as builds of their own (`stopped diapason`, with `STOPPED_FLUTE_LEVELS`; `cornet
+  organ`, five unbroken ranks summed into one wave by `compound_stop_levels`; and `organ
+  clarinet`, with `CLOSED_REED_LEVELS`), 7 became sound-alikes (`bourdon` of `stopped diapason`
+  at 16', C2-G4 on the pedal; `salicional` and `voix celeste` of `pipe organ string`; `organ
+  oboe`, `organ tuba` and `posthorn` of `pipe organ reed`; `organ krummhorn` of `organ
+  clarinet`, each giving its own sourced range), 32 wait (14 for a sourced range, 5 for a sourced
+  footage, 5 for a range above C8, 2 for more than four sources, 3 for a build of their own, 1
+  for a pitch and amplitude LFO and 2 because their target waits), 4 became aliases (`open
+  diapason` of `pipe organ principal`, `organ trompette` of `pipe organ reed`, `air calliope` and
+  `calliaphone` of `calliope`) and 24 were dropped; the family grew from 9 to 19 entries (703 in
+  all, 120 aliases and 196 sound-alikes). `organs.py` now holds the family (moved unchanged from
+  `keyboards.py`, which keeps the keyboards and the electromechanical instruments; its table is
+  `_ORGAN_BUILDS`, and `ORGANS` is `_ORGAN_BUILDS + ORGAN_SOUND_ALIKES`) and
+  `organ_sound_alikes.py` its sound-alikes. The footage mechanism is new: a stop sounds at its
+  footage against its keys (`_pipe_stop`'s `footage`, carried by `blown`'s `semitones`), and a
+  sound-alike stop at another footage than its parent carries it as
+  `sound_changes={'footage': ...}` (`bourdon`, the only one; the test table is
+  `ORGAN_STOP_FOOTAGES`). No self-playing organ shipped (each waits for a sourced range), so
+  `Tag.MECHANICAL` is still only on the `music box` and `MECHANICAL_ORGAN_NAMES` is empty.
+  `ORGAN_HELD_BACK`, the guard for every wait that is not for a range, holds 16 names
+  (`diaphonic diapason`, `gedeckt`, `kinura`, `larigot`, `nasard`, `organ bombarde`, `organ
+  mixture`, `organ trombone`, `piccolo organ`, `rohrflote`, `scharff`, `sesquialtera`,
+  `spitzflote`, `tierce`, `vox humana` and `bible regal`). The base of the branch is `5cbbf882`
+  (batch 12's final review fixes). The audit's "Gaps you could not close"
+  (`plans/data/instrument-audit/organs.md`: the hydraulis's Aquincum data; the MIMO and Met regal
+  and barrel organ records unopened; the kinura, posthorn and diaphonic diapason needing a theatre
+  organ source; Lowrey, Baldwin and the Compton Electrone unread; the Cavaillé-Coll stops (flûte
+  harmonique, gambe), the Spanish horizontal reeds (trompeta real, chirimía), the Dutch hoboy,
+  schalmei and rankett stops, the Welte Philharmonie organ, Wurlitzer opus lists, Allen, Rodgers
+  and digital organs; theatre organ percussion, which is tuned percussion's; the bell organ) are a
+  later pass over this family. The hand-offs are decided here: `vox humana` (waits for the
+  tremulant, with `kinura`, `regal` and `bible regal` sharing a short-resonator trait),
+  `voix celeste` (a sound-alike), `serinette` and `flute clock` (each waits for a sourced
+  range), `kinura` (waits for a build of its own) and `band organ` (waits for a sourced range)
+  are decided here; `dulciana` and `gemshorn` stay as earlier sheets decided them (batch 11's
+  and batch 9's); `orchestrion` and `reed organ` are decided here (`orchestrion` waits for a
+  sourced range, `reed organ` is dropped to free reeds), so the keyboards and free reeds batches
+  must not decide them again; `orchestrelle` is the free reeds batch's; each electric organ is
+  dropped to electronic or electromechanical for a later pass of those families (`lowrey organ`,
+  `baldwin organ` and `farfisa` to electronic, `compton electrone` and `choralcelo` to
+  electromechanical, `hammond b3` and `telharmonium` already decided there, `vox continental`
+  an existing alias of `combo organ`); and `chromelodeon` is dropped to free reeds. No name the
+  sheets found belongs to the clarinets batch. Next: clarinets
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
@@ -1874,7 +1996,15 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sheet `plans/data/instrument-audit/batch-8.tsv`
 - **Plan (batch 9)**: `plans/2026-11-12-instrument-catalog-batch-9-implementation.md`; audit
   sheet `plans/data/instrument-audit/batch-9.tsv`
-- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8 and 9 done (requested by the owner 2026-11-06)
+- **Plan (batch 10)**: `plans/2026-11-12-instrument-catalog-batch-10-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-10.tsv`
+- **Plan (batch 11)**: `plans/2026-11-12-instrument-catalog-batch-11-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-11.tsv`
+- **Plan (batch 12)**: `plans/2026-11-12-instrument-catalog-batch-12-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-12.tsv`
+- **Plan (batch 13)**: `plans/2026-11-12-instrument-catalog-batch-13-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-13.tsv`
+- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 and 13 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
@@ -2934,6 +3064,1174 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Found**: batch 9's reviews (2026-11-12)
 - **Status**: TODO
 - **Priority**: Medium (before the brass batch builds on the same catalog)
+
+### 80. Sound Engine: The Owner's Checks on Instrument Catalog Batch 10 — TODO
+- **Goal**: confirm or overturn the calls made while batch 10 of #70 ran, and listen to its new
+  instruments (brass 42 to 44 entries). Almost every candidate waits or drops: 0 built, 2
+  sound-alikes, 99 waits, 16 aliases and 10 drops in the sheet's 127 rows. The plan's Task 5 had
+  no build or sound-alike to code (half B shipped only aliases), so only its alias steps ran
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+  every level, filter, ring and click is sound design unless a source is cited in the code; the
+  folder is `build/instruments/brass/`). No new build was added, so there is nothing new to hear
+  as a build, and the listening is the sound-alikes and the aliases beside their parents, which
+  must sound alike by design:
+  - [ ] The new builds: none (0 SHIP rows)
+  - [ ] The 2 sound-alikes beside their parents: `bass wagner tuba` (Eb1-F5) beside `wagner
+    tuba` (its low end is a pedal register: listen for a quiet or wrong note at Eb1) and
+    `soprano trombone` (E3-C6) beside `trumpet`
+  - [ ] The 16 aliases: `b flat piccolo trumpet` (of `piccolo trumpet`), `tenor tuba` (of
+    `euphonium`), `treble cornett` and `zink` (of `cornett`), `cornet a pistons` (of `cornet`),
+    `tenor horn` (of `alto horn`), `dung dkar`, `hakgediya`, `pututu`, `shankha` and `fotuto` (of
+    `conch`), `waldhorn` (of `french horn`), `inventionshorn` (of `natural horn`), `yidaki` and
+    `mako` (of `didgeridoo`) and `alpenhorn` (of `alphorn`)
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-10.tsv`; the sheet's 127 rows:
+  SHIP 0, SOUND_ALIKE 2, WAIT 99, ALIAS 16, DROP 10):
+  - [ ] Every WAIT (99 rows), by reason:
+    - 80 for a sourced range: `alto ophicleide`, `alto sackbut`, `baritone bugle`, `bass
+      cornett`, `bass flugelhorn`, `bass horn`, `bass sackbut`, `buccin`, `cc tuba`, `contrabass
+      bugle`, `contrabass ophicleide`, `contrabass saxhorn`, `cornettino`, `double bell
+      euphonium`, `e flat trumpet`, `firebird trumpet`, `flumpet`, `helicon`, `herald trumpet`,
+      `jazzophone`, `keyed bugle`, `keyed trumpet`, `kuhlohorn`, `mellophonium`, `mute cornett`,
+      `rotary valve trumpet`, `russian bassoon`, `saxotromba`, `saxtuba`, `slide trumpet`,
+      `sopranino saxhorn`, `soprano helicon`, `soprano saxhorn`, `superbone`, `valve trombone`,
+      `abeng`, `amakondere`, `birch trumpet`, `buccina`, `bucium`, `buisine`, `bukkehorn`,
+      `carnyx`, `cavalry trumpet`, `chazozra`, `cornu`, `dord`, `dungchen`, `erke`, `haotong`,
+      `holztrompete`, `horagai`, `kakaki`, `kangling`, `karnay`, `kombu`, `lituus`, `lur`,
+      `midwinter horn`, `nabal`, `nafir`, `natural trumpet`, `oliphant`, `putatara`, `ram singa`,
+      `salpinx`, `siwa`, `sneng`, `sringa`, `steerhorn`, `swedish cowhorn`, `tharai`, `tiba`,
+      `tochacatl`, `trembita`, `truba`, `trutruca`, `tuba romana`, `turi`, `waqra phuku`
+    - 13 because their target waits: `kent bugle` and `royal kent bugle` (for `keyed bugle`),
+      `basson russe` (for `russian bassoon`), `hatzotzerah` (for `chazozra`), `waza` (for
+      `kakaki`), `luren` (for `lur`), `kerana`, `karna`, `kernei`, `kurenay` and `kanay` (for
+      `karnay`), `trutruka` (for `trutruca`) and `tibetan horn` (for `dungchen`)
+    - 2 for a build of their own: `tenor cornett` and `vienna horn`
+    - 2 for moving formants: `bazooka` and `didjeribone`
+    - 1 each for sub-audio fundamentals (`subcontrabass tuba`) and a buzzing membrane
+      (`sudrophone`)
+  - [ ] The brass range rule (the owner kept the range rule strict, 2026-11-09): a range is
+    stated or an exact span above the lowest note, in sounding pitch; a written range counts only
+    with the transposition its own source states (a B-flat instrument sounds a tone below its
+    part, a horn in F a fifth below, a brass band's treble-clef part is never read as sounding),
+    with the arithmetic shown; no pedal note or player's top beyond the stated compass; harmonic
+    numbers only with a stated fundamental or named harmonic, never hedged; the key a source
+    calls standard (a key in the row's own name is ranged in that key); maker and museum sources
+    count, a retailer, blog or forum does not; nothing below A0 or above C8. The ranges derived
+    under it: `bass wagner tuba` Eb1-F5 (VSL's archived Wagner tuba range page, "(no
+    transposition)", its notation page writing the part a fifth above the sound; the lowest notes
+    are pedals VSL says cannot be played forte, kept because they are inside the stated range);
+    `soprano trombone` E3-C6 (Wikipedia: "similar to the B-flat trumpet, E3 to C6", read as stated
+    notes because the infobox calls the range sounding and the same as the trumpet's; a reviewer
+    may read "similar" as a hedge)
+  - [ ] One-note horns and shells, waiting for a range: `nafir`, `nabal`, `sneng`, `tuba romana`
+    (one or two pitches), `amakondere` and `cavalry trumpet`, and the shells, which a source says
+    "produce only one pitch". The catalog needs a lowest below a highest, so each waits. Should a
+    one-note horn or shell ship as a fixed-pitch entry instead?
+  - [ ] The shell rule: a shell is an alias of `conch` only when a source presents the name as
+    the conch itself (`shankha`, `dung dkar`, `pututu`, `fotuto`, `hakgediya`); a shell the
+    source gives its own traits (`horagai`: a fitted mouthpiece, three or five notes; `putatara`:
+    a carved wooden mouthpiece) waits for a sourced range. `hakgediya` ("a type of conch shell",
+    no trait of its own) is an alias while `shankha` ("known in India as the shankha", a species
+    name) is too: the line turns on a small difference in wording, the shakiest of the shell
+    decisions. `triton shell` is dropped (a shell species, not an instrument name)
+  - [ ] `carnyx` waits for a sourced range, not a build of its own: its page calls the replica's
+    resonances inharmonic, but that is which notes it plays, not a non-periodic tone, so it is
+    out of `BRASS_HELD_BACK`. An inharmonic build is the other reading
+  - [ ] `tenor cornett` and `vienna horn` wait for a build of their own, held in
+    `BRASS_HELD_BACK`: the tenor cornett's page says its bore is "more bugle-like" (the sentence
+    is cited, to Baines), and the Vienna horn's sources name a narrower, more conical bore and a
+    mellower sound. Their ranges are kept in the sheet's notes (`tenor cornett` C3-D5, `vienna
+    horn` B1-F5, "sounding" on VSL's archived page). The alternative is a sound-alike of `cornett`
+    and `french horn`
+  - [ ] `b flat piccolo trumpet` is an alias of `piccolo trumpet`, not a sound-alike: VSL's
+    archived page gives "D4 – G6" for the high B-flat piccolo but states neither written nor
+    sounding and no transposition, so the brass rule leaves no range, and the Piccolo trumpet
+    page says most are built to play in either B-flat or A. If the owner reads VSL's range as
+    sounding, it could be a sound-alike (D4-G6); if written, the sounding notes would be a minor
+    seventh higher
+  - [ ] The "an uncited line is not a source" reading (batch 9's `garklein recorder` ruling)
+    stands: the `buccin`'s infobox range E2 to B-flat 4 is on a page tagged as needing citations
+    and carries no `<ref>`, so it waits (the audit marked it VERIFIED). Ship it at E2-Bb4 if the
+    owner accepts the sentence
+  - [ ] `trembita` and `truba` wait on uncited cells: their infobox ranges are
+    `c<sup>1</sup>-g<sup>4</sup>` and `c<sup>3</sup>-g<sup>5</sup>`, uncited (the truba page is tagged for missing footnotes)
+    and the page does not say which octave convention its superscripts follow. The two readings
+    lie four octaves apart (`trembita` C4-G7 as Helmholtz, C1-G4 as scientific; `truba` C6-G8,
+    above C8, or C3-G5)
+  - [ ] `subcontrabass tuba` waits for sub-audio fundamentals, but the range ruling alone would
+    not hold it: its only note below A0 is the pedal Bb-1 (15 Hz), which the ruling excludes, and
+    Bb0 (29 Hz) is above A0. The wait rests on decision 4 (the spec's "sub-audio fundamentals"),
+    so ship it above A0 if the owner reads the pedal as outside the instrument
+  - [ ] `didgeridoo` among the approximations (`APPROXIMATING_NAMES`), never a parent: its page
+    says the moving formants "give the instrument its readily recognisable sound" and the
+    catalog's build has none, and a sound-alike would ship the omission under a new name. Its
+    aliases are allowed (`yidaki`, `mako`): an alias is the same instrument and adds no build. A
+    brass row whose source names the vocal tract's formants as its sound waits for moving
+    formants (`bazooka`: its "subtle harmonic overtones fluctuate" give it its "characteristic
+    warbling"; `didjeribone`); `jazzophone` waits for a range, not formants, because its wah is a
+    mute. `dord` waits for a range, not formants: its page gives the didgeridoo-like playing only
+    as something "some modern performers" believe
+  - [ ] Slides, valves and keys as note choice, not sound: `valve trombone`, `superbone`, `slide
+    trumpet`, `soprano trombone`, `bazooka` and the keyed and fingered rows are ranged and built
+    like any brass. No row waits for a pitch LFO (portamento between notes)
+  - [ ] The inharmonic ruling (`carnyx`, above): the family's builds make only whole harmonics,
+    and the harmonic-pitch test checks every brass entry repeats at its note's period; a row whose
+    source names inharmonic resonances as its sound would wait for a build of its own
+  - [ ] No new shape: no brass row shipped, so none of the nine shapes grew (`mute cornett`
+    names a horn-like integral mouthpiece and a flute-like sound, the best candidate for a new
+    shape, but waits for a range)
+  - [ ] Sizes and keys as sound-alikes, standard sizes as aliases: `bass wagner tuba` (of `wagner
+    tuba`) and `soprano trombone` (of `trumpet`, its source giving it the B-flat trumpet's bore,
+    bell and mouthpiece) are sound-alikes; `treble cornett` and `tenor horn` are aliases because
+    their sources call the catalog's own `cornett` and `alto horn` by those names; `tenor tuba`
+    is the euphonium's alias (the Tuba page's first sense; its second, the German Baryton, is not
+    in the catalog). The saxhorn sizes all wait: the Saxhorn page gives each name to two or three
+    sizes depending on the author. `soprano trombone` joins the trombones' size chain, first
+  - [ ] Mutes out of scope (the spec's Non-goals: "Articulations and ensemble patches (pizzicato,
+    mutes, string sections)"): the audit's four further mutes (trumpet bucket and plunger,
+    trombone straight and harmon) are not rows; the catalog's four mute entries (trumpet straight, cup and harmon mutes, trombone cup
+    mute) predate this and stay; the batch 10 plan's "six" was wrong
+  - [ ] `corrugahorn`: noise makers or brass, still open from batch 1. It is dropped here as
+    already decided (batch-1.tsv waits it in noise makers for a sourced range); its family
+    question is the owner's
+  - [ ] One-offs, artefacts and unsourced rows dropped: `fluba` and `hosaphone` (one maker's or
+    player's design), `brudevaelte lur` (a single hoard; the `lur` row is the type), `savernake
+    horn` (a single surviving olifant; the `oliphant` row is the type) and `medieval lituus` (a
+    one-off reconstruction of an instrument "of an indeterminate nature"), `corno da tirarsi`
+    and `tromba da tirarsi` (no instrument or document survives, or only a hedge: "may have
+    been"), `swiss horn` (no fetched source names it: only an uncited fact site) and
+    `triton shell` (above). The line between a one-off and a type is a judgment: `firebird
+    trumpet`, `flumpet` and `soprano helicon` are in production, so they wait for a range
+    instead, as `sudrophone`, `saxtuba` and `saxotromba` do; the plan's literal "one maker's
+    design" would drop those too
+  - [ ] `turi` waits for a sourced range, not DROP: the Met's API record titled "Two Cast Brass
+    Side Blown Horns (Turi)" names the type, but it is a side-blown horn of Bastar, a different
+    form from the audit's "S-shaped trumpet" (the Dharohar museum lists "Turri, Turhi" as names
+    of the ransingha). It decides the Met's instrument, not the audit's lead; the Met's web page
+    returned 429
+  - [ ] `sneng` is the end-blown lip-blown horn (hs 423.121.21); the page's commoner side-blown
+    sneng is a free reed (422.33), which belongs to the free reeds and is decided nowhere
+  - [ ] `waza` waits for `kakaki` (the Kakaki page: 'also known as "Waza"'); the Sudanese `wazza`
+    is a different instrument and not a row. `ram singa`, `sringa` and `kombu` are decided each
+    on its own page, though the Ransingha and Sringa pages disagree on whether they are one
+    group
+  - [ ] `waldhorn` is an alias of `french horn` (its infobox lists "Horn, Waldhorn, Ventilhorn"),
+    `inventionshorn` of `natural horn` (the Natural horn page gives it as a development of that
+    instrument with no sound trait of its own). Modern German usage calls the valved orchestral
+    horn Waldhorn too, so the natural horn would be the other reading
+  - [ ] `BRASS_HELD_BACK`, the guard for every held name: six (`bazooka`, `didjeribone`,
+    `subcontrabass tuba`, `sudrophone`, `tenor cornett`, `vienna horn`), refused as a catalog name
+    or an alias by a test, and compared with the sheet by the code check. Every other wait is a
+    sourced range or a target that waits for one, so none is held. Unlike batch 9's
+    `PORTAMENTO_NAMES`, it holds every held name
+  - [ ] The two-half split by Hornbostel-Sachs class as explicit lists (half A, the chromatic
+    brass 423.2, 49 candidates; half B, the natural horns and trumpets 423.1 with the shells and
+    animal horns, 55), the two sheets researched in parallel, and the shared files written up
+    front by a setup agent. Half B shipped no build or sound-alike, so its code task ran only the
+    alias steps (Task 5, 10 aliases, by ruling); Task 3 added half A's 2 sound-alikes and 6
+    aliases
+  - [ ] Engine features named beyond the spec's table, for its "What the engine cannot make
+    yet": none new. Every wait names a feature the spec or an earlier batch already named
+    (moving formants, sub-audio fundamentals, a buzzing membrane) or `its own build`
+- **Bugs to report** (found while building batch 10; none fixed here):
+  - [ ] `didgeridoo` is built as a plain `_brass` build with drive, without the moving formants
+    its page names. It is in `APPROXIMATING_NAMES` now. Its C2-E2 also lies below the page's
+    "fundamental typically A2 to G3" (hedged, so it gives no range here, but the catalog's whole
+    span is below even the lowest typical fundamental)
+  - [ ] `conch` (C4-E4): the Conch page gives "Limited, typically only a few notes" and the
+    Horagai page says "most shell trumpets from other parts of the world ... produce only one
+    pitch". The catalog's four-semitone span would wait under this batch's rule (one note), and
+    six aliases now resolve to it
+  - [ ] `alphorn` (F#2-F#5) is harmonics 2 to 16 over the page's "most alphorns have a
+    fundamental tone of F#1": "most" is a hedge and the 16th partial is what "Accomplished
+    alphornists can command", a player's extreme. It would not pass the ruling (low priority)
+  - [ ] `cornett` (G3-D6): the Cornett page's infobox gives "The sounding range of the treble
+    cornett" as A3-D6 (cited to Herbert, Myers and Wallace 2019, p. 490); G3 is the lipped note
+    ("can be lowered a further whole tone to G by slackening the embouchure"), an extreme. The
+    page also gives the mute cornett "the same range ... G3 to A5", contradicting itself
+  - [ ] `wagner tuba` (tenor, E2-F4): VSL gives the tenor Wagner tuba in B-flat "Eb1 – Bb5 (no
+    transposition)", far wider at both ends (the new `bass wagner tuba` takes the same source)
+  - [ ] `tuba` (BB-flat, D1-F4): VSL's contrabass tuba range is "A0 – B3", for C and B-flat
+    tubas together, so not a clean contradiction, but worth a look
+  - [ ] The 42 earlier entries carry no source comment: `brass.py`'s module docstring cites
+    Adler and calls the folk instruments' ranges "typical", an unsourced claim. `ophicleide`
+    (B1-C5) agrees with its page's score and `alto horn` (A2-Eb5) with the Tenor horn page's
+    tessitura, but no other existing range was checked against a source
+  - [ ] Wikipedia's range scores render as "Musical scores are temporarily disabled due to a
+    security issue", so the audit's VERIFIED ranges can be read only from the wikitext, and the
+    audit's `buccin` range turned out to be uncited there
+- **Incidents and process**:
+  - [ ] One agent used a bare `git stash push` and `pop` once, to compare a type-checker
+    baseline (Task 3). No foreign stash was popped, nothing was left in the stash and no damage
+    was found; the dispatches now forbid `git stash`
+  - [ ] Parallel sheets, pushes and stacked PRs were made without asking (the owner,
+    2026-11-12, #78)
+  - [ ] Parked minors from the reviews: the code comments' quotes use ASCII for the B-flat sign,
+    en dash and "a" with a grave accent (likely for ruff's ambiguous-unicode rules) while the
+    sheet keeps the verbatim text; Task 1's `brass_sound_alikes.py` imported `CatalogEntry` under
+    `TYPE_CHECKING` for an empty table, and Task 3 moved it back to a runtime import
+  - [ ] A source-reading bug in the sheet's own process, caught and fixed: an extractor stripped
+    `<ref>`, `<sub>` and `<sup>` from raw wikitext and HTML, which first made the tenor cornett's
+    cited sentence look uncited and turned the trembita's and truba's superscript octaves into
+    "c-g". The generator now checks every quote against the unparsed page
+  - [ ] Pages the fetches could not reach: the Met's object pages (429, a Vercel checkpoint), the
+    National Music Museum eMuseum, Britannica and Iranica (403), and the Edinburgh `cornet a
+    pistons` record (read through WebFetch, whose extract matches the search listing)
+- **Leads** (not sources under the ruling, so no row was ranged from them):
+  - [ ] Leven's 2023 paper (Adoranten, `rockartscandinavia.com` `a23leven.pdf`, Tables 1 and 2):
+    measured eigenfrequencies of each lur replica (for example Rorlykke 95-938 Hz), which belong
+    to individual finds with different tunings, and the kombu's Sa, Pa' and Sa' as 262, 392 and
+    523 Hz (C4-C5). A journal paper is not a source type the ruling lists
+  - [ ] VSL's sample-library listing gives natural trumpets in Bb, C and D as F3-D6, G3-D6 and
+    A3-E6: a product's sampled range, not an instrument page, with no stated written or sounding
+    pitch and no standard key
+- **Follow-ups**:
+  - [ ] The audit's gaps (`plans/data/instrument-audit/brass.md`, listed in #70) are a later pass
+    over this family
+  - [ ] Ranging the 80 range WAITs from maker and museum sources (Wessex, Egger, Monk, the
+    Edinburgh and Horniman records, MIMO, the Met once it answers), each row's notes recording what
+    was searched; `post horn`, `hunting horn` and the bugle variants were not searched
+  - [ ] Check the 42 earlier entries' ranges against sources (none was checked beyond the entries
+    named above)
+  - [ ] The engine changes that unblock the waits above, most rows first: the 80 range waits need
+    no engine feature, then a build of their own (2), moving formants (2), sub-audio fundamentals
+    (1) and a buzzing membrane (1); the 13 target waits follow their targets
+  - [ ] The sheet's cells contain stray quote characters (some cells are CSV-quoted), so read it
+    with Python's csv module rather than splitting on tabs
+- **Found**: batch 10's reviews (2026-11-12)
+- **Status**: TODO
+- **Priority**: Medium (before the double reeds batch builds on the same catalog)
+
+### 81. Sound Engine: The Owner's Checks on Instrument Catalog Batch 11 — TODO
+- **Goal**: confirm or overturn the calls made while batch 11 of #70 ran, and listen to its new
+  instruments (double reeds 23 to 25 entries). Almost every candidate waits or drops: 0 built, 2
+  sound-alikes, 82 waits, 11 aliases and 21 drops in the sheet's 116 rows. The plan's Task 5 added
+  only `balaban` and 7 aliases, and the final review's ruling then took `balaban` out (it waits for
+  its own build); the contraforte's own build was taken out in Task 3's second fix round
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+  level, filter, ring and click is sound design unless a source is cited in the code; the folder is
+  `build/instruments/double reeds/`). No new build was added, so there is nothing new to hear as a
+  build, and the listening is the sound-alikes and the aliases beside their parents, which must
+  sound alike by design:
+  - [ ] The new builds: none (0 SHIP rows)
+  - [ ] The 2 sound-alikes beside their parents: `contraforte` (A0-G4) beside `contrabassoon` (A0 is
+    the catalog's floor: listen for a quiet or wrong note there) and `piccolo heckelphone` (E4-A6)
+    beside `heckelphone` (the top notes sit well above the parent's register: listen for a thin or
+    harsh tone)
+  - [ ] The 11 aliases: `cor anglais` (of `english horn`), `baritone oboe` (of `bass oboe`),
+    `fagott` (of `bassoon`), `cervelas` (of `rackett`), `gyaling` and `haidi` (of `suona`), `zurla`,
+    `surna`, `surnay` and `zournas` (of `zurna`) and `bombard` (of `bombarde`)
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-11.tsv`; the sheet's 116 rows:
+  SHIP 0, SOUND_ALIKE 2, WAIT 82, ALIAS 11, DROP 21):
+  - [ ] Every WAIT (82 rows), by reason:
+    - 61 for a sourced range: `alto sarrusophone`, `baritone sarrusophone`, `baroque oboe`, `bass
+      sarrusophone`, `bassanelli`, `bassett nicolo`, `contrabass oboe`, `b flat contrabass
+      sarrusophone`, `e flat contrabass sarrusophone`, `cornamuse`, `dulcian`, `great bass
+      crumhorn`, `great bass shawm`, `hautbois de poitou`, `kortholt`, `lupophone`, `nicolo`, `oboe
+      da caccia`, `piccolo oboe`, `rauschpfeife`, `rothphone`, `sopranino sarrusophone`, `sopranino
+      shawm`, `soprano sarrusophone`, `sordun`, `tenor sarrusophone`, `tenoroon`, `algaita`,
+      `charumera`, `chirimia`, `dolcaina`, `gaita navarra`, `gralla`, `guanzi`, `hirtenschalmei`,
+      `hne`, `hne galay`, `hne gyi`, `houguan`, `ken bau`, `kuzhal`, `mey`, `nadaswaram`, `ottu`,
+      `pi chanai`, `pi chawa`, `pi mon`, `pi nai`, `piffero`, `rhaita`, `salamiya`, `sarune`,
+      `serunai`, `shehnai`, `sopila`, `sralai`, `taepyeongso`, `tarompet`, `tarota`, `tenora`,
+      `tible`
+    - 19 because their target waits: `schreierpfeife` (for `rauschpfeife`); `oboe musette` (for
+      `piccolo oboe`); `curtal`, `courtaud`, `bajon` (for `dulcian`); `bassanello` (for
+      `bassanelli`); `ciaramella` (for `piffero`); `nagaswaram`, `nadhaswaram`, `nataswaram` (for
+      `nadaswaram`); `shahnai`, `sanayi`, `sahanai` (for `shehnai`); `hojeok`, `hojok`, `nallari`,
+      `saenap` (for `taepyeongso`); `ghaita`, `ghayta` (for `rhaita`)
+    - 1 for a sourced drone tuning: `aulos`
+    - 1 for its own build (a cylindrical bore): `balaban`, see the next item
+  - [ ] `balaban` waits for its own build (a cylindrical bore) (the controller's ruling after the
+    final review; it was a sound-alike of `duduk` at G3-C5 until then). Its page cites the bore
+    ("a double-reed pipe with cylindrical bore", and Encyclopaedia Iranica's "cylindrical-bore"),
+    and `_duduk` builds every harmonic (see Bugs to report), so a sound-alike would ship a cited
+    trait its build lacks: the reason `piri` is in `APPROXIMATING_NAMES`, and what spec decision 4
+    forbids. `duduk` itself stays because the Duduk page's "cylindrical body" is uncited. This call
+    is the owner's to confirm. `mey` and `guanzi` will meet the same question if they are ever
+    ranged, so the ruling decides all three; the sheet keeps `balaban`'s G3-C5 and the museum
+    quote in its notes. The range, once a cylinder build exists, is ready
+  - [ ] The double reed range rule (the owner kept the range rule strict, 2026-11-09): a range is
+    stated or an exact span above the lowest note, in sounding pitch with the source's own
+    transposition (an English horn a fifth below its part, a contrabassoon an octave below), with
+    the arithmetic shown; no extension, extreme or player's top beyond the stated compass; capped
+    reeds ranged like any other; never hedged ("about", "usually", "typically", "commonly",
+    "practically"), never "comfortable" or "theoretical"; the key or size a source calls standard (a
+    key in the row's own name is ranged in that key); maker and museum sources count, a retailer,
+    blog or forum does not; nothing below A0 or above C8; a one-note instrument has no range; a
+    Wikipedia range counts only with a citation in the raw wikitext. Two additions are this batch's,
+    so confirm them: a span a source calls "comfortable", "theoretical" or "practically" is no
+    range, and a Wikipedia range counts only when its citation is in the raw text (the quote check
+    finds every `Range:` passage in the saved raw page). The ranges derived under it: `contraforte`
+    A0-G4 (Eppelsheim's maker page: "written range A1 - G 5, sounding A0 - G 4") and `piccolo
+    heckelphone` E4-A6 (Wikipedia, cited to Grove: written B3-E6, "pitched in F, a perfect fourth
+    above the oboe"; the uncited extension of a third is left out). `balaban`'s G3-C5 (the
+    Azerbaijan State Museum of Musical Culture: "from the \"sol\" of the small octave to the \"do\"
+    of the second octave"; the next sentence, "The diapason can be expanded, depending upon the
+    mastery of the performer", is a player's extreme and is left out) is kept in its WAIT row's notes
+  - [ ] The quote ruling and the quote check: every `Range:` passage is quoted between «» from the
+    raw page the worker saved (`build/batch-11-pages/`, gitignored), citations included, and
+    `build/batch-11-quote-check.py` finds each in its saved page; it covers SHIP and SOUND_ALIKE
+    rows only, so the quoted passages of the eight sarrusophone WAIT rows were checked by a script
+    of Task 2's. `balaban`'s page is served as Windows-1252 with no declared charset and was
+    transcoded to UTF-8 so the check could read it, its text unchanged. The curly quotes in its code
+    comment are written straight (ruff's ambiguous-unicode rule)
+  - [ ] The sarrusophones wait on hedged "theoretical" scores. Each size page's infobox gives a
+    written score, a sounding score and a caption with the transposition, cited to Grove, but the
+    scores match note for note the Sarrusophone page's uncited "theoretical ranges" list, and the
+    same Grove reference says the keywork "usually allows a practical range to high G6" (a hedge).
+    So `soprano sarrusophone`, `alto sarrusophone`, `tenor sarrusophone`, `baritone sarrusophone`,
+    `bass sarrusophone` and `e flat contrabass sarrusophone` wait for a sourced range, with the
+    arithmetic kept in their notes. If you read the in-cell citation as enough, they ship as
+    sound-alikes of `sarrusophone` at Ab3-F6, Db3-Bb5, Ab2-F5, Db2-Bb4, Ab1-F4 and Db1-Bb3. They
+    would share the C contrabass's fixed 2500 Hz low pass, which would muffle the soprano's top
+    (about 1.4 kHz at F6); no fetched source gives a sound difference
+  - [ ] `sopranino sarrusophone` is the eighth sarrusophone WAIT and differs from the six sizes
+    above: Wikipedia has no Sopranino sarrusophone page (404), so it has no infobox, only the
+    Sarrusophone page's uncited "theoretical ranges" list (E-flat sopranino: B-flat3 to G6, sounding
+    D-flat4 to B-flat6) and no transposition from Grove, so there is no cited score to accept
+  - [ ] `b flat contrabass sarrusophone` waits for a sourced range like its siblings. Its infobox
+    (written B♭3-G6, "three octaves and a second (B♭) lower than written") would sound A♭0-F3, below
+    the catalog's A0, so if the siblings ship it waits next for sub-audio fundamentals (the spec's
+    name; the sheet's first draft waited it for that)
+  - [ ] `contraforte` as a sound-alike of `contrabassoon`, not a build of its own (the sheet first
+    had it SHIP, and Task 3's review and fix rounds reversed it). Its sources name a wider bore
+    (Eppelsheim: "wide bore for a voluminous tone"), a round tone (Guntram Wolf: "klaren, runden
+    Klang") and no rattle (Wikipedia: "lacks the distinct 'rattle'"), but the engine cannot make the
+    bore's difference: with the contrabassoon's low pass, lowering the drive to 0.2 changed the
+    crest factor by 1.5% (measured: 0.989, 0.978 and 0.970 of the contrabassoon's share of
+    high-partial energy, i.e. slightly more, not less), a number chosen only to be different, and a
+    brighter low pass (2800) had been read from "remaining quite strong into the high register",
+    which is about pitch, not spectrum. The alternative is a build of its own with a sound-design
+    drive
+  - [ ] `terz heckelphone` is dropped as a one-off, on Heckel's own word: "The extremely rare terz
+    heckelphone was only made once in 1915 exclusively for the composer Richard Strauss." The same
+    page says "instruments" in its Construction section, the cited Marcuse says "few were made" and
+    a `{{cn}}` line says "a handful were built", and it gives only "reaches to a depth of D4", so a
+    waiting row was the other reading
+  - [ ] `shehnai` (and its aliases `shahnai`, `sanayi` and `sahanai`) wait because the citation does
+    not support the range: the page's A3-A5 line is followed by a Met essay that gives no range, and
+    Britannica gives only "a two-octave range" (a width). It would be a sound-alike of `zurna` at
+    A3-A5 (the nearest by centre; hs 422.112) if you accept the uncited line
+  - [ ] The alias reasoning for `sorna`, `surna`, `surnay`, `zournas` and `zurla`: `sorna` is
+    dropped as a distinct instrument with no candidate row (the Grove-cited Shawm page calls them
+    "the closely related sorna and zurna"; the Sorna page's "also Zurna" is an uncited lead; decided
+    like `serunai` and `mey`, which wait on their own because sources that disagree make no alias).
+    `surna` is an alias of `zurna` though the Surna page gives the name to both the zurna and the
+    sorna (its note says so); `surnay` follows the Zurna page's "Persian: karna/Kornay/surnay", and
+    `zournas` and `zurla` its names note. Reversal: if the sorna is the zurna, it is an alias too
+  - [ ] `bombard` is an alias of `bombarde` while `pommer` is dropped: the Bombard page makes the
+    name the Breton instrument's ("Breton: bombard, talabard, French: bombarde"), where the Pommer
+    page applies "pommer" to "the alto, tenor, bass, and contrabass members" of the shawm family, a
+    generic term. The two rows share one audit line ("Pommer or bombard"), so the pair is the
+    shakiest reading here; dropping `bombard` alike is the other
+  - [ ] `tenora` and `tible` wait on hedged ranges with no stated octave numbering: the Gran
+    Enciclopedia de la Musica gives written and sounding notes ("d'unes tres octaves del fa#2 al
+    sol5 (del mi2 al fa5 en notes reals)" for the tenora, "normalment del la2 al mi5 (del re3 al la5
+    en sons reals)" for the tible), but the tible's "normalment" is a hedge, the tenora's "d'unes"
+    hedges the width, and neither names its octave numbering. Under the Franco-Belgian numbering
+    (do3 is middle C) the tenora would be E3-F6 and the tible D4-A6, an inference of the sheet's,
+    not the source's
+  - [ ] `ottu` waits for a sourced range because it is a one-note instrument ("designed to produce a
+    single constant note while being played"; the page does not name the note) and the catalog needs
+    a lowest below a highest. Should a one-note instrument ship as a fixed-pitch entry instead? (the
+    same question as #80's one-note horns and shells)
+  - [ ] Other uncited or ambiguous ranges that wait, any of which is one row edit if you accept the
+    line: `dolcaina` (the Dulzaina page's "range in the concert pitch goes from A3 to E5" is
+    uncited; it would be a sound-alike of `bombarde`), `gralla` (a "tesitura" G3-G5 with no octave
+    numbering), `sopranino shawm` (the maker's "f' - d''" next to "a little over one and a half
+    octaves" contradicts itself, and the corrected reading is a guess), `nicolo` (the Shawm page and
+    Britannica 1911 make it a tenor and an alto; a width), `mey` (a width), `taepyeongso` (a width),
+    and the `hne`, `guanzi`, `houguan`, `nadaswaram` and `sralai` widths
+  - [ ] The boundaries: `zukra` is dropped to the bagpipes batch ("is a Libyan bagpipe"; its bagless
+    form is a double clarinet, not a double reed). `ciaramella` is decided here, as an alias name
+    waiting for `piffero` (the fetched pages make the name the mouth-blown shawm and send the
+    bagpipe to the separate Ciaramedda page); if you read it as the bagpipe, it is that drop.
+    `piffero` is decided here as the shawm (it waits for a sourced range). `musette` (the musette de
+    cour, a bagpipe) and `dulciana` (an organ stop) are dropped as ambiguous names, the unambiguous
+    `oboe musette` carrying the alias (it waits for `piccolo oboe`). `fagott` is an alias of
+    `bassoon`, not the audit's `dulcian` (the Fagott page redirects to Bassoon), and `doucaine` is
+    dropped (it redirects to the Mary Rose page, which calls it the one surviving still shawm; the
+    Dulcian page lists it among equivalents)
+  - [ ] Generic and ambiguous names dropped: `pi` and `guan` (generic terms for classes of
+    instruments), `kuan` (the Wade-Giles spelling of 管, so generic too), `laba` ("horn; trumpet"
+    first), `mizmar` ("any single or double reed wind instrument"), `charamela` (a generic term for
+    double- and single-reed instruments), `zamr` (it redirects to the double clarinet), `selompret`
+    (the only fetched source says "bugle", so brass), `pommer` (above), `duduki`, `sundari` and
+    `mukhaveene` (no fetched source describes the first two, and the third follows `sundari`)
+  - [ ] One-offs and unsourced rows dropped: `tromboon` (Schickele's comic hybrid), `serpentine
+    bassoon` ("a unique Australian double-reed instrument" built for one player; the audit itself
+    found no page) and `doppioni` (no page describes it), and `terz heckelphone` (above). The
+    in-production line stands: a maker's current model page or a museum's holding makes a type,
+    however few were made
+  - [ ] The module move: `double_reeds.py` holds the family (moved unchanged from `winds.py`, the
+    way batch 9 moved the flutes), its table is `_DOUBLE_REED_BUILDS` and `DOUBLE_REEDS` is
+    `_DOUBLE_REED_BUILDS + DOUBLE_REED_SOUND_ALIKES`; `winds.py` keeps the clarinets, saxophones,
+    bagpipes and free reeds. The before-and-after record found `changed: []`
+  - [ ] The bore ruling (Hornbostel-Sachs 422.111 a cylindrical single oboe, 422.112 a conical one,
+    422.12 a double pipe): a sound-alike's parent is built with the row's bore, `_double_reed` and
+    `_folk_shawm` being cones, `_capped_reed` a capped cylinder and `_duduk` a cylinder, and the
+    form check refuses a sound-alike whose `hs` bore differs from its parent's. The capped and
+    uncapped reeds stay apart (a capped reed's parent is a capped entry; the form check cannot see
+    the cap, the review did): `hirtenschalmei` (capped, 422.111) and `kortholt` (capped) wait, so no
+    capped row shipped
+  - [ ] `piri` is in `APPROXIMATING_NAMES` and `hichiriki` is not, so `piri` can never be a parent
+    and `hichiriki` still can: both are built as conical shawms though their pages say cylindrical,
+    but the Piri page's "It has a cylindrical bore." is cited (to the Encyclopedia of Korean
+    Culture, the batch 9 `dizi` precedent), where the Hichiriki page's line is tagged `{{citation
+    needed}}`. Neither is a parent in this batch (the form check refuses both); the Guan page's
+    cited "the guan has a cylindrical bore" and the Hichiriki page's "derived from the Chinese guan"
+    make the hichiriki's cylinder better sourced than its own line, so you may want it in the set
+    too
+  - [ ] No new approximation: the hichiriki's embai ("a kind of pitch-gliding technique", cited) and
+    the duduk's bent notes are articulations a player applies (the spec's Non-goals), and circular
+    breathing (the Zurna, Suona and Duduk pages) is technique, since the engine sustains a note for
+    as long as it is held
+  - [ ] The pirouette is `_folk_shawm`'s trait already (the Shawm page: "The shawm's conical bore
+    and flaring bell, combined with the style of playing dictated by the use of a pirouette, gives
+    the instrument a piercing, trumpet-like sound"), and reeds, keys and metal count as a trait only
+    when a source names their effect on the sound: the hne's sextuple reed, the sralai's quadruple
+    reed, the tenora's keys and the metal bells set no row apart, and none waits for a build of its
+    own
+  - [ ] Drones, pairs and double pipes: `aulos` (a double pipe, 422.121.2) waits for a sourced drone
+    tuning, held in `DOUBLE_REED_HELD_BACK` (its page's only drone sentence is Sachs's analogy to
+    "bagpipes with a chanter and (modulated) drone", it gives neither pipe's notes, and a sourced
+    range is missing too); `sopila`, "always played in pairs", waits for a range as one instrument
+    of its size (the pair is an ensemble); the duduk's second-player dum is not part of the
+    instrument
+  - [ ] Any new builder and the trait its source names: none. No double reed row shipped as a build,
+    so the family has the same four builders (`_double_reed`, `_folk_shawm`, `_capped_reed`,
+    `_duduk`)
+  - [ ] Sizes and keys as sound-alikes, standard sizes and other names as aliases: `piccolo
+    heckelphone` is a sound-alike of `heckelphone` (its source makes the wide bore "the basic
+    principle of the heckelphone"), and `contraforte` of `contrabassoon`;
+    `balaban` was a sound-alike of `duduk` ("almost identical, except for historical and
+    geographical differences"; a relation, which is why `mey` is not an alias and waits on its
+    own) until the final review's ruling made it wait for a cylindrical build; `cor anglais`, `baritone oboe` and `cervelas`
+    are aliases because their sources call the catalog's own `english horn`, `bass oboe` and
+    `rackett` by those names, and `gyaling` and `haidi` are aliases of `suona` (the Gyaling page:
+    "it is the Chinese double reed Suona horn"; the Suona page: "also called dida, laba or haidi",
+    though it also gives 海笛 hǎidí to a piccolo size the catalog lacks). No new size chain: none of
+    the shipped sound-alikes sits beside two or more catalog sizes a source names as one family. The
+    `hne` sizes (`hne gyi`, `hne galay`) and `sopranino shawm`, `great bass shawm` and `great bass
+    crumhorn` wait for a range
+  - [ ] `DOUBLE_REED_HELD_BACK`, the guard for every held name: two (`aulos`, and `balaban` for its
+    own build), refused as a catalog
+    name or an alias by a test, and compared with the sheet by the code check. Every other wait is a
+    sourced range or a target that waits for one (the sarrusophones' `sub-audio fundamentals` was
+    dropped from the guard when `b flat contrabass sarrusophone` went to a sourced range)
+  - [ ] The two-half split as explicit lists (half A, the orchestral, modern and early European
+    double reeds, 34 candidates and 13 alias names, 47 rows; half B, the folk and traditional shawms
+    and oboes with the aulos, 46 candidates and 23 alias names, 69 rows), the two sheets researched
+    in parallel, and the shared files written up front by a setup agent. No code task was skipped by
+    ruling: Task 3 added half A's contraforte and piccolo heckelphone and 4 aliases, Task 5 half B's
+    balaban (later held back) and 7 aliases, and each half's rulings were applied after the reviews (the six
+    sarrusophones, `terz heckelphone`, `contraforte`, `balaban`, `sorna`)
+  - [ ] Engine features named beyond the spec's table, for its "What the engine cannot make yet":
+    none new. The one feature wait, `aulos`, names batch 7's "a sourced drone tuning", and the
+    sarrusophone sub-audio floor is the spec's "sub-audio fundamentals". The cylindrical bore's
+    harmonic series (the duduk's, see below) is a build question, not a missing engine feature
+- **Bugs to report** (found while building batch 11; none fixed here):
+  - [ ] `piri` is built as a conical shawm (`_folk_shawm`) though the Piri page says "It has a
+    cylindrical bore." (cited). It is in `APPROXIMATING_NAMES` now (never a parent); the build is
+    the bug
+  - [ ] `hichiriki` is built the same way, against the Hichiriki page's "has a cylindrical bore and
+    thus its sound is similar to that of a clarinet" (tagged `{{citation needed}}`), and the Guan
+    page's cited "the guan has a cylindrical bore" with its "derived from the Chinese guan" supports
+    it. It is not in `APPROXIMATING_NAMES`
+  - [ ] The catalog's `soprano crumhorn` (C4-D5) and `alto crumhorn` (F3-G4) are a tone below the
+    Crumhorn page's table, soprano "(C4) D4-E5 (F5)" and alto "(F3) G3-A4 (Bb4)". The table is
+    uncited, so this is a lead to check with a maker, not a source: the Renaissance Workshop Company
+    gives a soprano of c'-e'' and an F alto of f-a', each with one upward key, which agree with the
+    catalog without the keys
+  - [ ] `oboe` (A6 at the top) sits above the Oboe page's "B♭3 to about G6" and "usually from B♭3 to
+    G6" (cited, but hedged, so a lead). No fetched source supports A6
+  - [ ] `_duduk` builds every harmonic (`falling_series(count=10, decibels_per_octave=9.0)`, no
+    `odd_only`) though the duduk is modelled as a cylinder (the Duduk page: "The unflattened reed
+    and cylindrical body"; the form check treats it as 422.111; `winds.py`'s module docstring says "a
+    clarinet (a closed cylinder) favours odd harmonics"; `_capped_reed` does use `odd_only=True`).
+    `balaban` would have inherited this, so it waits for its own build (a cylindrical bore) instead
+    of shipping as a sound-alike, and `mey` and `guanzi` meet the same question if they are ever
+    ranged
+  - [ ] `zurna` is built as a cone (`_folk_shawm`) against the Zurna page's "It has a cylindrical
+    bore, and a bell opening out in a parabolic curve". The line is uncited, and the same page says
+    "a conical brass tube" and sits in "Single oboes with conical bore", so this is a conflict to
+    rule on, not a cited bug. Four aliases resolve to it now (`zurla`, `surna`, `surnay`, `zournas`)
+  - [ ] `double_reeds.py`'s docstring calls the folk instruments' ranges "typical of the common
+    keys" without a source (moved unchanged from `winds.py`)
+  - [ ] The 23 earlier entries carry no source comment, and no range or build of theirs was checked
+    against a source beyond the entries named above (`sarrusophone` Bb0-G3 agrees with its cited
+    infobox)
+  - [ ] A warning to understand: `pytest -W error` fails on a DeprecationWarning at import (17 of
+    them, from `speech_recognition`, whose `aifc` module Python 3.13 removed). It is third-party,
+    present before this batch and shown by a plain `-W default` run, but it means the suite is not
+    warning-clean under `-W error`. `ty` also reports 3 diagnostics in the catalog tests (Mapping
+    subscript-assignment tests, from before this batch)
+- **Incidents and process**:
+  - [ ] Parallel sheets, pushes and stacked PRs were made without asking (the owner, 2026-11-12,
+    #78)
+  - [ ] Task 1's first commit went in with ruff errors (zsh word-splitting made the first lint run a
+    no-op); it was fixed and amended before the report. Task 1's docstring line, 101 columns in the
+    brief, lost its "and" to fit 100
+  - [ ] Task 2's `build/batch-11-half-a.tsv` and Task 3's regenerated copy are gitignored working
+    files; the committed sheet is the record. Task 2 moved its own fetched pages inside the session
+    scratchpad and copied them back; nothing in `build/batch-11-pages/` was moved
+  - [ ] The plan's contraforte (SHIP, then a rounder low pass, then a sound-alike) went through
+    three rounds because a trait test measured an unsourced low-pass number. No sourced trait is
+    measurable, so the plan's rule 7 ("a number chosen only to be different") decided it
+  - [ ] A plan inconsistency caught before coding: "`hichiriki` and `piri` never parents" without
+    being in `APPROXIMATING_NAMES` contradicted batch 9's `dizi` precedent. The controller ruled
+    `piri` in (a cited cylindrical bore) and `hichiriki` out (an uncited line), above
+  - [ ] Pages the fetches could not reach: the Met (429), MFA Boston (403), the National Music
+    Museum eMuseum (403), the Grinnell catalogue (403), Britannica and Encyclopaedia Iranica (read
+    from archives), the SMB sarunai PDFs (404), the Wikipedia pages for `doppioni` and `sundari`
+    (404), Guntram Wolf's dulcian and baroque oboe pages (no text), and Lorée's and Marigaux's
+    piccolo oboe pages (no compass). The Koizumi, Horniman and Edinburgh catalogues were not reached
+  - [ ] Parked minors from the reviews: the sheet's notes for `surna`, `surnay`, `aulos` and `kuan`
+    were extended per the Task 4 review (the name covers two reeds; the drone is by analogy and the
+    range is missing too; the Wade-Giles spelling); the `sopranino shawm` row's "f' - d''" is
+    probably a typo for d''' but the corrected reading is a guess; the contraforte's drive had read
+    the wider bore as smoother where the heckelphone's reads as more drive (moot once it became a
+    sound-alike); the code comments write the B-flat sign and curly quotes in ASCII for ruff's
+    ambiguous-unicode rules while the sheet keeps the verbatim text
+- **Leads** (not sources under the ruling, so no row was ranged from them):
+  - [ ] The Grinnell catalogue's taepyeongso snippet ("if, for example, it is approximately
+    B-flat4", hedged, 403 on fetch); powerflute.ch's nadaswaram (one octave from G3, a collector
+    site); Karahasanoglu's mey paper ("limited to one octave", a width); Moeck's baroque oboe "after
+    Denner, c'-d''', a'=415", found only on a retailer's archived list (Moeck's historical line
+    closed in 2008); Heckel's terz heckelphone "reaches to a depth of D4"; Wikipedia's uncited
+    crumhorn range table and Dulzaina range line
+- **Follow-ups**:
+  - [ ] The audit's gaps (`plans/data/instrument-audit/double-reeds.md`, listed in #70) are a later
+    pass over this family
+  - [ ] Ranging the 61 range WAITs from maker and museum sources (MIMO, the Met once it answers, the
+    Horniman, the Edinburgh and Bate collections, the Koizumi catalogue, Moeck, Moulder and the
+    Renaissance Workshop Company), each row's notes recording what was searched; the six
+    sarrusophone sizes with an infobox and `b flat contrabass sarrusophone` are the quickest if you
+    accept their infobox scores (the `sopranino sarrusophone` has none)
+  - [ ] Check the 23 earlier entries' ranges and builds against sources (the crumhorns, the `oboe`,
+    the `piri`, `hichiriki` and `zurna` bores, the `duduk`'s series; none was checked beyond the
+    entries named above)
+  - [ ] The engine changes that unblock the waits above, most rows first: the 61 range waits need no
+    engine feature, then a sourced drone tuning (1) and a cylindrical build (1, `balaban`); the 19 target waits follow their targets
+  - [ ] The sheet's cells contain stray quote characters (some cells are CSV-quoted), so read it
+    with Python's csv module rather than splitting on tabs
+- **Found**: batch 11's reviews (2026-11-12)
+- **Status**: TODO
+- **Priority**: Medium (before the bagpipes batch builds on the same catalog)
+
+### 82. Sound Engine: The Owner's Checks on Instrument Catalog Batch 12 — TODO
+- **Goal**: confirm or overturn the calls made while batch 12 of #70 ran, and listen to its new
+  instrument (bagpipes 8 to 9 entries). Almost every candidate waits or drops: 1 built, 0
+  sound-alikes, 62 waits, 4 aliases and 24 drops in the sheet's 91 rows. Several calls were
+  reversed during the batch (see the list below): `dudy` shipped and then went back to waiting,
+  `brian boru bagpipes`, `sac de gemecs` and `parkapzuk` wait for a range rather than for an
+  engine feature, and `union pipes`, `biniou braz`, `tulug` and `mushak baja` were dropped
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+  level, filter, drone level and click is sound design unless a source is cited in the code; the
+  folder is `build/instruments/bagpipes/`):
+  - [ ] The new build: `sackpipa` (Säckpipa in A, E4-E5, one drone at E4), the family's first
+    cylindrical chanter (`CYLINDRICAL_CHANTER_LEVELS`: odd harmonics only, sound design marked so
+    in its comment). Listen for a hollow, clarinet-like chanter against `scottish smallpipes`
+    (whose levels, drone levels, low pass, drive and breath it copies; the sources call the
+    säckpipa's tone "quite soft" and "warm, soft"), a quiet single drone, and the same instrument
+    at both ends of its octave. The trait test measures the chanter alone: at A#4 (the middle
+    note of E4-E5, not the sources' tonic A4) the second and fourth harmonics are 0.0002 of the
+    first and the third is 0.387, against the Highland pipe's even harmonics above 0.6
+  - [ ] The sound-alikes beside their parents: none shipped (0 SOUND_ALIKE rows), so there are no
+    retuned sound-alikes to hear and no drones to compare. The mechanism is in place and tested
+    with an empty table (`BAGPIPE_RETUNED_DRONES`)
+  - [ ] The 4 aliases beside their parents, which are the same instrument by name: `irish pipes`
+    (of `uilleann pipes`), `lowland pipes` and `half long pipes` (of `border pipes`) and `gaita
+    galega` (of `galician gaita`)
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-12.tsv`; the sheet's 91 rows:
+  SHIP 1, SOUND_ALIKE 0, WAIT 62, ALIAS 4, DROP 24):
+  - [ ] Every WAIT (62 rows), by reason:
+    - 57 for a sourced range: `baghet`, `biniou koz`, `boha`, `bousine`, `brian boru bagpipes`,
+      `cabrette`, `caramusa`, `cornemuse du centre`, `cornish bagpipes`, `gaita asturiana`, `gaita
+      de boto`, `gaita de saco`, `gaita sanabresa`, `gaita transmontana`, `great irish warpipes`,
+      `odrecillo`, `pastoral pipes`, `sac de gemecs`, `scottish smallpipes in d`, `surdelina`,
+      `surdullina`, `veuze`, `ciaramedda`, `chabrette`, `cabreiresa`, `askomandoura`, `cimpoi`,
+      `dankiyo`, `dudmaisis`, `dudy`, `dzhura gaida`, `gudastviri`, `istarski mih`, `jirba`, `kaba
+      gaida`, `latvian dudas`, `macedonian gaida`, `magyar duda`, `marktsackpfeife`, `mashak`,
+      `ney anban`, `parkapzuk`, `polish dudy`, `sakkipilli`, `sorbian dudy`, `sruti upanga`, `swiss
+      sackpfeife`, `tadghtita`, `titti`, `torupill`, `tsampouna`, `tulum`, `volynka`, `zaqq`,
+      `zukra`, `zummarah bi soan`, `schaferpfeife`
+    - 5 because their target waits: `chabretta` (for `chabrette`), `gaita mirandesa` (for `gaita
+      transmontana`), `masak been` (for `mashak`), `xeremies` (for `sac de gemecs`) and `guda` (for
+      `tulum`)
+    - 0 for an engine feature, a build of its own, a sourced drone tuning or a sourced chanter
+      bore: `BAGPIPE_HELD_BACK` is empty
+  - [ ] The range ruling (the owner kept the range rule strict, 2026-11-09): a range is stated or
+    an exact span above the lowest note, in sounding pitch, never hedged ("about", "typically",
+    "commonly", "usually", "practically", "can reach"); a compass relative to a tonic counts only
+    when the same source fixes the tonic's octave; no extension or extreme (a note in parentheses,
+    a player's top, an optional key); a width ("nine notes"), a key alone, note letters with no
+    octave, a relation to a sibling ("an octave above the bombarde") or a tessitura is no range;
+    the key the source calls standard, usual or most common (a key in the row's own name is
+    ranged in that key); a maker's, museum's or piping society's page outranks an uncited
+    Wikipedia line, and a retailer, blog, forum or tune book is not a source; nothing below A0 or
+    above C8; a one-note instrument has no range; a Wikipedia range counts only with a citation
+    in the raw wikitext that supports it. The one range derived under it: `sackpipa` E4-E5 (Leif
+    Eriksson, a maker writing of his own pipes: "The normal key for the Swedish bagpipe is a', the
+    lowest tone being e', and the highest e'', with a', in the middle."). It stands although the
+    maker's own page says "I do not make bagpipes for sale anymore": a maker's stated normal key
+    counts whether or not he still sells (the controller's ruling; confirm it)
+  - [ ] The nominal-pitch ruling (a bagpipe's note names are often its own, not concert pitch): a
+    nominal range counts only with the same source's sounding pitch for a named note, the shift
+    being the nearest equal-tempered semitone (A4 = 440 Hz) from the stated pitch, a span's
+    midpoint, and a pitch within 10 cents of halfway between two semitones decides nothing. It
+    shifted no shipped row. It held `gaita asturiana` (its tonic C5 sounds "between concert C and
+    C#", within the margin) and the catalog's `highland bagpipe` range (Ab4-Bb5, the page's G4-A5
+    nominal range a semitone up) agrees with it. Confirm the rule, in particular the 10-cent
+    margin
+  - [ ] The drone ruling: a drone is sourced when a source gives its note with an octave, a hertz
+    figure, or an interval from a chanter note whose sounding pitch it fixes; a droneless pipe
+    says so; unison drones count once; muted drones are left out; at most two distinct pitches
+    (`with_drones` keeps room for two beside the chanter's breath); keyed drones are notes of the
+    sequence; and every drone sounds its derived note equal-tempered at A4 = 440 Hz like the
+    chanter, in hertz to two decimals, a source's hertz figure deciding which note and not the
+    drone's pitch. The one derived drone is `sackpipa`'s E4 (329.63 Hz, Eriksson: "The drone is
+    normally tuned to the e' of the chanter."). Equal-tempered drones are this plan's call and
+    differ from the older entries' (Bugs to report): confirm
+  - [ ] The retuned sound-alikes, decision 8's first shipped use of `sound_changes`: a sound-alike
+    whose sourced drones differ from its parent's by more than 5 cents (or in number) carries
+    `sound_changes={'drones': ((hertz, level), ...)}`, each drone at its derived note with the
+    level of the parent's drone of the same rank (the parent's levels copied unchanged), and only
+    `drones` may change. The tests changed for it: `CHANGED_SOUND_ALIKE_NAMES` no longer holds
+    the bagpipes, the sound-alike test's equality skips the retuned (they must differ from the
+    parent) and `test_a_retuned_bagpipe_sounds_its_sourced_drones` pins each one's drones. None
+    ships: the table `BAGPIPE_RETUNED_DRONES` is empty. The test first asserted `drone_notes`,
+    which fails for a droneless retuned bagpipe (`drones=()`, as the plan allowed); the assert
+    was removed in the final review, so the test checks the hertz list alone. Retuned
+    sound-alikes were considered for `marktsackpfeife` (a `highland bagpipe` sound-alike at G4-A5 with drones E3 and A2, refused
+    below) and `dudy` (a `sackpipa` sound-alike with an E♭1 drone, below)
+  - [ ] `dudy` was shipped and then went back to waiting (a sourced range). Pavel Číp & synové (a
+    dudy maker, histnastroje.cz/dudy-lidove/) give the bore ("Vrtání píšťal válcové. Tvorba tónu
+    pomocí jednoduchého nárazného jazýčku.": cylindrical, a simple beating reed), the most used
+    key (Es dur), the tone row «B-d-Es-f-g-a-b-c'», "neúplné nony" and a drone "o dvě oktávy níž
+    než základní tón". Fix round 1 read the row as B♭2-C4 with an E♭1 drone (38.89 Hz) as a retuned
+    `sackpipa` sound-alike; the re-review found that no source states the sounding octave: the row
+    is mixed-case, not strict Helmholtz (a capital Es between a small d and a small f), and the
+    pipe lengths point to a nominal row an octave low (a closed cylinder sounding B♭2 needs about
+    0.74 m, and one sounding 38.89 Hz about 2.2 m). The Číp page is its lead, and a source that
+    fixes the sounding octave (a maker, museum or society) would close it. This call is the
+    owner's to confirm, with the octave doubt. `sorbian dudy` and `polish dudy` wait for a range on
+    their own pages
+  - [ ] The chanter ruling (Hornbostel-Sachs 422.1 a double reed, 422.2 a single reed, then single
+    or a set, then 1 cylindrical or 2 conical): the `hs` cell holds the chanter's class from a
+    page's infobox, its category, or a source sentence naming the reed and bore, and a ranged row
+    with no sourced bore waits for `a sourced chanter bore`, a source wait this plan added (no row
+    waits for it in the end). Every existing bagpipe is built with an every-harmonic chanter, that
+    is a cone, so a sound-alike of an existing bagpipe has a conical chanter and a cylindrical
+    chanter ships as its own build or waits. `CYLINDRICAL_CHANTER_LEVELS` is `SWEET_CHANTER_LEVELS`'s
+    odd harmonics with the even ones silent (`(1.0, 0.0, 0.4, 0.0, 0.17, 0.0, 0.06, 0.0)`), sound
+    design, and `sackpipa` is its first build. The trait its source names is the bore (Alban
+    Faust, a maker: "a single reed which sits on a cylindrically drilled chanter"); the drone
+    levels, low pass 4000, drive 0.3 and breath 0.01 are copied from `scottish smallpipes`, and the
+    process-state guard asked for no line (a literal tuple of floats). Confirm the rule and
+    `sackpipa` as its first build
+  - [ ] `scottish smallpipes`, `northumbrian smallpipes` and `musette de cour` are never parents (the
+    form check refuses them): each page names a cylindrical chanter, uncited, and each is built
+    with an every-harmonic chanter. `scottish smallpipes` joins `APPROXIMATING_NAMES` (like `piri`,
+    batch 11): the Bagpipe Society, a piping society, writes "With its cylindrical bore, the sound
+    is characteristically lilting" (its guide to the Scottish smallpipes), so the cited trait the
+    build lacks is the reason, and `piri` and `dizi` are the precedent. `northumbrian smallpipes`
+    and `musette de cour` stay out (their lines are uncited; the ruling that kept the uncited
+    `hichiriki` out). Should either join it?
+  - [ ] `marktsackpfeife` is refused as a musician's site, not shipped. The Marktsackpfeife page's
+    range ("It features a range from one whole tone lower than the tonic (A = 440Hz) to one octave
+    above it", g' to a'') sits in an uncited Tuning section, so it is no range (ruling 10), and
+    the only other page is Sönke Kraft's personal site ("standard scale range g¹ a¹ b¹ – a² ...
+    Long drone sounds on tone A, short drone sounds on tone e⁰"), which is not a maker or society
+    (batch 9's `quenacho` precedent). If you accept Kraft's page, the row becomes a retuned
+    sound-alike of `highland bagpipe`, G4-A5, `drones=((164.81, 0.45), (110.0, 0.55))` (E3 and A2;
+    the saved page is the sheet row's). It would be the batch's only retuned sound-alike
+  - [ ] One-note instruments waiting for a range: `sruti upanga`, a drone with no chanter ("It is
+    used merely as a drone; the holes ... are wholly or partially stopped with wax so as to tune
+    the instrument to the pitch desired"). Should one ship as a fixed-pitch entry? (the same
+    question as #80's one-note horns and shells and #81's `ottu`)
+  - [ ] Double chanters: two melodic pipes are notes of one sequence (batch 9's double-pipe
+    ruling), so the `ciaramedda`, `zukra` and `surdelina` ranges would run from the lower pipe's
+    lowest note to the upper's highest. A pair in unison that a source says is "tuned slightly
+    apart" to beat has a sourced trait no bagpipe build can make (`with_drones` keeps only the
+    chanter's tone and breath sources), so it would wait for `its own build (a detuned double
+    chanter)`: `parkapzuk`'s page says so ("the chanters are tuned slightly apart, giving a
+    'beat'"), but it waits for a range first (rule 6; its page is unsure even of one or two
+    chanters, "Some sources indicate that the parkapzuk is single chantered"), so the engine wait
+    is only in its notes. That is a name beyond the spec's table for "What the engine cannot make
+    yet": `its own build (a detuned double chanter)`
+  - [ ] Three or more drones as an engine limit: `with_drones` has room for two beside the
+    chanter's breath, so a source giving three distinct sounding pitches would wait for `more than
+    four sources` (the spec's name). `brian boru bagpipes` ("a single tenor drone pitched one
+    octave below the chanter, a baritone drone pitched one fifth below the tenor drone, and a bass
+    drone pitched two octaves below the chanter") and `sac de gemecs` (three drones, "two octaves
+    below the tonic of the chanter", a fifth above that and an octave below the chanter) have
+    three pitches, but each waits for a range first (neither source fixes the chanter's pitch),
+    so the limit is in their notes and not a wait. Both were first held back for the engine
+    limit and reversed to a range wait by the controller, so `BAGPIPE_HELD_BACK` holds nothing
+  - [ ] No new approximation: grace notes, closed (staccato) fingering, regulators' chords, flea
+    holes and bellows are technique or notes of a sequence (the spec's Non-goals), except where a
+    source names a closed chanter as the instrument's own sound
+  - [ ] Sizes and keys as sound-alikes, other names as aliases: none of the sizes shipped
+    (`scottish smallpipes in d`, `kaba gaida`, `dzhura gaida`, the dudy sizes wait for a range).
+    The 4 aliases rest on a cited page naming the catalog's own entry: `irish pipes` (the Uilleann
+    pipes page, "also known as Union pipes and sometimes called Irish pipes", cited to UNESCO),
+    `lowland pipes` and `half long pipes` ("Other names have been used for the instrument: Lowland
+    pipes and reel pipes in Scotland, and half-long pipes in Northumberland and Durham", the Border
+    pipes page) and `gaita galega` (the Galician gaita page). `xeremies` is an alias too, of
+    `sac de gemecs`, waiting for it (the Xeremia page, cited to Genovart Espinosa: "while in
+    Catalonia it is known as sac de gemecs"; its drone difference is uncited and hedged, "often
+    dummy drones", a configuration of the same pipe, and the page also gives the name to Ibiza's
+    bagless `reclam de xeremies`). No new size chain
+  - [ ] `union pipes`, `biniou braz`, `tulug` and `mushak baja` are dropped. `union pipes` is
+    ambiguous: the Pastoral pipes page also names it (its infobox, "|names= '''Union pipes'''"),
+    and the National Museum of Scotland's record A.1947.105 ("Union or Pastoral bagpipe") is
+    named but not quoted (its data request was refused by the permission classifier, and the
+    collection page is a script-drawn shell). `biniou braz` ("In Brittany, the great Highland
+    bagpipe is known as the binioù braz") rests on uncited lines, the standard that also refused
+    `great irish warpipes` ("one and the same as the Scottish great Highland bagpipe", in an
+    `{{Unreferenced section}}`, so it waits as its own row). `tulug` rests only on the uncited List
+    of bagpipes line, which carries the hidden comment "Isn't the Azerbaijani bagpipe called a
+    'tulug'?", and `mushak baja` only on the Mashak page's lead sentence with no reference of its
+    own (the cited paragraph says "masak baja"; `masak been` waits for `mashak` on that paragraph).
+    Each drop is "no cited source gives it as another name" (union pipes: ambiguous). If you read
+    the lines as enough, they are aliases of `highland bagpipe` (biniou braz) and `tulum` and
+    `mashak` (the other two)
+  - [ ] `zampogna` is dropped as a generic term ("a generic term for a number of Italian double
+    chantered bagpipes", "there are dozens"), though it is the name people would most likely type
+    for an Italian bagpipe: it resolves to nothing, and `surdullina` and `ciaramedda` lose their
+    parent. If you want it typed anyway, it is a WAIT for a sourced range or an alias of a
+    chosen type
+  - [ ] Generic and ambiguous terms dropped: `doedelzak` (the Dutch and Flemish word for
+    bagpipes), `welsh pibgod` (one of several Welsh words for bagpipes), `dudelsack` and
+    `sackpfeife` (the German words for any bagpipe; the Schäferpfeife page's "also known as the
+    Sackpfeife" arguably meets the exception, and `schaferpfeife` itself waits), `habban` (the Gulf coast's Holi bagpipe and, in Oman, a
+    nativized Highland pipe: "While the term itself is generic"), `gajdy`, `gajde` and `gayda` (each given to several bagpipes), `reel pipes`
+    (a half-set Highland pipe and the Border pipes' other name), `piva` (also the Istrian
+    `istarski mih`'s name), `bock` (the Bohemian bock and the Großer or Praetorius Bock: the
+    Met's separate records agree), `mizwad` (the Tunisian mezoued, its own instrument; Baines's
+    claim that it is the zukra is uncited and disputed), `coimbra` (a city: the bagpipe is the
+    gaita-de-fole coimbrã, with no page) and `mutsianka` (the audit's "(memory)" row; the list gives
+    it to the Belarusian duda). `cornemuse du centre` is decided as one instrument, not dropped
+    as generic (its page's lead, cited to Grove, names one type in many keys)
+  - [ ] One-offs, reconstructions and unsourced rows: `zetland pipes` is dropped as a one-off (one maker's
+    design, Royce Lerwick's, out of production since about 2000), `gaita alistana` and `mechawka` for
+    no fetched source (the en and es pages are 404; the Wendish Museum's records answered 404 and
+    503), `electronic bagpipe` as the electronic family's (below). The in-production line stands:
+    a maker's current model page or a museum's holding makes a type
+  - [ ] The boundaries: `ciaramella` is dropped, "already decided" by batch 11's WAIT (its target,
+    `piffero`, the mouth-blown shawm), and the bagpipe is `ciaramedda`, an instrument row of its
+    own (the Ciaramedda page: "a type of zampogna with equal length double chanters", "often only
+    the middle drone is reeded while the other two remain muted"; it waits for a range).
+    `zukra` waits for a range (a bagpipe in the south and west of Libya, a double clarinet played
+    by mouth in the east, so its bag form is this family's) and `mizwad` is a different
+    instrument (above). `electronic bagpipe` is dropped to the electronic family (an electrophone
+    that emulates the Highland pipe, among others), whose batch is done: #70 lists it for a
+    later electronic pass
+  - [ ] The naming ruling: a key goes in the title after the name, as the bagpipes' titles have it
+    (`scottish smallpipes in d`, "Scottish smallpipes in D"), so `sackpipa` is "Säckpipa in A" and
+    the dudy row is "Dudy (Czech bock)"
+  - [ ] The module move: `bagpipes.py` holds the family (moved unchanged from `winds.py`, the way
+    batches 9 and 11 moved the flutes and double reeds), its table is `_BAGPIPE_BUILDS` and
+    `BAGPIPES` is `_BAGPIPE_BUILDS + BAGPIPE_SOUND_ALIKES`; `winds.py` keeps the clarinets,
+    saxophones and free reeds. The before-and-after record found `changed: []`. The moved
+    code dropped its "# --- Bagpipes ---" banner (harmless in a one-section module)
+  - [ ] `BAGPIPE_HELD_BACK`, the guard for every non-range wait: empty, refused as a catalog name
+    or an alias by a test and compared with the sheet by the code check. The plan expected it to
+    hold `brian boru bagpipes`, `sac de gemecs` and `parkapzuk` (an engine limit, an engine limit
+    and a detuned double chanter), and each was ruled back to a range wait, which is checked first
+  - [ ] The two-half split as explicit lists (half A, the bagpipes of Western Europe with the
+    electronic bagpipe, 31 candidates and 13 alias names, 44 rows; half B, those of Central,
+    Northern and Eastern Europe, the Balkans, the Mediterranean islands, the Caucasus, the Middle
+    East, North Africa and South Asia, 35 candidates and 12 alias names, 47 rows), the two sheets
+    researched in parallel, and the shared files (the names file, the candidate lists and the
+    three check scripts) written up front by a setup agent. Tasks 3 and 5 (the two halves' code)
+    went to one implementer, since half A had only 4 aliases and half B ships nothing but
+    `sackpipa`. No code task was skipped by ruling
+  - [ ] Engine features named beyond the spec's table, for its "What the engine cannot make yet":
+    `its own build (a detuned double chanter)` (above; in `parkapzuk`'s notes, no row waits for
+    it) and `a sourced chanter bore` (a source wait this plan added, with no row on it)
+- **Bugs to report** (found while building batch 12; none fixed here):
+  - [ ] `highland bagpipe`'s drones (240 and 120 Hz) are 51 cents above its chanter's B♭ (233.08
+    and 116.54 Hz), though its page says "The drones are tuned to this tonic note" (the sentence is
+    in the paragraph cited to Macpherson). Kraft's page ("c. a¹ = 472 Hz") agrees with the offset
+    as a pitch, but the engine's chanter is equal-tempered, so the drones beat against it
+  - [ ] The drone tunings and counts on three pages do not match their builds, each built with
+    two drones: the Northumbrian smallpipes page's "three will usually be tuned to the tonic,
+    dominant and octave tonic" against the build's two octave G drones (196 and 98 Hz); the Border
+    pipes page's three drones "typically tuned A, a, e'" (or "A, a, a") against its two (220 and
+    110 Hz; no source fixes the octave of the page's letters); and the uilleann pipes' three
+    drones (the chanter's lowest note, an octave below and two octaves below: D4, D3 and D2 for a
+    D4 chanter) against its two (D3 and D2). The two-drone limit of `with_drones` explains them,
+    so they are leads, not cited bugs
+  - [ ] Every existing bagpipe is built with an every-harmonic chanter (`HIGHLAND_LEVELS` or
+    `SWEET_CHANTER_LEVELS`), a cone, though three pages name a cylindrical chanter, uncited:
+    `scottish smallpipes` ("The instrument has a cylindrically bored chanter"; now supported by
+    the Bagpipe Society's "With its cylindrical bore", so it is in `APPROXIMATING_NAMES`),
+    `northumbrian smallpipes` ("The cylindrically bored chanter has a number of metal keys") and
+    `musette de cour` ("Both the chanters and the drones have a cylindrical bore and use a double
+    reed")
+  - [ ] `bulgarian gaida`'s chanter bore: the evidence is mixed, so this is a lead, not a bug. It
+    is built with `HIGHLAND_LEVELS`. The Cimpoi page (cited to Sachs) puts the Eastern European
+    bagpipes in a "cylindrical chanter bore and the use of single reeds" group and says its Type
+    3 is "virtually identical to Bulgarian bagpipes"; Kraft's page lists "Gaide" among
+    cylindrical single-reed chanters; against that, the Kaba gaida page gives 422.112
+  - [ ] `scottish smallpipes` is now in `APPROXIMATING_NAMES`: its cylindrical bore is the build's
+    missing trait (above), and a name is added to the list only for a cited one
+  - [ ] `winds.py`'s docstring calls the folk ranges "typical of the common keys" without a
+    source (moved with the clarinets and free reeds; `sound.md` repeats the phrase)
+  - [ ] The 8 earlier entries carry no source comment, and no range or build of theirs was checked
+    against a source beyond the entries named above
+  - [ ] A warning to understand: `pytest -W error` fails on a DeprecationWarning at import
+    ("aifc was removed in Python 3.13", from the standard-aifc package that
+    `speech_recognition` imports). It is third-party and present before this batch (#81 records
+    it); a new warning in these runs would be a new finding
+- **Leads** (not sources under the ruling, so no row was ranged from them):
+  - [ ] The cornemuse du centre's range, from the Lowland and Border Pipers' Society's magazine
+    (LBPS Common Stock, December 2012, "Cauld wind in the Massif Central"): "The most common
+    nowadays is the 16# in G." and "The range is from lower F to C' (one octave higher)". It
+    describes the Béchonnet model and gives letters with no octave and no sounding pitch (ruling
+    5), so it only names a standard size
+  - [ ] The macedonian gaida's cylindrical bore, from the Bagpipe Society's article on the Macedonian
+    gajda: "predominant cylindrical bore (which is responsible, together with the single reed, for
+    the sound of the chanter)", with "a range, or ambitus, of an octave" (a width), the key "A" and
+    the lowest note "E" (no octaves). It would make the gaida a cylinder like `sackpipa`
+  - [ ] `dudy`'s Číp page (above), the drones of `brian boru bagpipes` and `sac de gemecs` (three
+    pitches each) and `marktsackpfeife`'s Kraft page (above)
+  - [ ] The Met's Binioù kozh (503854) and Scottish small pipe (501860) records (HTTP 429 on the
+    first fetch, so unread), and the Met's open-access API, which gave names and classes only
+- **Follow-ups**:
+  - [ ] The audit's gaps (`plans/data/instrument-audit/bagpipes.md`, listed in #70) are a later
+    pass over this family
+  - [ ] Ranging the 57 range WAITs from maker, museum and piping-society sources (MIMO, the Met
+    once it answers, the Edinburgh (MIMEd) and National Museum of Scotland records, the Horniman,
+    Alban Faust's chart, the Czech makers Janovec, Konrady and Číp), each row's notes recording
+    what was searched; `dudy`, `cornemuse du centre` and `macedonian gaida` are the best leads
+  - [ ] Check the 8 earlier entries' drones, ranges and builds against sources (the Highland pipe's
+    drones against its chanter, the three drone counts above, the gaida's bore, the three
+    cylindrical chanters); none was checked beyond the entries named above
+  - [ ] The engine changes that unblock the waits above, most rows first: the 57 range waits need
+    no engine feature, the 5 target waits follow their targets, and a detuned double chanter
+    (`parkapzuk`) and a third drone (`brian boru bagpipes`, `sac de gemecs`) are the only engine
+    features, both behind a range
+  - [ ] The sheet's cells contain stray quote characters (some cells are CSV-quoted), so read it
+    with Python's csv module rather than splitting on tabs
+- **Incidents and process**:
+  - [ ] The Pi hook was skipped while the Pis were unreachable (the owner, 2026-11-13)
+  - [ ] The syft pin was bumped to 1.57.1 on the stack (the owner's choice)
+  - [ ] The two sheet halves were researched in parallel, and pushes and stacked PRs were made
+    without asking (the owner, 2026-11-12, #78)
+  - [ ] The reversals above (`union pipes`, `biniou braz`, `xeremies`, `brian boru bagpipes`,
+    `sac de gemecs`, `parkapzuk`, `tulug`, `mushak baja` and `dudy`) each followed a review round:
+    the half A sheet had one fix commit, half B two, so the sheet's own history holds the first
+    readings
+  - [ ] Parked minors from the reviews: Task 1's banner (above) and the `assert drone_notes`
+    (added in Task 3's commit, removed in the final review); the `tulum` row's "(Laz: guda)" quote is a rendering of a
+    template, not literal text; the Herri Musika record quoted in `dudy` was fetched and not
+    saved (its row is unranged); the `sakkipilli` and `sackpipa` rows apply the generic-term
+    exception (each page also makes the word one revived instrument's name); `volynka`'s `hs` is
+    `none` (its infobox gives 421.111-12, a flute's class); `tulum`, `zukra` and `dzhura gaida`
+    take their `hs` from Kraft's page, cited for the class only
+- **Found**: batch 12's reviews (2026-11-13)
+- **Status**: TODO
+- **Priority**: Medium (before the organs batch builds on the same catalog)
+
+### 83. Sound Engine: The Owner's Checks on Instrument Catalog Batch 13 — TODO
+- **Goal**: confirm or overturn the calls made while batch 13 of #70 ran, and listen to its new
+  instruments (organs 9 to 19 entries). Three builds, 7 sound-alikes, 32 waits, 4 aliases and 24
+  drops in the sheet's 70 rows (SHIP 3, SOUND_ALIKE 7, WAIT 32, ALIAS 4, DROP 24). Several calls
+  were reversed during the batch (the list below): `open diapason` and `organ trompette` became
+  aliases (the first was a sound-alike in the plan), `organ bombarde` went from shipping to
+  waiting for a footage, the 6 organs held back for an engine feature (`fairground organ`, `dance
+  organ`, `orchestrion`, `panharmonicon`, `regal`, `band organ`) wait for a range first, and
+  `carousel organ` was dropped
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+  level, filter, chiff and release is sound design unless a source is cited in the code; the
+  folder is `build/instruments/organs/`):
+  - [ ] The new builds: `stopped diapason` (`STOPPED_FLUTE_LEVELS`, the flute stop's levels with
+    the even harmonics silent: Audsley, a covered pipe's missing even harmonics; listen for a
+    hollow, flute-like tone against `pipe organ flute`, whose second harmonic is 0.1 where this
+    one's is 0.0003), `cornet organ` (five unbroken ranks, 8', 4', 2 2/3', 2' and 1 3/5', summed
+    into one wave by `compound_stop_levels`, C4-C7: listen for a bright, reedy flute chorus, not
+    a single pipe, and for the top notes, whose upper ranks sound as high as E9) and `organ
+    clarinet` (`CLOSED_REED_LEVELS`, odd harmonics only: Encyclopedia of Organ Stops, half-length
+    cylindrical resonators; listen for a hollow reed against `pipe organ reed`, whose second
+    harmonic is 0.75 where this one's is 0)
+  - [ ] The sound-alikes beside their parents (each sounds as its parent does, except `bourdon`):
+    `bourdon` (of `stopped diapason`, at 16': an octave below it, on the pedal keys C2-G4, so it
+    sounds C1-G3), `salicional` and `voix celeste` (of `pipe organ string`), `organ oboe`, `organ
+    tuba` and `posthorn` (of `pipe organ reed`) and `organ krummhorn` (of `organ clarinet`). The
+    stops at another footage than 8' are named here: only `bourdon` (16'); the other six are 8'
+  - [ ] The 4 aliases beside their parents, which are the same instrument by name: `open
+    diapason` (of `pipe organ principal`), `organ trompette` (of `pipe organ reed`), `air
+    calliope` and `calliaphone` (of `calliope`)
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-13.tsv`; the sheet's 70 rows:
+  SHIP 3, SOUND_ALIKE 7, WAIT 32, ALIAS 4, DROP 24):
+  - [ ] Every WAIT (32 rows), by reason:
+    - 14 for a sourced range: `band organ`, `chamber organ`, `dance organ`, `fairground organ`,
+      `flute clock`, `hydraulis`, `orchestrion`, `panharmonicon`, `perroquette`, `portative
+      organ`, `pyrophone`, `regal`, `serinette`, `street organ`. Range first: the six held back
+      for an engine limit (the fairground and dance organs, `orchestrion`, `panharmonicon`,
+      `regal` and `band organ`) have no sourced range either, so they wait for one, and each
+      row's notes keep its engine limit ("Engine limit, once ranged": a fairground organ's drums
+      and percussion, which the spec counts as more than four sources; a regal's short
+      resonators). `band organ` waits for a range directly, not for its target
+    - 5 for a sourced footage: `gedeckt`, `organ bombarde`, `organ trombone`, `rohrflote`,
+      `spitzflote`. The sources give the stop at several footages with none usual, or disagree
+      (Audsley alone gives the bombarde at 16', against the Encyclopedia's "16', 8'"; the same
+      split made the trombone wait)
+    - 5 for a range above C8: `larigot` (1 1/3'), `nasard` (2 2/3' on the manual), `piccolo organ` (2'), `sesquialtera` (2 2/3' and 1 3/5') and `tierce` (1 3/5')
+    - 2 for more than four sources: `organ mixture` and `scharff`, whose ranks break back across
+      the compass (see the compound-stop call below: the blocker is the breaks)
+    - 3 for a build of their own: `diaphonic diapason` (the diaphone's beating pallet), `kinura`
+      (inharmonic partials) and `bible regal` (beating reeds in tiny pipes, not quite an inch
+      long)
+    - 1 for a pitch and amplitude LFO (the tremulant): `vox humana`
+    - 2 because their target waits: `fire organ` (for `pyrophone`) and `bird organ` (for
+      `serinette`)
+    - `ORGAN_HELD_BACK` holds the 16 that wait for something other than a range (the 5 + 5 + 2 +
+      3 + 1 above), every one a name no test lets into the catalog or the aliases
+  - [ ] The stop-or-setting ruling: an organ stop is an entry (it is a rank or a named set of
+    ranks of pipes of its own, with its own voicing, and a game asks for it by name: the catalog's
+    `pipe organ` stops already are), while a registration (several stops drawn together, as `pipe
+    organ plenum` already is), the tremulant, the couplers and the swell are settings, a technique
+    the player applies, unless a cited source makes one part of a stop's own sound (the vox
+    humana's tremulant, which is why it waits). Confirm, in particular that `pipe organ plenum`
+    stays an entry
+  - [ ] The footage ruling: a stop sounds at its footage against its keys (8' at the key, 16' an
+    octave below, 4' an octave above, 2 2/3' a twelfth above), through `_pipe_stop`'s `footage`,
+    carried by `blown`'s new `semitones` (the chiff is not moved). Footage is pitch, never timbre,
+    so a footage difference alone is never a SHIP: a stop at another footage than a catalog stop
+    is a sound-alike with `sound_changes={'footage': ...}` (`bourdon` is the only one). A source
+    that gives a stop at several footages with none usual makes the row wait for `a sourced
+    footage`, a source wait this batch added. Confirm footage as pitch, and the footage
+    sound-alikes
+  - [ ] The sounding span: a stop's sounding span, its keys moved by its first rank's footage,
+    must lie between A0 and C8 (range ruling 8), so a 2' stop on C2-C7 sounds C4-C9 and waits for
+    a range above C8, which is the one reason `larigot`, `nasard`, `piccolo organ`,
+    `sesquialtera` and `tierce` wait. The question: would you relax it (a stop may sound above C8
+    when its keys do not), which would ship five stops at once
+  - [ ] The cornet's top ranks sound up to E9 while `piccolo organ` waits: the rules judge only
+    the first rank's span (rules 4 and 6), so `cornet organ` (C4-C7 on the keys, its 2' and 1 3/5'
+    ranks sounding to C9 and E9) ships and the 2' `piccolo organ` waits for the same notes. Either
+    the cornet's upper ranks are above the span too, or the span is a pitch-of-the-key rule
+    and the piccolo ships; this is the previous call's inconsistency
+  - [ ] Compound stop against mixture: a compound stop whose ranks are all unbroken harmonics 1 to
+    32 of the key is one wave (as `pipe organ plenum`'s nine drawbars are one wave), a SHIP built
+    with `compound_stop_levels` (the cornet: its source calls the five ranks unbroken, "all of
+    wide scale"). A mixture whose source says its ranks break back across the compass (`organ
+    mixture`, `scharff`) is the spec's "large mixtures" and waits for `more than four sources`,
+    but that label hides the real blocker: the breaks, the key at which each rank steps back an
+    octave, which one fixed wave per entry cannot make, not the number of ranks. `compound_stop_levels`
+    refuses a footage that is not 8/n (stricter than the plan). Confirm both the rule and the
+    label (or a new wait name for the breaks)
+  - [ ] The range ruling for organs (the owner kept the range rule strict, 2026-11-09): a stop's
+    range is its keys at 8' pitch, with the stop's footage from a fetched source; the division's
+    standard compass (the AGO's, from a source that calls it standard) is the stop's own range,
+    unless the stop's own source states one; a keyless organ's range is its sounding notes; never
+    hedged ("about", "usually", "common"), a width ("61 notes", "five octaves"), a pipe or tune
+    count, a footage alone ("at 2' pitch"), note letters with no octave, a key or one pitch;
+    museum, maker and organ-reference sources over an uncited Wikipedia line; nothing below A0 or
+    above C8; a one-note instrument has no range; a cited Wikipedia line counts when its citation
+    supports it. The stop range rule: every one-rank stop takes its keys, never a sibling's or the
+    parent's, and every derived range and footage is in the sheet's `notes`: `stopped diapason`,
+    `organ clarinet`, `organ oboe`, `organ krummhorn`, `organ tuba`, `posthorn`, `salicional` and
+    `voix celeste` C2-C7 on the 61-note manual (the Pipe organ page, cited to the AGO's Pipe Organ
+    Guide: "sixty-one notes (five octaves, from C to c⁗)", c⁗ read as C7 by the page's own
+    Helmholtz notation), all at 8'; `cornet organ` C4-C7 (the Encyclopedia of Organ Stops: "usually
+    from middle C upwards") with the five ranks 8' + 4' + 2 2/3' + 2' + 1 3/5';
+    `bourdon` C2-G4 on the pedal at 16'. Confirm the rule and each derived range
+  - [ ] `bourdon` on the pedal (C2-G4 keys, sounding C1-G3): Audsley says the 16' bourdon "most
+    frequently appears, in English and American instruments of moderate dimensions, in the Pedal
+    Organ" and the Encyclopedia calls it "possibly the single most common 16' pedal stop"; the
+    pedal's compass is the AGO guide's "Some have 30 notes-to F above middle C; others have 32-to
+    G above middle C", with low C the lowest written note (the OSI brochure's "CCC to G" is the
+    same board read at 16'). The row first took the manual (C2-C7) and was ruled onto the pedal. If
+    "CCC to G" is the keys, the range is an octave lower (C1-G3 keys, C0 sounding: sub-audio)
+  - [ ] `posthorn` is ranged on the church console (C2-C7, the Pipe organ page's AGO line) though
+    it is a theatre stop (the Encyclopedia of Organ Stops: "The English Post Horn was originally
+    designed by Hope-Jones as a 16' Reed"): a theatre-compass gap, the same gap the audit left for the kinura and the diaphonic diapason
+    (needing a theatre organ source). Is the church compass acceptable for it?
+  - [ ] `organ clarinet`'s full-manual range (C2-C7) is borderline: Audsley says English builders
+    "very frequently" make it of tenor-C form (a short compass), a competing compass, though his
+    "should be carried, in all cases" to the full manual is a recommendation, not a statement of
+    what is usual. The full manual stands under ruling 3; confirm or give it the tenor-C range
+  - [ ] Celestes: a celeste is "an organ stop consisting of either one or two ranks of pipes
+    slightly out of tune" (the Voix céleste page). One rank beats only against another stop drawn
+    with it, which is a registration, a setting, so `voix celeste` is a sound-alike of `pipe organ
+    string` with no change; two ranks would ship as `_pipe_stop(..., chorus_cents=...)` only with a
+    sourced detune in cents, else the row waits for `a sourced detune`, the second source wait this
+    batch added. No row used either: `chorus_cents` was not added. Confirm the ruling, and that
+    one rank's few cents sharp is no trait
+  - [ ] Organ-only parents: a stop's parent is an organ stop chosen by its family from its own
+    page or an organ reference (a principal `pipe organ principal`, a flute `pipe organ flute`, a
+    string `pipe organ string`, a chorus reed `pipe organ reed`), never another family's entry:
+    `organ oboe` is a reed stop, not the double reed, and `organ krummhorn` is not the crumhorn
+    (its parent is `organ clarinet`, a closed reed). Confirm
+  - [ ] `STOPPED_FLUTE_LEVELS`, `CLOSED_REED_LEVELS` and `compound_stop_levels` (`chorus_cents`
+    was not added), each with the trait its source names: `STOPPED_FLUTE_LEVELS` is `(1.0, 0.0,
+    0.12, 0.0, 0.02)`, `FLUTE_STOP_LEVELS` with the even harmonics silent (Audsley, The Organ of
+    the Twentieth Century, 1919: the covered pipe's missing even harmonics, "Covered pipes cannot
+    give the uneven upper partial tones"); `CLOSED_REED_LEVELS` is `falling_series(count=28,
+    decibels_per_octave=2.5,
+    odd_only=True)` (the Encyclopedia of Organ Stops, Clarinet: cylindrical resonators of half
+    length, reinforcing the odd-numbered harmonics), with a line in the process-state guard's
+    `CATALOG_SERIES`; `compound_stop_levels` places each rank's levels at harmonic 8/footage and
+    normalises. Every level and `chiff` is copied from the parent's table and marked sound design.
+    The test `test_a_stopped_or_closed_stop_sounds_odd_harmonics` measures them (stopped
+    diapason h2 0.0003, organ clarinet h2 0.0, against 0.10 and 0.75 for the open flute and reed)
+  - [ ] The short-resonator trait: `kinura`, `vox humana`, `regal` and `bible regal` share it
+    (Encyclopedia of Organ Stops: the kinura "of the Regal class"; Audsley: the vox humana's
+    resonators of cylindrical form, covered at the top; the regal and bible regal's tiny pipes,
+    "not intended to reinforce the vibrations" in EB1911), but none was built: three wait for a
+    build of their own or the tremulant and the regals for a range first. Decide them together
+    once one is ranged (a `SHORT_RESONATOR_LEVELS` table, or all four wait)
+  - [ ] The mechanical organs: no self-playing organ shipped (each waits for a sourced range:
+    `serinette`, `flute clock`, `street organ`, `fairground organ`, `dance organ`, `band organ`,
+    `orchestrion`, `panharmonicon`, `perroquette`), so `Tag.MECHANICAL` is still only on the
+    `music box` and `MECHANICAL_ORGAN_NAMES` is empty. A keyless organ's sources give a pipe count,
+    a tune count or a footage ("ten pipes", "2' pitch") rather than notes, which ruling 5 refuses;
+    a fairground organ's or orchestrion's drums and cymbals would count as more than four sources
+    (the spec names the orchestrion). Confirm, and say whether a pipe count with a footage should
+    ever range a keyless organ
+  - [ ] The calliope ruling: `air calliope` and `calliaphone` are aliases of `calliope` (the
+    Calliope page: "The air-driven calliope is sometimes called a calliaphone", the name Norman
+    Baker gave it; steam and air are the same instrument blown by another gas), and no row made the
+    steam's pitch drift with temperature its sound, so none waits for a pitch LFO. The catalog's
+    `calliope` (C3-G5) stays, unsourced (Bugs, below)
+  - [ ] `open diapason` and `organ trompette` are aliases, not sound-alikes: the Encyclopedia of
+    Organ Stops lists "Open Diapason English" among the principal's names and "Trompette French"
+    among the trumpet's, and neither cites a trait, so decision 8's "a true alias stays an alias"
+    decides them alike. The plan had `open diapason` a sound-alike. Confirm both
+  - [ ] The boundary: free-reed organs (`reed organ`, `chromelodeon`) are dropped to free reeds
+    (H-S 412.132; the `orchestrelle` is the free reeds batch's); electric organs are dropped to
+    electronic or electromechanical (`lowrey organ` and `baldwin organ`, H-S 53; `compton
+    electrone`, H-S 52; `choralcelo`, H-S 51: piano strings vibrated by electromagnets), both
+    batches done, so #70 lists each for a later pass; `hammond b3`, `telharmonium` and `vox
+    continental` were already decided; the pyrophone and the hydraulis are organs, so both wait
+    for a range
+  - [ ] `farfisa` is dropped as a maker's name, not one instrument (the Farfisa page is the
+    company's: "a manufacturer of electronics ... founded in 1946", making many models), as
+    `baldwin organ` and `lowrey organ` are. If you want it, it is an electronic organ
+    alias
+  - [ ] `choralcelo` is dropped to electromechanical on 120years.net (Wikipedia's page is a 404):
+    the site was accepted as a source in batch 6, but it is a history site, not a museum, maker or
+    organ reference (the range rule's list). Confirm it as the source
+  - [ ] The bible regal's Met free-reed ambiguity: the Met's two "Bible Regal" records (502605 and
+    505061) are classified "Aerophone-Free Reed-harmonium", so museums give the name to later
+    free-reed instruments as well as the Renaissance beating-reed regal. No single source gives
+    the name to both, so `bible regal` stays its own row (waiting for a build of its own: EB1911
+    sets it apart, "unpleasantly harsh tone, due to their tiny pipes, not quite an inch long";
+    Edinburgh MIMEd 4331 gives "Compass 49 notes, C₂ - C₆", the one range any regal has), not an
+    alias of `regal`, and `regal organ` is dropped as the audit's name for `regal`. A range from
+    MIMEd would still leave the name ambiguous
+  - [ ] Generic and ambiguous terms dropped: `barrel organ` (a class: its page covers street,
+    chamber and church barrel organs; the page is tagged `{{original research}}`), `limonaire` (the
+    generic French term for fairground organs after Gavioli, the Limonaire Frères page), `carousel
+    organ` (no fetched page uses the name; reversed from a target alias of `fairground organ`, as
+    `regal organ`), and `dulciana` and `gemshorn` as earlier sheets decided them (batch 11's DROP:
+    also the dulcian's Italian name; batch 9's WAIT: the vessel flute, whose page says the organ
+    stop is modelled on it). Already decided, so decided here: dulciana, gemshorn and
+    `hydraulophone` (batch 9's WAIT, flutes: the sheet's row is DROP "Already decided")
+  - [ ] One-offs and the in-production line: `componium`, `apollonicon`, `sea organ`, `beer bottle
+    organ`, `bubble organ`, `uberorgan` and `sequential resonation machine` are dropped as one-off
+    instruments (one maker's or artist's design not in production), `hydraulis` and `portative
+    organ` are not (makers build reconstructions today, and museums hold the type). The Audsley
+    quotes in the code comments are corrected from the OCR text (".A.merican" to "American",
+    "naroes" to "names", "organ- builders" and "depart- ment" unhyphenated): the sheet keeps the
+    scan's text, the code comments the reading
+  - [ ] The module move: `organs.py` holds the family (moved unchanged from `keyboards.py`, which
+    keeps the keyboards and the electromechanical instruments; the way batches 9, 11 and 12 moved
+    their families), its table is `_ORGAN_BUILDS` and `ORGANS` is `_ORGAN_BUILDS +
+    ORGAN_SOUND_ALIKES`, and the process-state guard's three `falling_series` lines
+    (`PRINCIPAL_LEVELS`, `REED_STOP_LEVELS`, `STRING_STOP_LEVELS`) moved with the tables, with a
+    fourth for `CLOSED_REED_LEVELS`. The before-and-after record of all 693 builds found `changed:
+    []`
+  - [ ] `ORGAN_HELD_BACK`, the guard for every non-range wait: 16 names (above), refused as a
+    catalog name or an alias by a test and compared with the sheet by the code check. The plan's
+    dispatch said `bible regal` only (the half B ruling); the plan's rule, the brief and the code
+    check all require every wait that is not for a range, which brings in half A's 15
+  - [ ] The two-half split as explicit lists (half A, the organ stops, 29 candidates; half B, the
+    organs as instruments and the 6 audit alias names, 41 rows), the two sheets researched in
+    parallel, and the shared files (the names file, the candidate lists and the three check
+    scripts) written up front by a setup agent. Tasks 3 and 5 (the two halves' code) went to one
+    implementer, since half B shipped only two aliases and held back `bible regal`. No code task
+    was skipped by ruling
+  - [ ] Engine features named beyond the spec's table, for its "What the engine cannot make yet":
+    `a sourced footage` and `a sourced detune` (source waits this plan added; the first has 5 rows,
+    the second none), `its own build (the diaphone's beating pallet)`, `its own build
+    (inharmonic partials)`, `its own build (beating reeds in tiny pipes, not quite an inch long)`,
+    `a pitch and amplitude LFO (the tremulant)`, and mixtures' breaks (under `more than four
+    sources`)
+- **Bugs to report** (found while building batch 13; none fixed here):
+  - [ ] The 9 earlier entries carry no source comment (`combo organ` is already in #76), and no
+    range or build of theirs was checked against a source beyond the entries named here. No
+    fetched page contradicts `calliope`'s C3-G5 or `positive organ`'s C2-C6 (the Calliope page
+    gives only counts: "25 to 67 whistles, but 32 is traditional"), and nothing contradicted
+    `pipe organ plenum`'s drawbars or `theatre organ (tibia)`'s static chorus, though no source
+    was fetched for either, so both stay leads
+  - [ ] Wikipedia's regal page attaches a trait to all regals that its cited source gives only to
+    the bible regal: the page says the resonators are "not intended to reinforce the
+    vibrations", but its cited source, EB1911, says it of the bible regal's tiny pipes. The regal
+    row's 5 1/2 in. pipe length (EB1911) likewise describes the organ's regal pipes, not the table
+    instrument
+  - [ ] The cornet's top ranks sound up to E9, over the catalog's C8 limit (see the sounding-span
+    call): a check of the span on the first rank only lets a build past it
+  - [ ] The audit's "UNVERIFIED" existence rows (`kinura`, `posthorn` and `diaphonic diapason`
+    were marked "(existence and range) UNVERIFIED") were all confirmed from the Encyclopedia of
+    Organ Stops, but none from a theatre organ source
+  - [ ] A warning to understand: `pytest -W error` fails on a DeprecationWarning at import
+    ("aifc was removed in Python 3.13", from the standard-aifc package that `speech_recognition`
+    imports). It is third-party and present before this batch (#81 records it); a new warning in
+    these runs would be a new finding
+- **Follow-ups**:
+  - [ ] The audit's gaps (`plans/data/instrument-audit/organs.md`, listed in #70) are a later pass
+    over this family
+  - [ ] Ranging the 14 range WAITs from museum, maker and organ-reference sources (MIMO, the Met
+    once it answers, Edinburgh MIMEd, the Museum Speelklok, the Deutsches Musikautomaten-Museum,
+    organa.it's `portative` sizes, the Edinburgh, Colonial Williamsburg and Met chamber organs
+    (several sizes, none standard), Audsley's and the Encyclopedia of Organ Stops' other stops),
+    each row's notes recording what was searched; `regal` (MIMEd 4331's C2-C6, "Compass 49
+    notes") and the fairground organs are the best leads
+  - [ ] Check the 9 earlier entries against sources (ranges, builds, `theatre organ (tibia)`'s
+    static chorus and `pipe organ plenum`'s drawbars)
+  - [ ] The engine changes that unblock the waits above, most rows first: the 14 range waits need
+    no engine feature, the 5 footage waits need a source that fixes one footage (or the owner's
+    pick of the usual one), the 5 above-C8 waits need only the span ruling relaxed, the 2 mixtures
+    need breaks (a rank that steps back an octave at a note), a short-resonator build opens
+    `kinura`, `vox humana`, `regal` and `bible regal`, the tremulant needs a pitch and amplitude
+    LFO, and `diaphonic diapason` needs the diaphone's beating pallet
+  - [ ] The sheet's cells contain stray quote characters (some cells are CSV-quoted), so read it
+    with Python's csv module rather than splitting on tabs
+- **Incidents and process**:
+  - [ ] The Pi hook was skipped while the Pis were unreachable (the owner, 2026-11-13)
+  - [ ] The syft pin is 1.57.1 on the stack (the owner's choice, batch 12's note)
+  - [ ] Batch 11 was squash-merged into batch 10, and batch 12 merged batch 10's tip, batch 13's
+    base is batch 12's `5cbbf882`
+  - [ ] The controller's code check (`build/batch-13-code-check.py`) had a bug: its DROP and WAIT
+    branch asserted that no such name was in `CATALOG` or `ALIASES`, but `vox continental` is an
+    "Already decided" DROP that existed before the batch (batch 6's alias of `combo organ`) and
+    must still resolve. It was fixed so a DROP whose notes begin "Already decided" and whose name
+    was in the catalog before the batch must still be there, and the check prints `matches 70
+    rows`
+  - [ ] The two sheet halves were researched in parallel, and pushes and stacked PRs were made
+    without asking (the owner, 2026-11-12, #78)
+  - [ ] The reversals above (`open diapason` and `organ trompette`, `organ bombarde`, the six
+    held-back organs, `carousel organ` and the cornet's comparison) each followed a review round:
+    the half A sheet had one fix commit and half B one, so the sheet's own history holds the first
+    readings
+  - [ ] Parked minors from the reviews: the semitones test's -12 case would have passed with
+    `semitones` ignored (tightened in Tasks 3 and 5, which now also assert the tone repeats at its
+    expected period); `compound_stop_levels` refuses a non-harmonic footage (stricter than the
+    plan); the sheet's `organ oboe` row has no Encyclopedia URL, so its comment cites Audsley
+    only; `regal`'s 5 1/2 in. pipe inference and the `portative organ` and `chamber organ` rows'
+    museum and maker checks (several sizes, none standard) are in their notes; the quote check
+    accepts the raw Encyclopedia HTML only for passages without tags or entities (one cornet
+    passage quotes `Chemin&eacute;e` verbatim); each ranged row's saved page copy holds the 800 KB
+    Audsley text, in the gitignored `build/`
+- **Found**: batch 13's reviews (2026-11-13)
+- **Status**: TODO
+- **Priority**: Medium (before the clarinets batch builds on the same catalog)
 
 ### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
 - **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,

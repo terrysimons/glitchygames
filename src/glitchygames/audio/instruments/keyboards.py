@@ -1,14 +1,12 @@
-"""Keyboards (pianos, harpsichords, celesta), organs and electromechanical instruments.
+"""Keyboards (pianos, harpsichords, celesta) and electromechanical instruments.
 
 A piano string is struck by a hammer near a seventh of its length, so its seventh harmonic is
 nearly gone; each note has two or three slightly detuned strings, whose beating is the piano's
-shimmer. A harpsichord's quill plucks near the end (bright) and has a 4' octave rank. Organs are
-drawbar registrations (``Harmonics.drawbars``) or pipe stops: a principal's every harmonic, a
-flute stop's nearly pure tone, a reed stop's brassy one. The tonewheel organ's percussion is a
-decaying second or third harmonic. Electromechanical instruments (the electric pianos, the
-Clavinet, the tonewheel organs) read a mechanical vibration electrically. Ranges are each
-instrument's keyboard; an organ's are its keys at 8' pitch (a 61-note manual, C2-C7), and a 16'
-stop or drawbar sounds an octave lower.
+shimmer. A harpsichord's quill plucks near the end (bright) and has a 4' octave rank. The
+tonewheel organ's drawbar registrations (``Harmonics.drawbars``) and percussion, a decaying second
+or third harmonic, are here with the electromechanical instruments (the electric pianos, the
+Clavinet, the tonewheel organs), which read a mechanical vibration electrically. Ranges are each
+instrument's keyboard. The pipe organ and its stops are in ``organs.py``.
 """
 
 from __future__ import annotations
@@ -22,7 +20,6 @@ from glitchygames.audio.instruments.catalog import CatalogEntry, Family
 from glitchygames.audio.instruments.timbres import (
     Course,
     Partial,
-    blown,
     drawbar_organ,
     envelope,
     falling_series,
@@ -163,101 +160,6 @@ KEYBOARDS: Final[tuple[CatalogEntry, ...]] = (
         'celesta', 'Celesta', Family.KEYBOARDS, 'C4', 'C8', partial(_celesta, ring_seconds=1.5)
     ),
     CatalogEntry('toy piano', 'Toy piano', Family.KEYBOARDS, 'F3', 'F6', _toy_piano),
-)
-
-# --- Organs ---------------------------------------------------------------------------------
-
-
-def _pipe_stop(levels: tuple[float, ...], *, chiff: float, release: float = 0.15) -> Instrument:
-    return blown(levels, attack=0.04, release=release, breath=chiff, breath_low_pass=6000.0)
-
-
-PRINCIPAL_LEVELS: Final[tuple[float, ...]] = falling_series(count=16, decibels_per_octave=6.5)
-FLUTE_STOP_LEVELS: Final[tuple[float, ...]] = (1.0, 0.1, 0.12, 0.02, 0.02)
-REED_STOP_LEVELS: Final[tuple[float, ...]] = falling_series(count=28, decibels_per_octave=2.5)
-STRING_STOP_LEVELS: Final[tuple[float, ...]] = falling_series(count=28, decibels_per_octave=4.0)
-CALLIOPE_LEVELS: Final[tuple[float, ...]] = (1.0, 0.25, 0.2, 0.05)
-
-ORGANS: Final[tuple[CatalogEntry, ...]] = (
-    CatalogEntry(
-        'pipe organ principal',
-        "Pipe organ, principal 8'",
-        Family.ORGANS,
-        'C2',
-        'C7',
-        partial(_pipe_stop, PRINCIPAL_LEVELS, chiff=0.01),
-    ),
-    CatalogEntry(
-        'pipe organ flute',
-        "Pipe organ, flute 8'",
-        Family.ORGANS,
-        'C2',
-        'C7',
-        partial(_pipe_stop, FLUTE_STOP_LEVELS, chiff=0.02),
-    ),
-    CatalogEntry(
-        'pipe organ reed',
-        "Pipe organ, trumpet 8'",
-        Family.ORGANS,
-        'C2',
-        'C7',
-        partial(_pipe_stop, REED_STOP_LEVELS, chiff=0.0),
-    ),
-    CatalogEntry(
-        'pipe organ string',
-        "Pipe organ, viola da gamba 8'",
-        Family.ORGANS,
-        'C2',
-        'C7',
-        partial(_pipe_stop, STRING_STOP_LEVELS, chiff=0.0),
-    ),
-    CatalogEntry(
-        'pipe organ plenum',
-        'Pipe organ, full (plenum)',
-        Family.ORGANS,
-        'C2',
-        'C7',
-        partial(drawbar_organ, '868868868', attack=0.04, release=0.3),
-    ),
-    CatalogEntry(
-        'positive organ',
-        'Positive organ',
-        Family.ORGANS,
-        'C2',
-        'C6',
-        partial(drawbar_organ, '008505000', attack=0.03, release=0.1),
-    ),
-    CatalogEntry(
-        'combo organ',
-        'Combo organ',
-        Family.ORGANS,
-        'C2',
-        'C7',
-        partial(
-            blown,
-            falling_series(count=20, decibels_per_octave=3.0, even_level=0.3),
-            attack=0.003,
-            release=0.03,
-        ),
-    ),
-    CatalogEntry(
-        'theatre organ',
-        'Theatre organ (tibia)',
-        Family.ORGANS,
-        'C2',
-        'C7',
-        partial(blown, FLUTE_STOP_LEVELS, attack=0.03, release=0.2, chorus_cents=6.0),
-    ),
-    CatalogEntry(
-        'calliope',
-        'Calliope',
-        Family.ORGANS,
-        'C3',
-        'G5',
-        partial(
-            blown, CALLIOPE_LEVELS, attack=0.02, release=0.1, breath=0.05, breath_low_pass=7000.0
-        ),
-    ),
 )
 
 # --- Electromechanical ----------------------------------------------------------------------

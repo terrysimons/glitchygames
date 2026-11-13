@@ -1090,18 +1090,27 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   about 19 minutes). The 4 workers were chosen "so the machine stays usable"
   (`docs/quality/driver_comparison.md`), for the by-hand matrix with Docker and XQuartz. CI runs
   neither: each CircleCI job runs `nox -s test` once. Steps, cheapest first:
-  - **Every core for the hook's comparison.** Measured 2026-11-13 on this Mac (16 logical
-    cores), `nox -s compare-drivers -- --drivers native -n auto`: 185 + 190 + 228 s, 10 minutes;
-    every configuration agreed on all 26,114 compared tests, nothing nondeterministic on dummy
-    (as at 4 workers), the `frames_vary` list unchanged but for a test #185 added. So: a
-    `--workers` option (or `-n auto` when `--drivers native` is the hook's), keeping 4 for the
-    by-hand matrix.
+  - ~~**Every core for the hook's comparison.**~~ **Done** 2026-11-13 (branch
+    `perf/faster-pre-push-comparison`): `compare-drivers -- --workers N|auto` (default 4, the
+    by-hand matrix), and the hook passes `--workers auto`. Measured 2026-11-13 on this Mac (16
+    logical cores), `nox -s compare-drivers -- --drivers native -n auto`: 185 + 190 + 228 s, 10
+    minutes; every configuration agreed on all 26,114 compared tests, nothing nondeterministic
+    on dummy (as at 4 workers), the `frames_vary` list unchanged but for a test #185 added.
   - **Why a run is still 2.3x the shuffled run** at the same width (185 s against 80 s; CPU
-    averaged 521% of 1600%): likely the frame-fingerprint plugin's hashing and writing of every
-    presented frame. Profile one run before changing anything.
-  - **Skip the comparison on a push that cannot change a frame** (option D): only plans, docs or
-    CI files changed. Needs a reliable list of the paths that can change frames; a docs-only
-    push (#187) then skips the whole comparison.
+    averaged 521% of 1600%). Profiled 2026-11-13: not the frame-fingerprint plugin. It
+    fingerprints about 57,000 frames per run (31,281 presented plus each test's final frame) at
+    about 3.8 ms each (half the display's RGB conversion, half SHA-256), and a dummy run with it
+    took 1,032 CPU-seconds against 964 without (about 7%). The runs are short of parallelism, not
+    CPU: about 4 of 16 cores busy, so time goes to waiting (sleeps, child processes, timeouts).
+    The wall times of that profile (253 s with the plugin, 628 s without) were taken on a
+    loaded machine (load average about 60: another session's comparison, another project's
+    suite) and say nothing about the plugin. Next: on a quiet machine, the slowest tests by
+    wall time against their CPU time (`--durations`), and the xdist distribution's tail.
+  - ~~**Skip the comparison on a push that cannot change a frame**~~ **Done** 2026-11-13 (same
+    branch): the hook passes `--skip-when-frames-cannot-change`; a push whose every path is
+    under `plans/`, `docs/`, `quality/`, `.circleci/` or `.github/`, or is root Markdown
+    (`_path_cannot_change_frames`, an allowlist), skips the comparison and says why; a push
+    whose range git cannot read, and any run outside a push, is compared.
   - Not done: folding `test-random` into the comparison (shuffling one dummy run). The comparison
     passes on failing tests (`_PYTEST_FINISHED_CODES = [0, 1]`), and order-dependent frames would
     read as "varies between runs" rather than fail; little to save (80 s).
