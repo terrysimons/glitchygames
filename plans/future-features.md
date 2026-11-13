@@ -1750,10 +1750,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 6 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 7 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
   batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682
-  after batch 6) toward every instrument a game might
+  after batch 6, 684 after batch 7) toward every instrument a game might
   want, in one verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates,
   only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
@@ -1801,7 +1801,21 @@ This document tracks planned future features for the GlitchyGames project. Featu
   Met, Horniman and Grove unconsulted; the SPC700, YM2413, VIC-20, Ensoniq, Waldorf, Nord Lead,
   Korg Wavestation and the rest it suspected but did not list) are a later pass over this family,
   along with ranging the range WAIT rows
-  from manuals and datasheets. Next: bowed strings, the next in the design's order
+  from manuals and datasheets.
+  Batch 7 (bowed strings) is done: of its 138 sheet rows (126 candidates and 12 audit alias
+  lines) none shipped as a build of its own, 2 became sound-alikes (`viola pomposa` of `viola`,
+  `bowed psaltery` of `violin`, each giving its own sourced range), 118 wait (90 for a sourced
+  range, 7 for a sourced drone tuning, 7 because their target waits, 7 for sympathetic strings or
+  a buzzing bridge, 2 for sub-audio fundamentals, 2 for more than four sources, 2 for a build of
+  their own, 1 for a buzzing bridge), 5 became aliases and 13 were dropped; the family grew from
+  27 to 29 entries (684 in all, 78 aliases and 181 sound-alikes). Most rows wait because the range
+  rule stays strict: a bowed string's audit range is mostly its open strings. The audit's "Gaps
+  you could not close" (`plans/data/instrument-audit/bowed-strings.md`: MIMO, the Met and Horniman
+  unconsulted; the huqin names it did not row, such as `erquanqin`, `jing erhu`, `datong`,
+  `leiqin`; `kontra`, `latfiol` and the Apache fiddle; Ethiopian, Sahel, Malagasy, Oceanian,
+  Andean and Caribbean fiddles) are a later pass over this family, along with ranging the 90
+  range WAIT rows from maker and museum sources. `viola organista` is decided here (it waits for
+  a build of its own), so the keyboards batch must not decide it again. Next: voices and choirs
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
@@ -1815,7 +1829,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sheet `plans/data/instrument-audit/batch-5.tsv`
 - **Plan (batch 6)**: `plans/2026-11-12-instrument-catalog-batch-6-implementation.md`; audit
   sheet `plans/data/instrument-audit/batch-6.tsv`
-- **Status**: Batches 1, 2, 3, 4, 5 and 6 done (requested by the owner 2026-11-06)
+- **Plan (batch 7)**: `plans/2026-11-12-instrument-catalog-batch-7-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-7.tsv`
+- **Status**: Batches 1, 2, 3, 4, 5, 6 and 7 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
@@ -2394,6 +2410,136 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Found**: batch 6's reviews (2026-11-12)
 - **Status**: TODO
 - **Priority**: Medium (before the bowed strings batch builds on the same catalog)
+
+### 77. Sound Engine: The Owner's Checks on Instrument Catalog Batch 7 — TODO
+- **Goal**: confirm or overturn the calls made while batch 7 of #70 ran, and listen to its new
+  instruments (bowed strings, 27 to 29 entries). Almost every candidate waits, drops or aliases:
+  0 built, 2 sound-alikes, 118 waits, 5 aliases and 13 drops in the sheet's 138 rows
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+  every level, filter, ring and click is sound design unless a source is cited in the code; the
+  folder is `build/instruments/bowed strings/`). No new build was added, so the listening is the
+  sound-alikes under their parents, which must sound alike by design. The ranges differ within a
+  group, since each gives its own:
+  - [ ] `viola pomposa` (C3-A6) beside its parent `viola`: its source calls it "less resonant than
+    a viola", so the entry plays the viola's sound
+  - [ ] `bowed psaltery` (F3-F5) beside its parent `violin`: a psaltery's steel strings are
+    bowed one at a time with no frets, so the violin's bowed tone stands in for it
+  - [ ] The 5 aliases: `lira korbowa` (of `hurdy gurdy`), `soprano viol` (of `treble viol`),
+    `behala` (of `violin`), `matouqin` (of `morin khuur`), `kemence` (of `kemenche`)
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-7.tsv`; the sheet's 138
+  rows: SHIP 0, SOUND_ALIKE 2, WAIT 118, ALIAS 5, DROP 13):
+  - [ ] Every WAIT (118 rows), by reason: 90 for a sourced range (`alto viol`, `alto violin`,
+    `arpeggione`, `baritone violin`, `byzantine lyra`, `calabrian lira`, `cello da spalla`,
+    `contrabass violin`, `division viol`, `electric cello`, `electric violin`, `esseharpa`, `five
+    string violin`, `geigenwerk`, `gue`, `gusle`, `kit violin`, `lijerica`, `lira da braccio`,
+    `lirone`, `cretan lyra`, `lyra viol`, `mezzo violin`, `neola`, `oktavharpa`, `pardessus de
+    viole`, `politiki lyra`, `rabeca`, `rebec`, `silverbasharpa`, `small bass`, `soprano violin`,
+    `stroh violin`, `symphonia`, `talharpa`, `tenor violin`, `treble violin`, `ukelin`, `vielle`,
+    `violetta`, `violino piccolo`, `violotta`, `yaybahar`, `ajaeng`, `banam`, `banhu`, `black
+    sea kemence`, `byzaanchy`, `chikara`, `dan nhi`, `dihu`, `diyingehu`, `endingidi`, `erxian`,
+    `gaohu`, `gehu`, `ghijak`, `goje`, `haegeum`, `igil`, `imzad`, `javanese rebab`, `kamancheh`,
+    `kezaixian`, `khuuchir`, `kobyz`, `kokyu`, `kongahyan`, `kyl kyyak`, `laruan`, `masenqo`,
+    `pena`, `ravanahatha`, `rebab`, `sato`, `saw duang`, `saw sam sai`, `saw u`, `sihu`, `sukong`,
+    `tar shehnai`, `tehyan`, `tro ou`, `yazheng`, `yehu`, `zeze`, `zhonghu`, `zhuihu`, `sanjo
+    ajaeng`, `jeongak ajaeng`); 7 for a sourced drone tuning (`crwth`, `gudok`, `jouhikko`,
+    `langspil`, `moraharpa`, `organistrum`, `sarangi nepali`); 6 for sympathetic strings
+    (`baryton`, `gadulka`, `dilruba`, `kamaicha`, `sarinda`, `taus`) and 1 for sympathetic
+    strings and a buzzing bridge (`esraj`); 2 for sub-audio fundamentals (`long string
+    instrument`, `octobass`); 2 for more than four sources (`phonoliszt violina`, `violano
+    virtuoso`); 1 for a buzzing bridge (`tromba marina`); 1 for its own build (a bowed wheel
+    without a buzzing bridge: `viola organista`); 1 for its own build (`jinghu`: a bamboo body and
+    a tone raspier than the violin, unlike the erhu; its range D4-B6 is recorded from Koizumi no.
+    310, reading `b'"` as b'''); and 7 because their target waits (`tagelharpa` and `strakharpa`
+    for `talharpa`, `njarka` and `goge` for `goje`, `viola da spalla` for `cello da spalla`, `dan
+    co` for `dan nhi`, `zhuiqin` for `zhuihu`)
+  - [ ] The new `waits_for` values: `its own build (a bowed wheel without a buzzing bridge)`
+    (`viola organista`: its bowed wheel needs a build that is neither the hurdy gurdy's buzzing
+    bridge nor a bowed string's); `its own build` (`jinghu`, whose range D4-B6 is recorded from
+    Koizumi no. 310, reading `b'"` as b'''; the sheet's cell gives the rule 7 trait); and `a
+    sourced drone tuning` (an instrument whose source names drone strings but gives no pitches)
+  - [ ] The range ruling (the lowest open string of the standard tuning; a stated highest note,
+    compass or exact span; open strings and hedged spans are no range; nothing below A0), and
+    every derived range: `viola pomposa` C3-A6 (open strings C3-G3-D4-A4 and "a range from C3
+    to A6 (or even higher)"), `bowed psaltery` F3-F5 ("fully chromatic two octave range f -
+    f''", read in Helmholtz notation)
+  - [ ] `viola pomposa`'s "(or even higher)" is read as extending past A6, not as a hedge on
+    A6; the range stays C3-A6. If it is a hedge, the entry waits for a sourced range
+  - [ ] The approximating entries (`sarangi`, `hardanger fiddle`, `viola d amore`,
+    `nyckelharpa`, `hurdy gurdy`) left unchanged and refused as parents of any sound-alike (so
+    `dilruba`, `taus`, `kamaicha` and the other sympathetic-string instruments wait instead),
+    and the reading of `hurdy gurdy`'s `drive` as its buzzing bridge
+  - [ ] `lira korbowa` is an alias of the approximating `hurdy gurdy`: an alias adds a name, not
+    a sound-alike, so the refusal as a parent does not apply. Confirm, or drop the alias
+  - [ ] The drone ruling (`with_drones` at sourced pitches, else `a sourced drone tuning`): no
+    drone instrument had sourced pitches, so seven wait
+  - [ ] The moving-pitch ruling: an instrument whose source names a slide, portamento or
+    vibrato as its identifying sound waits for a pitch LFO; the existing `violin`, `erhu` and
+    the rest have no vibrato and stay
+  - [ ] The mechanical and keyed instruments decided here: `violano virtuoso` and `phonoliszt
+    violina` wait for more than four sources, `viola organista` for its own build and
+    `geigenwerk` for a sourced range. The keyboards batch must not decide `viola organista`
+    again. `Tag.MECHANICAL` is still on the `music box` alone
+  - [ ] Sizes as sound-alikes of the nearest existing entry their source relates them to: only
+    `viola pomposa` shipped; the violin octet, the viol consort and the huqin sizes wait for a
+    sourced range
+  - [ ] The one-offs dropped: `adapted viola`, `celloridoo`, `fences`, `kaisatsuko`, `keyolin`,
+    `bazantar`. They rest on the sources naming one person's instrument (batch 5's Partch
+    precedent), with no count of instruments in the sources. The `bazantar` page also files it
+    under "String instruments with sympathetic strings": if it is ever un-dropped, it waits for
+    sympathetic strings, not a range. The `adapted viola` has replicas, at least three instruments
+    in all, still a handful
+  - [ ] The other drops: `viola bastarda` (a style, and altered viols), `tro` and `armenian
+    kamancha` (the audit's names for `tro ou` and `kamancheh`), `tihu` (a town, no instrument),
+    `tiqin` (a name for several huqin), `rabab` (decided in batch 4: a plucked string)
+  - [ ] The earlier sheets' rows left as decided (`electric upright bass`, batch 4's WAIT for a
+    sourced range, a DROP row here) and the hand-offs decided here (`zeze`: batch 4's DROP
+    "bowed strings", now a WAIT for a sourced range)
+  - [ ] The three split pairs, kept as different instruments: `violotta` and `alto violin`
+    (Stelzner's tuned an octave below the violin, the octet's alto tuned like the viola),
+    `talharpa` and `jouhikko` ("a close relative", not the same), `organistrum` and `symphonia`
+    (the symphonia a smaller box-shaped successor)
+  - [ ] The `hs` column, assigned by the instrument's body type (`321.322-71` box lutes,
+    `321.321-71` bowl lutes, `321.22-71` lyres, `321.322-72` wheel lutes, `314.122-71` board
+    zithers) where no fetched page gives a Hornbostel-Sachs class, as with `viola pomposa`,
+    `bowed psaltery` and `viola organista`. Confirm the classes, or ask for each to be sourced
+  - [ ] chinesemusic.co.uk (Chinese Music Online) rejected as a range source for `banhu` and
+    `jinghu` on its source type only (an ensemble's education page, not a maker, museum or
+    encyclopedia); it also contradicts itself on the gaohu and jinghu spans
+  - [ ] `gaohu` waits for a sourced range because its Wesleyan museum record contradicts itself
+    (a three-octave compass against two-octave tunings), the flaw that rejected chinesemusic.co.uk
+  - [ ] `sarinda` waits for sympathetic strings on the Met's record (503556), read through an
+    archive.org snapshot because metmuseum.org answered 429. Confirm that source
+  - [ ] The module move (`bowed_strings.py`, `strings.py` keeping harps and struck strings), the
+    27 existing entries moved unchanged, and the two-half split by tradition (the European and
+    modern bowed strings, 69 candidates, then the bowed strings of Asia and Africa, 57)
+  - [ ] Engine features named beyond the spec's table, for its "What the engine cannot make yet":
+    a bowed wheel without a buzzing bridge (`viola organista`), the one this batch added. The
+    rest were already named: sympathetic strings, a buzzing bridge, sub-audio fundamentals, more
+    than four sources, a pitch LFO
+  - [ ] Process: pushing and opening the stacked PR without asking, per the owner's "Work on
+    every batch in turn and stack them into PRs"; the two sheet halves researched in parallel,
+    and Tasks 1, 2 and 4 run in parallel; the controller wrote `build/batch-7-names-before.txt`
+    (755 names) up front so the sheets could start before the module move
+- **Bugs to report** (found while building batch 7; none fixed here):
+  - [ ] `erhu`, `morin khuur` and `kemenche` share one `SPIKE_FIDDLE` build, so three named
+    instruments sound identical (they predate decision 8 and the sound-alike rule)
+  - [ ] The catalog's `kemenche` (A3-A6) does not say which kemençe it is (the classical bowl
+    kemençe and the Black Sea box kemençe differ), which blocks `politiki lyra` and the
+    `black sea kemence` row
+  - [ ] The existing viol tops (D6, G5, D5) are unsourced under this batch's range rule: no
+    source comment gives a highest note
+- **Follow-ups**:
+  - [ ] The audit's "Gaps you could not close" (`plans/data/instrument-audit/bowed-strings.md`)
+    are a later pass over this family, along with ranging the 90 range WAIT rows from maker and
+    museum sources
+  - [ ] The sheet's cells contain stray quote characters (some cells are CSV-quoted), so read it
+    with Python's csv module rather than splitting on tabs
+  - [ ] The engine changes that unblock the waits above: sympathetic strings and a buzzing
+    bridge first (seven rows wait only on them, with `sarangi`, `viola d amore` and the others
+    waiting to be rebuilt), then a sourced drone tuning for the seven drone rows
+- **Found**: batch 7's reviews (2026-11-12)
+- **Status**: TODO
+- **Priority**: Medium (before the voices and choirs batch builds on the same catalog)
 
 ### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
 - **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,

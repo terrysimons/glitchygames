@@ -1,9 +1,10 @@
 """Bowed strings: violins, violas, cellos, basses, viols, folk and spike fiddles, the hurdy-gurdy.
 
-The sound is made by a bow (or a rosined wheel) drawing the string, Hornbostel-Sachs 321 and 31
-sounded by a bow. Harps and struck strings (dulcimers) are in the sibling module ``strings.py``,
-plucked strings in ``plucked_strings.py``. The family's sound-alikes, listed instruments that
-share another entry's build, are in ``bowed_sound_alikes.py``.
+The sound is made by a bow (or a rosined wheel) drawing the string: Hornbostel-Sachs 321
+(composite chordophones: lutes and lyres) and 31 (simple chordophones: the bowed zithers, 311 to
+314). Harps and struck strings (dulcimers) are in the sibling module ``strings.py``, plucked
+strings in ``plucked_strings.py``. The family's sound-alikes, listed instruments that share
+another entry's build, are in ``bowed_sound_alikes.py``.
 
 Ranges are sounding pitch (a double bass sounds an octave below written), after the standard
 orchestration ranges (Adler, *The Study of Orchestration*) and the common tunings of folk

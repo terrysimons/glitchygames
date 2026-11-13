@@ -4,8 +4,8 @@ Bowed strings (violins, viols, fiddles) are in the sibling module ``bowed_string
 strings (guitars, basses, lutes) in ``plucked_strings.py``.
 
 Ranges are sounding pitch, after the common tunings of the instruments. Timbres: a harp string
-is plucked and rings down (``plucked_series``); a hammered dulcimer's courses are struck and
-paired.
+is plucked and rings down (``plucked_series``); a hammered dulcimer is the same series plucked
+near the string's end, with two slightly detuned courses; the berimbau is ``struck``.
 """
 
 from __future__ import annotations
