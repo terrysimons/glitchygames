@@ -1,101 +1,64 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code in this repository. This file holds the commands, the layout and the
+rules code must follow; the detail lives in `docs/architecture/` and in the module docstrings
+named below (many say "whose docstring is the contract": read it before changing that module).
 
 ## Project Overview
 
-GlitchyGames is a Python 3.14 game engine built on Pygame with an event-driven architecture. The project includes a full-featured pixel art editor called Bitmappy and supports animation, UI widgets, and physics-based game objects.
+GlitchyGames is a Python 3.14 game engine on pygame-ce with an event-driven architecture, a
+pixel-art editor (Bitmappy), example games, and exact gameplay recording and replay.
 
-The engine's source is `src/glitchygames/` (members: `src/games/`, `src/demos/`, `src/apps/`;
-plans/2026-10-24-workspace-packages.md). Nothing at the repository root is importable as our
-package: tests and tools import the installed engine (`uv sync`: editable, its `.pth` naming
-`src/`; nox: not editable). Repository paths in these docs are written from the repository root
-(the engine at `src/glitchygames/`); finished plans and resolved BUGS.md entries name the
-locations as they were when written (before #105, the engine was the root-level `glitchygames`
-directory). A script that imports `scripts.*` runs as `uv run python -m scripts.<name>` from the
-root.
+- Engine: `src/glitchygames/`. Workspace members (plans/2026-10-24-workspace-packages.md): games
+  in `src/games/` (paddleslap, brave-adventurer, clockwork-keep, mr-muncher, drawing-fire), demos
+  in `src/demos/` (dt, joystick, sound-board, text-input), apps in `src/apps/` (bitmappy). Each is
+  its own package with its own code, tests and golden replay (recipe:
+  docs/architecture/game_packages.md).
+- Nothing at the repository root is importable as the package: tests and tools import the
+  installed engine. A script importing `scripts.*` runs as `uv run python -m scripts.<name>`.
+- Paths here are written from the repository root. Finished plans and resolved BUGS.md entries
+  name locations as they were then (before #105 the engine was the root-level `glitchygames/`).
+- The engine never imports a member, in source or tests, and no engine module or engine test
+  reaches `scripts/` (enforced: `tests/test_workspace_config.py`, `tests/test_suite_collection.py`).
 
 ## Development Setup
 
 ```bash
-# Install dependencies (uv manages the virtual environment automatically); --all-packages
-# installs the workspace members too: every game is its own package (src/games/mr-muncher,
-# src/games/clockwork-keep, src/games/brave-adventurer, src/games/paddleslap,
-# src/games/drawing-fire), and so is Bitmappy, the first member of the apps layer
-# (src/apps/bitmappy). A plain `uv sync` keeps them as well: the root's dev dependency group (installed by default)
-# names every member as a workspace source (tests/test_workspace_config.py checks it)
-uv sync --all-packages
-
-# Install with dev extras (for testing/linting)
-uv sync --extra dev --all-packages
-
-# Install with all extras: the engine, every game, every app, the templates' cookiecutter and
-# the dev tools (what development uses)
-uv sync --all-extras --all-groups --all-packages
-
-# Outside the repository: the engine alone, or with every game or app (the `games` and `apps`
-# extras name each member's distribution; tests/test_workspace_config.py keeps each equal to its
-# layer's directory, src/games/ and src/apps/). The names
-# are not yet on PyPI (neither glitchygames nor any game's), so build the wheels and install
-# from them until they are published
-uv build --all-packages
-pip install --find-links dist glitchygames
-pip install --find-links dist "glitchygames[games]"
-pip install --find-links dist "glitchygames[apps]"      # Bitmappy
-# cookiecutter is the `templates` extra, not a core dependency: only glitchygames.templates
-# (building a new game project, scripts/create.py) uses it; without it build() raises
-# TemplatesUnavailableError and scripts/create.py exits 1 naming the extra
-pip install --find-links dist "glitchygames[templates]"
-
-# Optional: trust the project's .envrc (direnv); on entering the repo it runs
-# `uv sync --all-extras --all-groups --all-packages` (the locked versions) and, on macOS,
-# installs PulseAudio with Homebrew (sound from the Linux test container, nox -s test-linux-x11)
-# and syft and grype (nox -s security-scan)
-direnv allow
-
-# Upgrade dependencies deliberately, then review the uv.lock change
-uv sync --upgrade --all-extras --all-groups --all-packages
+uv sync --all-extras --all-groups --all-packages   # everything development uses
+direnv allow        # optional: .envrc syncs on entry; on macOS installs PulseAudio, syft, grype
+uv sync --upgrade --all-extras --all-groups --all-packages   # deliberate upgrade; review uv.lock
 ```
+
+The packages are not on PyPI yet: outside the repository, `uv build --all-packages` and install
+from `dist/` (extras: `games`, `apps`, `templates` for cookiecutter).
 
 ## Common Commands
 
-### Testing
 ```bash
-# Run all tests with coverage (100% minimum required). Outside CI this also runs the suite on
-# the native SDL driver (macOS cocoa) and fails on any frame that differs (see Testing Guidelines)
-pytest
-
-# Fast iteration: the dummy driver only, no native run or comparison
-pytest --dummy-only
-
-# Run specific test file
-pytest tests/test_specific.py
-
-# Run tests matching pattern
-pytest -k "test_pattern"
-
-# Run tests with parallel execution
-pytest -n auto
-
-# Run performance benchmarks only
-pytest --benchmark-only
-```
-
-### Linting and Type Checking
-```bash
-# Format code with ruff
+pytest                      # full suite, 100% coverage; outside CI also on the native SDL driver,
+                            # failing on any frame that differs (see Testing Guidelines)
+pytest --dummy-only         # fast iteration: dummy driver only
+                            # addopts already has -n auto and -p no:randomly (fixed order;
+                            # only nox -s test-random shuffles)
 ruff format src tests scripts noxfile.py
-
-# Check and fix import ordering
-ruff check --select I --fix src tests scripts noxfile.py
-
-# Run full ruff linting
-ruff check src tests scripts noxfile.py
-
-# Type checking with basedpyright (configured in pyrightconfig.json)
-basedpyright
+ruff check src tests scripts noxfile.py     # --select I --fix for import order
+basedpyright                # pyrightconfig.json
 ```
 
+Nox (`nox -l` lists all; each session's docstring explains it):
+- `format`, `lint` (aggregates), `static-analysis` (basedpyright + ty), `test`, `test-random`
+  (shuffled order, the pre-push hook; `-- SEED` repeats one), `performance-test`
+- `compare-drivers` (N-way driver matrix; pre-push runs `-- --drivers native
+  --fail-on-difference`), `test-linux-x11`, `test-linux-ci` (CircleCI's Linux job in Docker)
+- `replay-metrics` (measure every golden and demo into the pending ledger), `timer-report`
+- `security-scan` (bandit, syft SBOM `docs/sbom.cyclonedx.json`, grype, license check; commit
+  the regenerated SBOM with any `uv.lock` change; exceptions in `.grype.yaml` and
+  `scripts/check_licenses.py` are the owner's)
+- `build`, `build-wheel`, `build-binary` (stamp the commit into `_build_info.json` around the build)
+- `docs-serve` (isolated env; refuses a taken address), `docs-deploy` (CircleCI runs it after
+  every merge to main; refused unless HEAD is on origin/main), `code-complexity`
+
+### Running games and tools
 ### Nox Sessions (Automated Testing Pipeline)
 ```bash
 # --- Aggregate sessions ---
@@ -138,157 +101,161 @@ nox -s build-sdl-x11       # Build SDL with x11 for macOS (cached in ~/Library/C
 # --- Code quality ---
 nox -s code-complexity     # wily: the working tree's changes against HEAD (history measured in a temporary worktree, never in yours); `-- --graphs` generates docs/quality/graphs/ (gitignored), `-- --rank` ranks files
 
-# --- Security ---
-nox -s security-scan       # Run ALL security scans: bandit, then the syft SBOM, grype CVEs, the license check
-nox -s bandit-scan         # Run bandit only
-# security-scan (adapted from exoneris): scripts/generate_sbom.py writes docs/sbom.cyclonedx.json
-# with syft from uv.lock (every package it pins, for every platform, Python version, extra and
-# group, so the same file on macOS, Linux and Windows; deterministic: timestamps, UUIDs and paths
-# stripped, committed; licenses from check_licenses.py's PACKAGE_LICENSE_OVERRIDES, else the
-# installed metadata at the locked version, and a package the lock installs only on some
-# platforms or Pythons must have an override), grype scans it (--fail-on high; reviewed exceptions only in .grype.yaml,
-# each naming its package, why, who and when), scripts/check_licenses.py checks it (BSD-3-Clause
-# with a frozen Bitmappy binary: permissive allowed, GPL/AGPL denied, LGPL, MPL and anything
-# unreviewed fail; EXCEPTIONS are the owner's), and last a regenerated SBOM that differs from the
-# committed one fails (commit it with the uv.lock change). syft and grype are system binaries
-# (.envrc installs them with Homebrew; CircleCI's macOS job installs the pinned, checksummed
-# SYFT_VERSION/GRYPE_VERSION): missing locally, warned and skipped; missing in CI, a failure.
-# safety and pip-audit were dropped for them (the owner, 2026-10-28)
-
-# --- Build / Package ---
-nox -s build               # Build binary (PyInstaller) + wheel
-nox -s build-binary        # Build standalone Bitmappy binary only
-nox -s build-wheel         # Build the wheel (.whl) of every workspace package (uv build --all-packages), only
-# build, build-wheel and build-binary stamp the engine's commit into the package first
-# (src/glitchygames/_build_info.json, removed after; refused while another build's is there;
-# src/glitchygames/build_info.py). test stamps its installed copy instead (write_build_stamp.py
-# --into, with the session's python): that copy is not editable, so the stamp is how it names
-# its commit, and the checkout never holds a test run's stamp (BUGS.md #224.47)
-
-# --- Docs ---
-nox -s docs-deploy         # Fetch gh-pages, replay-metrics (--skip-dirty), build, publish to https://terrysimons.github.io/glitchygames/ (pushes gh-pages, then clears published pending rows; `-- --build-only`: no push)
-# CircleCI runs it after every merge to main (job deploy-docs: once the macOS job passes, one at a time,
-# `-- --no-measure`: CI timings would be noise in the run ledger), pushing with a deploy key
-# (pipeline parameter DOCS_DEPLOY_KEY_FINGERPRINT). It first moves to main's latest commit, so a
-# merge that landed meanwhile is published too, and stops when gh-pages already holds that commit
-nox -s docs-serve          # Serve the docs locally (same strict build, graphs included) at http://127.0.0.1:8000/glitchygames/
-# Each docs-serve run builds in a fresh environment of its own (uv run --isolated, removed when it
-# ends), so two runs on two addresses both work; a taken address (`-- --dev-addr HOST:PORT`) is
-# refused before the build, naming its holder (lsof, ps) and a free address
-# Every mkdocs build generates the complexity graphs first when HEAD changed, then the performance
-# graphs (published run ledger from origin/gh-pages + pending rows; hook: scripts/mkdocs_hooks.py)
-# After every build the hook empties griffe's and mkdocstrings' caches, which kept each
-# `mkdocs serve` rebuild alive (about 330 MB each; BUGS.md #213)
-```
-
-### Local AI Service (Ansible; plans/lucid-circuit.md)
 ```bash
-# llama.cpp from source with Metal, the Bonsai 2 and Qwen models, per-user launchd agents and the
-# unsigned .pkg, everything created by the playbook. No root. macOS on Apple Silicon, with Xcode and
-# CMake already installed. First run downloads 14.57 GB; running it again changes nothing
-uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml
-# Only hosts whose ai_enabled is true get it (ansible/inventory.yml: on by default, off on the
-# Raspberry Pis); the playbook's first play sorts the hosts without connecting to any
-# Nothing runs until asked: ai-service.sh start loads Bonsai 2B (ai_service_default_bonsai_size;
-# config/selection.env or AI_BONSAI_SIZE picks another) when free memory allows. A model
-# unloads after 30 idle minutes (ai_service_sleep_idle_seconds)
-"$HOME/Library/Application Support/GlitchyGames/AI/bin/ai-service.sh" select   # or start, stop, status
-# ...one piece: --tags llama_cpp, ai_models, ai_sidecar, ai_service or ai_package
-# The service is its own project, outside the workspace, sharing no code with the engine. A game
-# reaches it only over a socket (127.0.0.1:23231: WebSocket /v1/session, REST /v1/*, docs at /docs)
-(cd services/ai-service && uv run pytest)   # its own tests, lock file and 100% coverage
-# Games connect to it by default: --ai (on), --no-ai. Never with --headless, in a replay or browser,
-# or without the service installed: those runs build plain HostSources and never import
-# websockets. src/glitchygames/ai_link.py (the link, on its own thread) and ai_host.py (a
-# HostSources subclass; host.py doesn't change). The harness sets GLITCHYGAMES_AI_INSTALL_ROOT
-# to nowhere, so no test can reach the real service
-# In any game with AI the ` key opens the read-only console (src/glitchygames/ai_console.py, its
-# docstring the rules): /ask, /inspect, /ai, /cancel, /history, /copy, /paste, /clear, /help. Its keys reach
-# neither the game nor a recording. A scene may say more with describe_for_ai()
-# Check every model on Metal (speed, memory, layers on the GPU), or remove the service
-uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_validate
-uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_uninstall
+uv run paddleslap            # also brave-adventurer, clockwork-keep, mr-muncher, drawing-fire,
+uv run bitmappy              # dt-demo, joystick-demo, sound-board-demo, text-input-demo
+uv run glitchygames --help   # every recording/replay/measurement tool, with its options
+uv run paddleslap --record-trace run.jsonl.gz
+uv run paddleslap --replay-trace run.jsonl.gz --headless
+uv run glitchygames verify   # every game's goldens and bundled demos, headless
 ```
 
-### Running Bitmappy (Pixel Art Editor)
-```bash
-# Run with default settings
-uv run bitmappy
+Every tool is described once in `src/glitchygames/replay/tools/registry.py` (`TOOLS`) and is both
+a flag on every game and a `glitchygames` subcommand with the same options; project settings come
+from `[tool.glitchygames]` in `pyproject.toml`. A game may not define an argument that clashes
+with a tool option. Reference: docs/architecture/gameplay_replay.md.
 
-# Legacy pygame timing backend (the default is auto: the fast backend with this machine's
-# measured sleep delay; see Frame Pacing)
-uv run bitmappy --timer-backend=pygame
+### Local AI service
 
-# Custom target FPS
-uv run bitmappy --target-fps=120   # default is 60.01; --target-fps 0 for uncapped
-
-# Enable timer jitter logging
-uv run bitmappy --timer-backend=fast --log-timer-jitter
-
-# Windows: Enable 1ms timer resolution
-uv run bitmappy --timer-backend=fast --windows-timer-1ms
-```
-
-### Recording, Replay and Measurement Tools
-The engine owns every tool (`src/glitchygames/replay/tools/`; `registry.TOOLS` is the reference
-for every flag and option). Each is a flag on every game and a `glitchygames` subcommand (also
-`python -m glitchygames`) with the same name and options; settings come from the project's
-`[tool.glitchygames]` (docs/architecture/gameplay_replay.md, "Tools for any game"). Both front
-ends run a tool inside the engine's crash boundary (`game_engine.run_inside_tool_crash_boundary`:
-a crash exits 70, a signal stops and reaps the game first, a missing required option exits 64),
-and `game-timeout-seconds` bounds each game `verify` and `measure` start.
-```bash
-uv run glitchygames --help                                 # every tool, with its options
-uv run paddleslap --record-trace run.jsonl.gz              # record (or: glitchygames record-trace paddleslap run.jsonl.gz)
-uv run paddleslap --replay-trace run.jsonl.gz --headless   # replay (or: glitchygames replay-trace run.jsonl.gz --headless)
-uv run glitchygames report run.jsonl.gz                    # its runs, speed and behavior changes
-uv run glitchygames verify                                 # every game's goldens and bundled demos, headless
-uv run glitchygames verify --game paddleslap --only rally  # one game's, filtered
-uv run glitchygames unmeasured                             # what measure would measure on this machine
-uv run glitchygames measure --game paddleslap              # measure into the pending ledger
-uv run glitchygames performance-pages <directory>          # the ledger and graph pages
-uv run glitchygames sound-render sounds/pickups.toml#coin --sound-output coin.wav  # offline WAV
-uv run glitchygames sound-migrate sounds/recipes.toml      # v0 recipes -> sounds/recipes.v1.toml
-# A scripted session (PaddleSlap's golden: 622 frames, with its controls tail and quit)
-uv run glitchygames record-session paddleslap out.jsonl.gz --headless \
-    --input-script scripts.golden_inputs:paddleslap_script --frame-count 600 \
-    --controls-tail scripts.golden_inputs:paddleslap_controls --input-only-placements
-# GAME is a script path, MODULE:CALLABLE, or a console script or module; arguments after a
-# bare -- go to the game. Our goldens are recorded by scripts/record_scripted_session.py and
-# scripts/record_golden_traces.py, which call the engine with scripts/golden_inputs.py
-```
-
-### Example Games
-**Always use the sprite classes when creating new games** (the owner, 2026-11-07): every game object is a sprite in
-the scene's groups, never drawn straight onto the screen. Sprites are the robust objects the AI works with: stable ids
-that are never recycled, sprite comparison in replays, debug-overlay hitboxes and the AI's introspection tools. Drawing
-Fire predates this and draws without sprites (converting it is in plans/future-work.md).
-
-Every game is its own workspace package under `src/games/` (Part 2 of
-plans/2026-10-24-workspace-packages.md; the recipe is docs/architecture/game_packages.md), with
-its code, tests and golden replay; the engine has no examples package. The `demos` layer
-(`src/demos/<demo>/src/<package>/`, Part 3) holds the four demos, each a workspace member with
-its own console script: `uv run dt-demo`, `uv run joystick-demo`, `uv run sound-board-demo`, `uv run text-input-demo`
-(or `python -m dt_demo`, `joystick_demo`, `sound_board_demo`, `text_input_demo`); demos get no browser build. A demos-layer
-member is not a game's bundled demo recording (`<package>/demos/*.jsonl.gz`, package data).
-(Bitmappy is an app, its own package in the apps layer, `src/apps/bitmappy/`: Part 4 of the same
-plan). `uv run paddleslap` (its own workspace package `src/games/paddleslap/`, one module: `Game` is
-defined in `paddleslap/__init__.py`), `brave-adventurer` (one project holding both editions, Classic and Papyrus,
-`src/games/brave-adventurer/`: four import packages, `brave_adventurer_core` (what both share),
-`brave_adventurer` (Classic), `brave_adventurer_papyrus` and the launcher `brave_adventurer_modes`,
-its one console script, which shows a title screen, or starts one with `--game classic|papyrus`, or
-the game a `--replay-trace` recording names), `clockwork-keep` (a steampunk tower climb, its own
-workspace package `src/games/clockwork-keep/`),
-`mr-muncher` (a maze chase at the movies, its own workspace package `src/games/mr-muncher/`) and
-`drawing-fire` (a pencil-on-paper stick-figure battle, its own workspace package `src/games/drawing-fire/`:
-computer battles that one or two local players join with START or Enter; its new mechanic is
-swatches, recolouring a sprite by palette swap; docs/games/drawing_fire.md) start the example
-games.
+Installed by Ansible (`ansible/macos_ai_service.yml`; plans/lucid-circuit.md), its own project in
+`services/ai-service/` (own tests, lock file, 100% coverage) that shares no code with the engine.
+Games reach it only over a socket (127.0.0.1:23231) through `src/glitchygames/ai_link.py` and
+`ai_host.py`: on by default (`--ai`/`--no-ai`), never with `--headless`, in a replay or browser.
+The test harness points `GLITCHYGAMES_AI_INSTALL_ROOT` at nowhere. The backtick key opens the
+read-only AI console (`src/glitchygames/ai_console.py`).
 
 ## Architecture Overview
 
 ### Core Engine Components
 
+**GameEngine** (`src/glitchygames/engine/__init__.py`): one per running game
+(`current_engine()`); pygame setup, display, argument parsing, O(1) event dispatch. Games log at
+`--log-level warning` by default; every start logs the options block at CRITICAL (secrets
+redacted). Argument rules: docs/architecture/argument_system.md.
+
+**SceneManager** (`src/glitchygames/scenes/__init__.py`): runs the frame loop. Each frame:
+begin (camera flags), logic (`Scene.dt_tick(dt)`), events, frame services (shake, rumble), camera
+aim (`Scene.camera_target()`), world-sprite positioning and culling, render (`Scene.update()`,
+then `LayeredDirty.draw()`), still-camera shake advance, present, `_finish_frame` (pacing). The
+active scene is always a `Scene` or None. Docs: docs/architecture/playback/how-a-frame-runs.md.
+
+**Game Host** (`src/glitchygames/host.py`): a transparent outer game on every live run;
+`HostSources` sits between the live doors and the recorder, so what the host adds or hides is
+recorded. `GameHost.run_async` / `GameEngine.start_async` drive the loop one awaited tick at a
+time (the browser).
+
+**Exit Codes** (`src/glitchygames/exit_codes.py`): `ExitCode` IntEnum; never write the number in
+code or tests. 0/64-70/73 equal `os.EX_*`; signals are 128 + N.
+
+**Frame Pacing** (`src/glitchygames/timing.py`): `--timer-backend auto` (default) is `FastTimer`
+with a measured sleep model; `pygame` is legacy. Default target 60.01 FPS (`--target-fps 0` is
+uncapped); a scene may set `TARGET_FPS` and `MAX_FRAME_SECONDS`. `dt` is measured start to start
+in `_finish_frame` only.
+
+**World Space** (`src/glitchygames/world.py`, `camera.py`):
+- A sprite with `COORDINATE_SPACE = CoordinateSpace.WORLD` keeps float `world_x`/`world_y`; the
+  engine is then the only writer of its `rect` and owns its `visible`. Hide one with
+  `hidden = True`, never `visible = False`.
+- Never read a world sprite's `rect` in game logic (`dt_tick`, handlers): it is where it was last
+  drawn. Use `world_x`/`world_y`, `snapped_world_position` or the collision rect.
+- The pose rule: draw a sprite's pose (its image, so its hitbox) in `dt_tick`, before collision;
+  `update()` runs after collision and does only visual work. Collision resolution also belongs
+  in `dt_tick`.
+- Camera: `camera.follow(target=..., axes=FollowAxes.X)` in `setup()`, or override
+  `camera_target()`. Parallax layer draw functions must depend only on their arguments unless
+  `animated=True`.
+- Golden traces (`tests/world/test_golden_traces.py`): every difference from the pre-world-space
+  baselines must be explained by exactly one `ExpectedDifference`. Never re-record the baselines
+  to make a change pass.
+
+**Clocks** (`src/glitchygames/clock.py`): every time read comes from here or `Scene.game_time`,
+so replays serve the same values.
+- `Scene.game_time` for gameplay timers; `frame_clock_seconds()` for animation and UI timing;
+  `wall_clock_time()` for timestamps; `elapsed_seconds()` for throttles and timeouts;
+  `measured_seconds()` for diagnostics only (never affects what is drawn, played or recorded);
+  `raw_*` are the engine's own.
+- Import the module (`from glitchygames import clock`, call `clock.raw_sleep(...)`), never a
+  function by name, and never name a local `clock` where the module is imported (SceneManager's
+  pygame pacing clock is `pacing_fallback_clock`). `clock.py` is the only file that may use `time` or read `datetime` now.
+- A function that waits or measures takes its sleep/counter as a parameter defaulting to None,
+  resolved at call time. Tests pass a fake or patch `glitchygames.clock.<function>`, never `time`.
+
+**Gameplay Recording and Replay** (`sources.py`, `live_sources.py`, `recording.py`, `replay/`,
+`randomness.py`; docs: docs/architecture/gameplay_replay.md, docs/architecture/playback/):
+- Doors: the engine takes events, frame time, polled input, devices, saves, clocks and the seed
+  only through the active `EngineSources` (`LiveSources`, `HostSources`, `RecordingSources`,
+  `ReplaySources`). `tests/test_engine_doors.py` fails on any bypass outside its allowlists.
+- Polled input: `current_input()` returns the frame's immutable `InputSnapshot`. Never poll
+  pygame or a device directly; enumerate and open devices only through
+  `active_sources().devices()`. Games read `Scene.input_devices`
+  (`src/glitchygames/input/input_devices.py`).
+- Saves: `glitchygames.state.open_saves(app_name=...)`; replays use an in-memory sandbox.
+- Randomness: draw only from named streams (`random_stream('name')`, `numpy_stream('name')`)
+  seeded by `--random-seed`. Never `secrets`, `random.SystemRandom`, global `random.*` or an
+  unseeded `np.random.default_rng()` in gameplay (`tests/test_unseeded_randomness_guard.py`).
+- Engine code posts events with `recording.post_event`; code driving a game from outside its
+  logic (supervisor, harness) uses `post_input_event`.
+- A game whose state is drawn rather than kept in sprites must post an internal event for what
+  matters, or its replay compares nothing of it.
+- Golden replays (`<member>/tests/fixtures/replays/*.jsonl.gz`) and bundled demos
+  (`<package>/demos/*.jsonl.gz`) are recorded by `scripts/record_scripted_session.py` and
+  `scripts/record_bundled_demos.py`. Re-record only deliberately, as a reviewed step. Every golden
+  ends with the controls tail (pause, every bound control, the game's own quit): a new game's
+  bindings must be listed in `tests/replay/golden_replay_controls.py`.
+- Exit codes, refusals and the rules of each mode (`--replay-trace`, `--rebaseline`, `--audit`,
+  `--compare-trace`, instant replay, demos, ghosts) are in `replay/driver.py`'s docstring and the
+  docs above.
+
+**Engine Context** (`src/glitchygames/engine_context.py`; docs/architecture/engine_context.md):
+the state one running game owns, so several games can run in one process (the Arcade). New
+per-game state is a `ContextSlot` declared at module level and read with
+`current_context().value(slot=...)` at use time, never at import; every slot needs an isolation
+check in `tests/test_engine_context.py`. New module- or class-level mutable state fails
+`tests/test_process_state_guard.py` unless it is a slot or listed with its audit row. Each context
+has its own audio engine, scene manager and performance manager. The old class-level names
+(`GameEngine.OPTIONS`, ...) are read-only views engine code never reads. Inner games
+(`src/glitchygames/inner_game.py`) draw on a render target and use a private event queue; engine
+code uses `display_surface()`, never `pygame.display.get_surface()`.
+
+**Source revision** (`src/glitchygames/build_info.py`): the engine's and the game's commit, from
+git, a git archive, or a build stamp; held by every recorded run.
+
+**Screen Shake and Rumble** (`effects/shake.py`, `input/rumble.py`):
+`Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`.
+
+**Sound Synthesis** (`src/glitchygames/audio/`; docs/architecture/sound.md, specs in
+`docs/specs/2026-11-02-sound-engine-*`):
+- `scene_manager.audio.sound(source, ...)` returns a compiled `Sound`; `Sound.play(...)` returns
+  a `SoundHandle`. Request sounds in `setup()`: a gameplay compile is counted and logged.
+- Sources: a short name looked up in the scene's `SOUND_DIRECTORY`, a path (`file.toml#name`) or
+  an `Instrument`. Sound files are TOML version 1 (v0 still loads).
+- Voice ends follow played time (the served `dt`), never the device, so replays match.
+- Mixer: 44100 Hz, signed 16-bit, stereo, 512-sample buffer.
+- Instrument catalog (`audio/instruments/`): `instruments.get(name)` returns an `Instrument`
+  built once per process; `instruments.entry(name)` gives family and range; `CATALOG` and
+  `ALIASES` are read-only. `tests/audio/test_instrument_catalog.py` renders and pitch-checks
+  every entry.
+- `SoundBank`, `load_sound` and `live_audio` are the older toolkit, kept until M2 moves the games.
+
+**Transitions** (`src/glitchygames/transitions/`): cues run after the old scene's cleanup, so they
+may use only SceneManager services.
+
+**Debug Overlay** (`src/glitchygames/debug/`): `--debug-overlay` or F3, F4 cycles panels
+(hitboxes, physics, camera, performance, audio, AI). Drawn in `_present_frame`, never in
+screenshots or traces. Scenes and sprites may add `debug_draw(surface, camera)`.
+
+**Scene backgrounds** (`src/glitchygames/backgrounds.py`): a scene with no background shows the
+default TV test pattern (or channel 3), never black, because black can't be told from "nothing
+rendered". Scenes that want black set `background_color` explicitly. The CRT power-on sequence
+(`crt_power_on.py`, sound in `crt_power_on_sound.py`) plays before every game, skipped on the
+dummy driver and before replays/recordings; its sounds compile once per process
+(`ENGINE_SOUND_CACHE`).
+
+**Pixel snapping** (`pixel_snap.py`): `Scene.PIXEL_SNAP_MODE`, per-sprite `pixel_snap_mode`.
+
+**Opaque frames** (`opacity.py`, BUGS.md #142): on macOS the display has per-pixel alpha and
+shows alpha 0 as black. Backgrounds must be opaque; the display is made opaque before every
+present. Check rendering on the real driver with `SDL_VIDEODRIVER=cocoa uv run pytest`.
 **GameEngine** (`src/glitchygames/engine/__init__.py`)
 - Orchestrator extending `EventManager`, one per running game (`current_engine()` is the current
   engine context's)
@@ -1423,378 +1390,86 @@ display before every present. The test guard judges what the window shows
 
 ### Event System
 
-**Event Flow**: `active_sources().pump_events()` (live: `pygame.event.get()`) → `GameEngine.process_events()` → `engine.event_handlers[type]()` → `SceneManager.on_*_event()` → `Scene.on_*_event()` → `Sprite.on_*_event()`
+`active_sources().pump_events()` → `GameEngine.process_events()` → `SceneManager.on_*_event()` →
+`Scene.on_*_event()` → `Sprite.on_*_event()`. Handlers get immutable `HashableEvent`s
+(`events/base.py`; change one with `event.with_fields(...)`). Unhandled events raise under
+`--no-unhandled-events` (on in every test). Docs: docs/architecture/event_system.md.
 
-**Event Categories**:
-- Audio, Controller, Keyboard, Mouse, Window, Touch, Joystick, MIDI
-- Custom: `FPSEVENT`, `GAMEEVENT`, `MENUEVENT`
+### Sprites, animation and collision
 
-**Event Managers** (`src/glitchygames/events/`):
-- Specialized classes: `MouseEventManager`, `KeyboardEventManager`, `ControllerEventManager`
-- Scenes override `on_*_event()` methods to handle specific events
-- `HashableEvent` (`src/glitchygames/events/base.py`): the hashable, immutable wrapper every handler
-  gets (dispatch: `HashableEvent.from_pygame`). `HashableEvent(type, **fields)` builds the type's
-  class from `EVENT_CLASSES` (`KeyEvent`, `MouseMotionEvent`, `MouseButtonEvent`, `JoyAxisEvent`,
-  `ControllerButtonEvent`, `WindowEvent`, `FpsEvent`, `GameEvent`, ...: field declarations only;
-  custom types stay `HashableEvent`, fields `Any`), so handlers name their class (chords get
-  `keys: tuple[KeyEvent, ...]`). Equal by type and fields, never by class. Mutators raise
-  TypeError: use `event.with_fields(**changes)`; the hash is cached in a slot, never a field.
-  `to_json()`/`from_json()` encode values as recordings do, windows as None (recordings still
-  store raw pygame events)
-- Unhandled events: `GameEngine.unhandled_events` keeps per-type count, first-seen time and attribute names; logged as a table at teardown (`_shutdown`). A scene's stub (`unhandled_event()`) also logs a warning the first time each type arrives under `--debug-events` (off by default) and raises `UnhandledEventError` under `--no-unhandled-events`
-- `SYSWMEVENT` (the window system's raw messages) stays blocked, as SDL leaves it (`events.allow_every_event_type`); a game opts in with `NATIVE_WINDOW_MESSAGES = True` on its scene class and gets them in `on_sys_wm_event` as plain `HashableEvent`s (docs/architecture/event_system.md)
+- **Every game object is a sprite** in the scene's groups, never drawn straight to the screen
+  (the owner, 2026-11-07): sprites get stable ids, replay comparison, debug hitboxes and the AI's
+  introspection. Drawing Fire predates this (conversion is in plans/future-work.md).
+- Hierarchy (`sprites/`): `RootSprite` → `Sprite` → `BitmappySprite`, `AnimatedSprite`. Load
+  sprites with `SpriteFactory.load_sprite(filename=...)`, not `BitmappySprite` directly.
+- Sprite files are TOML only (character-to-colour map, optional per-colour alpha, magenta
+  255,0,255 as the transparency key, `[[animation]]` sections); see ANIMATION_README.md.
+- Hitboxes (`collision/`) default to the image's visible pixels; TOML hitboxes win. A TOML
+  `AnimatedSprite`'s frames keep magenta opaque, so give it a `[sprite.hitbox]`. Use
+  `common_hitbox_x_range()` for standing support and `frame_anchor` for frames of different shapes.
+- Engine-level patterns must work for other genres (top-down RPG, shooter, puzzle, fighting), not
+  just today's games: flag any that lock one out.
 
-### Sprite and Animation System
+### Bitmappy (`src/apps/bitmappy/`)
 
-**Sprite Hierarchy** (`src/glitchygames/sprites/`):
-- `RootSprite`: Base with mouse events and `pygame.sprite.DirtySprite`
-- `Sprite`: General-purpose with coordinates, name, parent tracking
-- `BitmappySprite`: Loaded from TOML files
-- `AnimatedSprite`: Multi-frame animation support
-- `FocusableSingletonBitmappySprite`: UI widgets with keyboard focus
+The pixel-art editor, an app member: canvas editing with undo/redo, animation film strip, up to
+four controllers (CONTROLLER_CONTROLS_README.md), onion skinning, flood fill (Ctrl+click), TOML
+and PNG drag-and-drop, AI generation through the local AI service (`AI_FEATURES_ENABLED`; off in
+WebAssembly). The Load and Save dialogs take the file name as typed (no `example:` prefix), so a
+library sprite is opened by its path. Its sprite library is package data in `src/apps/bitmappy/src/bitmappy/resources/
+sprites/`. Docs: docs/architecture/bitmappy.md.
 
-**Animation** (`src/glitchygames/sprites/animated.py`):
-- `FrameManager` (`src/glitchygames/sprites/frame.py`): Centralized frame state with observer pattern
-- Multiple named animation sequences per sprite
-- Per-frame timing overrides
-- TOML format with RGBA/RGB support (magenta key: 255,0,255)
+### Browser
 
-**Hitboxes** (`src/glitchygames/collision/`): default to the image's visible pixels (alpha/colorkey
-trimmed, `collision/bounds.py`, measured every query so redrawn images are fine);
-`TRIM_TRANSPARENT_HITBOX = False` opts out and TOML hitboxes win (native pixels times
-`AnimatedSprite.scale`; `hitbox_flip_x = True` mirrors them for a sprite drawn facing
-left). `AnimatedSprite.common_hitbox_x_range()` is the x-span every frame shares (use it for
-standing support so a wider frame cannot catch a ledge), and
-`collision.layers.collision_rect_offset(sprite)` places a sprite so its collision rect is flush
-against a wall. Caveat: a TOML `AnimatedSprite`'s visible-pixel default is measured on its
-loaded frame images (`SpriteFrame.opaque_bounds()`), which keep magenta as opaque pixels
-(`pixel_utils.create_alpha_surface` stores it at alpha 255), so it trims nothing for them, though
-the drawn `image` is keyed correctly (#133: SRCALPHA for frames with translucent pixels, a magenta
-colorkey otherwise); give them a `[sprite.hitbox]` (e.g. the union of their frames' non-magenta
-bounds, as `ghosty.toml` does).
-Frames of different shapes: draw walkers bottom-aligned, or set `AnimatedSprite.frame_anchor`
-(`FrameAnchor`: edge names align one axis, CENTER/corners both; `[sprite] frame_anchor =
-"bottom"`). The engine adds `draw_offset` to `rect` for world-space sprites; a screen-space sprite
-adds it to `rect` itself.
-
-**Rendering Optimization**:
-- `pygame.sprite.LayeredDirty` for dirty-rect rendering
-- Sprites with `dirty=1` force redraw; `dirty=0` skips rendering
-- Film strip sprites update every frame for animation preview
-
-### UI Subsystem (`src/glitchygames/ui/`)
-
-Components: `MenuBar`, `MenuItem`, `TextSprite`, `MultiLineTextBox`, `SliderSprite`, `TabControlSprite`, `ColorWellSprite`
-
-Dialogs: `LoadDialogScene`, `SaveDialogScene`, `NewCanvasDialogScene`
-
-**Focus Model**: Focusable sprites intercept keyboard input via `active` attribute
-
-### Bitmappy Pixel Art Editor (`src/apps/bitmappy/src/bitmappy/`)
-
-Bitmappy is an app: the first workspace member of the apps layer (`src/apps/bitmappy/`;
-distribution, import package and console script are all `bitmappy`; Part 4 of
-plans/2026-10-24-workspace-packages.md, plans/2026-10-26-workspace-packages-4-bitmappy.md). The
-scene's logical name, which recordings hold, is `apps.bitmappy.editor:BitmapEditorScene`. The
-engine never imports it. Its sprite library (71 sprites, also the AI's training data) is package
-data in `src/apps/bitmappy/src/bitmappy/resources/sprites/` (`bitmappy.SPRITE_CONFIG_DIR`), beside
-its window icon and `bitmappy.cfg`. Its tests are in `src/apps/bitmappy/tests/`, and its
-`pyproject.toml` declares what it imports (the engine, numpy, pydantic, pygame-ce,
-tenacity). The Load and Save dialogs open the file name as typed (whitespace trimmed): there is
-no `example:` prefix, so a sprite in the library is opened by its path.
-
-Features:
-- Canvas-based pixel editing with undo/redo (`UndoRedoManager`)
-- Animation timeline (`FilmStripWidget`)
-- Multi-controller support (`MultiControllerManager`)
-- Collision visualization (`VisualCollisionManager`)
-- TOML file format for sprites
-- AI integration via the local AI service, behind the feature flag `AI_FEATURES_ENABLED`
-  (`src/apps/bitmappy/src/bitmappy/constants.py`; off in WebAssembly builds for now: the AI worker is a separate
-  process, which a browser cannot start). `tenacity` is imported only when an AI request is made
-  (`src/apps/bitmappy/src/bitmappy/ai_worker.py` `_create_ai_retry_decorator`), so Bitmappy imports without it
-- Voice recognition support
-- PNG drag-and-drop
-- Runs in the browser: `nox -s browser -- bitmappy` (its bundle ships the app as its own archive, `bitmappy.zip` beside `glitchygames.zip`, as a member game ships `mr_muncher.zip`; the builder runs as `python -m scripts.build_browser_bundle`).
-  There Load opens the browser's file picker and Save downloads the saved file, through the
-  installed user files (`src/glitchygames/user_files.py`; the page's `browser/browser_user_files.py`).
-  On the desktop nothing is installed and the dialogs ask for file names as always
-
-**Clipboard and the player's files** (`src/glitchygames/clipboard.py`, `src/glitchygames/user_files.py`)
-- Text widgets copy and paste through `system_clipboard()`: the installed clipboard, else
-  `create_clipboard()`'s choice (`PyperclipClipboard`, else `InProcessClipboard` without
-  pyperclip). A clipboard that cannot be used raises `ClipboardUnavailableError`. Tests get a
-  fresh `InProcessClipboard` each (`tests/harness.py` `in_process_clipboard`), never the machine's
-- The browser installs `BrowserClipboard` (`browser/browser_clipboard.py`): paste takes the
-  page's paste event text (Ctrl/Cmd+V fires it before the game's frame reads the key); copy is
-  kept in the game and written with `navigator.clipboard.writeText`, which Safari refuses
-  outside the key's own handler (copied text then pastes only inside the game). pyperclip
-  installs in Pyodide but cannot work there (it runs clipboard programs)
-- `installed_user_files()` is None on the desktop; a browser installs `UserFiles` (`open_file`
-  with a file picker, `save_file` as a download). Tests start with none (`desktop_user_files`)
-
-**Touch controls in the browser** (`browser/touch_controls.js`; layouts in
-`scripts.build_browser_bundle` `TOUCH_LAYOUTS` (scripts/build_browser_bundle.py), written into boot_config.json)
-- On touch devices the page shows on-screen buttons (portrait: below the game; landscape: over
-  its bottom corners). A held button holds its key: key events dispatched on the canvas reach
-  SDL (on the window they do not), so games, action maps, recordings and replays see ordinary
-  key presses and need no changes
-- Each button names its key ('Jump · Space'): the shared pause and game-over screens resume with
-  Space and quit with Esc, so a second tap on an Esc pause button would quit; their prompts then
-  point at the right button. Mr. Muncher's pause is P for that reason
-- `tests/test_browser_touch_controls.py` checks every button presses a key its game binds (or the
-  shared screens' Space and Esc). Bitmappy has no layout
-
-### Resource Management
-
-**Fonts** (`src/glitchygames/fonts/`): `FontManager` singleton (one per engine context) with
-Bitstream Vera fonts
-
-**Colors** (`src/glitchygames/color/`): Palettes (NES, SYSTEM, VGA) and constants
-
-**Game Objects** (`src/glitchygames/game_objects/`): Physics objects (Ball, Paddle)
-
-**Performance** (`src/glitchygames/performance/`): `AdaptiveClamping` for FPS monitoring, one
-performance manager per engine context (`AdaptiveClamping()`; `performance_manager` is a
-read-only view): each game's FPS statistics and shutdown report are its own, an outer game's
-the aggregate of the games it steps
-
-## Design Patterns
-
-- **Singleton**: `SceneManager`, `AdaptiveClamping`, the shared event managers and `FontManager`
-  (one per engine context)
-- **Observer**: `FrameManager` for animation frame changes
-- **Strategy**: Timer backends, display update modes, controller modes
-- **Proxy**: Event routing through `SceneManager` to `Scene`
-- **Factory**: `SpriteFactory` for TOML-based sprite creation
+`nox -s browser -- <game>` builds a browser bundle. The page installs its own clipboard
+(`browser/browser_clipboard.py`) and user files (`src/glitchygames/user_files.py`); on-screen
+touch buttons (`browser/touch_controls.js`) send ordinary key events, checked by
+`tests/test_browser_touch_controls.py`. The shared pause and game-over screens resume with Space
+and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Muncher's is P).
 
 ## Testing Guidelines
 
-- Use `pytest` assertions (not unittest style)
-- Tests use real pygame, the real display and real files (`tmp_path`); there are no shared mocks. Patch
-  only what cannot run in a test (hardware, network, third-party tools such as cookiecutter, the
-  clock, injected failures) with targeted pytest-mock `mocker` calls, and assert on what is drawn
-  (pixels), not on draw calls. Assertions must not assume the display's pixel format (cocoa's has
-  per-pixel alpha)
-- Test filenames: Use descriptive names, not generic suffixes like `_simple`
-- Sprite-file checks (equal row lengths, save round trips of timings, hitboxes, pixels, metadata
-  and transitions) are `glitchygames.testing.sprite_files`: the engine and every package that
-  ships sprites call its `check_*` functions on their own sprites instead of copying them
-- Wall-clock timings never belong in the normal suite (they flake under load and under `-n auto`):
-  assert the outcome, and measure time in a benchmark (`pytest --benchmark-only`,
-  `nox -s performance-test`)
-- `tests/test_engine_wheel.py` builds the engine's wheel and asserts it holds the engine alone
-  (its package, its four sounds and its two sprites, no member); `nox -s build-wheel` builds every
-  member's wheel
-- Tests import the installed packages (`uv sync` installs the engine and every member) and never
-  edit `sys.path`: `tests/test_suite_collection.py` fails on any `sys.path.insert` or
-  `sys.path.append` in a test file. A member's tests (`src/<layer>/<member>/tests/`, no
-  `__init__.py`) are rootless; pytest imports every test module and conftest under its path from
-  the repository root (`--import-mode=importlib`, `consider_namespace_packages = false`,
-  `pythonpath = ["."]`; D15 item 5: `src.apps.bitmappy.tests.test_bitmappy_film_strip` under
-  `uv run pytest` and nox alike, pinned by `test_bitmappy_test_module_names.py`), so no two names
-  collide, and a member's helper module is imported by its qualified path from
-  the repository root (`src.apps.bitmappy.tests.film_strip_support`), never by a bare name
-  (`test_no_member_test_imports_a_module_by_a_bare_name`). By convention every test file is
-  named `test_<distribution with - as _>*.py` (`test_mr_muncher_*.py`, `test_bitmappy_*.py`;
-  subdirectories included; `misnamed_member_test_modules` checks every member). A member's move
-  tests are one file per subject, six in all (`_logical_names`, `_install_location`, `_wheel`,
-  `_package_data`, `_entry_points`, `_recording_history`); a move test outside them goes beside
-  the member's other tests, named for its subject (`test_brave_adventurer_shared_core.py`). The
-  guards (the naming convention, the import mode and bare-name imports, and the member-import
-  guard) cover every member and every root test
-- The engine never imports a member, in its source or its tests: `tests/test_workspace_config.py`
-  (`engine_files_importing_a_member`) and `tests/test_suite_collection.py`
-  (`engine_test_imports_of_members`) fail on any import of one, at any level and by a literal
-  `importlib.import_module`/`__import__` string. An engine test that needs a game uses a
-  stand-in (`tests/stand_in_harness_games.py`, `tests/stand_in_games.py`) or discovers the members
-  through the workspace (`tests/workspace_goldens.py`) and asserts the hand-written expectations
-  in `tests/workspace_expectations.py` (which imports no `scripts.*`), which are edited when a
-  game, golden, bundled demo or console script is added. The only exemptions
-  (`MEMBER_IMPORT_EXEMPT_MODULES`, `MEMBER_IMPORT_EXEMPT_NAMES`,
-  each with its reason and date) are the golden-replay control tables
-  (`tests/replay/golden_replay_controls.py`) and the per-game world rules' named imports in
-  `tests/world/test_golden_traces.py`; a stale exemption fails too. The tools in `scripts/` are
-  out of scope
-- No engine test reaches `scripts/` (Part 3 Stage D, Task D9): `tests/test_suite_collection.py`
-  (`engine_tests_reaching_scripts`) follows every root test module's imports, at any level, by a
-  literal string, a bare `import scripts`, relative or through a package (its own included),
-  through the root tests' own helper modules, and through every `conftest.py` above it and the
-  plugins their `pytest_plugins` name (a fixture reaches a test by name), and fails naming the
-  shortest chain (`tests.x -> conftest -> tests.helper -> scripts.y`). Exempt by name: a
-  script's own test (`SCRIPT_TEST_FILES`, with the scripts it tests) and a file that holds only
-  tests of this repository itself (`REPOSITORY_TEST_FILES`, with its reason: the workspace, our
-  members' goldens, demos and console scripts, CI, the suite, and the source guards that scan
-  every member through `tests/workspace_sources.py`: `tests/test_engine_doors.py`,
-  `test_pump_seam_guard.py`, `test_unseeded_randomness_guard.py`,
-  `test_engine_context_source_guards.py`); a stale exemption (no file, no `scripts.*` reached, or
-  a script gone) fails too. A repository test never shares a file with engine tests: put it in
-  its own file, named for what it checks (`tests/engine/test_every_game_powers_on.py`). The shared
-  AST and import-graph helpers (`tests/ast_scanning.py`) import no `scripts.*`; what reads the
-  workspace is `tests/workspace_sources.py` and `tests/workspace_goldens.py`. The engine's own
-  source directory for the engine's tests is `tests/engine_source.py` (kept equal to
-  `scripts/workspace_packages.py`'s by `tests/test_workspace_packages.py`). No engine module
-  reaches `scripts/` either, directly or through another engine module
-  (`tests/test_workspace_config.py` `engine_modules_reaching_scripts`)
-- `tests/harness.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
-  plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`).
-- Real pads never reach tests: `tests/sdl_defaults.py` defaults SDL's macOS joystick drivers off
-  (`SDL_JOYSTICK_HIDAPI`, `SDL_JOYSTICK_MFI`, `SDL_JOYSTICK_IOKIT` = `0`; each alone finds pads),
-  so tests see only their stand-ins (`tests/input/stand_in_devices.py`); set one to `1` yourself
-  to test with a real pad. Windows' and Linux's joystick drivers are not covered
-- Driver comparison (`tests/driver_comparison.py`; frames recorded by
-  `src/glitchygames/testing/frame_fingerprints.py`, compared by
-  `src/glitchygames/testing/frame_comparison.py`, both shipped in the engine wheel, whose command
-  line is `scripts/compare_driver_frames.py`):
-  outside CI, `uv run pytest` (and `nox -s test`) also starts the same command on the native
-  driver (macOS cocoa + coreaudio, Windows windows, Linux wayland or x11 with dummy audio) as a
-  child run, the usual workers split between them (native two thirds), then compares every frame
-  each test presented and fails on a difference, re-running the differing tests on both drivers
-  to save PNGs and a difference image under `test-results/driver-comparison/pytest/` (the summary
-  names the files and the native run's log). Coverage and the 100% gate come from the dummy run.
-  Off (dummy only, said in the summary) in CI (`CI=true`), with `--dummy-only`, when you set
-  `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER` (that driver alone), and on Linux without a display. A test
-  whose frames legitimately differ between runs or drivers (measured frame times, the live
-  window's mouse focus) carries `@pytest.mark.frames_vary(reason=...)`: listed, not compared.
-  `nox -s compare-drivers` is the on-demand deeper check: an N-way matrix of dummy (run twice to
-  find nondeterministic tests), the native driver, `x11-macos` (x11 on XQuartz through an SDL
-  built with x11, `scripts/build_sdl_x11.py`) and `x11-linux` (Docker, forwarded to XQuartz);
-  it reports every pair in `test-results/driver-comparison/nox/matrix.md` without failing on a
-  difference; it fails, keeping the last complete report, when a run recorded no test
-  (`docs/quality/driver_comparison.md`)
-  On a real driver the test windows are hidden, so the machine's pointer and keys never reach a
-  test (`tests/hidden_test_windows.py`, BUGS.md #225; `GLITCHYGAMES_SHOW_TEST_WINDOWS=1` shows them)
-  After each test the variables, display and mixer a test moved off the run's drivers (a
-  constructed `--headless` engine moves them to `dummy`) are put back, the display showing the
-  canvas (`tests/sdl_driver_isolation.py`; a few microseconds when nothing changed)
-- All tests run with `no_unhandled_events=True` to catch unhandled events as bugs
-- The test display rule (`tests/display_canvas.py`): every test starts on the canvas (the default
-  pattern; channel 3 with `GLITCHYGAMES_TEST_CANVAS=channel-3`), its display is presented after the
-  body, and a test whose last frame is entirely black fails as a rendering bug (opt-out:
-  `@pytest.mark.black_frame_expected(reason=...)`, only for a frame black by definition). Assert
-  untouched pixels with `canvas_color_at(x=..., y=...)`, never as black
-- Coverage minimum: 100% (each remaining miss is audited: dead code is removed, deliberate defensive lines carry a `# pragma: no cover` with the reason)
-- Run linting after modifying files
-- Check for real bugs before assuming test failures are test issues
+- Real pygame, real display, real files (`tmp_path`); no shared mocks. Patch only what can't run
+  in a test (hardware, network, third-party tools, the clock, injected failures) with targeted
+  `mocker` calls. Assert on pixels, not draw calls, without assuming the display's pixel format.
+- Wall-clock timings never belong in the normal suite; measure time in benchmarks
+  (`pytest --benchmark-only`).
+- Tests import the installed packages and never edit `sys.path` (`uv sync` installs them
+  editable; `nox -s test` installs a non-editable copy, so it tests what a wheel would ship). Member tests live in
+  `src/<layer>/<member>/tests/`, are named `test_<distribution with - as _>*.py`, and import
+  helpers by qualified path from the root (`src.apps.bitmappy.tests.film_strip_support`).
+- An engine test that needs a game uses a stand-in (`tests/stand_in_games.py`) or the workspace
+  expectations (`tests/workspace_expectations.py`, edited when a game, golden, demo or console
+  script is added). A test of the repository itself goes in its own file, never beside engine
+  tests.
+- `tests/harness.py` defaults SDL to the dummy drivers; macOS joystick drivers are off, so tests
+  see only stand-in devices (`tests/input/stand_in_devices.py`).
+- Driver comparison: outside CI, `pytest` also runs on the native driver and fails on any
+  differing frame (PNGs in `test-results/driver-comparison/pytest/`). A test whose frames
+  legitimately vary carries `@pytest.mark.frames_vary(reason=...)`.
+  Docs: docs/quality/driver_comparison.md.
+- The display rule (`tests/display_canvas.py`): each test starts on the canvas pattern, and a test
+  whose last frame is entirely black fails as a rendering bug (opt-out
+  `@pytest.mark.black_frame_expected(reason=...)`). Assert untouched pixels with
+  `canvas_color_at(x=..., y=...)`, never as black.
+- Sprite-file checks: call `glitchygames.testing.sprite_files`' `check_*` functions; don't copy them.
+- Coverage is 100% with no configured exclusions; a deliberate defensive line carries
+  `# pragma: no cover` with its reason.
+- Run the linters after modifying files.
+- A new autouse fixture that resets engine state must join a group in `tests/harness.py` (see
+  `tests/test_engine_context.py`).
+- Check for real bugs before assuming a test failure is a test issue.
 
 ## Code Style
 
-- Python 3.14 target
-- Ruff for linting/formatting (100 char line length)
-- Google-style docstrings
-- basedpyright (and ty) for type checking (`pyrightconfig.json`)
-- Import ordering enforced by ruff
+Python 3.14, ruff (100-character lines, import order), Google-style docstrings, basedpyright and
+ty. Data classes are pydantic models. Active bugs: BUGS.md.
 
-## Known Bugs
+## Docs
 
-**Active Issues**: see BUGS.md for the current list.
-
-## File Formats and Sprite Loading
-
-**Supported Format**: TOML only (YAML and INI support removed)
-
-**Sprite Loading** (`src/glitchygames/sprites/factory.py`, re-exported by `glitchygames.sprites`):
-- `SpriteFactory.load_sprite(filename=...)` - Automatic type detection
-- Supports static sprites (single frame) and animated sprites (multi-frame); both load as an
-  `AnimatedSprite` (a static one as a single frame)
-- TOML format with character-to-color mapping
-- Special magenta (255, 0, 255) used as transparency key
-
-**Sprite File Structure**:
-```toml
-[sprite]
-name = "example"
-pixels = """
-##
-##
-"""
-
-[colors."#"]
-red = 0
-green = 0
-blue = 0
-
-# Optional alpha for per-pixel transparency
-[colors."@"]
-red = 255
-green = 0
-blue = 0
-alpha = 127  # 0-254 for transparency, omit for opaque
-```
-
-**Animation Format**:
-- Multiple `[[animation]]` sections with `namespace` field
-- Per-frame timing via `frame_interval` (global or per-frame override)
-- Supports RGB (indexed), RGBA (per-pixel alpha), and mixed modes
-- See ANIMATION_README.md for complete details
-
-## Bitmappy Editor Features
-
-**Multi-Controller System** (up to 4 simultaneous controllers):
-- Colors: Red (0), Green (1), Blue (2), Yellow (3)
-- Modes: Film Strip, Canvas, and the R, G and B sliders (`ControllerMode`)
-- Mode switching (`ModeSwitcher.handle_trigger_input`): L2 steps forward (film strip -> canvas ->
-  R -> G -> B -> film strip), R2 steps back (B -> G -> R -> canvas -> film strip; nothing on the
-  film strip); L2 wins when both trigger together
-- Independent navigation and editing per controller
-- Visual collision avoidance for overlapping indicators
-- Comprehensive undo/redo including controller positions
-
-**Key Features**:
-- Flood-fill tool (Control+click)
-- Onion skinning ('O' key, right-click frames)
-- TOML/PNG drag-and-drop support
-- Undo/redo system for canvas and film strip operations
-- AI sprite generation via the local AI service
-- Voice recognition support
-- ASCII renderer with transparency support
-
-**Controller Controls** (see CONTROLLER_CONTROLS_README.md):
-- Film Strip Mode: D-pad navigation, A select, L1/R1 frame switching
-- Canvas Mode: D-pad movement, A paint, L1/R1 8-pixel jumps
-- Slider Mode: D-pad adjust, L1/R1 adjust by 8
-- B button: Undo, X button: Redo, Y button: Mode-specific toggles
-
-## Recent Feature Completions
-
-**Recently Completed** (see `plans/future-features.md` and `plans/engine-audit.md` for the roadmap):
-- ✅ Multi-controller navigation and editing (4 controllers, 57+ tests)
-- ✅ Controller position undo/redo system
-- ✅ Onion skinning for animation
-- ✅ Per-pixel alpha support for AI-generated sprites
-- ✅ Flood-fill tool (Control-click)
-- ✅ TOML drag-and-drop support
-- ✅ Enhanced ball boundary physics
-- ✅ Colorized ASCII output
-
-**High Priority Features Planned**:
-- Memory optimization (100k+ frame FPS buffer)
-- Real-time performance monitoring
-- Sprite format linter
-- Universal undo/redo enhancements
-- Pixel-level copy/paste system
-
-## Important Notes
-
-- **Sprite Loading**: Use `SpriteFactory` not direct `BitmappySprite` for new code
-- **Coverage**: 100% minimum required (`--cov-fail-under` in pyproject.toml); no exclusions in configuration
-- **Documentation**: Architecture details in `docs/architecture/` (the mkdocs site) and root .md files
-  (ANIMATION_README.md, LOADER_README.md, etc.). The engine's API reference pages are written by
-  hand (`docs/glitchygames/`); each workspace member package's (`mr_muncher/index.md`) is
-  generated in the build by `scripts/gen_ref_pages.py` (mkdocs-gen-files), and zensical.yml's nav
-  names it (`tests/test_workspace_config.py` checks every member's). The site is mkdocs 1.x
-  (`mkdocs<2.0`) with the Material theme; its configuration is `zensical.yml`, and `mkdocs.yml` is a
-  link to it (`test_mkdocs_yml_is_a_link_to_zensical_yml`). Code reads `zensical.yml` by name:
-  Windows may check the link out as a text file. `docs/requirements.md` is the requirements page:
-  its pickers and tables are `docs/js/requirements.js` over `docs/data/requirements.json`
-  (each measured machine's ranges from the replay ledger, regenerated when they are re-measured).
-  Replay Performance and Code Complexity are explorers too: `docs/js/performance.js` over the
-  build's `quality/metrics/performance-explorer.json` (`scripts/generate_performance_graphs.py`:
-  the engine's chart traces per recording) and `docs/js/complexity.js` over
-  `quality/graphs/complexity-explorer.json` (`scripts/generate_complexity_graphs.py`: every
-  module's and package's wily history); both load plotly.js only on their page, and all three
-  share `docs/css/explorer.css`. Every build checks, without a browser, that their built pages
-  name only files the site has (`scripts/mkdocs_hooks.py` `missing_explorer_files`). Pages are
-  written in Material's conventions (warnings for rules, collapsed blocks for long reference
-  listings, definition lists for term lists, `!!! bug` for bug write-ups; the abbreviations'
-  glossary is `docs/includes/abbreviations.md`): plans/2026-11-09-docs-material-formatting.md
+The site is mkdocs 1.x (`mkdocs<2.0`) with the Material theme, configured in `zensical.yml` (`mkdocs.yml` links
+to it; code reads `zensical.yml`). Engine API pages are hand-written in `docs/glitchygames/`;
+member pages are generated (`scripts/gen_ref_pages.py`) and must be in the nav. Write pages in
+Material's conventions (plans/2026-11-09-docs-material-formatting.md); the abbreviations'
+glossary is `docs/includes/abbreviations.md`. Roadmaps:
+plans/future-work.md, plans/future-features.md.

@@ -125,20 +125,7 @@ SELF_NAMES = frozenset({'self', 'cls'})
 
 # Claims that hold though no check can see it: (document, claim text) -> why
 RECORDED_EXCEPTIONS: dict[tuple[str, str], str] = {
-    ('CLAUDE.md', 'tests/test_specific.py'): 'an example command line: any test file',
     ('README.md', 'tests/test_specific.py'): 'an example command line: any test file',
-    ('CLAUDE.md', 'tests/x'): 'an example of a test path',
-    ('CLAUDE.md', 'src/glitchygames/_build_info.json'): (
-        'the build stamp, which exists only while a build runs (gitignored, removed after)'
-    ),
-    ('CLAUDE.md', 'scripts/replay_metrics.py'): 'named as deleted: its tools moved to measure',
-    ('CLAUDE.md', 'scripts/recording_report.py'): 'named as deleted: it moved to report',
-    ('CLAUDE.md', 'tests/workspace_expectations.MEMBER_PACKAGES'): (
-        "a module's constant written path-style (tests/workspace_expectations.py)"
-    ),
-    ('CLAUDE.md', 'recording.recorded_frame_fields()'): (
-        'a variable typed with the RecordedFrameFieldSource protocol (recording.py)'
-    ),
     ('docs/architecture/gameplay_replay.md', 'glitchygames.bitmappy.editor'): (
         "named as the logical module Bitmappy's scene left"
     ),
