@@ -12,9 +12,32 @@ for the same instrument, stays in ``aliases.py``. The family's builds are in ``c
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final
+from typing import Final
 
-if TYPE_CHECKING:
-    from glitchygames.audio.instruments.catalog import CatalogEntry
+from glitchygames.audio.instruments.catalog import CatalogEntry, Family
 
-CLARINET_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = ()
+CLARINET_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
+    # --- Batch 14's clarinets, in the order of plans/data/instrument-audit/batch-14.tsv: each a
+    # distinct instrument, verified by its source, that no fetched source sets apart in sound from
+    # the clarinet entry it names (``sounds_like``).
+    # Sound-alike of the clarinet (the B-flat clarinet), unchanged: the Vienna Symphonic
+    # Library's academy page Clarinet in Bb (https://www.vsl.co.at/academy/woodwinds/clarinet)
+    # describes the clarinets in C, B-flat and A together: "C clarinet: brighter, colder and
+    # harder, more "pert" than the other two clarinets." Brighter, colder and harder are colour
+    # words, no cited trait the build makes. Its reed and bore, for every clarinet: "Beak-shaped
+    # mouthpiece made of ebonite or cocus wood with a single reed", "Mainly cylindrical,
+    # barrel-shaped bulge below the mouthpiece (barrel)" and "when sound is produced only the odd
+    # harmonics speak": a single reed on a cylindrical bore, the clarinet's build. Parent: the
+    # page relates it to "the other two clarinets", the B-flat and the A; of those the clarinet
+    # (D3) is nearest its lowest note E3. Range, from the same page: "On all clarinets the
+    # written compass ranges from E3 - C7." and "On the C clarinet the sound is as written.", so
+    # the range sounds as given, E3-C7
+    CatalogEntry(
+        'c clarinet',
+        'C clarinet',
+        Family.CLARINETS,
+        'E3',
+        'C7',
+        sounds_like='clarinet',
+    ),
+)
