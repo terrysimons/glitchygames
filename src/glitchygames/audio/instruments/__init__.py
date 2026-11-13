@@ -129,6 +129,22 @@ drone or detuned double clarinet shipped, so no clarinet carries drones. A clari
 source states waits (34 names), the tenor and contrabass ``birbyne`` wait for a sourced reed and
 bore (2 names) and 4 names wait for their target (40 waits in all).
 
+Saxophones (11 entries) hold the family's builds in ``saxophones.py`` (``sopranino saxophone``,
+``soprano saxophone``, ``alto saxophone``, ``c melody saxophone``, ``tenor saxophone``,
+``baritone saxophone``, ``bass saxophone`` and ``contrabass saxophone``) and their sound-alikes in
+``saxophone_sound_alikes.py`` (``soprillo saxophone`` of ``sopranino saxophone``, ``tubax in eb``
+of ``contrabass saxophone`` and ``heckelphone clarinet`` of ``alto saxophone``). A saxophone is a
+single reed on a conical bore (Hornbostel-Sachs 422.212), while a cylindrical one is a clarinet.
+A key, a size, a shape, a material, keywork or a maker is no trait, so a conical single reed of
+another key, size or form is a sound-alike of the catalog saxophone its source relates it to, or
+else of the one whose lowest note is nearest its own, and gives its own sourced range (sounding,
+a written range only with its own source's transposition). No saxophone shipped as a new build,
+so none carries ``sound_changes``; one whose source gives it two pipes, a slide or a bore or bell
+that changes the sound waits for a build of its own once ranged, and a size below A0 waits for
+sub-audio fundamentals (``bb tubax``). Every other saxophone row waits for a sourced range (15
+names), 7 were dropped, and ``soprillo`` and ``sopranissimo saxophone`` are aliases of
+``soprillo saxophone``.
+
 Keyboards (11 entries) hold the family's builds in ``keyboards.py`` (``grand piano``, ``upright
 piano``, ``fortepiano``, ``harpsichord``, ``virginal``, ``clavichord``, ``celesta``, ``toy
 piano``) and their

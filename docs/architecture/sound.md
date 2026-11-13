@@ -211,7 +211,7 @@ the sound never plays where the picture does not (`--headless`, tests, replays, 
 
 ## The instrument catalog
 
-`glitchygames.audio.instruments` holds 704 ready-made instruments in 23 families. Each is an
+`glitchygames.audio.instruments` holds 707 ready-made instruments in 23 families. Each is an
 ordinary `Instrument`, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:
@@ -232,7 +232,7 @@ instruments.get('slapstick')                             # an alias: the same in
 | --- | --- | --- |
 | `flutes` | 33 | piccolo to contrabass flute, wooden flutes, sopranino to subcontrabass recorders, whistles, shakuhachi, ocarinas, and 3 sound-alikes (csakan, subcontrabass recorder, ryuteki) |
 | `clarinets` | 10 | E-flat to contrabass clarinet, basset horn, chalumeau, and 1 sound-alike (c clarinet) |
-| `saxophones` | 8 | sopranino to contrabass, C melody |
+| `saxophones` | 11 | sopranino to contrabass, C melody, and 3 sound-alikes (soprillo, tubax in E-flat, heckelphone-clarinet) |
 | `double reeds` | 25 | oboe family, bassoon and contrabassoon, heckelphone, sarrusophone, shawms, crumhorns, suona, zurna, duduk, and 2 sound-alikes (contraforte, piccolo heckelphone) |
 | `bagpipes` | 9 | Highland, uilleann, smallpipes, gaita, gaida, musette, sackpipa (drones built in) |
 | `free reeds` | 13 | accordions (dry, musette, bass), bandoneon, concertina, harmonium, harmonicas, melodicas, sheng (no sound-alikes yet) |
@@ -268,7 +268,7 @@ instruments.get('slapstick')                             # an alias: the same in
   name: `slapstick` to `whip`, `contralto` to `alto ah`, `boy soprano` to `treble ah`, `zanza` to
   `mbira`, `cylinder music box` and `disc music box` to `music box`, `wurlitzer electronic piano`
   to `reed electric piano`, `fender rhodes` to `tine electric piano`, `hohner clavinet` to
-  `clavinet`, `rain box` to `rain machine`, `horse hooves` to `coconut shells`, `tavil` to `thavil` and `riq` to `daf`, `richter harmonica` to `harmonica`, `pedal harp` to `concert harp` and `lever harp` to `celtic harp`, and thirteen names (`hackbrett`, `dulcemele`, `dultzimar`, `darushimaa`, `hakkebord`, `hakkebraet`, `hakkebrett`, `hackbraede`, `hammarharpa`, `oprekelj`, `cimbale`, `cymbaly`, `chimbaly`) to `hammered dulcimer` (138 in all, among them
+  `clavinet`, `rain box` to `rain machine`, `horse hooves` to `coconut shells`, `tavil` to `thavil` and `riq` to `daf`, `richter harmonica` to `harmonica`, `pedal harp` to `concert harp` and `lever harp` to `celtic harp`, and thirteen names (`hackbrett`, `dulcemele`, `dultzimar`, `darushimaa`, `hakkebord`, `hakkebraet`, `hakkebrett`, `hackbraede`, `hammarharpa`, `oprekelj`, `cimbale`, `cymbaly`, `chimbaly`) to `hammered dulcimer`, and `soprillo` and `sopranissimo saxophone` to `soprillo saxophone` (140 in all, among them
   `kanun` to `qanun`, `ud` to `oud` and `neapolitan mandolin` to `mandolin`). `get` and `entry`
   resolve an alias, while `names` and `entries` list catalog names only.
 - A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
@@ -295,10 +295,12 @@ instruments.get('slapstick')                             # an alias: the same in
   krummhorn`, `organ tuba`, `posthorn`) are in `organ_sound_alikes.py`, the builds in `organs.py`;
   the bagpipes' table (`bagpipe_sound_alikes.py`) is empty so far, and so are the keyboards'
   (`keyboard_sound_alikes.py`, the builds in `keyboards.py`) and the free reeds'
-  (`free_reed_sound_alikes.py`, the builds in `free_reeds.py`; the saxophones' builds are in
-  `saxophones.py`), the harps' (`harp_sound_alikes.py`, the builds in `harps.py`) and the struck
-  strings' (`struck_sound_alikes.py`, the builds in `struck_strings.py`). `electromechanical.py` holds the
-  electromechanical instruments that shared that module. There are 197 sound-alikes in all. A bagpipe's drones are fixed pitches inside its build, so a bagpipe
+  (`free_reed_sound_alikes.py`, the builds in `free_reeds.py`), the harps' (`harp_sound_alikes.py`, the builds in `harps.py`) and the struck
+  strings' (`struck_sound_alikes.py`, the builds in `struck_strings.py`); the saxophones' 3
+  (`soprillo saxophone`, of `sopranino saxophone`, `tubax in eb`, of `contrabass saxophone`, and
+  `heckelphone clarinet`, of `alto saxophone`) are in `saxophone_sound_alikes.py`, the builds in
+  `saxophones.py`. `electromechanical.py` holds the
+  electromechanical instruments that shared that module. There are 200 sound-alikes in all. A bagpipe's drones are fixed pitches inside its build, so a bagpipe
   sound-alike in another tuning would carry its own drones as `sound_changes` (each at the pitch
   its source gives, equal-tempered like the chanter).
 - Each entry has a `title`, a `family` and its playing range, `lowest` and `highest` (sounding

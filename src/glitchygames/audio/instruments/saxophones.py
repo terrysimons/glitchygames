@@ -6,9 +6,8 @@ reeds in ``double_reeds.py``, the bagpipes in ``bagpipes.py``, the free reeds in
 are in ``saxophone_sound_alikes.py``.
 
 Ranges are sounding pitch, after the standard orchestration ranges (Adler, *The Study of
-Orchestration*; Vienna Symphonic Library's instrument pages); folk instruments' are typical of the
-common keys. Timbres follow the instruments' acoustics: saxophones (cones) have every harmonic and
-are brighter.
+Orchestration*; Vienna Symphonic Library's instrument pages). Timbres follow the instruments'
+acoustics: saxophones (cones) have every harmonic and are brighter.
 """
 
 from __future__ import annotations
