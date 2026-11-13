@@ -2645,7 +2645,11 @@ CLARINET_DETUNES: dict[str, float] = {}
 # reed and bore, a sourced drone tuning or a sourced detune, and the alias rows that wait for one of
 # them, in the sheet's order. None ships under that name or as an alias until the reason is met
 # (decision 4; batch 14). The test matches exact names
-CLARINET_HELD_BACK: dict[str, str] = {}
+CLARINET_HELD_BACK: dict[str, str] = {
+    'birbyne': 'a sourced reed and bore',
+    'contrabass birbyne': 'a sourced reed and bore',
+    'tenor birbyne': 'a sourced reed and bore',
+}
 
 
 def test_no_clarinet_name_held_back_for_a_feature_is_listed():
