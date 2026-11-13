@@ -3110,7 +3110,7 @@ or two and a halt, as measured above). Otherwise the tail loops into the game an
 500 ms from frame 0's first audio update. <code>--crt-power-on-sound off</code> plays the picture silently;
 the sound never plays where the picture does not (<code>--headless</code>, tests, replays, recordings).</p>
 <h2 id="the-instrument-catalog">The instrument catalog<a class="headerlink" href="#the-instrument-catalog" title="Permanent link">#</a></h2>
-<p><code>glitchygames.audio.instruments</code> holds 688 ready-made instruments in 23 families. Each is an
+<p><code>glitchygames.audio.instruments</code> holds 703 ready-made instruments in 23 families. Each is an
 ordinary <code>Instrument</code>, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:</p>
@@ -3150,13 +3150,13 @@ and renders offline like any other:</p>
 </tr>
 <tr>
 <td><code>double reeds</code></td>
-<td>23</td>
-<td>oboe family, bassoon and contrabassoon, shawms, crumhorns, suona, duduk</td>
+<td>25</td>
+<td>oboe family, bassoon and contrabassoon, heckelphone, sarrusophone, shawms, crumhorns, suona, zurna, duduk, and 2 sound-alikes (contraforte, piccolo heckelphone)</td>
 </tr>
 <tr>
 <td><code>bagpipes</code></td>
-<td>8</td>
-<td>Highland, uilleann, smallpipes, gaita, gaida, musette (drones built in)</td>
+<td>9</td>
+<td>Highland, uilleann, smallpipes, gaita, gaida, musette, sackpipa (drones built in)</td>
 </tr>
 <tr>
 <td><code>free reeds</code></td>
@@ -3165,8 +3165,8 @@ and renders offline like any other:</p>
 </tr>
 <tr>
 <td><code>brass</code></td>
-<td>42</td>
-<td>piccolo trumpet to contrabass tuba, alto to contrabass trombone, mutes, historic and folk horns</td>
+<td>44</td>
+<td>piccolo trumpet to contrabass tuba, alto to contrabass trombone, mutes, historic and folk horns, and 2 sound-alikes (bass wagner tuba, soprano trombone)</td>
 </tr>
 <tr>
 <td><code>bowed strings</code></td>
@@ -3195,8 +3195,8 @@ and renders offline like any other:</p>
 </tr>
 <tr>
 <td><code>organs</code></td>
-<td>9</td>
-<td>pipe organ stops and plenum, positive, combo and theatre organs, calliope</td>
+<td>19</td>
+<td>pipe organ stops and plenum, positive, combo and theatre organs, calliope, stopped diapason, cornet and organ clarinet, and 7 sound-alikes (bourdon, salicional, voix céleste, oboe, krummhorn, tuba, post horn)</td>
 </tr>
 <tr>
 <td><code>electromechanical</code></td>
@@ -3265,7 +3265,7 @@ and renders offline like any other:</p>
   name: <code>slapstick</code> to <code>whip</code>, <code>contralto</code> to <code>alto ah</code>, <code>boy soprano</code> to <code>treble ah</code>, <code>zanza</code> to
   <code>mbira</code>, <code>cylinder music box</code> and <code>disc music box</code> to <code>music box</code>, <code>wurlitzer electronic piano</code>
   to <code>reed electric piano</code>, <code>hohner clavinet</code> to <code>clavinet</code>, <code>rain box</code> to <code>rain machine</code>, <code>horse
-  hooves</code> to <code>coconut shells</code>, <code>tavil</code> to <code>thavil</code> and <code>riq</code> to <code>daf</code> (85 in all, among them
+  hooves</code> to <code>coconut shells</code>, <code>tavil</code> to <code>thavil</code> and <code>riq</code> to <code>daf</code> (120 in all, among them
   <code>kanun</code> to <code>qanun</code>, <code>ud</code> to <code>oud</code> and <code>neapolitan mandolin</code> to <code>mandolin</code>). <code>get</code> and <code>entry</code>
   resolve an alias, while <code>names</code> and <code>entries</code> list catalog names only.</li>
 <li>A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
@@ -3274,9 +3274,9 @@ and renders offline like any other:</p>
   shares (<code>instruments.get('bamboula') == instruments.get('conga')</code>; the parent may be in
   another family). A pitched sound-alike (the plucked strings' <code>requinto guitar</code>, <code>liuqin</code>)
   gives its own sourced range, since it may play another span than its parent; it is pitched
-  exactly when its parent is, and an unpitched one has none. <code>sound_changes</code> (empty so far) holds
-  keyword overrides of the parent's builder, for a sound-alike that a source sets apart by one
-  trait; each needs a cited source.
+  exactly when its parent is, and an unpitched one has none. <code>sound_changes</code> (set on one entry so
+  far, the organ stop <code>bourdon</code>: its footage) holds keyword overrides of the parent's builder,
+  for a sound-alike that a source sets apart by one trait; each needs a cited source.
   Assembly refuses a <code>sounds_like</code> that names no entry, itself or another sound-alike. The 131
   drum ones are in <code>drum_sound_alikes.py</code>, the family's builds in <code>drums.py</code>; the 27 plucked
   string ones are in <code>plucked_sound_alikes.py</code>, the builds in <code>plucked_strings.py</code>; the 11
@@ -3284,7 +3284,15 @@ and renders offline like any other:</p>
   <code>electronic_sound_alikes.py</code> and the 2 bowed string ones (<code>viola pomposa</code>, <code>bowed psaltery</code>) in
   <code>bowed_sound_alikes.py</code>, the builds in <code>bowed_strings.py</code>; the voices' one (<code>basso buffo ah</code>, of
   <code>bass ah</code>) is in <code>voice_sound_alikes.py</code>, the builds in <code>voices.py</code>; the flutes' 3 (<code>csakan</code>, <code>subcontrabass recorder</code>, <code>ryuteki</code>) are
-  in <code>flute_sound_alikes.py</code>, the builds in <code>flutes.py</code> (185 sound-alikes in all).</li>
+  in <code>flute_sound_alikes.py</code>, the builds in <code>flutes.py</code>; and the brass's 2 (<code>bass wagner tuba</code>, of
+  <code>wagner tuba</code>, and <code>soprano trombone</code>, of <code>trumpet</code>) are in <code>brass_sound_alikes.py</code>, the builds in
+  <code>brass.py</code>; and the double reeds' 2 (<code>contraforte</code>, of <code>contrabassoon</code>, and <code>piccolo heckelphone</code>,
+  of <code>heckelphone</code>) are in <code>double_reed_sound_alikes.py</code>, the builds in
+  <code>double_reeds.py</code>; the organs' 7 (<code>bourdon</code>, <code>salicional</code>, <code>voix celeste</code>, <code>organ oboe</code>, <code>organ
+  krummhorn</code>, <code>organ tuba</code>, <code>posthorn</code>) are in <code>organ_sound_alikes.py</code>, the builds in <code>organs.py</code>;
+  and the bagpipes' table (<code>bagpipe_sound_alikes.py</code>) is empty so far (196 sound-alikes in all). A bagpipe's drones are fixed pitches inside its build, so a bagpipe
+  sound-alike in another tuning would carry its own drones as <code>sound_changes</code> (each at the pitch
+  its source gives, equal-tempered like the chanter).</li>
 <li>Each entry has a <code>title</code>, a <code>family</code> and its playing range, <code>lowest</code> and <code>highest</code> (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (<code>pitch='A4'</code>); it does not change
@@ -3294,8 +3302,8 @@ and renders offline like any other:</p>
   range (its formants are placed for that pitch and move with the note elsewhere).</li>
 <li>The ranges and models were audited against published references (orchestration texts, the
   Vienna Symphonic Library, makers' specifications, Fletcher and Rossing, the Csound formant
-  table) on 2026-11-03 and corrected. An organ's range is its keys at 8' pitch (C2-C7; a 16'
-  stop sounds an octave lower). Paired strings double every note, though a twelve-string
+  table) on 2026-11-03 and corrected. An organ's range is its keys at 8' pitch (C2-C7; a stop sounds at its
+  footage, a 16' an octave lower, a 4' an octave higher). Paired strings double every note, though a twelve-string
   guitar's or a bouzouki's octave pairs are only on its lower courses, and a church bell leaves
   out its weak quint, as an instrument has at most four sources.</li>
 <li><code>uv run python -m scripts.make_instrument_demos [DIRECTORY] [--only TEXT]</code> renders every
@@ -3336,7 +3344,7 @@ line. A sound rendered alone is its compiled buffer, bit for bit.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 13, 2026 11:13:54 UTC">November 13, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 13, 2026 15:40:29 UTC">November 13, 2026</span>
   </span>
 
     
