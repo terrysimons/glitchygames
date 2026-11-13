@@ -160,6 +160,20 @@ range is its keys at 8' pitch. A stop whose footage no source gives, whose sound
 calliope`` and ``calliaphone`` are aliases. No self-playing organ shipped (each waits for a sourced
 range), so ``Tag.MECHANICAL`` is still only on the ``music box``.
 
+Free reeds (13 entries) hold the family's builds in ``free_reeds.py`` (``accordion``, ``musette
+accordion``, ``accordion bass``, ``bandoneon``, ``concertina``, ``harmonium``, the harmonicas, the
+melodicas and ``sheng``) and their sound-alikes in ``free_reed_sound_alikes.py`` (none yet).
+``winds.py`` now holds only the saxophones. A free reed is a tongue swinging through a closely
+fitting slot, blown by bellows or the mouth. A layout, a key, a tuning, a chord, a register or a
+size is no trait, so a free reed of another form or size is a sound-alike of the catalog free reed
+its source relates it to, or else of the one whose lowest note is nearest its own, and gives its
+own sourced range (sounding, a written range only with its stated transposition). A sourced
+detune or octave reed set is a sound change, and a droned reed sounds its sourced drones. No free
+reed shipped as a new build or sound-alike, so none carries a detune, a reed set or drones, and
+``Tag.MECHANICAL`` is still only on the ``music box``. Every free reed row waits for a sourced
+range (43 names) or for its target (15 names), 8 were dropped and ``richter harmonica`` is an
+alias of ``harmonica``.
+
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and
 ``gangsa``) and its sound-alikes in ``tuned_sound_alikes.py`` (``alto xylophone`` and
