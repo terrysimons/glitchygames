@@ -2545,6 +2545,25 @@ def test_a_compound_stop_sums_its_ranks_as_harmonics():
         compound_stop_levels((1.0, 0.5), (0.25,))
 
 
+def _sheet_number(node: ast.expr) -> float:
+    """Read a footage the sheet writes as a number or a division of numbers (``8.0 / 3.0``).
+
+    Only number literals and ``/`` are accepted, so nothing in the sheet is ever executed.
+
+    Returns:
+        The footage the node spells out.
+
+    Raises:
+        AssertionError: The sheet writes the footage some other way.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, int | float):
+        return float(node.value)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        return _sheet_number(node.left) / _sheet_number(node.right)
+    message = f'the sheet writes a footage this test does not read: {ast.unparse(node)}'
+    raise AssertionError(message)
+
+
 def test_the_cornet_organ_ships_the_levels_its_sheet_row_names():
     """The cornet's own build matches the builder cell of its row in batch-13.tsv.
 
@@ -2565,8 +2584,9 @@ def test_the_cornet_organ_ships_the_levels_its_sheet_row_names():
     assert isinstance(builder_call, ast.Call)
     compound_call = builder_call.args[0]
     assert isinstance(compound_call, ast.Call)
-    footages_node = ast.Expression(compound_call.args[1])
-    footages = eval(compile(footages_node, '<sheet>', 'eval'), {'__builtins__': {}})  # ruff: ignore[suspicious-eval-usage]
+    footages_node = compound_call.args[1]
+    assert isinstance(footages_node, ast.Tuple)
+    footages = tuple(_sheet_number(element) for element in footages_node.elts)
     expected = compound_stop_levels(FLUTE_STOP_LEVELS, footages)
 
     build = instruments.entry('cornet organ').build
