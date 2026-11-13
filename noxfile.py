@@ -459,7 +459,112 @@ def docs_deploy(session: nox.Session) -> None:
         session.log(f'No pending rows in {pending_ledger}: nothing published to clear.')
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='docs-serve', default=False)
+# mkdocs serve's address when no --dev-addr is given (zensical.yml sets no dev_addr)
+_DOCS_SERVE_DEFAULT_ADDRESS = ('127.0.0.1', 8000)
+# How far past a taken port docs-serve looks for a free one to suggest
+_DOCS_SERVE_PORTS_TO_TRY = 20
+
+
+def _docs_serve_address(*, arguments: list[str]) -> tuple[str, int]:
+    """Return the address ``mkdocs serve`` will bind with these arguments, as it reads them.
+
+    ``--dev-addr HOST:PORT``, ``--dev-addr=HOST:PORT`` or ``-a HOST:PORT``; the last one given
+    wins (click's rule for a repeated option); none is ``_DOCS_SERVE_DEFAULT_ADDRESS``.
+
+    Returns:
+        The host and port.
+
+    """
+    address = None
+    for index, argument in enumerate(arguments):
+        if argument in {'-a', '--dev-addr'} and index + 1 < len(arguments):
+            address = arguments[index + 1]
+        elif argument.startswith('--dev-addr='):
+            address = argument.removeprefix('--dev-addr=')
+    if address is None:
+        return _DOCS_SERVE_DEFAULT_ADDRESS
+    host, _, port = address.rpartition(':')
+    return host, int(port)
+
+
+def _address_in_use(*, host: str, port: int) -> bool:
+    """Return whether something holds ``host:port``, so ``mkdocs serve`` could not bind it.
+
+    The probe binds as mkdocs' server does (``http.server.HTTPServer``: ``SO_REUSEADDR`` off
+    Windows), so a port a stopped server left in TIME_WAIT counts as free, as it is for mkdocs.
+
+    Returns:
+        True when the bind fails.
+
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        if os.name != 'nt':
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            probe.bind((host, port))
+        except OSError:
+            return True
+    return False
+
+
+def _free_port_after(*, host: str, port: int) -> int:
+    """Return the first port after ``port`` that nothing holds on ``host``.
+
+    Returns:
+        The port; past ``_DOCS_SERVE_PORTS_TO_TRY`` taken ones, the one after them, unchecked.
+
+    """
+    for candidate in range(port + 1, port + 1 + _DOCS_SERVE_PORTS_TO_TRY):
+        if not _address_in_use(host=host, port=candidate):
+            return candidate
+    return port + 1 + _DOCS_SERVE_PORTS_TO_TRY
+
+
+def _listening_process(session: nox.Session, *, port: int) -> str | None:
+    """Return the process listening on TCP ``port``, as ``pid N: COMMAND``.
+
+    ``lsof`` finds the listener; ``ps`` gives its whole command line, which tells two Python
+    servers apart (2026-11-13: ports 8000-8002 all held by ``python3.14``: another project's
+    server and two browser-game servers), else ``lsof``'s short name.
+
+    Returns:
+        The first listener ``lsof`` names, or None without ``lsof`` (Windows) or when it names
+        none (another user's process, which it cannot see).
+
+    """
+    if shutil.which('lsof') is None:
+        return None
+    listing = session.run(
+        'lsof',
+        '-nP',
+        f'-iTCP:{port}',
+        '-sTCP:LISTEN',
+        '-Fpc',
+        external=True,
+        silent=True,
+        # 1: no listener lsof can see
+        success_codes=[0, 1],
+    )
+    fields = {line[0]: line[1:] for line in reversed(str(listing or '').splitlines()) if line}
+    if 'p' not in fields or 'c' not in fields:
+        return None
+    command = fields['c']
+    if shutil.which('ps') is not None:
+        full_command = session.run(
+            'ps',
+            '-o',
+            'command=',
+            '-p',
+            fields['p'],
+            external=True,
+            silent=True,
+            success_codes=[0, 1],
+        )
+        command = str(full_command or '').strip() or command
+    return f'pid {fields["p"]}: {command}'
+
+
+@nox.session(venv_backend='none', name='docs-serve', default=False)
 def docs_serve(session: nox.Session) -> None:
     """Serve the docs locally, built as docs-deploy builds them (graphs included, strict).
 
@@ -468,13 +573,45 @@ def docs_serve(session: nox.Session) -> None:
     http://127.0.0.1:8000/glitchygames/, rebuilding as files change, until Ctrl-C. Nothing is
     pushed. Arguments after ``--`` go to ``mkdocs serve``.
 
+    Each run builds in a fresh environment of its own (``uv run --isolated``: the locked
+    versions, the built packages as ``_install_from_lockfile`` installs them, removed when the
+    run ends; about 15 seconds). A session venv is recreated by every run before its code runs,
+    so a second run deleted the first's packages mid-build (2026-11-13); now two runs on two
+    addresses both work. A taken address is refused before the build, naming its holder where
+    ``lsof`` can and a free address: mkdocs binds only after the whole build, about five minutes.
+
     Usage:
         nox -s docs-serve                               # Serve at http://127.0.0.1:8000/
         nox -s docs-serve -- --dev-addr 127.0.0.1:8001  # Another address
     """
-    _install_from_lockfile(session)
+    host, port = _docs_serve_address(arguments=session.posargs)
+    if _address_in_use(host=host, port=port):
+        holder = _listening_process(session, port=port)
+        held_by = f' (by {holder})' if holder is not None else ''
+        free_port = _free_port_after(host=host, port=port)
+        session.error(
+            f'{host}:{port} is in use{held_by}: stop it, or serve on another address: '
+            f'nox -s docs-serve -- --dev-addr {host}:{free_port}'
+        )
     session.run(
-        'mkdocs', 'serve', '--strict', '--config-file', _DOCS_CONFIGURATION, *session.posargs
+        'uv',
+        'run',
+        '--isolated',
+        '--frozen',
+        '--no-editable',
+        '--all-packages',
+        '--all-extras',
+        '--python',
+        '3.14',
+        'mkdocs',
+        'serve',
+        '--strict',
+        '--config-file',
+        _DOCS_CONFIGURATION,
+        *session.posargs,
+        external=True,
+        # Unset (nox drops None): a session's own venv is not the project's, and uv would warn
+        env={'VIRTUAL_ENV': None},
     )
 
 
