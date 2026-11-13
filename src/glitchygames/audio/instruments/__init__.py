@@ -63,6 +63,16 @@ family is pitched, so each sound-alike gives its own sourced range. Instruments 
 sympathetic strings or a buzzing bridge wait, and ``sarangi``, ``hardanger fiddle``, ``viola d
 amore``, ``nyckelharpa`` and ``hurdy gurdy`` stay as the approximations they were, never a parent.
 
+Voices (56 entries) and choirs (13 entries) hold their builds in ``voices.py`` (``soprano ah`` to
+``basso profundo oo``, ``whistling``, ``choir soprano ah``, ``childrens choir``), which shares one
+formant table between the two families, and their sound-alikes in ``voice_sound_alikes.py``, one
+table per family (``basso buffo ah``, a sound-alike of ``bass ah``; the choirs' table is empty).
+An entry is a voice type, a voice device or a choir part: singing techniques, styles and genres
+are not instruments. A voice type that no source sets apart in sound is a sound-alike of the type
+its source names, on ``ah`` alone, and it gives its own sourced range (stated, never hedged or
+extreme). Everything that needs moving formants (throat singing, ``yodel``), a vibrato, or a
+buzzing membrane (``kazoo``, ``swazzle``) waits, and ``contralto`` and ``boy soprano`` are aliases.
+
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and
 ``gangsa``) and its sound-alikes in ``tuned_sound_alikes.py`` (``alto xylophone`` and

@@ -1750,10 +1750,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 7 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 8 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
   batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682
-  after batch 6, 684 after batch 7) toward every instrument a game might
+  after batch 6, 684 after batch 7, 685 after batch 8) toward every instrument a game might
   want, in one verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates,
   only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
@@ -1815,7 +1815,23 @@ This document tracks planned future features for the GlitchyGames project. Featu
   `leiqin`; `kontra`, `latfiol` and the Apache fiddle; Ethiopian, Sahel, Malagasy, Oceanian,
   Andean and Caribbean fiddles) are a later pass over this family, along with ranging the 90
   range WAIT rows from maker and museum sources. `viola organista` is decided here (it waits for
-  a build of its own), so the keyboards batch must not decide it again. Next: voices and choirs
+  a build of its own), so the keyboards batch must not decide it again.
+  Batch 8 (voices and choirs) is done: of its 138 sheet rows (110 candidates and 28 audit alias
+  names, on 16 lines) none shipped as a build of its own (the plan's Task 5, the choir vowels'
+  build, was skipped by ruling: no choir row shipped), 1 became a sound-alike (`basso buffo ah`
+  of `bass ah`, E2-F4, from Wikipedia's Fach page), 64 wait (32 for a sourced range, 14 for
+  moving formants, 2 for a buzzing membrane, 1 for a pitch LFO (vibrato), 1 for its own build
+  and 14 because their target waits), 2 became aliases (`contralto` of `alto ah`, `boy soprano`
+  of `treble ah`) and 71 were dropped (46 voices, 25 choirs); the voices grew from 55 to 56
+  entries and the choirs stayed at 13 (685 in all, 80 aliases and 182 sound-alikes). Most rows
+  wait or drop because only four kinds of thing are instruments here (voice types, voice
+  devices, choir parts and choir vowels) and the range rule stays strict: a hedged, extreme or
+  self-contradicting range is no range. The audit's "Gaps you could not close"
+  (`plans/data/instrument-audit/voices-and-choirs.md`: Fach ranges no source gave; Kunqu, ca
+  trù, Albanian iso-polyphony, Maori karanga and the other traditions it did not research; MIMO,
+  the Met, Horniman and Grove unconsulted) are a later pass over these families. `vox humana`
+  and `voix celeste` are organ stops: the organs batch decides them. `kazoo` and `swazzle` are
+  decided here (each waits for a buzzing membrane). Next: flutes
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
@@ -1831,7 +1847,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sheet `plans/data/instrument-audit/batch-6.tsv`
 - **Plan (batch 7)**: `plans/2026-11-12-instrument-catalog-batch-7-implementation.md`; audit
   sheet `plans/data/instrument-audit/batch-7.tsv`
-- **Status**: Batches 1, 2, 3, 4, 5, 6 and 7 done (requested by the owner 2026-11-06)
+- **Plan (batch 8)**: `plans/2026-11-12-instrument-catalog-batch-8-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-8.tsv`
+- **Status**: Batches 1, 2, 3, 4, 5, 6, 7 and 8 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
@@ -2542,6 +2560,143 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Found**: batch 7's reviews (2026-11-12)
 - **Status**: TODO
 - **Priority**: Medium (before the voices and choirs batch builds on the same catalog)
+
+### 78. Sound Engine: The Owner's Checks on Instrument Catalog Batch 8 — TODO
+- **Goal**: confirm or overturn the calls made while batch 8 of #70 ran, and listen to its new
+  instruments (voices 55 to 56 entries, choirs unchanged at 13). Almost every candidate waits,
+  drops or aliases: 0 built, 1 sound-alike, 64 waits, 2 aliases and 71 drops in the sheet's 138
+  rows. The plan's Task 5 (the choir vowels' build and its part-range test) was skipped by
+  ruling, since no choir row shipped
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+  every level, filter, ring and click is sound design unless a source is cited in the code; the
+  folders are `build/instruments/voices/` and `build/instruments/choirs/`). No new build was
+  added, so there is nothing new to hear in `choirs/`, and the listening is the sound-alike and
+  the aliases under their parents, which must sound alike by design:
+  - [ ] `basso buffo ah` (E2-F4) beside its parent `bass ah`: the Fach page gives the type's own
+    range and no trait that sounds different, so it plays the bass's sound
+  - [ ] The 2 aliases: `contralto` (of `alto ah`) and `boy soprano` (of `treble ah`)
+  - [ ] The choirs' `childrens choir` and the `choir ... ah` entries, unchanged, for the
+    record of what the choirs family sounds like today
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-8.tsv`; the sheet's 138
+  rows: SHIP 0, SOUND_ALIKE 1, WAIT 64, ALIAS 2, DROP 71):
+  - [ ] Every WAIT (64 rows), by reason: 32 for a sourced range (20 voice types: `baritenor ah`,
+    `bass baritone ah`, `basso cantante ah`, `boy alto ah`, `coloratura soprano ah`, `dramatic
+    bass ah`, `dramatic contralto ah`, `dramatic mezzo soprano ah`, `dramatic soprano ah`, `haute
+    contre ah`, `heldentenor ah`, `lyric soprano ah`, `oktavist ah`, `sopranist ah`, `soubrette
+    ah`, `spinto soprano ah`, `spinto tenor ah`, `tenore leggero ah`, and the audit lines
+    `soprano sfogato` and `tenore contraltino`; and 12 choir vowels: `choir soprano`, `alto`,
+    `tenor` and `bass` on `eh`, `ee` and `hum`); 14 for moving formants (`borbangnadyr`,
+    `chylandyk`, `dumchuktaar`, `electrolarynx`, `ezengileer`, `kargyraa`, `katajjaq`, `khoomei`,
+    `rekuhkara`, `sygyt`, `tibetan chant`, `umngqokolo`, `yodel`, `tuvan ensemble`); 2 for a
+    buzzing membrane (`kazoo`, `swazzle`); 1 for a pitch LFO (vibrato: `byrlang`); 1 for its own
+    build (`castrato ah`); and 14 because their target waits (`khoomii`, `xoomei`, `overtone
+    singing` and `harmonic singing` for `khoomei`; `khargyraa` for `kargyraa`; `inuit throat
+    singing`, `iirngaaq`, `piqqusiraarniq`, `qiarvaaqtuq` and `nipaquhiit` for `katajjaq`;
+    `jodel` for `yodel`; `octavist` and `oktavist` for `oktavist ah`; `artificial larynx` for
+    `electrolarynx`)
+  - [ ] The "what a candidate is" ruling: only four kinds are instruments (voice type, voice
+    device, choir part, choir vowel); a technique, style, genre, repertoire or theatre role
+    (`falsetto male`, `belt voice`, `scat singing`, `gregorian chant`, `gospel choir`, ...) is
+    dropped as "a singing technique, style or genre, sung by any voice; not an instrument". The
+    one exception is the spec's own table, whose "overtone and throat singing" and "yodel" WAIT
+    for moving formants instead of dropping. 71 rows dropped (46 voices, 25 choirs)
+  - [ ] Voice types are `ah` sound-alikes of the type their source names, with no
+    `sound_changes` and no other vowels: the Csound manual's five rows are the catalog's only
+    formant source, and no source turns "light", "lyric" or "dramatic" into a different static
+    formant voice (a number chosen to differ is the anti-goal). Only `basso buffo ah` shipped
+  - [ ] The range ruling: a range is stated (both notes with octaves), never hedged
+    ("approximately", "about", "typically"), never a type's extremes, and a page that contradicts
+    itself gives none; nothing below A0. Under it only `basso buffo ah` has a range (Fach page,
+    unhedged "From the E half an octave below low C (E2) to the F above middle C (F4)")
+  - [ ] The hedged spans the notes record, in case the owner relaxes the rule (each row's notes
+    quote the page): `lyric soprano` C4-D6, `coloratura soprano` C4-F6 (lyric) and A3-F6
+    (dramatic), `dramatic soprano` A3-C6, `soubrette` C4-D6, `dramatic mezzo soprano` F3-G5,
+    `sopranist` C4-C6, `tenore contraltino` C3-C5, and the rest in the sheet. Relaxing the rule
+    ships them all as `ah` sound-alikes of their parents
+  - [ ] `haute contre ah` stays WAIT although the Haute-contre page's solo range C3-D5 is
+    unhedged: the page gives it at a French eighteenth-century pitch "as much as a whole tone
+    lower than that of today", so the sounding notes are not fixed. The ruling was the
+    controller's; ship it at C3-D5 if the owner reads the caveat as no hedge
+  - [ ] The choir-vowel ruling: a choir vowel (`eh`, `ee`, `hum`) ships only on a sourced choral
+    range equal to its part's `CHOIR_PARTS` row. No source gives one for any part, so all 12
+    wait. Open Music Theory's SATB page gives alto G3-D5, the same as the catalog's row, but as a
+    part-writing textbook convention, not a choral range; confirm that reading (it costs the
+    three alto vowels)
+  - [ ] Ensembles of parts dropped for their parts (men's and women's choirs, quartets, `cantu a
+    tenore`, `barbershop quartet`, `doo wop group`, `orthodox choir`, `boys choir`, `girls
+    choir` and the rest), and choirs of one part as sound-alikes of `childrens choir` (none
+    qualified: no source describes one voice type in unison)
+  - [ ] The voice devices: `kazoo` and `swazzle`, handed off from round 1 and decided here under
+    the spec's boundary call (the kazoo goes in voices), each wait for a buzzing membrane (batch
+    5's `gyil` reason) and also lack a sourced range. `electrolarynx` waits for moving formants,
+    as batch 6 ruled `talk box`, `sonovox` and `voder`
+  - [ ] The moving-formant WAITs (14 rows): the spec's own table names them
+  - [ ] `byrlang` waits for a pitch LFO (vibrato), not moving formants: both fetched pages call
+    it a vibrato or a lip quiver added to another style
+  - [ ] Aliases of a voice type resolve to its `ah` entry (`contralto` of `alto ah`, `boy
+    soprano` of `treble ah`); an alias whose target waits waits, and one whose target is dropped
+    is dropped
+  - [ ] The earlier sheets' rows left as decided (`talk box`, `sonovox`, `vocoder`, `voder`:
+    batch 6's WAITs), `vocoder voice` and `speech synth lpc` dropped, and `vox humana` and
+    `voix celeste` left for the organs batch (organs.md rows them as stops)
+  - [ ] The barbershop lead is mapped to `tenor ah` (the Barbershop quartet page: "the second
+    tenor singing the lead"); the row is dropped as an ensemble in any case
+  - [ ] The `hs` column is `none` where no fetched source gives a Hornbostel-Sachs class (every
+    row but the kazoo's `242`)
+  - [ ] One module with two sound-alike tables, no `choirs.py` (`voices.py` shares the formant
+    table between the two families; `voice_sound_alikes.py` holds `VOICE_SOUND_ALIKES` and
+    `CHOIR_SOUND_ALIKES`, the latter empty)
+  - [ ] The split by family (voices, 100 rows; choirs, 38), with the two sheets researched in
+    parallel
+  - [ ] Engine features named beyond the spec's table, for its "What the engine cannot make
+    yet": none new. Every wait names a feature the spec or an earlier batch already named
+    (moving formants, a pitch LFO, a buzzing membrane), or `its own build` (`castrato ah`:
+    "boy-bright" with an adult chest, related to no single type)
+  - [ ] Task 5 skipped: with no choir row shipping, `ADDED_CHOIR_SOUNDS` and its builder would be
+    empty machinery, and the test that pins every choir entry of a part to one range waits for
+    the first choir vowel that ships
+- **Bugs to report** (found while building batch 8; none fixed here):
+  - [ ] `HUM_FORMANTS` (`voices.py`) has no source and no sound-design note
+  - [ ] `CHOIR_PARTS`' "usual choral ranges" are unsourced, and no fetched source states three of
+    the four rows as choral ranges: the alto row (G3-D5) matches Open Music Theory's part-writing
+    convention, but no choral source gives it (the Alto page says "approximately from F3 ... to
+    F5"); the tenor row (C3-A4) meets a hedged Grove figure and the Tenor page contradicts itself;
+    the bass row (E2-D4) matches no fetched source; the soprano row (C4-A5) matches the Soprano
+    page's hedged choral span and two library definitions
+  - [ ] `whistling` C5-C7 is unsourced
+  - [ ] `countertenor` E3-E5 rests on the Voice type page, which hedges it and gives two tops
+    (caption E3-E5, text C4-C6 and D3-D5)
+  - [ ] `treble` A3-A5 disagrees with its page (A3-F5), and `treble` uses the adult soprano
+    formant row
+  - [ ] `basso profundo` C2-C4 has no source; the Fach page's hedged span is about C2-F4
+- **Incidents and process**:
+  - [ ] An incident: on the first test fetch, a research agent (Task 2's implementer) put the
+    owner's email address in a User-Agent header to Wikipedia. Later fetches did not, and every
+    dispatch since forbids personal data in any request header, URL or payload
+  - [ ] Pushes and stacked PRs happen without asking (the owner, 2026-11-12), and the two sheets
+    were researched in parallel, with Tasks 1, 2 and 4 running together
+  - [ ] Parked minors from the reviews (`.superpowers/sdd/.../task-2-review.md` and
+    `task-4-review.md`): the `sopranist ah` note cites ruling 4 where the hedge alone decides;
+    the soprano choir vowels' notes cite ruling 3 where the choir-vowel ruling is the ground;
+    `cossack choir` rests on the Kuban Cossack Choir page, which describes one named ensemble;
+    `orthodox choir`'s `sound_source` is the Basso profondo page, which describes the oktavist;
+    `gamelan gerongan`'s notes say more than the quote; `doo wop group`'s drop does not use the
+    ensemble wording. Each drop holds either way
+- **Follow-ups**:
+  - [ ] The audit's "Gaps you could not close" (`plans/data/instrument-audit/voices-and-choirs.md`)
+    are a later pass over these families
+  - [ ] Ranging the range WAITs (20 voice types, 12 choir vowels) from conservatory, opera-house
+    or choral-society sources
+  - [ ] Bare voice-type names (`soprano`, `tenor`) resolve to nothing today
+  - [ ] The other vowels (`eh`, `ee`, `oh`, `oo`, humming) for the voice types that shipped as
+    `ah` (today only `basso buffo ah`)
+  - [ ] The sheet's cells contain stray quote characters (some cells are CSV-quoted), so read it
+    with Python's csv module rather than splitting on tabs
+  - [ ] The engine changes that unblock the waits above: moving formants first (14 rows, and
+    the throat-singing aliases behind them), then a pitch LFO, then a buzzing membrane
+- **Found**: batch 8's reviews (2026-11-12)
+- **Status**: TODO
+- **Priority**: Medium (before the flutes batch builds on the same catalog)
 
 ### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
 - **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,
