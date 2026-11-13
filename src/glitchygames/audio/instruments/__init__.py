@@ -28,11 +28,11 @@ Three families hold the instruments that are neither struck bars nor blown: pluc
 on the ``music box``; ``Tag.CHIP``, on the sound-chip voices such as ``chip square``, ``sn76489``
 and ``nes triangle``), so ``names(tag=...)`` finds those wherever they sound.
 
-Electromechanical takes the electric pianos (``tine electric piano``, ``reed electric
-piano``), the ``clavinet`` and the ``tonewheel organ ...`` registrations from keyboards and
-organs, and adds the ``hohner pianet``. Sound effects is a new family (``thunder sheet``,
-``rain machine``, ``ocean drum``, ``cannon``, ``coconut shells``, ``door slam``), each effect
-playable as a note.
+Electromechanical (11 entries, in ``electromechanical.py``) takes the electric pianos (``tine
+electric piano``, ``reed electric piano``), the ``clavinet`` and the ``tonewheel organ ...``
+registrations from keyboards and organs, and adds the ``hohner pianet``. Sound effects is a new
+family (``thunder sheet``, ``rain machine``, ``ocean drum``, ``cannon``, ``coconut shells``,
+``door slam``), each effect playable as a note.
 
 Electronic (26 entries) holds the family's builds in ``electronic.py`` (``theremin``, ``ondes
 martenot``, the synth patches such as ``saw lead`` and ``synth pad``, the chiptune voices such as
@@ -129,6 +129,22 @@ gives its own sourced range (sounding, a written range only with its stated tran
 drone or detuned double clarinet shipped, so no clarinet carries drones. A clarinet whose range
 no source states waits (34 names), the tenor and contrabass ``birbyne`` wait for a sourced reed
 and bore (2 names) and 4 names wait for their target (40 waits in all).
+
+Keyboards (11 entries) hold the family's builds in ``keyboards.py`` (``grand piano``, ``upright
+piano``, ``fortepiano``, ``harpsichord``, ``virginal``, ``clavichord``, ``celesta``, ``toy
+piano``) and their
+sound-alikes in ``keyboard_sound_alikes.py`` (none yet). A keyboard is an acoustic instrument its
+keys sound: strings struck by hammers or tangents or plucked by plectra, or bars, forks or glass
+struck through a key action. ``electromechanical.py`` now holds the electromechanical instruments
+that shared ``keyboards.py``. A keyboard of another form or size (a case, a layout or a tuning is
+no trait) is a sound-alike of the catalog keyboard its source relates it to, or else of the one
+whose lowest note is nearest its own, and gives its own sourced range (a string keyboard's 8'
+compass sounding as given, a keyboard idiophone's written range only with its stated
+transposition). No keyboard shipped as a new build or sound-alike, so none carries a 16' choir (a
+harpsichord register sounding an octave below its keys) or a keyed idiophone's sourced partials,
+and ``Tag.MECHANICAL`` is still only on the ``music box``. Every keyboard row waits for a sourced
+range (42 names) or for its target (5 names), 22 were dropped and ``fender rhodes`` is an alias of
+``tine electric piano``.
 
 Organs (19 entries) hold the family's builds in ``organs.py`` (the ``pipe organ`` stops and
 ``plenum``, ``positive organ``, ``theatre organ``, ``calliope``, and the batch's ``stopped

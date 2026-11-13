@@ -1750,10 +1750,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 14 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 15 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
   batch 1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682
-  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11, 693 after batch 12, 703 after batch 13, 704 after batch 14) toward every instrument a game might
+  after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11, 693 after batch 12, 703 after batch 13, 704 after batch 14 and batch 15) toward every instrument a game might
   want, in one verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates,
   only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
@@ -2014,8 +2014,49 @@ This document tracks planned future features for the GlitchyGames project. Featu
   the arghul's name: the Arghul page gives the cifte a section of its own), the cifte as its own
   double clarinet being a lead for a later pass; no row was dropped to double reeds, free reeds
   or bagpipes for a later pass of those families (`pey pok` and `tarpa` wait for a range, their
-  free reed being unsourced); and no name the sheets found belongs to the keyboards batch. Next:
-  keyboards
+  free reed being unsourced); and no name the sheets found belongs to the keyboards batch.
+  Batch 15 (keyboards) is done: of its 70 sheet rows (52 candidates and 18 audit alias names)
+  none shipped as a build of its own and none became a sound-alike, 47 wait (42 for a sourced
+  range and 5 because their target waits: `pianola` and `reproducing piano` for `player piano`,
+  `roller piano` for `barrel piano`, `rhombia` for `laterna`, `lautenwerck` for `lautenwerk`), 1
+  became an alias (`fender rhodes` of `tine electric piano`) and 22 were dropped (SHIP 0,
+  SOUND_ALIKE 0, WAIT 47, ALIAS 1, DROP 22); the family stayed at 11 entries (704 in all, 121
+  aliases and 197 sound-alikes). `electromechanical.py` now holds the electromechanical
+  instruments (moved unchanged from `keyboards.py`, the before-and-after record of all 704 builds
+  finding `changed: []`), `keyboards.py` keeps the keyboards (its table is `_KEYBOARD_BUILDS`, and
+  `KEYBOARDS` is `_KEYBOARD_BUILDS + KEYBOARD_SOUND_ALIKES`) and `keyboard_sound_alikes.py` holds
+  its sound-alikes (empty). The boundary rulings: a keyboard is an acoustic instrument its keys
+  sound (struck or plucked strings, struck bars, forks or glass), and a case, a layout, a tuning, a
+  size, a maker or a roll is no trait, so each ranged row would be a sound-alike; the new guards
+  and mechanisms are in place but nothing used them: no 16' harpsichord shipped
+  (`harpsichord sixteen foot` waits for a sourced range; `_harpsichord`'s `sixteen_foot` was not
+  added), no keyed idiophone (`_keyed_idiophone` was not added; the new wait name `a sourced
+  partial series` is held for `dulcitone`, `typophone` and `glasschord` once ranged), and no
+  mechanical keyboard (every self-playing piano waits, so `Tag.MECHANICAL` is still only on the
+  `music box` and `MECHANICAL_KEYBOARD_NAMES` is empty). `KEYBOARD_HELD_BACK`, the guard for every
+  wait that is not for a range or a target, holds nothing. The base of the branch is `982a66a7`
+  (batch 14's HEAD). The audit's unclosed gaps (`plans/data/instrument-audit/keyboards.md`: MIMO,
+  Horniman and Grove not reached; the Wikipedia category's `piganino`, `memotron`, `orpheal`,
+  `arcadetar`, `claviola`, `chordboard`, `doppio borgato`, `fotdella`, `gazamba`, `guide-chant`,
+  `celestaphone`, `harmoneon`, `bowed clavier` and `contemporary harpsichord`; the Vierling and
+  Neo-Bechstein electric pianos, RMI Electra-piano, Baldwin electric harpsichord, Hohner Cembalet,
+  Birotron, Pianet and Clavinet Duo, `arpicembalo`, `arpicordo` and `claviorganum`; Asian keyed
+  idiophones; and `new-mechanical-instruments.md`'s: the Seeburg and Wurlitzer nickelodeon models,
+  `chordephon`, `harmonipan`, the mechanical zithers) are a later pass over this family. The
+  hand-offs are decided here: `claviharp` (batch 4's, a plucked keyboard) and `dolceola` (batch 4's,
+  its strings struck from a piano keyboard) wait for a sourced range; the earlier sheets' names
+  stay as they decided them (`chamberlin`, `mellotron`, `optigan`, `bulbul tarang`, `taishogoto`,
+  `geigenwerk`, `viola organista`, `orchestrion` and `panharmonicon`, `rhodes celeste`, `rhodes
+  piano bass` and `yamaha cp electric grand`, each DROP "Already decided" naming the earliest
+  sheet); `scalatron` and `walking piano` ("an oversized synthesizer") are dropped to electronic
+  and `shahi baaja` to plucked strings, for a later pass of those families; no row was dropped to
+  struck strings (batch 18), harps (batch 17), free reeds (batch 16) or electromechanical; and
+  the alias names are decided here, so no later batch decides `fender rhodes` (an alias), the
+  player piano's names (`pianola` and `reproducing piano` wait for their target; `welte mignon`,
+  `ampico`, `duo art` and `disklavier` are rows of their own, each waiting for a range), the
+  barrel piano's (`roller piano` waits for its target, `rhombia` for `laterna`; `street piano` and
+  `piano organ` are dropped as ambiguous names) or `muselar` (a kind of virginal, waiting for a
+  sourced range) again. Next: free reeds (batch 16)
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
@@ -2045,7 +2086,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sheet `plans/data/instrument-audit/batch-13.tsv`
 - **Plan (batch 14)**: `plans/2026-11-12-instrument-catalog-batch-14-implementation.md`; audit
   sheet `plans/data/instrument-audit/batch-14.tsv`
-- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 and 14 done (requested by the owner 2026-11-06)
+- **Plan (batch 15)**: `plans/2026-11-12-instrument-catalog-batch-15-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-15.tsv`
+- **Status**: Batches 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 and 15 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
@@ -4498,6 +4541,259 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Found**: batch 14's reviews (2026-11-13)
 - **Status**: TODO
 - **Priority**: Medium (before the keyboards batch builds on the same catalog)
+
+### 85. Sound Engine: The Owner's Checks on Instrument Catalog Batch 15 — TODO
+- **Goal**: confirm or overturn the calls made while batch 15 of #70 ran, and listen to its one
+  alias (`fender rhodes`). Nothing was built and no sound-alike was added: the keyboards stayed at
+  11 entries (704 in all, 121 aliases, 197 sound-alikes), with 47 waits, 1 alias and 22 drops in
+  the sheet's 70 rows (SHIP 0, SOUND_ALIKE 0, WAIT 47, ALIAS 1, DROP 22). The 5 mechanical-audit
+  piano rows were added as candidates, and the electromechanical instruments moved out of
+  `keyboards.py` into `electromechanical.py`
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+  level, filter and release is sound design unless a source is cited in the code; the folder is
+  `build/instruments/keyboards/`):
+  - [ ] The new builds: none (no 16' harpsichord and no keyed idiophone shipped, so there is no
+    build to compare with the catalog entry its values would have been copied from)
+  - [ ] The sound-alikes beside their parents: none shipped
+  - [ ] The alias: `fender rhodes` (of `tine electric piano`, in
+    `build/instruments/electromechanical/`: it is the same instrument under another name, and
+    sounds as `tine electric piano` does)
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-15.tsv`; the sheet's 70 rows:
+  SHIP 0, SOUND_ALIKE 0, WAIT 47, ALIAS 1, DROP 22):
+  - [ ] Every WAIT (47 rows), by reason:
+    - 42 for a sourced range: `barrel piano`, `dolceola`, `dulce melos`, `giraffe piano`, `janko
+      piano`, `laterna`, `lutheal`, `moor double keyboard piano`, `nickelodeon`, `orphica`, `pedal
+      piano`, `photoplayer`, `piano melodico`, `player piano`, `quarter tone piano`, `square
+      piano`, `tack piano`, `tangent piano`, `welte mignon`, `ampico`, `duo art`, `disklavier`,
+      `cabinet piano`, `cottage piano`, `pyramid piano`, `lyre piano`, `pleyel double piano`, `vis
+      a vis piano`, `archicembalo`, `clavicymbalum`, `clavicytherium`, `claviharp`, `dulcitone`,
+      `glasschord`, `harpsichord buff stop`, `harpsichord sixteen foot`, `keyed glockenspiel`,
+      `lautenwerk`, `ottavino`, `pedal clavichord`, `typophone` and `muselar`. Range first: a
+      row's notes keep its next blocker once ranged (`laterna`: its bell, more than four sources;
+      `photoplayer`: percussion, pipes and effects, more than four sources; `lutheal`: its own build,
+      registers `_piano` cannot make; `piano melodico`: its own build, repeated hammer strokes, no
+      LFO; `tack piano`: its own build, tacks on the hammers; `vis a vis piano`: its own build, a
+      piano and a harpsichord facing one another; `ottavino`: its own build, a 4' choir alone;
+      `dulcitone`, `typophone` and `glasschord`: `a sourced partial series`; `harpsichord sixteen
+      foot`: sub-audio fundamentals on F1 keys, a sound-alike of `harpsichord` with
+      `sound_changes={'sixteen_foot': True}` on keys from A1 up)
+    - 5 because their target waits: `pianola` and `reproducing piano` (for `player piano`),
+      `roller piano` (for `barrel piano`), `rhombia` (for `laterna`) and `lautenwerck` (for
+      `lautenwerk`)
+  - [ ] The module move: `electromechanical.py` (the 11 electromechanical entries, out of
+    `keyboards.py`, comments included, byte-identical to the removed section) and
+    `keyboard_sound_alikes.py` (empty); `keyboards.py` keeps the keyboards, its table is
+    `_KEYBOARD_BUILDS` and `KEYBOARDS` is `_KEYBOARD_BUILDS + KEYBOARD_SOUND_ALIKES`. The
+    before-and-after record of all 704 builds found `changed: []`. `Instrument` (in
+    `keyboards.py`) and `CatalogEntry` (in `keyboard_sound_alikes.py`) moved under `TYPE_CHECKING`,
+    as batch 14's modules have them
+  - [ ] The boundary rulings, each row they moved, and the Hornbostel-Sachs codes this plan
+    checked (314.122, "the piano is part of this subdivision", with the suffixes 4 hammers, 5 bare
+    hands and fingers, 6 plectrum, 8 keyboard and 9 mechanical drive; 111.212 and 111.222; 412.132;
+    each against Wikipedia's lists on 2026-11-13): `scalatron` and `walking piano` are dropped to
+    electronic (an oversized synthesizer), `shahi baaja` to plucked strings (keys stopping the
+    strings), `clavier a lumieres` makes no sound, and `octavator` (a keyboard that lights slide
+    projectors, a string struck, bowed or strummed) and `chekker` (its source calls its exact
+    details "a matter of academic debate") are dropped, `octavator` as a one-off on an enthusiasts'
+    gallery page that counts for existence only. No row was dropped to struck strings, harps, free
+    reeds or electromechanical
+  - [ ] A keyboard as a sound-alike (cases, layouts, tunings, sizes, materials and colour words no
+    trait; a SHIP only for a sourced 16' choir or sourced partials): none shipped, so none is a
+    sound-alike yet. Each waiting row's "Engine limit, once ranged" note says whether it would be
+    one
+  - [ ] The parent ruling (the source's relation first, the only way to another family's parent;
+    else the same mechanism's nearest lowest note), and each sound-alike's parent: none shipped.
+    Once ranged: `pleyel double piano` takes rule 2 (its quote, "two pianos into the same frame",
+    names no grand piano), `harpsichord buff stop` is of `harpsichord lute stop` by rule 1 (see the
+    bugs below: that parent's build is suspect), `keyed glockenspiel` of `glockenspiel` (a
+    cross-family parent, by its source's relation, "a glockenspiel operated by a piano keyboard")
+  - [ ] The range ruling (one source states both ends; a string keyboard's 8' compass sounding as
+    given, a keyboard idiophone's written range only with its stated transposition; key counts,
+    widths, hedges and generalisations no range; makers' and museums' pages over uncited Wikipedia
+    lines; nothing below A0 or above C8, for the keys and the choirs), and every derived range:
+    none was derived, since every row waits. The rulings that decided it:
+    - Range ruling 4 (a maker's or museum's page ranges a row named for that model only) kept
+      `tangent piano` (Chris Maene's Spath & Schmahl model, F1-F6, against the page's "given a wide
+      6 octave range"), `dulcitone` (the Horniman's AA-a3 at 4' pitch, sounding A2-A7; Yale's
+      Machell object gives "A to a'''", and Wikipedia lists 3 1/2-, 4- and 5-octave styles),
+      `square piano` (the Met's records give FF-f3, FF-f4 and FF-c4) and `harpsichord sixteen
+      foot` waiting for a range
+    - the player piano's three roll scales ("A1 to C#7", "A0 to C8", "F1, G1 to E7", an uncited
+      paragraph of the Piano roll page, none called standard) range nothing
+  - [ ] The keyed glockenspiel and harpsichord sixteen foot rulings: `keyed glockenspiel` waits
+    for a sourced range, since the Vienna Symphonic Library's "Keyboard glockenspiel C5 - C8" says
+    neither written nor sounding, and its notation says the instrument "generally sounds one
+    octave higher than written" (hedged; read as written the range would be C6-C9, above C8).
+    Cost if wrong: one cross-family sound-alike of `glockenspiel`, C5-C8, recoverable the moment a
+    source says sounding. `harpsichord sixteen foot` waits for a sourced range: Neupert's
+    "harpsichord Hass" page gives "keyboard compass: 5 octaves (F1 - f3)" and "lower manual: 8',
+    4', 16'", which is one maker's model, not the generic instrument's (range ruling 6: several
+    makers, none standard); its sub-audio point stays in the notes as its next wait, and it left
+    `KEYBOARD_HELD_BACK`. Cost if wrong: none, it waits either way. Was a model page enough?
+  - [ ] The choir ruling (`sixteen_foot` if added, its copied level and offset) and the keyed
+    idiophone ruling (`_keyed_idiophone` if added, the copied celesta values, the new wait name `a
+    sourced partial series`): neither builder was added, because no row shipped. The wait name
+    `a sourced partial series` is held for `dulcitone` and `typophone` (a tuning fork's partials
+    are stated by no fetched source; the audit's "near-sine" is from no page) and `glasschord`
+    ("glass tubes" states no partials), each once ranged. The guards that would pin them
+    (`KEYBOARD_SIXTEEN_FOOT_NAMES` and `KEYBOARD_PARTIAL_RATIOS`) are empty
+  - [ ] The mechanical ruling and each tagged or waiting self-playing keyboard: none is tagged
+    (`MECHANICAL_KEYBOARD_NAMES` is empty); `barrel piano`, `laterna`, `nickelodeon`, `photoplayer`,
+    `piano melodico` and `player piano` (and `pianola`, `reproducing piano`, `roller piano`,
+    `rhombia`, `welte mignon`, `ampico`, `duo art` and `disklavier`) all wait, so
+    `Tag.MECHANICAL` is still only on the `music box`. The 5 mechanical-audit piano rows (`barrel
+    piano`, `laterna`, `nickelodeon`, `photoplayer`, `piano melodico`) were added as candidates, as
+    batch 13 took `flute clock` from the same audit; no earlier sheet decided them. `nickelodeon`
+    rests on the Canadian Encyclopedia through the Wayback Machine's copy (the live page refused
+    curl with a 403; the first read was a WebFetch summary, which the review refused as a source),
+    all four quotes verbatim. Confirm it as a source, else the row is DROP "no fetched source
+    describes it"
+  - [ ] The registers ruling (`harpsichord buff stop`) and the catalog's `harpsichord lute stop`
+    naming question: `harpsichord buff stop` waits for a sourced range (Grove's entry is titled
+    "Buff stop [harp stop and (erroneously) lute stop]"), and once ranged it would be a
+    sound-alike of `harpsichord lute stop`. That catalog entry is built muted (a 3.5 kHz low pass),
+    which is the buff stop's sound; Grove calls "lute stop" a wrong name for it. The true lute stop
+    is "an alternative row of jacks" plucked near the nut, which "emphasizes the higher harmonics,
+    and produces a 'nasal' sound quality" (brighter, not muted). Is the catalog's entry a buff
+    stop under a wrong name, to be renamed or rebuilt?
+  - [ ] Generic, ambiguous, one-off, technique and unsourced rows, with the words "no fetched
+    source describes it" on every row whose page was not found: no row carries them (every row's
+    page was found). The generic and ambiguous names: `spinet` is DROP, an ambiguous name (a
+    harpsichord type, the small upright "spinet piano" from the 1930s, and the "spinet organ" of
+    1949, the Spinet page's own three senses), and the Harpsichord page's uncited definition ("A
+    spinet is a harpsichord with the strings set at an angle...") is no source (range ruling 9).
+    Cost if wrong: one future sound-alike of `harpsichord` (a bentside spinet), recoverable. `street
+    piano` ("a piano placed in a public area" on Wikipedia, "Street or barrel piano" at the London
+    Museum) and `piano organ` (no fetched page defines it) are dropped as ambiguous, not waiting
+    aliases of `barrel piano`. `prepared piano` is dropped (a preparation that differs with each
+    piece, the techniques ruling). `muselar` is its own row, not an alias of `virginal` (its page
+    sets it apart by its plucking point, one third along the string; no cited page gives it as a
+    virginal's name)
+  - [ ] `moor double keyboard piano`: the plan's "own build (an octave coupler)" is superseded.
+    Only the "special fourth pedal" sounds the octave, a pedal the player works (the techniques
+    ruling: "A pedal or a stop the player works ... is no instrument"), and the upper manual is a
+    layout, so once ranged it is a sound-alike of a catalog piano by parent ruling 2, not a build
+    of its own. It waits for a sourced range either way. Confirm
+  - [ ] The other calls that departed from the plan or the audit, each a row that waits for a
+    range either way: `vis a vis piano` is no alias of `grand piano` (the only fetched page, on
+    Johann Andreas Stein, defines it as "a piano and a harpsichord facing one another in a single
+    case", with a harpsichord of 8' 8' 8' 16' (Verona)), `cabinet piano`, `cottage piano`,
+    `pyramid piano` and `lyre piano` are rows of their own, not aliases (the pages make them
+    distinct uprights, and "cabinet piano" is also a giraffe piano with shelves), `welte mignon`,
+    `ampico`, `duo art` and `disklavier` are rows of their own (the makers' ruling: each is a
+    maker's system fitted to several pianos; `disklavier` also covers the GranTouch digital
+    pianos, so it might be dropped as ambiguous), `reproducing piano` follows `player piano` as a
+    waiting alias although the Player piano page calls reproducing pianos "fully automated versions
+    of the player piano" (a kind, not another name), `typophone` is decided on its own pages and
+    not as an alias of `dulcitone` (the Celesta page: the dulcitone "was developed concurrently in
+    Scotland; it is unclear whether their creators were aware of one another's instrument"),
+    `lautenwerk` decides the instrument and `lautenwerck` waits for its target, and `clavicymbalum`
+    waits rather than being dropped as generic (its page makes it one instrument, cited to
+    Kottick)
+  - [ ] `KEYBOARD_HELD_BACK`, the guard for every non-range wait: it holds nothing (every wait
+    is for a range or for a target that waits only for a range), and the test refusing a held-back
+    name as a catalog name or an alias passes vacuously, as batch 12's did
+  - [ ] The two-half split as explicit lists (half A, the pianos, 23 candidates and 17 alias
+    names, 40 rows; half B, the harpsichords, clavichords, keyboard idiophones and the boundary
+    names, 29 candidates and 1 alias name, 30 rows), the sheets researched in parallel, and the
+    shared files (the names file, the candidate lists and the three check scripts) written up front
+    by a setup agent. Task 5 shipped nothing (no commit: it only ran the code check), and Task 3
+    shipped only the `fender rhodes` alias
+  - [ ] The size chain left out: would you add the keyboard sizes to
+    `test_sized_families_descend_from_highest_to_lowest`? (It would test the 11 earlier entries'
+    unsourced ranges, so this batch did not.)
+  - [ ] Engine features named beyond the spec's table, for its "What the engine cannot make yet":
+    `a sourced partial series` (a source wait this plan added; held for `dulcitone`, `typophone`
+    and `glasschord` once ranged) and, once ranged, `its own build` for `lutheal`, `piano
+    melodico`, `tack piano`, `vis a vis piano` and `ottavino`, more than four sources for
+    `laterna` and `photoplayer`, and sub-audio fundamentals for `harpsichord sixteen foot`
+- **Bugs to report** (found while building batch 15; none fixed here, except the first):
+  - [ ] `electromechanical.py` said "The ten moved entries" where the section holds 11 (the tine and reed
+    electric pianos and the Clavinet, 7 tonewheel registrations and the Pianet). A bug that predates the
+    batch: the comment moved verbatim in Task 1 and was parked by the review. Fixed in Task 6
+    (the only line of existing code changed: "ten" became "eleven")
+  - [ ] `harpsichord lute stop` is built muted (`_harpsichord(low_pass=3500.0)`), which is the
+    buff stop's sound; Grove calls "lute stop" a wrong name for the buff stop, and the true lute
+    stop is brighter and nasal (above). The 11 earlier entries carry no source comment
+  - [ ] The Celesta infobox gives C3-F8 against the catalog's C4-C8. The Vienna Symphonic Library
+    calls C4-C8 its second-generation four-octave size and says "Modern instruments usually have a
+    range of five and a half octaves ... C3 - F8", so the catalog matches a named older size, not
+    the usual modern one
+  - [ ] The Harpsichord page's compass paragraph ("The traditional pitch range for a 5-octave
+    instrument is F1-F6") has no citation in its paragraph, so `harpsichord`'s F1-F6 is uncited
+    (a maker's model, Neupert's Hass, agrees for that model only). `virginal`'s C2-C6 is the
+    Virginals page's uncited "most virginals was C2/E2 to C6", whose lowest octave is a short
+    octave
+  - [ ] `glockenspiel` G5-C8: the Vienna Symphonic Library gives G5-C8 as one of two
+    two-and-a-half-octave sizes and says "Three-octave mallet-played glockenspiels are usual in
+    the symphony orchestra" (F5-F8 or C5-C8), so the catalog's range is not the usual size
+  - [ ] The Pleyel et Cie page says "resulting in the double piano in 1890, invented by Hungarian
+    composer Emanuel Moor", conflating Pleyel's Duo-Clave with Moor's double keyboard piano, which
+    the Emanuel Moor page dates to 1921. A Wikipedia error, not the catalog's. The audit and the
+    plan also describe `vis a vis piano` as two pianos facing each other; the only fetched page
+    says a piano and a harpsichord
+  - [ ] The quote check (`build/batch-15-quote-check.py`) reads saved pages as UTF-8, but Gregg
+    Miner's dolceola pages (which batch 4 cited) are windows-1252 HTML, so a SHIP row quoting them
+    would fail on decoding. One Miner passage also has `<b>strike</b>` inside the sentence in the
+    raw HTML
+  - [ ] The quote check verifies only SHIP and SOUND_ALIKE rows, so on a sheet of waits and drops
+    it passes vacuously (it did for all 70 rows). The reviews checked the WAIT and DROP quotes by
+    hand with scripts (134 quotes in half B, 30 in half A, 4 for the nickelodeon); the check should
+    cover every status
+  - [ ] The player piano's Piano roll lead: three roll scales in an uncited paragraph, none called
+    standard (A1 to C#7, A0 to C8, F1 and G1 to E7); `walking piano`'s "Versions of the piano have
+    been installed..." sentence is `{{cn}}` (dropped from the row)
+  - [ ] 17 DeprecationWarnings appear under `-W default` (the Task 3 and Task 5 runs, and the full
+    runs below): `speech_recognition/__init__.py:7` imports `aifc` (removed in Python 3.13), which
+    the `standard-aifc` backport satisfies. It is third-party and present before this batch (#81 to
+    #84 record it as a failure under `-W error`); `pyproject.toml` already filters it on purpose, so
+    normal runs hide it, and a new warning would be a new finding. The reports said "no warnings"
+    where there were these 17
+  - [ ] The fetch failures, recorded in the rows' notes: the Met's object page (429; its
+    collection API record was saved instead), the National Music Museum's Tangentenflugel record
+    (403), the MIM Brussels luthéal page (404), the National Music Centre's Pleyel duoclave (403),
+    Britannica's barrel piano and buff stop pages (403), museum-digital's claviharp record (502),
+    the Canadian Encyclopedia (403 to curl), and Grove Music Online (a subscription)
+- **Follow-ups**:
+  - [ ] The audit's gaps (`plans/data/instrument-audit/keyboards.md` and
+    `new-mechanical-instruments.md`, listed in #70) are a later pass over this family
+  - [ ] Ranging the 42 range WAITs from maker and museum sources (each row's notes record what was
+    searched; the compasses found were single objects or models, such as the Met's square pianos,
+    the Horniman's and Yale's dulcitones and the Royal College of Music's clavicytherium)
+  - [ ] Check the 11 earlier entries against sources (ranges and builds), starting with the
+    bugs above
+  - [ ] The engine changes that unblock the waits above, most rows first: the 42 range waits need
+    no engine feature; `dulcitone`, `typophone` and `glasschord` need a source for their partials;
+    `lutheal`, `piano melodico`, `tack piano`, `vis a vis piano` and `ottavino` a build of their
+    own; `laterna` and `photoplayer` more than four sources; `harpsichord sixteen foot` (on F1 keys)
+    sub-audio fundamentals
+  - [ ] Leads for later passes: `scalatron` and `walking piano` (electronic), `shahi baaja`
+    (plucked strings), the Landesmuseum Wurttemberg's and the Ringve Museum's claviharp records
+    (not reached), and the `octavator` (Ken Butler's hybrid keyboard and string instrument, on the
+    Oddmusic gallery)
+- **Incidents and process**:
+  - [ ] Batch 13 (#191) was squash-merged into batch 10. Batch 14 then merged batch 10's tip
+    (`73fd1ecd`), taking its own side, and its PR is #193 on batch 10
+  - [ ] The Pi hook was skipped while the Pis were unreachable, so pushes skip it
+  - [ ] The two sheet halves were researched in parallel, and pushes and stacked PRs were made
+    without asking (the owner, 2026-11-12, #78)
+  - [ ] The reversals and re-rulings, each after a review round, so the sheet's own history holds
+    the first readings: the sheet's two halves each had one fix commit (`96217693` for half A,
+    `020e026d` for half B), and the code task had one fix round for its partials
+    guard (`ac4fa351`: the first version passed only because its table was empty and would have
+    failed the celesta's and toy piano's real partials, with a tolerance too coarse to tell 2.76
+    from 3.0). `nickelodeon` first rested on an unsaved WebFetch read; `spinet`'s first DROP
+    ignored the Harpsichord page's definition; `harpsichord sixteen foot` was a wait for sub-audio
+    fundamentals until the controller's range-first ruling
+  - [ ] Parked minors from the reviews: `octavator` is dropped as a one-off though the plan
+    suggested "no fetched source describes it" (only the wording differs); `clavier a lumieres`'s
+    page never says "silent" (its keys correspond to colours); `harpsichord buff stop`'s parent
+    goes stale if `harpsichord lute stop` is rebuilt; `piano melodico`'s tremolo is a trait no
+    engine feature makes
+  - [ ] The branch's base is `982a66a7` (batch 14's final review fixes)
+- **Found**: batch 15's reviews (2026-11-13)
+- **Status**: TODO
+- **Priority**: Medium (before the free reeds batch builds on the same catalog)
 
 ### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
 - **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,
