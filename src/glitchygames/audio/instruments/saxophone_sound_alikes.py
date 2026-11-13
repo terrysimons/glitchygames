@@ -66,7 +66,7 @@ SAXOPHONE_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
     # range, not taken.
     CatalogEntry(
         'tubax in eb',
-        'Tubax in E♭',
+        'Tubax in E-flat',
         Family.SAXOPHONES,
         'Db1',
         'A3',

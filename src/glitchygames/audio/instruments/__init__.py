@@ -139,11 +139,11 @@ A key, a size, a shape, a material, keywork or a maker is no trait, so a conical
 another key, size or form is a sound-alike of the catalog saxophone its source relates it to, or
 else of the one whose lowest note is nearest its own, and gives its own sourced range (sounding,
 a written range only with its own source's transposition). No saxophone shipped as a new build,
-so none carries ``sound_changes``; one whose source gives it two pipes, a slide or a bore or bell
-that changes the sound waits for a build of its own once ranged, and a size below A0 waits for
-sub-audio fundamentals (``bb tubax``). Every other saxophone row waits for a sourced range (15
-names), 7 were dropped, and ``soprillo`` and ``sopranissimo saxophone`` are aliases of
-``soprillo saxophone``.
+so none carries ``sound_changes``; one whose source gives it two pipes, a slide that replaces the
+keys, or a bore or bell that changes the sound waits for a build of its own once ranged, and a
+size below A0 waits for sub-audio fundamentals (``bb tubax``). Every other saxophone row waits for
+a sourced range (15 names), 7 were dropped, and ``soprillo`` and ``sopranissimo saxophone`` are
+aliases of ``soprillo saxophone``.
 
 Keyboards (11 entries) hold the family's builds in ``keyboards.py`` (``grand piano``, ``upright
 piano``, ``fortepiano``, ``harpsichord``, ``virginal``, ``clavichord``, ``celesta``, ``toy

@@ -2244,8 +2244,15 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - The catalog grew from 431 instruments in 18 families to 707 in 23 (140 aliases, 200
     sound-alikes).
   - The standing decision of every name across the 19 sheets (2042 names; a name decided again
-    by a later sheet counts once, under its standing status): SHIP 73, SOUND_ALIKE 200, MOVE 14,
-    ALIAS 140, WAIT 1236, DROP 379. The SOUND_ALIKE and ALIAS counts equal the catalog's.
+    by a later sheet counts once, under its standing status): SHIP 76, SOUND_ALIKE 200, MOVE 14,
+    ALIAS 140, WAIT 1236, DROP 376. The SOUND_ALIKE and ALIAS counts equal the catalog's. A later
+    row replaces an earlier one, except a DROP whose notes begin "Already decided" and a DROP of a
+    name an earlier sheet shipped (SHIP, SOUND_ALIKE or ALIAS), which keep the earlier status
+    standing: the catalog holds the name, so a later sheet's DROP of it as a candidate does not
+    undo the shipping (batch 19's final review; the first run, which let those DROPs replace the
+    SHIPs, printed SHIP 73 and DROP 379). The cross-check: 76 SHIP + 200 SOUND_ALIKE = 276 entries
+    the sheets shipped, and 707 - 276 = 431, the catalog's pre-expansion entries (every catalog
+    entry no sheet shipped; the MOVE rows are pre-expansion entries moved between families)
   - The WAIT rows by reason (goal 4's "which instruments the engine cannot make yet, and what
     engine feature each needs"):
     - a sourced range: 873
@@ -2371,33 +2378,80 @@ This document tracks planned future features for the GlitchyGames project. Featu
     `choralcelo`, `compton electrone`, `farfisa` and `lowrey organ` (batch 13), `chromelodeon`
     (batch 16), `walking piano`, `scalatron` and `shahi baaja` (batch 15), `harp lute` (batch 17)
     and `tarogato` (batch 19, whose historical double reed is the double reeds')
-  - The standing DROPs the code holds, for review: 8 names whose sheet row is DROP while the catalog
-    holds an entry of that name. Each row drops the name as a candidate because the catalog
-    already had it, in another family or batch, so the code is not contradicted: `whip crack`
-    (`batch-2.tsv`: «Already in the catalog in noise makers»), `vibraslap` (`batch-2.tsv`:
-    «Already in the catalog (drums and percussion)»), `cuica` (`batch-2.tsv`: the same), `whip`
-    (`batch-2.tsv`: the same, «the slapstick is its alias»), `thunder sheet` (`batch-3.tsv`:
-    «Already shipped in sound effects»), `ocean drum` (`batch-3.tsv`: «Already shipped elsewhere:
-    the catalog ocean drum is in the sound effects family»), `singing bowl` (`batch-5.tsv`:
-    «Already decided (rule 5): the catalog has `singing bowl`») and `sackbut` (`batch-6.tsv`: the
-    catalog's brass `sackbut` is a different instrument from Le Caine's electronic sackbut, so the
-    audit's alias line was dropped)
-  - The engine features the batches named beyond the spec's table (#76 to #89, gathered and
-    deduplicated), for the owner to rule into the spec's "What the engine cannot make yet":
-    oscillator hard sync, ring modulation, filter resonance, a filter envelope, wavefolding, phase
-    distortion and wavetable morphing; portamento (a glide between successive notes), a pitch LFO
-    (vibrato), an amplitude LFO, a pitch and amplitude LFO (the tremulant) and a chorus's moving
-    delay; LFSR widths other than 15 and 7, a fixed noise clock and LFSR tap sets other than
-    maximal-length; a bowed wheel without a buzzing bridge; a detuned double chanter; the
-    diaphone's beating pallet, inharmonic partials, beating reeds in tiny pipes and mixtures'
-    breaks; a branched pipe; a free reed sounding a fingered pipe, a spectrum that changes with
-    the note and a second detuned reed set; a string buzzing against a bray pin, rattles on the
-    instrument and a drummed resonator; a hammer that bounces and restrikes while held, a pitch
-    glide through a note and a drone chord; and, from batch 19, two pipes sounding together
-    (`aulochrome`), a bell that changes the tone (`contralto saxophone`, `conn o sax`, `sarune
-    etek`) and a timbre that changes by register (`heckel clarina`). The source waits the plans
-    added (a sourced footage, detune, reed and bore, partial series and chanter bore) are sources,
-    not engine features
+  - The standing DROPs the code holds, for review: 5 names whose standing sheet row is DROP while
+    the catalog holds an entry of that name, each a pre-expansion entry. Each row drops the name as
+    a candidate because the catalog already had it, so the code is not contradicted: `vibraslap`
+    (`batch-2.tsv`: «Already in the catalog (drums and percussion)»), `cuica` (`batch-2.tsv`: the
+    same), `whip` (`batch-2.tsv`: the same, «the slapstick is its alias»), `singing bowl`
+    (`batch-5.tsv`: «Already decided (rule 5): the catalog has `singing bowl`») and `sackbut`
+    (`batch-6.tsv`: the catalog's brass `sackbut` is a different instrument from Le Caine's
+    electronic sackbut, so the audit's alias line was dropped)
+  - Three names the expansion's own sheets shipped and a later sheet re-listed and dropped (the
+    first run of the audit counted them as standing DROPs; their standing status is SHIP):
+    - `whip crack`: SHIP in `batch-1.tsv` (line 60, noise makers); DROP in `batch-2.tsv` (line 63,
+      sound effects): «Already in the catalog in noise makers (the noise makers row above is its
+      entry): a bullwhip crack, not a theatre or Foley device of this family, so not a move.»
+    - `thunder sheet`: SHIP in `batch-2.tsv` (line 32, sound effects); DROP in `batch-3.tsv` (line
+      225, drums and percussion): «Already shipped in sound effects (rule 4): the catalog thunder
+      sheet (sound_effects.py; batch-2.tsv SHIP).»
+    - `ocean drum`: SHIP in `batch-2.tsv` (line 40, sound effects); DROP in `batch-3.tsv` (line 75,
+      drums and percussion): «Already shipped elsewhere: the catalog ocean drum is in the sound
+      effects family (batch 2).»
+  - The engine features the WAIT reasons above name (every batch, 1 to 19, gathered from the final
+    audit's reasons and deduplicated; a row whose reason names two features counts under each),
+    for the owner to rule into the spec's "What the engine cannot make yet". Absent from the
+    spec's table, each with its standing WAIT rows:
+    - an amplitude LFO (15): `angklung`, `bell tree`, `binzasara`, `bullroarer`, `damaru`,
+      `electronic clap`, `fire crackle`, `flexatone`, `lions roar`, `mark tree`, `ratchet`,
+      `thunder run`, `warada`, `wind chimes`, `zimbelstern`; 3 of them (`bell tree`, `mark tree`,
+      `wind chimes`) also need a stepped pitch
+    - a pitch moving through a phrase (8): `dan bau`, `diddley bow`, `gopichand`, `guqin`,
+      `ichigenkin`, `khamak`, `vong co guitar`, `washtub bass`
+    - a pitch the sequence moves through a phrase, a squeezed drum (4): `idakka`, `kotsuzumi`,
+      `talking drum`, `udukku`
+    - a buzzing membrane (7): `bangdi`, `daegeum`, `gyil`, `kazoo`, `qudi`, `sudrophone`, `swazzle`
+    - filter resonance (7): `minimoog`, `moog modular synthesizer`, `sh 101`, `sid voice`, `tb 303`,
+      `trautonium`, `volks trautonium`
+    - a pitch LFO other than vibrato (6): portamento between notes (4: `clavivox`, `singing bird
+      box`, `slide whistle`, `whistling vessel`), a bounce's rise and fall (`wobble board`) and a
+      spin's speeding and slowing (`button whirligig`)
+    - a pitch curve that rises and falls, more than one glide per tone (4): `fog siren`, `hand
+      cranked siren`, `klaxon`, `siren`
+    - LFSR widths other than 15 and 7 (5): `atari tia`, `ay 3 8910 noise`, `pokey`, `sid noise`,
+      `sn76489 noise` (a 16-stage width)
+    - a range above C8 (5): `larigot`, `nasard`, `piccolo organ`, `sesquialtera`, `tierce`
+    - LFSR tap sets other than maximal-length (2): `nes short noise`, `sn76489 noise`
+    - a fixed noise clock (2): `game boy short noise`, `nes noise`
+    - a filter envelope (2): `sh 101`, `tb 303`
+    - a pitch and amplitude LFO (2): `hammond b3` (the Leslie and the scanner vibrato), `vox humana`
+      (the tremulant)
+    - a chorus's moving delay (2): `arp string ensemble`, `juno 106`
+    - wavefolding (2): `buchla 100`, `buchla music easel`
+    - wavetable morphing (2): `ppg wave`, `prophet vs`
+    - a filter LFO (1): `water drum`
+    - a moving filter or pitch LFO (1): `wind machine`
+    - a gated LFO, tones that alternate within one note (1): `martinshorn`
+    - a pitch the player bends through the note (1): `flexatone`
+    - ring modulation (1) and oscillator hard sync (1): `sid voice`
+    - phase distortion (1): `casio cz`
+    - a buzzing resonator wire (1): `yueqin`
+    - a buzzer, bottle caps on the soundboard (1): `mbira dzavadzimu`
+    - Already in the spec's table: sympathetic strings (12 rows), a buzzing bridge or jawari (6),
+      moving formants (33), vibrato (5), FM synthesis (5), sample playback (9), more than four
+      sources (8) and sub-audio fundamentals (5)
+    - `its own build` (14 rows) is a catalog build, not an engine feature; its rows' traits are a
+      bowed wheel without a buzzing bridge, a cylindrical bore, beating reeds in tiny pipes,
+      inharmonic partials, a bamboo body and the diaphone's beating pallet. The source waits (a
+      sourced description, drone tuning, footage, reed and bore, or sound description, and a
+      fetchable source) are sources, not engine features
+    - #76 to #89 also named features that no standing WAIT reason names (their rows wait for a
+      sourced range or another reason first): a pitch glide through a note, a detuned double
+      chanter, mixtures' breaks, a branched pipe, a free reed sounding a fingered pipe, a spectrum
+      that changes with the note, a second detuned reed set, a string buzzing against a bray pin,
+      rattles on the instrument, a drummed resonator, a hammer that bounces and restrikes while
+      held, a drone chord, and, from batch 19, two pipes sounding together (`aulochrome`), a bell
+      that changes the tone (`contralto saxophone`, `conn o sax`, `sarune etek`) and a timbre that
+      changes by register (`heckel clarina`)
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
@@ -6025,6 +6079,16 @@ This document tracks planned future features for the GlitchyGames project. Featu
     - already decided (4): `xaphoon` (`batch-14.tsv` WAIT a sourced range), `maui xaphoon`,
       `pocket sax` and `xaphoon de catalunya` (each `batch-14.tsv` WAIT its target, `xaphoon`),
       each DROP "Already decided" here, as #70 binds them
+  - [ ] The batch-14 hand-offs decided here (the controller's ruling): batch 14 dropped five
+    conical single reeds to the saxophones, and this batch decides each: `tarogato` (DROP, an
+    ambiguous name), `octavin`, `heckel clarina` and `sarune etek` (each WAIT a sourced range) and
+    `heckelphone clarinet` (a sound-alike of `alto saxophone`)
+  - [ ] `saxonette` and `venova` get no row here (the controller's ruling): `batch-14.tsv` decided
+    each as a clarinet (both WAIT), so neither is a saxophone candidate and neither is decided
+    again
+  - [ ] `tubax in eb`'s title is 'Tubax in E-flat' (the final review), spelled as the catalog's
+    other titles spell a flat ('E-flat clarinet', 'Soprano trombone in B-flat'), though the plan's
+    Global Constraints asked for 'E♭'; `batch-19.tsv`'s title column matches
     - flagged: `sopranissimo saxophone` stays an ALIAS of `soprillo saxophone` (the controller's
       ruling): the page's «or rarely '''sopranissimo saxophone'''» is a names sentence, and van
       Linthout's 1960 «prototype ''sopranissimo''», the same page's «The first playable piccolo
@@ -6063,18 +6127,35 @@ This document tracks planned future features for the GlitchyGames project. Featu
     - Whether to mark the design's status DONE: its status line now says every family the audits
       cover has had its batch (batches 1 to 19) and points at #70 and #71 to #89, but the status
       word is still DESIGN, the owner's call
-    - Whether to add the engine features the batches named (gathered and deduplicated in #70) to
-      the spec's "What the engine cannot make yet" table, which this batch did not edit
+    - Whether to add the engine features the batches named to the spec's "What the engine cannot
+      make yet" table, which this batch did not edit: #70 gathers them from every batch's WAIT
+      reasons (batches 1 to 19), each feature absent from the table with its row count (an
+      amplitude LFO 15, a pitch moving through a phrase 8, a buzzing membrane 7, filter resonance
+      7, ...), and the features #76 to #89 named for rows that wait for something else first
     - Whether to turn the final audit into a tracked test (#88's gap: no tracked test stops a WAIT
       or DROP name from being added later as an alias or entry; only the untracked
       `build/batch-*-code-check.py` scripts and `build/batch-19-final-audit.py` do)
-    - The final audit's review list: the 8 standing DROPs the code holds, each a row that drops
-      the name as a candidate because the catalog already had it (`whip crack`, `vibraslap`,
-      `cuica` and `whip`, batch 2; `thunder sheet` and `ocean drum`, batch 3; `singing bowl`, batch
-      5; `sackbut`, batch 6, the brass sackbut and not Le Caine's electronic sackbut). Each row's
-      words are quoted in #70; none contradicts the code, so this task's reading is that each
-      stands. The open hand-offs in #70 are the audit's keyword heuristic, a list to read, not a
-      count to trust
+    - The final audit's standing counts, corrected by the final review: SHIP 76 and DROP 376
+      (the first run printed SHIP 73 and DROP 379). The audit now keeps an earlier SHIP,
+      SOUND_ALIKE or ALIAS standing when a later sheet drops the same name, as it already did for
+      a DROP whose notes begin "Already decided". The cross-check: 76 SHIP + 200 SOUND_ALIKE =
+      276, and 707 - 276 = 431, the catalog's pre-expansion entries
+    - The final audit's review list: the 5 standing DROPs the code holds, each a pre-expansion
+      entry whose row drops the name as a candidate because the catalog already had it
+      (`vibraslap`, `cuica` and `whip`, batch 2; `singing bowl`, batch 5; `sackbut`, batch 6, the
+      brass sackbut and not Le Caine's electronic sackbut). Each row's words are quoted in #70;
+      none contradicts the code, so each stands. The open hand-offs in #70 are the audit's keyword
+      heuristic, a list to read, not a count to trust
+    - The three names the expansion's own sheets shipped and a later sheet re-listed and dropped,
+      whose standing status is SHIP (#70 quotes each later row's DROP note): `whip crack`
+      (`batch-1.tsv` SHIP; `batch-2.tsv` DROP «Already in the catalog in noise makers (the noise
+      makers row above is its entry)»), `thunder sheet` (`batch-2.tsv` SHIP; `batch-3.tsv` DROP
+      «Already shipped in sound effects (rule 4)») and `ocean drum` (`batch-2.tsv` SHIP;
+      `batch-3.tsv` DROP «Already shipped elsewhere: the catalog ocean drum is in the sound
+      effects family (batch 2).»)
+    - [ ] Whether those three later rows (`batch-2.tsv`'s `whip crack`, `batch-3.tsv`'s `thunder
+      sheet` and `ocean drum`) should have their notes marked "Already decided", as later
+      batches mark a re-listed name, so the sheets themselves say the earlier SHIP stands
 - **Bugs to report** (found while building batch 19; none fixed here, except the docstring below):
   - [ ] The 8 earlier saxophone entries carry no per-entry source comment for their ranges or
     builds (the module docstring names Adler and the Vienna Symphonic Library in general), and

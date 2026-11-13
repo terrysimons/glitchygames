@@ -232,7 +232,7 @@ instruments.get('slapstick')                             # an alias: the same in
 | --- | --- | --- |
 | `flutes` | 33 | piccolo to contrabass flute, wooden flutes, sopranino to subcontrabass recorders, whistles, shakuhachi, ocarinas, and 3 sound-alikes (csakan, subcontrabass recorder, ryuteki) |
 | `clarinets` | 10 | E-flat to contrabass clarinet, basset horn, chalumeau, and 1 sound-alike (c clarinet) |
-| `saxophones` | 11 | sopranino to contrabass, C melody, and 3 sound-alikes (soprillo, tubax in E-flat, heckelphone-clarinet) |
+| `saxophones` | 11 | sopranino to contrabass, C melody, and 3 sound-alikes (soprillo saxophone, tubax in eb, heckelphone clarinet) |
 | `double reeds` | 25 | oboe family, bassoon and contrabassoon, heckelphone, sarrusophone, shawms, crumhorns, suona, zurna, duduk, and 2 sound-alikes (contraforte, piccolo heckelphone) |
 | `bagpipes` | 9 | Highland, uilleann, smallpipes, gaita, gaida, musette, sackpipa (drones built in) |
 | `free reeds` | 13 | accordions (dry, musette, bass), bandoneon, concertina, harmonium, harmonicas, melodicas, sheng (no sound-alikes yet) |
