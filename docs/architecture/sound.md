@@ -264,13 +264,13 @@ instruments.get('slapstick')                             # an alias: the same in
   stays in the family the instrument sounds like.
   `instruments.names(tag=...)` and `entries(tag=...)` list the entries carrying it, and combine
   with `family=`.
-- `instruments.ALIASES` (read-only, as `instruments.CATALOG` is) maps another name to its
-  catalog name: `slapstick` to `whip`, `contralto` to `alto ah`, `boy soprano` to `treble ah`, `zanza` to `mbira`, `cylinder music box` and `disc music
-  box` to `music box`, `wurlitzer electronic piano` to `reed electric piano`, `hohner clavinet`
-  to `clavinet`, `rain box` to `rain machine`, `horse hooves` to `coconut shells`, `tavil` to
-  `thavil` and `riq` to `daf` (80 in all, among them `kanun` to `qanun`, `ud` to `oud` and
-  `neapolitan mandolin` to `mandolin`). `get` and `entry` resolve an alias, while `names` and
-  `entries` list catalog names only.
+- `instruments.ALIASES` (read-only, as `instruments.CATALOG` is) maps another name to its catalog
+  name: `slapstick` to `whip`, `contralto` to `alto ah`, `boy soprano` to `treble ah`, `zanza` to
+  `mbira`, `cylinder music box` and `disc music box` to `music box`, `wurlitzer electronic piano`
+  to `reed electric piano`, `hohner clavinet` to `clavinet`, `rain box` to `rain machine`, `horse
+  hooves` to `coconut shells`, `tavil` to `thavil` and `riq` to `daf` (80 in all, among them
+  `kanun` to `qanun`, `ud` to `oud` and `neapolitan mandolin` to `mandolin`). `get` and `entry`
+  resolve an alias, while `names` and `entries` list catalog names only.
 - A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
   (`bamboula` and `conga`, `tombak` and `darbuka doum`), so it is an entry of its own, listed by
   `names` and `entries`, whose `CatalogEntry.sounds_like` names the parent whose build it

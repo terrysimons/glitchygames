@@ -2583,7 +2583,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
     `bass baritone ah`, `basso cantante ah`, `boy alto ah`, `coloratura soprano ah`, `dramatic
     bass ah`, `dramatic contralto ah`, `dramatic mezzo soprano ah`, `dramatic soprano ah`, `haute
     contre ah`, `heldentenor ah`, `lyric soprano ah`, `oktavist ah`, `sopranist ah`, `soubrette
-    ah`, `spinto soprano ah`, `spinto tenor ah`, `tenore leggero ah`, and the audit lines
+    ah`, `spinto soprano ah`, `spinto tenor ah`, `leggero tenor ah`, and the audit lines
     `soprano sfogato` and `tenore contraltino`; and 12 choir vowels: `choir soprano`, `alto`,
     `tenor` and `bass` on `eh`, `ee` and `hum`); 14 for moving formants (`borbangnadyr`,
     `chylandyk`, `dumchuktaar`, `electrolarynx`, `ezengileer`, `kargyraa`, `katajjaq`, `khoomei`,
@@ -2609,10 +2609,26 @@ This document tracks planned future features for the GlitchyGames project. Featu
     itself gives none; nothing below A0. Under it only `basso buffo ah` has a range (Fach page,
     unhedged "From the E half an octave below low C (E2) to the F above middle C (F4)")
   - [ ] The hedged spans the notes record, in case the owner relaxes the rule (each row's notes
-    quote the page): `lyric soprano` C4-D6, `coloratura soprano` C4-F6 (lyric) and A3-F6
-    (dramatic), `dramatic soprano` A3-C6, `soubrette` C4-D6, `dramatic mezzo soprano` F3-G5,
-    `sopranist` C4-C6, `tenore contraltino` C3-C5, and the rest in the sheet. Relaxing the rule
-    ships them all as `ah` sound-alikes of their parents
+    quote the page; where the Fach page also gives a span it is named). One row per line:
+    - `lyric soprano ah` C4-D6 (Fach: B3-C6)
+    - `coloratura soprano ah` C4-F6 (lyric) and A3-F6 (dramatic) (Fach: C4-F6)
+    - `dramatic soprano ah` A3-C6 (Fach: A3-C6)
+    - `soubrette ah` C4-D6 (Fach: C4-C6)
+    - `spinto soprano ah` A3-C6 (Fach only)
+    - `dramatic mezzo soprano ah` F3-G5 (Fach: G3-B5)
+    - `dramatic contralto ah` F3-A5 (Fach only)
+    - `sopranist ah` C4-C6
+    - `tenore contraltino ah` C3-C5
+    - `leggero tenor ah` G2 up to E5, "sometimes" F#5 or G5
+    - `heldentenor ah` B2-C5 (Fach only)
+    - `spinto tenor ah` C3-C5 (Fach only)
+    - `bass baritone ah` F2-F#4 (low lyric) and E2-F4 (high dramatic) (Fach only)
+    - `dramatic bass ah` C2-F4 (Fach only; both Fach rows)
+    - `choir soprano eh`, `ee` and `hum` C4-A5 (the Soprano page's choral span)
+    - `choir alto eh`, `ee` and `hum` F3-F5 (the Alto page's choral span)
+    - `choir tenor eh`, `ee` and `hum` B2-G4 and B2-A4 (the Tenor page contradicts itself)
+    - `choir bass eh`, `ee` and `hum` E2-E4 (the Bass page's solo span, hedged)
+    Relaxing the rule ships the voice rows as `ah` sound-alikes of their parents
   - [ ] `haute contre ah` stays WAIT although the Haute-contre page's solo range C3-D5 is
     unhedged: the page gives it at a French eighteenth-century pitch "as much as a whole tone
     lower than that of today", so the sounding notes are not fixed. The ruling was the
@@ -2675,13 +2691,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
     dispatch since forbids personal data in any request header, URL or payload
   - [ ] Pushes and stacked PRs happen without asking (the owner, 2026-11-12), and the two sheets
     were researched in parallel, with Tasks 1, 2 and 4 running together
-  - [ ] Parked minors from the reviews (`.superpowers/sdd/.../task-2-review.md` and
-    `task-4-review.md`): the `sopranist ah` note cites ruling 4 where the hedge alone decides;
-    the soprano choir vowels' notes cite ruling 3 where the choir-vowel ruling is the ground;
-    `cossack choir` rests on the Kuban Cossack Choir page, which describes one named ensemble;
-    `orthodox choir`'s `sound_source` is the Basso profondo page, which describes the oktavist;
-    `gamelan gerongan`'s notes say more than the quote; `doo wop group`'s drop does not use the
-    ensemble wording. Each drop holds either way
+  - [ ] A parked minor from the reviews: `orthodox choir`'s `sound_source` is the Basso profondo
+    page, which describes the oktavist, not a choir (the notes' wording was fixed; the drop
+    holds either way)
 - **Follow-ups**:
   - [ ] The audit's "Gaps you could not close" (`plans/data/instrument-audit/voices-and-choirs.md`)
     are a later pass over these families

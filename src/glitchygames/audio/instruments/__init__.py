@@ -64,7 +64,7 @@ sympathetic strings or a buzzing bridge wait, and ``sarangi``, ``hardanger fiddl
 amore``, ``nyckelharpa`` and ``hurdy gurdy`` stay as the approximations they were, never a parent.
 
 Voices (56 entries) and choirs (13 entries) hold their builds in ``voices.py`` (``soprano ah`` to
-``basso profundo oo``, ``whistling``, ``choir soprano ah``, ``childrens choir``), which shares one
+``basso profundo hum``, ``whistling``, ``choir soprano ah``, ``childrens choir``), which shares one
 formant table between the two families, and their sound-alikes in ``voice_sound_alikes.py``, one
 table per family (``basso buffo ah``, a sound-alike of ``bass ah``; the choirs' table is empty).
 An entry is a voice type, a voice device or a choir part: singing techniques, styles and genres

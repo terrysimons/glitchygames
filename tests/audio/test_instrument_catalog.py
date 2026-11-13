@@ -1878,9 +1878,12 @@ def test_no_sound_alike_shares_an_approximated_sound():
 
 # The spec's "What the engine cannot make yet": "moving formants, vowel glides, vibrato |
 # overtone and throat singing, talk box, vocoder, yodel". Nothing in that row ships under its
-# name or an alias until the engine has the feature (decision 4; batch 8). The test below matches
-# these names exactly: it does not catch a qualified name such as "khoomei voice", which the
-# sheet's form check (a SHIP or SOUND_ALIKE row's audit_name) refuses instead
+# name or an alias until the engine has the feature (decision 4; batch 8). The set holds every
+# name batch 8's sheet (plans/data/instrument-audit/batch-8.tsv) held back for moving formants:
+# the WAIT rows whose waits_for is "moving formants" and the alias spellings that wait for one of
+# them ("its target, khoomei", "its target, yodel" and so on), beside the spec's own names. The
+# test below matches these names exactly: it does not catch a qualified name such as "khoomei
+# voice"
 MOVING_FORMANT_NAMES = frozenset({
     'khoomei',
     'sygyt',
@@ -1896,6 +1899,19 @@ MOVING_FORMANT_NAMES = frozenset({
     'rekuhkara',
     'yodel',
     'tuvan ensemble',
+    'electrolarynx',
+    'khoomii',
+    'xoomei',
+    'overtone singing',
+    'harmonic singing',
+    'khargyraa',
+    'inuit throat singing',
+    'iirngaaq',
+    'piqqusiraarniq',
+    'qiarvaaqtuq',
+    'nipaquhiit',
+    'jodel',
+    'artificial larynx',
     'talk box',
     'sonovox',
     'vocoder',
