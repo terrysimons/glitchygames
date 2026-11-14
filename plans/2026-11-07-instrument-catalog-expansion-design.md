@@ -36,10 +36,12 @@
   `plans/2026-11-12-instrument-catalog-batch-15-implementation.md` and
   `plans/data/instrument-audit/batch-15.tsv`. Batch 16 (free reeds) is done: see
   `plans/2026-11-12-instrument-catalog-batch-16-implementation.md` and
-  `plans/data/instrument-audit/batch-16.tsv`. The later batches are not yet planned.
+  `plans/data/instrument-audit/batch-16.tsv`. Batch 17 (harps) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-17-implementation.md` and
+  `plans/data/instrument-audit/batch-17.tsv`. The later batches are not yet planned.
 - **Depends on:** the instrument catalog (`src/glitchygames/audio/instruments/`, 431 instruments
   in 18 families when this was written, shipped with the sound engine M1; 439 in 21 after batch
-  1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682 after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11, 693 after batch 12, 703 after batch 13, 704 after batches 14, 15 and 16), its range audit, and the engine's four sources per instrument
+  1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682 after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11, 693 after batch 12, 703 after batch 13, 704 after batches 14, 15, 16 and 17), its range audit, and the engine's four sources per instrument
   (`src/glitchygames/audio/instrument.py`).
 - **Tracked as:** `plans/future-features.md` #70.
 

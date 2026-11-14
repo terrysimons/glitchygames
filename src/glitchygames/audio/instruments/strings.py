@@ -1,11 +1,11 @@
-"""Strings: harps and struck strings (dulcimers).
+"""Struck strings: hammered dulcimer, cimbalom, santur, yangqin and the berimbau.
 
-Bowed strings (violins, viols, fiddles) are in the sibling module ``bowed_strings.py``, plucked
-strings (guitars, basses, lutes) in ``plucked_strings.py``.
+Harps are in the sibling module ``harps.py``, bowed strings (violins, viols, fiddles) in
+``bowed_strings.py``, plucked strings (guitars, basses, lutes) in ``plucked_strings.py``.
 
-Ranges are sounding pitch, after the common tunings of the instruments. Timbres: a harp string
-is plucked and rings down (``plucked_series``); a hammered dulcimer is the same series plucked
-near the string's end, with two slightly detuned courses; the berimbau is ``struck``.
+Ranges are sounding pitch, after the common tunings of the instruments. Timbres: a hammered
+dulcimer is a plucked string's series (``plucked_series``) plucked near the string's end, with two
+slightly detuned courses; the berimbau is ``struck``.
 """
 
 from __future__ import annotations
@@ -18,77 +18,6 @@ from glitchygames.audio.instruments.timbres import Course, Partial, plucked, plu
 
 if TYPE_CHECKING:
     from glitchygames.audio.instrument import Instrument
-
-# --- Harps ----------------------------------------------------------------------------------
-
-
-def _harp(*, ring_seconds: float, low_pass: float, slope: float = 8.0) -> Instrument:
-    return plucked(
-        plucked_series(count=20, decibels_per_octave=slope, pluck_position=0.5 - 0.17),
-        ring_seconds=ring_seconds,
-        release=0.8,
-        low_pass=low_pass,
-    )
-
-
-HARPS: Final[tuple[CatalogEntry, ...]] = (
-    CatalogEntry(
-        'concert harp',
-        'Concert (pedal) harp',
-        Family.HARPS,
-        'Cb1',
-        'G#7',
-        partial(_harp, ring_seconds=4.0, low_pass=4500.0),
-    ),
-    CatalogEntry(
-        'celtic harp',
-        'Celtic (lever) harp',
-        Family.HARPS,
-        'C2',
-        'A6',
-        partial(_harp, ring_seconds=3.0, low_pass=5000.0, slope=7.0),
-    ),
-    CatalogEntry(
-        'wire strung harp',
-        'Wire-strung harp (clàrsach)',
-        Family.HARPS,
-        'G1',
-        'D6',
-        partial(_harp, ring_seconds=6.0, low_pass=7000.0, slope=5.0),
-    ),
-    CatalogEntry(
-        'triple harp',
-        'Welsh triple harp',
-        Family.HARPS,
-        'C2',
-        'C7',
-        partial(_harp, ring_seconds=3.0, low_pass=5000.0, slope=7.0),
-    ),
-    CatalogEntry(
-        'lyre',
-        'Lyre',
-        Family.HARPS,
-        'C4',
-        'C6',
-        partial(_harp, ring_seconds=2.0, low_pass=5000.0, slope=6.5),
-    ),
-    CatalogEntry(
-        'kora',
-        'Kora',
-        Family.HARPS,
-        'F2',
-        'C6',
-        partial(_harp, ring_seconds=2.2, low_pass=6500.0, slope=5.0),
-    ),
-    CatalogEntry(
-        'harp guitar',
-        'Harp guitar',
-        Family.HARPS,
-        'A1',
-        'C6',
-        partial(_harp, ring_seconds=3.5, low_pass=5000.0, slope=6.0),
-    ),
-)
 
 # --- Struck strings -------------------------------------------------------------------------
 

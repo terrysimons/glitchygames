@@ -865,6 +865,9 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('calliaphone', 'calliope'),
         ('fender rhodes', 'tine electric piano'),
         ('richter harmonica', 'harmonica'),
+        ('pedal harp', 'concert harp'),
+        ('lever harp', 'celtic harp'),
+        ('folk harp', 'celtic harp'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -908,6 +911,8 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 15's pianos name the tine electric piano as the fender rhodes.
     Batch 16's free reeds name the harmonica as the richter harmonica (a Richter layout is a
     tuning, and the catalog's harmonica is the Richter-tuned diatonic in C).
+    Batch 17's frame harps name the concert harp as the pedal harp, and the celtic harp as the
+    lever harp and the folk harp.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1853,6 +1858,23 @@ FREE_REED_SOUND_ALIKE_PARENTS: dict[str, str] = {}
 MECHANICAL_FREE_REED_NAMES: list[str] = []
 
 
+# The 7 harps that predate batch 17: their shared builds predate the anti-goal rule
+EXISTING_HARP_NAMES: frozenset[str] = frozenset({
+    'concert harp',
+    'celtic harp',
+    'wire strung harp',
+    'triple harp',
+    'lyre',
+    'kora',
+    'harp guitar',
+})
+# Batch 17's harps with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-17.tsv)
+NEW_HARP_NAMES: list[str] = []
+# Batch 17's harp sound-alikes and the entry each sounds like, in the sheet's order
+HARP_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+
+
 # The 42 brass instruments that predate batch 10: their shared builds predate the anti-goal rule
 EXISTING_BRASS_NAMES: frozenset[str] = frozenset({
     'piccolo trumpet',
@@ -2021,6 +2043,7 @@ BATCH_FAMILIES: dict[Family, BatchFamily] = {
     Family.PLUCKED_STRINGS: BatchFamily(
         EXISTING_PLUCKED_NAMES, NEW_PLUCKED_NAMES, PLUCKED_SOUND_ALIKE_PARENTS
     ),
+    Family.HARPS: BatchFamily(EXISTING_HARP_NAMES, NEW_HARP_NAMES, HARP_SOUND_ALIKE_PARENTS),
     Family.KEYBOARDS: BatchFamily(
         EXISTING_KEYBOARD_NAMES, NEW_KEYBOARD_NAMES, KEYBOARD_SOUND_ALIKE_PARENTS
     ),
@@ -2156,7 +2179,7 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         if catalog_entry.sounds_like is not None
     ]
     # The catalog lists families in table order: flutes, clarinets, double reeds, bagpipes, free
-    # reeds, brass, bowed strings, plucked strings, keyboards, organs, electronic, tuned
+    # reeds, brass, bowed strings, plucked strings, harps, keyboards, organs, electronic, tuned
     # percussion, drums, voices, then choirs, as registry.FAMILY_TABLES lists them
     assert every_sound_alike == (
         list(FLUTE_SOUND_ALIKE_PARENTS)
@@ -2167,6 +2190,7 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         + list(BRASS_SOUND_ALIKE_PARENTS)
         + list(BOWED_SOUND_ALIKE_PARENTS)
         + list(PLUCKED_SOUND_ALIKE_PARENTS)
+        + list(HARP_SOUND_ALIKE_PARENTS)
         + list(KEYBOARD_SOUND_ALIKE_PARENTS)
         + list(ORGAN_SOUND_ALIKE_PARENTS)
         + list(ELECTRONIC_SOUND_ALIKE_PARENTS)
@@ -3086,3 +3110,44 @@ def test_a_free_reed_reed_set_sounds_its_octave():
         assert tone_wave(name) == wave_from_levels(
             compound_stop_levels(FREE_REED_LEVELS[:16], footages)
         ), name
+
+
+# Every name plans/data/instrument-audit/batch-17.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for an engine feature, a build of its own, sub-audio
+# fundamentals or a range above C8, and the alias rows that wait for one of them, in the sheet's
+# order. None ships under that name or as an alias until the reason is met (decision 4; batch
+# 17). The test matches exact names
+HARP_HELD_BACK: dict[str, str] = {}
+
+
+def entries_with_sound_changes(family: Family) -> list[str]:
+    """The names of the family's entries whose sound_changes are not empty.
+
+    Returns:
+        The names, in catalog order.
+    """
+    return [
+        catalog_entry.name
+        for catalog_entry in instruments.entries(family=family)
+        if catalog_entry.sound_changes
+    ]
+
+
+def test_the_harp_guards_helpers_read_real_builds():
+    """Each harp guard's helper reads a real catalog build, as batch 15's review required."""
+    assert names_listed(['concert harp', 'fender rhodes', 'not an instrument']) == {
+        'concert harp',
+        'fender rhodes',
+    }
+    assert entries_with_sound_changes(Family.ORGANS) == ['bourdon']
+    assert entries_with_sound_changes(Family.HARPS) == []
+
+
+def test_no_harp_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a harp the sheet holds back."""
+    assert names_listed(HARP_HELD_BACK) == set()
+
+
+def test_no_harp_sound_alike_changes_its_parents_build():
+    """No harp sound-alike carries sound_changes: this batch adds none, as the sheet rules."""
+    assert entries_with_sound_changes(Family.HARPS) == []

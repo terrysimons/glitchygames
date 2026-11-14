@@ -483,4 +483,22 @@ ALIASES: Final[dict[str, str]] = {
     # catalog's harmonica (free_reeds.py, "Diatonic harmonica in C", C4-C7) is that instrument.
     # The name drops the page's hyphenated "-tuned" (catalog names hold no hyphens)
     'richter harmonica': 'harmonica',
+    # --- Batch 17's harps: the frame harps, in the order of
+    # plans/data/instrument-audit/batch-17.tsv (half A; its other rows drop or wait)
+    # https://en.wikipedia.org/wiki/Pedal_harp ("The pedal harp (also known as the concert harp) is
+    # a large and technologically modern harp", with "hornbostel_sachs = 322.222"): the concert
+    # harp's other name, so the catalog's concert harp
+    'pedal harp': 'concert harp',
+    # https://en.wikipedia.org/wiki/Celtic_harp ("hornbostel_sachs=322.221", "manually tuned frame
+    # harp"; the Lever harp page redirects to it) and https://en.wikipedia.org/wiki/Harp ("they are
+    # frequently referred to broadly as 'Celtic harps' due to their region of revival and popular
+    # association, or more generically as 'folk harps' due to their use in non-classical music,
+    # or as 'lever harps' to contrast their modifying mechanism with the larger pedal harp"):
+    # one family of mid-size harps without pedals, which is the catalog's celtic harp
+    'lever harp': 'celtic harp',
+    # https://en.wikipedia.org/wiki/Harp#Folk,_lever,_and_Celtic_instruments (the quote above; the
+    # Folk harp page redirects to this section): the same family, so the catalog's celtic harp.
+    # The page calls this name the more generic one ("more generically"), which says why it is
+    # used, not that it names other instruments
+    'folk harp': 'celtic harp',
 }
