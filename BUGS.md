@@ -4,6 +4,17 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 279. The Never-Ready Reproducer Test Fails in Every Checkout Under /private/tmp
+- **Description**: `tests/test_reproduce_orphaned_test_processes.py::test_a_run_that_never_reaches_the_moment_leaves_nothing_running` (from #192, BUGS.md #275) failed every time in a checkout under `/private/tmp` (a worktree in Claude's scratch directory, `/private/tmp/claude-501/...`), on plain main as well as on branches, and passes in the main checkout. Under the shuffled pre-push suite it was the one failure (`1 failed, 26350 passed`), so pushes had to be made from the main checkout.
+- **Status**: Open (cause not confirmed)
+- **Priority**: Low (only checkouts under the temporary directory; blocks a push from one)
+- **What the evidence shows**: the test patches `MOMENT_TIMEOUT_SECONDS` to 5.0 (line 131) and expects its inner pytest run to reach a test body that writes `stand-in-child.pid`; under `/private/tmp` the inner run never got there within the 5 seconds, so reading the file raised `FileNotFoundError` (the main checkout takes about 5.5 s for the whole test). Outside pytest the same never-ready trial, run through `scripts.reproduce_orphaned_test_processes` with the same 5-second patch, reached its test body in about 1.0-1.3 s in both places (`reached=True after 1.0 s` under `/private/tmp`, `0.9 s` in the main checkout). So the slowdown, or a block, appears only when the trial runs inside the outer pytest run in that location.
+- **Suspected, unverified**: something in the outer run that matches temporary-directory paths, such as the harness's process sweep (`tests/child_process_guard.py`) or a `tmp_path` rule, stops or delays the inner run there. Next checks: run the test with `-p no:xdist` and with the child-process guard disabled in a `/private/tmp` checkout; keep the inner run's temporary directory (patch the reproducer's `tempfile.TemporaryDirectory` to `delete=False`) and read its `run.log` to see how far it got.
+- **Test gap**: the test's 5-second wait assumes the inner run starts as fast everywhere as in the main checkout; nothing reports how far the inner run got when it times out.
+- **Reporter**: Claude, rebasing the instrument-catalog stack in a scratch worktree
+- **Date Reported**: 2026-11-13
+- **Files**: `tests/test_reproduce_orphaned_test_processes.py`, `scripts/reproduce_orphaned_test_processes.py`
+
 ### 278. Dependabot Alert 196: the Locked tornado 6.6 Has an Open Redirect
 - **Description**: GitHub's Dependabot alert 196 (opened 2026-11-14, severity low): «Tornado: Open redirect via triple-slash redirect paths», for tornado `<= 6.6.0`, first fixed in 6.6.1. `uv.lock` holds tornado 6.6, pulled in only by `bokeh`, a runtime dependency of `glitchygames`.
 - **Status**: Open (not fixed; a branch of its own)
