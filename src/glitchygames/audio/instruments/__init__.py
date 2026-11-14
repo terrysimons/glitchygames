@@ -28,11 +28,11 @@ Three families hold the instruments that are neither struck bars nor blown: pluc
 on the ``music box``; ``Tag.CHIP``, on the sound-chip voices such as ``chip square``, ``sn76489``
 and ``nes triangle``), so ``names(tag=...)`` finds those wherever they sound.
 
-Electromechanical takes the electric pianos (``tine electric piano``, ``reed electric
-piano``), the ``clavinet`` and the ``tonewheel organ ...`` registrations from keyboards and
-organs, and adds the ``hohner pianet``. Sound effects is a new family (``thunder sheet``,
-``rain machine``, ``ocean drum``, ``cannon``, ``coconut shells``, ``door slam``), each effect
-playable as a note.
+Electromechanical (11 entries, in ``electromechanical.py``) takes the electric pianos (``tine
+electric piano``, ``reed electric piano``), the ``clavinet`` and the ``tonewheel organ ...``
+registrations from keyboards and organs, and adds the ``hohner pianet``. Sound effects is a new
+family (``thunder sheet``, ``rain machine``, ``ocean drum``, ``cannon``, ``coconut shells``,
+``door slam``), each effect playable as a note.
 
 Electronic (26 entries) holds the family's builds in ``electronic.py`` (``theremin``, ``ondes
 martenot``, the synth patches such as ``saw lead`` and ``synth pad``, the chiptune voices such as
@@ -130,19 +130,35 @@ drone or detuned double clarinet shipped, so no clarinet carries drones. A clari
 no source states waits (34 names), the tenor and contrabass ``birbyne`` wait for a sourced reed
 and bore (2 names) and 4 names wait for their target (40 waits in all).
 
+Keyboards (11 entries) hold the family's builds in ``keyboards.py`` (``grand piano``, ``upright
+piano``, ``fortepiano``, ``harpsichord``, ``virginal``, ``clavichord``, ``celesta``, ``toy
+piano``) and their
+sound-alikes in ``keyboard_sound_alikes.py`` (none yet). A keyboard is an acoustic instrument its
+keys sound: strings struck by hammers or tangents or plucked by plectra, or bars, forks or glass
+struck through a key action. ``electromechanical.py`` now holds the electromechanical instruments
+that shared ``keyboards.py``. A keyboard of another form or size (a case, a layout or a tuning is
+no trait) is a sound-alike of the catalog keyboard its source relates it to, or else of the one
+whose lowest note is nearest its own, and gives its own sourced range (a string keyboard's 8'
+compass sounding as given, a keyboard idiophone's written range only with its stated
+transposition). No keyboard shipped as a new build or sound-alike, so none carries a 16' choir (a
+harpsichord register sounding an octave below its keys) or a keyed idiophone's sourced partials,
+and ``Tag.MECHANICAL`` is still only on the ``music box``. Every keyboard row waits for a sourced
+range (42 names) or for its target (5 names), 22 were dropped and ``fender rhodes`` is an alias of
+``tine electric piano``.
+
 Organs (19 entries) hold the family's builds in ``organs.py`` (the ``pipe organ`` stops and
 ``plenum``, ``positive organ``, ``theatre organ``, ``calliope``, and the batch's ``stopped
 diapason``, ``cornet organ`` and ``organ clarinet``) and their sound-alikes in
 ``organ_sound_alikes.py`` (``salicional``, ``voix celeste``, ``organ oboe``, ``organ krummhorn``,
-``organ tuba``, ``posthorn`` and ``bourdon``). ``keyboards.py`` keeps the keyboards and the
-electromechanical instruments. A stop sounds at its footage against its keys (a 16' an octave
-below, a 4' an octave above), and a sound-alike stop at another footage than its parent carries it
-as ``sound_changes`` (``bourdon``, the stopped diapason at 16'). A stop's range is its keys at 8'
-pitch. A stop whose footage no source gives, whose sounding span passes C8 (the 2' stops and high
-mutations), whose mixture breaks back or whose tone needs a tremulant waits (16 names are held back
-for such a reason), and ``open diapason``, ``organ trompette``, ``air calliope`` and
-``calliaphone`` are aliases. No self-playing organ shipped (each waits for a sourced range), so
-``Tag.MECHANICAL`` is still only on the ``music box``.
+``organ tuba``, ``posthorn`` and ``bourdon``). ``keyboards.py`` keeps the keyboards and
+``electromechanical.py`` the electromechanical instruments. A stop sounds at its footage against its
+keys (a 16' an octave below, a 4' an octave above), and a sound-alike stop at another footage than
+its parent carries it as ``sound_changes`` (``bourdon``, the stopped diapason at 16'). A stop's
+range is its keys at 8' pitch. A stop whose footage no source gives, whose sounding span passes C8
+(the 2' stops and high mutations), whose mixture breaks back or whose tone needs a tremulant waits
+(16 names are held back for such a reason), and ``open diapason``, ``organ trompette``, ``air
+calliope`` and ``calliaphone`` are aliases. No self-playing organ shipped (each waits for a sourced
+range), so ``Tag.MECHANICAL`` is still only on the ``music box``.
 
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and

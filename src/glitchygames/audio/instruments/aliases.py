@@ -467,4 +467,11 @@ ALIASES: Final[dict[str, str]] = {
     # sometimes called a calliaphone, the name given to it by Norman Baker"): the air calliope's
     # other name, so the catalog's calliope
     'calliaphone': 'calliope',
+    # --- Batch 15's keyboards: the pianos, in the order of
+    # plans/data/instrument-audit/batch-15.tsv
+    # https://en.wikipedia.org/wiki/Rhodes_piano ("The Rhodes piano (also known as the Fender
+    # Rhodes piano) is an electric piano invented by Harold Rhodes"; the name Fender Rhodes
+    # redirects to this page): the same instrument the catalog's tine electric piano builds (its
+    # source comment in electromechanical.py cites https://en.wikipedia.org/wiki/Fender_Rhodes)
+    'fender rhodes': 'tine electric piano',
 }
