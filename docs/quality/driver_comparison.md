@@ -36,6 +36,16 @@ The comparison is off, and the summary says why, in CI (`CI=true`), with `--dumm
 iteration), when `SDL_VIDEODRIVER` or `SDL_AUDIODRIVER` is set (that driver runs alone), and on a
 Linux machine without a display.
 
+!!! warning "Stopping a child run leaves nothing running"
+    The native run and the image re-runs are stopped (an interrupted run, a timeout, the end of the
+    session) as Ctrl-C stops a pytest run: SIGINT to the run's process group first, which every
+    xdist worker turns into an orderly `KeyboardInterrupt`, so each test's cleanup runs; SIGTERM,
+    then SIGKILL, follow a run that does not end. SIGTERM first, as before, killed the workers at
+    once, and a child a test had started in a session of its own was left running (BUGS.md #275).
+    Each child run also has a temporary directory of its own (`--basetemp`, under the system's
+    temporary directory); when it ends, any process naming it, left by a worker that died outright,
+    is killed and listed in the summary (`left running by the cocoa run (now killed): ...`).
+
 ## Tests whose frames vary
 
 A test whose frames are not expected to match between runs or drivers is marked
@@ -58,7 +68,14 @@ N-way matrix (`scripts/driver_configurations.py` lists them and finds which run 
 | `x11-linux` | x11 in the Linux container of `nox -s test-linux-x11`, forwarded to XQuartz over TCP | macOS, XQuartz (TCP enabled), Docker |
 
 The runs go one after another with four workers each (the container's too), so the machine stays
-usable. `nox -s compare-drivers -- --drivers dummy,cocoa,x11-macos` chooses configurations
+usable; `-- --workers N` sets another count, and `-- --workers auto` uses every core. The pre-push
+hook passes `--workers auto`: a push is waited for, and on a 16-core Mac its three runs took 10
+minutes instead of 19, with every configuration agreeing and nothing more varying between the dummy
+runs (measured 2026-11-13). It also passes `--skip-when-frames-cannot-change`: a push that changes
+only plans, docs, the replay ledger's rows, CI configuration or Markdown at the repository's root
+cannot change a frame a test presents, so the comparison is skipped and says why (an allowlist:
+any other path, a new directory included, is compared; outside a push it always runs).
+`nox -s compare-drivers -- --drivers dummy,cocoa,x11-macos` chooses configurations
 (`dummy` is always added: it is the baseline; one that cannot run here is refused with the
 reason), and other arguments select tests (`-- tests/scenes`). The tests that differ anywhere are
 re-run on every configuration saving their differing frames, and every differing pair gets both

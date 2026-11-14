@@ -718,20 +718,199 @@ def test_the_pre_push_hooks_run_the_shuffled_suite():
 @pytest.mark.parametrize(
     ('posargs', 'expected'),
     [
-        ([], (None, False, False, [])),
-        (['--drivers', 'native', '--fail-on-difference'], ('native', False, True, [])),
+        ([], {}),
         (
-            ['--drivers=dummy,cocoa', '--sound', 'tests/scenes'],
-            ('dummy,cocoa', True, False, ['tests/scenes']),
+            [
+                '--drivers',
+                'native',
+                '--fail-on-difference',
+                '--workers',
+                'auto',
+                '--skip-when-frames-cannot-change',
+            ],
+            {
+                'drivers': 'native',
+                'fail_on_difference': True,
+                'workers': 'auto',
+                'skip_when_frames_cannot_change': True,
+            },
+        ),
+        (
+            ['--drivers=dummy,cocoa', '--sound', '--workers=8', 'tests/scenes'],
+            {
+                'drivers': 'dummy,cocoa',
+                'sound': True,
+                'workers': '8',
+                'selection': ('tests/scenes',),
+            },
         ),
     ],
     ids=['nothing', 'the-pre-push-hooks', 'by-hand'],
 )
 def test_compare_drivers_reads_its_options(posargs, expected):
-    """--drivers, --sound and --fail-on-difference are taken out; the rest selects tests."""
+    """--drivers, --sound, --fail-on-difference and --workers are taken out; the rest selects.
+
+    Without --workers each run has four (the by-hand matrix keeps the machine usable).
+    """
     import noxfile
 
-    assert noxfile._compare_drivers_arguments(RecordingSession(posargs=posargs)) == expected
+    defaults = {
+        'drivers': None,
+        'sound': False,
+        'fail_on_difference': False,
+        'workers': '4',
+        'skip_when_frames_cannot_change': False,
+        'selection': (),
+    }
+
+    options = noxfile._compare_drivers_arguments(RecordingSession(posargs=posargs))
+
+    assert options == noxfile._CompareDriversOptions(**{**defaults, **expected})
+
+
+@pytest.mark.parametrize('posargs', [['--workers', 'zero'], ['--workers=0'], ['--workers']])
+def test_compare_drivers_refuses_a_worker_count_that_is_not_one(posargs):
+    """--workers takes a whole number of at least 1, or auto (every core, as xdist counts)."""
+    import noxfile
+
+    with pytest.raises(RuntimeError, match='--workers'):
+        noxfile._compare_drivers_arguments(RecordingSession(posargs=posargs))
+
+
+@pytest.mark.parametrize('workers', ['4', 'auto'])
+def test_each_comparison_run_has_the_workers_asked_for(workers):
+    """The worker count reaches each run's pytest as ``-n``."""
+    import noxfile
+
+    session = RecordingSession(posargs=[])
+
+    noxfile._run_fingerprinted_tests(
+        session,
+        configuration={'environment': {}, 'runs_in_linux_container': False},
+        directory=Path('runs/dummy-1'),
+        arguments=[],
+        settings=noxfile._RunSettings(workers=workers),
+    )
+
+    (command,) = session.commands
+    assert command[command.index('-n') + 1] == workers
+
+
+def test_the_pre_push_comparison_runs_on_every_core():
+    """The hook's runs use every core (2026-11-13: 10 minutes instead of 19 at four workers).
+
+    A push is waited for; the by-hand matrix keeps four workers so the machine stays usable.
+    """
+    hooks = (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
+
+    assert (
+        'entry: uv run --extra dev nox -s compare-drivers -- --drivers native '
+        '--fail-on-difference --workers auto --skip-when-frames-cannot-change'
+    ) in hooks
+
+
+@pytest.mark.parametrize(
+    ('path', 'cannot_change_frames'),
+    [
+        ('plans/2026-11-13-zensical-migration.md', True),
+        ('docs/quality/driver_comparison.md', True),
+        ('quality/replay-ledger/abc-row.json', True),
+        ('.circleci/config.yml', True),
+        ('.github/workflows/lint.yml', True),
+        ('BUGS.md', True),
+        ('CLAUDE.md', True),
+        ('src/glitchygames/scenes/__init__.py', False),
+        ('tests/test_process.py', False),
+        ('scripts/golden_inputs.py', False),
+        ('src/games/paddleslap/README.md', False),
+        ('uv.lock', False),
+        ('pyproject.toml', False),
+        ('noxfile.py', False),
+        ('conftest.py', False),
+    ],
+)
+def test_only_plans_docs_ledger_rows_ci_and_root_markdown_cannot_change_a_frame(
+    path, cannot_change_frames
+):
+    """An allowlist: a path not on it (a new directory included) is compared.
+
+    A frame is what a test presents: the engine, games, apps, demos, tests, the scripts tests
+    import, the dependencies and the suite's configuration can change one. Docs a test checks
+    (zensical.yml's nav) can fail a test, which test-random catches; never a frame.
+    """
+    import noxfile
+
+    assert noxfile._path_cannot_change_frames(path=path) is cannot_change_frames
+
+
+@pytest.mark.parametrize(
+    ('from_reference', 'expected_base'),
+    [('a' * 40, 'a' * 40), ('0' * 40, 'merge-base-commit')],
+    ids=['an-updated-branch', 'a-new-branch'],
+)
+def test_a_push_names_the_paths_it_changes(mocker, monkeypatch, from_reference, expected_base):
+    """The range pre-commit gives a pre-push hook; a new branch's starts where it left main."""
+    import noxfile
+
+    monkeypatch.setenv('PRE_COMMIT_FROM_REF', from_reference)
+    monkeypatch.setenv('PRE_COMMIT_TO_REF', 'b' * 40)
+    host_git = mocker.patch.object(
+        noxfile,
+        '_host_git',
+        side_effect=lambda session, *arguments, **options: (
+            'merge-base-commit\n' if arguments[0] == 'merge-base' else 'docs/a.md\nplans/b.md\n'
+        ),
+    )
+
+    paths = noxfile._pushed_paths(RecordingSession(posargs=[]))
+
+    assert paths == ['docs/a.md', 'plans/b.md']
+    assert host_git.call_args_list[-1].args[1:] == ('diff', '--name-only', expected_base, 'b' * 40)
+
+
+def test_outside_a_push_no_paths_are_known(monkeypatch):
+    """By hand (no pre-commit range) the comparison always runs."""
+    import noxfile
+
+    monkeypatch.delenv('PRE_COMMIT_FROM_REF', raising=False)
+    monkeypatch.delenv('PRE_COMMIT_TO_REF', raising=False)
+
+    assert noxfile._pushed_paths(RecordingSession(posargs=[])) is None
+
+
+def test_git_failing_to_name_the_paths_means_the_comparison_runs(mocker, monkeypatch):
+    """A push whose range git cannot read (no origin/main here) is compared, never skipped."""
+    import noxfile
+    from nox.command import CommandFailed
+
+    monkeypatch.setenv('PRE_COMMIT_FROM_REF', '0' * 40)
+    monkeypatch.setenv('PRE_COMMIT_TO_REF', 'b' * 40)
+    mocker.patch.object(noxfile, '_host_git', side_effect=CommandFailed('no origin/main'))
+
+    assert noxfile._pushed_paths(RecordingSession(posargs=[])) is None
+
+
+@pytest.mark.parametrize(
+    ('paths', 'skipped'),
+    [
+        (['docs/a.md', 'BUGS.md'], True),
+        (['docs/a.md', 'src/glitchygames/process.py'], False),
+        ([], True),
+        (None, False),
+    ],
+    ids=['docs-only', 'code-too', 'nothing-changed', 'range-unknown'],
+)
+def test_the_comparison_is_skipped_only_when_no_pushed_path_can_change_a_frame(
+    mocker, paths, skipped
+):
+    """Skipped for a push of plans or docs alone (#187 ran 19 minutes for none); never unknown."""
+    import noxfile
+
+    mocker.patch.object(noxfile, '_pushed_paths', return_value=paths)
+
+    reason = noxfile._why_no_frame_can_change(RecordingSession(posargs=[]))
+
+    assert (reason is not None) is skipped
 
 
 @pytest.mark.parametrize(

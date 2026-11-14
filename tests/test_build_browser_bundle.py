@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 from scripts import build_browser_bundle
 from scripts.build_browser_bundle import (
+    DOCS_COLOR_SCHEMES,
     GAMES,
     PACKAGE_DIRECTORY,
     PYSCRIPT_RELEASE,
@@ -534,6 +535,14 @@ class TestMain:
         assert page.index('>Bitmappy</a>') > tools_heading
         assert all(page.index(f'>{title}</a>') < tools_heading for title in games)
 
+    def test_the_index_has_the_docs_header_bar(self):
+        """An indigo header bar like the docs', linking back to them."""
+        page = build_browser_bundle.site_index_page()
+        light, _dark = DOCS_COLOR_SCHEMES
+
+        assert f'--page-header-background: {light.header_background};' in page
+        assert '<header><a href="../">GlitchyGames</a></header>' in page
+
     def test_all_takes_no_game_arguments(self, tmp_path, capsys):
         wheel = tmp_path / WHEEL_NAME
         wheel.write_bytes(b'wheel')
@@ -675,6 +684,70 @@ def occupied_port() -> socket.socket:
     holder.bind(('127.0.0.1', 0))
     holder.listen()
     return holder
+
+
+def site_index() -> str:
+    """The play/ index page."""
+    return build_browser_bundle.site_index_page()
+
+
+def game_page() -> str:
+    """A game's page, rendered from the real template (browser/index.html)."""
+    template = (build_browser_bundle.BROWSER_DIRECTORY / 'index.html').read_text(encoding='utf-8')
+    return render_page(template=template, game='paddleslap')
+
+
+# Each page of ours, with the docs site's root relative to it (play/ and play/<game>/)
+OUR_PAGES = [
+    pytest.param(site_index, '../', id='play-index'),
+    pytest.param(game_page, '../../', id='game-page'),
+]
+
+
+@pytest.mark.parametrize(('page_maker', '_docs_root'), OUR_PAGES)
+def test_our_pages_wear_the_docs_colors_not_black(page_maker, _docs_root):
+    """The play/ index and each game's page have the docs site's light and dark colors.
+
+    The owner (2026-11-13): make the play/ page use the same color scheme as the docs pages,
+    not black, and then the canvas around the games too. Light by default, dark when the
+    reader's system asks for it.
+    """
+    page = page_maker()
+    light, dark = DOCS_COLOR_SCHEMES
+
+    assert 'background: #000' not in page
+    # Once each: a template comment naming a placeholder must not get the block filled in too
+    assert page.count(build_browser_bundle.docs_color_styles().rstrip()) == 1
+    light_rule = page.index(f':root[data-md-color-scheme={light.scheme}]')
+    dark_media = page.index('@media (prefers-color-scheme: dark)')
+    dark_rule = page.index(f':root[data-md-color-scheme={dark.scheme}]')
+    for colors, rule_start in ((light, light_rule), (dark, dark_rule)):
+        rule = page[rule_start : page.index('}', rule_start)]
+        assert f'--page-background: {colors.background};' in rule
+        assert f'--page-text: {colors.text};' in rule
+        assert f'--page-link: {colors.link};' in rule
+    # With no saved choice the system's dark setting picks the dark colors
+    media_rule = page[dark_media : page.index('}', page.index('{', dark_media) + 1)]
+    assert f'--page-background: {dark.background};' in media_rule
+    assert 'background: var(--page-background)' in page
+    assert 'color: var(--page-text)' in page
+
+
+@pytest.mark.parametrize(('page_maker', 'docs_root'), OUR_PAGES)
+def test_our_pages_follow_the_scheme_the_reader_picked_in_the_docs(page_maker, docs_root):
+    """A reader who toggled the docs to light or dark sees the same scheme on our pages.
+
+    Material keeps the choice in localStorage under its scope's path (the docs site's root) plus
+    ".__palette", as {"index": ..., "color": {"scheme": ...}}; the page reads that key and sets
+    the same attribute Material's pages carry, before the body is drawn.
+    """
+    page = page_maker()
+
+    assert page.count(build_browser_bundle.saved_scheme_script(docs_root=docs_root).strip()) == 1
+    assert "setAttribute('data-md-color-scheme', saved.color.scheme)" in page
+    # Reading storage can throw (private windows, blocked storage): the page still renders
+    assert 'try {' in page
+    assert page.index('<script>') < page.index('<body>')
 
 
 class TestServerPort:

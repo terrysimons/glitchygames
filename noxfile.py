@@ -1479,7 +1479,12 @@ _COMPARE_DRIVERS_FAILED = Path('test-results/driver-comparison/nox-failed')
 # second one at the same time (one by hand during a push's hook) deleted the first's runs under
 # it (a FileNotFoundError in its fingerprints) and was itself wrecked
 _COMPARE_DRIVERS_LOCK = Path('test-results/driver-comparison/compare-drivers.lock')
-_COMPARE_DRIVERS_WORKERS = 4
+# Each run's xdist workers without --workers: four, so the by-hand matrix (Docker, XQuartz)
+# leaves the machine usable (docs/quality/driver_comparison.md). The pre-push hook passes
+# --workers auto (every core): a push is waited for (2026-11-13: 10 minutes instead of 19)
+_COMPARE_DRIVERS_WORKERS = '4'
+_WORKERS_OPTION = '--workers'
+_EVERY_CORE = 'auto'
 _COMPARE_DRIVERS_SEED = 20261023
 _FRAME_FINGERPRINTS_PLUGIN = 'glitchygames.testing.frame_fingerprints'
 # pytest's exit codes the comparison continues after: all passed, or some tests failed (a
@@ -1490,42 +1495,196 @@ _DRIVERS_OPTION = '--drivers'
 # two configurations (the pre-push hook passes it; by hand it only reports)
 _FAIL_ON_DIFFERENCE_OPTION = '--fail-on-difference'
 _SOUND_OPTION = '--sound'
+# The pre-push hook's: skip the comparison when no pushed path can change a frame
+_SKIP_WHEN_FRAMES_CANNOT_CHANGE_OPTION = '--skip-when-frames-cannot-change'
+# The paths whose changes cannot change a frame a test presents: plans, docs, the replay ledger's
+# rows, CI configuration, and Markdown at the repository's root (BUGS.md, CLAUDE.md, ...). An
+# allowlist: any other path (the engine, games, apps, demos, tests, the scripts tests import,
+# uv.lock, pyproject.toml, the suite's configuration, a directory added later) is compared. The
+# comparison judges frames only (a failing test is test-random's to catch), so a docs file a test
+# checks may fail that test but never change a frame
+_PATH_PREFIXES_THAT_CANNOT_CHANGE_FRAMES = ('plans/', 'docs/', 'quality/', '.circleci/', '.github/')
+# pre-commit's "from" for a branch new to the remote
+_NO_COMMIT_NAME_CHARACTERS = frozenset('0')
 
 
-def _compare_drivers_arguments(
-    session: nox.Session,
-) -> tuple[str | None, bool, bool, list[str]]:
-    """Read compare-drivers' arguments: ``--drivers A,B``, ``--sound``, ``--fail-on-difference``.
+@dataclasses.dataclass(frozen=True)
+class _CompareDriversOptions:
+    """compare-drivers' options, read from its arguments (``_compare_drivers_arguments``).
+
+    A dataclass, not pydantic: the noxfile runs in nox's own environment (CI's nox is a uv tool
+    without the project's packages).
+
+    Attributes:
+        drivers: The configurations asked for (None: every available one).
+        sound: The container plays its sound through the Mac's PulseAudio.
+        fail_on_difference: A driver difference fails the session (the pre-push hook).
+        workers: Each run's xdist workers: a whole number, or ``auto`` (every core).
+        skip_when_frames_cannot_change: Skip the comparison when no pushed path can change a
+            frame (the pre-push hook; ``_why_no_frame_can_change``).
+        selection: The remaining arguments (test paths; none: the suite).
+
+    """
+
+    drivers: str | None
+    sound: bool
+    fail_on_difference: bool
+    workers: str
+    skip_when_frames_cannot_change: bool
+    selection: tuple[str, ...]
+
+
+def _take_option_value(
+    session: nox.Session, *, arguments: list[str], option: str, what: str
+) -> str | None:
+    """Take ``OPTION VALUE`` or ``OPTION=VALUE`` out of ``arguments``; return the value.
+
+    Args:
+        session: The nox session (for a refusal).
+        arguments: The arguments (changed in place).
+        option: The option, e.g. ``--drivers``.
+        what: What its value is, for the refusal of a missing one.
+
+    Returns:
+        Its value, or None when it was not given.
+
+    """
+    for index, argument in enumerate(arguments):
+        if argument.startswith(f'{option}='):
+            del arguments[index]
+            return argument.partition('=')[2]
+        if argument == option:
+            if index + 1 >= len(arguments):
+                session.error(f'{option} takes {what}')
+            value = arguments[index + 1]
+            del arguments[index : index + 2]
+            return value
+    return None
+
+
+def _compare_drivers_arguments(session: nox.Session) -> _CompareDriversOptions:
+    """Read compare-drivers' options; the arguments left over select tests.
+
+    The options: ``--drivers A,B``, ``--sound``, ``--fail-on-difference``, ``--workers N|auto``,
+    ``--skip-when-frames-cannot-change``.
 
     Args:
         session: The nox session (its posargs).
 
     Returns:
-        The configurations asked for (None: every available one), whether the container plays
-        sound through PulseAudio, whether a driver difference fails the session, and the
-        remaining arguments (test paths; none: the suite).
+        The options.
 
     """
     arguments = list(session.posargs)
-    drivers = None
-    for index, argument in enumerate(arguments):
-        if argument.startswith(f'{_DRIVERS_OPTION}='):
-            drivers = argument.partition('=')[2]
-            del arguments[index]
-            break
-        if argument == _DRIVERS_OPTION:
-            if index + 1 >= len(arguments):
-                session.error(f'{_DRIVERS_OPTION} takes a comma-separated list')
-            drivers = arguments[index + 1]
-            del arguments[index : index + 2]
-            break
+    drivers = _take_option_value(
+        session, arguments=arguments, option=_DRIVERS_OPTION, what='a comma-separated list'
+    )
+    workers_what = f'a whole number of at least 1, or {_EVERY_CORE}'
+    workers = _take_option_value(
+        session, arguments=arguments, option=_WORKERS_OPTION, what=workers_what
+    )
+    if workers is None:
+        workers = _COMPARE_DRIVERS_WORKERS
+    elif workers != _EVERY_CORE and not (workers.isdigit() and int(workers) >= 1):
+        session.error(f'{_WORKERS_OPTION} takes {workers_what}, not {workers!r}')
     sound = _SOUND_OPTION in arguments
     if sound:
         arguments.remove(_SOUND_OPTION)
     fail_on_difference = _FAIL_ON_DIFFERENCE_OPTION in arguments
     if fail_on_difference:
         arguments.remove(_FAIL_ON_DIFFERENCE_OPTION)
-    return drivers, sound, fail_on_difference, arguments
+    skip_when_frames_cannot_change = _SKIP_WHEN_FRAMES_CANNOT_CHANGE_OPTION in arguments
+    if skip_when_frames_cannot_change:
+        arguments.remove(_SKIP_WHEN_FRAMES_CANNOT_CHANGE_OPTION)
+    return _CompareDriversOptions(
+        drivers=drivers,
+        sound=sound,
+        fail_on_difference=fail_on_difference,
+        workers=workers,
+        skip_when_frames_cannot_change=skip_when_frames_cannot_change,
+        selection=tuple(arguments),
+    )
+
+
+def _path_cannot_change_frames(*, path: str) -> bool:
+    """Tell whether a changed path cannot change a frame a test presents.
+
+    Args:
+        path: A repository path, as ``git diff --name-only`` prints it.
+
+    Returns:
+        True for a path under ``_PATH_PREFIXES_THAT_CANNOT_CHANGE_FRAMES``, or a Markdown file at
+        the repository's root; False for every other path.
+
+    """
+    return path.startswith(_PATH_PREFIXES_THAT_CANNOT_CHANGE_FRAMES) or (
+        '/' not in path and path.endswith('.md')
+    )
+
+
+def _pushed_paths(session: nox.Session) -> list[str] | None:
+    """Return the paths the push being checked changes, from pre-commit's range.
+
+    pre-commit gives a pre-push hook ``PRE_COMMIT_FROM_REF`` (the remote's commit, all zeros for
+    a branch new to it) and ``PRE_COMMIT_TO_REF`` (the commit pushed). A new branch's range
+    starts where it left ``origin/main``.
+
+    Args:
+        session: The nox session (to run git).
+
+    Returns:
+        The changed paths, or None when they are not known: not run by a push, or git could not
+        read the range (then the comparison runs).
+
+    """
+    to_reference = os.environ.get('PRE_COMMIT_TO_REF')
+    from_reference = os.environ.get('PRE_COMMIT_FROM_REF')
+    if not to_reference or not from_reference:
+        return None
+    try:
+        if set(from_reference) <= _NO_COMMIT_NAME_CHARACTERS:
+            from_reference = _host_git(session, 'merge-base', 'origin/main', to_reference).strip()
+        listing = _host_git(session, 'diff', '--name-only', from_reference, to_reference)
+    except CommandFailed:
+        return None
+    return [line for line in listing.splitlines() if line]
+
+
+def _why_no_frame_can_change(session: nox.Session) -> str | None:
+    """Say why the comparison can be skipped: no pushed path can change a frame.
+
+    Args:
+        session: The nox session (to run git).
+
+    Returns:
+        The reason, or None when the comparison must run (a path that can change a frame, or a
+        push whose paths are not known).
+
+    """
+    paths = _pushed_paths(session)
+    if paths is None:
+        return None
+    if not all(_path_cannot_change_frames(path=path) for path in paths):
+        return None
+    return (
+        f'No pushed path can change a frame ({len(paths)} changed, all plans, docs, ledger rows, '
+        'CI configuration or root Markdown): the driver comparison is skipped'
+    )
+
+
+@dataclasses.dataclass(frozen=True)
+class _RunSettings:
+    """What every run of a comparison shares.
+
+    Attributes:
+        workers: Each run's xdist workers (``--workers``: a whole number, or ``auto``).
+        container_audio_driver: The Linux container's audio driver (``dummy`` or
+            ``pulseaudio``).
+
+    """
+
+    workers: str
+    container_audio_driver: str = 'dummy'
 
 
 def _run_fingerprinted_tests(
@@ -1534,7 +1693,7 @@ def _run_fingerprinted_tests(
     configuration: dict[str, Any],
     directory: Path,
     arguments: list[str],
-    container_audio_driver: str = 'dummy',
+    settings: _RunSettings,
 ) -> None:
     """Run tests on one driver configuration with the frame fingerprints plugin.
 
@@ -1546,13 +1705,13 @@ def _run_fingerprinted_tests(
             ``PlannedConfiguration`` as JSON): its name, environment and where it runs.
         directory: The run's fingerprints directory (relative to the checkout).
         arguments: More pytest arguments (the test selection, the image request).
-        container_audio_driver: The container's audio driver (``dummy`` or ``pulseaudio``).
+        settings: Its workers and the container's audio driver.
 
     """
     environment: dict[str, str] = configuration['environment']
     pytest_arguments = [
         '-n',
-        str(_COMPARE_DRIVERS_WORKERS),
+        settings.workers,
         '--no-cov',
         '--log-cli-level=WARNING',
         f'--junitxml={directory}/junit.xml',
@@ -1574,7 +1733,7 @@ def _run_fingerprinted_tests(
                 *pytest_arguments,
             ],
             video_driver=environment['SDL_VIDEODRIVER'],
-            audio_driver=container_audio_driver,
+            audio_driver=settings.container_audio_driver,
             success_codes=_PYTEST_FINISHED_CODES,
         )
         return
@@ -1663,7 +1822,7 @@ def _run_timed_configurations(
     runs: list[tuple[dict[str, Any], str]],
     output: Path,
     arguments: list[str],
-    container_audio_driver: str,
+    settings: _RunSettings,
 ) -> Path:
     """Run the suite on each configuration, one after another, timing each run.
 
@@ -1672,7 +1831,7 @@ def _run_timed_configurations(
         runs: Each run's configuration and directory name.
         output: The comparison's folder.
         arguments: More pytest arguments (the test selection).
-        container_audio_driver: The container's audio driver.
+        settings: Each run's workers and the container's audio driver.
 
     Returns:
         The file of each run's seconds by its directory name (JSON).
@@ -1686,7 +1845,7 @@ def _run_timed_configurations(
             configuration=configuration,
             directory=output / directory_name,
             arguments=arguments,
-            container_audio_driver=container_audio_driver,
+            settings=settings,
         )
         run_seconds[directory_name] = time.monotonic() - started
         session.log(f'{directory_name}: {run_seconds[directory_name]:.0f} s')
@@ -1756,7 +1915,10 @@ def compare_drivers(session: nox.Session) -> None:
     frame each test presents. The suite runs twice on dummy (tests whose frames differ between
     those runs are nondeterministic: listed apart, never counted as driver differences; mark
     them `@pytest.mark.frames_vary(reason=...)`) and once on each other configuration, one run
-    after another with 4 workers each; scripts/driver_frame_matrix.py compares every pair. The
+    after another with 4 workers each (`-- --workers N`, or `-- --workers auto` for every core:
+    the pre-push hook's); scripts/driver_frame_matrix.py compares every pair. With
+    `--skip-when-frames-cannot-change` (the pre-push hook's) a push changing only paths that cannot
+    change a frame (`_path_cannot_change_frames`) is not compared. The
     differing tests are re-run on every configuration saving PNGs of their differing frames,
     and each differing pair gets a difference image (differing pixels magenta) under
     test-results/driver-comparison/nox/differences/<first>-vs-<second>/. The report,
@@ -1781,13 +1943,18 @@ def compare_drivers(session: nox.Session) -> None:
     run`), as a developer's `uv run pytest` does; each names its driver, so none starts a
     comparison of its own.
     """
-    drivers, sound, fail_on_difference, selection = _compare_drivers_arguments(session)
+    options = _compare_drivers_arguments(session)
+    if options.skip_when_frames_cannot_change:
+        reason = _why_no_frame_can_change(session)
+        if reason is not None:
+            session.log(reason)
+            return
     output = _COMPARE_DRIVERS_OUTPUT
     with _only_comparison(session, lock_path=_COMPARE_DRIVERS_LOCK):
         _set_aside_previous_comparison(output=output, previous=_COMPARE_DRIVERS_PREVIOUS)
         try:
             differing_tests = _compare_driver_configurations(
-                session, output=output, drivers=drivers, sound=sound, selection=selection
+                session, output=output, options=options
             )
         except BaseException:
             # Whatever ended it (a failed command, a refusal, Ctrl-C), the last complete
@@ -1801,7 +1968,7 @@ def compare_drivers(session: nox.Session) -> None:
             raise
         shutil.rmtree(_COMPARE_DRIVERS_PREVIOUS, ignore_errors=True)
     # A completed comparison: its report stays the last one, whatever this decides
-    if fail_on_difference and differing_tests:
+    if options.fail_on_difference and differing_tests:
         session.error(
             f'{len(differing_tests)} test(s) presented different frames on two driver '
             f'configurations: {", ".join(differing_tests)}. Report and difference images: '
@@ -1846,25 +2013,26 @@ def _only_comparison(session: nox.Session, *, lock_path: Path) -> Generator[None
 
 
 def _compare_driver_configurations(
-    session: nox.Session, *, output: Path, drivers: str | None, sound: bool, selection: list[str]
+    session: nox.Session, *, output: Path, options: _CompareDriversOptions
 ) -> list[str]:
     """Run compare-drivers' comparison into its (empty) folder: see ``compare_drivers``.
 
     Args:
         session: The nox session.
         output: The comparison's folder.
-        drivers: The configurations asked for (None: every available one).
-        sound: The container plays its sound through the Mac's PulseAudio.
-        selection: More pytest arguments (the test selection).
+        options: The session's options (drivers, sound, workers, test selection).
 
     Returns:
         The tests whose frames differ between configurations (nondeterministic and
         ``frames_vary`` tests left out), by node id; none when every configuration agrees.
 
     """
-    configurations = _plan_driver_configurations(session, drivers=drivers, output=output)
-    container_audio_driver = _prepare_driver_configurations(
-        session, configurations=configurations, sound=sound
+    configurations = _plan_driver_configurations(session, drivers=options.drivers, output=output)
+    settings = _RunSettings(
+        workers=options.workers,
+        container_audio_driver=_prepare_driver_configurations(
+            session, configurations=configurations, sound=options.sound
+        ),
     )
     runs = [
         (configuration, configuration['name'])
@@ -1876,8 +2044,8 @@ def _compare_driver_configurations(
         session,
         runs=runs,
         output=output,
-        arguments=selection,
-        container_audio_driver=container_audio_driver,
+        arguments=list(options.selection),
+        settings=settings,
     )
     matrix_command = [
         'uv',
@@ -1910,7 +2078,7 @@ def _compare_driver_configurations(
             configuration=configuration,
             directory=output / directory_name,
             arguments=[f'--frame-images-request={request}', f'@{tests_file}'],
-            container_audio_driver=container_audio_driver,
+            settings=settings,
         )
     session.run(
         *matrix_command,

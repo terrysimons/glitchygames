@@ -96,6 +96,8 @@ from glitchygames.recording import (
     RecordingWriteError,
     TraceRecordingAlreadyStartedError,
     custom_event_types_header,
+    discard_custom_events_queued_before_the_run,
+    discard_events_left_at_the_runs_end,
     forget_pending_posts,
     json_safe_value,
     pending_internal_posts,
@@ -241,6 +243,10 @@ SDL_DRIVER_VARIABLES = ('SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')
 # fullscreen window about 25% on a Raspberry Pi 4. SDL tries a list in order, so x11 still starts
 # when Wayland cannot
 WAYLAND_FIRST_VIDEO_DRIVERS = 'wayland,x11'
+# The video drivers whose window manager info is never asked for: pygame-ce 2.5.8's
+# pygame.display.get_wm_info() segfaults once a window is open on SDL's wayland driver (seen on a
+# Raspberry Pi 4, Ubuntu 26.10, GNOME), and the engine asks for it at every start
+VIDEO_DRIVERS_WITHOUT_WM_INFO = frozenset({'wayland'})
 # SDL's hint that turns its own SIGINT/SIGTERM handlers off (the engine owns the signals)
 SDL_NO_SIGNAL_HANDLERS_HINT = 'SDL_NO_SIGNAL_HANDLERS'
 # --video-driver's choices: SDL 2's video drivers by platform.system() name (SDL's own list,
@@ -1611,6 +1617,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # started late); _pump_events forgets the posts after each pump
         reset_internal_post_tracking()
         start_tracking_internal_posts()
+        # No custom event queued now is this run's: an earlier run in this process left it,
+        # and a recording or replay would take it for the run's own post (BUGS.md #276)
+        discard_custom_events_queued_before_the_run()
         # A live run is hosted: the outer game (glitchygames/host.py) reads through the live
         # doors and drives the frames. A replay has no host (its viewer is its outer game)
         self.host: GameHost | None = None
@@ -1955,7 +1964,13 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             (pygame.display.mode_ok(self.initial_resolution), self.mode_flags),
             self.mode_flags,
         )
-        self.log.info('Window Manager Info: %s', pygame.display.get_wm_info())
+        video_driver = pygame.display.get_driver()
+        if video_driver in VIDEO_DRIVERS_WITHOUT_WM_INFO:
+            self.log.info(
+                'Window Manager Info: not asked for on %s (pygame-ce crashes there)', video_driver
+            )
+        else:
+            self.log.info('Window Manager Info: %s', pygame.display.get_wm_info())
         self.log.info('Platform Timer Resolution: %s', pygame.TIMER_RESOLUTION)
 
     def print_game_info(self: Self, *, game: type[Scene] | Scene) -> None:
@@ -3564,6 +3579,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
     def _finish_the_teardown(self: Self) -> None:
         """Print the end-of-run reports (unless the replay restarts) and shut down pygame."""
+        # The run is over: nothing still queued is a later run's, even when the host keeps
+        # pygame running and so its queue (BUGS.md #276)
+        discard_events_left_at_the_runs_end()
         # A step back restarts the replay (glitchygames/replay/rebuild.py): not the end of the
         # run, so the end-of-run reports wait for the last replay
         if self.replay_sources is not None and self.replay_sources.result.restart_frame is not None:
