@@ -2,6 +2,7 @@
 
 import ast
 import csv
+import re
 from fractions import Fraction
 from functools import partial
 from pathlib import Path
@@ -3255,3 +3256,268 @@ def test_no_saxophone_name_held_back_for_a_feature_is_listed():
 def test_no_saxophone_sound_alike_changes_its_parents_build():
     """No saxophone sound-alike carries sound_changes: this batch adds none."""
     assert entries_with_sound_changes(Family.SAXOPHONES) == []
+
+
+# The expansion's audit sheets, one per batch, each row a name's decision for that batch
+# (plans/2026-11-07-instrument-catalog-expansion-design.md). The tests below are the expansion's
+# final audit (batch 19's plan, plans/2026-11-12-instrument-catalog-batch-19-implementation.md,
+# "Before the tasks" Step 6, made a tracked test after the expansion closed): every sheet row is
+# well formed, and each name's standing decision is what the catalog holds
+AUDIT_SHEET_DIRECTORY = Path(__file__).parents[2] / 'plans' / 'data' / 'instrument-audit'
+# Batches 1 to 19 wrote a sheet each; a later batch adds one, never removes one
+AUDIT_SHEETS_AT_THE_EXPANSIONS_CLOSE = 19
+AUDIT_STATUSES = frozenset({'SHIP', 'SOUND_ALIKE', 'MOVE', 'ALIAS', 'WAIT', 'DROP'})
+# The statuses that put a name in the catalog or its aliases: a later sheet's DROP of a name one of
+# these put there leaves it standing (batch 19's final review: whip crack, thunder sheet and ocean
+# drum shipped in batches 1 and 2 and were re-listed and dropped later as already shipped)
+SHIPPED_STATUSES = frozenset({'SHIP', 'SOUND_ALIKE', 'ALIAS'})
+# The statuses whose standing name is a catalog entry
+CATALOG_ENTRY_STATUSES = frozenset({'SHIP', 'SOUND_ALIKE', 'MOVE'})
+# A catalog name: lower-case words of letters and digits, single spaces between them
+AUDIT_NAME_PATTERN = re.compile(r'[a-z][a-z0-9]*( [a-z0-9]+)*')
+# The standing DROPs whose names the catalog holds, with the sheet that dropped each: names the
+# catalog listed before that sheet, which it dropped as already in the catalog without an earlier
+# sheet row to keep standing. Any other standing DROP the catalog holds is a sheet and the code
+# disagreeing
+STANDING_DROPS_THE_CATALOG_HOLDS: dict[str, str] = {
+    'vibraslap': 'batch-2.tsv',
+    'cuica': 'batch-2.tsv',
+    'whip': 'batch-2.tsv',
+    'singing bowl': 'batch-5.tsv',
+    'sackbut': 'batch-6.tsv',
+}
+
+
+class StandingDecision(NamedTuple):
+    """A name's standing audit row and the sheet it comes from."""
+
+    row: dict[str, str]
+    sheet: str
+
+
+def audit_sheets(directory: Path) -> list[Path]:
+    """List the batch-N.tsv sheets in a directory in batch order (batch-10 after batch-9).
+
+    Returns:
+        The sheet paths, sorted by N.
+    """
+    numbered = [
+        (int(match.group(1)), path)
+        for path in directory.glob('batch-*.tsv')
+        if (match := re.fullmatch(r'batch-([0-9]+)', path.stem))
+    ]
+    return [path for _, path in sorted(numbered)]
+
+
+def audit_sheet_rows(sheet: Path) -> list[dict[str, str]]:
+    """Read a sheet's rows, tab-separated with a header row, as the csv module reads them.
+
+    Returns:
+        One dict per row, keyed by the header's column names.
+    """
+    with sheet.open(encoding='utf-8', newline='') as sheet_file:
+        return list(csv.DictReader(sheet_file, delimiter='\t'))
+
+
+def standing_decisions(directory: Path) -> dict[str, StandingDecision]:
+    """Find each name's standing decision across the sheets, read in batch order.
+
+    A later sheet's row replaces an earlier one, except a DROP whose notes begin "Already decided"
+    (any case), which leaves the earlier row standing, and a DROP of a name an earlier sheet
+    shipped (SHIP, SOUND_ALIKE or ALIAS), which leaves that earlier row standing.
+
+    Returns:
+        Each name's standing row and its sheet's file name.
+    """
+    standing: dict[str, StandingDecision] = {}
+    for sheet in audit_sheets(directory):
+        for row in audit_sheet_rows(sheet):
+            name = row['name']
+            earlier = standing.get(name)
+            if row['status'] == 'DROP' and earlier is not None:
+                already_decided = row['notes'].lower().startswith('already decided')
+                if already_decided or earlier.row['status'] in SHIPPED_STATUSES:
+                    continue
+            standing[name] = StandingDecision(row=row, sheet=sheet.name)
+    return standing
+
+
+def write_audit_sheet(path: Path, rows: list[dict[str, str]]) -> None:
+    """Write rows as a tab-separated sheet with the columns every sheet has."""
+    columns = ['name', 'title', 'family', 'status', 'alias_of', 'waits_for', 'notes']
+    with path.open('w', encoding='utf-8', newline='') as sheet_file:
+        writer = csv.DictWriter(sheet_file, fieldnames=columns, delimiter='\t', restval='')
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def test_the_audit_reads_every_sheet_from_batch_1_on():
+    """The sheets are batch-1.tsv to batch-N.tsv with none missing, N at least 19.
+
+    So the audit below can not pass by reading no sheet, or by skipping one.
+    """
+    sheets = audit_sheets(AUDIT_SHEET_DIRECTORY)
+    assert len(sheets) >= AUDIT_SHEETS_AT_THE_EXPANSIONS_CLOSE
+    assert [sheet.name for sheet in sheets] == [
+        f'batch-{number}.tsv' for number in range(1, len(sheets) + 1)
+    ]
+
+
+def test_every_audit_sheet_row_is_well_formed():
+    """Every row has every column, a catalog-style name, a known status and what it needs.
+
+    A WAIT names what it waits for; an ALIAS or SOUND_ALIKE names its target. No sheet lists a
+    name twice.
+    """
+    problems = []
+    for sheet in audit_sheets(AUDIT_SHEET_DIRECTORY):
+        with sheet.open(encoding='utf-8', newline='') as sheet_file:
+            header, *records = list(csv.reader(sheet_file, delimiter='\t'))
+        problems += [
+            (sheet.name, record[0] if record else '', 'a row of the wrong length')
+            for record in records
+            if len(record) != len(header)
+        ]
+        rows = audit_sheet_rows(sheet)
+        names = [row['name'] for row in rows]
+        problems += [
+            (sheet.name, name, 'listed twice')
+            for name in sorted({name for name in names if names.count(name) > 1})
+        ]
+        for row in rows:
+            name = row['name']
+            if not AUDIT_NAME_PATTERN.fullmatch(name):
+                problems.append((sheet.name, name, 'not a catalog-style name'))
+            if row['status'] not in AUDIT_STATUSES:
+                problems.append((sheet.name, name, f'unknown status {row["status"]!r}'))
+            if row['status'] == 'WAIT' and not row['waits_for']:
+                problems.append((sheet.name, name, 'a WAIT without waits_for'))
+            if row['status'] in {'ALIAS', 'SOUND_ALIKE'} and not row['alias_of']:
+                problems.append((sheet.name, name, f'a {row["status"]} without alias_of'))
+    assert problems == []
+
+
+def test_every_standing_shipped_or_moved_name_is_the_catalog_entry_its_row_describes():
+    """A standing SHIP, SOUND_ALIKE or MOVE name is a catalog entry with its row's values.
+
+    The family, title, lowest and highest notes (empty for an unpitched entry) and, for a SHIP or
+    SOUND_ALIKE, the parent (empty for a SHIP) are the catalog's.
+    """
+    mismatches: list[tuple[str, ...]] = []
+    for name, (row, sheet) in standing_decisions(AUDIT_SHEET_DIRECTORY).items():
+        if row['status'] not in CATALOG_ENTRY_STATUSES:
+            continue
+        if name not in instruments.CATALOG:
+            mismatches.append((sheet, name, 'not a catalog entry'))
+            continue
+        catalog_entry = instruments.entry(name)
+        held = {
+            'family': str(catalog_entry.family),
+            'title': catalog_entry.title,
+            'lowest': catalog_entry.lowest or '',
+            'highest': catalog_entry.highest or '',
+        }
+        if row['status'] != 'MOVE':
+            held['alias_of'] = catalog_entry.sounds_like or ''
+        mismatches += [
+            (sheet, name, column, row[column], value)
+            for column, value in held.items()
+            if row[column] != value
+        ]
+    assert mismatches == []
+
+
+def test_every_standing_alias_names_the_target_its_row_gives():
+    """A standing ALIAS is a catalog alias of its row's alias_of."""
+    mismatches = [
+        (sheet, name, row['alias_of'], instruments.ALIASES.get(name))
+        for name, (row, sheet) in standing_decisions(AUDIT_SHEET_DIRECTORY).items()
+        if row['status'] == 'ALIAS' and instruments.ALIASES.get(name) != row['alias_of']
+    ]
+    assert mismatches == []
+
+
+def test_no_standing_wait_name_is_a_catalog_name_or_alias():
+    """A name still waiting is neither a catalog entry nor an alias."""
+    listed = [
+        (sheet, name)
+        for name, (row, sheet) in standing_decisions(AUDIT_SHEET_DIRECTORY).items()
+        if row['status'] == 'WAIT' and (name in instruments.CATALOG or name in instruments.ALIASES)
+    ]
+    assert listed == []
+
+
+def test_the_standing_drops_the_catalog_holds_are_the_known_ones():
+    """The standing DROPs whose names the catalog holds are exactly the table's."""
+    held = {
+        name: sheet
+        for name, (row, sheet) in standing_decisions(AUDIT_SHEET_DIRECTORY).items()
+        if row['status'] == 'DROP' and (name in instruments.CATALOG or name in instruments.ALIASES)
+    }
+    assert held == STANDING_DROPS_THE_CATALOG_HOLDS
+
+
+def test_a_later_sheet_replaces_an_earlier_decision_in_batch_order(tmp_path: Path):
+    """batch-10.tsv is read after batch-2.tsv, so its row for a name is the standing one."""
+    write_audit_sheet(
+        tmp_path / 'batch-10.tsv',
+        [{'name': 'kazoo', 'status': 'SHIP', 'family': 'flutes'}],
+    )
+    write_audit_sheet(
+        tmp_path / 'batch-2.tsv',
+        [{'name': 'kazoo', 'status': 'WAIT', 'waits_for': 'a sourced range'}],
+    )
+    (tmp_path / 'batch-notes.tsv').write_text('not a sheet', encoding='utf-8')
+
+    standing = standing_decisions(tmp_path)
+
+    assert [sheet.name for sheet in audit_sheets(tmp_path)] == ['batch-2.tsv', 'batch-10.tsv']
+    assert standing['kazoo'].row['status'] == 'SHIP'
+    assert standing['kazoo'].sheet == 'batch-10.tsv'
+
+
+def test_an_already_decided_drop_leaves_the_earlier_decision_standing(tmp_path: Path):
+    """A DROP whose notes begin "already decided" (any case) keeps the earlier WAIT standing.
+
+    A DROP with other notes replaces it, and an already-decided DROP of a name no earlier sheet
+    lists stands itself.
+    """
+    write_audit_sheet(
+        tmp_path / 'batch-1.tsv',
+        [
+            {'name': 'kazoo', 'status': 'WAIT', 'waits_for': 'a sourced range'},
+            {'name': 'ocarina', 'status': 'WAIT', 'waits_for': 'a sourced range'},
+        ],
+    )
+    write_audit_sheet(
+        tmp_path / 'batch-2.tsv',
+        [
+            {'name': 'kazoo', 'status': 'DROP', 'notes': 'ALREADY DECIDED: batch-1.tsv'},
+            {'name': 'ocarina', 'status': 'DROP', 'notes': 'Ambiguous name'},
+            {'name': 'whistle', 'status': 'DROP', 'notes': 'Already decided: in the catalog'},
+        ],
+    )
+
+    standing = standing_decisions(tmp_path)
+
+    assert (standing['kazoo'].row['status'], standing['kazoo'].sheet) == ('WAIT', 'batch-1.tsv')
+    assert (standing['ocarina'].row['status'], standing['ocarina'].sheet) == ('DROP', 'batch-2.tsv')
+    assert (standing['whistle'].row['status'], standing['whistle'].sheet) == ('DROP', 'batch-2.tsv')
+
+
+@pytest.mark.parametrize('shipped_status', sorted(SHIPPED_STATUSES))
+def test_a_later_drop_never_replaces_a_shipped_name(tmp_path: Path, shipped_status: str):
+    """A DROP of a name an earlier sheet shipped, whatever its notes, keeps the earlier row."""
+    write_audit_sheet(
+        tmp_path / 'batch-1.tsv',
+        [{'name': 'kazoo', 'status': shipped_status, 'alias_of': 'ocarina'}],
+    )
+    write_audit_sheet(
+        tmp_path / 'batch-2.tsv',
+        [{'name': 'kazoo', 'status': 'DROP', 'notes': 'Not a new instrument'}],
+    )
+
+    standing = standing_decisions(tmp_path)
+
+    assert standing['kazoo'].row['status'] == shipped_status
+    assert standing['kazoo'].sheet == 'batch-1.tsv'
