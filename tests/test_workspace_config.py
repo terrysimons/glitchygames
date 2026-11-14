@@ -18,6 +18,7 @@ import numpy as np
 import pygame
 import pytest
 import yaml
+from scripts.build_browser_bundle import DOCS_COLOR_SCHEMES
 from scripts.gen_ref_pages import reference_page_path
 from scripts.git_checkout import run_git
 from scripts.workspace_packages import (
@@ -285,6 +286,19 @@ def test_the_docs_site_shows_our_favicon():
     favicon = mkdocs_configuration()['theme']['favicon']
 
     assert (PROJECT_ROOT / 'docs' / favicon).is_file()
+
+
+def test_the_play_index_copies_the_docs_palette():
+    """play/'s index copies Material's colors for the docs' palette: if one changes, both must.
+
+    scripts/build_browser_bundle.py's ``DOCS_COLOR_SCHEMES`` holds the colors Material's CSS
+    gives the schemes and primary color zensical.yml names, in the same order.
+    """
+    palette = mkdocs_configuration()['theme']['palette']
+
+    assert [(entry['scheme'], entry['primary']) for entry in palette] == [
+        (colors.scheme, colors.primary) for colors in DOCS_COLOR_SCHEMES
+    ]
 
 
 def plugin_options(*, configuration: dict[str, Any], section: str) -> dict[str, Any]:

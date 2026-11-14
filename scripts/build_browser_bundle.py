@@ -59,6 +59,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import override
 
+from pydantic import BaseModel, ConfigDict
+
 from scripts.git_checkout import files_not_ignored
 from scripts.workspace_packages import workspace_members
 
@@ -99,6 +101,127 @@ TAB_ICON_LINK = (
     "<text x='8' y='12.5' font-size='12' font-family='monospace' font-weight='bold' "
     "text-anchor='middle' fill='%239cf'>G</text></svg>\">"
 )
+
+
+class PageColors(BaseModel):
+    """One of the docs site's color schemes, as Material's CSS draws it, for a page of ours.
+
+    Attributes:
+        scheme: Material's scheme name (``data-md-color-scheme``): ``default`` or ``slate``.
+        primary: The primary color zensical.yml names for the scheme.
+        background: The page background (Material's ``--md-default-bg-color``).
+        text: The body text (``--md-default-fg-color``).
+        link: Links (``--md-typeset-a-color``).
+        header_background: The header bar (``--md-primary-fg-color``).
+        header_text: The header bar's text (``--md-primary-bg-color``).
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    scheme: str
+    primary: str
+    background: str
+    text: str
+    link: str
+    header_background: str
+    header_text: str
+
+
+# The docs site's palette (zensical.yml's theme.palette: light, then dark, both indigo), with the
+# colors Material 9's palette.css and main.css give it (its hue is 225deg), so play/ looks like
+# the docs. tests/test_workspace_config.py fails when zensical.yml's palette changes
+DOCS_COLOR_SCHEMES = (
+    PageColors(
+        scheme='default',
+        primary='indigo',
+        background='#fff',
+        text='#000000de',
+        link='#4051b5',
+        header_background='#4051b5',
+        header_text='#fff',
+    ),
+    PageColors(
+        scheme='slate',
+        primary='indigo',
+        background='hsl(225deg 15% 14%)',
+        text='hsl(225deg 15% 90% / 82%)',
+        link='#5488e8',
+        header_background='#4051b5',
+        header_text='#fff',
+    ),
+)
+# How far up the docs site's root (Material's scope) is from each of our pages: play/ and
+# play/<game>/. Served alone (a local build) the page is at the root, and "../" there is the root
+SITE_INDEX_DOCS_ROOT = '../'
+GAME_PAGE_DOCS_ROOT = '../../'
+
+
+def saved_scheme_script(*, docs_root: str) -> str:
+    """Return a script applying the light/dark scheme the reader picked on the docs site.
+
+    Material keeps the choice in localStorage under its scope's path plus ".__palette", as
+    {"index": ..., "color": {"scheme": ...}}, and marks its pages with ``data-md-color-scheme``;
+    the script sets the same attribute, which the color rules (``docs_color_styles``) read.
+
+    Args:
+        docs_root: The docs site's root, relative to the page.
+
+    Returns:
+        The ``<script>`` element, indented for the page's ``<head>``.
+
+    """
+    return (
+        '  <script>\n'
+        '    try {\n'
+        f"      const key = new URL('{docs_root}', location).pathname + '.__palette';\n"
+        '      const saved = JSON.parse(localStorage.getItem(key));\n'
+        '      if (saved && saved.color && saved.color.scheme) {\n'
+        '        const root = document.documentElement;\n'
+        "        root.setAttribute('data-md-color-scheme', saved.color.scheme);\n"
+        '      }\n'
+        '    } catch (error) {\n'
+        '      // No storage (a private window, blocked site data): the system setting decides\n'
+        '    }\n'
+        '  </script>\n'
+    )
+
+
+def page_color_rule(*, selector: str, colors: PageColors) -> str:
+    """Return a CSS rule setting the page's color variables to one scheme's colors."""
+    color_scheme = 'dark' if colors.scheme == 'slate' else 'light'
+    return (
+        f'    {selector} {{ color-scheme: {color_scheme};\n'
+        f'      --page-background: {colors.background}; --page-text: {colors.text};\n'
+        f'      --page-link: {colors.link};\n'
+        f'      --page-header-background: {colors.header_background};\n'
+        f'      --page-header-text: {colors.header_text}; }}\n'
+    )
+
+
+def docs_color_styles() -> str:
+    """Return the CSS rules giving a page the docs site's colors as ``--page-*`` variables.
+
+    Light unless the system asks for dark; a scheme picked on the docs site (the attribute
+    ``saved_scheme_script`` sets) wins over both.
+
+    Returns:
+        The rules, indented for the page's ``<style>``.
+
+    """
+    light, dark = DOCS_COLOR_SCHEMES
+    light_picked = f':root[data-md-color-scheme={light.scheme}]'
+    dark_picked = f':root[data-md-color-scheme={dark.scheme}]'
+    dark_by_system = f':root:not({light_picked.removeprefix(":root")})'
+    return (
+        page_color_rule(selector=f':root, {light_picked}', colors=light)
+        + '    @media (prefers-color-scheme: dark) {\n'
+        + page_color_rule(selector=dark_by_system, colors=dark)
+        + '    }\n'
+        + page_color_rule(selector=dark_picked, colors=dark)
+    )
+
+
 DEFAULT_PORT = 8000
 # Without --port, the ports tried after DEFAULT_PORT is taken (another local server)
 FALLBACK_PORT_COUNT = 20
@@ -486,8 +609,13 @@ def render_page(*, template: str, game: str) -> str:
         The page.
 
     """
+    # The template has each block on a line of its own, which ends it
     return string.Template(template).substitute(
-        title=GAMES[game].title, pyscript_release=PYSCRIPT_RELEASE, tab_icon_link=TAB_ICON_LINK
+        title=GAMES[game].title,
+        pyscript_release=PYSCRIPT_RELEASE,
+        tab_icon_link=TAB_ICON_LINK,
+        saved_scheme_script=saved_scheme_script(docs_root=GAME_PAGE_DOCS_ROOT).removesuffix('\n'),
+        docs_color_styles=docs_color_styles().removesuffix('\n'),
     )
 
 
@@ -736,16 +864,26 @@ def site_index_page() -> str:
         '  <meta name="viewport" content="width=device-width, initial-scale=1">\n'
         '  <title>GlitchyGames in the browser</title>\n'
         f'  {TAB_ICON_LINK}\n'
+        '  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
+        '  <link rel="stylesheet"'
+        ' href="https://fonts.googleapis.com/css?family=Roboto:300,400,700&display=fallback">\n'
+        f'{saved_scheme_script(docs_root=SITE_INDEX_DOCS_ROOT)}'
         '  <style>\n'
-        '    :root { color-scheme: dark; }\n'
-        '    body { margin: 0; padding: 24px 16px; background: #000; color: #ddd;\n'
-        '           font-family: system-ui, sans-serif; }\n'
-        '    main { max-width: 40rem; margin: 0 auto; }\n'
-        '    a { color: #9cf; }\n'
+        f'{docs_color_styles()}'
+        '    body { margin: 0; background: var(--page-background); color: var(--page-text);\n'
+        '           font-family: Roboto, system-ui, sans-serif; }\n'
+        '    header { background: var(--page-header-background); padding: 0.75rem 16px;\n'
+        '             font-size: 1.1rem; font-weight: 700;\n'
+        '             box-shadow: 0 0 0.2rem #0000001a, 0 0.2rem 0.4rem #0003; }\n'
+        '    header a { color: var(--page-header-text); text-decoration: none; }\n'
+        '    main { max-width: 40rem; margin: 0 auto; padding: 24px 16px; }\n'
+        '    h1, h2 { font-weight: 300; }\n'
+        '    main a { color: var(--page-link); }\n'
         '    li { margin: 0.5rem 0; font-size: 1.2rem; }\n'
         '  </style>\n'
         '</head>\n'
         '<body>\n'
+        '  <header><a href="../">GlitchyGames</a></header>\n'
         '  <main>\n'
         '    <h1>GlitchyGames in the browser</h1>\n'
         '    <p>Python and pygame-ce in WebAssembly (PyScript). The first load takes a few\n'
