@@ -3110,7 +3110,7 @@ or two and a halt, as measured above). Otherwise the tail loops into the game an
 500 ms from frame 0's first audio update. <code>--crt-power-on-sound off</code> plays the picture silently;
 the sound never plays where the picture does not (<code>--headless</code>, tests, replays, recordings).</p>
 <h2 id="the-instrument-catalog">The instrument catalog<a class="headerlink" href="#the-instrument-catalog" title="Permanent link">#</a></h2>
-<p><code>glitchygames.audio.instruments</code> holds 704 ready-made instruments in 23 families. Each is an
+<p><code>glitchygames.audio.instruments</code> holds 707 ready-made instruments in 23 families. Each is an
 ordinary <code>Instrument</code>, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:</p>
@@ -3145,8 +3145,8 @@ and renders offline like any other:</p>
 </tr>
 <tr>
 <td><code>saxophones</code></td>
-<td>8</td>
-<td>sopranino to contrabass, C melody</td>
+<td>11</td>
+<td>sopranino to contrabass, C melody, and 3 sound-alikes (soprillo saxophone, tubax in eb, heckelphone clarinet)</td>
 </tr>
 <tr>
 <td><code>double reeds</code></td>
@@ -3161,7 +3161,7 @@ and renders offline like any other:</p>
 <tr>
 <td><code>free reeds</code></td>
 <td>13</td>
-<td>accordions (dry, musette, bass), bandoneon, concertina, harmonicas, melodicas, sheng</td>
+<td>accordions (dry, musette, bass), bandoneon, concertina, harmonium, harmonicas, melodicas, sheng (no sound-alikes yet)</td>
 </tr>
 <tr>
 <td><code>brass</code></td>
@@ -3181,17 +3181,17 @@ and renders offline like any other:</p>
 <tr>
 <td><code>harps</code></td>
 <td>7</td>
-<td>concert, lever, wire-strung, triple harp, lyre, kora</td>
+<td>concert, celtic (lever), wire-strung, triple harp, lyre, kora, harp guitar (no sound-alikes yet)</td>
 </tr>
 <tr>
 <td><code>struck strings</code></td>
 <td>5</td>
-<td>hammered dulcimer, cimbalom, santur, yangqin, berimbau</td>
+<td>hammered dulcimer, cimbalom, santur, yangqin, berimbau (no sound-alikes yet)</td>
 </tr>
 <tr>
 <td><code>keyboards</code></td>
 <td>11</td>
-<td>pianos, harpsichords, clavichord, celesta, toy piano</td>
+<td>pianos, fortepiano, harpsichords, virginal, clavichord, celesta, toy piano (no sound-alikes yet)</td>
 </tr>
 <tr>
 <td><code>organs</code></td>
@@ -3264,8 +3264,8 @@ and renders offline like any other:</p>
 <li><code>instruments.ALIASES</code> (read-only, as <code>instruments.CATALOG</code> is) maps another name to its catalog
   name: <code>slapstick</code> to <code>whip</code>, <code>contralto</code> to <code>alto ah</code>, <code>boy soprano</code> to <code>treble ah</code>, <code>zanza</code> to
   <code>mbira</code>, <code>cylinder music box</code> and <code>disc music box</code> to <code>music box</code>, <code>wurlitzer electronic piano</code>
-  to <code>reed electric piano</code>, <code>hohner clavinet</code> to <code>clavinet</code>, <code>rain box</code> to <code>rain machine</code>, <code>horse
-  hooves</code> to <code>coconut shells</code>, <code>tavil</code> to <code>thavil</code> and <code>riq</code> to <code>daf</code> (120 in all, among them
+  to <code>reed electric piano</code>, <code>fender rhodes</code> to <code>tine electric piano</code>, <code>hohner clavinet</code> to
+  <code>clavinet</code>, <code>rain box</code> to <code>rain machine</code>, <code>horse hooves</code> to <code>coconut shells</code>, <code>tavil</code> to <code>thavil</code> and <code>riq</code> to <code>daf</code>, <code>richter harmonica</code> to <code>harmonica</code>, <code>pedal harp</code> to <code>concert harp</code> and <code>lever harp</code> to <code>celtic harp</code>, and thirteen names (<code>hackbrett</code>, <code>dulcemele</code>, <code>dultzimar</code>, <code>darushimaa</code>, <code>hakkebord</code>, <code>hakkebraet</code>, <code>hakkebrett</code>, <code>hackbraede</code>, <code>hammarharpa</code>, <code>oprekelj</code>, <code>cimbale</code>, <code>cymbaly</code>, <code>chimbaly</code>) to <code>hammered dulcimer</code>, and <code>soprillo</code> and <code>sopranissimo saxophone</code> to <code>soprillo saxophone</code> (140 in all, among them
   <code>kanun</code> to <code>qanun</code>, <code>ud</code> to <code>oud</code> and <code>neapolitan mandolin</code> to <code>mandolin</code>). <code>get</code> and <code>entry</code>
   resolve an alias, while <code>names</code> and <code>entries</code> list catalog names only.</li>
 <li>A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
@@ -3290,7 +3290,14 @@ and renders offline like any other:</p>
   of <code>heckelphone</code>) are in <code>double_reed_sound_alikes.py</code>, the builds in
   <code>double_reeds.py</code>; the clarinets' 1 (<code>c clarinet</code>, of <code>clarinet</code>) is in <code>clarinet_sound_alikes.py</code>, the builds in <code>clarinets.py</code>; the organs' 7 (<code>bourdon</code>, <code>salicional</code>, <code>voix celeste</code>, <code>organ oboe</code>, <code>organ
   krummhorn</code>, <code>organ tuba</code>, <code>posthorn</code>) are in <code>organ_sound_alikes.py</code>, the builds in <code>organs.py</code>;
-  and the bagpipes' table (<code>bagpipe_sound_alikes.py</code>) is empty so far (197 sound-alikes in all). A bagpipe's drones are fixed pitches inside its build, so a bagpipe
+  the bagpipes' table (<code>bagpipe_sound_alikes.py</code>) is empty so far, and so are the keyboards'
+  (<code>keyboard_sound_alikes.py</code>, the builds in <code>keyboards.py</code>) and the free reeds'
+  (<code>free_reed_sound_alikes.py</code>, the builds in <code>free_reeds.py</code>), the harps' (<code>harp_sound_alikes.py</code>, the builds in <code>harps.py</code>) and the struck
+  strings' (<code>struck_sound_alikes.py</code>, the builds in <code>struck_strings.py</code>); the saxophones' 3
+  (<code>soprillo saxophone</code>, of <code>sopranino saxophone</code>, <code>tubax in eb</code>, of <code>contrabass saxophone</code>, and
+  <code>heckelphone clarinet</code>, of <code>alto saxophone</code>) are in <code>saxophone_sound_alikes.py</code>, the builds in
+  <code>saxophones.py</code>. <code>electromechanical.py</code> holds the
+  electromechanical instruments that shared that module. There are 200 sound-alikes in all. A bagpipe's drones are fixed pitches inside its build, so a bagpipe
   sound-alike in another tuning would carry its own drones as <code>sound_changes</code> (each at the pitch
   its source gives, equal-tempered like the chanter).</li>
 <li>Each entry has a <code>title</code>, a <code>family</code> and its playing range, <code>lowest</code> and <code>highest</code> (sounding
@@ -3344,7 +3351,7 @@ line. A sound rendered alone is its compiled buffer, bit for bit.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 04:26:49 UTC">November 14, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 06:29:12 UTC">November 14, 2026</span>
   </span>
 
     
