@@ -1,13 +1,12 @@
-"""Woodwinds: clarinets, saxophones and free reeds.
+"""Woodwinds: saxophones and free reeds.
 
-The flutes are in the sibling module ``flutes.py``, the double reeds in ``double_reeds.py``, the
-bagpipes in ``bagpipes.py``.
+The flutes are in the sibling module ``flutes.py``, the clarinets in ``clarinets.py``, the double
+reeds in ``double_reeds.py``, the bagpipes in ``bagpipes.py``.
 
-Ranges are sounding pitch (a B-flat clarinet's written C sounds B-flat), after the standard
-orchestration ranges (Adler, *The Study of Orchestration*; Vienna Symphonic Library's instrument
-pages); folk instruments' are typical of the common keys. Timbres follow the instruments'
-acoustics: a clarinet (a closed cylinder) favours odd harmonics, saxophones (cones) have every
-harmonic and are brighter, free reeds are bright and buzzy.
+Ranges are sounding pitch, after the standard orchestration ranges (Adler, *The Study of
+Orchestration*; Vienna Symphonic Library's instrument pages); folk instruments' are typical of the
+common keys. Timbres follow the instruments' acoustics: saxophones (cones) have every harmonic and
+are brighter, free reeds are bright and buzzy.
 """
 
 from __future__ import annotations
@@ -20,95 +19,6 @@ from glitchygames.audio.instruments.timbres import blown, falling_series
 
 if TYPE_CHECKING:
     from glitchygames.audio.instrument import Instrument
-
-# --- Clarinets ------------------------------------------------------------------------------
-
-
-def _clarinet(*, slope: float, low_pass: float) -> Instrument:
-    # A closed cylinder: odd harmonics, with only a trace of the even ones
-    return blown(
-        falling_series(count=16, decibels_per_octave=slope, even_level=0.1),
-        attack=0.025,
-        release=0.07,
-        breath=0.012,
-        low_pass=low_pass,
-    )
-
-
-CLARINETS: Final[tuple[CatalogEntry, ...]] = (
-    CatalogEntry(
-        'e flat clarinet',
-        'E-flat clarinet',
-        Family.CLARINETS,
-        'G3',
-        'C7',
-        partial(_clarinet, slope=4.0, low_pass=7000.0),
-    ),
-    CatalogEntry(
-        'clarinet',
-        'B-flat clarinet',
-        Family.CLARINETS,
-        'D3',
-        'Bb6',
-        partial(_clarinet, slope=5.0, low_pass=5500.0),
-    ),
-    CatalogEntry(
-        'a clarinet',
-        'A clarinet',
-        Family.CLARINETS,
-        'C#3',
-        'A6',
-        partial(_clarinet, slope=5.5, low_pass=5000.0),
-    ),
-    CatalogEntry(
-        'basset horn',
-        'Basset horn',
-        Family.CLARINETS,
-        'F2',
-        'F5',
-        partial(_clarinet, slope=6.5, low_pass=4000.0),
-    ),
-    CatalogEntry(
-        'alto clarinet',
-        'Alto clarinet',
-        Family.CLARINETS,
-        'G2',
-        'Bb5',
-        partial(_clarinet, slope=6.5, low_pass=3800.0),
-    ),
-    CatalogEntry(
-        'bass clarinet',
-        'Bass clarinet',
-        Family.CLARINETS,
-        'Bb1',
-        'F5',
-        partial(_clarinet, slope=7.0, low_pass=3000.0),
-    ),
-    CatalogEntry(
-        'contra alto clarinet',
-        'Contra-alto clarinet',
-        Family.CLARINETS,
-        'Gb1',
-        'G4',
-        partial(_clarinet, slope=7.5, low_pass=2500.0),
-    ),
-    CatalogEntry(
-        'contrabass clarinet',
-        'Contrabass clarinet',
-        Family.CLARINETS,
-        'Bb0',
-        'Bb3',
-        partial(_clarinet, slope=8.0, low_pass=2000.0),
-    ),
-    CatalogEntry(
-        'chalumeau',
-        'Chalumeau',
-        Family.CLARINETS,
-        'F3',
-        'Bb4',
-        partial(_clarinet, slope=8.0, low_pass=3000.0),
-    ),
-)
 
 # --- Saxophones -----------------------------------------------------------------------------
 
