@@ -1,7 +1,9 @@
 """Struck strings: hammered dulcimer, cimbalom, santur, yangqin and the berimbau.
 
 Harps are in the sibling module ``harps.py``, bowed strings (violins, viols, fiddles) in
-``bowed_strings.py``, plucked strings (guitars, basses, lutes) in ``plucked_strings.py``.
+``bowed_strings.py``, plucked strings (guitars, basses, lutes) in ``plucked_strings.py``. The
+family's sound-alikes, listed instruments that share another entry's build, are in
+``struck_sound_alikes.py``.
 
 Ranges are sounding pitch, after the common tunings of the instruments. Timbres: a hammered
 dulcimer is a plucked string's series (``plucked_series``) plucked near the string's end, with two
@@ -14,6 +16,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Final
 
 from glitchygames.audio.instruments.catalog import CatalogEntry, Family
+from glitchygames.audio.instruments.struck_sound_alikes import STRUCK_SOUND_ALIKES
 from glitchygames.audio.instruments.timbres import Course, Partial, plucked, plucked_series, struck
 
 if TYPE_CHECKING:
@@ -46,7 +49,7 @@ def _berimbau() -> Instrument:
     )
 
 
-STRUCK_STRINGS: Final[tuple[CatalogEntry, ...]] = (
+_STRUCK_BUILDS: Final[tuple[CatalogEntry, ...]] = (
     CatalogEntry(
         'hammered dulcimer',
         'Hammered dulcimer',
@@ -81,3 +84,5 @@ STRUCK_STRINGS: Final[tuple[CatalogEntry, ...]] = (
     ),
     CatalogEntry('berimbau', 'Berimbau', Family.STRUCK_STRINGS, 'A2', 'C3', _berimbau),
 )
+
+STRUCK_STRINGS: Final[tuple[CatalogEntry, ...]] = _STRUCK_BUILDS + STRUCK_SOUND_ALIKES

@@ -2,7 +2,7 @@
 
 A free reed is a tongue swinging through a closely fitting slot (Hornbostel-Sachs 412.13). The
 family's sound-alikes, listed instruments that share another entry's build, are in
-``free_reed_sound_alikes.py``. The saxophones are in the sibling module ``winds.py``.
+``free_reed_sound_alikes.py``. The saxophones are in the sibling module ``saxophones.py``.
 
 Ranges are sounding pitch, after the standard orchestration ranges (Adler, *The Study of
 Orchestration*; Vienna Symphonic Library's instrument pages); folk instruments' are typical of the

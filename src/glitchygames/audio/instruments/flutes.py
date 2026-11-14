@@ -5,7 +5,7 @@ transverse, end-blown, duct and vessel flutes and the panpipes). The spec's boun
 duck calls, signal whistles and the hydraulophone here too. The family's sound-alikes, listed
 instruments that share another entry's build, are in ``flute_sound_alikes.py``. The double reeds
 are in the sibling module ``double_reeds.py``, the bagpipes in ``bagpipes.py``, the clarinets in
-``clarinets.py``, the saxophones in ``winds.py`` and the free reeds in ``free_reeds.py``.
+``clarinets.py``, the saxophones in ``saxophones.py`` and the free reeds in ``free_reeds.py``.
 
 Ranges are sounding pitch, after the standard orchestration ranges (Adler, *The Study of
 Orchestration*; Vienna Symphonic Library's instrument pages); folk instruments' are typical of the

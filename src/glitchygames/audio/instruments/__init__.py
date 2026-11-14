@@ -98,20 +98,19 @@ only where a source presents the name as the conch itself.
 Double reeds (25 entries) hold the family's builds in ``double_reeds.py`` (``oboe``, ``english
 horn``, ``bassoon``, ``contrabassoon``, ``heckelphone``, ``sarrusophone``, the shawms, the
 crumhorns, ``suona``, ``zurna``, ``duduk``) and their sound-alikes in
-``double_reed_sound_alikes.py`` (``contraforte`` and ``contrabassoon``, ``piccolo heckelphone``
-and ``heckelphone``). ``winds.py`` keeps the saxophones and ``free_reeds.py`` the free reeds. The
+``double_reed_sound_alikes.py`` (``contraforte`` and ``contrabassoon``, ``piccolo heckelphone`` and
+``heckelphone``). ``saxophones.py`` holds the saxophones and ``free_reeds.py`` the free reeds. The
 family is pitched, so each sound-alike gives its own sourced range (sounding, stated, never hedged,
-"comfortable" or "theoretical"). A double reed whose range no
-source states waits (most of them, among them the other sarrusophone sizes, the folk shawms and
-``aulos``; ``balaban`` waits for a build that models its cylindrical bore), and ``piri`` stays as
-the approximation it was, never a parent. ``cor anglais``,
-``fagott``, ``bombard`` and eight more names are aliases.
+"comfortable" or "theoretical"). A double reed whose range no source states waits (most of them,
+among them the other sarrusophone sizes, the folk shawms and ``aulos``; ``balaban`` waits for a
+build that models its cylindrical bore), and ``piri`` stays as the approximation it was, never a
+parent. ``cor anglais``, ``fagott``, ``bombard`` and eight more names are aliases.
 
 Bagpipes (9 entries) hold the family's builds in ``bagpipes.py`` (``highland bagpipe``, ``uilleann
 pipes``, ``border pipes``, ``galician gaita``, ``bulgarian gaida``, ``musette de cour`` and
 ``sackpipa``, the family's first cylindrical chanter) and their sound-alikes in
-``bagpipe_sound_alikes.py`` (none yet). ``winds.py`` keeps the saxophones and ``free_reeds.py`` the
-free reeds. A bagpipe's drones are fixed pitches inside its build, so a sound-alike in another
+``bagpipe_sound_alikes.py`` (none yet). ``saxophones.py`` holds the saxophones and ``free_reeds.py``
+the free reeds. A bagpipe's drones are fixed pitches inside its build, so a sound-alike in another
 tuning carries its own drones as ``sound_changes``. The family is pitched, so a sound-alike gives
 its own sourced range (sounding, stated, never hedged) and sourced drones. A bagpipe whose range no
 source states waits (nearly all of them), and ``scottish smallpipes`` joins ``piri`` as an
@@ -121,14 +120,30 @@ pipes``, ``half long pipes`` and ``gaita galega`` are aliases.
 Clarinets (10 entries) hold the family's builds in ``clarinets.py`` (``e flat clarinet``,
 ``clarinet``, ``a clarinet``, ``basset horn``, the alto to contrabass clarinets and ``chalumeau``)
 and their sound-alikes in ``clarinet_sound_alikes.py`` (``c clarinet``, of ``clarinet``).
-``winds.py`` keeps the saxophones and ``free_reeds.py`` the free reeds. A clarinet is a single reed
-on a cylindrical bore (a conical one is a saxophone), which favours the odd harmonics, so a clarinet
-of another key or size is a sound-alike of the catalog clarinet its own source relates it to, or
-else of the catalog clarinet (``chalumeau`` excluded) whose lowest note is nearest its own, and
-gives its own sourced range (sounding, a written range only with its stated transposition). No drone
-or detuned double clarinet shipped, so no clarinet carries drones. A clarinet whose range no source
-states waits (34 names), the tenor and contrabass ``birbyne`` wait for a sourced reed and bore (2
-names) and 4 names wait for their target (40 waits in all).
+``saxophones.py`` holds the saxophones and ``free_reeds.py`` the free reeds. A clarinet is a single
+reed on a cylindrical bore (a conical one is a saxophone), which favours the odd harmonics, so a
+clarinet of another key or size is a sound-alike of the catalog clarinet its own source relates it
+to, or else of the catalog clarinet (``chalumeau`` excluded) whose lowest note is nearest its own,
+and gives its own sourced range (sounding, a written range only with its stated transposition). No
+drone or detuned double clarinet shipped, so no clarinet carries drones. A clarinet whose range no
+source states waits (34 names), the tenor and contrabass ``birbyne`` wait for a sourced reed and
+bore (2 names) and 4 names wait for their target (40 waits in all).
+
+Saxophones (11 entries) hold the family's builds in ``saxophones.py`` (``sopranino saxophone``,
+``soprano saxophone``, ``alto saxophone``, ``c melody saxophone``, ``tenor saxophone``,
+``baritone saxophone``, ``bass saxophone`` and ``contrabass saxophone``) and their sound-alikes in
+``saxophone_sound_alikes.py`` (``soprillo saxophone`` of ``sopranino saxophone``, ``tubax in eb``
+of ``contrabass saxophone`` and ``heckelphone clarinet`` of ``alto saxophone``). A saxophone is a
+single reed on a conical bore (Hornbostel-Sachs 422.212), while a cylindrical one is a clarinet.
+A key, a size, a shape, a material, keywork or a maker is no trait, so a conical single reed of
+another key, size or form is a sound-alike of the catalog saxophone its source relates it to, or
+else of the one whose lowest note is nearest its own, and gives its own sourced range (sounding,
+a written range only with its own source's transposition). No saxophone shipped as a new build,
+so none carries ``sound_changes``; one whose source gives it two pipes, a slide that replaces the
+keys, or a bore or bell that changes the sound waits for a build of its own once ranged, and a
+size below A0 waits for sub-audio fundamentals (``bb tubax``). Every other saxophone row waits for
+a sourced range (15 names), 7 were dropped, and ``soprillo`` and ``sopranissimo saxophone`` are
+aliases of ``soprillo saxophone``.
 
 Keyboards (11 entries) hold the family's builds in ``keyboards.py`` (``grand piano``, ``upright
 piano``, ``fortepiano``, ``harpsichord``, ``virginal``, ``clavichord``, ``celesta``, ``toy
@@ -163,7 +178,7 @@ range), so ``Tag.MECHANICAL`` is still only on the ``music box``.
 Free reeds (13 entries) hold the family's builds in ``free_reeds.py`` (``accordion``, ``musette
 accordion``, ``accordion bass``, ``bandoneon``, ``concertina``, ``harmonium``, the harmonicas, the
 melodicas and ``sheng``) and their sound-alikes in ``free_reed_sound_alikes.py`` (none yet).
-``winds.py`` now holds only the saxophones. A free reed is a tongue swinging through a closely
+The saxophones are in ``saxophones.py``. A free reed is a tongue swinging through a closely
 fitting slot, blown by bellows or the mouth. A layout, a key, a tuning, a chord, a register or a
 size is no trait, so a free reed of another form or size is a sound-alike of the catalog free reed
 its source relates it to, or else of the one whose lowest note is nearest its own, and gives its
@@ -176,16 +191,30 @@ alias of ``harmonica``.
 
 Harps (7 entries) hold the family's builds in ``harps.py`` (``concert harp``, ``celtic harp``,
 ``wire strung harp``, ``triple harp``, ``lyre``, ``kora`` and ``harp guitar``) and their
-sound-alikes in ``harp_sound_alikes.py`` (none yet). ``strings.py`` now holds only the struck
-strings. A harp's strings run perpendicular to its soundboard (Hornbostel-Sachs 322) and a
-harp-lute's at right angles to it across a notched bridge (323). A string count, rows, a tuning
-action, a tuning, a material, a size or a body is no trait, so a harp of another form or size is a
-sound-alike of the catalog harp its source relates it to (``kora`` for a harp-lute), or else of the
-frame harp whose lowest note is nearest its own, and gives its own sourced range (sounding, stated,
-never hedged). No harp shipped as a new build or sound-alike, so none carries ``sound_changes``,
-and a harp that needs bray pins, rattles or a drummed resonator waits. Every harp row waits for a
-sourced range (18 names) or for its target (5 names), 21 were dropped, and ``pedal harp``, ``lever
-harp`` and ``folk harp`` are aliases.
+sound-alikes in ``harp_sound_alikes.py`` (none yet). The struck strings are in
+``struck_strings.py``. A harp's strings run perpendicular to its soundboard (Hornbostel-Sachs 322)
+and a harp-lute's at right angles to it across a notched bridge (323). A string count, rows, a
+tuning action, a tuning, a material, a size or a body is no trait, so a harp of another form or size
+is a sound-alike of the catalog harp its source relates it to (``kora`` for a harp-lute), or else of
+the frame harp whose lowest note is nearest its own, and gives its own sourced range (sounding,
+stated, never hedged). No harp shipped as a new build or sound-alike, so none carries
+``sound_changes``, and a harp that needs bray pins, rattles or a drummed resonator waits. Every harp
+row waits for a sourced range (18 names) or for its target (5 names), 21 were dropped, and ``pedal
+harp``, ``lever harp`` and ``folk harp`` are aliases.
+
+Struck strings (5 entries) hold the family's builds in ``struck_strings.py`` (``hammered dulcimer``,
+``cimbalom``, ``santur``, ``yangqin`` and ``berimbau``) and their sound-alikes in
+``struck_sound_alikes.py`` (none yet). A struck string is sounded by a beater in the player's hand
+(Hornbostel-Sachs suffix 4: the hammered dulcimers, 314.122-4, and the struck bows, 311.12), while
+a keyed struck string is a keyboard. A string or course count, bridges, a tuning, a material, the
+beaters, a size or a body is no trait, so a struck string of another form or size is a sound-alike
+of the catalog struck string its source relates it to, or else of the one whose lowest note is
+nearest its own, and gives its own sourced range. No struck string shipped as a new build or
+sound-alike, so none carries ``sound_changes``. Every struck string row waits for a sourced range
+(17 names) or for its target (10 names), 27 were dropped, and the 13 names of the ``hammered
+dulcimer`` (``hackbrett``, ``dulcemele``, ``dultzimar``, ``darushimaa``, ``hakkebord``,
+``hakkebraet``, ``hakkebrett``, ``hackbraede``, ``hammarharpa``, ``oprekelj``, ``cimbale``,
+``cymbaly`` and ``chimbaly``) are aliases.
 
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and

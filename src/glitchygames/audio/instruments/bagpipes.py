@@ -6,7 +6,7 @@ or two, a double reed (an oboe, 422.1) or a single reed (a clarinet, 422.2), con
 cylindrical. A bagpipe's chanter sounds over fixed drones, and ranges are sounding pitch. The
 family's sound-alikes, listed instruments that share another entry's build, are in
 ``bagpipe_sound_alikes.py``. The clarinets are in the sibling module ``clarinets.py``, the double
-reeds in ``double_reeds.py``, the saxophones in ``winds.py`` and the free reeds in
+reeds in ``double_reeds.py``, the saxophones in ``saxophones.py`` and the free reeds in
 ``free_reeds.py``.
 """
 
