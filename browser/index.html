@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <!--
   GlitchyGames in the browser: the page template that `python -m scripts.build_browser_bundle` renders for one
-  game ($title, $pyscript_release, $tab_icon_link). PyScript loads Pyodide and GlitchyGames' own pygame-ce wheel
+  game ($$title, $$pyscript_release, $$tab_icon_link, $$saved_scheme_script, $$docs_color_styles: the
+  docs site's light and dark colors, as on the play/ index; "$$$$" in this comment keeps a name from
+  being filled in). PyScript loads Pyodide and GlitchyGames' own pygame-ce wheel
   (pyscript.toml), then browser/boot.py runs the game on this canvas.
   A plain main-thread <script type="py">, not PyScript's py-game: py-game always loads Pyodide's
   own pygame-ce first, which ours would then be unpacked over.
@@ -14,12 +16,14 @@
   $tab_icon_link
   <link rel="stylesheet" href="https://pyscript.net/releases/$pyscript_release/core.css">
   <script type="module" src="https://pyscript.net/releases/$pyscript_release/core.js"></script>
+$saved_scheme_script
   <style>
-    :root { color-scheme: dark; }
+$docs_color_styles
     /* No page selection: the game's own Ctrl/Cmd+A (select all in a text box) also reaches the
        page, since SDL leaves a key's default action alone while text input is on */
     body {
-      margin: 0; background: #000; color: #ddd; font-family: system-ui, sans-serif;
+      margin: 0; background: var(--page-background); color: var(--page-text);
+      font-family: system-ui, sans-serif;
       user-select: none; -webkit-user-select: none;
     }
     main { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px; }
@@ -28,13 +32,20 @@
     #canvas { display: block; image-rendering: pixelated; max-width: 100vw; }
     #start-overlay {
       position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
-      background: rgba(0, 0, 0, 0.6); font-size: 1.5rem; cursor: pointer;
+      background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 1.5rem; cursor: pointer;
     }
-    #status { font-size: 0.9rem; color: #999; }
+    #status { font-size: 0.9rem; opacity: 0.7; }
 
     /* Touch controls (touch_controls.js; shown on touch devices with body.touch). Portrait:
-       below the game; landscape: over its bottom corners, with the game as tall as the screen */
-    :root { --touch-button-size: 64px; }
+       below the game; landscape: over its bottom corners, with the game as tall as the screen.
+       Below the game they take the page's text color; over it, white */
+    :root {
+      --touch-button-size: 64px;
+      --touch-border: color-mix(in srgb, var(--page-text) 35%, transparent);
+      --touch-fill: color-mix(in srgb, var(--page-text) 12%, transparent);
+      --touch-pressed: color-mix(in srgb, var(--page-text) 40%, transparent);
+      --touch-text: var(--page-text);
+    }
     #touch-controls { display: none; }
     body.touch { touch-action: manipulation; }
     body.touch #touch-controls {
@@ -46,10 +57,10 @@
     .touch-button, .touch-gap { width: var(--touch-button-size); height: var(--touch-button-size); }
     .touch-button {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      border-radius: 18px; border: 2px solid rgba(255, 255, 255, 0.35);
-      background: rgba(255, 255, 255, 0.12); color: #eee; font-size: 1.35rem; line-height: 1.1;
+      border-radius: 18px; border: 2px solid var(--touch-border);
+      background: var(--touch-fill); color: var(--touch-text); font-size: 1.35rem; line-height: 1.1;
     }
-    .touch-button.pressed { background: rgba(255, 255, 255, 0.4); }
+    .touch-button.pressed { background: var(--touch-pressed); }
     .touch-key-name { font-size: 0.7rem; opacity: 0.75; }
     @media (orientation: landscape) {
       body.touch main { padding: 0; }
@@ -57,9 +68,10 @@
       body.touch #touch-controls {
         position: fixed; left: 0; right: 0; bottom: 0; max-width: none; padding: 12px;
         pointer-events: none;
+        --touch-border: rgba(255, 255, 255, 0.35); --touch-fill: rgba(255, 255, 255, 0.08);
+        --touch-pressed: rgba(255, 255, 255, 0.4); --touch-text: #eee;
       }
       body.touch .touch-cluster { pointer-events: auto; }
-      body.touch .touch-button { background: rgba(255, 255, 255, 0.08); }
     }
   </style>
 </head>
