@@ -260,122 +260,6 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
 
 ## Testing Guidelines
 
-- Use `pytest` assertions (not unittest style)
-- Tests use real pygame, the real display and real files (`tmp_path`); there are no shared mocks. Patch
-  only what cannot run in a test (hardware, network, third-party tools such as cookiecutter, the
-  clock, injected failures) with targeted pytest-mock `mocker` calls, and assert on what is drawn
-  (pixels), not on draw calls. Assertions must not assume the display's pixel format (cocoa's has
-  per-pixel alpha)
-- Test filenames: Use descriptive names, not generic suffixes like `_simple`
-- Sprite-file checks (equal row lengths, save round trips of timings, hitboxes, pixels, metadata
-  and transitions) are `glitchygames.testing.sprite_files`: the engine and every package that
-  ships sprites call its `check_*` functions on their own sprites instead of copying them
-- Wall-clock timings never belong in the normal suite (they flake under load and under `-n auto`):
-  assert the outcome, and measure time in a benchmark (`pytest --benchmark-only`,
-  `nox -s performance-test`)
-- `tests/test_engine_wheel.py` builds the engine's wheel and asserts it holds the engine alone
-  (its package, its four sounds and its two sprites, no member); `nox -s build-wheel` builds every
-  member's wheel
-- Tests import the installed packages (`uv sync` installs the engine and every member) and never
-  edit `sys.path`: `tests/test_suite_collection.py` fails on any `sys.path.insert` or
-  `sys.path.append` in a test file. A member's tests (`src/<layer>/<member>/tests/`, no
-  `__init__.py`) are rootless; pytest imports every test module and conftest under its path from
-  the repository root (`--import-mode=importlib`, `consider_namespace_packages = false`,
-  `pythonpath = ["."]`; D15 item 5: `src.apps.bitmappy.tests.test_bitmappy_film_strip` under
-  `uv run pytest` and nox alike, pinned by `test_bitmappy_test_module_names.py`), so no two names
-  collide, and a member's helper module is imported by its qualified path from
-  the repository root (`src.apps.bitmappy.tests.film_strip_support`), never by a bare name
-  (`test_no_member_test_imports_a_module_by_a_bare_name`). By convention every test file is
-  named `test_<distribution with - as _>*.py` (`test_mr_muncher_*.py`, `test_bitmappy_*.py`;
-  subdirectories included; `misnamed_member_test_modules` checks every member). A member's move
-  tests are one file per subject, six in all (`_logical_names`, `_install_location`, `_wheel`,
-  `_package_data`, `_entry_points`, `_recording_history`); a move test outside them goes beside
-  the member's other tests, named for its subject (`test_brave_adventurer_shared_core.py`). The
-  guards (the naming convention, the import mode and bare-name imports, and the member-import
-  guard) cover every member and every root test
-- The engine never imports a member, in its source or its tests: `tests/test_workspace_config.py`
-  (`engine_files_importing_a_member`) and `tests/test_suite_collection.py`
-  (`engine_test_imports_of_members`) fail on any import of one, at any level and by a literal
-  `importlib.import_module`/`__import__` string. An engine test that needs a game uses a
-  stand-in (`tests/stand_in_harness_games.py`, `tests/stand_in_games.py`) or discovers the members
-  through the workspace (`tests/workspace_goldens.py`) and asserts the hand-written expectations
-  in `tests/workspace_expectations.py` (which imports no `scripts.*`), which are edited when a
-  game, golden, bundled demo or console script is added. The only exemptions
-  (`MEMBER_IMPORT_EXEMPT_MODULES`, `MEMBER_IMPORT_EXEMPT_NAMES`,
-  each with its reason and date) are the golden-replay control tables
-  (`tests/replay/golden_replay_controls.py`) and the per-game world rules' named imports in
-  `tests/world/test_golden_traces.py`; a stale exemption fails too. The tools in `scripts/` are
-  out of scope
-- No engine test reaches `scripts/` (Part 3 Stage D, Task D9): `tests/test_suite_collection.py`
-  (`engine_tests_reaching_scripts`) follows every root test module's imports, at any level, by a
-  literal string, a bare `import scripts`, relative or through a package (its own included),
-  through the root tests' own helper modules, and through every `conftest.py` above it and the
-  plugins their `pytest_plugins` name (a fixture reaches a test by name), and fails naming the
-  shortest chain (`tests.x -> conftest -> tests.helper -> scripts.y`). Exempt by name: a
-  script's own test (`SCRIPT_TEST_FILES`, with the scripts it tests) and a file that holds only
-  tests of this repository itself (`REPOSITORY_TEST_FILES`, with its reason: the workspace, our
-  members' goldens, demos and console scripts, CI, the suite, and the source guards that scan
-  every member through `tests/workspace_sources.py`: `tests/test_engine_doors.py`,
-  `test_pump_seam_guard.py`, `test_unseeded_randomness_guard.py`,
-  `test_engine_context_source_guards.py`); a stale exemption (no file, no `scripts.*` reached, or
-  a script gone) fails too. A repository test never shares a file with engine tests: put it in
-  its own file, named for what it checks (`tests/engine/test_every_game_powers_on.py`). The shared
-  AST and import-graph helpers (`tests/ast_scanning.py`) import no `scripts.*`; what reads the
-  workspace is `tests/workspace_sources.py` and `tests/workspace_goldens.py`. The engine's own
-  source directory for the engine's tests is `tests/engine_source.py` (kept equal to
-  `scripts/workspace_packages.py`'s by `tests/test_workspace_packages.py`). No engine module
-  reaches `scripts/` either, directly or through another engine module
-  (`tests/test_workspace_config.py` `engine_modules_reaching_scripts`)
-- `tests/harness.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
-  plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`).
-- Real pads never reach tests: `tests/sdl_defaults.py` defaults SDL's macOS joystick drivers off
-  (`SDL_JOYSTICK_HIDAPI`, `SDL_JOYSTICK_MFI`, `SDL_JOYSTICK_IOKIT` = `0`; each alone finds pads),
-  so tests see only their stand-ins (`tests/input/stand_in_devices.py`); set one to `1` yourself
-  to test with a real pad. Windows' and Linux's joystick drivers are not covered
-- Driver comparison (`tests/driver_comparison.py`; frames recorded by
-  `src/glitchygames/testing/frame_fingerprints.py`, compared by
-  `src/glitchygames/testing/frame_comparison.py`, both shipped in the engine wheel, whose command
-  line is `scripts/compare_driver_frames.py`):
-  outside CI, `uv run pytest` (and `nox -s test`) also starts the same command on the native
-  driver (macOS cocoa + coreaudio, Windows windows, Linux wayland or x11 with dummy audio) as a
-  child run, the usual workers split between them (native two thirds), then compares every frame
-  each test presented and fails on a difference, re-running the differing tests on both drivers
-  to save PNGs and a difference image under `test-results/driver-comparison/pytest/` (the summary
-  names the files and the native run's log). Coverage and the 100% gate come from the dummy run.
-  Off (dummy only, said in the summary) in CI (`CI=true`), with `--dummy-only`, when you set
-  `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER` (that driver alone), and on Linux without a display. A test
-  whose frames legitimately differ between runs or drivers (measured frame times, the live
-  window's mouse focus) carries `@pytest.mark.frames_vary(reason=...)`: listed, not compared.
-  `nox -s compare-drivers` is the on-demand deeper check: an N-way matrix of dummy (run twice to
-  find nondeterministic tests), the native driver, `x11-macos` (x11 on XQuartz through an SDL
-  built with x11, `scripts/build_sdl_x11.py`) and `x11-linux` (Docker, forwarded to XQuartz);
-  it reports every pair in `test-results/driver-comparison/nox/matrix.md` without failing on a
-  difference; it fails, keeping the last complete report, when a run recorded no test
-  (`docs/quality/driver_comparison.md`)
-  On a real driver the test windows are hidden, so the machine's pointer and keys never reach a
-  test (`tests/hidden_test_windows.py`, BUGS.md #225; `GLITCHYGAMES_SHOW_TEST_WINDOWS=1` shows them)
-  After each test the variables, display and mixer a test moved off the run's drivers (a
-  constructed `--headless` engine moves them to `dummy`) are put back, the display showing the
-  canvas (`tests/sdl_driver_isolation.py`; a few microseconds when nothing changed)
-- A test that leaves a process running fails (`tests/child_process_guard.py`, the harness's
-  autouse `no_child_process_left_running`, BUGS.md #275): every child a test starts through
-  `subprocess.Popen` is recorded, and at teardown each one still running, every process in a
-  group one led (`start_new_session`) and every descendant of either is killed and named. Stop a
-  child you start with its whole group (`process.stop_command`); stop a child pytest run with
-  `stop_command(first_signal=signal.SIGINT)`, as Ctrl-C does, so its workers unwind and each
-  test's cleanup runs (SIGTERM kills a worker with no cleanup). The run's controller, and the
-  driver comparison after each child run (each with a `--basetemp` of its own), kill and list
-  any process naming the run's temporary directory, left by a worker killed outright.
-  `uv run python -m scripts.reproduce_orphaned_test_processes MODE WHEN` reproduces the stops
-- All tests run with `no_unhandled_events=True` to catch unhandled events as bugs
-- The test display rule (`tests/display_canvas.py`): every test starts on the canvas (the default
-  pattern; channel 3 with `GLITCHYGAMES_TEST_CANVAS=channel-3`), its display is presented after the
-  body, and a test whose last frame is entirely black fails as a rendering bug (opt-out:
-  `@pytest.mark.black_frame_expected(reason=...)`, only for a frame black by definition). Assert
-  untouched pixels with `canvas_color_at(x=..., y=...)`, never as black
-- Coverage minimum: 100% (each remaining miss is audited: dead code is removed, deliberate defensive lines carry a `# pragma: no cover` with the reason)
-- Run linting after modifying files
-- Check for real bugs before assuming test failures are test issues
 - Real pygame, real display, real files (`tmp_path`); no shared mocks. Patch only what can't run
   in a test (hardware, network, third-party tools, the clock, injected failures) with targeted
   `mocker` calls. Assert on pixels, not draw calls, without assuming the display's pixel format.
@@ -395,6 +279,12 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
   differing frame (PNGs in `test-results/driver-comparison/pytest/`). A test whose frames
   legitimately vary carries `@pytest.mark.frames_vary(reason=...)`.
   Docs: docs/quality/driver_comparison.md.
+- A test that leaves a process running fails (`tests/child_process_guard.py`, the harness's
+  autouse `no_child_process_left_running`, BUGS.md #275). Stop a child you start with its whole
+  group (`process.stop_command`), and a child pytest run with
+  `stop_command(first_signal=signal.SIGINT)`, as Ctrl-C does, so each test's cleanup runs
+  (SIGTERM kills a worker with no cleanup). `uv run python -m
+  scripts.reproduce_orphaned_test_processes MODE WHEN` reproduces the stops.
 - The display rule (`tests/display_canvas.py`): each test starts on the canvas pattern, and a test
   whose last frame is entirely black fails as a rendering bug (opt-out
   `@pytest.mark.black_frame_expected(reason=...)`). Assert untouched pixels with
