@@ -3110,7 +3110,7 @@ or two and a halt, as measured above). Otherwise the tail loops into the game an
 500 ms from frame 0's first audio update. <code>--crt-power-on-sound off</code> plays the picture silently;
 the sound never plays where the picture does not (<code>--headless</code>, tests, replays, recordings).</p>
 <h2 id="the-instrument-catalog">The instrument catalog<a class="headerlink" href="#the-instrument-catalog" title="Permanent link">#</a></h2>
-<p><code>glitchygames.audio.instruments</code> holds 703 ready-made instruments in 23 families. Each is an
+<p><code>glitchygames.audio.instruments</code> holds 704 ready-made instruments in 23 families. Each is an
 ordinary <code>Instrument</code>, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:</p>
@@ -3140,8 +3140,8 @@ and renders offline like any other:</p>
 </tr>
 <tr>
 <td><code>clarinets</code></td>
-<td>9</td>
-<td>E-flat to contrabass clarinet, basset horn, chalumeau</td>
+<td>10</td>
+<td>E-flat to contrabass clarinet, basset horn, chalumeau, and 1 sound-alike (c clarinet)</td>
 </tr>
 <tr>
 <td><code>saxophones</code></td>
@@ -3288,9 +3288,9 @@ and renders offline like any other:</p>
   <code>wagner tuba</code>, and <code>soprano trombone</code>, of <code>trumpet</code>) are in <code>brass_sound_alikes.py</code>, the builds in
   <code>brass.py</code>; and the double reeds' 2 (<code>contraforte</code>, of <code>contrabassoon</code>, and <code>piccolo heckelphone</code>,
   of <code>heckelphone</code>) are in <code>double_reed_sound_alikes.py</code>, the builds in
-  <code>double_reeds.py</code>; the organs' 7 (<code>bourdon</code>, <code>salicional</code>, <code>voix celeste</code>, <code>organ oboe</code>, <code>organ
+  <code>double_reeds.py</code>; the clarinets' 1 (<code>c clarinet</code>, of <code>clarinet</code>) is in <code>clarinet_sound_alikes.py</code>, the builds in <code>clarinets.py</code>; the organs' 7 (<code>bourdon</code>, <code>salicional</code>, <code>voix celeste</code>, <code>organ oboe</code>, <code>organ
   krummhorn</code>, <code>organ tuba</code>, <code>posthorn</code>) are in <code>organ_sound_alikes.py</code>, the builds in <code>organs.py</code>;
-  and the bagpipes' table (<code>bagpipe_sound_alikes.py</code>) is empty so far (196 sound-alikes in all). A bagpipe's drones are fixed pitches inside its build, so a bagpipe
+  and the bagpipes' table (<code>bagpipe_sound_alikes.py</code>) is empty so far (197 sound-alikes in all). A bagpipe's drones are fixed pitches inside its build, so a bagpipe
   sound-alike in another tuning would carry its own drones as <code>sound_changes</code> (each at the pitch
   its source gives, equal-tempered like the chanter).</li>
 <li>Each entry has a <code>title</code>, a <code>family</code> and its playing range, <code>lowest</code> and <code>highest</code> (sounding
@@ -3344,7 +3344,7 @@ line. A sound rendered alone is its compiled buffer, bit for bit.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 13, 2026 15:40:29 UTC">November 13, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 04:26:49 UTC">November 14, 2026</span>
   </span>
 
     
