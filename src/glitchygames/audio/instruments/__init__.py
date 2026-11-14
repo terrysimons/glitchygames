@@ -99,36 +99,36 @@ Double reeds (25 entries) hold the family's builds in ``double_reeds.py`` (``obo
 horn``, ``bassoon``, ``contrabassoon``, ``heckelphone``, ``sarrusophone``, the shawms, the
 crumhorns, ``suona``, ``zurna``, ``duduk``) and their sound-alikes in
 ``double_reed_sound_alikes.py`` (``contraforte`` and ``contrabassoon``, ``piccolo heckelphone``
-and ``heckelphone``). ``winds.py`` keeps the saxophones and free
-reeds. The family is pitched, so each sound-alike gives its own sourced range
-(sounding, stated, never hedged, "comfortable" or "theoretical"). A double reed whose range no
+and ``heckelphone``). ``winds.py`` keeps the saxophones and ``free_reeds.py`` the free reeds. The
+family is pitched, so each sound-alike gives its own sourced range (sounding, stated, never hedged,
+"comfortable" or "theoretical"). A double reed whose range no
 source states waits (most of them, among them the other sarrusophone sizes, the folk shawms and
 ``aulos``; ``balaban`` waits for a build that models its cylindrical bore), and ``piri`` stays as
 the approximation it was, never a parent. ``cor anglais``,
 ``fagott``, ``bombard`` and eight more names are aliases.
 
-Bagpipes (9 entries) hold the family's builds in ``bagpipes.py`` (``highland bagpipe``,
-``uilleann pipes``, ``border pipes``, ``galician gaita``, ``bulgarian gaida``, ``musette de cour``
-and ``sackpipa``, the family's first cylindrical chanter) and their sound-alikes in
-``bagpipe_sound_alikes.py`` (none yet). ``winds.py`` keeps the saxophones and free
-reeds. A bagpipe's drones are fixed pitches inside its build, so a sound-alike in another tuning
-carries its own drones as ``sound_changes``. The family is pitched, so a sound-alike gives its own
-sourced range (sounding, stated, never hedged) and sourced drones. A bagpipe whose range no source
-states waits (nearly all of them), and ``scottish smallpipes`` joins ``piri`` as an approximation
-(a cylindrical bore the build lacks), never a parent. ``irish pipes``, ``lowland pipes``, ``half
-long pipes`` and ``gaita galega`` are aliases.
+Bagpipes (9 entries) hold the family's builds in ``bagpipes.py`` (``highland bagpipe``, ``uilleann
+pipes``, ``border pipes``, ``galician gaita``, ``bulgarian gaida``, ``musette de cour`` and
+``sackpipa``, the family's first cylindrical chanter) and their sound-alikes in
+``bagpipe_sound_alikes.py`` (none yet). ``winds.py`` keeps the saxophones and ``free_reeds.py`` the
+free reeds. A bagpipe's drones are fixed pitches inside its build, so a sound-alike in another
+tuning carries its own drones as ``sound_changes``. The family is pitched, so a sound-alike gives
+its own sourced range (sounding, stated, never hedged) and sourced drones. A bagpipe whose range no
+source states waits (nearly all of them), and ``scottish smallpipes`` joins ``piri`` as an
+approximation (a cylindrical bore the build lacks), never a parent. ``irish pipes``, ``lowland
+pipes``, ``half long pipes`` and ``gaita galega`` are aliases.
 
 Clarinets (10 entries) hold the family's builds in ``clarinets.py`` (``e flat clarinet``,
-``clarinet``, ``a clarinet``, ``basset horn``, the alto to contrabass clarinets and
-``chalumeau``) and their sound-alikes in ``clarinet_sound_alikes.py`` (``c clarinet``, of
-``clarinet``). ``winds.py`` keeps the saxophones and free reeds. A clarinet is a single reed on a
-cylindrical bore (a conical one is a saxophone), which favours the odd harmonics, so a clarinet of
-another key or size is a sound-alike of the catalog clarinet its own source relates it to, or
+``clarinet``, ``a clarinet``, ``basset horn``, the alto to contrabass clarinets and ``chalumeau``)
+and their sound-alikes in ``clarinet_sound_alikes.py`` (``c clarinet``, of ``clarinet``).
+``winds.py`` keeps the saxophones and ``free_reeds.py`` the free reeds. A clarinet is a single reed
+on a cylindrical bore (a conical one is a saxophone), which favours the odd harmonics, so a clarinet
+of another key or size is a sound-alike of the catalog clarinet its own source relates it to, or
 else of the catalog clarinet (``chalumeau`` excluded) whose lowest note is nearest its own, and
-gives its own sourced range (sounding, a written range only with its stated transposition). No
-drone or detuned double clarinet shipped, so no clarinet carries drones. A clarinet whose range
-no source states waits (34 names), the tenor and contrabass ``birbyne`` wait for a sourced reed
-and bore (2 names) and 4 names wait for their target (40 waits in all).
+gives its own sourced range (sounding, a written range only with its stated transposition). No drone
+or detuned double clarinet shipped, so no clarinet carries drones. A clarinet whose range no source
+states waits (34 names), the tenor and contrabass ``birbyne`` wait for a sourced reed and bore (2
+names) and 4 names wait for their target (40 waits in all).
 
 Keyboards (11 entries) hold the family's builds in ``keyboards.py`` (``grand piano``, ``upright
 piano``, ``fortepiano``, ``harpsichord``, ``virginal``, ``clavichord``, ``celesta``, ``toy
@@ -159,6 +159,20 @@ range is its keys at 8' pitch. A stop whose footage no source gives, whose sound
 (16 names are held back for such a reason), and ``open diapason``, ``organ trompette``, ``air
 calliope`` and ``calliaphone`` are aliases. No self-playing organ shipped (each waits for a sourced
 range), so ``Tag.MECHANICAL`` is still only on the ``music box``.
+
+Free reeds (13 entries) hold the family's builds in ``free_reeds.py`` (``accordion``, ``musette
+accordion``, ``accordion bass``, ``bandoneon``, ``concertina``, ``harmonium``, the harmonicas, the
+melodicas and ``sheng``) and their sound-alikes in ``free_reed_sound_alikes.py`` (none yet).
+``winds.py`` now holds only the saxophones. A free reed is a tongue swinging through a closely
+fitting slot, blown by bellows or the mouth. A layout, a key, a tuning, a chord, a register or a
+size is no trait, so a free reed of another form or size is a sound-alike of the catalog free reed
+its source relates it to, or else of the one whose lowest note is nearest its own, and gives its
+own sourced range (sounding, a written range only with its stated transposition). A sourced
+detune or octave reed set is a sound change, and a droned reed sounds its sourced drones. No free
+reed shipped as a new build or sound-alike, so none carries a detune, a reed set or drones, and
+``Tag.MECHANICAL`` is still only on the ``music box``. Every free reed row waits for a sourced
+range (43 names) or for its target (15 names), 8 were dropped and ``richter harmonica`` is an
+alias of ``harmonica``.
 
 Tuned percussion (36 entries) holds the family's builds in ``percussion.py`` (glockenspiel,
 xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, ``boomwhackers`` and

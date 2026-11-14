@@ -5,8 +5,8 @@ orchestration ranges (Adler, *The Study of Orchestration*; Vienna Symphonic Libr
 pages). The timbre follows the instrument's acoustics: a clarinet (a closed cylinder) favours odd
 harmonics. A single reed on a conical bore is a saxophone, not a clarinet. The family's
 sound-alikes, listed instruments that share another entry's build, are in
-``clarinet_sound_alikes.py``. The saxophones and the free reeds are in the sibling module
-``winds.py``.
+``clarinet_sound_alikes.py``. The saxophones are in the sibling module ``winds.py`` and the free
+reeds in ``free_reeds.py``.
 """
 
 from __future__ import annotations

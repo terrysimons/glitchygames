@@ -474,4 +474,13 @@ ALIASES: Final[dict[str, str]] = {
     # redirects to this page): the same instrument the catalog's tine electric piano builds (its
     # source comment in electromechanical.py cites https://en.wikipedia.org/wiki/Fender_Rhodes)
     'fender rhodes': 'tine electric piano',
+    # --- Batch 16's free reeds: the mouth-blown free reeds, in the order of
+    # plans/data/instrument-audit/batch-16.tsv (half A, the bellows free reeds, has no alias)
+    # https://en.wikipedia.org/wiki/Richter-tuned_harmonica ("The Richter-tuned harmonica,
+    # 10-hole harmonica (in Asia), or blues harp (in America), is the most widely known type of
+    # harmonica", and "Here is the layout for a standard diatonic harmonica, labeled C, starting
+    # on middle C (C4)"): a Richter layout is a tuning, no trait the build makes, and the
+    # catalog's harmonica (free_reeds.py, "Diatonic harmonica in C", C4-C7) is that instrument.
+    # The name drops the page's hyphenated "-tuned" (catalog names hold no hyphens)
+    'richter harmonica': 'harmonica',
 }
