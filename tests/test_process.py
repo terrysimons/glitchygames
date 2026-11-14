@@ -42,6 +42,32 @@ CHILD_IGNORING_TERMINATE = (
 )
 
 
+def child_reporting_its_signal(*, ignored: tuple[str, ...]) -> str:
+    """A child that ignores the named signals, prints which other one ended it, and exits 0.
+
+    It prints ``ready`` once its handlers are in place, then ``interrupted`` (SIGINT) or
+    ``terminated`` (SIGTERM) as it ends; SIGKILL ends it with no words.
+
+    Returns:
+        The child's source.
+
+    """
+    return (
+        'import signal, sys, time\n'
+        'def ended_by(words):\n'
+        '    def handler(signal_number, frame):\n'
+        '        print(words, flush=True)\n'
+        '        sys.exit(0)\n'
+        '    return handler\n'
+        "signal.signal(signal.SIGINT, ended_by('interrupted'))\n"
+        "signal.signal(signal.SIGTERM, ended_by('terminated'))\n"
+        f'for name in {list(ignored)!r}:\n'
+        '    signal.signal(getattr(signal, name), signal.SIG_IGN)\n'
+        "print('ready', flush=True)\n"
+        'time.sleep(60)\n'
+    )
+
+
 def first_line(*, path: Path) -> str:
     """Wait for a child's output file to hold a whole first line; return it.
 
@@ -190,6 +216,27 @@ class TestStopCommandOnEveryPlatform:
         child.wait.assert_not_called()
         group_signal.assert_not_called()
 
+    def test_a_child_that_ends_at_the_first_request_is_only_reaped(self, mocker, platform):
+        """Asked once and ended within the grace: waited for once, never asked again or killed.
+
+        On POSIX only the real-process tests (skipped on Windows) took this path, so the Windows
+        job left its ``return`` uncovered (#192's build-and-test-windows).
+        """
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.return_value = 0
+        group_signal = mocker.patch.object(process.os, 'killpg', create=True)
+
+        stop_command(process=child)
+
+        child.wait.assert_called_once_with(timeout=process.STOP_GRACE_SECONDS)
+        if platform == 'win32':
+            child.terminate.assert_called_once_with()
+            child.kill.assert_not_called()
+            group_signal.assert_not_called()
+        else:
+            assert [call.args for call in group_signal.call_args_list] == [(4242, signal.SIGTERM)]
+
     def test_a_child_that_outlives_the_grace_period_is_killed_and_reaped(self, mocker, platform):
         child = mocker.Mock(pid=4242)
         child.poll.return_value = None
@@ -210,6 +257,38 @@ class TestStopCommandOnEveryPlatform:
                 (4242, signal.SIGTERM),
                 (4242, SIGKILL_NUMBER),
             ]
+
+    def test_a_first_signal_that_does_not_end_it_is_followed_by_sigterm_then_the_kill(
+        self, mocker, platform
+    ):
+        """SIGINT first (a pytest run's Ctrl-C), then SIGTERM, then SIGKILL, a grace apart.
+
+        Windows has no group SIGINT here: it terminates, then kills, as before.
+        """
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        # Every wait but the last outlives the grace: Windows waits after terminating and after
+        # killing, POSIX after each of SIGINT, SIGTERM and SIGKILL
+        graces_outlived = 1 if platform == 'win32' else 2
+        child.wait.side_effect = [
+            *[process.TimeoutExpired(cmd='pytest', timeout=1.0)] * graces_outlived,
+            0,
+        ]
+        group_signal = mocker.patch.object(process.os, 'killpg', create=True)
+
+        stop_command(process=child, first_signal=signal.SIGINT)
+
+        if platform == 'win32':
+            child.terminate.assert_called_once_with()
+            child.kill.assert_called_once_with()
+            group_signal.assert_not_called()
+        else:
+            assert [call.args for call in group_signal.call_args_list] == [
+                (4242, signal.SIGINT),
+                (4242, signal.SIGTERM),
+                (4242, SIGKILL_NUMBER),
+            ]
+            assert child.wait.call_count == 3
 
 
 class TestStopCommandRacingTheChildsEnd:
@@ -299,6 +378,40 @@ class TestStopCommand:
             stop_command(process=child)
 
         assert child.returncode == -9
+
+    @pytest.mark.parametrize(
+        ('ignored', 'last_words', 'returncode'),
+        [
+            ((), 'interrupted', 0),
+            (('SIGINT',), 'terminated', 0),
+            (('SIGINT', 'SIGTERM'), '', -SIGKILL_NUMBER),
+        ],
+        ids=['sigint-ends-it', 'sigterm-after-the-grace', 'killed-after-both'],
+    )
+    def test_a_stop_that_starts_with_sigint_escalates_only_as_far_as_needed(
+        self, tmp_path, mocker, ignored, last_words, returncode
+    ):
+        """``first_signal=SIGINT``: the group gets SIGINT, then SIGTERM, then SIGKILL.
+
+        A pytest run turns SIGINT into an orderly KeyboardInterrupt in every worker, so every
+        test's cleanup runs; SIGTERM (no handler in pytest) killed workers without any.
+        """
+        mocker.patch.object(process, 'STOP_GRACE_SECONDS', 0.5)
+        output_path = tmp_path / 'output.txt'
+        with output_path.open('w', encoding='utf-8') as output:
+            child = start_command(
+                command=[sys.executable, '-c', child_reporting_its_signal(ignored=ignored)],
+                environment=os.environ,
+                output=output,
+            )
+            assert first_line(path=output_path) == 'ready'
+
+            stop_command(process=child, first_signal=signal.SIGINT)
+
+        assert child.returncode == returncode
+        assert output_path.read_text(encoding='utf-8').splitlines()[1:] == (
+            [last_words] if last_words else []
+        )
 
     def test_a_finished_child_is_only_reaped(self, tmp_path):
         """Nothing is signalled once the child has ended."""

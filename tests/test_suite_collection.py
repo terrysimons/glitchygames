@@ -1281,6 +1281,9 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
         'scripts/record_scripted_session.py',
     ),
     'tests/test_replay_schedule.py': ('scripts/replay_schedule.py',),
+    'tests/test_reproduce_orphaned_test_processes.py': (
+        'scripts/reproduce_orphaned_test_processes.py',
+    ),
     'tests/test_workspace_packages.py': (
         'scripts/workspace_packages.py',
         'scripts/git_checkout.py',

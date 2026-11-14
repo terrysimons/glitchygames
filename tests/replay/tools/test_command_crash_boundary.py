@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from glitchygames.exit_codes import BUG_REPORT_HINT, SIGNAL_EXIT_STATUS_BASE, ExitCode
-from glitchygames.process import start_command
+from glitchygames.process import start_command, stop_command
 from glitchygames.replay.tools import command
 from glitchygames.replay.tools.registry import Tool, ToolOption, run_game_flag_tool
 from glitchygames.scenes import Scene
@@ -169,25 +169,31 @@ def test_a_signal_stops_and_reaps_the_commands_child_and_exits_with_its_code(
 
     The command exits with the signal's code (143, 130), and its child is gone: killed and
     reaped before the command ended, never left running without its parent.
+
+    The cleanup ends the command's whole group (``stop_command``: the command gets the chance to
+    reap its game, then the group, the game in it, is killed), however the test stops, an
+    interrupt before the game wrote its pid included. Killing the command alone left its game
+    running (BUGS.md #275).
     """
     game = tmp_path / 'sleeping_game.py'
     game.write_text(SLEEPING_GAME_SOURCE, encoding='utf-8')
     child_pid_file = tmp_path / 'child.pid'
+    running = None
+    child_pid = 0
     with (tmp_path / 'command-output.txt').open('w', encoding='utf-8') as output:
-        running = start_command(
-            command=[
-                sys.executable,
-                '-m',
-                'glitchygames',
-                'record-trace',
-                str(game),
-                str(tmp_path / 'run.jsonl.gz'),
-            ],
-            environment=os.environ,
-            output=output,
-        )
-        child_pid = 0
         try:
+            running = start_command(
+                command=[
+                    sys.executable,
+                    '-m',
+                    'glitchygames',
+                    'record-trace',
+                    str(game),
+                    str(tmp_path / 'run.jsonl.gz'),
+                ],
+                environment=os.environ,
+                output=output,
+            )
             child_pid = int(
                 wait_for_file(path=child_pid_file, deadline_seconds=COMMAND_DEADLINE_SECONDS)
             )
@@ -195,9 +201,8 @@ def test_a_signal_stops_and_reaps_the_commands_child_and_exits_with_its_code(
             status = running.wait(timeout=COMMAND_DEADLINE_SECONDS)
             child_left_running = child_is_running(process_id=child_pid)
         finally:
-            if running.poll() is None:
-                running.kill()
-                running.wait()
+            if running is not None:
+                stop_command(process=running)
             if child_pid and child_is_running(process_id=child_pid):
                 with contextlib.suppress(ProcessLookupError):
                     os.kill(child_pid, signal.SIGKILL)
