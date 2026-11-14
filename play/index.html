@@ -5,16 +5,52 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>GlitchyGames in the browser</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%23000'/><text x='8' y='12.5' font-size='12' font-family='monospace' font-weight='bold' text-anchor='middle' fill='%239cf'>G</text></svg>">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,700&display=fallback">
+  <script>
+    try {
+      const key = new URL('../', location).pathname + '.__palette';
+      const saved = JSON.parse(localStorage.getItem(key));
+      if (saved && saved.color && saved.color.scheme) {
+        const root = document.documentElement;
+        root.setAttribute('data-md-color-scheme', saved.color.scheme);
+      }
+    } catch (error) {
+      // No storage (a private window, blocked site data): the system setting decides
+    }
+  </script>
   <style>
-    :root { color-scheme: dark; }
-    body { margin: 0; padding: 24px 16px; background: #000; color: #ddd;
-           font-family: system-ui, sans-serif; }
-    main { max-width: 40rem; margin: 0 auto; }
-    a { color: #9cf; }
+    :root, :root[data-md-color-scheme=default] { color-scheme: light;
+      --page-background: #fff; --page-text: #000000de;
+      --page-link: #4051b5;
+      --page-header-background: #4051b5;
+      --page-header-text: #fff; }
+    @media (prefers-color-scheme: dark) {
+    :root:not([data-md-color-scheme=default]) { color-scheme: dark;
+      --page-background: hsl(225deg 15% 14%); --page-text: hsl(225deg 15% 90% / 82%);
+      --page-link: #5488e8;
+      --page-header-background: #4051b5;
+      --page-header-text: #fff; }
+    }
+    :root[data-md-color-scheme=slate] { color-scheme: dark;
+      --page-background: hsl(225deg 15% 14%); --page-text: hsl(225deg 15% 90% / 82%);
+      --page-link: #5488e8;
+      --page-header-background: #4051b5;
+      --page-header-text: #fff; }
+    body { margin: 0; background: var(--page-background); color: var(--page-text);
+           font-family: Roboto, system-ui, sans-serif; }
+    header { background: var(--page-header-background); padding: 0.75rem 16px;
+             font-size: 1.1rem; font-weight: 700;
+             box-shadow: 0 0 0.2rem #0000001a, 0 0.2rem 0.4rem #0003; }
+    header a { color: var(--page-header-text); text-decoration: none; }
+    main { max-width: 40rem; margin: 0 auto; padding: 24px 16px; }
+    h1, h2 { font-weight: 300; }
+    main a { color: var(--page-link); }
     li { margin: 0.5rem 0; font-size: 1.2rem; }
   </style>
 </head>
 <body>
+  <header><a href="../">GlitchyGames</a></header>
   <main>
     <h1>GlitchyGames in the browser</h1>
     <p>Python and pygame-ce in WebAssembly (PyScript). The first load takes a few
