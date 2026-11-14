@@ -6273,11 +6273,17 @@ This document tracks planned future features for the GlitchyGames project. Featu
     Wikimedia 404 pages kept as evidence for DROP rows, their client address redacted (#87), and
     76 Wikipedia redirects saved beside their targets in batches 12 to 18. No row's quote depends
     on them
-  - [ ] `uv run ty check tests/audio/test_instrument_catalog.py` reports 7 errors already on main
+  - [x] `uv run ty check tests/audio/test_instrument_catalog.py` reported 7 errors already on main
     (a `frozenset[str]` passed as `frozenset[Tag]`, two assignments into read-only mappings, and
     four `float()` calls on a value typed `Note | float | ScaleStep | str | None` or `object`).
-    `uv run ty check` with no paths passes, since `[tool.ty.src]` in `pyproject.toml` does not
-    include `tests/`, so the type gate never reads them. Every test file has the same gap
+    Fixed (2026-11-14): the three deliberate refusals carry a `ty: ignore` beside their pyright
+    one, `drone_hertz` checks each drone's pitch is a fixed hertz (and the two tests that copied
+    it call it), and `built_footage` checks the footage change is a number
+  - [ ] `uv run ty check` with no paths passes, since `[tool.ty.src]` in `pyproject.toml` does
+    not include `tests/`, so the type gate never reads them. Run on every tracked test file, ty
+    reports 1126 diagnostics (784 `invalid-argument-type`, 241 `unresolved-attribute`, 63
+    `invalid-assignment`, the rest scattered; `tests/audio/test_voices.py` holds the most).
+    Adding `tests/` to the gate is a config change for the owner to decide
   - [ ] The folded-in fixes of Task 6 (parked minors from the reviews): `tarogato`'s notes gained
     a clause saying batch 14 read the row as the modern instrument only to set its family, while
     this batch decides the name and the page gives it to both instruments; `curved soprano

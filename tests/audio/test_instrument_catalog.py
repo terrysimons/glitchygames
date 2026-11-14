@@ -474,7 +474,7 @@ def test_an_entry_refuses_a_string_tag():
             'C4',
             'C7',
             flute.build,
-            tags=frozenset({'mechanical'}),  # pyright: ignore[reportArgumentType] - the refusal
+            tags=frozenset({'mechanical'}),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type] - the refusal
         )
     assert (
         CatalogEntry('test flute', 'Test flute', Family.FLUTES, 'C4', 'C7', flute.build).tags
@@ -1080,9 +1080,9 @@ def test_a_name_or_alias_with_a_trailing_newline_is_refused():
 def test_the_catalog_and_aliases_are_read_only():
     """A write would skip the load-time checks and change every lookup, so both refuse it."""
     with pytest.raises(TypeError):
-        instruments.CATALOG['kazoo'] = instruments.entry('flute')  # pyright: ignore[reportIndexIssue] - the write is the point
+        instruments.CATALOG['kazoo'] = instruments.entry('flute')  # pyright: ignore[reportIndexIssue]  # ty: ignore[invalid-assignment] - the write is the point
     with pytest.raises(TypeError):
-        instruments.ALIASES['bones'] = 'nope'  # pyright: ignore[reportIndexIssue] - the write is the point
+        instruments.ALIASES['bones'] = 'nope'  # pyright: ignore[reportIndexIssue]  # ty: ignore[invalid-assignment] - the write is the point
 
 
 MOVED_TONEWHEEL_ORGANS = (
@@ -2507,12 +2507,9 @@ def test_a_retuned_bagpipe_sounds_its_sourced_drones():
     for name, drone_notes in BAGPIPE_RETUNED_DRONES.items():
         catalog_entry = instruments.entry(name)
         assert set(catalog_entry.sound_changes) == {'drones'}, name
-        drone_hertz = [
-            float(source.pitch)
-            for source_name, source in instruments.get(name).sources
-            if source_name.startswith('drone_')
-        ]
-        assert drone_hertz == [round(float(Note(note).to_hz()), 2) for note in drone_notes], name
+        assert drone_hertz(name) == [round(float(Note(note).to_hz()), 2) for note in drone_notes], (
+            name
+        )
         assert catalog_entry.sounds_like is not None, name
         assert instruments.get(name) != instruments.get(catalog_entry.sounds_like), name
 
@@ -2598,7 +2595,10 @@ def built_footage(catalog_entry: CatalogEntry) -> float:
         The footage in feet (8.0 for an entry built at its keys' pitch).
     """
     if 'footage' in catalog_entry.sound_changes:
-        return float(catalog_entry.sound_changes['footage'])
+        footage = catalog_entry.sound_changes['footage']
+        if not isinstance(footage, int | float):
+            pytest.fail(f'{catalog_entry.name}: footage change {footage!r} is not a number')
+        return float(footage)
     if catalog_entry.sounds_like is not None:
         return built_footage(instruments.entry(catalog_entry.sounds_like))
     if isinstance(catalog_entry.build, partial):
@@ -2835,12 +2835,9 @@ def test_a_clarinet_sounds_its_sourced_drones():
     ]
     assert with_drones == list(CLARINET_DRONES)
     for name, drone_notes in CLARINET_DRONES.items():
-        drone_hertz = [
-            float(source.pitch)
-            for source_name, source in instruments.get(name).sources
-            if source_name.startswith('drone_')
-        ]
-        assert drone_hertz == [round(float(Note(note).to_hz()), 2) for note in drone_notes], name
+        assert drone_hertz(name) == [round(float(Note(note).to_hz()), 2) for note in drone_notes], (
+            name
+        )
         assert name in NOT_PERIODIC_AT_THE_NOTE, name
 
 
@@ -3030,11 +3027,14 @@ def drone_hertz(name: str) -> list[float]:
     Returns:
         The fixed pitch of every source named ``drone_...``.
     """
-    return [
-        float(source.pitch)
-        for source_name, source in instruments.get(name).sources
-        if source_name.startswith('drone_')
-    ]
+    hertz: list[float] = []
+    for source_name, source in instruments.get(name).sources:
+        if not source_name.startswith('drone_'):
+            continue
+        if not isinstance(source.pitch, float):
+            pytest.fail(f'{name}: {source_name} has pitch {source.pitch!r}, not a fixed hertz')
+        hertz.append(float(source.pitch))
+    return hertz
 
 
 def chorus_detune_cents(name: str) -> float | None:
