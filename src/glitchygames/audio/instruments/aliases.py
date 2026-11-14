@@ -467,4 +467,112 @@ ALIASES: Final[dict[str, str]] = {
     # sometimes called a calliaphone, the name given to it by Norman Baker"): the air calliope's
     # other name, so the catalog's calliope
     'calliaphone': 'calliope',
+    # --- Batch 15's keyboards: the pianos, in the order of
+    # plans/data/instrument-audit/batch-15.tsv
+    # https://en.wikipedia.org/wiki/Rhodes_piano ("The Rhodes piano (also known as the Fender
+    # Rhodes piano) is an electric piano invented by Harold Rhodes"; the name Fender Rhodes
+    # redirects to this page): the same instrument the catalog's tine electric piano builds (its
+    # source comment in electromechanical.py cites https://en.wikipedia.org/wiki/Fender_Rhodes)
+    'fender rhodes': 'tine electric piano',
+    # --- Batch 16's free reeds: the mouth-blown free reeds, in the order of
+    # plans/data/instrument-audit/batch-16.tsv (half A, the bellows free reeds, has no alias)
+    # https://en.wikipedia.org/wiki/Richter-tuned_harmonica ("The Richter-tuned harmonica,
+    # 10-hole harmonica (in Asia), or blues harp (in America), is the most widely known type of
+    # harmonica", and "Here is the layout for a standard diatonic harmonica, labeled C, starting
+    # on middle C (C4)"): a Richter layout is a tuning, no trait the build makes, and the
+    # catalog's harmonica (free_reeds.py, "Diatonic harmonica in C", C4-C7) is that instrument.
+    # The name drops the page's hyphenated "-tuned" (catalog names hold no hyphens)
+    'richter harmonica': 'harmonica',
+    # --- Batch 17's harps: the frame harps, in the order of
+    # plans/data/instrument-audit/batch-17.tsv (half A; its other rows drop or wait)
+    # https://en.wikipedia.org/wiki/Pedal_harp ("The pedal harp (also known as the concert harp) is
+    # a large and technologically modern harp", with "hornbostel_sachs = 322.222"): the concert
+    # harp's other name, so the catalog's concert harp
+    'pedal harp': 'concert harp',
+    # https://en.wikipedia.org/wiki/Celtic_harp ("hornbostel_sachs=322.221", "manually tuned frame
+    # harp"; the Lever harp page redirects to it) and https://en.wikipedia.org/wiki/Harp ("they are
+    # frequently referred to broadly as 'Celtic harps' due to their region of revival and popular
+    # association, or more generically as 'folk harps' due to their use in non-classical music,
+    # or as 'lever harps' to contrast their modifying mechanism with the larger pedal harp"):
+    # one family of mid-size harps without pedals, which is the catalog's celtic harp
+    'lever harp': 'celtic harp',
+    # https://en.wikipedia.org/wiki/Harp#Folk,_lever,_and_Celtic_instruments (the quote above; the
+    # Folk harp page redirects to this section): the same family, so the catalog's celtic harp.
+    # The page calls this name the more generic one ("more generically"), which says why it is
+    # used, not that it names other instruments
+    'folk harp': 'celtic harp',
+    # --- Batch 18's struck strings: the hammered dulcimers and hammered zithers, in the order of
+    # plans/data/instrument-audit/batch-18.tsv (half A; its other rows drop or wait). Each name is
+    # one the Hammered dulcimer page lists in its "Adaptations around the world" section (the
+    # infobox's names line points there); each alias takes its target's range. Each quote writes
+    # the page's en dash as a hyphen
+    # https://de.wikipedia.org/wiki/Hackbrett ("Das Hackbrett ist ein Typ einer Kastenzither,
+    # deren Saiten mit Klöppeln angeschlagen werden", and "Im englischen Sprachraum heißt das
+    # Hackbrett heute noch dulcimer") and https://en.wikipedia.org/wiki/Hammered_dulcimer ("*
+    # Austria, Germany and Switzerland - Hackbrett"): the German name of the hammered dulcimer
+    # itself, so the catalog's hammered dulcimer. The Salzburg model is a version of it, not this
+    # name
+    'hackbrett': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Hispanosphere - dulcémele", among the
+    # names derived from "The Graeco-Roman word dulcimer"; the catalog name drops the accent): the
+    # Spanish-speaking world's name, so the catalog's hammered dulcimer
+    'dulcemele': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Israel - דולצימר dultzimar", among the
+    # names derived from "The Graeco-Roman word dulcimer"): the Hebrew name, so the catalog's
+    # hammered dulcimer
+    'dultzimar': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Japan - darushimaa (ダルシマー)",
+    # among the names derived from "The Graeco-Roman word dulcimer"): the Japanese name, so the
+    # catalog's hammered dulcimer
+    'darushimaa': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Belgium - hakkebord", with "* Netherlands
+    # - hakkebord", under "Germanic nations:"): the Dutch name, so the catalog's hammered dulcimer
+    'hakkebord': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Denmark - hakkebræt", under "Germanic
+    # nations:"; the catalog name writes æ as ae): the Danish name, so the catalog's hammered
+    # dulcimer
+    'hakkebraet': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Norway - hakkebrett", under "Germanic
+    # nations:"): the Norwegian name, so the catalog's hammered dulcimer. It shares a stem with
+    # hackbrett but is decided on its own line of the page
+    'hakkebrett': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Sweden - hackbräde, hammarharpa", under
+    # "Germanic nations:"; the catalog name writes ä as ae): one of two Swedish names, so the
+    # catalog's hammered dulcimer
+    'hackbraede': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer (the same line, "* Sweden - hackbräde,
+    # hammarharpa"): the other Swedish name, so the catalog's hammered dulcimer
+    'hammarharpa': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Slovenia - cimbale, oprekelj", under
+    # "Others were transmitted under variants of the cimbalom from Latin cymbalum:"; the sub-list's
+    # heading is a word's etymology, like the Graeco-Roman and Germanic ones, so its names are
+    # names): the Slovenian name, so the catalog's hammered dulcimer. The page captions a photo
+    # "Tuning of a hammered dulcimer (southeastern Slovenia)" on a file named for it
+    'oprekelj': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Slovenia - cimbale, oprekelj", and "*
+    # Croatian - cimbal, cimbale, cimbule", under the same cimbalom sub-list): the Slovenian and
+    # Croatian name, so the catalog's hammered dulcimer. The Cimbalom page gives the cimbalom
+    # cimbal and cimbule, never cimbale
+    'cimbale': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Poland - cymbaly", under the same
+    # cimbalom sub-list) and https://de.wikipedia.org/wiki/Zymbal ("Namensverwandte Hackbretter
+    # heißen in Polen cymbaly", hammered dulcimers related by name): the Polish name, so the
+    # catalog's hammered dulcimer, not the cimbalom
+    'cymbaly': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Russia - chimbaly", under the same
+    # cimbalom sub-list): the Russian name, so the catalog's hammered dulcimer
+    'chimbaly': 'hammered dulcimer',
+    # --- Batch 19's saxophones, in the order of plans/data/instrument-audit/batch-19.tsv (half A;
+    # its other rows drop or wait). Each alias names the soprillo saxophone, a sound-alike entry of
+    # the same sheet. Each quote writes the page's markup as plain text
+    # https://en.wikipedia.org/wiki/Soprillo ("The soprillo, also known as the piccolo saxophone or
+    # rarely sopranissimo saxophone, is the highest pitched and smallest saxophone." and, of its
+    # maker, "He called it the soprillo"): the page is titled by this name and the catalog entry
+    # takes the family's "<size> saxophone" form, so it is the same instrument
+    'soprillo': 'soprillo saxophone',
+    # https://en.wikipedia.org/wiki/Soprillo (the same sentence: "or rarely sopranissimo
+    # saxophone"): a names sentence for the same instrument. The page gives the bare word
+    # "sopranissimo" to a 1960 prototype "of the same pitch", which it counts as the first piccolo
+    # saxophone, so the name is not given to two instruments
+    'sopranissimo saxophone': 'soprillo saxophone',
 }

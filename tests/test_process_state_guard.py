@@ -819,6 +819,9 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         'END_BLOWN': CATALOG_BUILD,
         'VESSEL': CATALOG_BUILD,
     },
+    'audio/instruments/free_reeds.py': {
+        'FREE_REED_LEVELS': CATALOG_SERIES,
+    },
     'audio/instruments/organs.py': {
         'PRINCIPAL_LEVELS': CATALOG_SERIES,
         'REED_STOP_LEVELS': CATALOG_SERIES,
@@ -876,9 +879,6 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             'R16: _CHOIR_BUILDS (above) plus the choir sound-alikes, both tuples of frozen '
             'CatalogEntry values; reported only because _CHOIR_BUILDS is.'
         ),
-    },
-    'audio/instruments/winds.py': {
-        'FREE_REED_LEVELS': CATALOG_SERIES,
     },
     'audio/library.py': {
         'ENGINE_SOUND_CACHE': (

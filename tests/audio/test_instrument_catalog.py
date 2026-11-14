@@ -5,7 +5,7 @@ import csv
 from fractions import Fraction
 from functools import partial
 from pathlib import Path
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 import pytest
@@ -13,6 +13,7 @@ import pytest
 from glitchygames.audio import instruments
 from glitchygames.audio.instrument import Filter, Instrument
 from glitchygames.audio.instruments import CatalogEntry, Family, Tag
+from glitchygames.audio.instruments.free_reeds import FREE_REED_LEVELS
 from glitchygames.audio.instruments.organs import FLUTE_STOP_LEVELS, compound_stop_levels
 from glitchygames.audio.instruments.registry import (
     FAMILY_TABLES,
@@ -36,6 +37,7 @@ from glitchygames.audio.instruments.timbres import (
     plucked_series,
     rubbed,
     struck,
+    wave_from_levels,
     with_drones,
 )
 from glitchygames.audio.instruments.voices import FORMANT_TABLE
@@ -43,6 +45,9 @@ from glitchygames.audio.pitch import Note
 from glitchygames.audio.render import render_sound
 from glitchygames.audio.waves import Wave
 from tests.audio.render_specs import SAMPLE_RATE, spec_for
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 NOTE_SECONDS = 0.4
 # Families whose tones are harmonic: their sound repeats at the note's period
@@ -222,7 +227,9 @@ def test_harmonic_instruments_sound_their_note(name):
     """A harmonic instrument repeats at its note's period, not an octave up."""
     entry = instruments.entry(name)
     note = entry.middle_note()
-    hertz = float(note.to_hz()) / (2.0 if name in SIXTEEN_FOOT_ORGANS else 1.0)
+    hertz = float(note.to_hz()) / (
+        2.0 if name in SIXTEEN_FOOT_ORGANS or name in KEYBOARD_SIXTEEN_FOOT_NAMES else 1.0
+    )
     hertz *= 8.0 / footage_feet(ORGAN_STOP_FOOTAGES.get(name, '8'))
     samples = rendered(instruments.get(name), pitch=note.name, name=name)
     held = samples[round(0.15 * SAMPLE_RATE) : round(0.35 * SAMPLE_RATE)]
@@ -856,6 +863,26 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('organ trompette', 'pipe organ reed'),
         ('air calliope', 'calliope'),
         ('calliaphone', 'calliope'),
+        ('fender rhodes', 'tine electric piano'),
+        ('richter harmonica', 'harmonica'),
+        ('pedal harp', 'concert harp'),
+        ('lever harp', 'celtic harp'),
+        ('folk harp', 'celtic harp'),
+        ('hackbrett', 'hammered dulcimer'),
+        ('dulcemele', 'hammered dulcimer'),
+        ('dultzimar', 'hammered dulcimer'),
+        ('darushimaa', 'hammered dulcimer'),
+        ('hakkebord', 'hammered dulcimer'),
+        ('hakkebraet', 'hammered dulcimer'),
+        ('hakkebrett', 'hammered dulcimer'),
+        ('hackbraede', 'hammered dulcimer'),
+        ('hammarharpa', 'hammered dulcimer'),
+        ('oprekelj', 'hammered dulcimer'),
+        ('cimbale', 'hammered dulcimer'),
+        ('cymbaly', 'hammered dulcimer'),
+        ('chimbaly', 'hammered dulcimer'),
+        ('soprillo', 'soprillo saxophone'),
+        ('sopranissimo saxophone', 'soprillo saxophone'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -896,6 +923,16 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 13's organ stops name the pipe organ principal as the open diapason (its English name)
     and the pipe organ reed as the organ trompette (the trumpet stop's French name), and its
     organs as instruments name the calliope as the air calliope and the calliaphone.
+    Batch 15's pianos name the tine electric piano as the fender rhodes.
+    Batch 16's free reeds name the harmonica as the richter harmonica (a Richter layout is a
+    tuning, and the catalog's harmonica is the Richter-tuned diatonic in C).
+    Batch 17's frame harps name the concert harp as the pedal harp, and the celtic harp as the
+    lever harp and the folk harp.
+    Batch 18's hammered dulcimers name the hammered dulcimer as the hackbrett, the dulcemele, the
+    dultzimar, the darushimaa, the hakkebord, the hakkebraet, the hakkebrett, the hackbraede, the
+    hammarharpa, the oprekelj, the cimbale, the cymbaly and the chimbaly.
+    Batch 19's saxophones name the soprillo saxophone (a sound-alike entry) as the soprillo and
+    the sopranissimo saxophone.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1679,6 +1716,25 @@ FLUTE_SOUND_ALIKE_PARENTS: dict[str, str] = {
 FLUTE_UNPITCHED_NAMES: frozenset[str] = frozenset()
 
 
+# The 9 clarinets that predate batch 14: their shared builds predate the anti-goal rule
+EXISTING_CLARINET_NAMES: frozenset[str] = frozenset({
+    'e flat clarinet',
+    'clarinet',
+    'a clarinet',
+    'basset horn',
+    'alto clarinet',
+    'bass clarinet',
+    'contra alto clarinet',
+    'contrabass clarinet',
+    'chalumeau',
+})
+# Batch 14's clarinets with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-14.tsv)
+NEW_CLARINET_NAMES: list[str] = []
+# Batch 14's clarinet sound-alikes and the entry each sounds like, in the sheet's order
+CLARINET_SOUND_ALIKE_PARENTS: dict[str, str] = {'c clarinet': 'clarinet'}
+
+
 # The 23 double reeds that predate batch 11: their shared builds predate the anti-goal rule
 EXISTING_DOUBLE_REED_NAMES: frozenset[str] = frozenset({
     'oboe',
@@ -1770,6 +1826,110 @@ ORGAN_STOP_FOOTAGES: dict[str, str] = {'bourdon': '16'}
 # Batch 13's self-playing organs (Tag.MECHANICAL), in catalog order: the builds, then the
 # sound-alikes, each in the sheet's order (plans/data/instrument-audit/batch-13.tsv)
 MECHANICAL_ORGAN_NAMES: list[str] = []
+
+
+# The 11 keyboards that predate batch 15: their shared builds predate the anti-goal rule
+EXISTING_KEYBOARD_NAMES: frozenset[str] = frozenset({
+    'grand piano',
+    'bright grand piano',
+    'upright piano',
+    'honky tonk piano',
+    'fortepiano',
+    'harpsichord',
+    'harpsichord lute stop',
+    'virginal',
+    'clavichord',
+    'celesta',
+    'toy piano',
+})
+# Batch 15's keyboards with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-15.tsv)
+NEW_KEYBOARD_NAMES: list[str] = []
+# Batch 15's keyboard sound-alikes and the entry each sounds like, in the sheet's order
+KEYBOARD_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+# Batch 15's self-playing keyboards (Tag.MECHANICAL), in catalog order: the builds, then the
+# sound-alikes, each in the sheet's order (plans/data/instrument-audit/batch-15.tsv)
+MECHANICAL_KEYBOARD_NAMES: list[str] = []
+
+
+# The 13 free reeds that predate batch 16: their shared builds predate the anti-goal rule
+EXISTING_FREE_REED_NAMES: frozenset[str] = frozenset({
+    'accordion',
+    'musette accordion',
+    'accordion bass',
+    'bandoneon',
+    'concertina',
+    'harmonium',
+    'harmonica',
+    'chromatic harmonica',
+    'bass harmonica',
+    'soprano melodica',
+    'alto melodica',
+    'bass melodica',
+    'sheng',
+})
+# Batch 16's free reeds with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-16.tsv)
+NEW_FREE_REED_NAMES: list[str] = []
+# Batch 16's free reed sound-alikes and the entry each sounds like, in the sheet's order
+FREE_REED_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+# Batch 16's self-playing free reeds (Tag.MECHANICAL), in catalog order: the builds, then the
+# sound-alikes, each in the sheet's order (plans/data/instrument-audit/batch-16.tsv)
+MECHANICAL_FREE_REED_NAMES: list[str] = []
+
+
+# The 7 harps that predate batch 17: their shared builds predate the anti-goal rule
+EXISTING_HARP_NAMES: frozenset[str] = frozenset({
+    'concert harp',
+    'celtic harp',
+    'wire strung harp',
+    'triple harp',
+    'lyre',
+    'kora',
+    'harp guitar',
+})
+# Batch 17's harps with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-17.tsv)
+NEW_HARP_NAMES: list[str] = []
+# Batch 17's harp sound-alikes and the entry each sounds like, in the sheet's order
+HARP_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+
+
+# The 5 struck strings that predate batch 18: their shared builds predate the anti-goal rule
+EXISTING_STRUCK_NAMES: frozenset[str] = frozenset({
+    'hammered dulcimer',
+    'cimbalom',
+    'santur',
+    'yangqin',
+    'berimbau',
+})
+# Batch 18's struck strings with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-18.tsv)
+NEW_STRUCK_NAMES: list[str] = []
+# Batch 18's struck string sound-alikes and the entry each sounds like, in the sheet's order
+STRUCK_SOUND_ALIKE_PARENTS: dict[str, str] = {}
+
+
+# The 8 saxophones that predate batch 19: their shared builds predate the anti-goal rule
+EXISTING_SAXOPHONE_NAMES: frozenset[str] = frozenset({
+    'sopranino saxophone',
+    'soprano saxophone',
+    'alto saxophone',
+    'c melody saxophone',
+    'tenor saxophone',
+    'baritone saxophone',
+    'bass saxophone',
+    'contrabass saxophone',
+})
+# Batch 19's saxophones with their own build, in the sheet's order
+# (plans/data/instrument-audit/batch-19.tsv)
+NEW_SAXOPHONE_NAMES: list[str] = []
+# Batch 19's saxophone sound-alikes and the entry each sounds like, in the sheet's order
+SAXOPHONE_SOUND_ALIKE_PARENTS: dict[str, str] = {
+    'soprillo saxophone': 'sopranino saxophone',
+    'tubax in eb': 'contrabass saxophone',
+    'heckelphone clarinet': 'alto saxophone',
+}
 
 
 # The 42 brass instruments that predate batch 10: their shared builds predate the anti-goal rule
@@ -1921,11 +2081,20 @@ BATCH_FAMILIES: dict[Family, BatchFamily] = {
         FLUTE_SOUND_ALIKE_PARENTS,
         FLUTE_UNPITCHED_NAMES,
     ),
+    Family.CLARINETS: BatchFamily(
+        EXISTING_CLARINET_NAMES, NEW_CLARINET_NAMES, CLARINET_SOUND_ALIKE_PARENTS
+    ),
+    Family.SAXOPHONES: BatchFamily(
+        EXISTING_SAXOPHONE_NAMES, NEW_SAXOPHONE_NAMES, SAXOPHONE_SOUND_ALIKE_PARENTS
+    ),
     Family.DOUBLE_REEDS: BatchFamily(
         EXISTING_DOUBLE_REED_NAMES, NEW_DOUBLE_REED_NAMES, DOUBLE_REED_SOUND_ALIKE_PARENTS
     ),
     Family.BAGPIPES: BatchFamily(
         EXISTING_BAGPIPE_NAMES, NEW_BAGPIPE_NAMES, BAGPIPE_SOUND_ALIKE_PARENTS
+    ),
+    Family.FREE_REEDS: BatchFamily(
+        EXISTING_FREE_REED_NAMES, NEW_FREE_REED_NAMES, FREE_REED_SOUND_ALIKE_PARENTS
     ),
     Family.BRASS: BatchFamily(EXISTING_BRASS_NAMES, NEW_BRASS_NAMES, BRASS_SOUND_ALIKE_PARENTS),
     Family.BOWED_STRINGS: BatchFamily(
@@ -1933,6 +2102,13 @@ BATCH_FAMILIES: dict[Family, BatchFamily] = {
     ),
     Family.PLUCKED_STRINGS: BatchFamily(
         EXISTING_PLUCKED_NAMES, NEW_PLUCKED_NAMES, PLUCKED_SOUND_ALIKE_PARENTS
+    ),
+    Family.HARPS: BatchFamily(EXISTING_HARP_NAMES, NEW_HARP_NAMES, HARP_SOUND_ALIKE_PARENTS),
+    Family.STRUCK_STRINGS: BatchFamily(
+        EXISTING_STRUCK_NAMES, NEW_STRUCK_NAMES, STRUCK_SOUND_ALIKE_PARENTS
+    ),
+    Family.KEYBOARDS: BatchFamily(
+        EXISTING_KEYBOARD_NAMES, NEW_KEYBOARD_NAMES, KEYBOARD_SOUND_ALIKE_PARENTS
     ),
     Family.ORGANS: BatchFamily(EXISTING_ORGAN_NAMES, NEW_ORGAN_NAMES, ORGAN_SOUND_ALIKE_PARENTS),
     Family.ELECTRONIC: BatchFamily(
@@ -2065,16 +2241,23 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         for catalog_entry in instruments.entries()
         if catalog_entry.sounds_like is not None
     ]
-    # The catalog lists families in table order: flutes, double reeds, bagpipes, brass, bowed
-    # strings, plucked strings, organs, electronic, tuned percussion, drums, voices, then choirs, as
+    # The catalog lists families in table order: flutes, clarinets, saxophones, double reeds,
+    # bagpipes, free reeds, brass, bowed strings, plucked strings, harps, struck strings,
+    # keyboards, organs, electronic, tuned percussion, drums, voices, then choirs, as
     # registry.FAMILY_TABLES lists them
     assert every_sound_alike == (
         list(FLUTE_SOUND_ALIKE_PARENTS)
+        + list(CLARINET_SOUND_ALIKE_PARENTS)
+        + list(SAXOPHONE_SOUND_ALIKE_PARENTS)
         + list(DOUBLE_REED_SOUND_ALIKE_PARENTS)
         + list(BAGPIPE_SOUND_ALIKE_PARENTS)
+        + list(FREE_REED_SOUND_ALIKE_PARENTS)
         + list(BRASS_SOUND_ALIKE_PARENTS)
         + list(BOWED_SOUND_ALIKE_PARENTS)
         + list(PLUCKED_SOUND_ALIKE_PARENTS)
+        + list(HARP_SOUND_ALIKE_PARENTS)
+        + list(STRUCK_SOUND_ALIKE_PARENTS)
+        + list(KEYBOARD_SOUND_ALIKE_PARENTS)
         + list(ORGAN_SOUND_ALIKE_PARENTS)
         + list(ELECTRONIC_SOUND_ALIKE_PARENTS)
         + list(TUNED_SOUND_ALIKE_PARENTS)
@@ -2607,3 +2790,468 @@ def test_compound_stop_levels_refuses_empty_levels_and_a_footage_of_zero():
         compound_stop_levels((1.0,), (0.0,))
     with pytest.raises(ValueError, match='above zero'):
         compound_stop_levels((1.0,), (-8.0,))
+
+
+# Batch 14's double clarinets with a drone pipe, each with its drone notes as the sheet writes them
+# (highest first), sounding at equal temperament under every note, in catalog order: the builds,
+# then the sound-alikes that share one's drones (plans/data/instrument-audit/batch-14.tsv)
+CLARINET_DRONES: dict[str, tuple[str, ...]] = {}
+# Batch 14's double clarinets whose unison pipes are tuned apart, each with its sourced detune in
+# cents, the chorus copy of _clarinet, in catalog order: the builds, then their sound-alikes
+# (plans/data/instrument-audit/batch-14.tsv)
+CLARINET_DETUNES: dict[str, float] = {}
+# Every name plans/data/instrument-audit/batch-14.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for an engine feature, a build of its own, a sourced
+# reed and bore, a sourced drone tuning or a sourced detune, and the alias rows that wait for one of
+# them, in the sheet's order. None ships under that name or as an alias until the reason is met
+# (decision 4; batch 14). The test matches exact names
+CLARINET_HELD_BACK: dict[str, str] = {
+    'contrabass birbyne': 'a sourced reed and bore',
+    'tenor birbyne': 'a sourced reed and bore',
+}
+
+
+def test_no_clarinet_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a clarinet the sheet holds back."""
+    assert set(CLARINET_HELD_BACK) & set(instruments.names()) == set()
+    assert set(CLARINET_HELD_BACK) & set(instruments.ALIASES) == set()
+
+
+def test_a_clarinet_sounds_its_sourced_drones():
+    """A clarinet with a drone pipe sounds each drone at its sourced note, equal-tempered.
+
+    The drones are the build's sources named ``drone_...``, at fixed hertz (A4 = 440 Hz, two
+    decimals, as the catalog's builds write hertz), highest first. The clarinets with drones are
+    exactly the ones the table lists, so a later task that ships one without listing it fails here.
+    """
+    with_drones = [
+        catalog_entry.name
+        for catalog_entry in instruments.entries(family=Family.CLARINETS)
+        if any(
+            source_name.startswith('drone_')
+            for source_name, _source in instruments.get(catalog_entry.name).sources
+        )
+    ]
+    assert with_drones == list(CLARINET_DRONES)
+    for name, drone_notes in CLARINET_DRONES.items():
+        drone_hertz = [
+            float(source.pitch)
+            for source_name, source in instruments.get(name).sources
+            if source_name.startswith('drone_')
+        ]
+        assert drone_hertz == [round(float(Note(note).to_hz()), 2) for note in drone_notes], name
+        assert name in NOT_PERIODIC_AT_THE_NOTE, name
+
+
+def test_a_detuned_clarinet_beats_at_its_sourced_cents():
+    """A clarinet with a chorus source beats at the detune its sheet row sources.
+
+    The clarinets with a chorus source are exactly the ones the table lists.
+    """
+    with_chorus = [
+        catalog_entry.name
+        for catalog_entry in instruments.entries(family=Family.CLARINETS)
+        if any(
+            source_name == 'chorus'
+            for source_name, _source in instruments.get(catalog_entry.name).sources
+        )
+    ]
+    assert with_chorus == list(CLARINET_DETUNES)
+    for name, cents in CLARINET_DETUNES.items():
+        chorus_source = dict(instruments.get(name).sources)['chorus']
+        assert chorus_source.detune_cents == pytest.approx(cents), name
+
+
+# Batch 15's harpsichords that sound a 16' choir an octave below their keys (a sixteen_foot keyword
+# on _harpsichord, added by the batch that first has a row needing it), in catalog order: the
+# builds, then the sound-alikes that add one through sound_changes
+# (plans/data/instrument-audit/batch-15.tsv)
+KEYBOARD_SIXTEEN_FOOT_NAMES: list[str] = []
+# Batch 15's keyboard idiophones built from their sourced partial ratios (a _keyed_idiophone
+# builder, added by the batch that first has a row needing it), in catalog order: the builds, then
+# their sound-alikes (plans/data/instrument-audit/batch-15.tsv)
+KEYBOARD_PARTIAL_RATIOS: dict[str, tuple[float, ...]] = {}
+# Every name plans/data/instrument-audit/batch-15.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for an engine feature, a build of its own, a sourced
+# partial series, sub-audio fundamentals, a range above C8 or more than four sources, and the alias
+# rows that wait for one of them, in the sheet's order. None ships under that name or as an alias
+# until the reason is met (decision 4; batch 15). The test matches exact names
+KEYBOARD_HELD_BACK: dict[str, str] = {}
+
+
+def test_no_keyboard_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a keyboard the sheet holds back."""
+    assert set(KEYBOARD_HELD_BACK) & set(instruments.names()) == set()
+    assert set(KEYBOARD_HELD_BACK) & set(instruments.ALIASES) == set()
+
+
+def test_the_mechanical_keyboards_are_tagged():
+    """The self-playing keyboards, and only they, carry Tag.MECHANICAL."""
+    assert instruments.names(family=Family.KEYBOARDS, tag=Tag.MECHANICAL) == tuple(
+        MECHANICAL_KEYBOARD_NAMES
+    )
+
+
+def effective_keyboard_keywords(catalog_entry: CatalogEntry) -> dict[str, object]:
+    """A keyboard entry's builder keywords: its parent's build, updated with its sound_changes.
+
+    A plain-function build (``toy piano``'s) has no keywords.
+
+    Returns:
+        The keywords the entry's instrument is built with.
+    """
+    parent = instruments.entry(catalog_entry.sounds_like or catalog_entry.name)
+    keywords = dict(getattr(parent.build, 'keywords', {}))
+    keywords.update(catalog_entry.sound_changes)
+    return keywords
+
+
+def has_octave_down_source(name: str) -> bool:
+    """Whether the entry's instrument has a source sounding an octave (-12 semitones) below.
+
+    Returns:
+        True when one of the instrument's sources is offset by -12.0 semitones.
+    """
+    semitones = [float(source.semitones) for _name, source in instruments.get(name).sources]
+    return -12.0 in semitones
+
+
+def test_the_octave_down_source_check_tells_builds_apart():
+    """The 16' guard's check finds bourdon's octave-down source and none on toy piano."""
+    assert has_octave_down_source('bourdon')
+    assert not has_octave_down_source('toy piano')
+
+
+def test_a_sixteen_foot_harpsichord_sounds_its_lower_choir():
+    """The harpsichords with a 16' choir are the ones the table lists, each sounding it."""
+    with_sixteen_foot = [
+        catalog_entry.name
+        for catalog_entry in instruments.entries(family=Family.KEYBOARDS)
+        if effective_keyboard_keywords(catalog_entry).get('sixteen_foot') is True
+    ]
+    assert with_sixteen_foot == KEYBOARD_SIXTEEN_FOOT_NAMES
+    for name in KEYBOARD_SIXTEEN_FOOT_NAMES:
+        assert has_octave_down_source(name), name
+
+
+def attack_peak_offsets(name: str, ratios: tuple[float, ...]) -> tuple[list[float], float]:
+    """How far the entry's attack spectrum's nearest peak is from each ratio's frequency.
+
+    The attack (0.005 to 0.155 s), where the upper partials, which ring shorter than the
+    fundamental, are still strong: a window over the held note would find only the fundamental.
+    The peaks are the local maxima above 2% of the strongest.
+
+    Returns:
+        Each ratio's offset in hertz from the nearest peak, and the tolerance: the tighter of a
+        tenth of the fundamental (so 2.76 is not 3.0) and four FFT bins.
+    """
+    note = instruments.entry(name).middle_note()
+    hertz = float(note.to_hz())
+    samples = render_sound(
+        spec_for(instruments.get(name), name=name, pitch=note.name, length=1.0)
+    ).samples
+    attack = samples[round(0.005 * SAMPLE_RATE) : round(0.155 * SAMPLE_RATE)]
+    magnitude = np.abs(np.fft.rfft(attack * np.hanning(len(attack))))
+    frequencies = np.fft.rfftfreq(len(attack), 1 / SAMPLE_RATE)
+    is_peak = (
+        (magnitude[1:-1] > magnitude[:-2])
+        & (magnitude[1:-1] >= magnitude[2:])
+        & (magnitude[1:-1] > 0.02 * np.max(magnitude))
+    )
+    peak_frequencies = frequencies[1:-1][is_peak]
+    offsets = [float(np.min(np.abs(peak_frequencies - ratio * hertz))) for ratio in ratios]
+    return offsets, min(hertz / 10.0, 4.0 * SAMPLE_RATE / len(attack))
+
+
+def test_the_attack_window_finds_the_toy_pianos_own_partials_and_no_others():
+    """Toy piano's own ratios are each within tolerance of a peak; 3.0 for 2.76 is not."""
+    own_ratios = (1.0, 2.76, 5.40)
+    offsets, tolerance = attack_peak_offsets('toy piano', own_ratios)
+    for ratio, offset in zip(own_ratios, offsets, strict=True):
+        assert offset <= tolerance, (ratio, offset, tolerance)
+
+    wrong_ratios = (1.0, 3.0, 5.40)
+    offsets, tolerance = attack_peak_offsets('toy piano', wrong_ratios)
+    assert offsets[0] <= tolerance
+    assert offsets[1] > tolerance
+    assert offsets[2] <= tolerance
+
+
+def test_a_keyed_idiophone_sounds_its_sourced_partials():
+    """The keyboards with sourced partial ratios are the table's, each sounding them."""
+    with_ratios = {
+        catalog_entry.name: effective_keyboard_keywords(catalog_entry)['ratios']
+        for catalog_entry in instruments.entries(family=Family.KEYBOARDS)
+        if 'ratios' in effective_keyboard_keywords(catalog_entry)
+    }
+    assert list(with_ratios) == list(KEYBOARD_PARTIAL_RATIOS)
+    for name, ratios in KEYBOARD_PARTIAL_RATIOS.items():
+        assert with_ratios[name] == ratios, name
+        offsets, tolerance = attack_peak_offsets(name, ratios)
+        for ratio, offset in zip(ratios, offsets, strict=True):
+            assert offset <= tolerance, (name, ratio, offset, tolerance)
+
+
+# Batch 16's free reeds with fixed drones, each with its drone notes as the sheet writes them
+# (highest first), sounding at equal temperament under every note, in catalog order: the builds,
+# then their sound-alikes (plans/data/instrument-audit/batch-16.tsv). No free reed builder takes
+# drones yet, so the table stays empty until one is added
+FREE_REED_DRONES: dict[str, tuple[str, ...]] = {}
+# Batch 16's free reed sound-alikes whose sourced detune between reed sets differs from their
+# parent's, each with its cents (sound_changes={'cents': ...} once a builder takes cents), in the
+# sheet's order
+# (plans/data/instrument-audit/batch-16.tsv)
+FREE_REED_DETUNES: dict[str, float] = {}
+# Batch 16's free reed sound-alikes with a sourced reed set an octave above the unison
+# (sound_changes={'footages': (8.0, 4.0)} once a builder takes footages), in the sheet's order
+# (plans/data/instrument-audit/batch-16.tsv)
+FREE_REED_REED_SETS: dict[str, tuple[float, ...]] = {}
+# Every name plans/data/instrument-audit/batch-16.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for an engine feature, a build of its own, a sourced
+# drone tuning or detune, sub-audio fundamentals, a range above C8 or more than four sources, and
+# the alias rows that wait for one of them, in the sheet's order. None ships under that name or as
+# an alias until the reason is met (decision 4; batch 16). The test matches exact names
+FREE_REED_HELD_BACK: dict[str, str] = {}
+
+
+def names_listed(names: Iterable[str]) -> set[str]:
+    """The given names that are catalog names or aliases.
+
+    Returns:
+        The names the catalog lists, under their own name or as an alias.
+    """
+    return set(names) & (set(instruments.names()) | set(instruments.ALIASES))
+
+
+def drone_hertz(name: str) -> list[float]:
+    """The hertz of each drone source in the entry's instrument, in build order.
+
+    Returns:
+        The fixed pitch of every source named ``drone_...``.
+    """
+    return [
+        float(source.pitch)
+        for source_name, source in instruments.get(name).sources
+        if source_name.startswith('drone_')
+    ]
+
+
+def chorus_detune_cents(name: str) -> float | None:
+    """The detune of the entry's chorus source, the second reed set beating against the first.
+
+    Returns:
+        The chorus source's ``detune_cents``, or None when the instrument has no chorus source.
+    """
+    chorus_source = dict(instruments.get(name).sources).get('chorus')
+    return None if chorus_source is None else float(chorus_source.detune_cents)
+
+
+def effective_free_reed_keywords(catalog_entry: CatalogEntry) -> dict[str, object]:
+    """A free reed entry's builder keywords: its parent's build, updated with its sound_changes.
+
+    Returns:
+        The keywords the entry's instrument is built with.
+    """
+    parent = instruments.entry(catalog_entry.sounds_like or catalog_entry.name)
+    keywords = dict(getattr(parent.build, 'keywords', {}))
+    keywords.update(catalog_entry.sound_changes)
+    return keywords
+
+
+def tone_wave(name: str) -> Wave:
+    """The wave of the entry's tone source, its harmonic series.
+
+    Returns:
+        The ``tone`` source's content.
+    """
+    content = dict(instruments.get(name).sources)['tone'].content
+    assert isinstance(content, Wave)
+    return content
+
+
+def test_the_free_reed_guards_helpers_read_real_builds():
+    """Each free reed guard's helper reads a real catalog build, as batch 15's review required."""
+    assert names_listed(['harmonica', 'fender rhodes', 'not an instrument']) == {
+        'harmonica',
+        'fender rhodes',
+    }
+    assert drone_hertz('highland bagpipe') == [240.0, 120.0]
+    assert drone_hertz('harmonica') == []
+    assert chorus_detune_cents('musette accordion') == 15.0
+    assert chorus_detune_cents('harmonica') is None
+    assert effective_free_reed_keywords(instruments.entry('musette accordion')) == {
+        'cents': 15.0,
+        'low_pass': 6000.0,
+    }
+    assert tone_wave('harmonica') == wave_from_levels(FREE_REED_LEVELS)
+
+
+def synthetic_free_reed_sound_alike() -> CatalogEntry:
+    """A free reed sound-alike built here, since no sheet row ships one.
+
+    It sounds like the musette accordion (a parent with its own ``cents`` and ``low_pass``) and
+    changes only the ``cents``.
+
+    Returns:
+        The entry, which is in no catalog.
+    """
+    return CatalogEntry(
+        'test free reed sound alike',
+        'Test free reed sound-alike',
+        Family.FREE_REEDS,
+        'C3',
+        'C6',
+        sounds_like='musette accordion',
+        sound_changes={'cents': 9.0},
+    )
+
+
+def test_a_sound_alikes_keywords_start_from_its_parents_build_and_take_its_sound_changes():
+    """The helper starts from the parent's build keywords, which the entry's own lack.
+
+    Its ``sound_changes`` replace the parent's value and leave the parent's other keywords.
+    """
+    keywords = effective_free_reed_keywords(synthetic_free_reed_sound_alike())
+    assert keywords == {'cents': 9.0, 'low_pass': 6000.0}
+
+
+def test_no_free_reed_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a free reed the sheet holds back."""
+    assert names_listed(FREE_REED_HELD_BACK) == set()
+
+
+def test_the_mechanical_free_reeds_are_tagged():
+    """The self-playing free reeds, and only they, carry Tag.MECHANICAL."""
+    assert instruments.names(family=Family.FREE_REEDS, tag=Tag.MECHANICAL) == tuple(
+        MECHANICAL_FREE_REED_NAMES
+    )
+
+
+def test_a_droned_free_reed_sounds_its_sourced_drones():
+    """A free reed with drones sounds each at its sourced note, equal-tempered.
+
+    The free reeds with drones are exactly the ones the table lists, so a later task that ships
+    one without listing it fails here.
+    """
+    with_drones = [
+        catalog_entry.name
+        for catalog_entry in instruments.entries(family=Family.FREE_REEDS)
+        if drone_hertz(catalog_entry.name)
+    ]
+    assert with_drones == list(FREE_REED_DRONES)
+    for name, drone_notes in FREE_REED_DRONES.items():
+        assert drone_hertz(name) == [round(float(Note(note).to_hz()), 2) for note in drone_notes], (
+            name
+        )
+        assert name in NOT_PERIODIC_AT_THE_NOTE, name
+
+
+def test_a_detuned_free_reed_beats_at_its_sourced_cents():
+    """A free reed sound-alike with a sourced detune beats at it.
+
+    The free reeds whose sound_changes hold cents are exactly the ones the table lists.
+    """
+    with_detune = [
+        catalog_entry.name
+        for catalog_entry in instruments.entries(family=Family.FREE_REEDS)
+        if 'cents' in catalog_entry.sound_changes
+    ]
+    assert with_detune == list(FREE_REED_DETUNES)
+    for name, cents in FREE_REED_DETUNES.items():
+        assert chorus_detune_cents(name) == pytest.approx(cents), name
+
+
+def test_a_free_reed_reed_set_sounds_its_octave():
+    """A free reed with a reed set an octave above its unison sounds the compound series.
+
+    The free reeds whose keywords hold footages other than (8.0,) are exactly the table's.
+    """
+    with_reed_set = [
+        catalog_entry.name
+        for catalog_entry in instruments.entries(family=Family.FREE_REEDS)
+        if effective_free_reed_keywords(catalog_entry).get('footages', (8.0,)) != (8.0,)
+    ]
+    assert with_reed_set == list(FREE_REED_REED_SETS)
+    for name, footages in FREE_REED_REED_SETS.items():
+        assert tone_wave(name) == wave_from_levels(
+            compound_stop_levels(FREE_REED_LEVELS[:16], footages)
+        ), name
+
+
+# Every name plans/data/instrument-audit/batch-17.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for an engine feature, a build of its own, sub-audio
+# fundamentals or a range above C8, and the alias rows that wait for one of them, in the sheet's
+# order. None ships under that name or as an alias until the reason is met (decision 4; batch
+# 17). The test matches exact names
+HARP_HELD_BACK: dict[str, str] = {}
+
+
+def entries_with_sound_changes(family: Family) -> list[str]:
+    """The names of the family's entries whose sound_changes are not empty.
+
+    Returns:
+        The names, in catalog order.
+    """
+    return [
+        catalog_entry.name
+        for catalog_entry in instruments.entries(family=family)
+        if catalog_entry.sound_changes
+    ]
+
+
+def test_the_harp_guards_helpers_read_real_builds():
+    """Each harp guard's helper reads a real catalog build, as batch 15's review required."""
+    assert names_listed(['concert harp', 'fender rhodes', 'not an instrument']) == {
+        'concert harp',
+        'fender rhodes',
+    }
+    assert entries_with_sound_changes(Family.ORGANS) == ['bourdon']
+    assert entries_with_sound_changes(Family.HARPS) == []
+
+
+def test_no_harp_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a harp the sheet holds back."""
+    assert names_listed(HARP_HELD_BACK) == set()
+
+
+def test_no_harp_sound_alike_changes_its_parents_build():
+    """No harp sound-alike carries sound_changes: this batch adds none, as the sheet rules."""
+    assert entries_with_sound_changes(Family.HARPS) == []
+
+
+# Every name plans/data/instrument-audit/batch-18.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for an engine feature, a build of its own, a drone
+# tuning, sub-audio fundamentals or a range above C8, and the alias rows that wait for one of
+# them, in the sheet's order. None ships under that name or as an alias until the reason is met
+# (decision 4; batch 18). The test matches exact names
+STRUCK_HELD_BACK: dict[str, str] = {}
+
+
+def test_no_struck_string_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a struck string the sheet holds back."""
+    assert names_listed(STRUCK_HELD_BACK) == set()
+
+
+def test_no_struck_string_sound_alike_changes_its_parents_build():
+    """No struck string sound-alike carries sound_changes: this batch adds none."""
+    assert entries_with_sound_changes(Family.STRUCK_STRINGS) == []
+
+
+# Every name plans/data/instrument-audit/batch-19.tsv holds back for any reason but a sourced
+# range, with its waits_for: the WAIT rows for sub-audio fundamentals, an engine feature, a build
+# of its own, a sourced reed and bore or a range above C8, and the alias rows that wait for one of
+# them, in the sheet's order. None ships under that name or as an alias until the reason is met
+# (decision 4; batch 19). The test matches exact names
+SAXOPHONE_HELD_BACK: dict[str, str] = {
+    'bb tubax': 'sub-audio fundamentals',
+}
+
+
+def test_no_saxophone_name_held_back_for_a_feature_is_listed():
+    """No catalog name or alias is a saxophone the sheet holds back."""
+    assert names_listed(SAXOPHONE_HELD_BACK) == set()
+
+
+def test_no_saxophone_sound_alike_changes_its_parents_build():
+    """No saxophone sound-alike carries sound_changes: this batch adds none."""
+    assert entries_with_sound_changes(Family.SAXOPHONES) == []
