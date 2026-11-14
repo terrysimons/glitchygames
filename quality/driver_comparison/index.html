@@ -2903,6 +2903,17 @@ file and the native run's log.</p>
 <p>The comparison is off, and the summary says why, in <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> (<code>CI=true</code>), with <code>--dummy-only</code> (fast
 iteration), when <code>SDL_VIDEODRIVER</code> or <code>SDL_AUDIODRIVER</code> is set (that driver runs alone), and on a
 Linux machine without a display.</p>
+<div class="admonition warning">
+<p class="admonition-title">Stopping a child run leaves nothing running</p>
+<p>The native run and the image re-runs are stopped (an interrupted run, a timeout, the end of the
+session) as Ctrl-C stops a pytest run: SIGINT to the run's process group first, which every
+xdist worker turns into an orderly <code>KeyboardInterrupt</code>, so each test's cleanup runs; SIGTERM,
+then SIGKILL, follow a run that does not end. SIGTERM first, as before, killed the workers at
+once, and a child a test had started in a session of its own was left running (BUGS.md #275).
+Each child run also has a temporary directory of its own (<code>--basetemp</code>, under the system's
+temporary directory); when it ends, any process naming it, left by a worker that died outright,
+is killed and listed in the summary (<code>left running by the cocoa run (now killed): ...</code>).</p>
+</div>
 <h2 id="tests-whose-frames-vary">Tests whose frames vary<a class="headerlink" href="#tests-whose-frames-vary" title="Permanent link">#</a></h2>
 <p>A test whose frames are not expected to match between runs or drivers is marked
 <code>@pytest.mark.frames_vary(reason=...)</code>: it is listed with its reason and not compared. Today
@@ -3083,7 +3094,7 @@ Apple silicon. Made on macOS; on a Linux host the results are made writable for 
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 13, 2026 15:41:41 UTC">November 13, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 01:32:27 UTC">November 14, 2026</span>
   </span>
 
     
