@@ -598,6 +598,33 @@ class TestGameEngineSystemInfo:
         assert 'Display inited: True' in caplog.text
         assert f'Initial Resolution: {engine.initial_resolution}' in caplog.text
 
+    def test_the_window_manager_info_is_never_asked_for_on_wayland(self, mocker, caplog):
+        """pygame-ce 2.5.8's get_wm_info() segfaults with a window open on Wayland.
+
+        Every game crashed at start on a Raspberry Pi's Wayland session once the engine chose
+        Wayland by default. A Wayland display cannot run here, so the driver's name is patched.
+        """
+        engine = _make_engine(mocker)
+        mocker.patch.object(pygame.display, 'get_driver', return_value='wayland')
+        get_wm_info = mocker.patch.object(pygame.display, 'get_wm_info')
+
+        with caplog.at_level(logging.INFO, logger=GameEngine.log.name):
+            engine.print_system_info()
+
+        get_wm_info.assert_not_called()
+        assert 'Window Manager Info: not asked for on wayland' in caplog.text
+
+    def test_the_window_manager_info_is_logged_on_other_drivers(self, mocker, caplog):
+        """On every other driver the window manager info is still logged."""
+        engine = _make_engine(mocker)
+        mocker.patch.object(pygame.display, 'get_driver', return_value='x11')
+        mocker.patch.object(pygame.display, 'get_wm_info', return_value={'window': 42})
+
+        with caplog.at_level(logging.INFO, logger=GameEngine.log.name):
+            engine.print_system_info()
+
+        assert "Window Manager Info: {'window': 42}" in caplog.text
+
     def test_print_system_info_logs_display_info_as_text(self, mocker, caplog):
         """The display info reaches logging already formatted, never as the VidInfo object.
 

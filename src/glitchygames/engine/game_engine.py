@@ -243,6 +243,10 @@ SDL_DRIVER_VARIABLES = ('SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')
 # fullscreen window about 25% on a Raspberry Pi 4. SDL tries a list in order, so x11 still starts
 # when Wayland cannot
 WAYLAND_FIRST_VIDEO_DRIVERS = 'wayland,x11'
+# The video drivers whose window manager info is never asked for: pygame-ce 2.5.8's
+# pygame.display.get_wm_info() segfaults once a window is open on SDL's wayland driver (seen on a
+# Raspberry Pi 4, Ubuntu 26.10, GNOME), and the engine asks for it at every start
+VIDEO_DRIVERS_WITHOUT_WM_INFO = frozenset({'wayland'})
 # SDL's hint that turns its own SIGINT/SIGTERM handlers off (the engine owns the signals)
 SDL_NO_SIGNAL_HANDLERS_HINT = 'SDL_NO_SIGNAL_HANDLERS'
 # --video-driver's choices: SDL 2's video drivers by platform.system() name (SDL's own list,
@@ -1959,7 +1963,13 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             (pygame.display.mode_ok(self.initial_resolution), self.mode_flags),
             self.mode_flags,
         )
-        self.log.info('Window Manager Info: %s', pygame.display.get_wm_info())
+        video_driver = pygame.display.get_driver()
+        if video_driver in VIDEO_DRIVERS_WITHOUT_WM_INFO:
+            self.log.info(
+                'Window Manager Info: not asked for on %s (pygame-ce crashes there)', video_driver
+            )
+        else:
+            self.log.info('Window Manager Info: %s', pygame.display.get_wm_info())
         self.log.info('Platform Timer Resolution: %s', pygame.TIMER_RESOLUTION)
 
     def print_game_info(self: Self, *, game: type[Scene] | Scene) -> None:
