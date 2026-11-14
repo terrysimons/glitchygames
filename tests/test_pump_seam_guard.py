@@ -35,6 +35,13 @@ _PUMP_SEAMS = frozenset({
     # empties the queue a caller (a test) left, so the session records none of it. Moved from
     # scripts/record_scripted_session.py (Stage D, Task D4b), the same clear in a helper
     ('replay/tools/scripted_sessions.py', 'clear_events_left_queued'),
+    # A run's start drops the custom events an earlier run in the process left queued, before
+    # the run's code can post and before any pump: no batch a recording sees or a replay
+    # substitutes loses an event (BUGS.md #276)
+    ('recording.py', 'discard_custom_events_queued_before_the_run'),
+    # ...and its teardown empties the queue once the run is over, after its last pump and
+    # with its recording closed: nothing it drops is in any batch (BUGS.md #276)
+    ('recording.py', 'discard_events_left_at_the_runs_end'),
 })
 
 _QUEUE_READING_ATTRIBUTES = frozenset({'get', 'poll', 'wait', 'peek', 'pump', 'clear'})
