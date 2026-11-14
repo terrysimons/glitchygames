@@ -4,6 +4,25 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 278. Dependabot Alert 196: the Locked tornado 6.6 Has an Open Redirect
+- **Description**: GitHub's Dependabot alert 196 (opened 2026-11-14, severity low): «Tornado: Open redirect via triple-slash redirect paths», for tornado `<= 6.6.0`, first fixed in 6.6.1. `uv.lock` holds tornado 6.6, pulled in only by `bokeh`, a runtime dependency of `glitchygames`.
+- **Status**: Open (not fixed; a branch of its own)
+- **Priority**: Low (no project code imports bokeh or tornado: `bokeh` is in deptry's `DEP002` list in `pyproject.toml`, declared but unused, and no code starts a bokeh or tornado server; the package still ships it to users)
+- **Fix to make**: `uv lock --upgrade-package tornado` (to 6.6.1 or later), regenerate the SBOM with `nox -s security-scan` and commit it with `uv.lock`, as CLAUDE.md requires. Separately: why `bokeh` is a runtime dependency nothing imports (`git log -S bokeh -- pyproject.toml`), and whether it should move to an extra or go
+- **Reporter**: Claude, from the push of `chore/instrument-audit-checks` (GitHub printed the alert)
+- **Date Reported**: 2026-11-14
+- **Files**: `uv.lock`, `pyproject.toml`, `docs/sbom.cyclonedx.json`
+
+### 277. The Type Gate Never Reads the Tests
+- **Description**: The `static-analysis` hook runs basedpyright and ty, but `[tool.ty.src]` in `pyproject.toml` leaves out `tests/`, so `uv run ty check` with no paths passes while ty, run on every tracked test file, reports 1126 diagnostics (2026-11-14: 784 `invalid-argument-type`, 241 `unresolved-attribute`, 63 `invalid-assignment`, 13 `unsupported-operator`, 5 `invalid-return-type`, 4 `unused-ignore-comment` and the rest scattered; `tests/audio/test_voices.py` has the most). Found when `tests/audio/test_instrument_catalog.py`'s 7 errors turned up only on a direct `ty check` of that file
+- **Status**: Open (the owner's decision: adding `tests/` to the gate is a type-checker config change, and the existing diagnostics must be fixed first)
+- **Priority**: Medium (a test's wrong type reaches main unseen; a test can pass by accident on a value it misreads)
+- **Test gap**: nothing checks that the type gate covers every tracked Python file
+- **Done so far**: `tests/audio/test_instrument_catalog.py`'s 7 errors were fixed on `chore/instrument-audit-checks` (0ae8c8f4): ty now reports none in that file
+- **Reporter**: Claude
+- **Date Reported**: 2026-11-14
+- **Files**: `pyproject.toml` (`[tool.ty.src]`), `tests/`; plans/future-features.md #89
+
 ### 276. The Digest-File Test's Watched Replay Diverged at Frame 0 Once
 - **Description**: The pre-push `compare-drivers` hook of #194's push (2026-11-13, load average about 55-60 from other sessions) failed one test on dummy-1: `tests/world/test_gameplay_replay.py::TestAuditReplayRuns::test_the_digest_file_lists_every_replayed_frame_then_no_divergence` exited `INTERNAL_ERROR` (70) instead of `SUCCESS` (the assert at line 5115; junit had no captured output). dummy-2 and cocoa passed it; it is not otherwise known to have failed.
 - **Status**: Resolved on branch `fix/stale-user-events-before-recording` (2026-11-13): the one sufficient cause found is fixed, and a recurrence now names its divergence. Which comparison differed in the one failure is still not known.

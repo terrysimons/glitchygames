@@ -6283,7 +6283,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
     not include `tests/`, so the type gate never reads them. Run on every tracked test file, ty
     reports 1126 diagnostics (784 `invalid-argument-type`, 241 `unresolved-attribute`, 63
     `invalid-assignment`, the rest scattered; `tests/audio/test_voices.py` holds the most).
-    Adding `tests/` to the gate is a config change for the owner to decide
+    Adding `tests/` to the gate is a config change for the owner to decide (BUGS.md #277)
   - [ ] The folded-in fixes of Task 6 (parked minors from the reviews): `tarogato`'s notes gained
     a clause saying batch 14 read the row as the modern instrument only to set its family, while
     this batch decides the name and the page gives it to both instruments; `curved soprano
