@@ -6134,7 +6134,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
       7, ...), and the features #76 to #89 named for rows that wait for something else first
     - Whether to turn the final audit into a tracked test (#88's gap: no tracked test stops a WAIT
       or DROP name from being added later as an alias or entry; only the untracked
-      `build/batch-*-code-check.py` scripts and `build/batch-19-final-audit.py` do)
+      `build/batch-*-code-check.py` scripts and `build/batch-19-final-audit.py` do). Answered yes
+      (the owner, 2026-11-14): the final audit is now tests in
+      `tests/audio/test_instrument_catalog.py`, below under "After the expansion closed"
     - The final audit's standing counts, corrected by the final review: SHIP 76 and DROP 376
       (the first run printed SHIP 73 and DROP 379). The audit now keeps an earlier SHIP,
       SOUND_ALIKE or ALIAS standing when a later sheet drops the same name, as it already did for
@@ -6216,6 +6218,72 @@ This document tracks planned future features for the GlitchyGames project. Featu
     contact, and the saved pages are in the gitignored `build/`
   - [ ] A reviewer wrote its review file at the repository root; the controller moved it into the
     workspace, and nothing of it was committed
+- **After the expansion closed** (2026-11-14, once batches 6 to 19 had merged; the owner asked to
+  keep what made sense of the run's untracked files under `build/` and `.superpowers/`):
+  - [x] The final audit is tracked tests in `tests/audio/test_instrument_catalog.py` (the "audit
+    sheets" block at the end): every sheet row is well formed (every column, a catalog-style
+    name, a known status, a WAIT's `waits_for`, an ALIAS's or SOUND_ALIKE's `alias_of`, no name
+    twice in a sheet); every standing SHIP, SOUND_ALIKE and MOVE name is a catalog entry with its
+    row's family, title, lowest and highest notes and parent (the untracked audit checked only
+    that the name was there); every standing ALIAS points at its row's target; no standing WAIT
+    is a catalog name or alias; the standing DROPs the catalog holds are exactly the 5 above; and
+    the sheets run batch-1 to batch-N with none missing. The standing rule itself (a later row
+    replaces an earlier one, batch-10 read after batch-9, except an "Already decided" DROP and a
+    DROP of a shipped name) has its own tests on throwaway sheets. Each check against the real
+    sheets was shown failing on a planted defect (a title, a range note, an alias target, an
+    unknown status, a WAIT for a catalog name, a DROP of a catalog name, a missing sheet)
+  - [x] The quote check, which batches 11 to 19 copied and changed per batch, is one script:
+    `scripts/instrument_audit_quote_check.py SHEET --pages DIR`, with
+    `tests/test_instrument_audit_quote_check.py`. It holds every batch's rule (an organ
+    footage's `Footage:` from batch 13; drones, detune and reeds; the charset reading from batch
+    16; error pages, redirects and pages with an email address from batch 19). Run on batch 19
+    it finds nothing, as batch 19's own check did. On the older sheets it finds what their checks
+    did not look for yet (the bugs below). The per-batch form and code checks were not kept:
+    their family rules were drafting rules, recorded in each batch's plan, and the tracked audit
+    tests above now check the code against every sheet
+  - [x] The saved source pages stay out of the repository (other people's pages, not all openly
+    licensed, some redacted of personal data, about 60 MB). `plans/data/instrument-audit/saved-pages.tsv`,
+    written by `scripts/instrument_audit_pages_manifest.py` (tests in
+    `tests/test_instrument_audit_pages_manifest.py`), lists each of the 1178 pages with its
+    folder, size, SHA-256, date last written and its row's source URLs, so an archived copy can
+    be shown to be the page the audit read. The pages themselves exist only in the
+    `glitchygames-sound-engine` worktree's `build/`
+  - [ ] Whether to archive those pages somewhere outside the repository before that worktree is
+    ever removed (`git worktree remove` deletes gitignored files without asking)
+  - [x] The run's ledgers (`.superpowers/sdd/*/progress.md` and the run ledger) were checked ruling
+    by ruling against the committed files: 168 of 169 rows were already here (#76 to #89, the
+    sheets' notes, the plans, the test comments, `plans/future-work.md`), and the two missing are
+    recorded now:
+    - Ruling: after electronic and bowed strings (the design's named order), the batches ran in
+      order of their round-2 audit size, largest first, since the design says only "then the
+      rest". Cost if wrong: a reorder of batches not yet run (none now)
+    - Flake: batch 7's second push failed the driver comparison on
+      `tests/audio/test_channel_fades.py::test_the_crt_skip_fade_on_the_device_is_a_plateau_or_two_then_a_halt`,
+      on the cocoa run only, "not reproduced" on its re-run, most likely CPU load from batch 8's
+      test runs in another worktree; the third push passed. `plans/future-work.md` records a
+      different failure of the same test (CircleCI, Windows) and its fix
+- **Bugs to report** (found after the close; none fixed here):
+  - [ ] Old sheets' quotes the merged quote check finds, which their own batch's check did not look
+    for: `batch-11.tsv`'s `b flat contrabass sarrusophone` quotes two passages on none of its saved
+    pages (batch 11 checked only SHIP and SOUND_ALIKE rows), and `batch-13.tsv`'s WAIT and DROP
+    rows quote 6 passages on no saved page (`apollonicon`, `band organ`, `beer bottle organ`,
+    `compton electrone`, `street organ`, `bible regal`); batch 14 began checking every row
+  - [ ] Saved pages that a later rule would refuse: 3 error pages among batch 12's
+    (`mechawka--2`, `tulug--1`, `mutsianka--1`) and 1 among batch 15's (`octavator--3`), the
+    Wikimedia 404 pages kept as evidence for DROP rows, their client address redacted (#87), and
+    76 Wikipedia redirects saved beside their targets in batches 12 to 18. No row's quote depends
+    on them
+  - [x] `uv run ty check tests/audio/test_instrument_catalog.py` reported 7 errors already on main
+    (a `frozenset[str]` passed as `frozenset[Tag]`, two assignments into read-only mappings, and
+    four `float()` calls on a value typed `Note | float | ScaleStep | str | None` or `object`).
+    Fixed (2026-11-14): the three deliberate refusals carry a `ty: ignore` beside their pyright
+    one, `drone_hertz` checks each drone's pitch is a fixed hertz (and the two tests that copied
+    it call it), and `built_footage` checks the footage change is a number
+  - [ ] `uv run ty check` with no paths passes, since `[tool.ty.src]` in `pyproject.toml` does
+    not include `tests/`, so the type gate never reads them. Run on every tracked test file, ty
+    reports 1126 diagnostics (784 `invalid-argument-type`, 241 `unresolved-attribute`, 63
+    `invalid-assignment`, the rest scattered; `tests/audio/test_voices.py` holds the most).
+    Adding `tests/` to the gate is a config change for the owner to decide
   - [ ] The folded-in fixes of Task 6 (parked minors from the reviews): `tarogato`'s notes gained
     a clause saying batch 14 read the row as the modern instrument only to set its family, while
     this batch decides the name and the page gives it to both instruments; `curved soprano
