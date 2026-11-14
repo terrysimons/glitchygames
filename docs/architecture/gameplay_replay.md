@@ -194,6 +194,12 @@ the same time are listed by name, so `list_slots()` gives the same order everywh
 - Post events with `glitchygames.recording.post_event`, not `pygame.event.post`, so a recording
   can mark them internal. Replay delivers internal events from the code that posts them again;
   an SDL-type event posted directly would be delivered twice.
+- A custom-type event (FPSEVENT, any `pygame.event.custom_type()`) is internal by its type
+  alone, so every run's start drops the ones still in SDL's queue (an inner game's start,
+  which uses a private queue, drops none). Post custom events from the run's own code
+  (`setup()` or later), never before the game engine is built.
+- A run's teardown empties its event queue, so nothing it left (a QUIT, a custom event, unread
+  input) reaches a later run in the same process, even when the host keeps pygame running.
 - Code that drives the game from outside its logic, as a player would (a supervisor, a test
   harness, a tool), posts with `glitchygames.recording.post_input_event` instead. The event is
   recorded as external input, whatever its type, so `--replay-trace`, instant replays and demos

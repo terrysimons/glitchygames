@@ -1119,6 +1119,28 @@ class TestUnhandledEventTracking:
         assert performance_manager._fps_log_interval_ms == 250.0
         assert performance_manager._target_fps == engine.fps
 
+    def test_teardown_empties_the_queue_even_when_pygame_stays_up(self, mocker):
+        """A run leaves no event for the next run in the process (BUGS.md #276).
+
+        Quitting pygame empties SDL's queue too, but a host that keeps pygame running (the
+        test harness, as here) would hand the next run a stale QUIT or custom event.
+        """
+        engine = _make_engine(mocker)
+        mocker.patch('pygame.display.quit')
+        mocker.patch('pygame.quit')
+        pygame.event.post(pygame.event.Event(pygame.QUIT))
+        pygame.event.post(pygame.event.Event(pygame.USEREVENT, left='over'))
+
+        engine._shutdown()
+
+        # Only these types: on a real driver the window system may queue its own events after
+        left_over = [
+            event.type
+            for event in pygame.event.get()
+            if event.type == pygame.QUIT or event.type >= pygame.USEREVENT
+        ]
+        assert left_over == []
+
 
 class TestSceneManagerGameEngineSetter:
     """SceneManager.game_engine's setter configures the performance manager from the engine."""
