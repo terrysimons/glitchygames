@@ -658,7 +658,11 @@ def press_keys_while_held(
         if before_each_press is not None:
             before_each_press()
         if not remaining_keys:
-            message = 'the replay waited for the viewer after every key was pressed'
+            # Named with why it waits: a replay paused at a divergence shows it in its banner
+            message = (
+                'the replay waited for the viewer after every key was pressed (end reason '
+                f'{sources.result.end_reason!r}, banner {sources.controls.banner!r})'
+            )
             raise AssertionError(message)
         key = remaining_keys.pop(0)
         pygame.event.post(_key(pygame.KEYDOWN, key))
@@ -1356,6 +1360,47 @@ class TestPrivateEventQueue:
             event_type: pygame.event.get_blocked(event_type) for event_type in watched_types
         }
         assert blocked_after == blocked_before
+
+
+# A custom event type no game in this file posts: an earlier run's event left in SDL's queue
+LEFT_OVER_EVENT_TYPE = pygame.event.custom_type()
+
+
+def _recorded_event_types(*, recording_path: Path) -> list[int]:
+    """Return the type of every event the recording's frames hold, in order."""
+    return [
+        record['type']
+        for frame in read_trace_result(path=recording_path).trace['frames']
+        for batch in frame.get('event_batches', [])
+        for record in batch
+    ]
+
+
+class TestCustomEventsQueuedBeforeTheRun:
+    """A run takes none of the custom events an earlier run left in SDL's queue (BUGS.md #276).
+
+    A custom type is internal by type alone, so a left-over one was recorded as the run's own
+    internal event, or taken by a replay for one its code posted: a divergence at frame 0.
+    """
+
+    def test_a_recording_holds_none_of_them(self, mocker, tmp_path):
+        pygame.event.post(pygame.event.Event(LEFT_OVER_EVENT_TYPE, left='over'))
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        assert LEFT_OVER_EVENT_TYPE not in _recorded_event_types(recording_path=recording_path)
+
+    def test_a_watched_replay_started_with_one_queued_does_not_diverge(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        pygame.event.post(pygame.event.Event(LEFT_OVER_EVENT_TYPE, left='over'))
+        digest_path = tmp_path / 'digests.jsonl'
+        press_keys_while_held(mocker=mocker, keys=(pygame.K_SPACE,))
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--replay-digest', str(digest_path)),
+            )
+        _, divergence = read_digest_file(path=digest_path)
+        assert (divergence, exit_info.value.code) == (None, ExitCode.SUCCESS)
 
 
 class TestReplayFps:
@@ -5112,13 +5157,13 @@ class TestAuditReplayRuns:
                 mocker=mocker,
                 arguments=('--replay-digest', str(digest_path)),
             )
-        assert exit_info.value.code == ExitCode.SUCCESS
         digests, divergence = read_digest_file(path=digest_path)
+        # Together, so a failed run names its divergence, not only its exit (BUGS.md #276)
+        assert (divergence, exit_info.value.code) == (None, ExitCode.SUCCESS)
         recorded_frames = read_trace_result(path=recording_path).trace['frames']
         assert digests == [
             frame_digest(frame_record=sampled_part(frame=frame)) for frame in recorded_frames
         ]
-        assert divergence is None
 
     def test_an_unwritable_digest_file_is_refused_before_the_run(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)

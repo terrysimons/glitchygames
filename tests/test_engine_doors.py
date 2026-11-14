@@ -142,6 +142,13 @@ ALLOWED_FUNCTION_BYPASSES: dict[str, dict[str, frozenset[str]]] = {
         'record_trace': frozenset({'pygame.event.post'}),
         'discard_environment_events': frozenset({'pygame.event.get', 'pygame.event.post'}),
     },
+    # A run's start drops the custom events an earlier run left in SDL's queue, before the
+    # run's code can post and before its first pump: none of them is the run's (BUGS.md #276)
+    'recording.py': {
+        'discard_custom_events_queued_before_the_run': frozenset({'pygame.event.get'}),
+        # ...and its teardown empties the queue once the run is over, its recording closed
+        'discard_events_left_at_the_runs_end': frozenset({'pygame.event.clear'}),
+    },
 }
 
 
