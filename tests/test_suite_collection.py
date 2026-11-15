@@ -1345,6 +1345,7 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/test_process_state_guard.py': SOURCE_GUARD_REASON,
     'tests/test_pump_seam_guard.py': SOURCE_GUARD_REASON,
     'tests/test_shared_font_cache_guard.py': SOURCE_GUARD_REASON,
+    'tests/test_sprite_classes_are_root_sprites.py': SOURCE_GUARD_REASON,
     'tests/test_suite_collection.py': (
         "the suite's own collection and import guards, over every test root"
     ),

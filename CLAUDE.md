@@ -232,8 +232,11 @@ present. Check rendering on the real driver with `SDL_VIDEODRIVER=cocoa uv run p
 - **Every game object is a sprite** in the scene's groups, never drawn straight to the screen
   (the owner, 2026-11-07): sprites get stable ids, replay comparison, debug hitboxes and the AI's
   introspection. Drawing Fire predates this (conversion is in plans/future-work.md).
-- Hierarchy (`sprites/`): `RootSprite` → `Sprite` → `BitmappySprite`, `AnimatedSprite`. Load
-  sprites with `SpriteFactory.load_sprite(filename=...)`, not `BitmappySprite` directly.
+- Hierarchy (`sprites/`): `RootSprite` → `Sprite` → `BitmappySprite`, and `RootSprite` →
+  `AnimatedSprite`. Every sprite class stands on `RootSprite`, which carries the mouse and
+  keyboard handlers (silent by default) the dispatchers call
+  (`tests/test_sprite_classes_are_root_sprites.py`). Load sprites with
+  `SpriteFactory.load_sprite(filename=...)`, not `BitmappySprite` directly.
 - Sprite files are TOML only (character-to-colour map, optional per-colour alpha, magenta
   255,0,255 as the transparency key, `[[animation]]` sections); see ANIMATION_README.md.
 - Hitboxes (`collision/`) default to the image's visible pixels; TOML hitboxes win. A TOML

@@ -257,6 +257,17 @@ designs are not.
 - [x] **Hide the 0.32 s hitch when a stage is built** (found 2026-11-15, feature plan 7): done
   by feature plan 9: the card builds the stage's sprites ahead, a sprite a frame, and the stage
   is built in 2 ms (was 349 ms).
+- [x] **The pointer over a kid ended the game** (the owner, 2026-11-15:
+  `'Kid' object has no attribute 'on_mouse_focus_event'`): fixed in the engine, as the owner
+  directed. `AnimatedSprite` stood outside `RootSprite`, so it had no mouse or keyboard handlers;
+  every game's animated sprites (Brave Adventurer's player too) crashed under the pointer.
+  `RootSprite` now carries both protocols' silent handlers (moved up from `Sprite`),
+  `AnimatedSprite` stands on it, and the mouse manager calls only handlers a sprite has (a
+  replay's ghost has none). Tests: `test_moving_the_mouse_over_a_kid_does_not_crash` (the game),
+  the engine's mouse and animated-sprite tests, and `tests/test_sprite_classes_are_root_sprites.py`
+  (no sprite class stands on pygame's sprites but `RootSprite` and `GhostSprite`). The test gap:
+  BUGS.md #225 met this error in 2026-10 but only hid the test windows, so no test moved a
+  pointer over a sprite in a live scene.
 - [ ] **A game cannot declare an engine context slot yet** (found 2026-11-15, feature plan 9):
   `tests/test_engine_context_source_guards.py` requires an isolation check for every slot,
   members' included, in the engine's `ISOLATION_CHECKS`, but engine tests may never import a

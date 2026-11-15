@@ -15,6 +15,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
+import pygame
 from scripts.golden_inputs import NEIGHBORHOOD_STAGE_CLEAR_ROUTE
 from scripts.plan_neighborhood_route import plan_route
 
@@ -132,3 +133,24 @@ def test_the_golden_plays_back_from_stage_2s_start():
     assert played.divergence is None, played.divergence
     assert played.end_reason in {'end_of_recording', 'quit'}
 
+
+def test_moving_the_mouse_over_a_kid_does_not_crash():
+    """The owner's crash (2026-11-15): the pointer over a kid ended the game.
+
+    The engine's mouse manager tells the topmost sprite under the pointer it has the focus
+    (``on_mouse_focus_event``); a kid is an ``AnimatedSprite``, which has no mouse handlers.
+    """
+    with running_scene(NeighborhoodScene, extra_arguments=('--resolution', '800x480')) as manager:
+        step_finishing(manager, frames=2)
+        scene = manager.active_scene
+        assert isinstance(scene, NeighborhoodScene)
+        kid = scene.kids[0]
+
+        step_finishing(
+            manager,
+            pygame.event.Event(
+                pygame.MOUSEMOTION, pos=kid.rect.center, rel=(1, 1), buttons=(0, 0, 0)
+            ),
+        )
+
+        assert manager.active_scene is scene

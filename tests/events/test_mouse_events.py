@@ -31,6 +31,7 @@ from glitchygames.events.mouse import (
     collided_sprites,
 )
 from glitchygames.scenes import Scene
+from glitchygames.sprites import AnimatedSprite
 
 # Options of a strict game: unhandled events raise UnhandledEventError
 STRICT_EVENT_OPTIONS = {'debug_events': False, 'no_unhandled_events': True}
@@ -866,6 +867,47 @@ class TestMouseEventProxyMotionWithCollision:
         )
 
         assert scene.drags == [1]
+
+    def test_the_pointer_over_an_animated_sprite_gives_it_the_focus(self, mouse_scene):
+        """An AnimatedSprite carries the mouse protocol: pointed at, it takes the focus.
+
+        It once had no mouse handlers, so the pointer over one ended the game (a game's
+        kid, 2026-11-15: ``'Kid' object has no attribute 'on_mouse_focus_event'``).
+        """
+        sprite = AnimatedSprite(groups=mouse_scene.all_sprites)
+        sprite.image = pygame.Surface((20, 20))
+        sprite.rect = pygame.Rect(90, 90, 20, 20)
+        manager = MouseEventManager(game=mouse_scene)
+
+        manager.on_mouse_motion_event(
+            HashableEvent(pygame.MOUSEMOTION, pos=(100, 100), rel=(1, 1), buttons=(0, 0, 0))
+        )
+        manager.on_mouse_motion_event(
+            HashableEvent(pygame.MOUSEMOTION, pos=(300, 300), rel=(1, 1), buttons=(0, 0, 0))
+        )
+
+        assert manager.proxies[0].previous_focus is sprite
+
+    def test_a_sprite_without_mouse_handlers_under_the_pointer_is_left_alone(self, mouse_scene):
+        """A plain pygame sprite in a scene (a replay's ghost is one) gets no call it lacks.
+
+        The focus still follows the pointer, as for any sprite: only the missing handlers are
+        not called, as the scene's click dispatch already skips them.
+        """
+        sprite = pygame.sprite.DirtySprite(mouse_scene.all_sprites)
+        sprite.image = pygame.Surface((20, 20))
+        sprite.rect = pygame.Rect(90, 90, 20, 20)
+        manager = MouseEventManager(game=mouse_scene)
+
+        manager.on_mouse_motion_event(
+            HashableEvent(pygame.MOUSEMOTION, pos=(100, 100), rel=(1, 1), buttons=(0, 0, 0))
+        )
+        assert manager.proxies[0].current_focus is sprite
+        manager.on_mouse_motion_event(
+            HashableEvent(pygame.MOUSEMOTION, pos=(300, 300), rel=(1, 1), buttons=(0, 0, 0))
+        )
+
+        assert manager.proxies[0].current_focus is None
 
 
 # ---------------------------------------------------------------------------
