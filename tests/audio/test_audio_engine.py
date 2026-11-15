@@ -371,6 +371,37 @@ class TestHandlesAndOwners:
         assert handle.is_playing is False
         engine.close(wait_seconds=0.0)
 
+    def test_a_sound_from_a_transitions_last_cue_belongs_to_the_arriving_scene(self, scene_manager):
+        """It plays on after the switch: the arriving scene is active from the transition's start.
+
+        Clockwork Keep's elevator clank plays from the ride's progress-1.0 cue, after the old
+        floor's cleanup, and needs no owner of its own because ``_start_transition`` makes the
+        arriving scene active before the transition runs (plans/2026-11-14-sound-migration.md,
+        decision 5). Were it the old floor's, the owner rules would fade it within 50 ms.
+        """
+        from glitchygames.transitions.fade import FadeTransition
+
+        arriving = SoundFixtureScene()
+        transition = FadeTransition(duration=0.1)
+        handles: list[SoundHandle] = []
+        transition.add_cue(
+            1.0,
+            lambda: handles.append(
+                scene_manager.audio.play(Instrument(wave='square'), pitch='C5', length=1.0)
+            ),
+        )
+
+        scene_manager._start_transition(arriving, transition)
+        assert transition.update(0.2)  # runs the cue and completes
+        scene_manager._finalize_transition()
+        scene_manager.dt = FRAME_SECONDS
+        for _ in range(6):  # 100 ms of frames, twice the cleanup fade
+            scene_manager._update_frame_services()
+
+        assert scene_manager.active_scene is arriving
+        assert len(handles) == 1
+        assert handles[0].is_playing
+
     def test_system_voices_outlive_every_scene(self, scene_manager):
         engine = AudioEngine(
             partition=ChannelPartition(live=(), library=tuple(range(4, 36)), legacy_count=8),

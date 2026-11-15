@@ -53,8 +53,15 @@ cache in them (a PaddleSlap golden replayed under `--sound-cache disk` wrote no 
    Python too: `Instrument(..., live=True, parameters={...}, routes=[...])`, mirroring the TOML
    schema (the spec gives them only in TOML). Then `live_audio` and `create_voice` are removed
    (§10.4); §7.5 and §8, which say they stay, are corrected.
-5. **`owner=` on `play()` and `start()`,** defaulting to today's rule (the scene in setup, else
-   the active scene), so a transition can own the motor and the arrival clank as it does now.
+5. **`owner=` on `start()` only,** defaulting to today's rule (the scene in setup, else the
+   active scene), so the elevator transition can own the motor as it does now (the owner,
+   2026-11-14, after the evidence below changed the first plan of `owner=` on `play()` too).
+   The motor starts in `_go_to_next_floor`, before the transition starts, while the old floor is
+   still active: under the default it would be the old floor's and fade 50 ms into the ride. The
+   arrival clank needs nothing: `start_transition` makes the arriving floor the active scene
+   before the transition runs (`scenes/scene.py`, `self.active_scene = scene`), so the clank,
+   played from the progress-1.0 cue, is the arriving floor's and plays on after the switch (a
+   regression test pins it). `play()` gets `owner=` when a play needs one.
 6. **Every game compiles all its sounds when it starts, asynchronously during the CRT power-on**
    ("start the compile before the CRT and let it run async then block on the CRT screen"):
    - No thread: each CRT frame, after drawing, the engine compiles sounds until shortly before
@@ -83,8 +90,7 @@ cache in them (a PaddleSlap golden replayed under `--sound-cache disk` wrote no 
   output=(45, 110)), ...], tremolo=Tremolo(rate_hz=..., depth=...))`; tremolo rate and depth
   routable like any destination.
 - `Sound.start(*, parameters=None, volume=..., pan=..., bus=..., priority=..., owner=None)
-  -> LiveSoundHandle` (`set(name, value) -> bool`, `release()`, `stop()`); `Sound.play(...,
-  owner=None)`.
+  -> LiveSoundHandle` (`set(name, value) -> bool`, `release()`, `stop()`).
 - A scene declares the sounds its game needs at start (`Scene.SOUNDS`, a sequence of sources),
   and the engine's start-up compile reads it. Names are proposals.
 
@@ -94,7 +100,7 @@ cache in them (a PaddleSlap golden replayed under `--sound-cache disk` wrote no 
    `add_recipes` reworded; `[recipes.*]` compatibility.
 2. Clockwork Keep's and Mr. Muncher's one-shot sounds as effects through `audio.sound`;
    Brave Adventurer's five sounds as effects; PaddleSlap's two WAVs by short name.
-3. `owner=` on `play()`.
+3. The clank's ownership pinned by a test (decision 5); `owner=` itself comes with `start()`.
 4. The start-up compile: `Scene.SOUNDS`, the CRT-idle slices, the wait, the skipped-power-on
    path; `warm` removed.
 5. Live instruments: parameters, routes, curves, smoothing, tremolo, `start()`/`set()`, on the
@@ -123,7 +129,10 @@ cache in them (a PaddleSlap golden replayed under `--sound-cache disk` wrote no 
   failing compile exits through the crash boundary with its code; start-up compiles are setup
   compiles and appear in no frame's audio work; the browser's `start_async` path compiles in
   its ticks.
-- `owner=`: a transition-owned sound keeps playing through the transition and stops with it.
+- The elevator clank, played from the transition's last cue, belongs to the arriving floor and
+  is not faded by the switch.
+- `start(owner=transition)`: a transition-owned live voice keeps playing through the transition
+  and stops with it.
 - Live instruments: AUD-GAME-001 to 006 (parameters by name, smoothing, clamping, curves, 1000
   sets per frame coalesced, latency at most a chunk plus 12 ms); tremolo rate and depth change
   live; a live voice on an inner game's live pool is silent while the tile is silent and heard
