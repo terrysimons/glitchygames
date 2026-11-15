@@ -8,6 +8,7 @@ import re
 import shlex
 import shutil
 import socket
+import sys
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,6 +17,9 @@ from typing import NoReturn
 import pytest
 import yaml
 from scripts.workspace_packages import workspace_members
+
+from glitchygames.process import OutputCapture, run_command
+from tests.ledger_repositories import environment_without_git_variables, git
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CIRCLECI_CONFIG_PATH = PROJECT_ROOT / '.circleci' / 'config.yml'
@@ -706,6 +710,133 @@ def test_a_failed_shuffled_run_names_its_seed_and_how_to_replay_it(mocker):
     assert 'seed 777' in message
     assert '--randomly-seed=777 -n 0' in message
     assert 'nox -s test-random -- 777' in message
+
+
+# pre-commit's own run of a hook set in a throwaway repository: a minute is far more than it needs
+PRE_COMMIT_TIMEOUT_SECONDS = 60.0
+# The hook stages .pre-commit-config.yaml installs (default_install_hook_types)
+HOOK_STAGES = ('pre-commit', 'pre-push')
+
+
+def run_project_hooks_on(*, tmp_path: Path, changed_paths: list[str], stage: str) -> dict[str, str]:
+    """Run this project's hooks, as pre-commit decides, on a change to ``changed_paths``.
+
+    The configuration is the project's own with each hook's command swapped for one that does
+    nothing (a pygrep that never matches, which pre-commit runs in its own interpreter on every
+    platform), so what is checked is pre-commit's choice of which hooks run.
+
+    Returns:
+        Each hook's name with pre-commit's verdict for it ("Passed": it ran; "Skipped").
+
+    """
+    configuration = yaml.safe_load(
+        (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
+    )
+    for repository_entry in configuration['repos']:
+        for hook in repository_entry['hooks']:
+            hook['language'] = 'pygrep'
+            hook['entry'] = 'a^'
+    repository = tmp_path / 'repository'
+    repository.mkdir()
+    (repository / '.pre-commit-config.yaml').write_text(yaml.safe_dump(configuration))
+    for changed_path in changed_paths:
+        (repository / changed_path).parent.mkdir(parents=True, exist_ok=True)
+        (repository / changed_path).write_text('changed\n', encoding='utf-8')
+    git(repository=repository, arguments=['init', '--quiet'])
+    git(repository=repository, arguments=['add', '.'])
+    # Without the outer hook run's own controls: the suite runs inside the pre-push hook, and a
+    # push's SKIP (or another PRE_COMMIT_ variable) would steer this pre-commit run too
+    environment = {
+        name: value
+        for name, value in environment_without_git_variables().items()
+        if name != 'SKIP' and not name.startswith('PRE_COMMIT_')
+    } | {'PRE_COMMIT_HOME': str(tmp_path / 'pre-commit-home')}
+
+    completed = run_command(
+        command=[
+            sys.executable,
+            '-m',
+            'pre_commit',
+            'run',
+            '--color',
+            'never',
+            '--hook-stage',
+            stage,
+            '--files',
+            *changed_paths,
+        ],
+        environment=environment,
+        timeout_seconds=PRE_COMMIT_TIMEOUT_SECONDS,
+        capture_output=OutputCapture.TOGETHER,
+        working_directory=repository,
+    )
+
+    assert completed.returncode == 0, completed.stdout
+    hook_names = [
+        hook.get('name', hook['id'])
+        for repository_entry in configuration['repos']
+        for hook in repository_entry['hooks']
+        if stage in hook.get('stages', HOOK_STAGES)
+    ]
+    verdicts = {}
+    for line in (completed.stdout or '').splitlines():
+        for name in hook_names:
+            if line.startswith(name):
+                verdicts[name] = re.findall(r'(Passed|Skipped|Failed)$', line.rstrip())[0]
+    assert sorted(verdicts) == sorted(hook_names), completed.stdout
+    return verdicts
+
+
+@pytest.mark.parametrize('stage', HOOK_STAGES)
+def test_a_markdown_only_change_runs_no_hook(tmp_path, stage):
+    """A commit or push that changes only Markdown files skips every check and measurement.
+
+    The owner (2026-11-14): skip running checks if only markdown files change; "since we only
+    have a markdown change, we don't need to run any code measurements or checks". Markdown
+    anywhere: the root's (BUGS.md), the docs' and the plans'. CI still lints the docs and runs
+    the suite on every pull request.
+    """
+    verdicts = run_project_hooks_on(
+        tmp_path=tmp_path,
+        changed_paths=['BUGS.md', 'docs/architecture/sound.md', 'plans/a-plan.md'],
+        stage=stage,
+    )
+
+    assert set(verdicts.values()) == {'Skipped'}, verdicts
+
+
+@pytest.mark.parametrize('stage', HOOK_STAGES)
+def test_any_other_change_runs_every_hook(tmp_path, stage):
+    """One file that is not Markdown, beside Markdown, and every hook of the stage runs."""
+    verdicts = run_project_hooks_on(
+        tmp_path=tmp_path, changed_paths=['BUGS.md', 'src/module.py'], stage=stage
+    )
+
+    assert set(verdicts.values()) == {'Passed'}, verdicts
+
+
+def test_the_outer_runs_skip_list_never_reaches_the_hooks_under_test(tmp_path, monkeypatch):
+    """A push's own SKIP (SKIP=raspberry-pi-replay-metrics git push) leaves these tests' run alone.
+
+    The suite runs inside the pre-push hook, so this process has the push's environment: once,
+    the inner pre-commit took its SKIP and skipped the Pi hook, failing the test above in the
+    gate only (2026-11-14). Here every hook's id is in SKIP, and every hook still runs.
+    """
+    configuration = yaml.safe_load(
+        (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
+    )
+    hook_ids = [
+        hook['id']
+        for repository_entry in configuration['repos']
+        for hook in repository_entry['hooks']
+    ]
+    monkeypatch.setenv('SKIP', ','.join(hook_ids))
+
+    verdicts = run_project_hooks_on(
+        tmp_path=tmp_path, changed_paths=['src/module.py'], stage='pre-push'
+    )
+
+    assert set(verdicts.values()) == {'Passed'}, verdicts
 
 
 def test_the_pre_push_hooks_run_the_shuffled_suite():
