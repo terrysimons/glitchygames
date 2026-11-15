@@ -1231,9 +1231,13 @@ changes the outer game's key repeat (the plan's Review Focus 4).
     the memory of ten Arcade tiles each holding their game's set).
   - Then the clean-up: `SoundBank`, `live_audio`/`create_voice`, `GameSounds`, `load_sound` and
     `add_recipes` (once the recipes are TOML) removed, with their tests.
-  - The proof the disk branch could not have: every golden and bundled demo replays under
+  - ~~The proof the disk branch could not have: every golden and bundled demo replays under
     `--sound-cache disk` cold and warm with the `disk_sound_cache` fixture (writes, then hits,
-    nothing compiled twice, digests equal).
+    nothing compiled twice, digests equal).~~ **Done** 2026-11-15 (migration step 8,
+    `tests/audio/test_audio_engine_goldens.py`): all 16 recordings, cold then warm, digests
+    equal; the 8 that cache sounds write into their game's folder (written down per recording)
+    and read every one back with nothing compiled or written again; the 8 that cache none write
+    nothing. A planted warm recompile, and a planted write on a hit, each fail the 8.
 - **The rest of sound engine M2's live instruments** (not built with the migration, which built
   what the two live sounds need: parameters, routes, curves, smoothing, tremolo, `start`/`set`;
   plans/2026-11-14-sound-migration.md): the state-variable filter and its resonance, pink noise,
