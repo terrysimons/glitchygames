@@ -4,6 +4,41 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 283. Raspberry Pi Rows From Before numpy 2 Were Never Checked for the Corruption Bug
+- **Description**: numpy 1.26.4 on Python 3.14 on Linux ARM64 changed a local array in place once it reached 32,768 8-byte elements (`other = values + 1.0` changed `values`); #153 moved to numpy 2.5.4, which does not. The Raspberry Pi 4's replay rows measured before #153 ran on 1.26.4. Whether any of them measured a corrupted run (wrong numbers, or a replay that took another path) was never checked. Recordings that play the CRT power-on sound crashed outright (`audio/render.py`, `_table_samples`, `IndexError` on index 2048), so the danger is in rows whose runs did not crash
+- **Status**: Open (not investigated)
+- **Priority**: Low (affects only the Pi's history on the Performance page)
+- **Reporter**: Claude, from the numpy 2 work (#153)
+- **Date Reported**: 2026-11-14
+- **Details**: Ways to check: compare the Pi's last rows before #153 with its first after it, per recording, for frames whose content hash changed (`glitchygames report`), and look for the Pi's rows standing apart from the Mac's before #153 but not after. macOS was not affected on the same versions; Linux x86 was never tested
+- **Files**: `quality/replay-ledger/` (the Pi 4's rows before #153)
+
+### 282. Pre-Push Checks Fail in a Worktree Synced With Only the dev Extra
+- **Description**: In a new worktree synced with `uv sync --locked --extra dev`, the pre-push `static-analysis` and `test-random` hooks fail on missing modules (`ModuleNotFoundError: No module named 'mkdocs'`, `mkdocs_gen_files`, `cookiecutter`), in tests such as `tests/test_gen_ref_pages.py` and `tests/templates/test_template_errors.py`. `uv sync --locked --all-extras --all-packages` fixes it. Seen 2026-11-06 on the `fix/numpy-2` worktree, where the failure came at the end of a 20-minute push (the `feat/default-wayland` worktree was synced the same way)
+- **Status**: Open (not re-checked on the current `main`)
+- **Priority**: Low (a re-sync fixes it, but only after a long push fails)
+- **Reporter**: Claude, pushing from new worktrees
+- **Date Reported**: 2026-11-14
+- **Details**: Either the hooks should run in an environment that has every extra they need (as `docs-serve` does since #274: `uv run --isolated ... --all-extras`), or a check before the slow hooks should say which sync is missing
+- **Files**: `.pre-commit-config.yaml`, `noxfile.py`, `.envrc`
+
+### 281. The Performance Charts' "commit" Axis Title Overlaps the Commit Hashes
+- **Description**: On the Performance page's charts, the x axis title `commit` is drawn over the rotated short commit hashes under the axis (seen 2026-11-06 in "Processing time per frame", in a local build in Chrome at 1400 px wide). The layout's bottom margin is 48 px (`margin: { l: 56, r: 16, t: 40, b: 48 }`), which the hashes, rotated when there are many commits, fill
+- **Status**: Open
+- **Priority**: Low (cosmetic)
+- **Reporter**: Claude, checking the game list (#154) in a browser
+- **Date Reported**: 2026-11-14
+- **Files**: `src/glitchygames/replay/tools/performance_pages.py` (the chart layouts, `title: { text: 'commit' }`)
+
+### 280. Bitmappy's Collision Avoidance Logs Every Offset Again on Every Indicator Added
+- **Description**: `VisualCollisionManager._apply_collision_avoidance` logs one DEBUG line per controller in a collision group (`Applied film_strip offset (15, -15) to controller 42`, `collision.py:398`), and it runs again for the whole group every time an indicator is added. `test_bulk_assignment_and_indicators` (`src/apps/bitmappy/tests/test_bitmappy_benchmarks.py`, 1000 controllers) logs about 2.5 million lines. Under pyproject's `addopts` (`--log-cli-level=DEBUG`) and `pytest -n0`, that one test peaked at 3.26 GB and took 46 s on the Mac (229 MB and 2.8 s at `--log-cli-level=WARNING`), and on a Raspberry Pi 4 it passed the 1,600 MiB `GLITCHYGAMES_TEST_RSS_LIMIT_MB` by itself (+1,425 MiB in a fresh process)
+- **Status**: Open
+- **Priority**: Low (only DEBUG runs with many controllers; nox's sessions run at WARNING)
+- **Reporter**: Claude, running the suite on the Raspberry Pi 4 (2026-11-06)
+- **Date Reported**: 2026-11-14
+- **Details**: The logging grows with the square of the indicators at one position. Logging once per group change, or only the controllers whose offset changed, would keep the record without the volume
+- **Files**: `src/apps/bitmappy/src/bitmappy/indicators/collision.py`
+
 ### 279. The Never-Ready Reproducer Test Fails in Every Checkout Under /private/tmp
 - **Description**: `tests/test_reproduce_orphaned_test_processes.py::test_a_run_that_never_reaches_the_moment_leaves_nothing_running` (from #192, BUGS.md #275) failed every time in a checkout under `/private/tmp` (a worktree in Claude's scratch directory, `/private/tmp/claude-501/...`), on plain main as well as on branches, and passes in the main checkout. Under the shuffled pre-push suite it was the one failure (`1 failed, 26350 passed`), so pushes had to be made from the main checkout.
 - **Status**: Open (cause not confirmed)
