@@ -576,12 +576,16 @@ NEIGHBORHOOD_KEYS: dict[str, int] = {
     'LEFT': pygame.K_LEFT,
     'RIGHT': pygame.K_RIGHT,
     'J': pygame.K_j,
+    'K': pygame.K_k,
     'RSHIFT': pygame.K_RSHIFT,
 }
 # The neighborhood golden's opening: (keys held, first frame, frame after the last). WASD round a
 # square, the arrows round another, W and D together for a diagonal; then the Channel Changer
 # (feature plan 6): up-left firing J, to the top-left TV, Right Shift until it is destroyed
-# (frame 658), then up to rescue the Lawn-Chair Reader (frame 744, feature plan 7)
+# (frame 658), then up to rescue the Lawn-Chair Reader (frame 744, feature plan 7); then the
+# laser pointer (feature plan 8): D turns Dex toward the zombie coming along the top of the yard,
+# K switches to the laser pointer, J holds it through its warm-up into a lit dot that pulls the
+# zombie, and K switches back
 NEIGHBORHOOD_OPENING: tuple[HeldStretch, ...] = (
     (('D',), 10, 50),
     (('S',), 50, 90),
@@ -598,23 +602,26 @@ NEIGHBORHOOD_OPENING: tuple[HeldStretch, ...] = (
     (('A',), 497, 499),
     (('RSHIFT',), 499, 700),
     (('W',), 700, 760),
+    (('D',), 760, 800),
+    (('K',), 800, 802),
+    (('J',), 802, 950),
+    (('K',), 950, 952),
 )
 # The rest of the stage, cleared: planned by scripts/plan_neighborhood_route.py (Dex walks to
 # the nearest standing neighbor holding J, then out through the gate). Re-plan and paste its
 # output here whenever gameplay changes; the game's test of the golden fails when the golden no
 # longer reaches stage 2, or this route no longer matches the plan
-# (cleared at frame 1580, the STAGE 2 card at 1670, 3 rescued: recorded with --frames 1970)
+# (cleared at frame 1771, the STAGE 2 card at 1861, 3 rescued, a zombie lured for 125 frames:
+# recorded with --frames 2161)
 NEIGHBORHOOD_STAGE_CLEAR_ROUTE: tuple[HeldStretch, ...] = (
-    (('A', 'S', 'J'), 760, 768),
-    (('A', 'J'), 768, 957),
-    (('A', 'S', 'J'), 957, 964),
-    (('S', 'J'), 964, 1120),
-    (('D', 'S', 'J'), 1120, 1140),
-    (('D', 'J'), 1140, 1264),
-    (('D', 'W', 'J'), 1264, 1400),
-    (('J',), 1400, 1423),
-    (('D', 'W', 'J'), 1423, 1537),
-    (('W', 'J'), 1537, 1581),
+    (('A', 'S', 'J'), 952, 960),
+    (('A', 'J'), 960, 1189),
+    (('A', 'S', 'J'), 1189, 1196),
+    (('S', 'J'), 1196, 1352),
+    (('D', 'W', 'J'), 1352, 1409),
+    (('J',), 1409, 1432),
+    (('D', 'W', 'J'), 1432, 1679),
+    (('D', 'J'), 1679, 1772),
 )
 
 

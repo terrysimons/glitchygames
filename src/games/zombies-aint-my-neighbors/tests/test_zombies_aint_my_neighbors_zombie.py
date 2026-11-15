@@ -12,12 +12,14 @@ import pygame
 import pytest
 
 from zombies_aint_my_neighbors.kid import Kid, MirrorCache
+from zombies_aint_my_neighbors.laser import LaserDot
 from zombies_aint_my_neighbors.neighborhood import WALK_SPEED
 from zombies_aint_my_neighbors.zombie import (
     CRUMBLE_SECONDS,
     FADE_SECONDS,
     FLASH_SECONDS,
     GRAB_SECONDS,
+    LURE_DISTANCE,
     ZOMBIE_SPEED,
     Zombie,
     ZombieFacing,
@@ -330,4 +332,90 @@ def test_a_zombie_chases_the_nearest_of_kids_and_standing_neighbors(cache):
 
     neighbor.rescue()
     zombie.chase(kids=[kid], neighbors=[neighbor], dt=0.5)
+    assert zombie.facing is ZombieFacing.RIGHT
+
+
+# The lure (feature plan 8): a zombie whose feet are within 240 px of a lit dot chases the nearest
+# dot instead of any kid or neighbor, and stands on it once there
+
+
+def dot_at(x: float, y: float) -> LaserDot:
+    """Return a lit dot centred on a point.
+
+    Returns:
+        The dot.
+
+    """
+    dot = LaserDot(groups=None)
+    dot.show_at(centre=(x, y))
+    return dot
+
+
+def zombie_feet(zombie: Zombie) -> tuple[float, float]:
+    """Return the middle of a zombie's feet.
+
+    Returns:
+        The point.
+
+    """
+    return (zombie.world_x + 16, zombie.world_y + 48)
+
+
+def test_a_zombie_near_a_dot_chases_it_over_a_nearer_kid(cache):
+    """The kid is right beside it; the dot 200 px off: it turns for the dot."""
+    zombie = zombie_at(cache, 400.0, 300.0)
+    kid = kid_at(cache, 440.0, 300.0)
+    dot = dot_at(416.0, 348.0 + 200.0)
+
+    zombie.chase(kids=[kid], dt=0.5, dots=[dot])
+
+    assert zombie.facing is ZombieFacing.DOWN
+    assert zombie.world_y > 300.0
+
+
+def test_a_zombie_beyond_the_lures_reach_ignores_the_dot(cache):
+    """250 px away (feet to dot), it keeps after the kid."""
+    assert LURE_DISTANCE == 240
+    zombie = zombie_at(cache, 400.0, 300.0)
+    kid = kid_at(cache, 480.0, 300.0)
+    dot = dot_at(416.0, 348.0 + 250.0)
+
+    zombie.chase(kids=[kid], dt=0.5, dots=[dot])
+
+    assert zombie.facing is ZombieFacing.RIGHT
+
+
+def test_a_lured_zombie_stands_on_the_dot(cache):
+    """It walks until its feet are on the dot, then stands still there."""
+    zombie = zombie_at(cache, 400.0, 300.0)
+    dot = dot_at(500.0, 400.0)
+
+    for _ in range(round(10.0 * 60)):
+        zombie.chase(kids=[], dt=SIXTIETH, dots=[dot])
+        zombie.dt_tick(SIXTIETH)
+
+    assert zombie_feet(zombie) == pytest.approx((500.0, 400.0), abs=1.0)
+    assert not zombie.moving
+
+
+def test_a_zombie_goes_for_the_nearest_of_two_dots(cache):
+    """Two lit dots in reach: the nearer wins."""
+    zombie = zombie_at(cache, 400.0, 300.0)
+    near = dot_at(416.0 - 100.0, 348.0)
+    far = dot_at(416.0 + 200.0, 348.0)
+
+    zombie.chase(kids=[], dt=0.5, dots=[far, near])
+
+    assert zombie.facing is ZombieFacing.LEFT
+
+
+def test_a_dot_that_has_gone_out_lures_nobody(cache):
+    """Only a shining dot pulls."""
+    zombie = zombie_at(cache, 400.0, 300.0)
+    kid = kid_at(cache, 480.0, 300.0)
+    dot = dot_at(416.0, 348.0 + 100.0)
+    dot.go_out()
+
+    zombie.chase(kids=[kid], dt=0.5, dots=[dot])
+
     assert zombie.facing is ZombieFacing.RIGHT

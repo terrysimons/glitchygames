@@ -8,21 +8,29 @@ bottom: ``STAGE n   NEIGHBORS rescued/total``. Every lives label is rendered onc
 display is made (master plan decision 11); the status line renders only when it changes, which
 is only on a rescue. The multiplication sign rather than a heart: the bundled font covers
 Latin-1, and a heart could draw as a missing-glyph box.
+
+Feature plan 8 adds, under each joined player's lives, the weapon held (``ZAP`` or ``LASER``)
+and the laser's battery as a bar in the player's colour, grey while the battery is dead. Every
+label and every bar (each tenth of a second of charge, alive or dead) is drawn when the display
+is made.
 """
 
 from __future__ import annotations
 
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Final
 
+import pygame
+
 from zombies_aint_my_neighbors import text
+from zombies_aint_my_neighbors.kid import Weapon
 from zombies_aint_my_neighbors.roster import MAXIMUM_PLAYERS, PLAYER_COLOURS
 from zombies_aint_my_neighbors.run_state import LIVES_PER_PLAYER
 
 if TYPE_CHECKING:
-    from collections.abc import Collection
+    from collections.abc import Collection, Mapping
 
-    import pygame
-
+    from zombies_aint_my_neighbors.kid import Kid
     from zombies_aint_my_neighbors.run_state import RunState
 
 HUD_FONT_SIZE: Final = 16
@@ -31,6 +39,21 @@ HUD_LAYER: Final = 100_000
 # How far the labels sit from the screen's top and bottom edges
 EDGE_MARGIN: Final = 14
 STATUS_COLOUR: Final = (230, 230, 210)
+# Feature plan 8: the weapon's label and the battery bar, under each player's lives
+WEAPON_FONT_SIZE: Final = 12
+# Read-only: module state shared by every engine context (tests/test_process_state_guard.py)
+WEAPON_LABELS: Final = MappingProxyType({
+    Weapon.CHANNEL_CHANGER: 'ZAP',
+    Weapon.LASER_POINTER: 'LASER',
+})
+WEAPON_ROW: Final = EDGE_MARGIN + 16
+BATTERY_ROW: Final = EDGE_MARGIN + 29
+BATTERY_WIDTH: Final = 40
+BATTERY_HEIGHT: Final = 5
+# The bar shows the charge in tenths of a second: FULL_SECONDS (3.0) is 30 of them
+BATTERY_STEPS: Final = 30
+DEAD_COLOUR: Final = (110, 110, 110)
+BAR_FRAME_COLOUR: Final = (24, 16, 32)
 
 
 def lives_label(*, slot_index: int, lives: int) -> str:
@@ -42,6 +65,27 @@ def lives_label(*, slot_index: int, lives: int) -> str:
     """
     count = f'\N{MULTIPLICATION SIGN}{lives}' if lives else 'OUT'
     return f'P{slot_index + 1} {count}'
+
+
+def battery_bar(*, steps: int, dead: bool, colour: tuple[int, int, int]) -> pygame.Surface:
+    """Return a battery bar: a dark frame, filled a share of its width in a colour.
+
+    Args:
+        steps: How full, in tenths of a second (0 to ``BATTERY_STEPS``).
+        dead: Whether the battery is dead (the fill is grey).
+        colour: The player's colour.
+
+    Returns:
+        The bar.
+
+    """
+    bar = pygame.Surface((BATTERY_WIDTH, BATTERY_HEIGHT))
+    bar.fill(BAR_FRAME_COLOUR)
+    inner_width = BATTERY_WIDTH - 2
+    filled = round(inner_width * steps / BATTERY_STEPS)
+    if filled:
+        bar.fill(DEAD_COLOUR if dead else colour, pygame.Rect(1, 1, filled, BATTERY_HEIGHT - 2))
+    return bar
 
 
 class Hud:
@@ -93,7 +137,48 @@ class Hud:
             name='Stage status',
             groups=groups,
         )
-        for picture in (*self._lives_pictures, self._status_picture):
+        weapon_font = text.title_font(size=WEAPON_FONT_SIZE)
+        self._weapon_images = [
+            {
+                weapon: text.render_text(font=weapon_font, text=label, colour=colour)
+                for weapon, label in WEAPON_LABELS.items()
+            }
+            for colour in PLAYER_COLOURS
+        ]
+        self._battery_images = [
+            {
+                (steps, dead): battery_bar(steps=steps, dead=dead, colour=colour)
+                for steps in range(BATTERY_STEPS + 1)
+                for dead in (False, True)
+            }
+            for colour in PLAYER_COLOURS
+        ]
+        self._weapon_texts = [WEAPON_LABELS[Weapon.CHANNEL_CHANGER]] * MAXIMUM_PLAYERS
+        self._battery_shown = [(BATTERY_STEPS, False)] * MAXIMUM_PLAYERS
+        self._weapon_pictures = [
+            text.TextPicture(
+                image=self._weapon_images[slot_index][Weapon.CHANNEL_CHANGER],
+                centre=(column_width * slot_index + column_width // 2, WEAPON_ROW),
+                name=f'Weapon P{slot_index + 1}',
+                groups=groups,
+            )
+            for slot_index in range(MAXIMUM_PLAYERS)
+        ]
+        self._battery_pictures = [
+            text.TextPicture(
+                image=self._battery_images[slot_index][BATTERY_STEPS, False],
+                centre=(column_width * slot_index + column_width // 2, BATTERY_ROW),
+                name=f'Battery P{slot_index + 1}',
+                groups=groups,
+            )
+            for slot_index in range(MAXIMUM_PLAYERS)
+        ]
+        for picture in (
+            *self._lives_pictures,
+            self._status_picture,
+            *self._weapon_pictures,
+            *self._battery_pictures,
+        ):
             groups.change_layer(picture, HUD_LAYER)
 
     def lives_text(self, *, slot_index: int) -> str:
@@ -114,18 +199,78 @@ class Hud:
         """
         return self._lives_pictures[slot_index]
 
+    def weapon_text(self, *, slot_index: int) -> str:
+        """Return the weapon label a slot shows.
+
+        Returns:
+            ``ZAP`` or ``LASER``.
+
+        """
+        return self._weapon_texts[slot_index]
+
+    def weapon_picture(self, *, slot_index: int) -> text.TextPicture:
+        """Return a slot's weapon picture.
+
+        Returns:
+            The picture.
+
+        """
+        return self._weapon_pictures[slot_index]
+
+    def battery_shown(self, *, slot_index: int) -> tuple[float, bool]:
+        """Return the battery a slot's bar shows: how full (in tenths of a second), and dead.
+
+        Returns:
+            (fraction full, whether dead).
+
+        """
+        steps, dead = self._battery_shown[slot_index]
+        return (steps / BATTERY_STEPS, dead)
+
+    def battery_picture(self, *, slot_index: int) -> text.TextPicture:
+        """Return a slot's battery bar.
+
+        Returns:
+            The picture.
+
+        """
+        return self._battery_pictures[slot_index]
+
     def show(
-        self, *, run: RunState, joined_slots: Collection[int], rescued: int, total: int
+        self,
+        *,
+        run: RunState,
+        joined_slots: Collection[int],
+        rescued: int,
+        total: int,
+        kids: Mapping[int, Kid] | None = None,
     ) -> None:
-        """Show the run's lives for the joined slots, and the stage's progress.
+        """Show the run's lives for the joined slots, their weapons and batteries, and progress.
 
         Args:
             run: The run (its stage and lives).
             joined_slots: The slots a player holds.
             rescued: Neighbors rescued this stage.
             total: Neighbors the stage began with.
+            kids: Each joined slot's kid (its weapon and battery; feature plan 8).
 
         """
+        for slot_index in range(MAXIMUM_PLAYERS):
+            kid = (kids or {}).get(slot_index)
+            shown = slot_index in joined_slots and kid is not None
+            self._weapon_pictures[slot_index].set_shown(shown=shown)
+            self._battery_pictures[slot_index].set_shown(shown=shown)
+            if kid is None:
+                continue
+            self._weapon_texts[slot_index] = WEAPON_LABELS[kid.weapon]
+            self._weapon_pictures[slot_index].show_image(
+                image=self._weapon_images[slot_index][kid.weapon]
+            )
+            steps = min(BATTERY_STEPS, max(0, round(kid.battery.charge_seconds * 10)))
+            self._battery_shown[slot_index] = (steps, kid.battery.is_dead)
+            self._battery_pictures[slot_index].show_image(
+                image=self._battery_images[slot_index][steps, kid.battery.is_dead]
+            )
         for slot_index, picture in enumerate(self._lives_pictures):
             lives = run.lives[slot_index]
             picture.show_image(image=self._lives_images[slot_index][lives])

@@ -1,0 +1,100 @@
+# Written by zombies_aint_my_neighbors.art.build from the weapons' rig: edit the rig and
+# rebuild, never this file (plans/2026-11-14-zombies-aint-my-neighbors-props-bom.md)
+[sprite]
+name = "laser_pointer"
+description = "The laser pointer: a lure, held while shining (props BOM)"
+tags = ["prop", "weapon"]
+frame_anchor = "bottom"
+
+[sprite.hitbox]
+offset_x = 0
+offset_y = 0
+width = 12
+height = 12
+
+[colors]
+"." = { red = 255, green = 0, blue = 255 }
+"O" = { red = 24, green = 16, blue = 32 }
+"a" = { red = 232, green = 234, blue = 242 }
+"b" = { red = 182, green = 186, blue = 198 }
+"c" = { red = 122, green = 126, blue = 140 }
+"h" = { red = 60, green = 62, blue = 72 }
+"g" = { red = 255, green = 176, blue = 176 }
+"G" = { red = 240, green = 40, blue = 40 }
+"d" = { red = 190, green = 20, blue = 20 }
+"D" = { red = 130, green = 10, blue = 10 }
+"j" = { red = 255, green = 204, blue = 204 }
+"J" = { red = 232, green = 124, blue = 124 }
+"k" = { red = 182, green = 82, blue = 82 }
+"r" = { red = 255, green = 92, blue = 92 }
+"w" = { red = 244, green = 244, blue = 236 }
+"m" = { red = 120, green = 124, blue = 146 }
+
+[[animation]]
+namespace = "held_down"
+frame_interval = 0.08
+loop = true
+
+[[animation.frame]]
+namespace = "held_down"
+frame_index = 0
+pixels = """
+............
+.....OO.....
+....OabO....
+...OaabcO...
+...OabbcO...
+...OabbcO...
+...OabbcO...
+...OabbcO...
+...OabbcO...
+...OabccO...
+....OGGO....
+.....OO.....
+"""
+
+[[animation]]
+namespace = "held_up"
+frame_interval = 0.08
+loop = true
+
+[[animation.frame]]
+namespace = "held_up"
+frame_index = 0
+pixels = """
+.....OO.....
+....OGGO....
+...OaabcO...
+...OabbcO...
+...OahbcO...
+...OahbcO...
+...OahbcO...
+...OahbcO...
+...OabccO...
+....ObcO....
+.....OO.....
+............
+"""
+
+[[animation]]
+namespace = "held_left"
+frame_interval = 0.08
+loop = true
+
+[[animation.frame]]
+namespace = "held_left"
+frame_index = 0
+pixels = """
+............
+............
+............
+..OOOOOOOO..
+.OaaabhhhhO.
+OGaabbbbcccO
+OGaabbbbcccO
+.OabbbbcccO.
+..OOOOOOOO..
+............
+............
+............
+"""

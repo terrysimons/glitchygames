@@ -21,6 +21,7 @@ World Space), and ``update`` does nothing.
 from __future__ import annotations
 
 import math
+import operator
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Final, Self, override
 
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
     import pygame
 
     from zombies_aint_my_neighbors.kid import Kid, MirrorCache
+    from zombies_aint_my_neighbors.laser import LaserDot
     from zombies_aint_my_neighbors.neighbor import Neighbor
 
 # Feature plan 5: a third of a kid's walk (the BOM's "slower than a kid")
@@ -51,6 +53,8 @@ FRAME_WIDTH: Final = 32
 FRAME_HEIGHT: Final = 48
 # Closer than this, the zombie stops rather than jitter about its target
 ARRIVED_DISTANCE: Final = 0.5
+# Feature plan 8: a lit laser dot this close to a zombie's feet draws it
+LURE_DISTANCE: Final = 240
 # Feature plan 6: a hit's white flash, the crumble (5 frames of 0.1 s), the slippers' fade
 FLASH_SECONDS: Final = 0.05
 CRUMBLE_SECONDS: Final = 0.5
@@ -186,31 +190,33 @@ class Zombie(AnimatedSprite):
         self.grab_seconds = GRAB_SECONDS
         self.moving = False
 
-    def chase(self, *, kids: Sequence[Kid], dt: float, neighbors: Sequence[Neighbor] = ()) -> None:
-        """Shamble toward the nearest standing kid or neighbor, or stand when there is none.
+    def chase(
+        self,
+        *,
+        kids: Sequence[Kid],
+        dt: float,
+        neighbors: Sequence[Neighbor] = (),
+        dots: Sequence[LaserDot] = (),
+    ) -> None:
+        """Shamble toward a lit dot in reach, else the nearest standing kid or neighbor.
 
         Args:
             kids: Every kid in the yard (only those not knocked out are chased).
             dt: The frame's time, in seconds.
             neighbors: Every neighbor in the yard (only those still standing are chased;
                 feature plan 7).
+            dots: The laser dots (feature plan 8): a shining one whose centre is within
+                ``LURE_DISTANCE`` of the zombie's feet draws it instead, until its feet are on it.
 
         """
         if self.is_grabbing or self.is_dying:
             return
-        standing: list[Kid | Neighbor] = [kid for kid in kids if kid.state is KidState.ACTIVE]
-        standing += [neighbor for neighbor in neighbors if neighbor.is_standing]
-        if not standing:
+        goal = self._lure(dots=dots) or self._nearest_prey(kids=kids, neighbors=neighbors)
+        if goal is None:
             self.moving = False
             return
-        target = min(
-            standing,
-            key=lambda target: math.hypot(
-                target.world_x - self.world_x, target.world_y - self.world_y
-            ),
-        )
-        offset_x = target.world_x - self.world_x
-        offset_y = target.world_y - self.world_y
+        offset_x = goal[0] - self.world_x
+        offset_y = goal[1] - self.world_y
         distance = math.hypot(offset_x, offset_y)
         self.facing = facing_toward(offset_x=offset_x, offset_y=offset_y, current=self.facing)
         if distance < ARRIVED_DISTANCE:
@@ -220,6 +226,47 @@ class Zombie(AnimatedSprite):
         self.world_x += offset_x / distance * step
         self.world_y += offset_y / distance * step
         self.moving = True
+
+    def _lure(self, *, dots: Sequence[LaserDot]) -> tuple[float, float] | None:
+        """Return where the zombie stands on the nearest lit dot in reach, if any.
+
+        Returns:
+            The frame's top-left that puts its feet on the dot, or None.
+
+        """
+        feet_x, feet_y = self.world_x + FRAME_WIDTH / 2, self.world_y + FRAME_HEIGHT
+        in_reach = [
+            (math.hypot(dot.centre()[0] - feet_x, dot.centre()[1] - feet_y), dot)
+            for dot in dots
+            if not dot.hidden
+        ]
+        in_reach = [(distance, dot) for distance, dot in in_reach if distance <= LURE_DISTANCE]
+        if not in_reach:
+            return None
+        _distance, dot = min(in_reach, key=operator.itemgetter(0))
+        centre_x, centre_y = dot.centre()
+        return (centre_x - FRAME_WIDTH / 2, centre_y - FRAME_HEIGHT)
+
+    def _nearest_prey(
+        self, *, kids: Sequence[Kid], neighbors: Sequence[Neighbor]
+    ) -> tuple[float, float] | None:
+        """Return the frame's top-left of the nearest standing kid or neighbor, if any.
+
+        Returns:
+            Its top-left (frames line up there), or None with none standing.
+
+        """
+        standing: list[Kid | Neighbor] = [kid for kid in kids if kid.state is KidState.ACTIVE]
+        standing += [neighbor for neighbor in neighbors if neighbor.is_standing]
+        if not standing:
+            return None
+        target = min(
+            standing,
+            key=lambda target: math.hypot(
+                target.world_x - self.world_x, target.world_y - self.world_y
+            ),
+        )
+        return (target.world_x, target.world_y)
 
     def animation_name(self) -> str:
         """Return the animation for the zombie's state: grab or walk, in its drawn facing.

@@ -57,3 +57,13 @@ def test_the_committed_route_is_still_the_plan():
     assert plan.route == NEIGHBORHOOD_STAGE_CLEAR_ROUTE
     assert plan.rescued > 0
     assert plan.cleared_at < plan.card_at
+
+
+def test_the_golden_lures_a_zombie_with_the_laser():
+    """The opening's laser burst pulls a zombie (feature plan 8): the lure has a replay too.
+
+    The final review found the first burst shone where no zombie could reach it.
+    """
+    plan = plan_route()
+
+    assert plan.lured_frames > 0

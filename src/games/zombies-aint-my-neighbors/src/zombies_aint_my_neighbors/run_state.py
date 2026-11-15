@@ -5,7 +5,8 @@ model, passed from scene to scene in its JSON form (``model_dump(mode='json')``)
 is, so a replay rebuilds any scene from its arguments. It changes only by returning a new run:
 ``lose_life`` for a knockout, ``next_stage`` when a stage is cleared. The next stage brings back
 only the neighbors saved (the genre's shrinking pool), and a player out of lives returns with
-one; a stage that ends with nobody saved has no next stage.
+one; a stage that ends with nobody saved has no next stage. Each slot's weapon carries over too
+(the owner, 2026-11-15: keep the weapon; the battery refills, since the next stage's kids are new).
 """
 
 from __future__ import annotations
@@ -21,6 +22,13 @@ from zombies_aint_my_neighbors.roster import MAXIMUM_PLAYERS
 FIRST_STAGE_NEIGHBORS: Final = 8
 LIVES_PER_PLAYER: Final = 3
 LIVES_AFTER_BEING_OUT: Final = 1
+
+
+class Weapon(StrEnum):
+    """The weapon a kid holds (feature plan 8: K or Y switches)."""
+
+    CHANNEL_CHANGER = 'channel-changer'
+    LASER_POINTER = 'laser-pointer'
 
 
 class NeighborKind(StrEnum):
@@ -45,6 +53,10 @@ class RunState(BaseModel):
     lives: Annotated[
         tuple[Lives, ...], Field(min_length=MAXIMUM_PLAYERS, max_length=MAXIMUM_PLAYERS)
     ]
+    # The weapon each slot holds (a run saved before weapons carried over loads with the remote)
+    weapons: Annotated[
+        tuple[Weapon, ...], Field(min_length=MAXIMUM_PLAYERS, max_length=MAXIMUM_PLAYERS)
+    ] = (Weapon.CHANNEL_CHANGER,) * MAXIMUM_PLAYERS
 
     @classmethod
     def new_run(cls) -> Self:
@@ -81,6 +93,17 @@ class RunState(BaseModel):
         lives[slot_index] = max(0, lives[slot_index] - 1)
         return self.model_copy(update={'lives': tuple(lives)})
 
+    def with_weapons(self, *, weapons: tuple[Weapon, ...]) -> Self:
+        """Return the run with each slot's weapon as given (the stage clear's).
+
+        Returns:
+            The new run.
+
+        """
+        return type(self)(
+            stage=self.stage, neighbors=self.neighbors, lives=self.lives, weapons=weapons
+        )
+
     def next_stage(self, *, rescued: tuple[NeighborKind, ...]) -> Self:
         """Return the next stage's run: only the neighbors saved, players out back with one life.
 
@@ -101,6 +124,7 @@ class RunState(BaseModel):
             stage=self.stage + 1,
             neighbors=rescued,
             lives=tuple(lives or LIVES_AFTER_BEING_OUT for lives in self.lives),
+            weapons=self.weapons,
         )
 
 

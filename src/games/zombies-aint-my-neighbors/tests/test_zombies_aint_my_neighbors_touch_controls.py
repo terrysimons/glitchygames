@@ -16,6 +16,7 @@ from tests.touch_controls import (
     layout_buttons,
 )
 from zombies_aint_my_neighbors.controls import FIRE_SCANCODES, POLLED_SCANCODES
+from zombies_aint_my_neighbors.neighborhood import NeighborhoodScene
 from zombies_aint_my_neighbors.roster_scene import RosterScene
 
 LAYOUT = TOUCH_LAYOUTS['zombies-aint-my-neighbors']
@@ -31,7 +32,7 @@ def test_start_and_pause_press_keys_every_screen_reads():
 
 def test_the_d_pad_and_fire_press_keys_the_neighborhood_polls():
     """The left thumb walks and the right fires: keys the neighborhood reads each frame."""
-    walk_and_fire = TouchLayout(left=LAYOUT.left, right=LAYOUT.right[1:])
+    walk_and_fire = TouchLayout(left=LAYOUT.left, right=LAYOUT.right[1:2])
 
     assert layout_buttons(walk_and_fire)
     for button in layout_buttons(walk_and_fire):
@@ -48,3 +49,14 @@ def test_the_d_pad_walks_all_four_ways_and_a_button_fires():
         SCANCODE_BY_CODE[button.code] in FIRE_SCANCODES and button.label == 'Fire'
         for button in right
     )
+
+
+def test_a_switch_button_presses_the_key_the_neighborhood_binds_to_switch():
+    """Feature plan 8: Switch (K) swaps the weapon; the neighborhood's action map binds it."""
+    switch = [
+        button for row in LAYOUT.right for button in row if button and button.label == 'Switch'
+    ]
+    bound = bound_scancodes(NeighborhoodScene._create_action_map(options={}))
+
+    assert len(switch) == 1
+    assert SCANCODE_BY_CODE[switch[0].code] in bound

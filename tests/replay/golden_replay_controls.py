@@ -496,7 +496,7 @@ UNEXERCISED_CONTROLS: dict[tuple[str, str, str, InputKind], str] = {
             (
                 'zombies_aint_my_neighbors_neighborhood',
                 ZombiesAintMyNeighborsNeighborhoodScene,
-                ('start', 'walk'),
+                ('start', 'walk', 'switch_weapon'),
             ),
         )
         for action in actions

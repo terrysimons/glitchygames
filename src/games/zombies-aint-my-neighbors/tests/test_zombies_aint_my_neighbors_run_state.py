@@ -17,6 +17,7 @@ from zombies_aint_my_neighbors.run_state import (
     LIVES_PER_PLAYER,
     NeighborKind,
     RunState,
+    Weapon,
 )
 
 
@@ -82,3 +83,34 @@ def test_lives_must_be_one_per_slot_within_the_limit(lives):
     """Four slots, each 0 to 3."""
     with pytest.raises(pydantic.ValidationError):
         RunState(stage=1, neighbors=(), lives=lives)
+
+
+# Weapons carry over (the owner, 2026-11-15: keep the weapon, refill the battery)
+
+
+def test_a_new_run_gives_every_slot_the_channel_changer():
+    """Every kid starts a run with the remote."""
+    assert RunState.new_run().weapons == (Weapon.CHANNEL_CHANGER,) * MAXIMUM_PLAYERS
+
+
+def test_the_next_stage_keeps_each_slots_weapon():
+    """The weapons held at the stage clear go into the next stage."""
+    weapons = (
+        Weapon.LASER_POINTER,
+        Weapon.CHANNEL_CHANGER,
+        Weapon.LASER_POINTER,
+        Weapon.CHANNEL_CHANGER,
+    )
+    run = RunState.new_run().with_weapons(weapons=weapons)
+
+    following = run.next_stage(rescued=(NeighborKind.PIZZA_TEEN,))
+
+    assert following.weapons == weapons
+
+
+def test_a_run_saved_before_weapons_loads_with_the_remote():
+    """An older run's JSON (no weapons) still loads: every slot holds the remote."""
+    old = RunState.new_run().model_dump(mode='json')
+    del old['weapons']
+
+    assert RunState.model_validate(old).weapons == (Weapon.CHANNEL_CHANGER,) * MAXIMUM_PLAYERS

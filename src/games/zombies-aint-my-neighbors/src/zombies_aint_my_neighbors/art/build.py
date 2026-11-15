@@ -318,6 +318,52 @@ def lost_sprite_text() -> str:
     )
 
 
+LASER_POINTER_HITBOX: Final = {'offset_x': 0, 'offset_y': 0, 'width': 12, 'height': 12}
+LASER_DOT_HITBOX: Final = {'offset_x': 0, 'offset_y': 0, 'width': 8, 'height': 8}
+_LASER_HEADER: Final = (
+    "Written by zombies_aint_my_neighbors.art.build from the weapons' rig: edit the rig and",
+    'rebuild, never this file (plans/2026-11-14-zombies-aint-my-neighbors-props-bom.md)',
+)
+
+
+def laser_pointer_sprite_text() -> str:
+    """Return the laser pointer's sprite file, as TOML.
+
+    Returns:
+        The file's text.
+
+    """
+    return character_sprite_text(
+        header=_LASER_HEADER,
+        name='laser_pointer',
+        description='The laser pointer: a lure, held while shining (props BOM)',
+        tags=('prop', 'weapon'),
+        hitbox=LASER_POINTER_HITBOX,
+        palette=weapon_rig.LASER_PALETTE,
+        frames=weapon_rig.laser_pointer_frames(),
+        specs=weapon_rig.LASER_POINTER_ANIMATIONS,
+    )
+
+
+def laser_dot_sprite_text() -> str:
+    """Return the laser dot's sprite file, as TOML.
+
+    Returns:
+        The file's text.
+
+    """
+    return character_sprite_text(
+        header=_LASER_HEADER,
+        name='laser_dot',
+        description="The laser pointer's dot: zombies chase it (props BOM)",
+        tags=('prop', 'lure'),
+        hitbox=LASER_DOT_HITBOX,
+        palette=weapon_rig.LASER_PALETTE,
+        frames=weapon_rig.laser_dot_frames(),
+        specs=weapon_rig.LASER_DOT_ANIMATIONS,
+    )
+
+
 DOOR_HITBOX: Final = {'offset_x': 8, 'offset_y': 16, 'width': 32, 'height': 32}
 
 
@@ -362,6 +408,8 @@ def build(*, directory: Path, kids: Sequence[KidLook] = KIDS_TO_BUILD) -> list[P
         'saved.toml': saved_sprite_text(),
         'lost.toml': lost_sprite_text(),
         'exit_door.toml': door_sprite_text(),
+        'laser_pointer.toml': laser_pointer_sprite_text(),
+        'laser_dot.toml': laser_dot_sprite_text(),
     }
     written: list[Path] = []
     for file_name, text in texts.items():

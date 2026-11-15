@@ -21,19 +21,22 @@ Usage:
 
 from __future__ import annotations
 
+import math
 import os
-from typing import TYPE_CHECKING, Final, override
+from typing import TYPE_CHECKING, Final, cast, override
 
 import pygame
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.events.base import HashableEvent
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.randomness import reset_streams
-from glitchygames.replay.tools.golden_traces import RANDOM_SEED
+from glitchygames.replay.tools.golden_traces import RANDOM_SEED, qwerty_scancode
 from scripts.golden_inputs import NEIGHBORHOOD_OPENING, HeldStretch
 
 if TYPE_CHECKING:
     from glitchygames.effects.shake import Shake
+    from glitchygames.events.base import KeyEvent
     from zombies_aint_my_neighbors.neighborhood import NeighborhoodScene
 
 # The golden's recording: 800x480 at 60 frames a second
@@ -58,6 +61,7 @@ SCANCODES: Final = {
     'LEFT': pygame.KSCAN_LEFT,
     'RIGHT': pygame.KSCAN_RIGHT,
     'J': pygame.KSCAN_J,
+    'K': pygame.KSCAN_K,
     'RSHIFT': pygame.KSCAN_RSHIFT,
 }
 
@@ -72,6 +76,8 @@ class RoutePlan(BaseModel):
     cleared_at: int
     card_at: int
     rescued: int
+    # Frames on which a zombie stood within the lure's reach of a lit laser dot (feature plan 8)
+    lured_frames: int
     # The frames to record (``--frames``): the card and three seconds of stage 2 included
     recording_frames: int
 
@@ -165,6 +171,37 @@ def _planning_scene() -> NeighborhoodScene:
     return PlanningNeighborhood(options={'input_mode': 'auto', 'no_unhandled_events': True})
 
 
+def _a_zombie_is_lured(scene: NeighborhoodScene) -> bool:
+    """Return whether a living zombie's feet are within the lure's reach of a lit dot.
+
+    Returns:
+        True when one is.
+
+    """
+    from zombies_aint_my_neighbors.zombie import FRAME_HEIGHT, FRAME_WIDTH, LURE_DISTANCE
+
+    dots = [kid.dot.centre() for kid in scene.kids.values() if kid.laser_lit]
+    return any(
+        math.hypot(zombie.world_x + FRAME_WIDTH / 2 - dot_x, zombie.world_y + FRAME_HEIGHT - dot_y)
+        <= LURE_DISTANCE
+        for zombie in scene.zombies
+        if not zombie.is_dying
+        for dot_x, dot_y in dots
+    )
+
+
+def _key_down(key: int) -> HashableEvent:
+    """Return a key press as the recorded script delivers it (at its US QWERTY place).
+
+    Returns:
+        The event.
+
+    """
+    return HashableEvent(
+        pygame.KEYDOWN, key=key, mod=0, unicode='', scancode=qwerty_scancode(key=key)
+    )
+
+
 def plan_route(
     *, opening: tuple[HeldStretch, ...] = NEIGHBORHOOD_OPENING, seed: int = RANDOM_SEED
 ) -> RoutePlan:
@@ -189,6 +226,8 @@ def plan_route(
     first_planned_frame = max(end for _keys, _start, end in opening)
     planned: list[tuple[str, ...]] = []
     cleared_at: int | None = None
+    held_before: tuple[str, ...] = ()
+    lured_frames = 0
     for frame in range(FRAME_LIMIT):
         if frame < first_planned_frame:
             keys = _held_at(opening, frame)
@@ -206,6 +245,13 @@ def plan_route(
         )
         scene.advance_game_time(seconds=FRAME_SECONDS)
         scene.dt_tick(FRAME_SECONDS)
+        if 'K' in keys and 'K' not in held_before:
+            # K switches weapons on its press, an event (the neighborhood's action map), not a
+            # polled key; the engine handles a frame's events after its logic, so it is
+            # delivered after the frame's tick, as the recorded script's is
+            scene.on_key_down_event(cast('KeyEvent', _key_down(pygame.K_k)))
+        held_before = keys
+        lured_frames += _a_zombie_is_lured(scene)
         if scene.stage_cleared and cleared_at is None:
             cleared_at = frame
         if scene.next_scene is not None:
@@ -217,6 +263,7 @@ def plan_route(
                 cleared_at=cleared_at,
                 card_at=frame,
                 rescued=len(scene.rescued),
+                lured_frames=lured_frames,
                 recording_frames=frame + FRAMES_AFTER_THE_CARD,
             )
     message = f'the stage was not cleared within {FRAME_LIMIT} frames'

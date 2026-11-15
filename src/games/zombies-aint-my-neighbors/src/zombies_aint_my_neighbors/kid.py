@@ -23,6 +23,14 @@ frame's hand point only while a weapon animation plays, behind the kid when it f
 Feature plan 7 (plans/2026-11-15-zombies-aint-my-neighbors-7-neighbors-and-lives.md): lives. A
 knockout on the player's last life (``knock_out(last_life=True)``) never gets back up: the kid
 lies on its last knockout frame, fades out over 1 s, and is out (hidden) for the stage.
+
+Feature plan 8 (plans/2026-11-15-zombies-aint-my-neighbors-8-laser-pointer.md): the laser pointer.
+``switch_weapon`` swaps between it and the Channel Changer. Holding fire with it shines while
+the battery (``laser.LaserBattery``) has charge: the kid holds its aim (``shoot_<f>``'s first
+frame, or ``walk-shoot_<f>`` moving), the laser pointer in its hand, and after a warm-up of
+``WARM_UP_SECONDS`` (the battery drawing through it) its dot sits ``DOT_DISTANCE`` ahead of its
+feet along the aim, inside the yard (``bounds``). The battery
+ticks every frame, so a resting laser refills whatever the kid holds.
 """
 
 from __future__ import annotations
@@ -37,8 +45,16 @@ import pygame
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.world import CoordinateSpace
 from zombies_aint_my_neighbors.art.hand_points import KID_HAND_POINTS
-from zombies_aint_my_neighbors.channel_changer import ChannelChanger
+from zombies_aint_my_neighbors.channel_changer import ChannelChanger, LaserPointer
 from zombies_aint_my_neighbors.hit_effects import faded
+from zombies_aint_my_neighbors.laser import (
+    DOT_DISTANCE,
+    WARM_UP_SECONDS,
+    LaserBattery,
+    LaserDot,
+)
+from zombies_aint_my_neighbors.run_state import Weapon
+from zombies_aint_my_neighbors.tolerances import TIME_TOLERANCE
 
 # The kids' sprite files (package data), written by zombies_aint_my_neighbors.art.build
 SPRITES_DIRECTORY: Final = Path(__file__).resolve().parent / 'sprites'
@@ -52,8 +68,6 @@ BLINK_SECONDS: Final = 0.1
 # Feature plan 7: a kid out of lives fades out over this long, lying on its last knockout frame
 OUT_FADE_SECONDS: Final = 1.0
 OPAQUE: Final = 255
-# Frame times add up in floats (30 sixtieths make 0.49999...): a step ends this close to its time
-TIME_TOLERANCE: Final = 1e-9
 # Shooting (feature plan 6): seconds between held shots (4 a second), and how long a standing
 # shot's pose lasts (shoot_<f>: two frames of 0.08 s)
 FIRE_SECONDS: Final = 0.25
@@ -267,8 +281,21 @@ class Kid(AnimatedSprite):
         self._shot_age = math.inf
         self._fired_this_frame = False
         self.remote = ChannelChanger(mirror_cache=mirror_cache, groups=groups)
+        # The laser pointer (feature plan 8): its prop, its battery, its dot, whether it shines
+        self.laser_pointer = LaserPointer(mirror_cache=mirror_cache, groups=groups)
+        self.battery = LaserBattery()
+        self.dot = LaserDot(groups=groups)
+        # Whether the battery draws (the kid aims), whether the dot shines (after the warm-up),
+        # and how long the battery has drawn without a break
+        self.laser_aiming = False
+        self.laser_lit = False
+        self._warm_seconds = 0.0
+        # The yard: the laser's dot stays inside it (anywhere when None; the scene sets it)
+        self.bounds: pygame.Rect | None = None
         # Whether the current knockout took the last life
         self._last_life = False
+        # The weapon held (feature plan 8): every kid starts with the Channel Changer
+        self.weapon = Weapon.CHANNEL_CHANGER
 
     @property
     def can_move(self) -> bool:
@@ -284,6 +311,21 @@ class Kid(AnimatedSprite):
     def is_out(self) -> bool:
         """Whether the kid is out of lives (fading on the ground, or gone for the stage)."""
         return self.state in {KidState.FADING, KidState.OUT}
+
+    def switch_weapon(self) -> None:
+        """Swap between the Channel Changer and the laser pointer, at once.
+
+        A switch lets go of the trigger: the new weapon's first shot is a fresh press, so time
+        spent holding the other weapon is never banked into the remote's rhythm.
+        """
+        self._trigger_held = False
+        # The remote's last shot pose ends with the switch: the other weapon never wears it
+        self._shot_age = math.inf
+        self.weapon = (
+            Weapon.LASER_POINTER
+            if self.weapon is Weapon.CHANNEL_CHANGER
+            else Weapon.CHANNEL_CHANGER
+        )
 
     def cheer(self) -> None:
         """Cheer the stage clear (``cheer``, facing down): still, safe, not firing; not when out."""
@@ -311,7 +353,15 @@ class Kid(AnimatedSprite):
         self._state_seconds = 0.0
         self.moving = False
         self._last_life = last_life
+        self._douse_laser()
         return True
+
+    def _douse_laser(self) -> None:
+        """Put the laser out now, within the frame (its warm-up starts again next time)."""
+        self.laser_aiming = False
+        self.laser_lit = False
+        self._warm_seconds = 0.0
+        self.dot.go_out()
 
     def pull_trigger(self, *, held: bool) -> bool:
         """Say whether fire is held this frame; fire when it may (call before ``dt_tick``).
@@ -325,6 +375,9 @@ class Kid(AnimatedSprite):
         """
         held_before = self._trigger_held
         self._trigger_held = held and self.can_move
+        if self.weapon is Weapon.LASER_POINTER:
+            # The laser shines while held (dt_tick asks its battery); it fires nothing
+            return False
         if not self._trigger_held or self._fire_cooldown > TIME_TOLERANCE:
             return False
         if held_before:
@@ -370,16 +423,20 @@ class Kid(AnimatedSprite):
         """
         if self.state is not KidState.ACTIVE:
             return None
-        if self._fired_this_frame:
-            # The frame a shot fires always shows it, however long the frame (a hitch longer
-            # than the pose would otherwise skip it, leaving the remote out of the hand)
-            return 'walk-shoot' if self.moving else 'shoot'
-        if self.moving:
-            if self._trigger_held or self._shot_age < FIRE_SECONDS - TIME_TOLERANCE:
-                return 'walk-shoot'
-            return None
-        if self._shot_age < SHOOT_POSE_SECONDS - TIME_TOLERANCE:
-            return 'shoot'
+        pose = 'walk-shoot' if self.moving else 'shoot'
+        # The laser aiming, or the frame a shot fires (shown however long the frame: a hitch
+        # longer than the pose would otherwise skip it, leaving the remote out of the hand)
+        if self.laser_aiming or self._fired_this_frame:
+            return pose
+        # Moving, the pose holds while fire is held or the last shot is under 0.25 s old;
+        # standing, for the standing shot's two frames
+        pose_seconds = FIRE_SECONDS if self.moving else SHOOT_POSE_SECONDS
+        # Fire held on the move keeps the remote's pose; a laser poses only while it draws
+        held_on_the_move = (
+            self.moving and self._trigger_held and self.weapon is Weapon.CHANNEL_CHANGER
+        )
+        if held_on_the_move or self._shot_age < pose_seconds - TIME_TOLERANCE:
+            return pose
         return None
 
     def walk(self, *, direction_x: float, direction_y: float) -> None:
@@ -429,6 +486,16 @@ class Kid(AnimatedSprite):
         self._advance_knockout(dt)
         self._fire_cooldown -= dt
         self._shot_age += dt
+        wants_light = (
+            self.weapon is Weapon.LASER_POINTER
+            and self._trigger_held
+            and self.state is KidState.ACTIVE
+        )
+        self.laser_aiming = self.battery.tick(dt=dt, wants_light=wants_light)
+        self._warm_seconds = self._warm_seconds + dt if self.laser_aiming else 0.0
+        self.laser_lit = (
+            self.laser_aiming and self._warm_seconds >= WARM_UP_SECONDS - TIME_TOLERANCE
+        )
         name = self.animation_name()
         # Each standing shot plays its pose from the first frame
         restart = self._fired_this_frame and name.startswith('shoot_')
@@ -437,6 +504,9 @@ class Kid(AnimatedSprite):
             self.play(name)
             self._started_animation = name
         AnimatedSprite.update(self, dt)
+        if self.laser_aiming and name.startswith('shoot_'):
+            # Shining standing: the aim held, the arm out (shoot's first frame)
+            self.set_frame(0)
         # Only standing, walking and shooting are mirrored: the knockout and respawn face down
         posed_facing = (
             _SHOOTING_FACING.get(self.facing, self.facing)
@@ -451,17 +521,43 @@ class Kid(AnimatedSprite):
             self.dirty = 1
         self._blink()
         self._place_remote(mirrored=facing_right)
+        self._place_dot(dt)
+
+    def _place_dot(self, dt: float) -> None:
+        """Shine the dot ahead of the kid's feet along its aim, inside the yard; or put it out."""
+        if not self.laser_lit:
+            self.dot.go_out()
+            return
+        aim_x, aim_y = self.aim()
+        centre_x = self.world_x + KID_WIDTH / 2 + aim_x * DOT_DISTANCE
+        centre_y = self.world_y + KID_HEIGHT + aim_y * DOT_DISTANCE
+        if self.bounds is not None:
+            # Far enough in that a zombie standing on it (feet on the dot; its frame is a kid's,
+            # 32x48) fits in the yard: half a frame from the sides, a frame's height from the top
+            half_width = KID_WIDTH / 2
+            centre_x = min(
+                max(centre_x, self.bounds.left + half_width), self.bounds.right - half_width
+            )
+            centre_y = min(max(centre_y, self.bounds.top + KID_HEIGHT), self.bounds.bottom)
+        self.dot.show_at(centre=(centre_x, centre_y))
+        self.dot.dt_tick(dt)
 
     def _place_remote(self, *, mirrored: bool) -> None:
-        """Put the remote on the hand point while a weapon animation plays; away otherwise."""
+        """Put the held weapon on the hand point while a weapon animation plays; away otherwise."""
+        held, other = (
+            (self.laser_pointer, self.remote)
+            if self.weapon is Weapon.LASER_POINTER
+            else (self.remote, self.laser_pointer)
+        )
+        other.put_away()
         hand_points = KID_HAND_POINTS.get(self.current_animation)
         if hand_points is None:
-            self.remote.put_away()
+            held.put_away()
             return
         hand_x, hand_y = hand_points[self.current_frame]
         if mirrored:
             hand_x = KID_WIDTH - 1 - hand_x
-        self.remote.hold(
+        held.hold(
             hand_x=self.world_x + hand_x,
             hand_y=self.world_y + hand_y,
             drawn_facing=self.current_animation.rpartition('_')[2],
@@ -471,8 +567,10 @@ class Kid(AnimatedSprite):
 
     @override
     def kill(self) -> None:
-        """Leave the yard, with the remote."""
+        """Leave the yard, with the remote, the laser pointer and its dot."""
         self.remote.kill()
+        self.laser_pointer.kill()
+        self.dot.kill()
         super().kill()
 
     def _advance_knockout(self, dt: float) -> None:

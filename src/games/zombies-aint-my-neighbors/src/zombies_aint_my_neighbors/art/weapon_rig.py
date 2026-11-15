@@ -18,6 +18,7 @@ from zombies_aint_my_neighbors.art.palettes import (
     CLOTHES_DARK,
     CLOTHES_LIGHT,
     CLOTHES_SHADE,
+    HAIR,
     HEADSET,
     PANTS,
     PANTS_LIGHT,
@@ -195,3 +196,113 @@ def zap_frames() -> dict[str, tuple[Grid, ...]]:
         'fly': tuple(draw_zap(state='fly', frame=frame) for frame in range(3)),
         'fizzle': tuple(draw_zap(state='fizzle', frame=frame) for frame in range(2)),
     }
+
+
+# The laser pointer and its dot (feature plan 8; the props BOM): the pen's silver (the skin
+# ramp's characters), its clip's dark grey (hair), the reds of the tip and the light (the
+# clothes ramp: pale halo, red, dark red, deepest) and white. The trousers ramp and shoes are
+# unused
+# Read-only: module state shared by every engine context (tests/test_process_state_guard.py)
+LASER_PALETTE: Final = MappingProxyType(
+    kid_palette(
+        skin=((232, 234, 242), (182, 186, 198), (122, 126, 140)),
+        hair=(60, 62, 72),
+        clothes=((255, 176, 176), (240, 40, 40), (190, 20, 20), (130, 10, 10)),
+        pants=((255, 204, 204), (232, 124, 124), (182, 82, 82)),
+        shoes=(255, 92, 92),
+    )
+)
+# The red tip's character (the light leaves from it)
+LASER_TIP: Final = CLOTHES
+DOT_SIZE: Final = 8
+# Where the light leaves, per facing: the tip's red cell. Right mirrors left (x' = 11 - x)
+# Read-only: module state shared by every engine context (tests/test_process_state_guard.py)
+LASER_TIPS: Final = MappingProxyType({
+    'down': (6, 10),
+    'up': (6, 1),
+    'left': (1, 5),
+    'right': (SIZE - 1 - 1, 5),
+})
+LASER_POINTER_ANIMATIONS: Final[tuple[AnimationSpec, ...]] = (
+    AnimationSpec(state='held', facings=(), frame_interval=0.08, loop=True),
+)
+LASER_DOT_ANIMATIONS: Final[tuple[AnimationSpec, ...]] = (
+    AnimationSpec(state='glow', facings=(), frame_interval=0.06, loop=True),
+)
+
+
+def laser_tip(*, facing: str) -> tuple[int, int]:
+    """Return where the light leaves the laser pointer, on its 12x12 canvas.
+
+    Args:
+        facing: ``down``, ``up``, ``left`` or ``right``.
+
+    Returns:
+        The tip's (x, y).
+
+    """
+    return LASER_TIPS[facing]
+
+
+def draw_laser_pointer(*, facing: str) -> Grid:
+    """Return the laser pointer in one drawn facing, outlined.
+
+    Args:
+        facing: ``down`` (end-on, the tip toward the viewer, below the hand), ``up`` (its back,
+            the clip showing, the tip above the hand) or ``left`` (side-on, the tip at the left
+            end, the clip on top).
+
+    Returns:
+        12 rows of 12 palette characters.
+
+    """
+    canvas = Canvas(width=SIZE, height=SIZE)
+    if facing == 'down':
+        canvas.box(left=4, top=2, right=7, bottom=10, ramp=SKIN_RAMP)
+        canvas.row(y=LASER_TIPS['down'][1], left=5, right=6, character=LASER_TIP)
+    elif facing == 'up':
+        canvas.box(left=4, top=1, right=7, bottom=9, ramp=SKIN_RAMP)
+        canvas.column(x=5, top=4, bottom=7, character=HAIR)
+        canvas.row(y=LASER_TIPS['up'][1], left=5, right=6, character=LASER_TIP)
+    else:
+        canvas.box(left=1, top=4, right=10, bottom=7, ramp=SKIN_RAMP)
+        canvas.row(y=4, left=6, right=9, character=HAIR)
+        canvas.column(x=1, top=5, bottom=6, character=LASER_TIP)
+    outline_figure(canvas)
+    return canvas.grid()
+
+
+def laser_pointer_frames() -> dict[str, tuple[Grid, ...]]:
+    """Return the laser pointer's animations' frames, in the props BOM's order.
+
+    Returns:
+        Namespace -> frames (one each).
+
+    """
+    return {f'held_{facing}': (draw_laser_pointer(facing=facing),) for facing in REMOTE_FACINGS}
+
+
+def draw_laser_dot(*, frame: int) -> Grid:
+    """Return a frame of the dot: a red point with a soft halo, wider on frame 1; no outline.
+
+    Returns:
+        8 rows of 8 palette characters.
+
+    """
+    canvas = Canvas(width=DOT_SIZE, height=DOT_SIZE)
+    centre = DOT_SIZE / 2
+    halo = 3.2 if frame == 0 else 4.0
+    canvas.ellipse(centre=(centre, centre), radii=(halo, halo), ramp=CLOTHES_LIGHT * 3)
+    canvas.ellipse(centre=(centre, centre), radii=(1.6, 1.6), ramp=CLOTHES * 2 + CLOTHES_SHADE)
+    canvas.put(x=3, y=3, character=WHITE)
+    return canvas.grid()
+
+
+def laser_dot_frames() -> dict[str, tuple[Grid, ...]]:
+    """Return the dot's animation's frames.
+
+    Returns:
+        Namespace -> frames.
+
+    """
+    return {'glow': tuple(draw_laser_dot(frame=frame) for frame in range(2))}

@@ -28,6 +28,7 @@ from zombies_aint_my_neighbors.kid import (
     KidState,
     MirrorCache,
 )
+from zombies_aint_my_neighbors.laser import DOT_DISTANCE, FULL_SECONDS, WARM_UP_SECONDS
 
 # The walk's frame interval (BOM section 3), and a step just past it
 WALK_INTERVAL = 0.12
@@ -745,3 +746,295 @@ def test_a_kid_out_of_lives_does_not_cheer(kid):
     kid.cheer()
 
     assert kid.state is KidState.KNOCKED_OUT
+
+
+# Shining the laser pointer (feature plan 8): hold fire with the laser pointer to shine; the
+# dot sits 160 px ahead of the kid's feet along its aim, kept inside the yard
+
+
+# The warm-up's frames at 60 a second (0.4 s)
+WARM_UP_FRAMES = 24
+
+
+def laser_kid(cache: MirrorCache, *, bounds=None) -> Kid:
+    """Return Dex, holding the laser pointer.
+
+    Returns:
+        The kid.
+
+    """
+    kid = Kid(look_name='dex', world_x=400.0, world_y=300.0, mirror_cache=cache, groups=None)
+    kid.bounds = bounds
+    kid.switch_weapon()
+    kid.dt_tick(0.0)
+    return kid
+
+
+def shine(kid: Kid, *, frames: int, held: bool = True) -> None:
+    """Hold (or release) fire for some sixtieths of a second."""
+    for _ in range(frames):
+        kid.pull_trigger(held=held)
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+
+def feet(kid: Kid) -> tuple[float, float]:
+    """Return the middle of a kid's feet, in the world.
+
+    Returns:
+        The point.
+
+    """
+    return (kid.world_x + 16, kid.world_y + 48)
+
+
+def test_shining_fires_no_zap_and_lights_the_dot_ahead(cache):
+    """Facing left: the dot is 160 px left of the kid's feet; no shot is fired."""
+    kid = laser_kid(cache)
+    kid.walk(direction_x=-1.0, direction_y=0.0)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    kid.walk(direction_x=0.0, direction_y=0.0)
+
+    assert not kid.pull_trigger(held=True)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    shine(kid, frames=WARM_UP_FRAMES)
+
+    assert kid.laser_lit
+    assert not kid.dot.hidden
+    feet_x, feet_y = feet(kid)
+    assert kid.dot.centre() == pytest.approx((feet_x - DOT_DISTANCE, feet_y))
+
+
+def test_the_dot_follows_the_eight_way_aim(cache):
+    """Down-right: the dot is along the diagonal."""
+    kid = laser_kid(cache)
+    kid.walk(direction_x=0.7, direction_y=0.7)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    kid.walk(direction_x=0.0, direction_y=0.0)
+    shine(kid, frames=WARM_UP_FRAMES)
+    feet_x, feet_y = feet(kid)
+    step = DOT_DISTANCE * math.sqrt(0.5)
+
+    assert kid.dot.centre() == pytest.approx((feet_x + step, feet_y + step))
+
+
+def test_the_dot_stays_inside_the_yard(cache):
+    """Near the left edge, facing left: the dot stops at the edge."""
+    kid = laser_kid(cache, bounds=pygame.Rect(0, 0, 1600, 960))
+    kid.world_x = 50.0
+    kid.walk(direction_x=-1.0, direction_y=0.0)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    kid.world_x = 50.0
+    kid.walk(direction_x=0.0, direction_y=0.0)
+    shine(kid, frames=WARM_UP_FRAMES)
+
+    # Far enough in that a zombie standing on it fits in the yard: half a frame (16 px)
+    assert kid.dot.centre()[0] == pytest.approx(16.0)
+
+
+def test_a_dot_at_the_top_edge_keeps_a_zombie_standing_on_it_inside_the_yard(cache):
+    """Facing up near the top: the dot stops a zombie's height (48 px) below the edge.
+
+    The final review found a dot clamped at y = 0 pulled zombies to world_y = -48, above the yard
+    and out of the camera's reach.
+    """
+    kid = laser_kid(cache, bounds=pygame.Rect(0, 0, 1600, 960))
+    kid.world_y = 30.0
+    kid.walk(direction_x=0.0, direction_y=-1.0)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    kid.world_y = 30.0
+    kid.walk(direction_x=0.0, direction_y=0.0)
+    shine(kid, frames=WARM_UP_FRAMES)
+
+    assert kid.dot.centre()[1] == pytest.approx(48.0)
+
+
+def test_a_standing_kid_holds_its_aim_while_shining(cache):
+    """shoot_<f>, its first frame (arm out), for as long as the laser shines."""
+    kid = laser_kid(cache)
+    shine(kid, frames=60)
+
+    assert (kid.current_animation, kid.current_frame) == ('shoot_down', 0)
+    assert not kid.laser_pointer.hidden
+    assert kid.remote.hidden
+
+
+def test_a_walking_kid_shines_with_walk_shoot(cache):
+    """Moving while shining: walk-shoot_<f>."""
+    kid = laser_kid(cache)
+    kid.walk(direction_x=0.0, direction_y=-1.0)
+    kid.pull_trigger(held=True)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert kid.current_animation == 'walk-shoot_up'
+
+
+def test_the_laser_pointer_sits_on_the_hand_point_and_mirrors(cache):
+    """Facing right: the pointer's grip (column 5 mirrored) on the mirrored hand point."""
+    kid = laser_kid(cache)
+    kid.walk(direction_x=1.0, direction_y=0.0)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    kid.walk(direction_x=0.0, direction_y=0.0)
+    shine(kid, frames=1)
+    hand_x, hand_y = KID_HAND_POINTS['shoot_left'][kid.current_frame]
+
+    assert (kid.laser_pointer.world_x + 5, kid.laser_pointer.world_y + 6) == (
+        kid.world_x + 31 - hand_x,
+        kid.world_y + hand_y,
+    )
+    assert kid.laser_pointer.hitbox_flip_x is True
+
+
+@pytest.mark.parametrize('stop', ['release', 'switch', 'knock-out'])
+def test_the_dot_goes_out_at_once(cache, stop):
+    """Released, switched away from, or knocked out: the dot is hidden that frame."""
+    kid = laser_kid(cache)
+    shine(kid, frames=30)
+    assert kid.laser_lit
+    if stop == 'release':
+        shine(kid, frames=1, held=False)
+    elif stop == 'switch':
+        kid.switch_weapon()
+        shine(kid, frames=1)
+    else:
+        kid.knock_out()
+        shine(kid, frames=1)
+
+    assert not kid.laser_lit
+    assert kid.dot.hidden
+
+
+def test_the_dot_goes_out_when_the_battery_dies(cache):
+    """Three seconds of shine, then dark though fire is still held."""
+    kid = laser_kid(cache)
+    shine(kid, frames=180)
+    assert kid.battery.is_dead
+
+    shine(kid, frames=1)
+
+    assert not kid.laser_lit
+    assert kid.dot.hidden
+
+
+def test_the_battery_refills_while_the_channel_changer_is_held(cache):
+    """Whatever the kid holds, a resting laser refills."""
+    kid = laser_kid(cache)
+    shine(kid, frames=90)
+    kid.switch_weapon()
+
+    shine(kid, frames=60)
+
+    assert kid.battery.charge_seconds == pytest.approx(1.5 + 0.3)
+
+
+def test_a_channel_changer_kid_never_lights_the_dot(cache):
+    """Holding fire with the remote zaps; the dot stays out."""
+    kid = Kid(look_name='dex', world_x=0.0, world_y=0.0, mirror_cache=cache, groups=None)
+    kid.dt_tick(0.0)
+
+    assert kid.pull_trigger(held=True)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert not kid.laser_lit
+    assert kid.dot.hidden
+
+
+# The warm-up (the owner, 2026-11-15): "a delay before the laser shows... and power draws
+# normally during the delay", against rapid fire and for tension. The kid aims, pointer in hand,
+# for WARM_UP_SECONDS before the dot appears; the battery drains from the first frame
+
+
+def test_the_dot_appears_only_after_the_warm_up_on_its_exact_frame(cache):
+    """0.4 s is 24 frames: aiming but dark for 23, lit on the 24th."""
+    assert WARM_UP_SECONDS == 0.4
+    kid = laser_kid(cache)
+
+    shine(kid, frames=23)
+    assert kid.laser_aiming
+    assert not kid.laser_lit
+    assert kid.dot.hidden
+    assert not kid.laser_pointer.hidden
+    shine(kid, frames=1)
+
+    assert kid.laser_lit
+    assert not kid.dot.hidden
+
+
+def test_the_battery_draws_during_the_warm_up(cache):
+    """Twenty frames of warm-up spend a third of a second of charge."""
+    kid = laser_kid(cache)
+
+    shine(kid, frames=20)
+
+    assert kid.battery.charge_seconds == pytest.approx(FULL_SECONDS - 20 / 60)
+
+
+def test_tapping_the_trigger_never_lights_the_laser_but_drains_it(cache):
+    """Ten-frame taps: the warm-up starts again each time; charge spent stays spent."""
+    kid = laser_kid(cache)
+
+    for _ in range(5):
+        shine(kid, frames=10)
+        assert kid.dot.hidden
+        shine(kid, frames=1, held=False)
+
+    assert not kid.laser_lit
+    assert kid.battery.charge_seconds < FULL_SECONDS - 0.8
+
+
+def test_switching_to_the_remote_with_fire_held_fires_on_the_fresh_press_rhythm(cache):
+    """Fire held through a switch from the laser: the remote's first shot is a fresh press.
+
+    The final review found the laser's held seconds banked into the remote's rhythm: zaps on
+    frames 0 and 1, then 15 and 30. Time not firing the remote is never banked.
+    """
+    kid = laser_kid(cache)
+    shine(kid, frames=60)
+    kid.switch_weapon()
+
+    fired = frames_firing(kid, frames=40)
+
+    assert fired == [0, 15, 30]
+
+
+def test_a_knockout_puts_the_laser_out_at_once(cache):
+    """The frame a shining kid is knocked out, the dot is out and the pointer away (no tick)."""
+    kid = laser_kid(cache)
+    shine(kid, frames=30)
+    assert kid.laser_lit
+
+    kid.knock_out()
+
+    assert not kid.laser_lit
+    assert not kid.laser_aiming
+    assert kid.dot.hidden
+
+
+def test_a_dead_battery_shows_no_pointer_walking_or_standing(cache):
+    """With the battery flat, fire held shows no laser pointer, walking as standing."""
+    kid = laser_kid(cache)
+    shine(kid, frames=180)
+    assert kid.battery.is_dead
+
+    kid.walk(direction_x=-1.0, direction_y=0.0)
+    kid.pull_trigger(held=True)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert kid.current_animation == 'walk_left'
+    assert kid.laser_pointer.hidden
+
+
+def test_switching_right_after_a_zap_leaves_no_shot_pose(cache):
+    """Zap, then switch to the laser at once: no remote pose holding the laser pointer."""
+    kid = Kid(look_name='dex', world_x=0.0, world_y=0.0, mirror_cache=cache, groups=None)
+    kid.dt_tick(0.0)
+    kid.walk(direction_x=-1.0, direction_y=0.0)
+    kid.pull_trigger(held=True)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    kid.switch_weapon()
+
+    kid.walk(direction_x=-1.0, direction_y=0.0)
+    kid.pull_trigger(held=False)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert kid.current_animation == 'walk_left'
+    assert kid.laser_pointer.hidden

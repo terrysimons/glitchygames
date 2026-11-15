@@ -14,6 +14,7 @@ import pygame
 import pytest
 
 from glitchygames.effects.shake import ShakeTarget
+from glitchygames.events.base import HashableEvent
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.randomness import reset_streams
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
@@ -29,7 +30,9 @@ from zombies_aint_my_neighbors.kid import (
     Kid,
     KidFacing,
     KidState,
+    Weapon,
 )
+from zombies_aint_my_neighbors.laser import FULL_SECONDS
 from zombies_aint_my_neighbors.neighbor import NEIGHBOR_PLACES, NeighborState
 from zombies_aint_my_neighbors.neighborhood import (
     CHEER_SECONDS,
@@ -54,6 +57,12 @@ from zombies_aint_my_neighbors.zap import Zap
 from zombies_aint_my_neighbors.zombie import Zombie
 
 support = importlib.import_module('src.games.zombies-aint-my-neighbors.tests.screen_support')
+regressed_seeds = importlib.import_module(
+    'src.games.zombies-aint-my-neighbors.tests.regressed_seeds'
+)
+seed_cases = regressed_seeds.seed_cases
+resolve_seed = regressed_seeds.resolve_seed
+failure_note = regressed_seeds.failure_note
 KEYBOARD = support.KEYBOARD
 gamepad = support.gamepad
 OPTIONS = {'input_mode': 'auto', 'no_unhandled_events': True}
@@ -201,9 +210,33 @@ def test_kids_never_leave_the_yard():
     assert (dex.world_x, dex.world_y) == (YARD_WIDTH - KID_WIDTH, YARD_HEIGHT - KID_HEIGHT)
 
 
-@pytest.mark.parametrize('players', [2, 3, 4])
-def test_the_group_always_fits_on_the_screen(players):
-    """However the players wander, the group never spans more than the screen less its margins."""
+@pytest.mark.parametrize(
+    ('players', 'seed_case'),
+    [
+        (players, case)
+        for players in (2, 3, 4)
+        for case in seed_cases(
+            test='test_the_group_always_fits_on_the_screen', vector=f'players-{players}'
+        )
+    ],
+)
+def test_the_group_always_fits_on_the_screen(players, seed_case, request):
+    """However the players wander, the group never spans more than the screen less its margins.
+
+    The streams' seed decides when zombies come and whom they knock out of their last life, so
+    the test runs a fresh seed and every seed that once failed it (seeds 1, 3 and 5 broke the
+    span with four players before feature plan 7's fix: an out kid left the span too early).
+    """
+    seed = resolve_seed(
+        seed_case,
+        node=request.node,
+        test='test_the_group_always_fits_on_the_screen',
+        vector=f'players-{players}',
+    )
+    reset_streams(seed=seed)
+    note = failure_note(
+        test='test_the_group_always_fits_on_the_screen', vector=f'players-{players}', seed=seed
+    )
     pads = (1, 2, 3)[: players - 1]
     roster = JoinRoster.empty().join(device=KEYBOARD)
     for instance_id in pads:
@@ -227,8 +260,8 @@ def test_the_group_always_fits_on_the_screen(players):
             scene.advance_game_time(seconds=FRAME_SECONDS)
             scene.dt_tick(FRAME_SECONDS)
             width, height = group_span(scene)
-            assert width <= limit_width + 1e-6
-            assert height <= limit_height + 1e-6
+            assert width <= limit_width + 1e-6, note
+            assert height <= limit_height + 1e-6, note
 
 
 def test_the_camera_aims_at_the_middle_of_the_group():
@@ -1198,3 +1231,210 @@ def test_a_kid_waiting_at_the_gate_leaves_only_once_it_has_swung_open():
             break
 
     assert door_when_cleared == 'open'
+
+
+# Switching weapons (feature plan 8): K on the keyboard, Y on a pad (both layers, Y's number)
+
+
+def pad_button(scene: NeighborhoodScene, *, instance_id: int, button: int, joystick: bool) -> None:
+    """Press a pad button on the controller layer, or the joystick layer."""
+    if joystick:
+        scene.on_joy_button_down_event(
+            HashableEvent(
+                pygame.JOYBUTTONDOWN, instance_id=instance_id, joy=instance_id, button=button
+            )
+        )
+    else:
+        scene.on_controller_button_down_event(
+            HashableEvent(pygame.CONTROLLERBUTTONDOWN, instance_id=instance_id, button=button)
+        )
+
+
+def test_k_switches_the_keyboard_players_weapon_and_back():
+    """The Channel Changer to the laser pointer, and back."""
+    scene = neighborhood()
+    dex = scene.kids[0]
+    assert dex.weapon is Weapon.CHANNEL_CHANGER
+
+    support.press_key(scene, pygame.K_k)
+    assert dex.weapon is Weapon.LASER_POINTER
+    support.press_key(scene, pygame.K_k)
+    assert dex.weapon is Weapon.CHANNEL_CHANGER
+
+
+@pytest.mark.parametrize('joystick', [False, True])
+def test_a_pads_y_switches_its_own_kids_weapon_only(joystick):
+    """Y on pad 1 switches Marisol's weapon; Dex keeps his."""
+    roster = JoinRoster.empty().join(device=KEYBOARD).join(device=gamepad(1))
+    scene = neighborhood(roster)
+
+    pad_button(scene, instance_id=1, button=pygame.CONTROLLER_BUTTON_Y, joystick=joystick)
+
+    assert scene.kids[1].weapon is Weapon.LASER_POINTER
+    assert scene.kids[0].weapon is Weapon.CHANNEL_CHANGER
+
+
+def test_a_pad_nobody_holds_switches_nothing():
+    """A pad not joined has no kid to switch."""
+    scene = neighborhood()
+
+    pad_button(scene, instance_id=7, button=pygame.CONTROLLER_BUTTON_Y, joystick=False)
+
+    assert scene.kids[0].weapon is Weapon.CHANNEL_CHANGER
+
+
+# The lure in the yard (feature plan 8)
+
+
+def laser_ready(scene: NeighborhoodScene, kid: Kid, facing: KidFacing) -> None:
+    """Give a kid the laser pointer, facing a way, standing."""
+    kid.switch_weapon()
+    face(kid, facing)
+
+
+@pytest.mark.parametrize('seed_case', seed_cases(test='test_a_laser_pulls_a_zombie_off_a_neighbor'))
+def test_a_laser_pulls_a_zombie_off_a_neighbor(seed_case, request):
+    """A laser pulls a zombie off a neighbor it would otherwise reach.
+
+    Wherever the neighbor is drawn (the seed decides), Dex stands 260 px to whichever side has
+    room, a zombie 60 px from the neighbor between them: unlured it would reach the neighbor in
+    about a second. Dex shines his dot just past the zombie; it goes to the dot instead. (It once
+    failed on seeds that put Dex outside the yard; that seed was never captured.)
+    """
+    seed = resolve_seed(
+        seed_case, node=request.node, test='test_a_laser_pulls_a_zombie_off_a_neighbor'
+    )
+    reset_streams(seed=seed)
+    note = failure_note(
+        test='test_a_laser_pulls_a_zombie_off_a_neighbor', vector='default', seed=seed
+    )
+    scene = neighbors_stage(neighbors=(NeighborKind.PIZZA_TEEN,))
+    neighbor = scene.neighbors[0]
+    room_on_the_right = neighbor.world_x + 260 + KID_WIDTH <= YARD_WIDTH
+    side = 1 if room_on_the_right else -1
+    dex = scene.kids[0]
+    dex.world_x, dex.world_y = neighbor.world_x + side * 260, neighbor.world_y
+    laser_ready(scene, dex, KidFacing.LEFT if room_on_the_right else KidFacing.RIGHT)
+    zombie = scene.add_zombie(world_x=neighbor.world_x + side * 60, world_y=neighbor.world_y)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+
+    run(scene, seconds=2.5)
+
+    assert neighbor.is_standing, note
+    assert abs(zombie.world_x - neighbor.world_x) >= 60, note
+
+
+def test_a_lured_zombie_still_knocks_out_a_kid_in_its_way():
+    """A lured zombie still knocks out a kid it walks into.
+
+    Unlured, the zombie would turn for the neighbor just behind it; lured by the dot past Dex,
+    it walks through him, and the touch knocks him out.
+    """
+    scene = neighbors_stage(neighbors=(NeighborKind.PIZZA_TEEN,))
+    dex = scene.kids[0]
+    neighbor = scene.neighbors[0]
+    neighbor.world_x, neighbor.world_y = dex.world_x - 100, dex.world_y
+    laser_ready(scene, dex, KidFacing.RIGHT)
+    scene.add_zombie(world_x=dex.world_x - 60, world_y=dex.world_y)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+
+    run(scene, seconds=2.0)
+
+    assert dex.state is not KidState.ACTIVE
+    assert neighbor.is_standing
+
+
+# The laser on the heads-up display (feature plan 8)
+
+
+def test_the_hud_shows_each_players_weapon():
+    """ZAP to begin; LASER after a switch; free slots show nothing."""
+    scene = neighbors_stage()
+    assert scene.hud.weapon_text(slot_index=0) == 'ZAP'
+    assert scene.hud.weapon_picture(slot_index=0).visible
+    assert not scene.hud.weapon_picture(slot_index=1).visible
+
+    support.press_key(scene, pygame.K_k)
+    run(scene, seconds=FRAME_SECONDS)
+
+    assert scene.hud.weapon_text(slot_index=0) == 'LASER'
+
+
+def test_the_hud_battery_bar_follows_the_charge_and_greys_when_dead():
+    """Full; half after 1.5 s of drawing; dead after 3 s, shown grey."""
+    scene = neighbors_stage()
+    dex = scene.kids[0]
+    dex.switch_weapon()
+    assert scene.hud.battery_shown(slot_index=0) == (1.0, False)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+
+    run(scene, seconds=1.5)
+    fill, dead = scene.hud.battery_shown(slot_index=0)
+    assert fill == pytest.approx(0.5, abs=0.04)
+    assert not dead
+    run(scene, seconds=1.6)
+
+    assert scene.hud.battery_shown(slot_index=0) == (0.0, True)
+    assert not scene.hud.battery_picture(slot_index=1).visible
+
+
+def test_a_zombie_lured_toward_the_yards_edge_stays_in_the_yard():
+    """Dex near the top, shining up: the zombie he lures stands on the dot, wholly in the yard."""
+    scene = neighbors_stage(neighbors=(NeighborKind.PIZZA_TEEN,))
+    neighbor = scene.neighbors[0]
+    neighbor.world_x, neighbor.world_y = 1400.0, 800.0
+    dex = scene.kids[0]
+    dex.world_x, dex.world_y = 800.0, 100.0
+    laser_ready(scene, dex, KidFacing.UP)
+    zombie = scene.add_zombie(world_x=1000.0, world_y=40.0)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+
+    run(scene, seconds=2.9)
+
+    assert zombie.world_y >= 0.0
+    assert 0.0 <= zombie.world_x <= YARD_WIDTH - KID_WIDTH
+
+
+def test_a_kid_keeps_its_weapon_into_the_next_stage_with_a_full_battery():
+    """Dex clears the stage holding the laser, half its charge spent: stage 2 gives it back full."""
+    scene = neighbors_stage(neighbors=(NeighborKind.PIZZA_TEEN,))
+    dex = scene.kids[0]
+    stand_on(dex, scene.neighbors[0])
+    run(scene, seconds=FRAME_SECONDS)
+    run(scene, seconds=0.5)
+    dex.switch_weapon()
+    dex.battery.charge_seconds = 1.5
+    stand_on(dex, scene.exit_door)
+    dex.world_y += 8
+
+    run(scene, seconds=OPENING_SECONDS + CHEER_SECONDS + 0.1)
+    card = scene.next_scene
+    assert isinstance(card, FeatureCardScene)
+    stage_2 = NeighborhoodScene(options=dict(OPTIONS), roster=card.roster, run=card.run)
+
+    assert stage_2.kids[0].weapon is Weapon.LASER_POINTER
+    assert stage_2.kids[0].battery.charge_seconds == FULL_SECONDS
+
+
+def test_a_shining_kid_knocked_out_lures_no_zombie_that_frame():
+    """Two zombies: the first knocks Dex out; the second, also in the dot's reach, is not lured.
+
+    The final review found the dot still lit for the rest of that frame.
+    """
+    scene = neighbors_stage(neighbors=(NeighborKind.PIZZA_TEEN,))
+    neighbor = scene.neighbors[0]
+    neighbor.world_x, neighbor.world_y = 1400.0, 800.0
+    dex = scene.kids[0]
+    laser_ready(scene, dex, KidFacing.RIGHT)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+    run(scene, seconds=0.5)
+    assert dex.laser_lit
+    scene.add_zombie(world_x=dex.world_x, world_y=dex.world_y)
+    dot_x, dot_y = dex.dot.centre()
+    second = scene.add_zombie(world_x=dot_x - 16 + 100, world_y=dot_y - 48)
+    where = second.world_x
+
+    run(scene, seconds=FRAME_SECONDS)
+
+    assert dex.dot.hidden
+    assert second.world_x >= where

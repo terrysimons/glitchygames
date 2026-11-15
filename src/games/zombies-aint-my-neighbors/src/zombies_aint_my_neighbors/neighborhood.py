@@ -67,7 +67,11 @@ from zombies_aint_my_neighbors.kid import (
 from zombies_aint_my_neighbors.neighbor import Neighbor, neighbor_places, touching
 from zombies_aint_my_neighbors.pool import SpritePool
 from zombies_aint_my_neighbors.roster import JoinRoster
-from zombies_aint_my_neighbors.roster_scene import KEYBOARD_IDENTITY, RosterScene
+from zombies_aint_my_neighbors.roster_scene import (
+    KEYBOARD_IDENTITY,
+    RosterScene,
+    gamepad_identity,
+)
 from zombies_aint_my_neighbors.run_state import NeighborKind, RunState, as_run
 from zombies_aint_my_neighbors.tv import TV_SIZE, ZOMBIES_IN_ALL, Tv, TvHit, may_spawn
 from zombies_aint_my_neighbors.zap import (
@@ -81,6 +85,10 @@ from zombies_aint_my_neighbors.zap import (
 from zombies_aint_my_neighbors.zombie import Zombie, touches
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from glitchygames.events.base import ControllerButtonEvent, JoyButtonEvent, KeyEvent
+    from glitchygames.input.action_map import ActionMap
     from zombies_aint_my_neighbors.roster import DeviceIdentity
 
 type Colour = tuple[int, int, int]
@@ -132,6 +140,10 @@ ZAP_POOL_SIZE: Final = MAXIMUM_PLAYERS * ZAPS_IN_THE_AIR_PER_KID
 NEIGHBOR_PLACES_STREAM: Final = 'zombies_aint_my_neighbors.neighbor-places'
 EXIT_DOOR_PLACE: Final = (YARD_WIDTH / 2 - DOOR_SIZE / 2, 0.0)
 CHEER_SECONDS: Final = 1.5
+# Feature plan 8: K, or a pad's Y (Y's number on the joystick layer too), switches the weapon
+SWITCH_ACTION: Final = 'switch_weapon'
+SWITCH_SCANCODE: Final = pygame.KSCAN_K
+SWITCH_BUTTON: Final = pygame.CONTROLLER_BUTTON_Y
 
 
 def draw_yard(surface: pygame.Surface, offset_x: float, offset_y: float) -> None:
@@ -234,8 +246,12 @@ class NeighborhoodScene(RosterScene):
             max_y=YARD_HEIGHT - self.screen_height,
         )
         self.mirror_cache = MirrorCache()
+        self.yard_bounds = pygame.Rect(0, 0, YARD_WIDTH, YARD_HEIGHT)
         self.kids: dict[int, Kid] = {}
         self._yard_drawn = False
+        # The run: as the stage began (for a replay) and as it is now (lives change)
+        self.run = as_run(run)
+        self._starting_run = self.run
         self.add_missing_kids()
         stream = random_stream(TV_SPAWN_STREAM)
         self.tvs = [
@@ -251,13 +267,9 @@ class NeighborhoodScene(RosterScene):
         # The zaps in the air, and the slot of the kid who fired each
         self.zaps: list[Zap] = []
         self.zap_owners: dict[Zap, int] = {}
-        self.yard_bounds = pygame.Rect(0, 0, YARD_WIDTH, YARD_HEIGHT)
         # Built now, before play: every zombie and zap the yard will need
         self.zombie_pool = SpritePool(make=self._make_zombie, size=ZOMBIE_POOL_SIZE)
         self.zap_pool = SpritePool(make=self._make_zap, size=ZAP_POOL_SIZE)
-        # The run: as the stage began (for a replay) and as it is now (lives change)
-        self.run = as_run(run)
-        self._starting_run = self.run
         places = neighbor_places(
             stream=random_stream(NEIGHBOR_PLACES_STREAM), count=len(self.run.neighbors)
         )
@@ -291,7 +303,69 @@ class NeighborhoodScene(RosterScene):
             joined_slots={player.slot_index for player in self.roster.joined_players},
             rescued=len(self.rescued),
             total=len(self._starting_run.neighbors),
+            kids=self.kids,
         )
+
+    @override
+    @staticmethod
+    def _create_action_map(*, options: Mapping[str, Any]) -> ActionMap:
+        """Bind the screens' controls, and K or a pad's Y to switch weapons (feature plan 8).
+
+        Args:
+            options: The engine's options (the map follows its input mode).
+
+        Returns:
+            The action map.
+
+        """
+        actions = RosterScene._create_action_map(options=options)
+        actions.bind(SWITCH_ACTION, scancode=SWITCH_SCANCODE, controller_button=SWITCH_BUTTON)
+        return actions
+
+    @override
+    def on_key_down_event(self, event: KeyEvent) -> None:
+        """K switches the keyboard player's weapon; other keys as every screen's.
+
+        Args:
+            event: The key press.
+
+        """
+        if self.actions.get_action(event) == SWITCH_ACTION:
+            self._switch_weapon(device=KEYBOARD_IDENTITY)
+        else:
+            super().on_key_down_event(event)
+
+    @override
+    def on_controller_button_down_event(self, event: ControllerButtonEvent) -> None:
+        """Y on a mapped pad switches that pad's kid's weapon.
+
+        Args:
+            event: The button press.
+
+        """
+        if self.actions.get_action(event) == SWITCH_ACTION:
+            self._switch_weapon(device=gamepad_identity(instance_id=event.instance_id))
+        else:
+            super().on_controller_button_down_event(event)
+
+    @override
+    def on_joy_button_down_event(self, event: JoyButtonEvent) -> None:
+        """Y's number on the joystick layer switches that pad's kid's weapon.
+
+        Args:
+            event: The button press.
+
+        """
+        if self.actions.get_action(event) == SWITCH_ACTION:
+            self._switch_weapon(device=gamepad_identity(instance_id=event.instance_id))
+        else:
+            super().on_joy_button_down_event(event)
+
+    def _switch_weapon(self, *, device: DeviceIdentity) -> None:
+        """Switch the weapon of the kid whose player is on a device (nobody's: nothing)."""
+        for player in self.roster.joined_players:
+            if player.device == device:
+                self.kids[player.slot_index].switch_weapon()
 
     @override
     def replay_arguments(self) -> dict[str, Any]:
@@ -359,8 +433,13 @@ class NeighborhoodScene(RosterScene):
                 mirror_cache=self.mirror_cache,
                 groups=self.all_sprites,
             )
+            kid.bounds = self.yard_bounds
+            # The weapon the slot held when the last stage cleared (the battery starts full)
+            kid.weapon = self.run.weapons[player.slot_index]
             self.kids[player.slot_index] = kid
             self._order_by_feet(kid)
+            # The laser's dot lies on the lawn: over the yard, under everything standing on it
+            self.all_sprites.change_layer(kid.dot, YARD_LAYER + 1)
 
     def add_zombie(self, *, world_x: float, world_y: float, home: Tv | None = None) -> Zombie:
         """Put a Lawn Zombie in the yard.
@@ -420,7 +499,9 @@ class NeighborhoodScene(RosterScene):
         """Draw a kid by its feet, its remote just in front of it (just behind when facing up)."""
         self._order_by_feet(kid)
         kid_layer = self.all_sprites.get_layer_of_sprite(kid)
-        self.all_sprites.change_layer(kid.remote, kid_layer + (1 if kid.remote_in_front else -1))
+        hand_layer = kid_layer + (1 if kid.remote_in_front else -1)
+        self.all_sprites.change_layer(kid.remote, hand_layer)
+        self.all_sprites.change_layer(kid.laser_pointer, hand_layer)
 
     @override
     def dt_tick(self, dt: float) -> None:
@@ -503,6 +584,19 @@ class NeighborhoodScene(RosterScene):
             for kid in self.kids.values():
                 kid.cheer()
 
+    def _run_with_held_weapons(self) -> RunState:
+        """Return the run with the weapon each kid holds now (a free slot keeps the run's).
+
+        Returns:
+            The run.
+
+        """
+        weapons = tuple(
+            self.kids[slot_index].weapon if slot_index in self.kids else weapon
+            for slot_index, weapon in enumerate(self.run.weapons)
+        )
+        return self.run.with_weapons(weapons=weapons)
+
     def _cheer(self, dt: float) -> None:
         """The yard stands still while the kids cheer; then the card brings the next stage."""
         for kid in self.kids.values():
@@ -516,7 +610,7 @@ class NeighborhoodScene(RosterScene):
             self.next_scene = FeatureCardScene(
                 options=self.options,
                 roster=self.roster,
-                run=self.run.next_stage(rescued=tuple(self.rescued)),
+                run=self._run_with_held_weapons().next_stage(rescued=tuple(self.rescued)),
             )
 
     def _run_tvs(self, dt: float) -> None:
@@ -535,7 +629,10 @@ class NeighborhoodScene(RosterScene):
         """Move each zombie, knock out each touchable kid it touches, and pose it."""
         kids = list(self.kids.values())
         for zombie in self.zombies:
-            zombie.chase(kids=kids, neighbors=self.neighbors, dt=dt)
+            # The lasers shining now (feature plan 8), read for each zombie: a knockout earlier
+            # in this frame puts its kid's dot out for the zombies after
+            lit_dots = [kid.dot for kid in kids if kid.laser_lit]
+            zombie.chase(kids=kids, neighbors=self.neighbors, dots=lit_dots, dt=dt)
             for slot_index, kid in self.kids.items():
                 if kid.is_touchable and touches(zombie=zombie, kid=kid):
                     last_life = self.run.lives[slot_index] <= 1

@@ -80,6 +80,11 @@ BOM_NEIGHBOR_HITBOX = {'offset_x': 4, 'offset_y': 8, 'width': 24, 'height': 40}
 BOM_SAVED = {'saved': (5, 0.06, False)}
 BOM_LOST = {'lost': (5, 0.08, False)}
 WHOLE_KID_FRAME = {'offset_x': 0, 'offset_y': 0, 'width': 32, 'height': 48}
+# Props BOM, the laser pointer (its whole canvas as its hitbox: in a hand) and its dot
+BOM_LASER_POINTER = {f'held_{facing}': (1, 0.08, True) for facing in FACINGS}
+BOM_LASER_POINTER_HITBOX = {'offset_x': 0, 'offset_y': 0, 'width': 12, 'height': 12}
+BOM_LASER_DOT = {'glow': (2, 0.06, True)}
+BOM_LASER_DOT_HITBOX = {'offset_x': 0, 'offset_y': 0, 'width': 8, 'height': 8}
 # Props BOM, the exit door
 BOM_DOOR = {'closed': (1, 0.08, True), 'opening': (3, 0.08, False), 'open': (2, 0.2, True)}
 BOM_DOOR_TRANSITIONS = frozenset({('opening', 'open', 'animation_complete')})
@@ -120,6 +125,20 @@ SPRITES = {
     'saved': (BOM_SAVED, frozenset(), WHOLE_KID_FRAME, (32, 48), neighbor_rig.EFFECT_PALETTE),
     'lost': (BOM_LOST, frozenset(), WHOLE_KID_FRAME, (32, 48), neighbor_rig.EFFECT_PALETTE),
     'exit_door': (BOM_DOOR, BOM_DOOR_TRANSITIONS, BOM_DOOR_HITBOX, (48, 48), door_rig.DOOR_PALETTE),
+    'laser_pointer': (
+        BOM_LASER_POINTER,
+        frozenset(),
+        BOM_LASER_POINTER_HITBOX,
+        (12, 12),
+        weapon_rig.LASER_PALETTE,
+    ),
+    'laser_dot': (
+        BOM_LASER_DOT,
+        frozenset(),
+        BOM_LASER_DOT_HITBOX,
+        (8, 8),
+        weapon_rig.LASER_PALETTE,
+    ),
 }
 FRAMES = {
     'lawn_zombie': zombie_rig.zombie_frames,
@@ -131,6 +150,8 @@ FRAMES = {
     'saved': neighbor_rig.saved_frames,
     'lost': neighbor_rig.lost_frames,
     'exit_door': door_rig.door_frames,
+    'laser_pointer': weapon_rig.laser_pointer_frames,
+    'laser_dot': weapon_rig.laser_dot_frames,
 }
 TEXTS = {
     'lawn_zombie': build.zombie_sprite_text,
@@ -142,6 +163,8 @@ TEXTS = {
     'saved': build.saved_sprite_text,
     'lost': build.lost_sprite_text,
     'exit_door': build.door_sprite_text,
+    'laser_pointer': build.laser_pointer_sprite_text,
+    'laser_dot': build.laser_dot_sprite_text,
 }
 
 
@@ -211,6 +234,38 @@ def test_the_saved_figure_leaves_from_the_feet_up():
     lower = [sum(row.count('.') for row in grid[24:]) for grid in frames]
 
     assert all(later >= earlier for earlier, later in itertools.pairwise(lower))
+
+
+def test_the_laser_boms_total_5_frames():
+    """Props BOM: the pointer's 3 and the dot's 2."""
+    animations = (*BOM_LASER_POINTER.values(), *BOM_LASER_DOT.values())
+
+    assert sum(frames for frames, _interval, _loop in animations) == 5
+
+
+@pytest.mark.parametrize('facing', [*FACINGS, 'right'])
+def test_the_laser_pointers_tip_is_its_red_cell(facing):
+    """The light leaves from the red tip, on every facing (right mirrors left: x' = 11 - x)."""
+    drawn = 'left' if facing == 'right' else facing
+    grid = weapon_rig.laser_pointer_frames()[f'held_{drawn}'][0]
+    tip_x, tip_y = weapon_rig.laser_tip(facing=facing)
+    column = 11 - tip_x if facing == 'right' else tip_x
+
+    assert grid[tip_y][column] == weapon_rig.LASER_TIP
+
+
+def test_the_laser_pointer_is_centred_on_the_hand():
+    """The grip is the canvas's centre on every facing: drawn there."""
+    for name, (grid,) in weapon_rig.laser_pointer_frames().items():
+        assert grid[6][6] != '.', name
+
+
+def test_the_dot_has_no_outline_and_flickers():
+    """A dot of light has no edge; its two frames differ."""
+    first, second = weapon_rig.laser_dot_frames()['glow']
+
+    assert 'O' not in ''.join(first) + ''.join(second)
+    assert first != second
 
 
 def test_the_door_bom_totals_6_frames():

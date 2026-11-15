@@ -257,7 +257,8 @@ designs are not.
 - [ ] **Hide the 0.32 s hitch when a stage is built** (found 2026-11-15, feature plan 7): the
   card builds the next neighborhood on one frame. Build it while the card shows (over several
   frames), so the hand-over to the stage is smooth.
-- [ ] **A laser pointer weapon (the owner, 2026-11-15):** "when you shine the laser pointer
+- [x] **A laser pointer weapon (the owner, 2026-11-15):** planned as feature plan 8.
+  Asked: "when you shine the laser pointer
   somewhere, the zombies chase the laser pointer, but its batteries run out quickly." A lure
   weapon beside the Channel Changer: a dot that zombies chase instead of kids and neighbors,
   on a battery that drains fast. Needs its own feature plan (weapon switching and the battery
@@ -315,6 +316,9 @@ Each feature gets its own plan in `plans/`, linked here and linking back to this
 7. [Neighbors, lives and stages](2026-11-15-zombies-aint-my-neighbors-7-neighbors-and-lives.md):
    BUILT, uncommitted, awaiting the owner's review. Neighbors to save, 3 lives each, an exit door at a
    stage's end, the next stage with only the neighbors saved (owner, 2026-11-15), and game over.
+8. [The laser pointer](2026-11-15-zombies-aint-my-neighbors-8-laser-pointer.md): BUILT,
+   uncommitted, awaiting the owner's review. A second weapon, a lure: zombies chase its dot; its battery
+   gives 3 s of shine and recharges by itself (owner, 2026-11-15). K or Y switches weapons.
 
 ## Sources
 

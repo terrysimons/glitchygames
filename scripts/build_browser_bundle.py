@@ -290,6 +290,7 @@ TOUCH_KEYS: dict[str, tuple[str, int, str]] = {
     'Enter': ('Enter', 13, 'Enter'),
     'ShiftLeft': ('Shift', 16, 'Shift'),
     'KeyJ': ('j', 74, 'J'),
+    'KeyK': ('k', 75, 'K'),
 }
 
 
@@ -363,11 +364,16 @@ TOUCH_LAYOUTS: dict[str, TouchLayout] = {
         right=((TouchButton('Start', 'Space'),),),
     ),
     # Start (Enter) joins a player and begins; P pauses (Space and Esc belong to the pause screen).
-    # In the neighborhood the arrows walk (four ways: a button presses one key) and Fire holds J
+    # In the neighborhood the arrows walk (four ways: a button presses one key), Fire holds J and
+    # Switch (K) swaps the weapon (feature plan 8)
     'zombies-aint-my-neighbors': TouchLayout(
         left=((None, UP, None), (LEFT, None, RIGHT), (None, DOWN, None)),
         center=((TouchButton('Pause', 'KeyP'),),),
-        right=((TouchButton('Start', 'Enter'),), (TouchButton('Fire', 'KeyJ'),)),
+        right=(
+            (TouchButton('Start', 'Enter'),),
+            (TouchButton('Fire', 'KeyJ'),),
+            (TouchButton('Switch', 'KeyK'),),
+        ),
     ),
 }
 

@@ -1,7 +1,8 @@
 # Zombies Ain't My Neighbors: The Props BOM
 
 **Status (2026-11-15):** the TV (feature plan 5), its damage stages, the Channel Changer and its
-zap (feature plan 6), and the exit door (feature plan 7). The rest of the props (weapons and
+zap (feature plan 6), the exit door (feature plan 7), and the laser pointer and its dot
+(feature plan 8). The rest of the props (weapons and
 their streams, pickups, the decoy, doors and keys, hedges, fences and walls with their damage,
 the exit, radar icons, title cards) are listed for it in the character BOM, section 9, and are
 added here as the features that need them arrive.
@@ -95,7 +96,35 @@ open clears the stage; not solid. One facing.
 
 **6 frames.**
 
-Total so far: 7 + 17 + 3 + 5 + 6 = **38 frames**.
+## The laser pointer (feature plan 8)
+
+The kids' second weapon, a lure: a slim silver pen with a red tip. Drawn only while a kid shines
+it, centred on the frame's hand point and mirrored with the frame; behind the kid when it faces
+up, as the Channel Changer. One 12x12 canvas for every facing; the grip is its centre (6, 6).
+Anchor `bottom`. Palette: the outline, the pen's silver (3 tones), its clip's dark grey, the
+tip's reds (2) and white. Hitbox: the whole canvas, never collided (it is in a hand).
+
+| Animation | Facings | Frames | Interval | Loop | Then | Frame notes |
+|---|---|---|---|---|---|---|
+| `held_<f>` | down, up, left | 1 | 0.08 | yes | — | Down: end-on, the red tip toward the viewer below the hand (4 wide, 9 tall). Up: its back, the clip showing, the tip above the hand. Left: side-on, 10 long and 4 tall, the red tip at the left end, the clip on top |
+
+The tip (game code): its red cell on each facing, the outline around it; right mirrors left,
+`x' = 11 - x`. **3 frames.**
+
+## The laser dot (feature plan 8)
+
+Where a shining laser pointer's light lands: a red point with a soft halo, on the lawn 160 px
+ahead of the kid. 8x8, anchor `bottom` (the game places its centre). Palette: the reds (3), a
+pale pink and white; no outline, since a dot of light has no edge. Hitbox: the whole canvas,
+never collided (zombies chase it by distance, feature plan 8). One facing.
+
+| Animation | Frames | Interval | Loop | Then | Frame notes |
+|---|---|---|---|---|---|
+| `glow` | 2 | 0.06 | yes | — | The point and its halo; the halo a pixel wider on frame 1, so it flickers as a laser does |
+
+**2 frames.**
+
+Total so far: 7 + 17 + 3 + 5 + 6 + 3 + 2 = **43 frames**.
 
 ## Audit
 
@@ -135,3 +164,11 @@ its Then (A3); size, palette, anchor and hitbox given, and whether it collides (
 slower than an effect because it is a resting loop (A5); symmetric (A8); names follow the rule
 (A9); 1 + 3 + 2 = 6 (A10). No original design copied (A7): the original's exits are doors; ours
 is a garden gate glowing as the VR safe room does.
+
+The laser pointer and the dot (Claude, 2026-11-15, before their art): every state feature plan
+8 gives them has an animation (the pointer held while shining; the dot glowing) (A1); the pointer
+has down, up and left as the shooting poses do, the dot one facing (A2); both loop, so no Then
+is owed (A3); size, palette, anchor and hitbox given, neither collided (A4); the dot's flicker is
+an effect at 0.06 s (A5); the pointer's mirrored side view keeps its tip at the front, and the
+dot is round (A8); names follow the rule (A9); 3 + 2 = 5 (A10). No original design copied (A7):
+the original game has no laser pointer and no lure that monsters chase.
