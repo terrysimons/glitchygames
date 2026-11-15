@@ -7,6 +7,10 @@ player, and with nobody left the card goes back to the title (feature plans 1 an
 
 Between stages (feature plan 7) it carries the run (``run_state.RunState``) to the next
 neighborhood and names the stage: FEATURE PRESENTATION before stage 1, STAGE n after.
+
+While it shows (feature plan 9) it builds the coming stage's sprites into a sprite kit, one a
+frame (``sprite_kit.py``), and gives the kit to the stage, which begins without pausing to load
+them.
 """
 
 from __future__ import annotations
@@ -16,10 +20,11 @@ from typing import TYPE_CHECKING, Any, Final, override
 import pygame
 
 from zombies_aint_my_neighbors import text
-from zombies_aint_my_neighbors.neighborhood import NeighborhoodScene
+from zombies_aint_my_neighbors.neighborhood import NeighborhoodScene, stage_needs
 from zombies_aint_my_neighbors.roster import MAXIMUM_PLAYERS, PLAYER_COLOURS
 from zombies_aint_my_neighbors.roster_scene import RosterScene
 from zombies_aint_my_neighbors.run_state import RunState, as_run
+from zombies_aint_my_neighbors.sprite_kit import SpriteKit
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -53,6 +58,7 @@ class FeatureCardScene(RosterScene):
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
         roster: JoinRoster | dict[str, Any] | None = None,
         run: RunState | dict[str, Any] | None = None,
+        kit: SpriteKit | None = None,
     ) -> None:
         """Make the card.
 
@@ -62,10 +68,13 @@ class FeatureCardScene(RosterScene):
             roster: The players joined: a roster, its JSON form (as a replay passes it back),
                 or None for nobody.
             run: The run the next stage plays: a run, its JSON form, or None for a new run.
+            kit: The last stage's sprite kit, with whatever it left (feature plan 9), or None
+                for a new one.
 
         """
         super().__init__(options=options, groups=groups, roster=roster)
         self.run = as_run(run)
+        self.kit = kit if kit is not None else SpriteKit()
         self.player_pictures: tuple[text.TextPicture, ...] = ()
 
     @override
@@ -166,8 +175,19 @@ class FeatureCardScene(RosterScene):
         """
         super().dt_tick(dt)
         self._pose_players()
+        self._build_ahead()
         if self.game_time >= CARD_SECONDS and self.next_scene is None:
             self._begin_the_neighborhood()
+
+    def _build_ahead(self) -> None:
+        """Build one more sprite the coming stage takes (feature plan 9).
+
+        Nothing is built once the stage has begun: it took what it needs.
+        """
+        if self.next_scene is not None:
+            return
+        joined_slots = {player.slot_index for player in self.roster.joined_players}
+        self.kit.build_one_toward(needs=stage_needs(run=self.run, joined_slots=joined_slots))
 
     @override
     def _press_start(self, *, device: DeviceIdentity) -> None:
@@ -209,7 +229,9 @@ class FeatureCardScene(RosterScene):
 
     def _begin_the_neighborhood(self) -> None:
         """Begin the neighborhood with whoever is joined, for the card's run."""
-        self.next_scene = NeighborhoodScene(options=self.options, roster=self.roster, run=self.run)
+        self.next_scene = NeighborhoodScene(
+            options=self.options, roster=self.roster, run=self.run, kit=self.kit
+        )
 
     def _back_to_the_title(self) -> None:
         """Go back to the title, keeping whoever is joined."""

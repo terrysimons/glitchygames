@@ -42,6 +42,7 @@ Built from options alone, as a recording's first scene is, the keyboard plays P1
 from __future__ import annotations
 
 import math
+from collections import Counter
 from typing import TYPE_CHECKING, Any, Final, override
 
 import pygame
@@ -62,7 +63,6 @@ from zombies_aint_my_neighbors.kid import (
     TIME_TOLERANCE,
     Kid,
     KidState,
-    MirrorCache,
 )
 from zombies_aint_my_neighbors.neighbor import Neighbor, neighbor_places, touching
 from zombies_aint_my_neighbors.pool import SpritePool
@@ -73,6 +73,7 @@ from zombies_aint_my_neighbors.roster_scene import (
     gamepad_identity,
 )
 from zombies_aint_my_neighbors.run_state import NeighborKind, RunState, as_run
+from zombies_aint_my_neighbors.sprite_kit import Part, PartKind, SpriteKit
 from zombies_aint_my_neighbors.tv import TV_SIZE, ZOMBIES_IN_ALL, Tv, TvHit, may_spawn
 from zombies_aint_my_neighbors.zap import (
     FIZZLE_SECONDS,
@@ -85,7 +86,7 @@ from zombies_aint_my_neighbors.zap import (
 from zombies_aint_my_neighbors.zombie import Zombie, touches
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Collection, Mapping
 
     from glitchygames.events.base import ControllerButtonEvent, JoyButtonEvent, KeyEvent
     from glitchygames.input.action_map import ActionMap
@@ -199,6 +200,29 @@ def _clamp(value: float, *, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
+def stage_needs(*, run: RunState, joined_slots: Collection[int]) -> Counter[Part]:
+    """Return every sprite a stage takes from the kit, in the order it takes them (plan 9).
+
+    Args:
+        run: The run the stage plays (its neighbors).
+        joined_slots: The slots a player holds (each takes its kid).
+
+    Returns:
+        Each part and how many.
+
+    """
+    needs: Counter[Part] = Counter()
+    for slot_index in sorted(joined_slots):
+        needs[Part(kind=PartKind.KID, variant=KIDS[slot_index].name)] += 1
+    needs[Part(kind=PartKind.TV)] = len(TV_PLACES)
+    needs[Part(kind=PartKind.ZOMBIE)] = ZOMBIE_POOL_SIZE
+    needs[Part(kind=PartKind.ZAP)] = ZAP_POOL_SIZE
+    for kind in run.neighbors:
+        needs[Part(kind=PartKind.NEIGHBOR, variant=kind)] += 1
+    needs[Part(kind=PartKind.DOOR)] = 1
+    return needs
+
+
 class NeighborhoodScene(RosterScene):
     """The neighborhood: the joined kids walking a yard."""
 
@@ -216,6 +240,7 @@ class NeighborhoodScene(RosterScene):
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
         roster: JoinRoster | dict[str, Any] | None = None,
         run: RunState | dict[str, Any] | None = None,
+        kit: SpriteKit | None = None,
     ) -> None:
         """Make the neighborhood for the joined players (the keyboard as P1 when none are given).
 
@@ -225,6 +250,8 @@ class NeighborhoodScene(RosterScene):
             roster: The players: a roster, its JSON form (as a replay passes it back), or None
                 for the keyboard alone.
             run: The run this stage plays: a run, its JSON form, or None for a new run.
+            kit: The sprites the stage card built ahead (feature plan 9), or None to build every
+                sprite now (a playback's rebuilt stage, a test).
 
         """
         if roster is None:
@@ -245,7 +272,9 @@ class NeighborhoodScene(RosterScene):
             max_x=YARD_WIDTH - self.screen_width,
             max_y=YARD_HEIGHT - self.screen_height,
         )
-        self.mirror_cache = MirrorCache()
+        # The sprites built ahead on the stage card (feature plan 9): every sprite comes from it
+        self.kit = kit if kit is not None else SpriteKit()
+        self.mirror_cache = self.kit.mirror_cache
         self.yard_bounds = pygame.Rect(0, 0, YARD_WIDTH, YARD_HEIGHT)
         self.kids: dict[int, Kid] = {}
         self._yard_drawn = False
@@ -254,11 +283,9 @@ class NeighborhoodScene(RosterScene):
         self._starting_run = self.run
         self.add_missing_kids()
         stream = random_stream(TV_SPAWN_STREAM)
-        self.tvs = [
-            Tv(world_x=world_x, world_y=world_y, stream=stream, groups=self.all_sprites)
-            for world_x, world_y in TV_PLACES
-        ]
-        for tv in self.tvs:
+        self.tvs = [self.kit.take_tv(groups=self.all_sprites) for _ in TV_PLACES]
+        for tv, (world_x, world_y) in zip(self.tvs, TV_PLACES, strict=True):
+            tv.place(world_x=world_x, world_y=world_y, stream=stream)
             tv.dt_tick(0.0)
             self._order_by_feet(tv, height=TV_SIZE)
         self.zombies: list[Zombie] = []
@@ -274,16 +301,20 @@ class NeighborhoodScene(RosterScene):
             stream=random_stream(NEIGHBOR_PLACES_STREAM), count=len(self.run.neighbors)
         )
         self.neighbors = [
-            Neighbor(kind=kind, world_x=float(x), world_y=float(y), groups=self.all_sprites)
-            for kind, (x, y) in zip(self.run.neighbors, places, strict=True)
+            self.kit.take_neighbor(kind=kind, groups=self.all_sprites)
+            for kind in self.run.neighbors
         ]
-        for neighbor in self.neighbors:
+        for neighbor, (x, y) in zip(self.neighbors, places, strict=True):
+            neighbor.world_x = float(x)
+            neighbor.world_y = float(y)
             neighbor.dt_tick(0.0)
             self._order_by_feet(neighbor)
         # The neighbors rescued this stage, in the order rescued
         self.rescued: list[NeighborKind] = []
         door_x, door_y = EXIT_DOOR_PLACE
-        self.exit_door = ExitDoor(world_x=door_x, world_y=door_y, groups=self.all_sprites)
+        self.exit_door = self.kit.take_door(groups=self.all_sprites)
+        self.exit_door.world_x = door_x
+        self.exit_door.world_y = door_y
         self.exit_door.dt_tick(0.0)
         self._order_by_feet(self.exit_door, height=DOOR_SIZE)
         # Whether a kid has left through the door, and how long the kids have cheered
@@ -384,11 +415,7 @@ class NeighborhoodScene(RosterScene):
             The zombie.
 
         """
-        zombie = Zombie(
-            world_x=0.0, world_y=0.0, mirror_cache=self.mirror_cache, groups=self.all_sprites
-        )
-        zombie.put_away()
-        return zombie
+        return self.kit.take_zombie(groups=self.all_sprites)
 
     def _make_zap(self) -> Zap:
         """Make a zap for the pool, waiting hidden in the scene's group.
@@ -397,13 +424,8 @@ class NeighborhoodScene(RosterScene):
             The zap.
 
         """
-        zap = Zap(
-            centre=(0.0, 0.0),
-            direction=(1.0, 0.0),
-            bounds=self.yard_bounds,
-            groups=self.all_sprites,
-        )
-        zap.put_away()
+        zap = self.kit.take_zap(groups=self.all_sprites)
+        zap.bounds = self.yard_bounds
         return zap
 
     @override
@@ -426,13 +448,9 @@ class NeighborhoodScene(RosterScene):
             if player.slot_index in self.kids:
                 continue
             offset_x, offset_y = _START_OFFSETS[player.slot_index]
-            kid = Kid(
-                look_name=KIDS[player.slot_index].name,
-                world_x=float(YARD_WIDTH // 2 + offset_x),
-                world_y=float(YARD_HEIGHT // 2 + offset_y),
-                mirror_cache=self.mirror_cache,
-                groups=self.all_sprites,
-            )
+            kid = self.kit.take_kid(look_name=KIDS[player.slot_index].name, groups=self.all_sprites)
+            kid.world_x = float(YARD_WIDTH // 2 + offset_x)
+            kid.world_y = float(YARD_HEIGHT // 2 + offset_y)
             kid.bounds = self.yard_bounds
             # The weapon the slot held when the last stage cleared (the battery starts full)
             kid.weapon = self.run.weapons[player.slot_index]
@@ -613,6 +631,7 @@ class NeighborhoodScene(RosterScene):
                 options=self.options,
                 roster=self.roster,
                 run=self._run_with_held_weapons().next_stage(rescued=tuple(self.rescued)),
+                kit=self.kit,
             )
 
     def _run_tvs(self, dt: float) -> None:

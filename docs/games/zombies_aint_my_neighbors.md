@@ -85,6 +85,14 @@ means (`_press_start`) and what an unplugged pad means (`_device_left`). `Roster
 don't use (sticks, hats, touchpads, sensors, raw device events), so `--no-unhandled-events`
 never trips on a pad.
 
+While the card shows, it builds the coming stage's sprites (kids, TVs, zombies, zaps, neighbors,
+the gate) into a **sprite kit** (`sprite_kit.py`), one sprite a frame, and hands the kit to the
+stage, which takes each sprite out of it instead of loading its file: the stage begins in about
+2 ms instead of 0.35 s. Building only loads files; the stage still places everything and draws
+every random number, so a replay that starts on a stage rebuilds it exactly. A cleared stage
+hands the kit on to the next card, and a scene given no kit (a replay's rebuilt stage) makes its
+own.
+
 The title is the game's class for now, so its golden replay stays in one scene, as
 `tests/replay/test_golden_replays.py` requires. When gameplay arrives, the golden moves to the
 gameplay scene.

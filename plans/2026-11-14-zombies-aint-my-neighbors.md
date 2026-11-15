@@ -254,9 +254,16 @@ designs are not.
 
 ## Game TODOs
 
-- [ ] **Hide the 0.32 s hitch when a stage is built** (found 2026-11-15, feature plan 7): the
-  card builds the next neighborhood on one frame. Build it while the card shows (over several
-  frames), so the hand-over to the stage is smooth.
+- [x] **Hide the 0.32 s hitch when a stage is built** (found 2026-11-15, feature plan 7): done
+  by feature plan 9: the card builds the stage's sprites ahead, a sprite a frame, and the stage
+  is built in 2 ms (was 349 ms).
+- [ ] **A game cannot declare an engine context slot yet** (found 2026-11-15, feature plan 9):
+  `tests/test_engine_context_source_guards.py` requires an isolation check for every slot,
+  members' included, in the engine's `ISOLATION_CHECKS`, but engine tests may never import a
+  member (`tests/test_workspace_config.py`). Any game wanting per-game state that outlives a
+  scene meets this. Fix in the shared guards (members keep their checks in their own tests,
+  collected by the guard) when a game needs a slot; feature plan 9 passes its kit from scene to
+  scene instead. The owner's call.
 - [x] **A laser pointer weapon (the owner, 2026-11-15):** planned as feature plan 8.
   Asked: "when you shine the laser pointer
   somewhere, the zombies chase the laser pointer, but its batteries run out quickly." A lure
@@ -319,6 +326,9 @@ Each feature gets its own plan in `plans/`, linked here and linking back to this
 8. [The laser pointer](2026-11-15-zombies-aint-my-neighbors-8-laser-pointer.md): BUILT,
    uncommitted, awaiting the owner's review. A second weapon, a lure: zombies chase its dot; its battery
    gives 3 s of shine and recharges by itself (owner, 2026-11-15). K or Y switches weapons.
+9. [A sprite kit built ahead](2026-11-15-zombies-aint-my-neighbors-9-sprite-kit.md): BUILT,
+   uncommitted. The stage card builds the coming stage's sprites into a kit, a sprite a frame,
+   and hands it to the stage, so no stage pauses to load (the owner's option 2, 2026-11-15).
 
 ## Sources
 

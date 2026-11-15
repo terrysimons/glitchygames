@@ -12,6 +12,7 @@ import random
 import pygame
 import pytest
 
+from glitchygames.randomness import capture_stream_states, reset_streams
 from zombies_aint_my_neighbors.tv import (
     HITS_PER_STAGE,
     POP_SECONDS,
@@ -37,7 +38,33 @@ def tv_with_seed(seed: int) -> Tv:
         The TV.
 
     """
-    return Tv(world_x=200.0, world_y=300.0, stream=random.Random(seed), groups=None)
+    tv = Tv(groups=None)
+    tv.place(world_x=200.0, world_y=300.0, stream=random.Random(seed))
+    return tv
+
+
+def test_a_tv_draws_its_first_wait_when_placed_not_when_built():
+    """Built ahead on the stage card, a TV draws nothing until its stage places it (plan 9)."""
+    stream = random.Random(3)
+    reset_streams(seed=3)
+    before = capture_stream_states()
+    tv = Tv(groups=None)
+    assert capture_stream_states() == before
+
+    tv.place(world_x=40.0, world_y=50.0, stream=stream)
+
+    assert (tv.world_x, tv.world_y) == (40.0, 50.0)
+    expected = random.Random(3).uniform(SPAWN_MINIMUM_SECONDS, SPAWN_MAXIMUM_SECONDS)
+    assert tv.seconds_until_spawn == pytest.approx(expected)
+
+
+def test_a_tv_never_placed_refuses_to_draw_a_wait():
+    """Due to spawn with no stream (never placed), a TV fails loudly instead of guessing."""
+    tv = Tv(groups=None)
+    tv.seconds_until_spawn = 0.0
+
+    with pytest.raises(RuntimeError, match='placed'):
+        tv.tick_spawning(dt=SIXTIETH, allowed=True)
 
 
 def frames_until_spawn_starts(tv: Tv) -> int:

@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib
 import json
 import random
+from typing import TYPE_CHECKING
 
 import pygame
 import pytest
@@ -16,12 +17,13 @@ import pytest
 from glitchygames.effects.shake import ShakeTarget
 from glitchygames.events.base import HashableEvent
 from glitchygames.input.state import InputSnapshot, set_current_input
-from glitchygames.randomness import reset_streams
+from glitchygames.randomness import capture_stream_states, reset_streams
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.sprites import AnimatedSprite
+from glitchygames.tracing import StableSpriteIds
 from tests.input.stand_in_devices import STAND_IN_PAD
 from zombies_aint_my_neighbors.exit_door import OPENING_SECONDS
-from zombies_aint_my_neighbors.feature_card import FeatureCardScene
+from zombies_aint_my_neighbors.feature_card import CARD_SECONDS, FeatureCardScene
 from zombies_aint_my_neighbors.game_over import GameOverScene
 from zombies_aint_my_neighbors.kid import (
     KID_HEIGHT,
@@ -55,6 +57,9 @@ from zombies_aint_my_neighbors.tv import (
 )
 from zombies_aint_my_neighbors.zap import Zap
 from zombies_aint_my_neighbors.zombie import Zombie
+
+if TYPE_CHECKING:
+    from zombies_aint_my_neighbors.sprite_kit import SpriteKit
 
 support = importlib.import_module('src.games.zombies-aint-my-neighbors.tests.screen_support')
 regressed_seeds = importlib.import_module(
@@ -1116,6 +1121,8 @@ def test_after_the_cheer_the_card_brings_the_next_stage_with_the_rescued():
     assert isinstance(card, FeatureCardScene)
     assert card.run.stage == 2
     assert card.run.neighbors == (NeighborKind.LAWN_CHAIR_READER,)
+    # The stage's sprite kit goes on to the next card, with whatever it holds (feature plan 9)
+    assert card.kit is scene.kit
 
 
 def test_a_closed_door_lets_nobody_through():
@@ -1438,3 +1445,87 @@ def test_a_shining_kid_knocked_out_lures_no_zombie_that_frame():
 
     assert dex.dot.hidden
     assert second.world_x >= where
+
+
+# The sprite kit (feature plan 9): a stage built ahead is the stage built at once
+
+KIT_EQUIVALENCE_TEST = 'test_a_stage_built_from_any_kit_is_the_stage_built_without_one'
+# Stage 2 with a mix of neighbors, so both kinds and their order are exercised
+MIXED_STAGE_2 = RunState.new_run().next_stage(
+    rescued=(NeighborKind.PIZZA_TEEN, NeighborKind.LAWN_CHAIR_READER, NeighborKind.PIZZA_TEEN)
+)
+# How far the card got before its stage began: at once, partway, all but its last frame
+CARD_PROGRESS_SECONDS = (0.0, 0.3, 1.0, CARD_SECONDS - 0.05)
+
+
+def roster_of(players: int) -> JoinRoster:
+    """Return a roster of the keyboard and then pads 1 to 3, ``players`` long.
+
+    Returns:
+        The roster.
+
+    """
+    roster = JoinRoster.empty().join(device=KEYBOARD)
+    for instance_id in (1, 2, 3)[: players - 1]:
+        roster = roster.join(device=gamepad(instance_id))
+    return roster
+
+
+def built_stage(*, roster: JoinRoster, kit: SpriteKit | None, seed: int):
+    """Build stage 2 from a seed and describe it as a recording and a replay would see it.
+
+    Returns:
+        Each sprite in draw order (its replay id, layer, place, hidden and, for a TV, its first
+        wait), and every random stream's state after the build.
+
+    """
+    reset_streams(seed=seed)
+    scene = NeighborhoodScene(options=dict(OPTIONS), roster=roster, run=MIXED_STAGE_2, kit=kit)
+    sprite_ids = StableSpriteIds()
+    sprites = [
+        (
+            sprite_ids.id_for(sprite),
+            scene.all_sprites.get_layer_of_sprite(sprite),
+            getattr(sprite, 'world_x', None),
+            getattr(sprite, 'world_y', None),
+            getattr(sprite, 'hidden', None),
+            getattr(sprite, 'seconds_until_spawn', None),
+        )
+        for sprite in scene.all_sprites.sprites()
+    ]
+    return sprites, capture_stream_states()
+
+
+@pytest.mark.parametrize(
+    ('card_seconds', 'card_players', 'stage_players', 'seed_case'),
+    [
+        (card_seconds, card_players, stage_players, case)
+        for card_seconds in CARD_PROGRESS_SECONDS
+        for card_players, stage_players in ((1, 1), (4, 4), (4, 2))
+        for case in seed_cases(
+            test=KIT_EQUIVALENCE_TEST,
+            vector=f'card-{card_seconds:.2f}s-players-{card_players}-to-{stage_players}',
+        )
+    ],
+)
+def test_a_stage_built_from_any_kit_is_the_stage_built_without_one(
+    card_seconds, card_players, stage_players, seed_case, request
+):
+    """A stage built from the card's kit is the stage a replay's rebuild makes with none.
+
+    However far the card got, and with leftovers (4 players on the card, 2 left), it has the same
+    sprites in the same order, places and waits, and leaves the random streams the same
+    (sprite_kit.py rules 2-4).
+    """
+    vector = f'card-{card_seconds:.2f}s-players-{card_players}-to-{stage_players}'
+    seed = resolve_seed(seed_case, node=request.node, test=KIT_EQUIVALENCE_TEST, vector=vector)
+    card = FeatureCardScene(
+        options=dict(OPTIONS), roster=roster_of(card_players), run=MIXED_STAGE_2
+    )
+    card.setup()
+    support.tick_to(card, seconds=card_seconds)
+
+    ahead = built_stage(roster=roster_of(stage_players), kit=card.kit, seed=seed)
+    at_once = built_stage(roster=roster_of(stage_players), kit=None, seed=seed)
+
+    assert ahead == at_once, failure_note(test=KIT_EQUIVALENCE_TEST, vector=vector, seed=seed)

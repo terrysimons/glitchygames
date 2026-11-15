@@ -13,11 +13,13 @@ import pygame
 import pytest
 
 from glitchygames.events.base import HashableEvent
+from glitchygames.sprites import AnimatedSprite
 from tests.input.stand_in_devices import STAND_IN_PAD
 from zombies_aint_my_neighbors.feature_card import CARD_SECONDS, FeatureCardScene
-from zombies_aint_my_neighbors.neighborhood import NeighborhoodScene
+from zombies_aint_my_neighbors.neighborhood import NeighborhoodScene, stage_needs
 from zombies_aint_my_neighbors.roster import PLAYER_COLOURS, JoinRoster
 from zombies_aint_my_neighbors.run_state import NeighborKind, RunState
+from zombies_aint_my_neighbors.sprite_kit import Part, PartKind
 from zombies_aint_my_neighbors.title import TitleScene
 
 support = importlib.import_module('src.games.zombies-aint-my-neighbors.tests.screen_support')
@@ -363,3 +365,89 @@ def test_a_titles_kept_run_survives_its_replay_arguments():
     arguments = json.loads(json.dumps(title.replay_arguments()))
 
     assert TitleScene(options=dict(OPTIONS), **arguments).run == run
+
+
+# Building the coming stage ahead (feature plan 9)
+
+
+def coming_needs(card: FeatureCardScene):
+    """Return the parts the card's coming stage takes.
+
+    Returns:
+        The needs.
+
+    """
+    return stage_needs(
+        run=card.run, joined_slots={player.slot_index for player in card.roster.joined_players}
+    )
+
+
+def test_the_card_builds_the_coming_stage_before_it_ends():
+    """By the card's last frame every sprite the stage takes is built, four players' kids too."""
+    roster = JoinRoster.empty().join(device=KEYBOARD)
+    for instance_id in (1, 2, 3):
+        roster = roster.join(device=gamepad(instance_id))
+    card = card_for(roster)
+
+    support.tick_to(card, seconds=CARD_SECONDS - 0.1)
+
+    assert card.next_scene is None
+    assert card.kit.is_ready_for(needs=coming_needs(card))
+
+
+def test_a_stage_begun_after_the_whole_card_loads_no_sprite_file(mocker):
+    """The pause the stage's build was (0.34 s) is gone: the card built it all."""
+    card = card_for(JoinRoster.empty().join(device=KEYBOARD))
+    support.tick_to(card, seconds=CARD_SECONDS - 0.05)
+    loads = mocker.spy(AnimatedSprite, '__init__')
+
+    support.tick_to(card, seconds=CARD_SECONDS + 0.05)
+
+    assert isinstance(card.next_scene, NeighborhoodScene)
+    assert loads.call_count == 0
+
+
+def test_a_later_stages_card_builds_its_own_neighbors():
+    """Stage 2 with three Pizza Teens saved: the card builds three Pizza Teens, no Readers."""
+    run = RunState.new_run().next_stage(rescued=(NeighborKind.PIZZA_TEEN,) * 3)
+    card = FeatureCardScene(
+        options=dict(OPTIONS), roster=JoinRoster.empty().join(device=KEYBOARD), run=run
+    )
+    card.setup()
+
+    support.tick_to(card, seconds=CARD_SECONDS - 0.1)
+
+    assert card.kit.ready(Part(kind=PartKind.NEIGHBOR, variant=NeighborKind.PIZZA_TEEN)) == 3
+    assert card.kit.ready(Part(kind=PartKind.NEIGHBOR, variant=NeighborKind.LAWN_CHAIR_READER)) == 0
+
+
+def test_the_card_gives_its_stage_the_kit_it_built():
+    """The stage takes the sprites the card built: the same kit, handed over."""
+    card = card_for(JoinRoster.empty().join(device=KEYBOARD))
+
+    support.tick_to(card, seconds=CARD_SECONDS + 0.05)
+
+    assert isinstance(card.next_scene, NeighborhoodScene)
+    assert card.next_scene.kit is card.kit
+
+
+def test_a_card_given_no_kit_makes_its_own():
+    """From the title (or a replay's rebuild) a card starts an empty kit of its own."""
+    first = card_for(JoinRoster.empty().join(device=KEYBOARD))
+    second = card_for(JoinRoster.empty().join(device=KEYBOARD))
+
+    assert first.kit is not second.kit
+    assert first.kit.storage.sprites() == []
+
+
+def test_the_card_builds_nothing_once_the_stage_has_begun():
+    """A start pressed early begins the stage; the card builds no leftovers after it."""
+    card = card_for(JoinRoster.empty().join(device=KEYBOARD))
+    support.tick_to(card, seconds=0.1)
+    support.press_key(card, pygame.K_RETURN)
+    assert isinstance(card.next_scene, NeighborhoodScene)
+    left = len(card.kit.storage.sprites())
+
+    support.tick_to(card, seconds=0.5)
+
+    assert len(card.kit.storage.sprites()) == left

@@ -20,6 +20,7 @@ the TV white for 0.05 s. ``zombie_left`` frees a place under the caps when one o
 
 from __future__ import annotations
 
+import math
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Final, Self, override
 
@@ -89,37 +90,46 @@ class Tv(AnimatedSprite):
 
     COORDINATE_SPACE = CoordinateSpace.WORLD
 
-    def __init__(
-        self,
-        *,
-        world_x: float,
-        world_y: float,
-        stream: random.Random,
-        groups: pygame.sprite.LayeredDirty[Any] | None,
-    ) -> None:
-        """Load the TV's sprite, place it, and draw its first wait.
+    def __init__(self, *, groups: pygame.sprite.LayeredDirty[Any] | None) -> None:
+        """Load the TV's sprite; ``place`` puts it in the yard and draws its first wait.
+
+        Loading draws no random number, so a TV can be built ahead, on the stage card (feature
+        plan 9): its stage draws every number as it is built, as a replay rebuilds it.
 
         Args:
-            world_x: The frame's left edge in the world.
-            world_y: The frame's top edge in the world.
-            stream: The random stream its waits are drawn from.
             groups: The sprite group to join (a group of its own when None).
 
         """
         super().__init__(filename=str(SPRITES_DIRECTORY / f'{SPRITE_NAME}.toml'), groups=groups)
-        self.world_x = world_x
-        self.world_y = world_y
-        self.stream = stream
+        self.world_x = 0.0
+        self.world_y = 0.0
+        # The random stream its waits are drawn from (None until placed)
+        self.stream: random.Random | None = None
         # Zaps taken in all (the stage, so the waits, follow from it), and white flash left
         self.hits = 0
         self.flash_seconds = 0.0
-        self.seconds_until_spawn = self._draw_wait()
+        # No spawn until placed
+        self.seconds_until_spawn = math.inf
         # Seconds into the current spawn (None: not spawning), and whether its zombie came out
         self.spawning_seconds: float | None = None
         self.zombie_out = False
         # Zombies from this TV alive or popping out
         self.zombies = 0
         self._started_animation: str | None = None
+
+    def place(self, *, world_x: float, world_y: float, stream: random.Random) -> None:
+        """Put the TV in the yard and draw its first wait.
+
+        Args:
+            world_x: The frame's left edge in the world.
+            world_y: The frame's top edge in the world.
+            stream: The random stream its waits are drawn from.
+
+        """
+        self.world_x = world_x
+        self.world_y = world_y
+        self.stream = stream
+        self.seconds_until_spawn = self._draw_wait()
 
     @property
     def stage_index(self) -> int:
@@ -166,7 +176,13 @@ class Tv(AnimatedSprite):
         Returns:
             Seconds: 6 to 9, doubled for each stage of damage.
 
+        Raises:
+            RuntimeError: If the TV was never placed.
+
         """
+        if self.stream is None:
+            message = 'A TV draws its waits only once placed (Tv.place)'
+            raise RuntimeError(message)
         growth = WAIT_GROWTH_PER_STAGE**self.stage_index
         return self.stream.uniform(SPAWN_MINIMUM_SECONDS, SPAWN_MAXIMUM_SECONDS) * growth
 
