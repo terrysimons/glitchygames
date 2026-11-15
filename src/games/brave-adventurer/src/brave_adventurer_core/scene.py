@@ -53,7 +53,7 @@ from brave_adventurer_core.drawing import (
     draw_sky,
 )
 from brave_adventurer_core.levels import LEVEL_1
-from brave_adventurer_core.sounds import GameSounds
+from brave_adventurer_core.sounds import BraveAdventurerSounds, request_sounds
 from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
@@ -193,8 +193,9 @@ class BraveAdventurerSceneBase(Scene):
         # Persistence (each game saves under its own name: players' saved high scores)
         self.saves: SaveManager = open_saves(app_name=self.SAVE_APP_NAME)
 
-        # Sound effects (generated from waveforms, initialized in setup)
-        self.sounds = GameSounds()
+        # The five sound effects (compiled on first request, cached after). The game engine is
+        # set before the game is built, so the audio engine follows its sound options
+        self.sounds: BraveAdventurerSounds = request_sounds(audio=self.scene_manager.audio)
 
         # HUD font
         self.hud_font: pygame.font.Font | None = None
@@ -259,7 +260,6 @@ class BraveAdventurerSceneBase(Scene):
         """Set up the game scene."""
         super().setup()
         self.hud_font = pygame.font.Font(None, 28)
-        self.sounds.initialize()
         # The engine aims the camera at the player each frame (x only: the camera stays at the
         # top of the world) and places every world sprite from it
         self.camera.follow(target=self.player, axes=FollowAxes.X)
@@ -296,7 +296,7 @@ class BraveAdventurerSceneBase(Scene):
 
         # 4. Landing sound (transitioned from airborne to grounded)
         if was_airborne_before and self.player.on_ground:
-            self.sounds.play_land()
+            self.sounds.land.play()
 
         # 5. Wall collision
         self._resolve_player_wall_collision()
@@ -698,7 +698,7 @@ class BraveAdventurerSceneBase(Scene):
     ) -> None:
         """Handle player-collectible collision by awarding bonus points (kept in the score)."""
         self.player.bonus_points += COLLECTIBLE_SCORE_BONUS
-        self.sounds.play_collect()
+        self.sounds.collect.play()
         collectible.kill()
         self.collectible_sprites.remove(collectible)
         self.collisions.get_layer('collectibles').remove(collectible)
@@ -715,7 +715,7 @@ class BraveAdventurerSceneBase(Scene):
             self.game_over_triggered = True
             # The world (and its camera) stand still from here on: stop following
             self.camera.follow(target=None)
-            self.sounds.play_game_over()
+            self.sounds.game_over.play()
             self.scene_manager.rumble.pulse(
                 low_frequency=GAME_OVER_RUMBLE_LOW,
                 high_frequency=GAME_OVER_RUMBLE_HIGH,
@@ -729,7 +729,7 @@ class BraveAdventurerSceneBase(Scene):
             )
             self.next_scene = game_over_scene
         else:
-            self.sounds.play_death()
+            self.sounds.death.play()
             self.scene_manager.rumble.pulse(
                 low_frequency=DEATH_RUMBLE_LOW,
                 high_frequency=DEATH_RUMBLE_HIGH,
@@ -861,7 +861,7 @@ class BraveAdventurerSceneBase(Scene):
         action = self.actions.get_action(event)
         if action == 'jump':
             if self.player.on_ground:
-                self.sounds.play_jump()
+                self.sounds.jump.play()
             self.player.jump()
         elif action == 'pause':
             self._pause_game()
@@ -894,7 +894,7 @@ class BraveAdventurerSceneBase(Scene):
         action = self.actions.get_action(event)
         if action == 'jump':
             if self.player.on_ground:
-                self.sounds.play_jump()
+                self.sounds.jump.play()
             self.player.jump()
         else:
             self._on_voice_button_down(action)
@@ -922,7 +922,7 @@ class BraveAdventurerSceneBase(Scene):
         action = self.actions.get_action(event)
         if action == 'jump':
             if self.player.on_ground:
-                self.sounds.play_jump()
+                self.sounds.jump.play()
             self.player.jump()
         else:
             self._on_voice_button_down(action)

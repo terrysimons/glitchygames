@@ -1,30 +1,88 @@
-"""Brave Adventurer sounds after moving to the engine synth (restore as written)."""
+"""Brave Adventurer's sounds: five effects on the engine's sound library.
+
+Each was a ``_generate_*_sound()`` function on the synth toolkit; they are effects now
+(plans/2026-11-14-sound-migration.md, decision 2: tones mixed straight, ``normalize=False``).
+The 16-bit samples, what plays and what the disk cache keeps, are byte-identical to the old
+functions' at 44.1 and 48 kHz; the old algorithm is written out here as the reference, so it
+outlives the code it replaced. (Their float samples differ in the last bit, at most 1.1e-16: the
+old code scaled by PEAK before the envelope, a tone scales after it.) The original recordings in
+brave_adventurer_golden/ still bound them as before.
+"""
 
 from pathlib import Path
 
 import numpy as np
-import pygame
 import pytest
 
 from brave_adventurer_core import sounds
 from glitchygames.audio import synth
+from glitchygames.audio.synth import Envelope, Waveform
 
 GOLDEN = Path(__file__).parent / 'brave_adventurer_golden'
 RATE = 44100
-GENERATORS = {
-    'jump': sounds._generate_jump_sound,
-    'land': sounds._generate_land_sound,
-    'collect': sounds._generate_collect_sound,
-    'death': sounds._generate_death_sound,
-    'game_over': sounds._generate_game_over_sound,
-}
+NAMES = ['jump', 'land', 'collect', 'death', 'game_over']
+# The volumes the old functions passed to to_sound
+OLD_VOLUMES = {'jump': 0.35, 'land': 0.25, 'collect': 0.3, 'death': 0.4, 'game_over': 0.4}
 
 
-def _render(mocker, name):
-    mocker.patch('glitchygames.audio.synth.mixer_sample_rate', return_value=RATE)
-    to_sound = mocker.patch.object(sounds, 'to_sound')
-    GENERATORS[name]()
-    return synth.to_pcm16(to_sound.call_args.args[0]).astype(np.int32)
+def _old_sine(frequency: float, duration: float, rate: int) -> np.ndarray:
+    return synth.oscillator(Waveform.SINE, frequency, duration, sample_rate=rate)[0] * sounds.PEAK
+
+
+def _old_sweep(start: float, end: float, duration: float, rate: int) -> np.ndarray:
+    frequencies = synth.frequency_curve(start, end, duration, sample_rate=rate)
+    return synth.oscillator(Waveform.SINE, frequencies, duration, sample_rate=rate)[0] * sounds.PEAK
+
+
+def _old_fade(samples: np.ndarray, *, attack: float, release: float, rate: int) -> np.ndarray:
+    return synth.apply_envelope(
+        samples,
+        Envelope(attack=attack, decay=0.0, sustain_level=1.0, release=release),
+        sample_rate=rate,
+    )
+
+
+def _old_samples(name: str, rate: int) -> np.ndarray:
+    """The old generators' samples, before to_sound (the reference)."""
+    if name == 'jump':
+        return _old_fade(_old_sweep(220, 660, 0.12, rate), attack=0.005, release=0.08, rate=rate)
+    if name == 'land':
+        return _old_fade(_old_sine(80, 0.06, rate), attack=0.002, release=0.05, rate=rate)
+    if name == 'collect':
+        return synth.concatenate(*[
+            _old_fade(_old_sine(frequency, 0.06, rate), attack=0.003, release=0.04, rate=rate)
+            for frequency in (523, 659, 784)
+        ])
+    if name == 'death':
+        return _old_fade(_old_sweep(500, 80, 0.3, rate), attack=0.005, release=0.2, rate=rate)
+    return synth.concatenate(
+        _old_fade(_old_sine(330, 0.25, rate), attack=0.01, release=0.15, rate=rate),
+        _old_fade(_old_sine(262, 0.25, rate), attack=0.01, release=0.15, rate=rate),
+        _old_fade(_old_sine(220, 0.375, rate), attack=0.01, release=0.25, rate=rate),
+    )
+
+
+def _rendered(name: str, rate: int = RATE) -> np.ndarray:
+    return synth.to_pcm16(sounds.EFFECTS[name].render(sample_rate=rate))
+
+
+@pytest.mark.parametrize('rate', [44100, 48000])
+@pytest.mark.parametrize('name', NAMES)
+def test_each_effect_plays_exactly_what_the_old_function_made(name, rate):
+    """The 16-bit samples are the old function's, byte for byte, at either mixer rate."""
+    assert _rendered(name, rate).tobytes() == synth.to_pcm16(_old_samples(name, rate)).tobytes()
+
+
+@pytest.mark.parametrize('name', NAMES)
+def test_each_effect_plays_at_the_old_volume(name):
+    """An effect plays at its own volume, which is the volume the old function set."""
+    assert sounds.EFFECTS[name].volume == OLD_VOLUMES[name]
+
+
+@pytest.mark.parametrize('name', NAMES)
+def test_each_effect_mixes_straight(name):
+    """No normalizing: the old functions scaled by PEAK and never rescaled the result."""
+    assert sounds.EFFECTS[name].normalize is False
 
 
 def _window_rms(samples, window=int(0.005 * RATE)):
@@ -38,19 +96,19 @@ def _zero_crossing_frequency(samples):
 
 
 @pytest.mark.parametrize('name', ['land', 'collect'])
-def test_constant_pitch_sounds_match_goldens(mocker, name):
+def test_constant_pitch_sounds_match_goldens(name):
     """Land and collect are constant pitch, so they match the goldens sample for sample."""
     golden = np.load(GOLDEN / f'{name}.npy').astype(np.int32)
-    rendered = _render(mocker, name)
+    rendered = _rendered(name).astype(np.int32)
     assert len(rendered) == len(golden)
     assert np.max(np.abs(rendered - golden)) <= 2
 
 
 @pytest.mark.parametrize('name', ['jump', 'death', 'game_over'])
-def test_match_length_envelope_and_pitch(mocker, name):
+def test_match_length_envelope_and_pitch(name):
     """Sweeps differ in phase origin; game_over in int() vs round() note sizing."""
     golden = np.load(GOLDEN / f'{name}.npy').astype(np.int32)
-    rendered = _render(mocker, name)
+    rendered = _rendered(name).astype(np.int32)
     assert abs(len(rendered) - len(golden)) <= 1
     shared = min(len(rendered), len(golden))
     rendered, golden = rendered[:shared], golden[:shared]
@@ -62,64 +120,17 @@ def test_match_length_envelope_and_pitch(mocker, name):
         )
 
 
-def test_game_sounds_initialize_without_mixer(mocker):
-    """No audio device: initialize logs and leaves every sound None (no crash)."""
-    mocker.patch('pygame.mixer.get_init', return_value=None)
-    game_sounds = sounds.GameSounds()
-    game_sounds.initialize()
-    game_sounds.play_jump()  # No-op, no exception
-    assert game_sounds.jump is None
+def test_requested_sounds_are_the_librarys_sounds_of_the_effects():
+    """request_sounds gives the audio engine's own Sound for each effect (no mixer needed)."""
+    from glitchygames.audio.engine import AudioEngine
+    from glitchygames.audio.voices import ChannelPartition
 
+    audio = AudioEngine(partition=ChannelPartition(live=(), library=(), legacy_count=0))
 
-def test_game_sounds_set_none_when_audio_fails_part_way(mocker):
-    """Audio lost after some sounds were made: no sound is set, so the game plays silent."""
-    mocker.patch.object(sounds, '_generate_collect_sound', side_effect=sounds.AudioUnavailableError)
-    game_sounds = sounds.GameSounds()
-    game_sounds.initialize()
-    assert game_sounds.jump is None
-    assert game_sounds.land is None
-    assert game_sounds.collect is None
+    requested = sounds.request_sounds(audio=audio)
 
-
-PLAY_METHODS = ['play_jump', 'play_land', 'play_collect', 'play_death', 'play_game_over']
-
-
-@pytest.mark.parametrize('play_method', PLAY_METHODS)
-def test_play_before_initialize_is_silent(play_method):
-    """Before initialize() (or without audio) every sound is None and playing it does nothing."""
-    if not pygame.mixer.get_init():
-        pygame.mixer.init()
-    pygame.mixer.stop()
-    game_sounds = sounds.GameSounds()
-
-    getattr(game_sounds, play_method)()
-
-    assert not pygame.mixer.get_busy()
-
-
-@pytest.mark.parametrize('play_method', PLAY_METHODS)
-def test_play_after_initialize_starts_the_sound(play_method):
-    """Each sound plays on a mixer channel once initialize() has made it."""
-    if not pygame.mixer.get_init():
-        pygame.mixer.init()
-    pygame.mixer.stop()
-    game_sounds = sounds.GameSounds()
-    game_sounds.initialize()
-
-    getattr(game_sounds, play_method)()
-
-    assert pygame.mixer.get_busy()
-    pygame.mixer.stop()
-
-
-def test_initialize_twice_keeps_the_first_sounds():
-    """A second initialize() (a scene set up again) keeps the sounds already made."""
-    if not pygame.mixer.get_init():
-        pygame.mixer.init()
-    game_sounds = sounds.GameSounds()
-    game_sounds.initialize()
-    first_jump = game_sounds.jump
-
-    game_sounds.initialize()
-
-    assert game_sounds.jump is first_jump
+    for name in NAMES:
+        sound = getattr(requested, name)
+        assert sound is audio.sound(sounds.EFFECTS[name])
+        assert sound.effect is sounds.EFFECTS[name]
+        assert sound.playback_defaults.volume == OLD_VOLUMES[name]

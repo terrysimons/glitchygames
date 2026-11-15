@@ -246,12 +246,14 @@ version = "1.0.0"
 source = { editable = "src/games/brave-adventurer" }
 dependencies = [
     { name = "glitchygames" },
+    { name = "pydantic" },
     { name = "pygame-ce" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "glitchygames", editable = "." },
+    { name = "pydantic" },
     { name = "pygame-ce" },
 ]
 

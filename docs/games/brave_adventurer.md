@@ -177,7 +177,7 @@ flowchart TB
 
 Resuming from the pause screen switches back to the *same* scene object, so the game picks up
 where it stopped; its `setup()` runs again (it only rebuilds the HUD font and re-follows the
-player; the sounds are generated once). The pause screen's `debug_subject` is the paused game,
+player; the sounds are asked for once, when the scene is built). The pause screen's `debug_subject` is the paused game,
 so the debug overlay keeps showing the game's hitboxes over the frozen picture.
 
 The game-over screen does not resume the old scene: `GameOverScene.resume()` builds a new
@@ -505,9 +505,11 @@ own: `controller_layer_button=MIC_BUTTON_CONTROLLER` (the controller layer only,
 
 ## Sound
 
-`brave_adventurer_core/sounds.py` generates five effects once, in `setup()` (`GameSounds.initialize()`), with the
-engine's synthesizer toolkit (`glitchygames.audio.synth`: `oscillator`, `frequency_curve`,
-`apply_envelope`, `concatenate`, `to_sound`), at the mixer's sample rate:
+`brave_adventurer_core/sounds.py` defines five effects (`glitchygames.audio.effects.Effect`: sine
+tones at a fixed peak, faded in and out, mixed straight with `normalize=False`). The scene asks
+the engine's sound library for them when it is built (`request_sounds(audio=...)`), which
+compiles each on its first request and caches it (on disk too, under `--sound-cache disk`), and
+plays them on the library's channels:
 
 | Sound | Made of | Played when |
 |---|---|---|
@@ -517,9 +519,9 @@ engine's synthesizer toolkit (`glitchygames.audio.synth`: `oscillator`, `frequen
 | death | a 0.3 s sweep, 500 to 80 Hz | a life is lost |
 | game over | E4, C4, then a longer A3 | the last life is lost |
 
-If audio is unavailable (`AudioUnavailableError`), no sound is set and the game plays silent
-rather than with some of its sounds; every `play_*()` checks for `None`. The game uses plain
-one-shot `pygame.mixer.Sound`s: no effects and no live voices.
+Each plays at the volume it always had (0.35, 0.25, 0.3, 0.4, 0.4), and its 16-bit samples are
+byte-identical to the synth-toolkit functions they replaced. Without an audio device the library
+still compiles them and a play is a silent no-op. The game has no live voices.
 
 ## State, score and saves
 
@@ -580,7 +582,7 @@ deliberately, after finding out why it changed (the scripts' docstrings give the
 |---|---|
 | `src/games/brave-adventurer/tests/core/test_brave_adventurer_both_editions.py` | Both editions (the scene fixtures are parametrized over both scenes): rumble on death and game over; terrain from the hitbox (walls flush, wider frames pushed back out, fast players pushed back the way they came, ledges); the world left edge; feet on the ground; stable support at ledge and wall-top edges; one death per hit; world space at the scene (the camera follows on x and stops at game over, terrain snaps as drawn); the pose rule (`TestPoseBeforeCollision`); pits meet the ground at a half-pixel camera; scancode controls; game over freezes the world; high scores; jump, quit and D-pad hold; the HUD; both `main()` entry points replaying their golden recordings; both level managers; the score keeping gold scarab bonuses; respawn standing still; scarabs in a pit drawn over it; running to falling; `-v/--version` |
 | `src/games/brave-adventurer/tests/core/test_brave_adventurer_core.py` | The shared primitives: the terrain sprites are world sprites; parallax layer pixel digests |
-| `src/games/brave-adventurer/tests/core/test_brave_adventurer_sounds.py` | The synthesized sounds against stored goldens (`tests/core/brave_adventurer_golden/*.npy`): length, envelope and pitch; silent play without a mixer |
+| `src/games/brave-adventurer/tests/core/test_brave_adventurer_sounds.py` | The five effects: 16-bit samples byte-identical to the old synth functions' at 44.1 and 48 kHz, their volumes, and the stored goldens (`tests/core/brave_adventurer_golden/*.npy`: length, envelope and pitch); the library's sounds handed to the scene |
 | `src/games/brave-adventurer/tests/classic/test_brave_adventurer_classic.py` | The classic edition: its sprites declare world space and no module (its own or the core's) positions or culls sprites; culled enemies keep animating; the mic button and no voice assistant in a replay; enemy poses drawn in `dt_tick`; its player's running to falling |
 | `src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus.py` | The Papyrus Edition: facing-left hitboxes and foot anchoring; falling transitions in TOML; world space (its sprites, and no module of its own or the core's positions, culls or rounds); the sprite utilities; its player's running to falling |
 | `src/games/brave-adventurer/tests/test_brave_adventurer_modes.py` | The launcher: `--game` runs that game's own `main()` without the flag, an unknown game is an error, a recording starts its own game without the title screen (the replay plugin replays both goldens through `brave-adventurer`, as `brave-adventurer/golden-classic` and `brave-adventurer/golden-papyrus`), another game's recording is refused; the title screen: its logical name, both cards, choosing with the keyboard (through the real engine) and a gamepad, Q, B and Back quitting, Esc doing nothing, `-v`, `-h`, and a recording made from it replaying through the launcher |
@@ -602,7 +604,7 @@ data, terrain, background drawing, sounds and constants with the classic edition
 | `LEVEL_1` and `ScreenData` (re-exported by its `levels.py`) | The player, the three enemies and the gold scarab are `AnimatedSprite`s loaded from TOML files in `sprites/` |
 | `GroundSegment` and `StoneWall` (variable-width primitives, which do not suit fixed pixel art) | Sprites are scaled 2x (`SPRITE_SCALE`); TOML hitboxes are in native pixels, so `scale` is set to 2 |
 | The four parallax draw functions and the pits | The player stands on a fixed foot line, `PAPYRUS_PLAYER_HEIGHT` = 27 × 2 px below its snapped world y, instead of its hitbox bottom |
-| `GameSounds` and every sound | Animation state machines come from the TOML `[[transition]]` sections (the player's, the cobra's timed strike) |
+| The five sound effects (`sounds.py`) | Animation state machines come from the TOML `[[transition]]` sections (the player's, the cobra's timed strike) |
 | Physics, camera, layer, parallax, scoring and colour constants (re-exported by its `constants.py`) | Its own save namespace (`brave-adventurer-papyrus`) and scene `NAME` |
 | The controls (move, jump, pause, quit) | No voice assistant and no mic binding |
 
