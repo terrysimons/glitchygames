@@ -202,7 +202,10 @@ git, a git archive, or a build stamp; held by every recorded run.
   nothing. `GLITCHYGAMES_SOUND_CACHE_ROOT` names the root (unset: the platform cache folder;
   empty: no disk layer, which the test harness sets; a test wanting the disk uses the
   `disk_sound_cache` fixture). Compiled samples are shared process-wide (`ENGINE_SOUND_CACHE`).
-- `SoundBank`, `load_sound` and `live_audio` are the older toolkit, kept until M2 moves the games.
+- Live sounds: `audio.sound(Instrument(..., live=True)).start(owner=...)` returns a
+  `LiveSoundHandle` (`set`, `release`, `stop`, `cancel`); parameters and routes are in
+  `audio/live_controls.py`, the voice in `audio/live_instrument.py`. The older toolkit
+  (`SoundBank`, `load_sound`, `live_audio.create_voice`, `LiveVoice`) is removed.
 
 **Transitions** (`src/glitchygames/transitions/`): cues run after the old scene's cleanup, so they
 may use only SceneManager services.

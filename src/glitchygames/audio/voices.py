@@ -808,8 +808,8 @@ def inner_context_partition(*, live_pool: int, library_channels: int) -> Channel
     Raises:
         InnerGameChannelsError: With no inner games' channels declared, with every live pool
             held (more inner games than declared), or for a live pool larger than declared (a
-            smaller one would make a ``create_voice`` the game made alone fail, so the inner game
-            fails at once instead).
+            smaller one would make a live sound's start the game made alone fail, so the inner
+            game fails at once instead).
     """
     _check_channel_counts(live_pool=live_pool, library_channels=library_channels)
     if pygame.mixer.get_init() is None:

@@ -3,8 +3,8 @@
 Feature spec 5.3-5.4, implementation spec 4.3 and 7.5; plans/2026-11-14-sound-migration.md
 step 5. An ``InstrumentVoice`` plays an ``Instrument(live=True)`` on a live pool channel. Its
 channel and lifecycle are a ``live.LiveStream`` (start, one chunk queued, fades, pause, the
-context's audible route, the pool's owner rules), shared with the older ``LiveVoice``. A game
-reaches it through ``Sound.start()`` and its handle.
+context's audible route, the pool's owner rules). A game reaches it through ``Sound.start()``
+and its handle.
 
 Rules:
 
@@ -32,8 +32,9 @@ Rules:
    (plans/future-work.md). The instrument's envelope is not applied: a live sound sustains
    until stopped, and ``stop`` fades it.
 4. Each chunk: smooth, route, render and mix the sources, filter, tremolo, then the volume
-   times the level. Steady settings render what the older ``LiveVoice`` renders for the same
-   waveform, frequency, volume, cutoff and tremolo (tested, to rounding).
+   times the level. Steady settings render what the older ``LiveVoice`` (removed in migration
+   step 7) rendered for the same waveform, frequency, volume, cutoff and tremolo: tested to
+   rounding against its rendering, kept in tests/audio/test_live_instrument.py.
 """
 
 from __future__ import annotations

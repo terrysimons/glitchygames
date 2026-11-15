@@ -98,11 +98,16 @@ def run_dsp_worker(arguments: argparse.Namespace) -> None:
     import pygame
 
     from clockwork_keep.sounds import ELEVATOR_MOTOR
-    from glitchygames.audio.live import LiveAudio, reserve_live_voice_pool
+    from glitchygames.audio.live import LiveAudio
+    from glitchygames.audio.voices import reserve_channels
 
     sys.setswitchinterval(arguments.switch_interval_ms / 1000.0)
     pygame.mixer.init()
-    live_audio = LiveAudio(channel_indices=reserve_live_voice_pool(1))
+    # One live channel, as an engine reserves its live pool (no library channels needed here)
+    partition = reserve_channels(
+        live_pool=1, library_channels=0, legacy_channels=pygame.mixer.get_num_channels()
+    )
+    live_audio = LiveAudio(channel_indices=partition.live)
     motor = live_audio.create_instrument_voice(
         owner=object(),
         instrument=ELEVATOR_MOTOR,

@@ -1,14 +1,21 @@
-"""Tests for real-time synth voices."""
+"""Tests for live voices' channel and lifecycle (LiveStream) and the live pool (LiveAudio).
+
+Every live voice is a live instrument's (``live_instrument.InstrumentVoice``); its rendering is
+tested in tests/audio/test_live_instrument.py. Here a plain live sine plays through the stream:
+start, one chunk queued, fades, pause, underruns, the pool's owner rules, live pools per
+engine context.
+"""
 
 import numpy as np
 import pygame
 import pytest
 
-from glitchygames.audio import live, voices
+from glitchygames.audio import live
 from glitchygames.audio.effects import Tremolo
-from glitchygames.audio.live import LiveAudio, LiveVoice, VoiceState, reserve_live_voice_pool
+from glitchygames.audio.instrument import Filter, Instrument
+from glitchygames.audio.live import LiveAudio, VoiceState
+from glitchygames.audio.live_instrument import InstrumentVoice
 from glitchygames.audio.route import set_audible
-from glitchygames.audio.synth import Waveform
 from glitchygames.audio.voices import inner_context_partition, reserve_inner_game_channels
 from glitchygames.engine_context import EngineContext
 from glitchygames.randomness import numpy_stream, reset_streams
@@ -17,6 +24,7 @@ from tests.audio.voice_support import start_reserved_mixer
 
 RATE = 44100
 LIVE_STREAM_TEST_SEED = 78
+SINE = Instrument(wave='sine', live=True)
 
 
 @pytest.fixture
@@ -55,78 +63,13 @@ def _voice(channel, **overrides):
     settings = {
         'channel': channel,
         'owner': 'scene',
-        'waveform': Waveform.SINE,
+        'instrument': SINE,
         'frequency': 220.0,
         'volume': 0.5,
         'sample_rate': RATE,
         'random_source': np.random.default_rng(5),
     }
-    settings.update(overrides)
-    return LiveVoice(**settings)
-
-
-class TestPoolReservation:
-    """Mixer channel pool reservation."""
-
-    @pytest.fixture(autouse=True)
-    def no_remembered_pool(self, mocker):
-        """Start each test as if no engine had reserved a pool in this process."""
-        mocker.patch.dict(voices._partitioned_mixer, clear=True)
-
-    def test_grows_mixer_and_reserves_low_channels(self, mocker):
-        mocker.patch('pygame.mixer.get_init', return_value=(RATE, -16, 2))
-        mocker.patch('pygame.mixer.get_num_channels', return_value=8)
-        set_num = mocker.patch('pygame.mixer.set_num_channels')
-        mocker.patch('pygame.mixer.set_reserved', side_effect=lambda count: count)
-        assert reserve_live_voice_pool(4) == (0, 1, 2, 3)
-        set_num.assert_called_once_with(12)
-
-    def test_zero_pool_or_no_mixer_reserves_nothing(self, mocker):
-        mocker.patch('pygame.mixer.get_init', return_value=None)
-        assert reserve_live_voice_pool(4) == ()
-
-    def test_negative_pool_raises(self):
-        with pytest.raises(ValueError, match='pool_size'):
-            reserve_live_voice_pool(-1)
-
-    def test_reserving_again_on_the_same_mixer_reuses_the_pool(self):
-        """A second engine in one process reuses the pool instead of growing the mixer again.
-
-        Each set_num_channels reallocates pygame's channel table while the audio thread may
-        still be finishing a sound on it; growing it per engine (once per engine test) took the
-        test run's mixer to ~1500 channels and corrupted the heap (BUGS.md #145).
-        """
-        channels_before = pygame.mixer.get_num_channels()
-        try:
-            first = reserve_live_voice_pool(4)
-            channels_after_first = pygame.mixer.get_num_channels()
-
-            second = reserve_live_voice_pool(4)
-
-            assert second == first == (0, 1, 2, 3)
-            assert pygame.mixer.get_num_channels() == channels_after_first
-            assert channels_after_first == channels_before + 4
-        finally:
-            pygame.mixer.set_reserved(0)
-            pygame.mixer.set_num_channels(channels_before)
-
-    def test_a_restarted_mixer_gets_its_pool_again(self):
-        """After the mixer restarts (its channel count back to the default), it grows again."""
-        mixer_settings = pygame.mixer.get_init()
-        assert mixer_settings is not None
-        frequency, size, output_channels = mixer_settings
-        channels_before = pygame.mixer.get_num_channels()
-        try:
-            reserve_live_voice_pool(4)
-            pygame.mixer.quit()
-            pygame.mixer.init(frequency=frequency, size=size, channels=output_channels)
-            restarted_count = pygame.mixer.get_num_channels()
-
-            assert reserve_live_voice_pool(4) == (0, 1, 2, 3)
-            assert pygame.mixer.get_num_channels() == restarted_count + 4
-        finally:
-            pygame.mixer.set_reserved(0)
-            pygame.mixer.set_num_channels(channels_before)
+    return InstrumentVoice(**(settings | overrides))
 
 
 class TestLiveVoiceRandomSource:
@@ -145,190 +88,128 @@ class TestLiveVoiceChunks:
     """Chunk rendering and queuing."""
 
     def test_start_plays_then_update_queues(self, channel, rendered_chunks):
-        voice = _voice(channel)
-        voice.start()
+        stream = _voice(channel).stream
+        stream.start()
         channel.play.assert_called_once()
-        voice.update()
+        stream.update()
         channel.queue.assert_called_once()
         assert len(rendered_chunks[0]) == 4410  # 100 ms at 44100 Hz
 
     def test_update_waits_while_queue_full(self, channel, rendered_chunks):
-        voice = _voice(channel)
-        voice.start()
+        stream = _voice(channel).stream
+        stream.start()
         channel.get_queue.return_value = object()
-        voice.update()
+        stream.update()
         channel.queue.assert_not_called()
 
     def test_phase_continuous_across_chunks(self, channel, rendered_chunks):
-        voice = _voice(channel, volume=1.0)
-        voice.start()
-        voice.update()
+        stream = _voice(channel, volume=1.0).stream
+        stream.start()
+        stream.update()
         joined = np.concatenate(rendered_chunks)
         expected = np.sin(2 * np.pi * 220.0 * np.arange(len(joined)) / RATE)
         np.testing.assert_allclose(joined, expected, atol=1e-9)
-
-    def test_frequency_change_ramps_over_one_chunk(self, channel, rendered_chunks):
-        voice = _voice(channel, volume=1.0)  # SINE: a sawtooth reset could land on the boundary
-        voice.start()
-        voice.frequency = 440.0
-        voice.update()
-        second = rendered_chunks[1]
-        # No discontinuity at the boundary: first sample of chunk 2 continues chunk 1
-        assert abs(second[0] - rendered_chunks[0][-1]) < 0.1
-
-    def test_volume_change_ramps(self, channel, rendered_chunks):
-        voice = _voice(channel, volume=0.0)
-        voice.start()
-        voice.volume = 1.0
-        voice.update()
-        envelope = np.abs(rendered_chunks[1])
-        assert envelope[:100].max() < 0.05
-        assert envelope[-200:].max() > 0.9
 
     def test_filter_and_tremolo_continue_across_chunks(self, channel, rendered_chunks):
         # 177 Hz: the low-pass delays each sawtooth reset by about 50 samples, and at this pitch
         # the delayed resets fall ~125 samples either side of the chunk boundary (233 Hz put
         # one exactly on it, which is a real waveform edge, not a continuity bug)
-        voice = _voice(
-            channel,
-            volume=1.0,
-            waveform=Waveform.SAWTOOTH,
-            frequency=177.0,
-            low_pass_cutoff=800.0,
+        motor = Instrument(
+            wave='saw',
+            live=True,
+            filter=Filter('low_pass', 800.0),
             tremolo=Tremolo(rate_hz=7.0, depth=0.5),
         )
-        voice.start()
-        voice.update()
+        stream = _voice(channel, instrument=motor, volume=1.0, frequency=177.0).stream
+        stream.start()
+        stream.update()
         boundary_step = abs(rendered_chunks[1][0] - rendered_chunks[0][-1])
         typical_step = np.median(np.abs(np.diff(rendered_chunks[0])))
         assert boundary_step < typical_step * 4
-
-    def test_cutoff_change_crossfades(self, channel, rendered_chunks):
-        voice = _voice(
-            channel,
-            volume=1.0,
-            waveform=Waveform.SAWTOOTH,
-            frequency=233.0,
-            low_pass_cutoff=4000.0,
-        )
-        voice.start()
-        voice.low_pass_cutoff = 300.0
-        voice.update()
-        assert abs(rendered_chunks[1][0] - rendered_chunks[0][-1]) < 0.2
 
 
 class TestLiveVoiceStopping:
     """Stopping, pausing and underrun recovery."""
 
     def test_stop_fades_then_drains_without_channel_stop(self, channel, rendered_chunks):
-        voice = _voice(channel, volume=1.0)
-        voice.start()
-        voice.stop(fade_out=0.1)
-        voice.update()
+        stream = _voice(channel, volume=1.0).stream
+        stream.start()
+        stream.stop(fade_out=0.1)
+        stream.update()
         assert abs(rendered_chunks[-1][-1]) < 1e-9  # Faded to silence
-        assert voice.state is VoiceState.DRAINING
-        voice.update()
+        assert stream.state is VoiceState.DRAINING
+        stream.update()
         assert channel.queue.call_count == 1  # No more chunks after the fade
         channel.stop.assert_not_called()  # stop()/fadeout() would start the queued chunk
-        assert voice.is_playing
+        assert stream.is_playing
         channel.get_busy.return_value = False
-        assert not voice.is_playing
+        assert not stream.is_playing
 
     def test_stop_now_silences_immediately(self, channel, rendered_chunks):
-        voice = _voice(channel)
-        voice.start()
-        voice.stop_now()
+        stream = _voice(channel).stream
+        stream.start()
+        stream.stop_now()
         assert channel.stop.call_count == 2  # First starts the queued chunk, second stops it
-        assert voice.state is VoiceState.STOPPED
+        assert stream.state is VoiceState.STOPPED
 
-    def test_setters_on_stopped_voice_are_ignored(self, channel, rendered_chunks):
-        voice = _voice(channel)
-        voice.start()
-        voice.stop_now()
-        voice.frequency = 999.0
-        voice.update()
-        assert len(rendered_chunks) == 1
-
-    def test_parameters_read_back_and_changes_after_stopping_are_ignored(
+    def test_a_stopped_voice_renders_nothing_more_and_takes_no_settings(
         self, channel, rendered_chunks
     ):
-        voice = _voice(channel, low_pass_cutoff=2000.0)
-        voice.volume = 0.25
-        voice.low_pass_cutoff = 1000.0
-        voice.tremolo = Tremolo(rate_hz=5.0, depth=0.5)
-        assert voice.frequency == 220.0
-        assert voice.volume == 0.25
-        assert voice.low_pass_cutoff == 1000.0
-        assert voice.tremolo == Tremolo(rate_hz=5.0, depth=0.5)
+        voice = _voice(channel)
+        voice.stream.start()
+        voice.stream.stop_now()
 
-        voice.start()
-        voice.stop_now()
-        voice.volume = 0.9
-        voice.low_pass_cutoff = None
-        voice.tremolo = None
+        voice.stream.update()
 
-        assert voice.volume == 0.25
-        assert voice.low_pass_cutoff == 1000.0
-        assert voice.tremolo == Tremolo(rate_hz=5.0, depth=0.5)
+        assert len(rendered_chunks) == 1
+        assert not voice.stream.accepts_changes
 
     def test_stop_before_start_does_nothing(self, channel, rendered_chunks):
-        voice = _voice(channel)
-        voice.stop(fade_out=0.1)
-        assert voice.state is VoiceState.IDLE
-        voice.start()
-        assert voice.state is VoiceState.PLAYING
+        stream = _voice(channel).stream
+        assert not stream.stop(fade_out=0.1)
+        assert stream.state is VoiceState.IDLE
+        stream.start()
+        assert stream.state is VoiceState.PLAYING
 
     def test_fade_longer_than_a_chunk_keeps_fading(self, channel, rendered_chunks):
-        voice = _voice(channel, volume=1.0)
-        voice.start()
-        voice.stop(fade_out=0.25)
-        voice.update()
-        assert voice.state is VoiceState.FADING
+        stream = _voice(channel, volume=1.0).stream
+        stream.start()
+        stream.stop(fade_out=0.25)
+        stream.update()
+        assert stream.state is VoiceState.FADING
         assert abs(rendered_chunks[-1][-1]) > 0.0  # Not silent yet
         channel.get_queue.return_value = None
-        voice.update()
-        voice.update()
-        assert voice.state is VoiceState.DRAINING
+        stream.update()
+        stream.update()
+        assert stream.state is VoiceState.DRAINING
         assert abs(rendered_chunks[-1][-1]) < 1e-9
 
     def test_underrun_recovers(self, channel, rendered_chunks, mocker):
         """Review focus 5: a long hitch drains the channel; the voice restarts."""
         debug = mocker.patch.object(live.log, 'debug')
-        voice = _voice(channel)
-        voice.start()
+        stream = _voice(channel).stream
+        stream.start()
         channel.get_busy.return_value = False
-        voice.update()
+        stream.update()
         assert debug.called
         assert channel.queue.call_count + channel.play.call_count >= 2
 
     def test_pause_and_resume(self, channel, rendered_chunks):
-        voice = _voice(channel)
-        voice.start()
-        voice.pause()
+        stream = _voice(channel).stream
+        stream.start()
+        stream.pause()
         channel.pause.assert_called_once()
-        voice.update()
+        stream.update()
         channel.queue.assert_not_called()
-        voice.resume()
+        stream.resume()
         channel.unpause.assert_called_once()
 
-    def test_owner_and_is_finished_are_the_voices_streams(self, channel, rendered_chunks):
-        """The pool applies its rules to the stream; the voice's own names read the same."""
-        voice = _voice(channel)
-        voice.owner = 'transition'
-        voice.start()
-        assert (voice.owner, voice.stream.owner) == ('transition', 'transition')
-        assert not voice.is_finished
-
-        voice.stop_now()
-
-        assert voice.is_finished
-
     def test_silent_voice_without_channel(self, rendered_chunks):
-        voice = _voice(None)
-        voice.start()
-        voice.update()
-        voice.stop_now()
-        assert not voice.is_playing
+        stream = _voice(None).stream
+        stream.start()
+        stream.update()
+        stream.stop_now()
+        assert not stream.is_playing
         assert rendered_chunks == []
 
 
@@ -349,12 +230,11 @@ class TestLiveAudio:
         )
         return LiveAudio(channel_indices=(0, 1))
 
-    def _create(self, audio, owner):
-        return audio.create_voice(owner=owner, waveform=Waveform.SINE, frequency=100.0)
+    @staticmethod
+    def _create(audio, owner):
+        return audio.create_instrument_voice(owner=owner, instrument=SINE, frequency=100.0)
 
     def test_a_refused_instrument_voice_gives_its_channel_back(self, audio):
-        from glitchygames.audio.instrument import Instrument
-
         with pytest.raises(ValueError, match='live=True'):
             audio.create_instrument_voice(
                 owner='scene', instrument=Instrument(wave='sine'), frequency=100.0
@@ -374,7 +254,7 @@ class TestLiveAudio:
         first = self._create(audio, 'scene')
         self._create(audio, 'scene')
         assert audio.playing_voice_count == 0
-        first.start()
+        first.stream.start()
         assert audio.playing_voice_count == 1
 
     def test_released_channels_are_reused(self, audio):
@@ -384,8 +264,8 @@ class TestLiveAudio:
         assert self._create(audio, 'scene') is not None
 
     def test_owner_rules(self, audio):
-        active = self._create(audio, 'active')
-        paused = self._create(audio, 'previous')
+        active = self._create(audio, 'active').stream
+        paused = self._create(audio, 'previous').stream
         active.start()
         paused.start()
         audio.update(active_scene='active', previous_scene='previous', active_transitions=())
@@ -397,53 +277,53 @@ class TestLiveAudio:
 
     def test_transition_owner_survives_until_transition_ends(self, audio):
         transition = object()
-        voice = self._create(audio, transition)
-        voice.start()
+        stream = self._create(audio, transition).stream
+        stream.start()
         audio.update(active_scene='new', previous_scene='old', active_transitions=(transition,))
-        assert voice.state is VoiceState.PLAYING
+        assert stream.state is VoiceState.PLAYING
         audio.update(active_scene='new', previous_scene='old', active_transitions=(None,))
-        assert voice.state is VoiceState.STOPPED
+        assert stream.state is VoiceState.STOPPED
 
     def test_fading_voice_finishes_when_owner_becomes_previous_scene(self, audio, rendered_chunks):
-        voice = self._create(audio, 'scene')
-        voice.start()
-        voice.stop(fade_out=0.1)
+        stream = self._create(audio, 'scene').stream
+        stream.start()
+        stream.stop(fade_out=0.1)
         audio.update(active_scene='pause', previous_scene='scene', active_transitions=())
         assert abs(rendered_chunks[-1][-1]) < 1e-9  # The fade chunk was queued
-        assert voice.state is VoiceState.DRAINING
+        assert stream.state is VoiceState.DRAINING
 
     def test_paused_voice_that_is_stopped_renders_its_fade(self, audio, rendered_chunks):
-        voice = self._create(audio, 'scene')
-        voice.start()
+        stream = self._create(audio, 'scene').stream
+        stream.start()
         audio.update(active_scene='pause', previous_scene='scene', active_transitions=())
-        assert voice.state is VoiceState.PAUSED
-        voice.stop(fade_out=0.1)
+        assert stream.state is VoiceState.PAUSED
+        stream.stop(fade_out=0.1)
         audio.update(active_scene='pause', previous_scene='scene', active_transitions=())
         assert abs(rendered_chunks[-1][-1]) < 1e-9
-        assert voice.state is VoiceState.DRAINING
+        assert stream.state is VoiceState.DRAINING
 
     def test_stopped_voice_returns_its_channel_to_the_pool(self, mocker, rendered_chunks):
         mocker.patch('pygame.mixer.get_init', return_value=(RATE, -16, 2))
-        mocker.patch('pygame.mixer.Channel', side_effect=lambda index: mocker.Mock())
+        mocker.patch('pygame.mixer.Channel', side_effect=lambda index: mocker.Mock(id=index))
         single = LiveAudio(channel_indices=(0,))
-        voice = self._create(single, 'scene')
-        voice.start()
-        voice.stop_now()
+        stream = self._create(single, 'scene').stream
+        stream.start()
+        stream.stop_now()
         single.update(active_scene='scene', previous_scene=None, active_transitions=())
         assert self._create(single, 'scene') is not None
 
     def test_drained_voice_returns_its_channel_to_the_pool(self, mocker, rendered_chunks):
         mocker.patch('pygame.mixer.get_init', return_value=(RATE, -16, 2))
-        drained_channel = mocker.Mock()
+        drained_channel = mocker.Mock(id=0)
         drained_channel.get_queue.return_value = None
         drained_channel.get_busy.return_value = True
         mocker.patch('pygame.mixer.Channel', return_value=drained_channel)
         single = LiveAudio(channel_indices=(0,))
-        voice = self._create(single, 'scene')
-        voice.start()
-        voice.stop(fade_out=0.1)
+        stream = self._create(single, 'scene').stream
+        stream.start()
+        stream.stop(fade_out=0.1)
         single.update(active_scene='scene', previous_scene=None, active_transitions=())
-        assert voice.state is VoiceState.DRAINING
+        assert stream.state is VoiceState.DRAINING
         drained_channel.get_busy.return_value = False
         single.update(active_scene='scene', previous_scene=None, active_transitions=())
         assert self._create(single, 'scene') is not None
@@ -459,18 +339,16 @@ class TestLiveAudio:
 
     def test_no_mixer_returns_silent_voice(self, mocker):
         mocker.patch('pygame.mixer.get_init', return_value=None)
-        voice = LiveAudio(channel_indices=()).create_voice(
-            owner='scene', waveform=Waveform.SINE, frequency=100.0
-        )
-        voice.start()
-        assert not voice.is_playing
+        stream = self._create(LiveAudio(channel_indices=()), 'scene').stream
+        stream.start()
+        assert not stream.is_playing
 
     def test_no_mixer_warning_is_logged_once(self, mocker):
         mocker.patch('pygame.mixer.get_init', return_value=None)
         warning = mocker.patch.object(live.log, 'warning')
         audio = LiveAudio(channel_indices=())
         for _ in range(2):
-            audio.create_voice(owner='scene', waveform=Waveform.SINE, frequency=100.0)
+            self._create(audio, 'scene')
         warning.assert_called_once_with('Audio unavailable; live voices are silent')
 
 
@@ -496,22 +374,22 @@ class TestLiveVoicesOnLivePools:
 
     @staticmethod
     def _create(audio):
-        return audio.create_voice(owner='scene', waveform=Waveform.SINE, frequency=220.0)
+        return audio.create_instrument_voice(owner='scene', instrument=SINE, frequency=220.0)
 
     def test_a_tiles_live_voice_and_the_default_contexts_get_their_own_channels(
         self, partitioned_mixer
     ):
-        """Review Focus 3: both create_voice calls succeed, on distinct channels, both playing."""
+        """Review Focus 3: both voices are made, on distinct channels, both playing."""
         default_audio = LiveAudio(channel_indices=partitioned_mixer.live)
         tile = EngineContext(name='tile')
         with tile.active():
             set_audible(audible=False)
             block = inner_context_partition(live_pool=4, library_channels=32)
             tile_audio = LiveAudio(channel_indices=block.live)
-            tile_voice = self._create(tile_audio)
-            tile_voice.start()
-        default_voice = self._create(default_audio)
-        default_voice.start()
+            tile_stream = self._create(tile_audio).stream
+            tile_stream.start()
+        default_stream = self._create(default_audio).stream
+        default_stream.start()
 
         busy = [
             index
@@ -520,8 +398,8 @@ class TestLiveVoicesOnLivePools:
         ]
 
         assert busy == [partitioned_mixer.live[0], block.live[0]]
-        assert tile_voice.is_playing
-        assert default_voice.is_playing
+        assert tile_stream.is_playing
+        assert default_stream.is_playing
 
     def test_a_silent_contexts_chunks_play_at_volume_zero_and_a_heard_ones_at_full(
         self, partitioned_mixer
@@ -531,9 +409,9 @@ class TestLiveVoicesOnLivePools:
         with tile.active():
             set_audible(audible=False)
             block = inner_context_partition(live_pool=4, library_channels=32)
-            tile_voice = self._create(LiveAudio(channel_indices=block.live))
-            tile_voice.start()
-            tile_voice.update()
+            tile_stream = self._create(LiveAudio(channel_indices=block.live)).stream
+            tile_stream.start()
+            tile_stream.update()
         tile_channel = pygame.mixer.Channel(block.live[0])
         silent_playing_volume = tile_channel.get_sound().get_volume()
         silent_queued_volume = tile_channel.get_queue().get_volume()
@@ -542,7 +420,7 @@ class TestLiveVoicesOnLivePools:
         tile_channel.stop()
         with tile.active():
             set_audible(audible=True)
-        tile_voice.update()
+        tile_stream.update()
         heard_volume = tile_channel.get_sound().get_volume()
 
         assert silent_playing_volume == 0.0
@@ -554,7 +432,7 @@ class TestLiveVoicesOnLivePools:
         """A finished tile's live voices: stopped, their channels idle and back in the pool."""
         audio = LiveAudio(channel_indices=(0, 1))
         for voice in (self._create(audio), self._create(audio)):
-            voice.start()
+            voice.stream.start()
 
         audio.release_every_voice()
 

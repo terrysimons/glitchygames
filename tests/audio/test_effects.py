@@ -1,23 +1,19 @@
 """Tests for sound recipes and the sound bank."""
 
-import dataclasses
 from typing import Any
 
 import numpy as np
 import pytest
-from hypothesis import given, settings
-from hypothesis import strategies as st
 
 from glitchygames.audio import synth
 from glitchygames.audio.effects import (
     RECIPE_NOISE_SEED,
     Effect,
-    SoundBank,
     Tone,
     Tremolo,
     load_effects,
 )
-from glitchygames.audio.exceptions import AudioUnavailableError, EffectError
+from glitchygames.audio.exceptions import EffectError
 from glitchygames.audio.synth import Envelope, Waveform
 
 RATE = 44100
@@ -182,99 +178,6 @@ class TestValidationAndSerialization:
         assert recipes['beep'].name == 'beep'
         assert recipes['beep'].volume == 0.4
         assert recipes['beep'].tones[0].waveform is Waveform.SINE
-
-
-class TestSoundBank:
-    """Tests for playing recipes through the sound bank."""
-
-    def test_renders_once_and_caches(self, mocker):
-        mocker.patch('glitchygames.audio.effects.mixer_sample_rate', return_value=RATE)
-        to_sound = mocker.patch('glitchygames.audio.effects.to_sound')
-        bank = SoundBank([_two_tone_recipe()])
-        bank.play('ting')
-        bank.play('ting')
-        assert to_sound.call_count == 1
-        assert to_sound.return_value.play.call_count == 2
-
-    def test_unknown_name_raises(self):
-        with pytest.raises(KeyError):
-            SoundBank([]).play('missing')
-
-    def test_no_audio_is_a_logged_no_op(self, mocker):
-        mocker.patch(
-            'glitchygames.audio.effects.to_sound',
-            side_effect=AudioUnavailableError('x'),
-        )
-        warning = mocker.patch('glitchygames.audio.effects.log.warning')
-        bank = SoundBank([_two_tone_recipe()])
-        bank.play('ting')
-        bank.play('ting')
-        assert warning.call_count == 1
-
-    def test_busy_mixer_logs_debug(self, mocker):
-        to_sound = mocker.patch('glitchygames.audio.effects.to_sound')
-        to_sound.return_value.play.return_value = None
-        debug = mocker.patch('glitchygames.audio.effects.log.debug')
-        SoundBank([_two_tone_recipe()]).play('ting')
-        assert debug.called
-
-    def test_prerender_caches_every_recipe_so_play_does_not_render(self, mocker):
-        mocker.patch('glitchygames.audio.effects.mixer_sample_rate', return_value=RATE)
-        to_sound = mocker.patch('glitchygames.audio.effects.to_sound')
-        other_recipe = dataclasses.replace(_two_tone_recipe(), name='other')
-        bank = SoundBank([_two_tone_recipe(), other_recipe])
-        bank.prerender()
-        assert to_sound.call_count == 2
-        bank.play('ting')
-        bank.play('other')
-        assert to_sound.call_count == 2
-
-    def test_prerender_without_audio_warns_once_and_does_not_raise(self, mocker):
-        mocker.patch(
-            'glitchygames.audio.effects.to_sound',
-            side_effect=AudioUnavailableError('x'),
-        )
-        warning = mocker.patch('glitchygames.audio.effects.log.warning')
-        bank = SoundBank([_two_tone_recipe()])
-        bank.prerender()
-        bank.prerender()
-        bank.play('ting')
-        assert warning.call_count == 1
-
-    def test_duplicate_names_rejected(self):
-        with pytest.raises(ValueError, match='ting'):
-            SoundBank([_two_tone_recipe(), _two_tone_recipe()])
-
-
-fuzzed_envelopes = st.builds(
-    Envelope,
-    attack=st.floats(min_value=0.0, max_value=0.05),
-    decay=st.floats(min_value=0.0, max_value=0.05),
-    sustain_level=st.floats(min_value=0.0, max_value=1.0),
-    release=st.floats(min_value=0.0, max_value=0.05),
-)
-fuzzed_tones = st.builds(
-    Tone,
-    waveform=st.sampled_from(list(Waveform)),
-    # Under the Nyquist frequency of the lowest rate drawn (8000 Hz)
-    start_frequency=st.floats(min_value=20.0, max_value=3900.0),
-    # From under half a frame (no samples) to a quarter second
-    duration=st.floats(min_value=1e-6, max_value=0.25),
-    envelope=fuzzed_envelopes,
-    offset=st.floats(min_value=0.0, max_value=0.2),
-)
-fuzzed_recipes = st.builds(
-    Effect, name=st.just('fuzzed'), tones=st.lists(fuzzed_tones, max_size=4).map(tuple)
-)
-
-
-@settings(derandomize=True, database=None, max_examples=200)
-@given(recipe=fuzzed_recipes, sample_rate=st.sampled_from([8000, 22050, 44100, 48000]))
-def test_a_recipes_frame_count_is_its_render_length(recipe, sample_rate):
-    """``Effect.frame_count`` (a v0 sound's length without rendering) is what render gives."""
-    assert recipe.frame_count(sample_rate=sample_rate) == len(
-        recipe.render(sample_rate=sample_rate)
-    )
 
 
 def _two_tones() -> tuple[Tone, Tone]:

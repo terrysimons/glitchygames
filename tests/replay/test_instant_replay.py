@@ -13,8 +13,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
 import pygame
 import pytest
 
-from glitchygames.audio.live import VoiceState
-from glitchygames.audio.synth import Waveform
+from glitchygames.audio.instrument import Instrument
 from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.events import FPSEVENT
 from glitchygames.input import devices as devices_module
@@ -858,10 +857,10 @@ class TestThePauseScreen:
         """The paused game waits behind the scope too, when its playback switches scenes."""
         with running_scene(InstantCountingScene) as manager:
             live_scene = active_counting_scene(manager)
-            voice = manager.live_audio.create_voice(
-                owner=live_scene, waveform=Waveform.SAWTOOTH, frequency=220.0, volume=0.1
+            voice = manager.audio.sound(Instrument(wave='saw', live=True), pitch=220.0).start(
+                owner=live_scene, volume=0.1
             )
-            voice.start()
+            assert voice.is_playing
             step(manager, frames=2)
             # A paused and resumed stretch: the playback switches to its pause screen and back
             step(manager, press(pygame.K_p))
@@ -879,8 +878,8 @@ class TestThePauseScreen:
             assert manager.active_scene is pause_scene
             assert manager.previous_scene is live_scene
             step(manager)
-            # A released voice is stopped for good (LiveAudio.release_voice)
-            assert voice.state is not VoiceState.STOPPED
+            # Paused behind the scope, then played on: never released (which stops for good)
+            assert voice.is_playing
 
 
 class TestPlaybackScopesAndTheJournal:

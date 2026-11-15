@@ -557,11 +557,11 @@ class TestSceneManagerLiveAudio:
         """Reset the scene manager singleton."""
         SceneManager._reset()
 
-    def test_live_audio_is_created_once_and_then_reused(self, mocker):
-        """The first access creates LiveAudio; later accesses return the same one."""
+    def test_the_live_pool_is_created_once_and_then_reused(self, mocker):
+        """The first live sound's start creates the pool; later ones get the same one."""
         live_audio_class = mocker.patch('glitchygames.audio.live.LiveAudio')
-        first = self.scene_manager.live_audio
-        second = self.scene_manager.live_audio
+        first = self.scene_manager._live_pool()
+        second = self.scene_manager._live_pool()
         assert first is second is live_audio_class.return_value
         live_audio_class.assert_called_once()
 

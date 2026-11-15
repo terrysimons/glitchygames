@@ -13,11 +13,18 @@ import pytest
 from glitchygames.audio import live
 from glitchygames.audio.effects import Tremolo
 from glitchygames.audio.instrument import Filter, Instrument, Noise, PitchCurve, Source
-from glitchygames.audio.live import LiveAudio, LiveVoice
+from glitchygames.audio.live import LiveAudio
 from glitchygames.audio.live_controls import Parameter, Route, smoothed
 from glitchygames.audio.live_instrument import InstrumentVoice
 from glitchygames.audio.route import set_audible
-from glitchygames.audio.synth import Waveform
+from glitchygames.audio.synth import (
+    DEFAULT_FILTER_TAPS,
+    Waveform,
+    apply_kernel,
+    filter_kernel,
+    oscillator,
+    tremolo,
+)
 from glitchygames.audio.voices import inner_context_partition, reserve_inner_game_channels
 from glitchygames.audio.waves import Wave
 from glitchygames.engine_context import EngineContext
@@ -95,28 +102,62 @@ def _zero_crossings(samples):
     return int(np.count_nonzero(np.diff(np.signbit(samples))))
 
 
-class TestTheSameSoundAsTodaysVoice:
-    """Steady settings render what the older live voice renders (the plan: tested)."""
+def _the_older_voice_chunks(  # ruff: ignore[too-many-arguments] - the older voice's settings
+    *,
+    waveform: Waveform,
+    frequency: float,
+    volume: float,
+    cutoff: float,
+    flutter: Tremolo,
+    count: int,
+    random_source: np.random.Generator | None = None,
+) -> list[np.ndarray]:
+    """What the older ``LiveVoice`` rendered for steady settings, chunk by chunk.
+
+    Its rendering as it was before migration step 7 removed it (``git show
+    57fd8f30:src/glitchygames/audio/live.py``, ``LiveVoice._render_chunk``), with nothing
+    changing: oscillator, the FIR low-pass with its raw-signal history, tremolo, then volume.
+
+    Returns:
+        The chunks.
+    """
+    phase = 0.0
+    tremolo_phase = 0.0
+    history = np.zeros(DEFAULT_FILTER_TAPS - 1)
+    kernel = filter_kernel(cutoff, sample_rate=RATE, taps=DEFAULT_FILTER_TAPS, high_pass=False)
+    chunks = []
+    for _ in range(count):
+        raw, phase = oscillator(
+            waveform,
+            np.full(CHUNK, frequency),
+            CHUNK / RATE,
+            sample_rate=RATE,
+            phase=phase,
+            random_source=random_source,
+        )
+        samples = apply_kernel(raw, kernel, history=history)
+        history = np.concatenate((history, raw))[-(DEFAULT_FILTER_TAPS - 1) :]
+        samples, tremolo_phase = tremolo(
+            samples, flutter.rate_hz, flutter.depth, sample_rate=RATE, phase=tremolo_phase
+        )
+        chunks.append(samples * np.full(CHUNK, volume))
+    return chunks
+
+
+class TestTheSameSoundAsTheOlderVoice:
+    """Steady settings render what the older live voice rendered (the plan: tested)."""
 
     def test_the_motors_saw_low_pass_and_tremolo(self, channel, rendered_chunks):
-        old = LiveVoice(
-            channel=channel,
-            owner='scene',
+        chug = Tremolo(rate_hz=7.0, depth=0.5)
+        expected = _the_older_voice_chunks(
             waveform=Waveform.SAWTOOTH,
             frequency=177.0,
             volume=0.6,
-            low_pass_cutoff=800.0,
-            tremolo=Tremolo(rate_hz=7.0, depth=0.5),
-            sample_rate=RATE,
+            cutoff=800.0,
+            flutter=chug,
+            count=3,
         )
-        old.start()
-        old.update()
-        old.update()
-        expected = list(rendered_chunks)
-        rendered_chunks.clear()
-        motor = _live(
-            wave='saw', filter=Filter('low_pass', 800.0), tremolo=Tremolo(rate_hz=7.0, depth=0.5)
-        )
+        motor = _live(wave='saw', filter=Filter('low_pass', 800.0), tremolo=chug)
 
         _chunks(_voice(channel, motor, frequency=177.0, volume=0.6), 3)
 
@@ -124,26 +165,17 @@ class TestTheSameSoundAsTodaysVoice:
             np.testing.assert_allclose(chunk, old_chunk, atol=1e-9)
 
     def test_the_projectors_white_noise(self, channel, rendered_chunks):
-        old = LiveVoice(
-            channel=channel,
-            owner='scene',
+        flutter = Tremolo(rate_hz=18.0, depth=0.3)
+        expected = _the_older_voice_chunks(
             waveform=Waveform.NOISE,
             frequency=1.0,
             volume=0.3,
-            low_pass_cutoff=2500.0,
-            tremolo=Tremolo(rate_hz=18.0, depth=0.3),
-            sample_rate=RATE,
+            cutoff=2500.0,
+            flutter=flutter,
+            count=2,
             random_source=np.random.default_rng(9),
         )
-        old.start()
-        old.update()
-        expected = list(rendered_chunks)
-        rendered_chunks.clear()
-        projector = _live(
-            noise='white',
-            filter=Filter('low_pass', 2500.0),
-            tremolo=Tremolo(rate_hz=18.0, depth=0.3),
-        )
+        projector = _live(noise='white', filter=Filter('low_pass', 2500.0), tremolo=flutter)
         voice = _voice(
             channel, projector, frequency=1.0, volume=0.3, random_source=np.random.default_rng(9)
         )

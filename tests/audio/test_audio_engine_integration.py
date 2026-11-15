@@ -147,13 +147,11 @@ class TestSoundOptions:
         assert engine.options['sound_cache'] == 'disk'
 
     def test_a_live_sound_starts_on_the_scene_managers_live_pool(self, mocker):
-        """The scene manager gives its audio engine its own live pool (``live_audio``)."""
+        """The scene manager gives its audio engine its own live pool (``_live_pool``)."""
         engine = build_engine(mocker, game=SoundingGame)
         manager = engine.scene_manager
-        pool = mocker.Mock(name='live_audio')
-        mocker.patch.object(
-            type(manager), 'live_audio', new_callable=mocker.PropertyMock, return_value=pool
-        )
+        pool = mocker.Mock(name='live pool')
+        mocker.patch.object(type(manager), '_live_pool', return_value=pool)
         audio = manager.audio_for(game_engine=engine)
         instrument = Instrument(wave='sine', live=True)
 

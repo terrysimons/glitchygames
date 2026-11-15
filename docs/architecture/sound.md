@@ -12,9 +12,10 @@ The design is in two specifications:
 - [Sound engine implementation specification](../specs/2026-11-02-sound-engine-implementation-spec.md):
   how each requirement is met, the decision and risk registers, and the measurements.
 
-M2 adds live instruments (sounds that follow game parameters), moves the five games onto this
-API and removes the old sound paths (`SoundBank`, `load_sound`, `live_audio`). Until then those
-keep working beside it on channels of their own.
+M2 adds live instruments (sounds that follow game parameters: `Sound.start()` and its
+`LiveSoundHandle`), moves the five games onto this API and removes the old sound paths:
+`SoundBank`, `load_sound`, `live_audio.create_voice` and `LiveVoice` are gone (sound migration
+step 7, plans/2026-11-14-sound-migration.md).
 
 ## One call
 
@@ -195,8 +196,8 @@ docstring of `src/glitchygames/audio/voices.py` are the contract):
   or past the declared count, fails alone (`InnerGameChannelsError`); one whose
   `--sound-channels` outnumber a heard set's channels replays silent and refuses to be heard.
 - **A silent tile touches no channel.** Its voice table makes no mixer call; while it builds,
-  steps or finishes every channel is reserved, so its plain `Sound.play()` (PaddleSlap's,
-  `SoundBank`'s) returns None and starts nothing, as on a busy mixer; its live voices play
+  steps or finishes every channel is reserved, so a plain `pygame.mixer.Sound.play()` (a game's
+  own) returns None and starts nothing, as on a busy mixer; its live voices play
   chunks at volume 0 on its own pool.
 - **Switching.** A heard tile's plain plays are heard, and followed: each step notes the
   unreserved channels it started a sound on. Switching it silent (or its finish) fades its

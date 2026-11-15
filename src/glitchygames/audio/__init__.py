@@ -24,7 +24,6 @@ from typing import TYPE_CHECKING
 from glitchygames.audio.controller_audio import ControllerAudio
 from glitchygames.audio.effects import (
     Effect,
-    SoundBank,
     Tone,
     Tremolo,
     load_effects,
@@ -38,7 +37,8 @@ from glitchygames.audio.exceptions import (
 )
 from glitchygames.audio.instrument import Instrument, Noise
 from glitchygames.audio.library import CacheMode, Sound
-from glitchygames.audio.live import LiveAudio, LiveVoice
+from glitchygames.audio.live_controls import Parameter, Route
+from glitchygames.audio.live_instrument import LiveSoundHandle
 from glitchygames.audio.offline import OfflineEvent, RenderReport, render_to_file
 from glitchygames.audio.pitch import Hz, Midi, Note, PitchTable, Scale, Tuning
 from glitchygames.audio.synth import Envelope, Waveform
@@ -72,20 +72,20 @@ __all__ = [
     'InnerGameChannelLayout',
     'InnerGameChannelsError',
     'Instrument',
-    'LiveAudio',
-    'LiveVoice',
+    'LiveSoundHandle',
     'MacOSTTS',
     'Midi',
     'MixerBusyError',
     'Noise',
     'Note',
     'OfflineEvent',
+    'Parameter',
     'PitchTable',
     'RenderReport',
+    'Route',
     'Scale',
     'Sound',
     'SoundAssetError',
-    'SoundBank',
     'SoundHandle',
     'SoundRenderError',
     'Tone',

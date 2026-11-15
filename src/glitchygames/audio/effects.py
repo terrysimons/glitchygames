@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from glitchygames.audio.exceptions import AudioUnavailableError, EffectError
+from glitchygames.audio.exceptions import EffectError
 from glitchygames.audio.synth import (
     Envelope,
     FloatArray,
@@ -41,7 +41,6 @@ from glitchygames.audio.synth import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
     from pathlib import Path
 
     import pygame
@@ -314,69 +313,3 @@ def load_effects(path: Path) -> dict[str, Effect]:
     return {
         name: Effect.from_dict(name, data) for name, data in document.get('recipes', {}).items()
     }
-
-
-class SoundBank:
-    """Plays recipes by name, rendering each on first use."""
-
-    def __init__(self, recipes: Iterable[Effect]) -> None:
-        """Index the recipes by name.
-
-        Raises:
-            ValueError: If two recipes share a name.
-
-        """
-        self._effects: dict[str, Effect] = {}
-        for recipe in recipes:
-            if recipe.name in self._effects:
-                message = f'duplicate sound recipe name {recipe.name!r}'
-                raise ValueError(message)
-            self._effects[recipe.name] = recipe
-        self._sounds: dict[tuple[str, int], pygame.mixer.Sound] = {}
-        self._unavailable_logged = False
-
-    def play(self, name: str) -> None:
-        """Play a sound; a no-op (logged once) when audio is unavailable.
-
-        Raises:
-            KeyError: If no recipe has this name.
-
-        """
-        recipe = self._effects.get(name)
-        if recipe is None:
-            message = f'no sound recipe named {name!r}'
-            raise KeyError(message)
-        sound = self._render_cached(recipe)
-        if sound is None:
-            return
-        # The pygame stub types Sound.play() as returning a Channel, but at runtime it returns
-        # None when no unreserved channel is free. A Channel is always truthy, so test truthiness.
-        if not sound.play():
-            log.debug('No free mixer channel for sound %r', name)
-
-    def prerender(self) -> None:
-        """Render and cache every recipe at the mixer rate, so no sound renders mid-frame.
-
-        A no-op (logged once, like play) when audio is unavailable.
-        """
-        for recipe in self._effects.values():
-            if self._render_cached(recipe) is None:
-                return
-
-    def _render_cached(self, recipe: Effect) -> pygame.mixer.Sound | None:
-        """Return the recipe's Sound for the current mixer rate, rendering it on first use.
-
-        Returns:
-            The cached Sound, or None when audio is unavailable (logged once).
-
-        """
-        cache_key = (recipe.name, mixer_sample_rate())
-        if cache_key not in self._sounds:
-            try:
-                self._sounds[cache_key] = to_sound(recipe.render(), volume=recipe.volume)
-            except AudioUnavailableError:
-                if not self._unavailable_logged:
-                    log.warning('Audio unavailable; sound effects are silent')
-                    self._unavailable_logged = True
-                return None
-        return self._sounds[cache_key]

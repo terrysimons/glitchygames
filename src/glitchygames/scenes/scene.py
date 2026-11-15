@@ -1414,8 +1414,8 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
                 cache=CacheMode(options.get('sound_cache', DEFAULT_SOUND_CACHE.value)),
                 # Each game keeps its own disk cache folder (the owner, 2026-11-15)
                 game_name=NO_GAME_CACHE_FOLDER if game is None else game_package(game=game),
-                # Live sounds start on this scene manager's own live pool (live_audio)
-                live_pool=lambda: self.live_audio,
+                # Live sounds start on this scene manager's own live pool
+                live_pool=self._live_pool,
                 memory_limit_bytes=int(
                     options.get('sound_cache_memory', DEFAULT_CACHE_MEMORY_MEGABYTES)
                 )
@@ -1435,9 +1435,15 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         """
         return self._scene_in_setup if self._scene_in_setup is not None else self.active_scene
 
-    @property
-    def live_audio(self: Self) -> LiveAudio:
-        """Live synth voices, created on first use from the engine's reserved channels."""
+    def _live_pool(self: Self) -> LiveAudio:
+        """The live pool ``Sound.start()`` plays on, made on first use from the engine's channels.
+
+        Private since sound migration step 7: a game starts live sounds through
+        ``audio.sound(Instrument(..., live=True)).start()``, never on the pool itself.
+
+        Returns:
+            The pool.
+        """
         if self._live_audio is None:
             from glitchygames.audio.live import LiveAudio
 
