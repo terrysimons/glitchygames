@@ -49,6 +49,8 @@ _KEYS_LEFT: Final = frozenset({pygame.KSCAN_A, pygame.KSCAN_LEFT})
 _KEYS_RIGHT: Final = frozenset({pygame.KSCAN_D, pygame.KSCAN_RIGHT})
 # The keys that fire, by scancode
 FIRE_SCANCODES: Final = frozenset({pygame.KSCAN_J, pygame.KSCAN_RSHIFT})
+# Every key the neighborhood polls (the browser's touch buttons press only these, and Start/P)
+POLLED_SCANCODES: Final = _KEYS_UP | _KEYS_DOWN | _KEYS_LEFT | _KEYS_RIGHT | FIRE_SCANCODES
 # A pad's fire button: A on the controller layer, the same number on the joystick layer
 FIRE_BUTTON: Final = pygame.CONTROLLER_BUTTON_A
 

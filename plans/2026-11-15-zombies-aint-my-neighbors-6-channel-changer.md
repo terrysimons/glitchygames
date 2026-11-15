@@ -137,7 +137,12 @@ member-scanning tests (process-state guard and the like) run on push.
     `test_a_long_release_does_not_bank_shots`).
   The golden was re-recorded for the carried rhythm (its second zap one frame sooner; the TV now
   destroyed at frame 658).
-- **Not built:** the browser page has no on-screen walk or fire buttons (its touch layout has
+- **Built after (the owner, 2026-11-15: "continue with the next item"):** on-screen touch
+  controls for the neighborhood: a D-pad (the arrows) and **Fire** (`J`) beside Start and Pause
+  (`TOUCH_LAYOUTS` in `scripts/build_browser_bundle.py`, `KeyJ` added to the touch keys). The
+  D-pad walks four ways, since a button presses one key. Tests: the game's
+  `test_zombies_aint_my_neighbors_touch_controls.py`.
+- **Was not built:** the browser page has no on-screen walk or fire buttons (its touch layout has
   only Start and Pause), so the neighborhood needs a keyboard or a pad there. It predates this
   feature. Touch walking and firing belong together, in a feature of their own.
 

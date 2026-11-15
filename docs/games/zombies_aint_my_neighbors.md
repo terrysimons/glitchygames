@@ -54,8 +54,9 @@ mapping. A per-device lookup of START's raw button is on the master plan's Engin
 The keys are bound by position (scancodes), so they sit in the same place on every layout. The
 game never uses `Space` or `Esc` for its own actions: the engine's shared pause and game-over
 screens use them, in the browser too. `J` sits under a WASD hand and right `Shift` under an
-arrows hand. In the browser, on-screen **Start** and **Pause** buttons press `Enter` and `P`;
-there are no on-screen walk or fire buttons yet, so the neighborhood needs a keyboard or a pad.
+arrows hand. In the browser on a touch screen, **Start** and **Pause** press `Enter` and `P`, a
+D-pad on the left presses the arrows, and **Fire** holds `J`. The D-pad walks four ways: each
+button presses one key, so a diagonal takes two fingers.
 
 ## The screens
 
