@@ -1092,6 +1092,21 @@ class TestRenderAnimatedSpriteAscii:
 
         _render_animated_sprite_ascii(sprite, renderer)
 
+    def test_a_renderer_error_is_logged_not_raised(self, mocker, caplog):
+        """A renderer error from render_frames_side_by_side is caught here and logged."""
+        frame = mocker.Mock()
+        frame.get_pixel_data.return_value = [(255, 0, 0)]
+        frame.get_size.return_value = (1, 1)
+        sprite = mocker.Mock(spec=AnimatedSprite)
+        sprite._animations = {'idle': [frame]}
+        renderer = mocker.Mock()
+        renderer.colorize_pixels.side_effect = ValueError('renderer bug')
+
+        with caplog.at_level(logging.DEBUG, logger='game.tools.bitmappy'):
+            _render_animated_sprite_ascii(sprite, renderer)
+
+        assert 'Failed to render frames side-by-side: renderer bug' in caplog.text
+
     def test_a_sprite_that_is_no_animated_sprite_renders_nothing(self, mocker, caplog):
         """A sprite without animations (not an AnimatedSprite) is logged at debug and skipped."""
         renderer = mocker.Mock()
