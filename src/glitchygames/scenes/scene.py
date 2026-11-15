@@ -248,6 +248,17 @@ def _scene_manager_for_class(*, scene_manager_class: type[SceneManager]) -> Scen
     return None
 
 
+def release_live_voices_in_the_current_context() -> None:
+    """Silence the current context's live voices and give their channels back.
+
+    For an inner game's finish, and a build that failed (glitchygames/inner_game.py, rule 6):
+    looked up without making a scene manager, so nothing happens without one.
+    """
+    scene_manager = _scene_manager_for_class(scene_manager_class=SceneManager)
+    if scene_manager is not None:
+        scene_manager.release_live_voices()
+
+
 def _current_engine_options(owner: type) -> dict[str, Any] | None:
     """Return the current context's manager's engine options (``SceneManager.OPTIONS`` on a class).
 
@@ -1424,6 +1435,14 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             channels = game_engine.live_voice_channels if game_engine is not None else ()
             self._live_audio = LiveAudio(channel_indices=channels)
         return self._live_audio
+
+    def release_live_voices(self: Self) -> None:
+        """Silence every live voice and give its channel back (an inner game's finish).
+
+        Nothing happens when no live voice was ever asked for.
+        """
+        if self._live_audio is not None:
+            self._live_audio.release_every_voice()
 
     def _debug_frame_info(
         self: Self, *, shake_offset: tuple[float, float], inspected_scene_label: str | None
@@ -3106,6 +3125,12 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # A game's preferred default target FPS (0.0 = uncapped); None uses the engine default.
     # An explicit --target-fps on the command line always wins.
     TARGET_FPS: ClassVar[float | None] = None
+    # How many inner games (Arcade tiles, glitchygames/inner_game.py) this game runs at once as a
+    # host. Its engine declares their mixer channels with its own partition at construction, in
+    # one growth before anything plays (glitchygames.audio.reserve_inner_game_channels, Arcade
+    # sub-plan 4, decision 4); never declare them in setup(), after the CRT power-on's sound
+    # started. 0: no inner games.
+    INNER_GAMES: ClassVar[int] = 0
     # The longest frame time (seconds) this scene's dt_tick and camera aim receive; after a
     # hitch (a window drag, focus loss) they advance at most this much, so physics cannot
     # tunnel. None passes the real frame time. Pacing, FPS statistics and the frame services

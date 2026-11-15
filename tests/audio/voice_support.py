@@ -54,6 +54,25 @@ def baked_sound(*, seconds: float, name: str = 'tone') -> Sound:
     return sound
 
 
+def unreserved_channel_ids() -> list[int]:
+    """Find the channels SDL gives ``Sound.play()``: play silence until none is free, then stop.
+
+    pygame cannot report its reservation, so this measures it: every channel must be idle.
+
+    Returns:
+        The channel indices SDL picked, in order (the unreserved ones).
+    """
+    silence = pygame.mixer.Sound(buffer=bytes(SAMPLE_RATE * 4))
+    channels: list[pygame.mixer.Channel] = []
+    # The pygame stub types Sound.play() as returning a Channel, but at runtime it returns None
+    # once no unreserved channel is free. A Channel is always truthy, so test truthiness
+    while channel := silence.play():
+        channels.append(channel)
+    for channel in channels:
+        channel.stop()
+    return sorted(channel.id for channel in channels)
+
+
 def start_reserved_mixer(
     *,
     live_pool: int = LIVE_POOL,

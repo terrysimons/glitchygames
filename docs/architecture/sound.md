@@ -156,6 +156,60 @@ short fades and the CRT skip can click. Whether they are heard is the owner's li
 the fallback, fades rendered into the sound by the engine, is the owner's decision (impl spec
 risks R4 and R5).
 
+## Inner games
+
+An outer game (the Arcade) runs other games inside itself as inner games
+([Engine context](engine_context.md), "Inner contexts"), and only the one it watches is heard (Arcade
+sub-plan 4, `plans/2026-11-13-arcade-4-sound.md`; `src/glitchygames/audio/route.py` and the
+docstring of `src/glitchygames/audio/voices.py` are the contract):
+
+- **One audio route per engine context.** The default context (an ordinary game, or the Arcade
+  itself) is audible; a new inner game is silent, and its host makes one heard with
+  `InnerGame.set_audible(audible=True)` (`InnerGame.audible` tells which). Keeping one heard is
+  the host's job: the engine lets two be heard at once, one per heard set (the next made heard
+  before the last is silenced, a crossfade), and refuses a third (`InnerGameChannelsError`). What a game sees
+  (`is_playing`, voice endings, steals, a live voice made or refused) is the same heard or
+  silent, so every tile replays as it does alone.
+- **Declared once, before anything plays.** An ordinary game's partition is exactly as above.
+  A host declares how many inner games it runs: `INNER_GAMES = 6` on its scene class (its
+  engine declares them at construction, before the CRT power-on plays), or
+  `glitchygames.audio.reserve_inner_game_channels(games=..., heard_set_channels=32,
+  live_channels_per_game=4)` after `GameEngine(...)` and before `start()` (it has that engine
+  partition first, so the inner games' channels lie above its partition; without an engine the
+  mixer must be partitioned already, or the declaration is refused). The mixer grows that
+  once, right above the default partition, to two **heard sets** of library channels and a
+  **live pool** per inner game, with the legacy channels above them all; it never grows again
+  (growing it while a sound plays corrupts pygame's channel table: BUGS.md #145, so a growth
+  then is refused, by the declaration and by any partition, `MixerBusyError`). A second host's
+  declaration while inner games hold channels raises `ChannelsHeldError`; finish them first.
+  A host finishes every inner game it drops (`InnerGame.finish()`): an unfinished one keeps
+  its live pool, so a host looping tiles without finishing them runs out of its declaration.
+- **An inner build never partitions the mixer.** Its sound library has its recording's
+  `--sound-channels` as slots, so its steals and drops are the game's alone, and plays them on
+  a heard set only while it is heard: the two sets alternate, so the game switched away from
+  fades out on its set while the newly heard one starts on the other. Its live voices take a
+  live pool (`--live-voice-pool` up to the declared size). A tile built with nothing declared,
+  or past the declared count, fails alone (`InnerGameChannelsError`); one whose
+  `--sound-channels` outnumber a heard set's channels replays silent and refuses to be heard.
+- **A silent tile touches no channel.** Its voice table makes no mixer call; while it builds,
+  steps or finishes every channel is reserved, so its plain `Sound.play()` (PaddleSlap's,
+  `SoundBank`'s) returns None and starts nothing, as on a busy mixer; its live voices play
+  chunks at volume 0 on its own pool.
+- **Switching.** A heard tile's plain plays are heard, and followed: each step notes the
+  unreserved channels it started a sound on. Switching it silent (or its finish) fades its
+  voices over 50 ms, stops its plain plays still playing that very sound and mutes the chunks
+  on its live pool at once; the host's sounds and another tile's are never touched. A tile
+  switched heard is heard from its next sound (its live voices from their next chunk).
+- **Silenced frames** (`FrameSilencer`) in an inner context stop only that context's channels
+  (its heard set, live pool and plain plays), never `pygame.mixer.stop()` and never the music.
+- `pygame.mixer.music` is still one per process (no game uses it).
+
+The proof is `tests/test_every_recording_replays_inside_an_inner_game.py`: every golden and
+bundled demo, as a tile beside another, matches its solo replay's digests and pixels with every
+tile silent and with the first tile heard for the middle third of its recording; while no tile
+is heard nothing a tile played sounds. The stops and mutes are hard cuts, which may click when
+heard games are switched quickly (the owner's listening check, `plans/future-work.md`).
+
 ## Accounting
 
 Every compile, file decode and cache read is timed. Each frame's audio work goes to the

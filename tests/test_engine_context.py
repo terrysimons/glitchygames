@@ -25,11 +25,21 @@ from pydantic import BaseModel, ConfigDict
 
 from glitchygames.audio.engine import (
     AudioEngine,
+    default_channel_partition,
     discard_audio_engine,
     existing_audio_engine,
     install_audio_engine,
 )
-from glitchygames.audio.voices import ChannelPartition
+from glitchygames.audio.route import AUDIO_ROUTE_SLOT, is_audible, set_audible
+from glitchygames.audio.voices import (
+    INNER_CHANNELS_SLOT,
+    ChannelPartition,
+    heard_set_start,
+    inner_context_partition,
+    release_inner_context_channels,
+    reserve_inner_game_channels,
+    take_heard_set,
+)
 from glitchygames.audio.waves import Wave, current_wave_registry
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -1213,6 +1223,43 @@ def check_private_event_queue(*, first: EngineContext, second: EngineContext) ->
     assert private_event_queue().events == []
 
 
+def check_audio_route(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own audio route, the default context audible."""
+    with first.active():
+        set_audible(audible=False)
+    with second.active():
+        second_reading = is_audible()
+
+    assert second_reading is True
+    assert first.value(slot=AUDIO_ROUTE_SLOT).audible is False
+    assert is_audible()
+
+
+def check_inner_channels(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own inner channels, none in the default context; released apart."""
+    # The outer partition first, as a host's engine makes it: a declaration lies above it
+    default_channel_partition()
+    reserve_inner_game_channels(games=2, heard_set_channels=2, live_channels_per_game=1)
+    with first.active():
+        first_partition = inner_context_partition(live_pool=1, library_channels=2)
+        take_heard_set()
+    with second.active():
+        second_before_its_own = second.value(slot=INNER_CHANNELS_SLOT).partition
+        second_partition = inner_context_partition(live_pool=1, library_channels=2)
+        second_heard_set = heard_set_start()
+        release_inner_context_channels()
+
+    assert second_before_its_own is None
+    assert first_partition.live != second_partition.live
+    assert second_heard_set is None
+    assert second.value(slot=INNER_CHANNELS_SLOT).partition is None
+    assert first.value(slot=INNER_CHANNELS_SLOT).partition == first_partition
+    assert first.value(slot=INNER_CHANNELS_SLOT).heard_set_index == 0
+    assert current_context().value(slot=INNER_CHANNELS_SLOT).partition is None
+    with first.active():
+        release_inner_context_channels()
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -1235,6 +1282,8 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.sprites.sprite.counters': check_sprite_counters,
     'glitchygames.render_target.target': check_render_target,
     'glitchygames.recording.private_event_queue': check_private_event_queue,
+    'glitchygames.audio.route.audio_route': check_audio_route,
+    'glitchygames.audio.voices.inner_channels': check_inner_channels,
 }
 
 

@@ -233,10 +233,15 @@ def inner_game_stand_in(recorded_inner_game_stand_in, monkeypatch):
 
 def test_ten_inner_games_per_outer_frame(benchmark, inner_game_stand_in):
     """Benchmark one outer frame of an Arcade: each of ten inner games steps one frame."""
+    from glitchygames.audio import reserve_inner_game_channels
+    from glitchygames.audio.engine import default_channel_partition
     from glitchygames.inner_game import InnerGame, InnerGameState
 
     game, recording = inner_game_stand_in
     width, height = STAND_IN_GAME_RESOLUTION.split('x')
+    # As an Arcade does at startup: the outer's partition, then its tiles' channels declared
+    default_channel_partition()
+    reserve_inner_game_channels(games=INNER_GAME_COUNT)
     inner_games = [
         InnerGame.replay(
             command=game.console_script,
