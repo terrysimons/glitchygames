@@ -1146,36 +1146,38 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   - Not done: folding `test-random` into the comparison (shuffling one dummy run). The comparison
     passes on failing tests (`_PYTEST_FINISHED_CODES = [0, 1]`), and order-dependent frames would
     read as "varies between runs" rather than fail; little to save (80 s).
-- **Upgrade every locked dependency, in a branch of its own** (the owner, 2026-11-14: one
-  upgrade, not a tornado-only branch). `uv sync --upgrade --all-extras --all-groups
-  --all-packages`, then the gates in order (ruff, basedpyright and ty, the suite) and
-  `nox -s security-scan`, committing the regenerated `docs/sbom.cyclonedx.json` with `uv.lock`.
-  A trial run on 2026-11-14 (main at c3beb0a8, not kept) changed 31 packages, none added or
-  removed: tornado 6.6 -> 6.6.1 closes Dependabot alert 196
-  (bugs/2026-11-14-dependabot-alert-196-tornado-open-redirect.md); two major versions to check,
-  pymdown-extensions 12.3 -> 13.1 (the docs build) and python-dateutil 2.9.0.post0 -> 4.0.0; ruff
-  0.17.3 -> 0.17.5 and ty 0.0.95 -> 0.0.104 may report new findings.
+- **Upgrade every locked dependency, then generate sounds on first use: one branch,
+  `chore/upgrade-and-sounds-on-first-use`** (the owner, 2026-11-14: one upgrade, not a
+  tornado-only branch; sounds and the instrument and demo WAVs made on first use, never stored
+  in the repository; the two combined). The upgrade lands first, as its own commit with every
+  gate green, so a replay or sound that changes afterwards points at the cache code alone.
+  - The upgrade: `uv sync --upgrade --all-extras --all-groups --all-packages`, then the gates in order (ruff, basedpyright and ty, the suite) and
+    `nox -s security-scan`, committing the regenerated `docs/sbom.cyclonedx.json` with `uv.lock`.
+    A trial run on 2026-11-14 (main at c3beb0a8, not kept) changed 31 packages, none added or
+    removed: tornado 6.6 -> 6.6.1 closes Dependabot alert 196
+    (bugs/2026-11-14-dependabot-alert-196-tornado-open-redirect.md); two major versions to check,
+    pymdown-extensions 12.3 -> 13.1 (the docs build) and python-dateutil 2.9.0.post0 -> 4.0.0; ruff
+    0.17.3 -> 0.17.5 and ty 0.0.95 -> 0.0.104 may report new findings.
+  - Sounds on first use (an installed wheel runs no code at install time, so first use is the
+    earliest point):
+    - Runtime sounds: compiled samples are cached only in memory, per process
+      (`ENGINE_SOUND_CACHE`, `src/glitchygames/audio/library.py`), so every launch compiles them
+      again (the CRT power-on sound included). Add a disk cache in the user's cache folder
+      (`src/glitchygames/state/paths.py` finds the platform folders), keyed by the engine version
+      and the sound's identity, so a machine compiles each sound once. Replays must still get the
+      same samples (a cached sample equals a fresh compile; test it), and a corrupt or old-version
+      entry is compiled again and replaced, never trusted.
+    - Listening WAVs: the instrument demos (`scripts/make_instrument_demos.py`, 724 files, about
+      219 MB) and the pipe tunes (`scripts/make_pipes.py`, `scripts/pipe_tunes.py`, about 85 MB)
+      are written to the git-ignored `build/` by hand today, so an installed copy cannot make them.
+      Make them `glitchygames` subcommands that render into the same cache folder on first request
+      (a family or instrument at a time, not all 300 MB at once).
+    - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
+      clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
 - ~~**CLAUDE.md carries its old long Architecture Overview again**~~ **Done** 2026-11-14
   (#211, `chore/claude-md-and-hook-speedups`): the block is gone (CLAUDE.md is 333fcc0d's again
   plus later edits), and `tests/test_claude_md.py` fails on a repeated heading or component name
   or past 360 lines; both checks failed on the 1476-line file.
-- **Generate sounds on first use, cached on disk, never stored in the repository** (the owner,
-  2026-11-14: "on first use", for the engine's sounds and for the instrument and demo WAVs too).
-  An installed wheel runs no code at install time, so first use is the earliest point.
-  - Runtime sounds: compiled samples are cached only in memory, per process
-    (`ENGINE_SOUND_CACHE`, `src/glitchygames/audio/library.py`), so every launch compiles them
-    again (the CRT power-on sound included). Add a disk cache in the user's cache folder
-    (`src/glitchygames/state/paths.py` finds the platform folders), keyed by the engine version
-    and the sound's identity, so a machine compiles each sound once. Replays must still get the
-    same samples (a cached sample equals a fresh compile; test it), and a corrupt or old-version
-    entry is compiled again and replaced, never trusted.
-  - Listening WAVs: the instrument demos (`scripts/make_instrument_demos.py`, 724 files, about
-    219 MB) and the pipe tunes (`scripts/make_pipes.py`, `scripts/pipe_tunes.py`, about 85 MB)
-    are written to the git-ignored `build/` by hand today, so an installed copy cannot make them.
-    Make them `glitchygames` subcommands that render into the same cache folder on first request
-    (a family or instrument at a time, not all 300 MB at once).
-  - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
-    clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
 - **Time each pre-push hook before splitting `lint` into hooks of its own** (the owner asked,
   2026-11-14, whether one hook per lint step would be faster). pre-commit runs hooks one after
   another; it runs in parallel only inside a hook given file names, and every hook here has
