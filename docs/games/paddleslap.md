@@ -574,13 +574,17 @@ Polling
 
 ## Sound
 
-Two sound effects, loaded with `glitchygames.game_objects.load_sound` from
-`src/glitchygames/game_objects/snd_files/` at volume 0.25 (`pygame.mixer.Sound`, not the synthesiser):
+Two recorded sound effects in the game's package (`paddleslap/sounds/`), named in
+`sounds/sounds.toml` at volume 0.25 and played through the engine's sound library: the scene asks
+for both when it is built (`self.sounds`, by path to that file: a short name would resolve through
+the scene in setup or the active scene, neither of which this one is while it is built) and hands
+them to the paddles and balls (`collision_sound`, a `Sound`). The library decodes each once and
+caches it.
 
 | Sound | File | Played when |
 | --- | --- | --- |
-| `SFX.BOUNCE` | `sfx_bounce.wav` | A ball bounces off a wall (the ball's own sound), or two balls collide (the first ball's sound) |
-| `SFX.SLAP` | `sfx_slap.wav` | A ball hits a paddle (the paddle's sound, played by `handle_paddle_collision`) |
+| `bounce` | `sfx_bounce.wav` | A ball bounces off a wall (the ball's own sound), or two balls collide (the first ball's sound) |
+| `slap` | `sfx_slap.wav` | A ball hits a paddle (the paddle's sound, played by `handle_paddle_collision`) |
 
 ## Score and saves
 
@@ -649,7 +653,7 @@ docstring of `scripts/record_scripted_session.py`). Replay performance for both 
 | `src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz` | The bundled attract-mode demo |
 | `src/glitchygames/game_objects/ball.py` | `BallSprite`, `BallSpawnMode`, `ServeSettings`, `SpeedUpSettings` and their enums |
 | `src/glitchygames/game_objects/paddle.py` | `BasePaddle`, `VerticalPaddle`, `HorizontalPaddle` |
-| `src/glitchygames/game_objects/sounds.py`, `snd_files/` | `SFX`, `load_sound`, the two WAV files |
+| `src/games/paddleslap/src/paddleslap/sounds/` | The two WAV files and `sounds.toml`, which names them |
 | `src/glitchygames/scenes/builtin_scenes/pause_scene.py` | `PauseScene` |
 | `src/glitchygames/scenes/builtin_scenes/game_over_scene.py` | `GameOverScene`, `TextSprite` |
 | `src/glitchygames/input/action_map.py` | `ActionMap` |

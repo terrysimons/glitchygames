@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     import argparse
     from collections.abc import Mapping
 
+    from glitchygames.audio.library import Sound
     from glitchygames.events.base import (
         ControllerAxisEvent,
         ControllerButtonEvent,
@@ -41,7 +42,6 @@ from glitchygames.game_objects.ball import (
     SpeedUpTrigger,
 )
 from glitchygames.game_objects.paddle import VerticalPaddle
-from glitchygames.game_objects.sounds import SFX
 from glitchygames.input import ActionMap
 from glitchygames.movement import Speed
 from glitchygames.randomness import random_stream
@@ -87,6 +87,9 @@ COLOR_CHANNEL_LEVELS = 256
 # tests/replay/test_bundled_demos.py replays it. It ships inside the package (package data,
 # found by glitchygames/bundled_demos.py).
 PADDLESLAP_DEMO_PATH = Path(__file__).parent / 'demos' / 'rally.jsonl.gz'
+# The game's sounds (bounce and slap, recorded files) for the engine's sound library
+SOUNDS_FILE = Path(__file__).parent / 'sounds' / 'sounds.toml'
+SOUND_NAMES = ('bounce', 'slap')
 GAME_OVER_IDLE_SECONDS = 10.0
 
 # Paddle hits speed the ball up along a logarithmic curve: big early boosts that taper
@@ -182,6 +185,14 @@ class Game(Scene):
         super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
         # The court is black (named: a scene that sets no background shows the test pattern)
         self.background_color = BLACK
+        # The game's two sounds, the sound library's (decoded once, cached after). By path: a
+        # short name resolves through the scene in setup or the active scene, and this one is
+        # neither while it is built. The game engine is set before the game is built, so the
+        # audio engine follows its sound options
+        audio = self.scene_manager.audio
+        self.sounds: dict[str, Sound] = {
+            name: audio.sound(f'{SOUNDS_FILE}#{name}') for name in SOUND_NAMES
+        }
         # FPS will be set by command line arguments or default to 60
 
         v_center = self.screen_height // 2
@@ -191,7 +202,7 @@ class Game(Scene):
             (0, v_center - 50),  # Center vertically
             WHITE,
             400,  # 400 pixels per second
-            collision_sound=SFX.SLAP,
+            collision_sound=self.sounds['slap'],
         )
         self.player2 = VerticalPaddle(
             'Player 2',
@@ -199,7 +210,7 @@ class Game(Scene):
             (self.screen_width - 20, v_center - 50),  # Center vertically
             WHITE,
             400,  # 400 pixels per second
-            collision_sound=SFX.SLAP,
+            collision_sound=self.sounds['slap'],
         )
         # Input action maps (separate per player for multi-controller)
         self.p1_actions, self.p2_actions, self.pause_actions = self._create_action_maps(
@@ -242,7 +253,7 @@ class Game(Scene):
             self.ball_spawn_mode = BallSpawnMode.PADDLE_ONLY
         for _ in range(self.options.get('balls', 1)):
             ball = BallSprite(
-                collision_sound=SFX.BOUNCE,
+                collision_sound=self.sounds['bounce'],
                 bounce_top_bottom=True,  # Bounce off top and bottom walls
                 bounce_left_right=False,  # Don't bounce off side walls (scoring)
                 speed_up_settings=PADDLESLAP_SPEED_UP,
@@ -511,7 +522,7 @@ class Game(Scene):
         """
         # Create new ball at default speed
         new_ball = BallSprite(
-            collision_sound=SFX.BOUNCE,
+            collision_sound=self.sounds['bounce'],
             bounce_top_bottom=True,  # Bounce off top and bottom walls
             bounce_left_right=False,  # Don't bounce off side walls (scoring)
             speed_up_settings=PADDLESLAP_SPEED_UP,

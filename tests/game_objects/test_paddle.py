@@ -3,9 +3,9 @@
 import pygame
 
 from glitchygames.game_objects.paddle import BasePaddle, HorizontalPaddle, VerticalPaddle
-from glitchygames.game_objects.sounds import SFX, load_sound
 from glitchygames.movement.horizontal import Horizontal
 from glitchygames.movement.vertical import Vertical
+from tests.game_objects.sound_support import a_sound
 
 POS_100 = 100
 POS_200 = 200
@@ -97,6 +97,7 @@ class TestPaddleBasicFunctionality(BasePaddleTest):
 
     def test_base_paddle_initialization_with_collision_sound(self):
         """Test BasePaddle initialization with collision sound."""
+        slap = a_sound()
         paddle = BasePaddle(
             axis=Horizontal,
             speed=5,
@@ -106,11 +107,10 @@ class TestPaddleBasicFunctionality(BasePaddleTest):
             y=POS_200,
             width=SIZE_50,
             height=SIZE_20,
-            collision_sound=SFX.SLAP,
+            collision_sound=slap,
         )
 
-        assert isinstance(paddle.snd, pygame.mixer.Sound)
-        assert paddle.snd.get_raw() == load_sound(SFX.SLAP).get_raw()
+        assert paddle.snd is slap
 
     def test_base_paddle_initialization_without_collision_sound(self):
         """Test BasePaddle initialization without collision sound."""
@@ -382,17 +382,17 @@ class TestHorizontalPaddle(BasePaddleTest):
         self,
     ):
         """Test HorizontalPaddle initialization with collision sound."""
+        slap = a_sound()
         paddle = HorizontalPaddle(
             name='horizontal_paddle',
             size=(SIZE_100, SIZE_20),
             position=(POS_200, POS_300),
             color=(0, 255, 0),
             speed=5,
-            collision_sound=SFX.SLAP,
+            collision_sound=slap,
         )
 
-        assert isinstance(paddle.snd, pygame.mixer.Sound)
-        assert paddle.snd.get_raw() == load_sound(SFX.SLAP).get_raw()
+        assert paddle.snd is slap
 
 
 class TestVerticalPaddle(BasePaddleTest):
@@ -433,17 +433,17 @@ class TestVerticalPaddle(BasePaddleTest):
 
     def test_vertical_paddle_initialization_with_collision_sound(self):
         """Test VerticalPaddle initialization with collision sound."""
+        slap = a_sound()
         paddle = VerticalPaddle(
             name='vertical_paddle',
             size=(SIZE_20, SIZE_100),
             position=(POS_200, POS_300),
             color=(0, 0, 255),
             speed=5,
-            collision_sound=SFX.SLAP,
+            collision_sound=slap,
         )
 
-        assert isinstance(paddle.snd, pygame.mixer.Sound)
-        assert paddle.snd.get_raw() == load_sound(SFX.SLAP).get_raw()
+        assert paddle.snd is slap
 
 
 class TestPaddleIntegration(BasePaddleTest):
