@@ -29,7 +29,6 @@ replay exactly. High scores are kept with the engine's saves (``open_saves``).
 from __future__ import annotations
 
 import enum
-import functools
 import logging
 import math
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
@@ -37,7 +36,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 import pygame
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.audio.effects import SoundBank, Tremolo
+from glitchygames.audio.effects import Tremolo
 from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.audio.synth import Waveform
 from glitchygames.color import BLACK
@@ -81,11 +80,12 @@ from mr_muncher.scenery import (
     fitted_font,
     render_text,
 )
-from mr_muncher.sounds import ALL_RECIPES, CRUNCH_RECIPES
+from mr_muncher.sounds import CRUNCH_EFFECTS, EFFECTS
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
+    from glitchygames.audio.library import Sound
     from glitchygames.audio.live import LiveVoice
     from glitchygames.camera import Camera2D
     from glitchygames.events.base import (
@@ -226,17 +226,6 @@ DIRECTION_ACTIONS: tuple[tuple[str, Direction], ...] = (
 STICK_THRESHOLD = 0.5
 
 
-@functools.cache
-def shared_sound_bank() -> SoundBank:
-    """Return the game's sound bank, shared by every level (each sound renders only once).
-
-    Returns:
-        The sound bank.
-
-    """
-    return SoundBank(ALL_RECIPES)
-
-
 class Phase(enum.Enum):
     """The moment the game is in."""
 
@@ -361,7 +350,12 @@ class MrMuncherScene(Scene):
 
         self.saves: SaveManager = open_saves(app_name=SAVE_APP_NAME)
         self.high_score = max(self._best_saved_score(), self.score)
-        self.sounds = shared_sound_bank()
+        # Every effect, the sound library's: compiled once per engine context and cached (on
+        # disk too, under --sound-cache disk), so every level shares them and none compiles
+        # mid-frame. The game engine is set before the game is built, so the audio engine follows
+        # its sound options
+        audio = self.scene_manager.audio
+        self.sounds: dict[str, Sound] = {effect.name: audio.sound(effect) for effect in EFFECTS}
         self.projector: LiveVoice | None = None
         # The projector's settings last given (cutoff, flutter rate), to change them only then
         self.projector_settings: tuple[float, float] | None = None
@@ -510,9 +504,8 @@ class MrMuncherScene(Scene):
 
     @override
     def setup(self: Self) -> None:
-        """Render the sounds now (none renders mid-frame) and show the reel's first message."""
+        """Show the reel's first message (the sounds were compiled when the level was built)."""
         super().setup()
-        self.sounds.prerender()
         # (Set up again when play resumes after a pause: only a reel still waiting to start
         # shows its message)
         if self.phase is Phase.READY:
@@ -673,11 +666,19 @@ class MrMuncherScene(Scene):
             return (f'TAKE {self.take}', None)
         return (f'REEL {self.settings.level}', None)
 
+    def play_sound(self: Self, name: str) -> None:
+        """Play one of the game's effects by name (``sounds.EFFECTS``).
+
+        Args:
+            name: The effect's name.
+        """
+        self.sounds[name].play()
+
     def _show_ready_message(self: Self) -> None:
         """Show this moment's message before play, sounding its cue when it first shows."""
         text, cue = self._ready_message_text()
         if text != self.message_shown[0] and cue is not None:
-            self.sounds.play(cue)
+            self.play_sound(cue)
         self._show_message(text=text)
 
     def _change_phase(self: Self, phase: Phase) -> None:
@@ -791,7 +792,7 @@ class MrMuncherScene(Scene):
         if sprocket is not None and not sprocket.eaten:
             sprocket.eat()
             self.sprockets_eaten += 1
-            self.sounds.play(CRUNCH_RECIPES[self.crunch_count % len(CRUNCH_RECIPES)].name)
+            self.play_sound(CRUNCH_EFFECTS[self.crunch_count % len(CRUNCH_EFFECTS)].name)
             self.crunch_count += 1
             if sprocket.is_snack:
                 self._add_points(SNACK_POINTS)
@@ -807,7 +808,7 @@ class MrMuncherScene(Scene):
         if self.bonus.visible and self.player.cell == self.message_cell:
             self.bonus.visible = 0
             self._add_points(self.settings.bonus_points)
-            self.sounds.play('eat_bonus')
+            self.play_sound('eat_bonus')
             self.bonus_points.change_image(
                 image=render_text(
                     font=self.popup_font,
@@ -830,7 +831,7 @@ class MrMuncherScene(Scene):
         if not self.extra_life_awarded and self.score >= EXTRA_LIFE_SCORE:
             self.extra_life_awarded = True
             self.lives += 1
-            self.sounds.play('extra_life')
+            self.play_sound('extra_life')
 
     def _start_fright(self: Self) -> None:
         """A snack: every muncher not already eaten turns blue, and those out turn round."""
@@ -840,7 +841,7 @@ class MrMuncherScene(Scene):
         for muncher in self.munchers:
             if muncher.state not in {MuncherState.EATEN, MuncherState.ENTERING}:
                 muncher.frightened = True
-        self.sounds.play('sugar_rush')
+        self.play_sound('sugar_rush')
 
     def _end_fright(self: Self) -> None:
         """The snack wore off: every muncher is dangerous again."""
@@ -888,7 +889,7 @@ class MrMuncherScene(Scene):
             centre=self.geometry.pixel_centre(tile_x=muncher.tile_x, tile_y=muncher.tile_y)
         )
         self.muncher_points.visible = 1
-        self.sounds.play('camera_flash')
+        self.play_sound('camera_flash')
         self._change_phase(Phase.MUNCHER_EATEN)
 
     def _resume_after_eating(self: Self) -> None:
@@ -915,7 +916,7 @@ class MrMuncherScene(Scene):
             for muncher in self.munchers:
                 muncher.hidden = True
             self.bonus.visible = 0
-            self.sounds.play('film_snap')
+            self.play_sound('film_snap')
         self.player.dying_progress = min(1.0, animation_seconds / DEATH_ANIMATION_SECONDS)
         if animation_seconds >= DEATH_ANIMATION_SECONDS + DEATH_AFTER_SECONDS:
             self._lose_life()
@@ -927,7 +928,7 @@ class MrMuncherScene(Scene):
             self.player.hidden = True
             self._show_message(text=THE_END_MESSAGE, color=THE_END_COLOR)
             self._save_high_score()
-            self.sounds.play('the_end')
+            self.play_sound('the_end')
             self._change_phase(Phase.GAME_OVER)
             return
         self._reset_actors()
@@ -953,7 +954,7 @@ class MrMuncherScene(Scene):
             muncher.hidden = True
         self.bonus.visible = 0
         self._show_message(text=CUT_MESSAGE)
-        self.sounds.play('level_clear')
+        self.play_sound('level_clear')
         self._change_phase(Phase.LEVEL_CLEAR)
 
     def _go_to_next_level(self: Self) -> None:

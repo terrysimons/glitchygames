@@ -651,12 +651,14 @@ wanted size down to 8) at which each panel's longest text fits.
 
 ## Sound
 
-`sounds.py` defines every sound as a synthesized effect (`Effect`) (`src/glitchygames/audio/effects.py`).
-`shared_sound_bank()` builds one `SoundBank(ALL_RECIPES)` for the whole process
-(`functools.cache`), and `setup()` calls `sounds.prerender()`, so no sound is rendered in the
-middle of a frame.
+`sounds.py` defines every sound as a synthesized effect (`Effect`,
+`src/glitchygames/audio/effects.py`), `EFFECTS`. Each level asks the engine's sound library for
+all of them when it is built (`self.sounds`, by name; `play_sound(name)` plays one): the library
+compiles each once per engine context and caches it (on disk too, under `--sound-cache disk`), so
+every level shares them and no sound compiles in the middle of a frame. Each plays at its own
+volume.
 
-| Recipe | When it plays |
+| Effect | When it plays |
 |---|---|
 | `crunch_one`, `crunch_two` | A sprocket or snack is eaten (alternating, so a run of them never repeats exactly) |
 | `sugar_rush` | A snack starts a fright (two clapperboard clacks and a rising shimmer) |

@@ -134,7 +134,7 @@ def _crunch(*, name: str, cutoff: float, pop_frequency: float) -> Effect:
 CRUNCH_ONE = _crunch(name='crunch_one', cutoff=1800.0, pop_frequency=700.0)
 CRUNCH_TWO = _crunch(name='crunch_two', cutoff=2600.0, pop_frequency=820.0)
 # Played alternately, one per sprocket
-CRUNCH_RECIPES = (CRUNCH_ONE, CRUNCH_TWO)
+CRUNCH_EFFECTS = (CRUNCH_ONE, CRUNCH_TWO)
 
 SUGAR_RUSH = Effect(
     name='sugar_rush',
@@ -295,7 +295,8 @@ THE_END = Effect(
     + _melody(notes=(('A2', 4.0),), waveform=Waveform.TRIANGLE, volume=1.0),
 )
 
-ALL_RECIPES = (
+# Every effect the game plays, requested from the sound library when a level is built
+EFFECTS = (
     CRUNCH_ONE,
     CRUNCH_TWO,
     SUGAR_RUSH,

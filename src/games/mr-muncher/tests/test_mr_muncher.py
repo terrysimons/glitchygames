@@ -62,7 +62,6 @@ from mr_muncher.game import (
     MrMuncherScene,
     Phase,
     maze_geometry,
-    shared_sound_bank,
 )
 from mr_muncher.maze import Direction, build_maze
 
@@ -112,7 +111,7 @@ def scene(save_directory):
 @pytest.fixture
 def played(scene, mocker):
     """Record the sounds the scene plays."""
-    return mocker.patch.object(scene.sounds, 'play')
+    return mocker.patch.object(scene, 'play_sound')
 
 
 @pytest.fixture
@@ -218,8 +217,20 @@ class TestLayout:
         assert scene.all_sprites is group
         assert scene.player in group
 
-    def test_the_sound_bank_is_shared_by_every_level(self, scene):
-        assert scene.sounds is shared_sound_bank()
+    def test_every_effect_is_the_librarys_compiled_sound_shared_by_every_level(
+        self, scene, save_directory
+    ):
+        """Built levels hold the library's sounds: compiled once per context, at their volume."""
+        from mr_muncher.sounds import EFFECTS
+
+        another_level = MrMuncherScene(options={})
+        audio = scene.scene_manager.audio
+        for effect in EFFECTS:
+            sound = scene.sounds[effect.name]
+            assert sound is audio.sound(effect)
+            assert sound is another_level.sounds[effect.name]
+            assert sound.is_compiled
+            assert sound.playback_defaults.volume == effect.volume
 
 
 class TestStartingALevel:
@@ -243,7 +254,7 @@ class TestStartingALevel:
 
     def test_a_later_reel_shows_its_number(self, save_directory, mocker):
         later = MrMuncherScene(options={}, progress=GameProgress(level=2, score=4000, lives=2))
-        played = mocker.patch.object(later.sounds, 'play')
+        played = mocker.patch.object(later, 'play_sound')
         later.setup()
         assert later.message_shown[0] == 'REEL 2'
         played.assert_not_called()

@@ -1123,14 +1123,11 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         'bonus_reel_picture': DRAWING_CACHE,
         'film_strip_panel': DRAWING_CACHE,
     },
-    'src/games/mr-muncher/src/mr_muncher/game.py': {
-        'shared_sound_bank': "R14: the game's sound bank, built once from its recipes.",
-    },
     'src/games/mr-muncher/src/mr_muncher/sounds.py': {
-        'CRUNCH_ONE': "R14: one of the game's sound recipes, never written.",
-        'CRUNCH_TWO': "R14: one of the game's sound recipes, never written.",
-        'CRUNCH_RECIPES': "R14: a tuple of the game's sound recipes, never written.",
-        'ALL_RECIPES': "R14: a tuple of the game's sound recipes, never written.",
+        'CRUNCH_ONE': "R14: one of the game's sound effects, never written.",
+        'CRUNCH_TWO': "R14: one of the game's sound effects, never written.",
+        'CRUNCH_EFFECTS': "R14: a tuple of the game's sound effects, never written.",
+        'EFFECTS': "R14: a tuple of the game's sound effects, never written.",
     },
 }
 # Each listing's reason begins with its audit row's name and a colon
