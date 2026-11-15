@@ -23,6 +23,7 @@ def make_library(
     memory_limit_bytes=256 * 1024 * 1024,
     tuning_source=None,
     is_playing=None,
+    disk=None,
 ) -> tuple[SoundLibrary, AudioAccountant]:
     """Build a library over the current context's wave registry.
 
@@ -38,6 +39,7 @@ def make_library(
         tuning_source=tuning_source if tuning_source is not None else (lambda: default_tuning),
         memory_limit_bytes=memory_limit_bytes,
         **({'is_playing': is_playing} if is_playing is not None else {}),
+        **({'disk': disk} if disk is not None else {}),
     )
     return library, accountant
 

@@ -296,8 +296,8 @@ def _samples_at(sound: Sound, *, rate: int) -> FloatArray:
     Returns:
         Mono float64 samples (the sound's own array when it is compiled at the rate).
     """
-    if sound.is_compiled and sound.sample_rate == rate:
-        assert sound.samples_float is not None
+    # A sound read from the disk layer holds int16 samples only, so it compiles a copy here too
+    if sound.samples_float is not None and sound.sample_rate == rate:
         return sound.samples_float
     copy = sound.fresh_copy(sample_rate=rate)
     compile_sound(copy)

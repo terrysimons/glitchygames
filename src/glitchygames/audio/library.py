@@ -84,6 +84,7 @@ from glitchygames.audio.voices import SoundHandle
 
 if TYPE_CHECKING:
     from glitchygames.audio.accounting import AudioAccountant
+    from glitchygames.audio.disk_cache import DiskSoundCache
     from glitchygames.audio.pitch import PitchLike, Tuning
     from glitchygames.audio.recipes import SoundRecipe
     from glitchygames.audio.waves import WaveRegistry
@@ -98,6 +99,8 @@ IDENTITY_KEY_HEX_DIGITS: Final[int] = 32  # 128 bits, as spec.identity_key
 STEREO_CHANNELS: Final[int] = 2
 WAVE_SAMPLE_WIDTH_BYTES: Final[int] = 2  # 16-bit PCM
 DISK_CACHE_MESSAGE: Final[str] = 'the disk cache arrives in M3'
+# SoundLibrary's refusal of cache disk without a disk layer
+DISK_LAYER_REQUIRED_MESSAGE: Final[str] = 'cache disk needs a disk cache to keep sounds in'
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,13 +108,14 @@ class CompiledSamples:
     """A compiled sound's samples and what a game may read of them, shared read-only.
 
     Attributes:
-        samples_float: Mono float64 samples (read-only).
+        samples_float: Mono float64 samples (read-only), or None for samples read from the disk
+            layer, which keeps only int16 samples.
         samples_int16: The same as signed 16-bit PCM (read-only).
         peak: The loudest magnitude before clipping.
         sample_rate: The rate of the samples.
     """
 
-    samples_float: FloatArray
+    samples_float: FloatArray | None
     samples_int16: Int16Array
     peak: float
     sample_rate: int
@@ -158,10 +162,10 @@ class EngineSoundCache:
         Returns:
             The samples kept.
         """
-        assert sound.samples_float is not None
         assert sound.samples_int16 is not None
         # Shared by every context's Sound: nothing may write them in place
-        sound.samples_float.flags.writeable = False
+        if sound.samples_float is not None:
+            sound.samples_float.flags.writeable = False
         sound.samples_int16.flags.writeable = False
         compiled = CompiledSamples(
             samples_float=sound.samples_float,
@@ -199,12 +203,18 @@ class CacheStatistics:
         compiles: Compiles and decodes run, including every play under cache ``none``.
         bytes_held: The int16 bytes of the compiled sounds held in memory (the game's: the
             engine's own sounds, shared by the process, are left out).
+        disk_hits: Sounds read from the disk layer instead of compiled (cache ``disk``).
+        disk_misses: Sounds the disk layer did not hold (or held damaged), so compiled.
+        disk_writes: Compiled sounds written to the disk layer.
     """
 
     hits: int
     misses: int
     compiles: int
     bytes_held: int
+    disk_hits: int = 0
+    disk_misses: int = 0
+    disk_writes: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -488,7 +498,7 @@ class Sound:
     def install(
         self,
         *,
-        samples_float: FloatArray,
+        samples_float: FloatArray | None,
         samples_int16: Int16Array,
         peak: float,
         sample_rate: int,
@@ -497,7 +507,8 @@ class Sound:
         """Hold the compiled samples.
 
         Args:
-            samples_float: Mono float64 samples.
+            samples_float: Mono float64 samples, or None when only int16 samples were kept (a
+                disk hit); a caller that needs float samples then compiles a copy.
             samples_int16: The same as signed 16-bit PCM.
             peak: The loudest magnitude before clipping.
             sample_rate: The rate of the samples.
@@ -560,6 +571,21 @@ class Sound:
         self._mixer_settings = settings
         self._mixer_bytes = int(frames.nbytes)
         return self._mixer_sound
+
+
+def _compiled_frame_count(sound: Sound) -> int:
+    """The frames a sound's compile makes, known without compiling (a spec's or a recipe's).
+
+    The same counts ``SoundLibrary._describe`` derives a cache ``none`` sound's length from, so
+    a disk file of any other length is refused as not this sound's.
+
+    Returns:
+        The frame count.
+    """
+    if sound.spec is not None:
+        return rendered_frame_count(sound.spec)
+    assert sound.legacy_recipe is not None
+    return sound.legacy_recipe.frame_count(sample_rate=sound.sample_rate)
 
 
 def _nothing_plays(_sound: Sound) -> bool:
@@ -632,6 +658,7 @@ class SoundLibrary:
         tuning_source: Callable[[], Tuning],
         memory_limit_bytes: int = DEFAULT_MEMORY_LIMIT_BYTES,
         is_playing: Callable[[Sound], bool] = _nothing_plays,
+        disk: DiskSoundCache | None = None,
     ) -> None:
         """Make a library.
 
@@ -645,13 +672,19 @@ class SoundLibrary:
                 pygame sound) before the least recently played idle sounds go.
             is_playing: Says whether a sound is playing, so eviction spares it; the mixer
                 supplies it. The default says nothing is playing.
+            disk: The disk layer, required with cache ``disk`` (memory first, then disk, then
+                a compile written to disk; ``audio/disk_cache.py``). It is pruned to its limit
+                here, once (impl spec 6.4).
 
         Raises:
-            ValueError: For cache ``disk``, which arrives in M3.
+            ValueError: For cache ``disk`` without a disk layer.
         """
-        if cache is CacheMode.DISK:
-            raise ValueError(DISK_CACHE_MESSAGE)
+        if cache is CacheMode.DISK and disk is None:
+            raise ValueError(DISK_LAYER_REQUIRED_MESSAGE)
         self._cache = cache
+        self._disk = disk if cache is CacheMode.DISK else None
+        if self._disk is not None:
+            self._disk.prune()
         self._accountant = accountant
         self._waves = waves
         self._tuning_source = tuning_source
@@ -670,6 +703,9 @@ class SoundLibrary:
         self._hits = 0
         self._misses = 0
         self._compiles = 0
+        self._disk_hits = 0
+        self._disk_misses = 0
+        self._disk_writes = 0
 
     def add_recipes(self, recipes: Iterable[SoundRecipe]) -> None:
         """Add version 0 recipes by name; they are looked up before the sound directory.
@@ -701,6 +737,9 @@ class SoundLibrary:
             misses=self._misses,
             compiles=self._compiles,
             bytes_held=self._bytes_held(),
+            disk_hits=self._disk_hits,
+            disk_misses=self._disk_misses,
+            disk_writes=self._disk_writes,
         )
 
     def sound(  # ruff: ignore[too-many-arguments] - impl spec 8
@@ -778,7 +817,7 @@ class SoundLibrary:
             return fresh
         if not sound.is_compiled:
             self._misses += 1
-            self._compile(sound)
+            self._compile_through_disk(sound)
             self._hold(sound)
         else:
             self._play_order.move_to_end(sound.identity_key)
@@ -817,7 +856,7 @@ class SoundLibrary:
         compiled = ENGINE_SOUND_CACHE.compiled(sound.identity_key)
         if compiled is None:
             self._misses += 1
-            self._compile(sound)
+            self._compile_through_disk(sound)
             ENGINE_SOUND_CACHE.keep(sound)
         else:
             self._hits += 1
@@ -874,7 +913,7 @@ class SoundLibrary:
             self._hits += 1
             return
         self._misses += 1
-        self._compile(sound)
+        self._compile_through_disk(sound)
         self._hold(sound)
 
     def _describe(self, sound: Sound) -> None:
@@ -933,6 +972,45 @@ class SoundLibrary:
             The byte count.
         """
         return sum(held.retained_bytes for held in self._play_order.values())
+
+    def _compile_through_disk(self, sound: Sound) -> None:
+        """Read a sound from the disk layer, else compile it and write it there.
+
+        Without a disk layer (cache ``ram``), or for a recorded file (already a file: decoding it
+        costs what reading a copy would), this is ``_compile``. A hit installs the kept int16
+        samples and the compile's exact peak, with no float samples (a caller that needs them
+        compiles a copy: ``offline._samples_at``). The read is timed as ``cache_read`` work;
+        only a compile counts as one.
+        """
+        disk = self._disk
+        if disk is None or sound.recorded_file is not None:
+            self._compile(sound)
+            return
+        with self._accountant.measure('cache_read', sound.name):
+            cached = disk.read(
+                identity_key=sound.identity_key,
+                sample_rate=sound.sample_rate,
+                frame_count=_compiled_frame_count(sound),
+            )
+        if cached is not None:
+            self._disk_hits += 1
+            sound.install(
+                samples_float=None,
+                samples_int16=cached.samples_int16,
+                peak=cached.peak,
+                sample_rate=sound.sample_rate,
+            )
+            return
+        self._disk_misses += 1
+        self._compile(sound)
+        assert sound.samples_int16 is not None
+        disk.write(
+            identity_key=sound.identity_key,
+            samples_int16=sound.samples_int16,
+            peak=sound.peak,
+            sample_rate=sound.sample_rate,
+        )
+        self._disk_writes += 1
 
     def _compile(self, sound: Sound) -> None:
         """Compile a sound into itself, timed and counted."""

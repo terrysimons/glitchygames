@@ -4,6 +4,7 @@ import numpy as np
 import pygame
 import pytest
 
+from glitchygames.audio.disk_cache import DiskSoundCache
 from glitchygames.audio.instrument import Instrument
 from glitchygames.audio.library import CacheMode, CacheStatistics
 from glitchygames.audio.pitch import Tuning
@@ -217,10 +218,128 @@ def test_an_evicted_sound_is_recompiled_in_place_on_its_next_request_and_counted
     assert library.statistics().compiles == 5
 
 
-def test_disk_mode_is_refused_until_m3():
-    """The disk cache arrives in M3."""
-    with pytest.raises(ValueError, match='the disk cache arrives in M3'):
+def test_disk_mode_needs_a_disk_cache():
+    """Cache ``disk`` without a disk layer to keep sounds in is a caller's mistake, said so."""
+    with pytest.raises(ValueError, match='needs a disk cache'):
         make_library(CacheMode.DISK)
+
+
+def _disk(directory):
+    return DiskSoundCache(directory=directory, limit_bytes=64 * 1024 * 1024)
+
+
+def test_disk_mode_writes_a_new_sound_once_and_a_second_library_reads_it(tmp_path):
+    """The first library compiles and writes; a second over the same folder compiles nothing."""
+    first_library, _ = make_library(CacheMode.DISK, disk=_disk(tmp_path))
+    written = _request(first_library)
+    second_library, _ = make_library(CacheMode.DISK, disk=_disk(tmp_path))
+    read = _request(second_library)
+
+    assert (first_library.statistics().compiles, first_library.statistics().disk_writes) == (1, 1)
+    assert first_library.statistics().disk_misses == 1
+    assert (second_library.statistics().compiles, second_library.statistics().disk_hits) == (0, 1)
+    assert second_library.statistics().disk_writes == 0
+
+
+def test_a_disk_hit_is_exactly_the_compile(tmp_path):
+    """Samples byte for byte, and the peak, length and rate a replay may read (rule 2)."""
+    fresh_library, _ = make_library(CacheMode.RAM)
+    fresh = _request(fresh_library)
+    _request(make_library(CacheMode.DISK, disk=_disk(tmp_path))[0])
+    from_disk = _request(make_library(CacheMode.DISK, disk=_disk(tmp_path))[0])
+
+    assert from_disk.samples_int16 is not None
+    assert fresh.samples_int16 is not None
+    assert from_disk.samples_int16.tobytes() == fresh.samples_int16.tobytes()
+    assert (from_disk.peak, from_disk.length, from_disk.sample_rate) == (
+        fresh.peak,
+        fresh.length,
+        fresh.sample_rate,
+    )
+
+
+def test_a_disk_hit_holds_no_float_samples(tmp_path):
+    """Only int16 samples and the peak are kept on disk; float samples are not invented."""
+    _request(make_library(CacheMode.DISK, disk=_disk(tmp_path))[0])
+    from_disk = _request(make_library(CacheMode.DISK, disk=_disk(tmp_path))[0])
+
+    assert from_disk.is_compiled
+    assert from_disk.samples_float is None
+
+
+def test_an_offline_render_of_a_disk_hit_equals_a_fresh_one(tmp_path):
+    """A caller that needs float samples compiles them fresh (offline renders)."""
+    from glitchygames.audio.offline import render_to_file
+
+    fresh = _request(make_library(CacheMode.RAM)[0])
+    _request(make_library(CacheMode.DISK, disk=_disk(tmp_path / 'cache'))[0])
+    from_disk = _request(make_library(CacheMode.DISK, disk=_disk(tmp_path / 'cache'))[0])
+
+    render_to_file(fresh, tmp_path / 'fresh.wav')
+    render_to_file(from_disk, tmp_path / 'from-disk.wav')
+
+    assert (tmp_path / 'fresh.wav').read_bytes() == (tmp_path / 'from-disk.wav').read_bytes()
+
+
+def test_a_version_zero_recipe_comes_back_from_disk_exactly(tmp_path):
+    """Version 0 recipes go through the disk layer too, sample for sample."""
+    source = str(FIXTURE_SOUNDS / 'legacy_recipes.toml') + '#crunch_one'
+    fresh = make_library(CacheMode.RAM)[0].sound(source, scene_sound_directory=None)
+    make_library(CacheMode.DISK, disk=_disk(tmp_path))[0].sound(source, scene_sound_directory=None)
+    library, _ = make_library(CacheMode.DISK, disk=_disk(tmp_path))
+    from_disk = library.sound(source, scene_sound_directory=None)
+
+    assert library.statistics().disk_hits == 1
+    assert from_disk.samples_int16 is not None
+    assert fresh.samples_int16 is not None
+    assert from_disk.samples_int16.tobytes() == fresh.samples_int16.tobytes()
+    assert from_disk.peak == fresh.peak
+
+
+def test_a_recorded_file_is_decoded_and_never_written_to_disk(tmp_path):
+    """A recorded file is already a file: decoding it again costs what reading a copy would."""
+    library, _ = make_library(CacheMode.DISK, disk=_disk(tmp_path))
+    library.sound(str(FIXTURE_SOUNDS / 'extras.toml') + '#slap', scene_sound_directory=None)
+
+    assert library.statistics().disk_writes == 0
+    assert not list(tmp_path.rglob('*.wav'))
+
+
+def test_a_damaged_disk_file_is_compiled_again_and_rewritten(tmp_path):
+    """A bad file is a miss: the sound compiles (counted) and the file is written anew."""
+    _request(make_library(CacheMode.DISK, disk=_disk(tmp_path))[0])
+    (kept,) = tmp_path.rglob('*.wav')
+    kept.write_bytes(b'damaged')
+    library, _ = make_library(CacheMode.DISK, disk=_disk(tmp_path))
+    _request(library)
+
+    statistics = library.statistics()
+    assert (statistics.compiles, statistics.disk_misses, statistics.disk_writes) == (1, 1, 1)
+    assert kept.read_bytes() != b'damaged'
+
+
+def test_a_disk_library_prunes_its_folder_when_made(tmp_path):
+    """The limit is applied once, at startup (spec 6.4)."""
+    _request(make_library(CacheMode.DISK, disk=_disk(tmp_path))[0], 'C5')
+    _request(make_library(CacheMode.DISK, disk=_disk(tmp_path))[0], 'E5')
+
+    make_library(CacheMode.DISK, disk=DiskSoundCache(directory=tmp_path, limit_bytes=0))
+
+    assert not list(tmp_path.rglob('*.wav'))
+
+
+def test_the_engines_own_sounds_go_through_the_disk_layer(tmp_path):
+    """A new process (an empty process-wide cache) reads the engine's sounds from disk."""
+    from glitchygames.audio.library import ENGINE_SOUND_CACHE
+
+    first, _ = make_library(CacheMode.DISK, disk=_disk(tmp_path))
+    first.engine_sound(PULSE_INSTRUMENT, pitch='C5', length=0.1)
+    ENGINE_SOUND_CACHE.clear()
+    second, _ = make_library(CacheMode.DISK, disk=_disk(tmp_path))
+    second.engine_sound(PULSE_INSTRUMENT, pitch='C5', length=0.1)
+
+    assert first.statistics().disk_writes == 1
+    assert (second.statistics().compiles, second.statistics().disk_hits) == (0, 1)
 
 
 def test_eviction_stops_at_the_last_idle_sound_even_when_still_over_the_limit():
