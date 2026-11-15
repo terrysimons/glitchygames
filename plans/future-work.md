@@ -817,6 +817,28 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   key-repeat replays: about 32-40 s of wall time under `-n 8` on an Apple M4 Max (about 180-200
   s of CPU, 2026-11-13), the longest case 24.5 s (Drawing Fire beside Mr. Muncher). Watch it as
   recordings are added.
+- **`--replay-digest` is allowed in an inner game on purpose** (a ruling during Task 3,
+  (from the sub-plan's run ledgers, archived outside the repository on 2026-11-14)): the proof test gives each `InnerGame` its own digest path. Nothing stops a host giving
+  two tiles the same path, and then both write one file. Refuse it, or give each tile its own
+  path, if a host ever passes it through.
+- **A watched inner replay would drop real key presses.** An inner context's replay never sets
+  `_has_blocked_real_input`, so every drain is treated as the first and real keys are dropped as
+  stale. It does not matter today: `InnerGame` replays only headless. Fix it before a watched
+  inner replay is ever allowed.
+- **`InnerGameOutcome.diverged` follows `ReplayReport.is_failure`, so two cases read as not
+  diverged**: a replay given another `--random-seed` (the reseeded summary), and a truncated
+  recording that matched up to its cut-off (alone it exits UNUSABLE_INPUT, but `diverged` is
+  False). Say so in `inner_game.py`'s docstring, or make `diverged` cover them.
+- **No guard stops a direct `pygame.event.set_allowed` or `set_blocked` in the engine.** Every
+  engine call that changes SDL's blocked types goes through `events.set_event_types_allowed`
+  (sub-plan 3's fix: an inner context never changes them), except `EventTypeBlock`. A future
+  direct call would bring the bug back quietly. Add a source-guard test like
+  `tests/test_engine_doors.py`'s.
+- Minor, from the same ledgers: refusal by prefix can over-refuse (a game's own flag that is a
+  strict prefix of a refused one, such as `--rec`, would be refused; no engine flag is one), and
+  an empty run is not handled specially (`step()` checks `should_run_frames()` only after each
+  frame, so a game already stopped after its build still runs one `run_frame_step`; replays
+  refuse empty recordings first).
 
 ## Arcade (sub-plan 4 follow-ups, 2026-11-13; plans/2026-11-13-arcade-4-sound.md)
 
@@ -860,6 +882,19 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   already under way (decision 3); a live voice queues its next chunk by real time (every 100 ms),
   so a tile switched heard is silent for up to 200 ms of its projector. Re-render the queued
   chunk at the switch if that gap is ever heard.
+- Minor, (from the sub-plan's run ledgers, archived outside the repository on 2026-11-14):
+  - `_partition_with_the_current_engine` (`audio/voices.py`) trusts the current context's engine:
+    a stale engine, constructed but never started, would lend its options. Engines clear the slot
+    at shutdown and the suite shows no leak, but a host must not leave a dead engine current.
+  - After `release_channels()` without a mixer restart, a re-declaration's `legacy_count` is the
+    mixer's whole remainder above the partition, so the mixer can grow by much more than needed
+    (only a process reusing a grown mixer, as tests do).
+  - `reserve_live_voice_pool` (the legacy wrapper) can raise `MixerBusyError` when called while
+    sound plays and it must grow (intended under BUGS.md #145; not in the docs).
+  - Nested inner games: an audible inner game stepping its own audible inner game would count
+    the grandchild's plays as both games' (`plain_plays_followed`). Nothing does this today.
+  - A review minor about real-time margins in the tests (M5) was parked without detail beyond
+    its name; the archived ledger holds the review.
 
 ## Games
 
