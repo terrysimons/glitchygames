@@ -17,6 +17,8 @@ import pytest
 import yaml
 from scripts.workspace_packages import workspace_members
 
+from tests.ansible_inventory import raspberry_pi_hosts
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CIRCLECI_CONFIG_PATH = PROJECT_ROOT / '.circleci' / 'config.yml'
 LOCK_PATH = PROJECT_ROOT / 'uv.lock'
@@ -82,17 +84,133 @@ def test_the_raspberry_pi_playbook_pins_circlecis_uv():
     assert f'    raspberry_pi_uv_version: "{uv_version}"\n' in playbook
 
 
-def raspberry_pi_hosts() -> dict[str, dict[str, str]]:
-    """Return the inventory's Raspberry Pis, by host name.
+RASPBERRY_PI_PLAYBOOK_PATH = PROJECT_ROOT / 'ansible' / 'raspberry_pi_runner.yml'
+CI_USER = '{{ ci_user }}'
+
+
+def raspberry_pi_play() -> dict:
+    """Return the Raspberry Pi playbook's one play.
 
     Returns:
-        Each host's variables (``raspberry-pi-4``: its address, resource class, ...).
+        The play, parsed.
 
     """
-    inventory = yaml.safe_load(
-        (PROJECT_ROOT / 'ansible' / 'inventory.yml').read_text(encoding='utf-8')
+    return yaml.safe_load(RASPBERRY_PI_PLAYBOOK_PATH.read_text(encoding='utf-8'))[0]
+
+
+def raspberry_pi_role_files() -> list[Path]:
+    """Return the Pi roles' task and handler files (ansible/roles/raspberry_pi_*).
+
+    Returns:
+        The files, sorted.
+
+    """
+    roles = PROJECT_ROOT / 'ansible' / 'roles'
+    return sorted(
+        path
+        for path in roles.glob('raspberry_pi_*/*/*.yml')
+        if path.parent.name in {'tasks', 'handlers'}
     )
-    return inventory['all']['children']['raspberry_pis']['hosts']
+
+
+def raspberry_pi_tasks() -> list[dict]:
+    """Return every Pi task and handler: each play's, then each Pi role's, blocks flattened.
+
+    Returns:
+        The tasks, in order.
+
+    """
+    plays = yaml.safe_load(RASPBERRY_PI_PLAYBOOK_PATH.read_text(encoding='utf-8'))
+    pending = [task for play in plays for task in [*play['tasks'], *play.get('handlers', [])]]
+    for path in raspberry_pi_role_files():
+        pending += yaml.safe_load(path.read_text(encoding='utf-8'))
+    flattened: list[dict] = []
+    while pending:
+        task = pending.pop(0)
+        if 'block' in task:
+            pending[:0] = task['block']
+        else:
+            flattened.append(task)
+    return flattened
+
+
+def test_the_raspberry_pi_playbook_names_its_deploy_and_ci_users():
+    """Two users, each named once: the one Ansible logs in as, and the runner's."""
+    variables = raspberry_pi_play()['vars']
+
+    assert variables['deploy_user'] == '{{ ansible_user }}'
+    assert variables['ci_user'] == 'circleci'
+    assert 'raspberry_pi_video_users' not in variables
+
+
+def test_the_raspberry_pi_playbook_names_its_users_only_through_their_variables():
+    """No task spells out ansible_user or the circleci account: only the two variables do."""
+    playbook = RASPBERRY_PI_PLAYBOOK_PATH.read_text(encoding='utf-8')
+    roles_text = ''.join(path.read_text(encoding='utf-8') for path in raspberry_pi_role_files())
+    tasks_text = playbook[playbook.index('\n  pre_tasks:') :] + roles_text
+
+    assert raspberry_pi_role_files()
+    assert 'ansible_user' not in tasks_text
+    assert not re.search(r'(name|owner|group|become_user): circleci\s*$', tasks_text, re.MULTILINE)
+    assert 'AutomaticLogin=circleci' not in tasks_text
+    assert 'autologin-user=circleci' not in tasks_text
+
+
+def test_raspberry_pi_tasks_never_become_the_deploy_user():
+    """Only the CI user is reached through sudo; deploy-user tasks say become: false.
+
+    Ansible skips sudo when the become user is the login user (BECOME_ALLOW_SAME_USER), so
+    become_user naming the deploy user would only look like a switch.
+    """
+    tasks = raspberry_pi_tasks()
+    switching = [task for task in tasks if 'become_user' in task]
+
+    assert switching
+    assert all(task['become_user'] == CI_USER for task in switching)
+    assert all(task.get('become', True) is not False for task in switching)
+
+
+def test_every_raspberry_pi_task_has_a_name():
+    """Each task is named, so a run's output says what each step was."""
+    assert all(task.get('name') for task in raspberry_pi_tasks())
+
+
+def test_deploy_user_tasks_run_as_the_login_user():
+    """The tasks working in the deploy user's home run with become: false."""
+    tasks = raspberry_pi_tasks()
+    names = {task['name']: task for task in tasks}
+
+    for name in (
+        'Read the installed uv version',
+        'Install uv at its pinned version',
+        'Set the git identity of commits made here',
+        'Clone the repository the pre-push hook measures in',
+    ):
+        assert names[name].get('become') is False, name
+
+
+def test_the_deploy_users_throttling_check_runs_on_a_fresh_connection():
+    """The play reconnects between adding the deploy user to video and checking it.
+
+    Its open ssh connection keeps the groups it logged in with (a fresh Pi's first run failed
+    here, 2026-11-14). The CI user is checked through sudo, which reads its groups afresh.
+    """
+    tasks = raspberry_pi_tasks()
+    position = {task['name']: index for index, task in enumerate(tasks)}
+    reconnect = tasks[position["Reconnect, so the deploy user's session has its new group"]]
+    deploy_check = tasks[position['Check the deploy user can read the throttling state']]
+    ci_check = tasks[position['Check the CI user can read the throttling state']]
+
+    assert (
+        position['Add the users who read the throttling state to the video group']
+        < position["Reconnect, so the deploy user's session has its new group"]
+        < position['Check the deploy user can read the throttling state']
+    )
+    assert reconnect['ansible.builtin.meta'] == 'reset_connection'
+    assert deploy_check['become'] is False
+    assert ci_check['become_user'] == CI_USER
+    assert 'loop' not in deploy_check
+    assert 'loop' not in ci_check
 
 
 def circleci_jobs() -> dict[str, dict[str, object]]:
@@ -110,7 +228,11 @@ def test_each_raspberry_pis_job_uses_the_resource_class_ansible_registers():
     jobs = circleci_jobs()
     hosts = raspberry_pi_hosts()
 
-    assert sorted(hosts) == ['raspberry-pi-4', 'raspberry-pi-5']
+    assert list(hosts) == [
+        'raspberry-pi-4-4gb-ubuntu',
+        'raspberry-pi-5-8gb-ubuntu',
+        'raspberry-pi-5-16gb-ubuntu',
+    ]
     for host, variables in hosts.items():
         assert (
             jobs[f'build-and-test-{host}']['resource_class']
@@ -118,14 +240,25 @@ def test_each_raspberry_pis_job_uses_the_resource_class_ansible_registers():
         )
 
 
-def test_the_raspberry_pi_5_job_is_the_raspberry_pi_4_job_on_its_own_runner():
-    """Only the runner differs, so the two Pis' results compare the hardware, not the settings."""
+@pytest.mark.parametrize('host', ['raspberry-pi-5-8gb-ubuntu', 'raspberry-pi-5-16gb-ubuntu'])
+def test_each_raspberry_pi_5_job_is_the_raspberry_pi_4_job_on_its_own_runner(host):
+    """Only the runner differs, so the Pis' results compare the hardware, not the settings."""
     jobs = circleci_jobs()
 
-    assert jobs['build-and-test-raspberry-pi-5'] == {
-        **jobs['build-and-test-raspberry-pi-4'],
-        'resource_class': 'terrysimons/raspberry-pi-5',
+    assert jobs[f'build-and-test-{host}'] == {
+        **jobs['build-and-test-raspberry-pi-4-4gb-ubuntu'],
+        'resource_class': f'terrysimons/{host}',
     }
+
+
+def test_the_8_gb_raspberry_pi_5_is_in_the_inventory():
+    """The owner's third Pi (2026-11-14): a Pi 5 with 8 GB at 172.23.23.140, on Ubuntu 26.10."""
+    host = raspberry_pi_hosts()['raspberry-pi-5-8gb-ubuntu']
+
+    assert host['ansible_host'] == '172.23.23.140'
+    assert host['raspberry_pi_hostname'] == 'rpi5-8gb-ubuntu-2610'
+    assert host['raspberry_pi_resource_class'] == 'terrysimons/raspberry-pi-5-8gb-ubuntu'
+    assert '8 GB' in host['raspberry_pi_description']
 
 
 def test_circleci_runs_an_installed_nox_never_through_uvx():
@@ -141,7 +274,7 @@ def test_circleci_runs_an_installed_nox_never_through_uvx():
     jobs = configuration[configuration.index('\njobs:\n') : configuration.index('\nworkflows:\n')]
     windows_job = jobs[
         jobs.index('\n  build-and-test-windows:\n') : jobs.index(
-            '\n  build-and-test-raspberry-pi-4:'
+            '\n  build-and-test-raspberry-pi-4-4gb-ubuntu:'
         )
     ]
     install_deps_posix = configuration[
@@ -1051,11 +1184,13 @@ def raspberry_pi_job() -> str:
 
     """
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
-    job = configuration[configuration.index('\n  build-and-test-raspberry-pi-4:') :]
+    job = configuration[configuration.index('\n  build-and-test-raspberry-pi-4-4gb-ubuntu:') :]
     return job[: job.index('\n  # The same job on a Raspberry Pi 5')]
 
 
-@pytest.mark.parametrize('host', ['raspberry-pi-4', 'raspberry-pi-5'])
+@pytest.mark.parametrize(
+    'host', ['raspberry-pi-4-4gb-ubuntu', 'raspberry-pi-5-8gb-ubuntu', 'raspberry-pi-5-16gb-ubuntu']
+)
 def test_no_workflow_runs_a_raspberry_pis_job(host):
     """The Pis measure replays when the owner pushes, and take no CI jobs."""
     configuration = (PROJECT_ROOT / '.circleci' / 'config.yml').read_text(encoding='utf-8')
@@ -1070,7 +1205,7 @@ def test_the_raspberry_pi_job_runs_the_tests_serially_on_its_runner():
     """The job runs on the self-hosted machine runner, with no xdist workers to reach its swap."""
     job = raspberry_pi_job()
 
-    assert '    machine: true\n    resource_class: terrysimons/raspberry-pi-4\n' in job
+    assert '    machine: true\n    resource_class: terrysimons/raspberry-pi-4-4gb-ubuntu\n' in job
     assert '      PYTEST_WORKERS: "0"\n' in job
     assert job.index('      - install-deps-posix') < job.index('      - nox-test\n')
 

@@ -1,0 +1,160 @@
+---
+# A Pi's firmware settings: its clock (raspberry_pi_overclock_settings, or none for stock) and
+# its fan (raspberry_pi_fan: kind, pin, levels in Celsius), as one blockinfile block appended to
+# the firmware's config.txt (raspberry_pi_firmware_config, its OS group's path). The block is its
+# board's own section ([pi5], [pi4]: raspberry_pi_board) and ends with [all], so it holds whether
+# or not the file has that section, and nothing after it falls into it. The firmware reads
+# config.txt at boot: a change says a reboot is needed and reboots nothing (rebooting ends the
+# desktop session in use). Tests: tests/test_ansible_raspberry_pis.py
+
+- name: Read the Pi's model
+  ansible.builtin.slurp:
+    src: /proc/device-tree/model
+  register: raspberry_pi_model
+
+# A [pi5] section on a Pi 4 would be read by nothing
+- name: Refuse a Pi whose board is not the one the inventory names
+  ansible.builtin.assert:
+    that:
+      - (raspberry_pi_model.content | b64decode).startswith(raspberry_pi_board_models[raspberry_pi_board])
+    fail_msg: >-
+      {{ inventory_hostname }} is a {{ raspberry_pi_model.content | b64decode | trim }}, not
+      the {{ raspberry_pi_board }} the inventory names
+
+- name: Refuse unknown firmware settings
+  ansible.builtin.assert:
+    that:
+      - raspberry_pi_board in raspberry_pi_board_models
+      - raspberry_pi_overclock_settings | reject('in', raspberry_pi_clock_keys) | list | length == 0
+      - raspberry_pi_overclock_settings.values() | reject('integer') | list | length == 0
+      - (raspberry_pi_overclock_settings | length > 0) == raspberry_pi_overclock_enabled
+      - raspberry_pi_fan.kind in raspberry_pi_fan_kinds[raspberry_pi_board]
+      - >-
+        raspberry_pi_fan.kind not in raspberry_pi_fan_level_counts
+        or (raspberry_pi_fan.levels | default([]) | length) >= raspberry_pi_fan_level_counts[raspberry_pi_fan.kind][0]
+      - >-
+        raspberry_pi_fan.kind not in raspberry_pi_fan_level_counts
+        or (raspberry_pi_fan.levels | default([]) | length) <= raspberry_pi_fan_level_counts[raspberry_pi_fan.kind][1]
+      - raspberry_pi_fan.levels | default([]) | map(attribute='speed') | reject('integer') | list | length == 0
+      - raspberry_pi_fan.levels | default([]) | map(attribute='speed') | select('lt', 0) | list | length == 0
+      - raspberry_pi_fan.levels | default([]) | map(attribute='speed') | select('gt', 255) | list | length == 0
+      - >-
+        (raspberry_pi_fan.levels | default([]) | map(attribute='start_celsius') | list)
+        == (raspberry_pi_fan.levels | default([]) | map(attribute='start_celsius') | unique | sort | list)
+      - raspberry_pi_fan.kind not in ['gpio-fan', 'pwm-gpio-fan'] or raspberry_pi_fan.pin | default(none) is integer
+    fail_msg: >-
+      {{ inventory_hostname }}: the clock must be whole numbers for settings among
+      raspberry_pi_clock_keys, set exactly when overclocking is enabled; the fan must be a kind
+      its board can have, with its pin when on GPIO, as many levels as that kind takes, speeds
+      0 to 255, and levels starting at rising temperatures
+
+- name: Refuse a fan level that wouldn't stop below where it starts
+  ansible.builtin.assert:
+    that:
+      - item.stop_below_celsius < item.start_celsius
+    fail_msg: "{{ inventory_hostname }}: a fan level starting at {{ item.start_celsius }} C must stop below it"
+  loop: "{{ raspberry_pi_fan.levels | default([]) }}"
+
+# Kept in memory before anything changes it, for the backup below
+- name: Read config.txt as it is before this run
+  ansible.builtin.slurp:
+    src: "{{ raspberry_pi_firmware_config }}"
+  register: raspberry_pi_firmware_original
+
+- name: Read whether config.txt has its backup
+  ansible.builtin.stat:
+    path: "{{ raspberry_pi_firmware_backup }}"
+  register: raspberry_pi_firmware_backup_file
+
+- name: Remove the settings typed by hand that the block takes over
+  ansible.builtin.replace:
+    path: "{{ raspberry_pi_firmware_config }}"
+    regexp: "{{ item }}"
+    replace: ""
+  loop: "{{ raspberry_pi_firmware_hand_typed_patterns }}"
+  register: raspberry_pi_hand_typed_removed
+
+# Each setting is written once, in a block: one also set by hand would leave two values for it,
+# the later winning. Fan lines too (raspi-config's Fan menu writes a gpio-fan line)
+- name: Refuse firmware settings set by hand
+  ansible.builtin.command:
+    cmd: >-
+      awk -v clock_keys='{{ raspberry_pi_clock_keys | join('|') }}'
+      '/^# BEGIN firmware settings for / { managed = 1; next }
+      /^# END firmware settings for / { managed = 0; next }
+      managed { next }
+      $0 ~ "^[[:space:]]*(" clock_keys ")[[:space:]]*="
+      || /^[[:space:]]*dtparam=fan_temp/
+      || /^[[:space:]]*dtoverlay=(pwm-)?gpio-fan/ { print NR ": " $0 }'
+      {{ raspberry_pi_firmware_config }}
+  register: raspberry_pi_hand_set_lines
+  changed_when: false
+  failed_when: raspberry_pi_hand_set_lines.stdout | length > 0
+
+# Celsius in the inventory, millicelsius in config.txt; each level's hysteresis is how far below
+# its start it stops
+- name: Write the firmware settings in their board section
+  ansible.builtin.blockinfile:
+    path: "{{ raspberry_pi_firmware_config }}"
+    marker: "# {mark} firmware settings for [{{ raspberry_pi_board }}], managed by ansible/raspberry_pi_runner.yml"
+    insertafter: EOF
+    state: >-
+      {{ 'present' if raspberry_pi_overclock_enabled
+      or raspberry_pi_fan.kind in ['gpio-fan', 'pwm-gpio-fan']
+      or (raspberry_pi_fan.levels | default([]) | length > 0) else 'absent' }}
+    block: |
+      [{{ raspberry_pi_board }}]
+      {% for key, value in raspberry_pi_overclock_settings | dictsort %}
+      {{ key }}={{ value }}
+      {% endfor %}
+      {% if raspberry_pi_fan.kind == 'active-cooler' %}
+      {% for level in raspberry_pi_fan.levels | default([]) %}
+      dtparam=fan_temp{{ loop.index0 }}={{ (level.start_celsius * 1000) | int }}
+      dtparam=fan_temp{{ loop.index0 }}_hyst={{ ((level.start_celsius - level.stop_below_celsius) * 1000) | int }}
+      dtparam=fan_temp{{ loop.index0 }}_speed={{ level.speed }}
+      {% endfor %}
+      {% elif raspberry_pi_fan.kind == 'gpio-fan' %}
+      {% set level = raspberry_pi_fan.levels[0] %}
+      dtoverlay=gpio-fan,gpiopin={{ raspberry_pi_fan.pin }},temp={{ (level.start_celsius * 1000) | int }},hyst={{ ((level.start_celsius - level.stop_below_celsius) * 1000) | int }}
+      {% elif raspberry_pi_fan.kind == 'pwm-gpio-fan' %}
+      dtoverlay=pwm-gpio-fan,fan_gpio={{ raspberry_pi_fan.pin }}{% for level in raspberry_pi_fan.levels %},fan_temp{{ loop.index0 }}={{ (level.start_celsius * 1000) | int }},fan_temp{{ loop.index0 }}_hyst={{ ((level.start_celsius - level.stop_below_celsius) * 1000) | int }},fan_temp{{ loop.index0 }}_speed={{ level.speed }}{% endfor %}
+
+      {% endif %}
+      [all]
+  register: raspberry_pi_firmware_block
+
+# Not Ansible's backup option: its copies' names hold a colon, which FAT refuses
+- name: Keep config.txt as it was before this change
+  ansible.builtin.copy:
+    content: "{{ raspberry_pi_firmware_original.content | b64decode }}"
+    dest: "{{ raspberry_pi_firmware_backup }}"
+  when: not raspberry_pi_firmware_backup_file.stat.exists or raspberry_pi_hand_typed_removed.changed or raspberry_pi_firmware_block.changed
+
+- name: Say a reboot is needed for the new firmware settings
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}'s config.txt changed: reboot it for the new settings
+      (this playbook never reboots)
+  when: raspberry_pi_hand_typed_removed.changed or raspberry_pi_firmware_block.changed
+
+# What the firmware applied at the last boot, checked only when the file did not just change
+- name: Check the firmware runs the configured clock
+  ansible.builtin.command:
+    cmd: vcgencmd get_config {{ item.key }}
+  loop: "{{ raspberry_pi_overclock_settings | dict2items }}"
+  register: raspberry_pi_applied_clock
+  changed_when: false
+  failed_when: raspberry_pi_applied_clock.stdout != item.key ~ '=' ~ item.value
+  when: not (raspberry_pi_hand_typed_removed.changed or raspberry_pi_firmware_block.changed)
+
+# The Active Cooler's levels are thermal zone 0's trip points 1 to 4 (read 2026-11-14: the
+# defaults 50000, 60000, 67500 and 75000 there), so each level's start is its trip point
+- name: Check the kernel runs the configured fan curve
+  ansible.builtin.slurp:
+    src: /sys/class/thermal/thermal_zone0/trip_point_{{ raspberry_pi_level_index + 1 }}_temp
+  loop: "{{ raspberry_pi_fan.levels | default([]) }}"
+  loop_control:
+    index_var: raspberry_pi_level_index
+  register: raspberry_pi_trip_point
+  failed_when: (raspberry_pi_trip_point.content | b64decode | int) != ((item.start_celsius * 1000) | int)
+  when: not (raspberry_pi_hand_typed_removed.changed or raspberry_pi_firmware_block.changed) and raspberry_pi_fan.kind == 'active-cooler'

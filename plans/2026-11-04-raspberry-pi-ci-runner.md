@@ -1,6 +1,7 @@
 # Raspberry Pi 4 as a CircleCI hardware runner
 
-Status: in progress (branch `feat/hardware-runner`). The runner is installed and registered by
+Status: in progress (branch `feat/hardware-runner`; the third Pi on
+`feature/zombies-aint-my-neighbors`). The runner is installed and registered by
 `ansible/raspberry_pi_runner.yml`, and online. `build-and-test-raspberry-pi` is defined but commented
 out of the workflow. The owner, 2026-11-05: when they push, the replay measurement also runs on the
 Pi, and its files are copied to their machine, in the right place. That is the pre-push hook
@@ -29,6 +30,150 @@ owner: "Leave it capped at 2GB"). The playbook's OS steps were checked against i
 and need no change: `/dev/vcio` is root-only as on the Pi 4, gdm3 and its `custom.conf` are
 there, chrony is not yet (the playbook installs it), and the runner's repository is added for any
 release.
+
+**A third Pi (the owner, 2026-11-14):** a Raspberry Pi 5 with 8 GB on Ubuntu 26.10, at
+172.23.23.140, host `raspberry-pi-5-8gb` (hostname `rpi5-8gb-ubuntu-2610`, which the playbook
+sets). It does both jobs the others do: a CircleCI machine runner (resource class
+`terrysimons/raspberry-pi-5-8gb`, job `build-and-test-raspberry-pi-5-8gb`, the Pi 4's job on its
+own runner, left out of the workflow) and a machine the pre-push hook measures on (the owner:
+added to the hook at once). Its runner keeps the same 2 GB limit. Never provisioned before; the
+owner installed the ssh key (`~/.ssh/github.pub`, the key the 16 GB Pi takes) on 2026-11-14.
+Read that day, before the playbook's first run: a Raspberry Pi 5 Model B Rev 1.0 (the 16 GB Pi is
+Rev 1.1) in the official cooled case, 4 cores, 7.7 GiB RAM (1.8 GiB in use), Ubuntu 26.10
+aarch64; a 229 GB SD card (213 GB free), a 1 GB swap file, `/tmp` in memory (tmpfs, unlike the
+Pi 4). Its hostname was `terry-rpi5-official-cooled-case` (the playbook renames it). The
+playbook's OS steps need no change: `/dev/vcio` is root-only (`vcgencmd` fails as `terry`) as on
+the others, gdm3 and its `custom.conf` are there, chrony is already installed, `/usr/bin/python3`
+is there, `terry` is in `sudo`, and a desktop session runs on seat0. Its resource class is created
+in CircleCI on the playbook's first run; until the Pi is set up, push with
+`SKIP=raspberry-pi-replay-metrics`. Its first playbook run stopped at the throttling check: `terry` joined
+`video` mid-run, and Ansible skips sudo when the become user is the login user (ansible-core's
+`BECOME_ALLOW_SAME_USER`, off by default), so the check ran in the ssh session opened before the
+group was added. The playbook now names its two users (`deploy_user`, the login;
+`ci_user`, the runner's `circleci`): deploy-user tasks run with `become: false`, the
+CI user through sudo, and the play reconnects (`meta: reset_connection`) before checking the
+deploy user (tests in `tests/test_ci_config.py`).
+
+**The Pis renamed (the owner, 2026-11-14):** each name now says its RAM and that it runs Ubuntu:
+`raspberry-pi-4-4gb-ubuntu`, `raspberry-pi-5-16gb-ubuntu` and `raspberry-pi-5-8gb-ubuntu`, as
+inventory hosts, CircleCI jobs (`build-and-test-<host>`), the push hook's names, and resource
+classes (`terrysimons/<host>`; the owner chose to rename the registered ones too). The names
+above this note are as they were then. The ledger's row files are named by board
+(`raspberry-pi-4-model-b-rev-1-4`) and the requirements page by hardware slug, so neither
+changed. The Pi 4 and the 16 GB Pi 5 are registered in CircleCI under the old classes and their
+runners hold tokens for them; the playbook only registers a Pi whose config has no token, so
+those two must be re-registered before their new classes have a runner.
+
+**Grouped by OS, with their firmware managed (the owner, 2026-11-14):** `raspberry_pis` holds
+one child group per OS: `raspberry_pis_ubuntu` (Ubuntu 26.04 and 26.10; all three Pis) and
+`raspberry_pis_raspberry_pi_os` (Raspberry Pi OS 64-bit, Trixie only, the owner's choice; no Pi
+yet). Each group says how Ansible reports its OS and which releases it supports, and each Pi the
+release it runs. The playbook's plays share three roles:
+
+- `raspberry_pi_os` (every play's first step) refuses a Pi whose reported OS or release isn't
+  the inventory's, and on Raspberry Pi OS one without `/etc/rpi-issue` (its os-release is
+  Debian's).
+- `raspberry_pi_desktop` (the runner play) logs the runner's user in at boot and keeps the
+  display on, each OS's way: gdm3 and dconf on Ubuntu (the tasks moved here unchanged); on
+  Raspberry Pi OS, lightdm's `autologin-user` and no `swayidle` in labwc's autostart files, as
+  raspi-config's `do_autologin` and `do_blanking` do it (read from its trixie branch), by hand
+  since `do_blanking` detects labwc by a running session.
+- `raspberry_pi_firmware` (one play per OS group) writes each Pi's clock
+  (`raspberry_pi_overclock_settings`) and fan (`raspberry_pi_fan`: kind, pin, levels in Celsius)
+  as one `blockinfile` block appended to `/boot/firmware/config.txt`: the board's own section
+  (`[pi5]`/`[pi4]`) ending with `[all]`. Pi 5: the Active Cooler's `dtparam=fan_tempN`,
+  `_hyst`, `_speed` (no levels keeps the firmware's default curve); Pi 4: `dtoverlay=gpio-fan`
+  (on and off) or `dtoverlay=pwm-gpio-fan` (four levels), as the overlay README on the Pis
+  describes them. It refuses a Pi whose model isn't its board, a setting or fan its board can't
+  have, and any clock or fan line typed by hand outside a block; says when a reboot is needed
+  and never reboots; and when nothing changed checks the clock against `vcgencmd get_config` and
+  the Active Cooler's levels against thermal zone 0's trip points.
+
+Every Pi starts with the firmware's defaults for its fan (the owner: build it, apply curves only
+once a measurement under load justifies them); the Pi 4 has no fan. A dry run on the three Pis
+(`--check --diff`, no sudo, 2026-11-14) showed the one change expected: the 16 GB Pi 5's
+hand-typed `[pi5]` lines removed and its block added; the other two unchanged. The Raspberry Pi
+OS tasks have not run on a Pi. Tests: `tests/test_ansible_raspberry_pis.py` (the templates and
+assertions rendered as Ansible renders them, the hand-set line check run with awk on the Pis'
+own config.txt), and `tests/ansible_inventory.py` reads the inventory's nested groups for every
+Pi test.
+
+**The first real run (2026-11-14) and its backup.** The run on the three Ubuntu Pis failed on the
+16 GB Pi 5 at the block: `blockinfile`'s `backup: true` names its copy
+`config.txt.<pid>.<date>@<hh:mm:ss>~`, and `/boot/firmware` is FAT (`vfat`), where a colon is no
+file name (`[Errno 22]`). Its hand-typed `[pi5]` lines had just been removed by the cleanup, so
+the Pi would boot stock until the block is written; the other two were unchanged. Check mode
+makes no backups, which is why the dry run passed. Now the role keeps `config.txt` in memory
+before any change and keeps one backup beside it, `config.txt.ansible-backup` (the owner's
+choice): made when missing, replaced with the file as it was whenever a run changes it. The
+16 GB Pi's cleanup moved into the role as data (its `raspberry_pi_firmware_hand_typed_patterns`),
+so one backup covers both changes. The plays import their roles (`import_role`), since
+`--start-at-task` cannot reach tasks of an included role. Tests: no task writing the boot
+partition uses Ansible's `backup` option, and the backup's name is FAT-safe; and
+`test_raspberry_pi_os_overclock` runs a Raspberry Pi OS Pi 5 and Pi 4 through the role on that
+OS's default config.txt (pi-gen ccafc13f2574).
+
+**The runner's display mode (the owner, 2026-11-14): 1920x1080 at 120 Hz on every Pi.** The CI
+jobs run as `circleci`, whose GNOME session ran 3840x2160 at scale 1.5 (at 60 Hz on the 16 GB Pi
+5, 30 Hz on the Pi 4). The owner's own `monitors.xml` names an ASUS ROG XG27UQ, but the monitor
+attached through the switch is now a FUERAN 4K/120, so a config pinned to one monitor would not
+apply. At 1080p a Pi 5 offers 120.040, 120.000 and 119.880 Hz, a Pi 4 only 120.000 and 119.880;
+the owner chose 120 Hz everywhere (the standard 1080p120 timing, so all three drive the display
+alike). The monitor is a headless HDMI dummy plug on each Pi (the owner). GNOME 50 saves a display
+change only when someone clicks Keep in its "Keep these display settings?" dialog, and reverts it
+after 20 seconds otherwise; mutter's source has no unattended way to confirm. Both mutter's
+`ApplyMonitorsConfig` (persistent) over D-Bus and `gdctl set --persistent` reverted at 20 s on
+every Pi they ran on once (journals: 22:27:23 to 22:27:43 on the 16 GB Pi 5; 22:42:26 to 22:42:46
+and 22:42:28 to 22:42:48 on the others). The 16 GB Pi 5 kept 1080p after a manual `gdctl -P` only
+because it ran twice, 5 s apart: the second apply cancelled the first's revert, and its own revert
+"restored" 1080p, unsaved (`circleci`'s `monitors.xml` was last written at 19:45, for the ASUS
+monitor). So the mode is applied temporarily, which asks nothing, with GNOME's own tool (the
+owner's rule: use the OS's tool, not its config files): `files/apply_display_mode` runs the
+planner `files/plan_display_mode.py` (reads mutter's `GetCurrentState`, picks the wanted size at
+the first wanted rate offered, else the highest at that size) and on apply runs `gdctl set
+--logical-monitor --primary --scale 1 --monitor <connector> --mode <mode>`. It runs at every
+`circleci` login (a GNOME autostart entry) and on every deploy, which then waits 25 s past the
+revert window and plans again, failing unless nothing is left to apply. Shown on the three Pis
+(2026-11-14): the deploy's apply held on the Pi 4 and 8 GB Pi 5 (no revert at +20 s, the held
+check passed; the 16 GB Pi 5 planned none); after a reboot, GNOME launched the autostart entry in
+each `circleci` session, it planned `apply HDMI-1 1920x1080@120.000` on all three (the 16 GB Pi 5
+had come back in 4K: its earlier 1080p was never saved), and `gdctl show` reported
+1920x1080@120.000 at scale 1.0 on each, past the 20 s.
+
+**CircleCI's package repository, declared (2026-11-14).** packagecloud's install script (piped to
+bash) re-ran on every deploy and rewrote the repository and its key: its `creates:` named
+`circleci_runner.list`, but with `?any=true` the script writes `circleci_runner_any.list`. The
+runner play now removes the script's two files (apt refuses one repository listed twice with
+different keys) and declares the same repository with `deb822_repository` (`any any main`,
+`signed_by` the key URL, which redirects to the key file whose fingerprint
+81F73EBF5373FB699904EA158CD45F21E87AC85C matched the script's keyring), refreshing apt's lists only
+when it changed. It reports a change only when the repository or its key really changes. A dry
+run on the 16 GB Pi 5 showed the expected first run; `python3-debian` is installed for the
+module.
+
+**Output in the hosts' natural order (2026-11-14).** The plays run hosts in inventory order, but
+Ansible prints each host's result as it finishes, so the faster Pi 5s printed before the Pi 4.
+`ansible.cfg` at the repository root selects `ansible/callback_plugins/natural_order.py`, the
+default output with each task's results held and printed host by host in natural order (4gb,
+8gb, 16gb); its ordering is `ansible/plugin_support/natural_order.py`, plain Python the tests run
+(Ansible isn't in this project's environment), and the inventory tests use its natural key. Shown
+with real Ansible on three local stand-in hosts finishing in reverse order (results, loop items,
+skips and a failure). Ansible's own `PLAY RECAP` keeps its alphabetical list. The inventory's `raspberry_pi_display_mode` holds the size and
+rates. Tests run the script's planning on both boards' captured GetCurrentState
+(`tests/fixtures/mutter/`). **To do:** Raspberry Pi OS (labwc) sets modes another way (kanshi);
+add it to that OS's desktop tasks once a Pi OS host can be read.
+
+The audit (read 2026-11-14, nothing changed): the Pi 4 is stock at 1800 MHz (Ubuntu's
+`arm_boost=1`), with no fan, and has throttled since its boot (`get_throttled` 0xe0000: capped,
+throttled, soft temperature limit; no undervoltage), so a row measured on it under load may have
+run throttled. The 16 GB Pi 5 was overclocked by hand in `[pi5]`: `arm_freq=3000`,
+`over_voltage=6`, and `gpu_fre=1100`, a typo the firmware ignored, so its GPU was never
+overclocked; its inventory now holds all three, `gpu_freq` spelled right (the owner: "Fix the
+typo"), and a one-off task removes the hand-typed section. The 8 GB Pi 5 is stock at 2400 MHz.
+Both Pi 5s have the active cooler on the firmware's default curve (50, 60, 67.5, 75 C); fan
+curves are not managed yet. A measured row records the board, memory, cores and kernel but no
+clock, voltage or throttling, so an overclocked Pi's rows can't be told from a stock one's:
+recording them needs the engine (`src/glitchygames/replay/`), off-limits on this branch.
 
 ## The host (read 2026-11-04)
 

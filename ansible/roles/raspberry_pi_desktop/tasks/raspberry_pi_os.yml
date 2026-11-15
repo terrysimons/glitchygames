@@ -1,0 +1,26 @@
+---
+# Raspberry Pi OS (Trixie) runs labwc under lightdm. Both settings are made as raspi-config makes
+# them (https://github.com/RPi-Distro/raspi-config, branch trixie: do_autologin and do_blanking),
+# but by editing the files directly: raspi-config's do_blanking tells labwc from X11 by a running
+# labwc session (pgrep labwc), so run before the desktop is up it would write X11's file instead.
+# Not yet run on a Pi: no Raspberry Pi OS Pi is in the inventory (2026-11-14).
+
+# The display is the job's: its session starts at boot, and the owner switches users to play
+- name: Log the runner's user in at boot
+  ansible.builtin.lineinfile:
+    path: /etc/lightdm/lightdm.conf
+    regexp: '^#?autologin-user='
+    line: autologin-user={{ ci_user }}
+    insertafter: '^\[Seat:\*\]'
+
+# Blanking under labwc is a swayidle line in an autostart file (raspi-config adds it to the
+# user's and the greeter's); none of them may start it. A file that isn't there has none
+- name: Keep the desktop session's display on
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    regexp: swayidle
+    state: absent
+  loop:
+    - /etc/xdg/labwc/autostart
+    - /etc/xdg/labwc-greeter/autostart
+    - "{{ raspberry_pi_runner_home }}/.config/labwc/autostart"

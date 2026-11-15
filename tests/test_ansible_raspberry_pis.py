@@ -1,0 +1,1596 @@
+"""The Raspberry Pis' Ansible setup: OS groups, the OS check, the desktop and the firmware.
+
+ansible/inventory.yml groups the Pis by OS under ``raspberry_pis``: ``raspberry_pis_ubuntu``
+(Ubuntu 26.04 and 26.10) and ``raspberry_pis_raspberry_pi_os`` (Raspberry Pi OS 64-bit, Trixie;
+no Pi yet). ansible/raspberry_pi_runner.yml's plays use three roles:
+
+- ``raspberry_pi_os``: refuses a Pi whose OS isn't the one the inventory names.
+- ``raspberry_pi_desktop``: auto-login and a display that stays on, done each OS's way (gdm3 and
+  dconf on Ubuntu; lightdm and labwc's swayidle on Raspberry Pi OS, as raspi-config does them).
+- ``raspberry_pi_firmware``: each Pi's clock and fan settings, as one ``blockinfile`` block per
+  board section appended to config.txt (the block is its ``[pi5]``/``[pi4]`` section and ends
+  with ``[all]``), with checks for settings typed by hand and against what the firmware applied.
+
+Templates and assertions are rendered here with Jinja as Ansible renders them, and the hand-set
+line check runs with the real awk on the owner's Pis' own config.txt (read 2026-11-14).
+"""
+
+from __future__ import annotations
+
+import ast
+import importlib.util
+import json
+import os
+import re
+import shlex
+from pathlib import Path
+from typing import Any
+
+import jinja2
+import pytest
+import yaml
+
+from glitchygames.process import OutputCapture, run_command
+from tests.ansible_inventory import inventory_group, natural_key, raspberry_pi_hosts
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PLAYBOOK_PATH = PROJECT_ROOT / 'ansible' / 'raspberry_pi_runner.yml'
+ROLES = PROJECT_ROOT / 'ansible' / 'roles'
+UBUNTU_GROUP = 'raspberry_pis_ubuntu'
+RASPBERRY_PI_OS_GROUP = 'raspberry_pis_raspberry_pi_os'
+PI4 = 'raspberry-pi-4-4gb-ubuntu'
+PI5_16GB = 'raspberry-pi-5-16gb-ubuntu'
+PI5_8GB = 'raspberry-pi-5-8gb-ubuntu'
+BLOCK_TASK = 'Write the firmware settings in their board section'
+CHANGED = 'raspberry_pi_hand_typed_removed.changed or raspberry_pi_firmware_block.changed'
+# Ansible templates with trim_blocks on, so a {% %} line leaves no line of its own, and no
+# escaping (config text, not HTML)
+ANSIBLE_TEMPLATES = jinja2.Environment(
+    trim_blocks=True,
+    undefined=jinja2.StrictUndefined,
+    autoescape=jinja2.select_autoescape(default_for_string=False, default=False),
+)
+
+UBUNTU_HEAD = """[all]
+os_prefix=current/
+
+[tryboot]
+os_prefix=new/
+
+[all]
+arm_64bit=1
+kernel=vmlinuz
+cmdline=cmdline.txt
+initramfs initrd.img followkernel
+
+# Config settings specific to arm64
+dtoverlay=dwc2
+
+"""
+UBUNTU_TAIL = """[pi4]
+max_framebuffers=2
+arm_boost=1
+
+[pi3+]
+dtoverlay=vc4-kms-v3d,cma-128
+
+[cm4]
+dtoverlay=dwc2,dr_mode=host
+
+[all]
+dtparam=watchdog=on
+"""
+# The 16 GB Pi 5's, overclocked by hand (gpu_fre: the owner's typo, ignored by the firmware)
+PI5_16GB_CONFIG = (
+    UBUNTU_HEAD
+    + """[pi5]
+arm_freq=3000
+gpu_fre=1100
+over_voltage=6
+
+"""
+    + UBUNTU_TAIL
+)
+# The 8 GB Pi 5's: no [pi5] section
+PI5_8GB_CONFIG = UBUNTU_HEAD + UBUNTU_TAIL
+# Raspberry Pi OS's default config.txt, as its image builder writes it (Trixie): pi-gen's
+# stage1/00-boot-files/files/config.txt at commit ccafc13f2574 (2026-06-15),
+# https://github.com/RPi-Distro/pi-gen/blob/ccafc13f2574/stage1/00-boot-files/files/config.txt
+RASPBERRY_PI_OS_CONFIG = """# For more options and information see
+# http://rptl.io/configtxt
+# Some settings may impact device functionality. See link above for details
+
+# Uncomment some or all of these to enable the optional hardware interfaces
+#dtparam=i2c_arm=on
+#dtparam=i2s=on
+#dtparam=spi=on
+
+# Enable audio (loads snd_bcm2835)
+dtparam=audio=on
+
+# Additional overlays and parameters are documented
+# /boot/firmware/overlays/README
+
+# Automatically load overlays for detected cameras
+camera_auto_detect=1
+
+# Automatically load overlays for detected DSI displays
+display_auto_detect=1
+
+# Automatically load initramfs files, if found
+auto_initramfs=1
+
+# Enable DRM VC4 V3D driver
+dtoverlay=vc4-kms-v3d
+max_framebuffers=2
+
+# Don't have the firmware create an initial video= setting in cmdline.txt.
+# Use the kernel's default instead.
+disable_fw_kms_setup=1
+
+# Disable compensation for displays with overscan
+disable_overscan=1
+
+# Run as fast as firmware / board allows
+arm_boost=1
+
+[cm4]
+# Enable host mode on the 2711 built-in XHCI USB controller.
+# This line should be removed if the legacy DWC2 controller is required
+# (e.g. for USB device mode) or if USB support is not required.
+otg_mode=1
+
+[cm5]
+dtoverlay=dwc2,dr_mode=host
+
+[pi5]
+dtoverlay=nospi10
+
+[all]
+"""
+# The recommended curve for an overclocked Pi 5 (the owner's table, 2026-11-14): not applied to
+# any Pi yet (every Pi starts on the firmware's defaults), used here to test the template
+OVERCLOCKED_PI5_CURVE = [
+    {'start_celsius': 45, 'stop_below_celsius': 41, 'speed': 100},
+    {'start_celsius': 55, 'stop_below_celsius': 51, 'speed': 150},
+    {'start_celsius': 62, 'stop_below_celsius': 58, 'speed': 200},
+    {'start_celsius': 68, 'stop_below_celsius': 64, 'speed': 255},
+]
+
+
+def yaml_file(path: Path) -> Any:
+    """Return a YAML file, parsed.
+
+    Returns:
+        Its contents.
+
+    """
+    return yaml.safe_load(path.read_text(encoding='utf-8'))
+
+
+def plays() -> list[dict[str, Any]]:
+    """Return the Pi playbook's plays.
+
+    Returns:
+        The plays, in order.
+
+    """
+    return yaml_file(PLAYBOOK_PATH)
+
+
+def role_tasks(role: str, file_name: str = 'main.yml') -> list[dict[str, Any]]:
+    """Return one of a role's task files.
+
+    Returns:
+        Its tasks.
+
+    """
+    return yaml_file(ROLES / role / 'tasks' / file_name)
+
+
+def task(tasks: list[dict[str, Any]], name: str) -> dict[str, Any]:
+    """Return the task with a name.
+
+    Returns:
+        The task.
+
+    """
+    (found,) = [each for each in tasks if each.get('name') == name]
+    return found
+
+
+def firmware_defaults() -> dict[str, Any]:
+    """Return the firmware role's defaults.
+
+    Returns:
+        The variables.
+
+    """
+    return yaml_file(ROLES / 'raspberry_pi_firmware' / 'defaults' / 'main.yml')
+
+
+def firmware_task(name: str) -> dict[str, Any]:
+    """Return one of the firmware role's tasks.
+
+    Returns:
+        The task.
+
+    """
+    return task(role_tasks('raspberry_pi_firmware'), name)
+
+
+def host_variables(host: str, **overrides: Any) -> dict[str, Any]:
+    """Return what a host's firmware tasks see: the role's defaults, its groups', its own.
+
+    Returns:
+        The variables.
+
+    """
+    defaults = yaml_file(ROLES / 'raspberry_pi_firmware' / 'defaults' / 'main.yml')
+    return {**defaults, **raspberry_pi_hosts()[host], **overrides}
+
+
+def render(template: str, **variables: Any) -> str:
+    """Render a template as Ansible would.
+
+    Returns:
+        The rendered text.
+
+    """
+    return ANSIBLE_TEMPLATES.from_string(template).render(**variables)
+
+
+def holds(condition: str, **variables: Any) -> bool:
+    """Evaluate an assert task's condition as Ansible would (a bare Jinja expression).
+
+    Returns:
+        Whether it holds.
+
+    """
+    return render('{{ (' + condition + ') }}', **variables) == 'True'
+
+
+def block_text(**variables: Any) -> str:
+    """Return the firmware block's lines for some variables (blockinfile adds no final newline).
+
+    Returns:
+        The block.
+
+    """
+    return render(
+        firmware_task(BLOCK_TASK)['ansible.builtin.blockinfile']['block'], **variables
+    ).rstrip('\n')
+
+
+def blocked(text: str, *, host: str) -> str:
+    """Return config.txt with a host's firmware block appended, as blockinfile writes it at EOF.
+
+    Returns:
+        The file with the block.
+
+    """
+    variables = host_variables(host)
+    marker = render(firmware_task(BLOCK_TASK)['ansible.builtin.blockinfile']['marker'], **variables)
+    begin, end = marker.replace('{mark}', 'BEGIN'), marker.replace('{mark}', 'END')
+    return f'{text}{begin}\n{block_text(**variables)}\n{end}\n'
+
+
+def hand_set_lines(text: str, *, host: str, tmp_path: Path) -> str:
+    """Run the role's check for firmware lines set by hand on a file, with the real awk.
+
+    Returns:
+        What the check prints (nothing when every managed line is in a block).
+
+    """
+    config = tmp_path / 'config.txt'
+    config.write_text(text, encoding='utf-8')
+    variables = host_variables(host, raspberry_pi_firmware_config=str(config))
+    command = render(
+        firmware_task('Refuse firmware settings set by hand')['ansible.builtin.command']['cmd'],
+        **variables,
+    )
+    # ansible.builtin.command runs no shell: it splits the line as shlex does
+    result = run_command(
+        command=shlex.split(command),
+        environment={'PATH': os.environ['PATH']},
+        timeout_seconds=30,
+        capture_output=OutputCapture.APART,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout
+
+
+# --- The inventory: OS groups ---------------------------------------------------------------
+
+
+def test_the_pis_are_grouped_by_os():
+    """Two OS groups under raspberry_pis, which holds no host of its own."""
+    group = inventory_group('raspberry_pis')
+
+    assert set(group['children']) == {UBUNTU_GROUP, RASPBERRY_PI_OS_GROUP}
+    assert 'hosts' not in group
+    assert list(group['children'][UBUNTU_GROUP]['hosts']) == [PI4, PI5_8GB, PI5_16GB]
+    assert not group['children'][RASPBERRY_PI_OS_GROUP].get('hosts')
+
+
+def test_the_natural_order_puts_8gb_before_16gb():
+    """Digits compare by value, where plain sorting would put 16gb first."""
+    names = [PI5_16GB, PI4, PI5_8GB]
+
+    assert sorted(names) == [PI4, PI5_16GB, PI5_8GB]
+    assert sorted(names, key=natural_key) == [PI4, PI5_8GB, PI5_16GB]
+
+
+def test_the_inventory_lists_the_pis_in_natural_order():
+    """Ansible runs hosts in inventory order, so the inventory lists them 4gb, 8gb, 16gb."""
+    hosts = list(raspberry_pi_hosts())
+
+    assert hosts == sorted(hosts, key=natural_key)
+
+
+def test_every_play_runs_its_hosts_in_inventory_order():
+    """Said in each play, not left to Ansible's default."""
+    assert [play.get('order') for play in plays()] == ['inventory'] * len(plays())
+
+
+@pytest.mark.parametrize(
+    ('group_name', 'expected'),
+    [
+        (
+            UBUNTU_GROUP,
+            {
+                'raspberry_pi_os': 'ubuntu',
+                'raspberry_pi_os_distribution': 'Ubuntu',
+                'raspberry_pi_os_release_fact': 'distribution_version',
+                'raspberry_pi_os_supported_releases': ['26.04', '26.10'],
+                'raspberry_pi_firmware_config': '/boot/firmware/config.txt',
+            },
+        ),
+        (
+            RASPBERRY_PI_OS_GROUP,
+            {
+                'raspberry_pi_os': 'raspberry_pi_os',
+                # Raspberry Pi OS keeps Debian's os-release; Trixie is Debian 13
+                'raspberry_pi_os_distribution': 'Debian',
+                'raspberry_pi_os_release_fact': 'distribution_major_version',
+                'raspberry_pi_os_supported_releases': ['13'],
+                'raspberry_pi_os_marker_file': '/etc/rpi-issue',
+                'raspberry_pi_firmware_config': '/boot/firmware/config.txt',
+            },
+        ),
+    ],
+)
+def test_each_os_group_says_what_it_is(group_name, expected):
+    """Each group names its OS, how Ansible reports it, its supported releases and its paths."""
+    variables = inventory_group('raspberry_pis')['children'][group_name]['vars']
+
+    assert {key: variables.get(key) for key in expected} == expected
+
+
+@pytest.mark.parametrize(
+    ('host', 'release'), [(PI4, '26.10'), (PI5_16GB, '26.04'), (PI5_8GB, '26.10')]
+)
+def test_each_pi_names_its_release(host, release):
+    """The release each Pi runs (read 2026-11-08 and 2026-11-14), one its group supports."""
+    variables = raspberry_pi_hosts()[host]
+
+    assert variables['raspberry_pi_os_release'] == release
+    assert release in variables['raspberry_pi_os_supported_releases']
+
+
+# --- The OS check --------------------------------------------------------------------------
+
+
+def os_check_condition() -> list[str]:
+    """Return the OS check's conditions.
+
+    Returns:
+        Each condition, as written.
+
+    """
+    return task(
+        role_tasks('raspberry_pi_os'), 'Refuse a Pi whose OS is not the one the inventory names'
+    )['ansible.builtin.assert']['that']
+
+
+@pytest.mark.parametrize(
+    ('facts', 'passes'),
+    [
+        ({'distribution': 'Ubuntu', 'distribution_version': '26.04'}, True),
+        ({'distribution': 'Ubuntu', 'distribution_version': '26.10'}, False),
+        ({'distribution': 'Debian', 'distribution_version': '26.04'}, False),
+    ],
+)
+def test_the_os_check_compares_the_facts_with_the_inventory(facts, passes):
+    """The 16 GB Pi 5 must report Ubuntu 26.04: another release or OS is refused."""
+    variables = {**raspberry_pi_hosts()[PI5_16GB], 'ansible_facts': facts}
+
+    assert all(holds(condition, **variables) for condition in os_check_condition()) is passes
+
+
+def test_a_release_the_group_does_not_support_is_refused():
+    """A Pi that says it runs a release outside its group's list fails even when facts agree."""
+    variables = {
+        **raspberry_pi_hosts()[PI4],
+        'raspberry_pi_os_release': '25.10',
+        'ansible_facts': {'distribution': 'Ubuntu', 'distribution_version': '25.10'},
+    }
+
+    assert not all(holds(condition, **variables) for condition in os_check_condition())
+
+
+def test_raspberry_pi_os_is_told_from_plain_debian_by_its_marker_file():
+    """Debian 13 on a Pi isn't Raspberry Pi OS: the role checks for /etc/rpi-issue there."""
+    check = task(role_tasks('raspberry_pi_os'), "Refuse a Debian that isn't Raspberry Pi OS")
+
+    assert check['when'] == 'raspberry_pi_os_marker_file is defined'
+    assert check['ansible.builtin.assert']['that'] == ['raspberry_pi_os_marker.stat.exists']
+
+
+def test_the_plays_import_their_roles_so_a_run_can_start_at_any_task():
+    """Roles are imported, not included, so --start-at-task can reach their tasks.
+
+    It only reaches statically imported tasks: a dry run starting at a role task was refused
+    (2026-11-14).
+    """
+    playbook = PLAYBOOK_PATH.read_text(encoding='utf-8')
+
+    assert 'include_role' not in playbook
+    assert playbook.count('ansible.builtin.import_role') == 6
+
+
+def test_every_play_checks_the_os_first():
+    """Each play's first role is the OS check, so no play changes a Pi of the wrong OS."""
+    for play in plays():
+        first = play['tasks'][0]
+        assert first['ansible.builtin.import_role'] == {'name': 'raspberry_pi_os'}, play['name']
+
+
+# --- The desktop, each OS's way ------------------------------------------------------------
+
+
+def test_the_desktop_role_takes_the_tasks_of_the_pis_os():
+    """One task file per OS, chosen by the group's raspberry_pi_os."""
+    (include,) = role_tasks('raspberry_pi_desktop')
+
+    assert include['ansible.builtin.include_tasks'] == '{{ raspberry_pi_os }}.yml'
+    for os_name in ('ubuntu', 'raspberry_pi_os'):
+        assert (ROLES / 'raspberry_pi_desktop' / 'tasks' / f'{os_name}.yml').is_file()
+
+
+def test_ubuntu_logs_the_ci_user_in_with_gdm_and_keeps_gnome_awake():
+    """gdm3's custom.conf and dconf's system defaults."""
+    tasks = role_tasks('raspberry_pi_desktop', 'ubuntu.yml')
+    login = task(tasks, "Log the runner's user in at boot")['ansible.builtin.blockinfile']
+    display = task(tasks, "Keep the desktop session's display on")['ansible.builtin.copy']
+
+    assert login['path'] == '/etc/gdm3/custom.conf'
+    assert 'AutomaticLogin={{ ci_user }}' in login['block']
+    assert 'idle-delay=uint32 0' in display['content']
+
+
+def test_raspberry_pi_os_logs_the_ci_user_in_with_lightdm():
+    """The runner's user is lightdm's autologin-user, set as raspi-config's do_autologin sets it."""
+    login = task(
+        role_tasks('raspberry_pi_desktop', 'raspberry_pi_os.yml'),
+        "Log the runner's user in at boot",
+    )['ansible.builtin.lineinfile']
+
+    assert login['path'] == '/etc/lightdm/lightdm.conf'
+    assert login['regexp'] == '^#?autologin-user='
+    assert login['line'] == 'autologin-user={{ ci_user }}'
+    assert login['insertafter'] == r'^\[Seat:\*\]'
+
+
+def test_raspberry_pi_os_keeps_labwc_from_blanking():
+    """Blanking is a swayidle line in labwc's autostart files: each one is removed.
+
+    That is raspi-config's do_blanking, done by hand: raspi-config itself can't be used here,
+    since it detects labwc by a running session.
+    """
+    keep_on = task(
+        role_tasks('raspberry_pi_desktop', 'raspberry_pi_os.yml'),
+        "Keep the desktop session's display on",
+    )
+
+    assert keep_on['ansible.builtin.lineinfile'] == {
+        'path': '{{ item }}',
+        'regexp': 'swayidle',
+        'state': 'absent',
+    }
+    assert keep_on['loop'] == [
+        '/etc/xdg/labwc/autostart',
+        '/etc/xdg/labwc-greeter/autostart',
+        '{{ raspberry_pi_runner_home }}/.config/labwc/autostart',
+    ]
+
+
+def test_ubuntus_dconf_handler_lives_with_the_tasks_that_notify_it():
+    """The desktop role holds its handler; the runner play no longer needs to."""
+    handlers = yaml_file(ROLES / 'raspberry_pi_desktop' / 'handlers' / 'main.yml')
+    runner_handlers = [handler['name'] for handler in plays()[0]['handlers']]
+
+    assert [handler['name'] for handler in handlers] == ['Update the desktop defaults']
+    assert 'Update the desktop defaults' not in runner_handlers
+
+
+# --- The plays -----------------------------------------------------------------------------
+
+
+def test_the_runner_play_sets_up_every_pi_and_each_os_group_gets_a_firmware_play():
+    """The runner, uv and the clone are every Pi's; firmware is set per OS group."""
+    assert [play['hosts'] for play in plays()] == [
+        'raspberry_pis',
+        UBUNTU_GROUP,
+        RASPBERRY_PI_OS_GROUP,
+    ]
+    for play in plays()[1:]:
+        roles = [each.get('ansible.builtin.import_role', {}).get('name') for each in play['tasks']]
+        assert roles == ['raspberry_pi_os', 'raspberry_pi_firmware'], play['name']
+
+
+def test_the_runner_play_takes_the_desktop_role():
+    """The runner play sets the desktop up through the role, after the OS check."""
+    roles = [
+        each['ansible.builtin.import_role']['name']
+        for each in plays()[0]['tasks']
+        if 'ansible.builtin.import_role' in each
+    ]
+
+    assert roles == ['raspberry_pi_os', 'raspberry_pi_desktop']
+
+
+# --- Each Pi's clock and fan ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ('host', 'board', 'enabled', 'settings', 'fan'),
+    [
+        # Stock at 1800 MHz; no fan (2026-11-14)
+        (PI4, 'pi4', False, {}, {'kind': 'none'}),
+        # Overclocked by hand to 3000 MHz at over_voltage 6; the owner's GPU setting (typed
+        # gpu_fre, so never applied) fixed to gpu_freq ("Fix the typo"). Its Active Cooler on
+        # the firmware's default curve
+        (
+            PI5_16GB,
+            'pi5',
+            True,
+            {'arm_freq': 3000, 'gpu_freq': 1100, 'over_voltage': 6},
+            {'kind': 'active-cooler', 'levels': []},
+        ),
+        # Stock at 2400 MHz, the Active Cooler on the default curve
+        (PI5_8GB, 'pi5', False, {}, {'kind': 'active-cooler', 'levels': []}),
+    ],
+)
+def test_each_pi_declares_its_board_clock_and_fan(host, board, enabled, settings, fan):
+    """Each host names its board section, its clock and its fan."""
+    variables = raspberry_pi_hosts()[host]
+
+    assert variables['raspberry_pi_board'] == board
+    assert variables['raspberry_pi_overclock_enabled'] is enabled
+    assert variables['raspberry_pi_overclock_settings'] == settings
+    assert variables['raspberry_pi_fan'] == fan
+
+
+def settings_conditions() -> list[str]:
+    """Return the conditions of the role's settings check.
+
+    Returns:
+        Each condition, as written.
+
+    """
+    return firmware_task('Refuse unknown firmware settings')['ansible.builtin.assert']['that']
+
+
+def test_every_pis_settings_pass_the_roles_own_check():
+    """The inventory as it is passes the check the role runs on each Pi."""
+    for host in raspberry_pi_hosts():
+        variables = host_variables(host)
+        failed = [
+            condition for condition in settings_conditions() if not holds(condition, **variables)
+        ]
+        assert not failed, (host, failed)
+
+
+@pytest.mark.parametrize(
+    ('host', 'overrides'),
+    [
+        (PI5_16GB, {'raspberry_pi_overclock_settings': {'gpu_fre': 1100}}),
+        (PI5_16GB, {'raspberry_pi_overclock_settings': {'arm_freq': '3000'}}),
+        (PI5_8GB, {'raspberry_pi_overclock_settings': {'arm_freq': 2600}}),
+        (PI5_8GB, {'raspberry_pi_fan': {'kind': 'gpio-fan', 'pin': 14, 'levels': []}}),
+        (PI4, {'raspberry_pi_fan': {'kind': 'active-cooler', 'levels': []}}),
+        (
+            PI4,
+            {
+                'raspberry_pi_fan': {
+                    'kind': 'gpio-fan',
+                    'levels': [{'start_celsius': 50, 'stop_below_celsius': 45, 'speed': 255}],
+                }
+            },
+        ),
+        (PI4, {'raspberry_pi_fan': {'kind': 'gpio-fan', 'pin': 14, 'levels': []}}),
+        (
+            PI5_8GB,
+            {'raspberry_pi_fan': {'kind': 'active-cooler', 'levels': OVERCLOCKED_PI5_CURVE * 2}},
+        ),
+        (
+            PI5_8GB,
+            {
+                'raspberry_pi_fan': {
+                    'kind': 'active-cooler',
+                    'levels': [{'start_celsius': 50, 'stop_below_celsius': 45, 'speed': 300}],
+                }
+            },
+        ),
+        (
+            PI5_8GB,
+            {
+                'raspberry_pi_fan': {
+                    'kind': 'active-cooler',
+                    'levels': list(reversed(OVERCLOCKED_PI5_CURVE)),
+                }
+            },
+        ),
+    ],
+    ids=[
+        'unknown clock key',
+        'clock value not a number',
+        'settings while overclocking is off',
+        'a gpio fan on a pi5',
+        'an active cooler on a pi4',
+        'a gpio fan with no pin',
+        'a gpio fan with no level',
+        'more than four levels',
+        'a speed past 255',
+        'levels not rising',
+    ],
+)
+def test_bad_settings_are_refused(host, overrides):
+    """A typo or a fan the board can't have never reaches a Pi's boot config."""
+    variables = host_variables(host, **overrides)
+
+    assert not all(holds(condition, **variables) for condition in settings_conditions())
+
+
+def test_a_level_that_stops_above_where_it_starts_is_refused():
+    """Each level's fan stops below the temperature that starts it."""
+    level_check = firmware_task("Refuse a fan level that wouldn't stop below where it starts")
+
+    assert level_check['loop'] == '{{ raspberry_pi_fan.levels | default([]) }}'
+    (condition,) = level_check['ansible.builtin.assert']['that']
+    assert holds(condition, item={'start_celsius': 50, 'stop_below_celsius': 45, 'speed': 75})
+    assert not holds(condition, item={'start_celsius': 50, 'stop_below_celsius': 50, 'speed': 75})
+
+
+# --- The block -----------------------------------------------------------------------------
+
+
+def test_the_overclocked_pis_block_is_its_board_section_closed_by_all():
+    """The 16 GB Pi 5: its header, its clock in a fixed order, no fan lines (defaults), [all]."""
+    assert (
+        block_text(**host_variables(PI5_16GB))
+        == '[pi5]\narm_freq=3000\ngpu_freq=1100\nover_voltage=6\n[all]'
+    )
+    marker = firmware_task(BLOCK_TASK)['ansible.builtin.blockinfile']['marker']
+    assert render(marker, **host_variables(PI5_16GB)) == (
+        '# {mark} firmware settings for [pi5], managed by ansible/raspberry_pi_runner.yml'
+    )
+    assert firmware_task(BLOCK_TASK)['ansible.builtin.blockinfile']['insertafter'] == 'EOF'
+
+
+def test_a_pi5_curve_becomes_the_active_coolers_dtparams():
+    """Celsius in the inventory, millicelsius in config.txt; hysteresis is start less stop."""
+    variables = host_variables(
+        PI5_8GB, raspberry_pi_fan={'kind': 'active-cooler', 'levels': OVERCLOCKED_PI5_CURVE}
+    )
+
+    assert block_text(**variables) == (
+        '[pi5]\n'
+        'dtparam=fan_temp0=45000\n'
+        'dtparam=fan_temp0_hyst=4000\n'
+        'dtparam=fan_temp0_speed=100\n'
+        'dtparam=fan_temp1=55000\n'
+        'dtparam=fan_temp1_hyst=4000\n'
+        'dtparam=fan_temp1_speed=150\n'
+        'dtparam=fan_temp2=62000\n'
+        'dtparam=fan_temp2_hyst=4000\n'
+        'dtparam=fan_temp2_speed=200\n'
+        'dtparam=fan_temp3=68000\n'
+        'dtparam=fan_temp3_hyst=4000\n'
+        'dtparam=fan_temp3_speed=255\n'
+        '[all]'
+    )
+
+
+def test_a_pi4_on_off_fan_becomes_the_gpio_fan_overlay():
+    """One level: on at 50 C, off below 45 C, on the fan's pin (the Case Fan's 14)."""
+    fan = {
+        'kind': 'gpio-fan',
+        'pin': 14,
+        'levels': [{'start_celsius': 50, 'stop_below_celsius': 45, 'speed': 255}],
+    }
+
+    assert block_text(**host_variables(PI4, raspberry_pi_fan=fan)) == (
+        '[pi4]\ndtoverlay=gpio-fan,gpiopin=14,temp=50000,hyst=5000\n[all]'
+    )
+
+
+def test_a_pi4_pwm_fan_becomes_the_pwm_gpio_fan_overlay():
+    """Four levels on one overlay line, half degrees kept (62.5 C is 62500)."""
+    levels = [
+        {'start_celsius': 48, 'stop_below_celsius': 44, 'speed': 114},
+        {'start_celsius': 56, 'stop_below_celsius': 52, 'speed': 160},
+        {'start_celsius': 63, 'stop_below_celsius': 59, 'speed': 210},
+        {'start_celsius': 68.5, 'stop_below_celsius': 62.5, 'speed': 255},
+    ]
+    fan = {'kind': 'pwm-gpio-fan', 'pin': 18, 'levels': levels}
+
+    assert block_text(**host_variables(PI4, raspberry_pi_fan=fan)) == (
+        '[pi4]\ndtoverlay=pwm-gpio-fan,fan_gpio=18'
+        ',fan_temp0=48000,fan_temp0_hyst=4000,fan_temp0_speed=114'
+        ',fan_temp1=56000,fan_temp1_hyst=4000,fan_temp1_speed=160'
+        ',fan_temp2=63000,fan_temp2_hyst=4000,fan_temp2_speed=210'
+        ',fan_temp3=68500,fan_temp3_hyst=6000,fan_temp3_speed=255\n[all]'
+    )
+
+
+def test_clock_and_fan_share_one_block():
+    """An overclocked Pi 5 with a curve: the clock first, then the fan."""
+    variables = host_variables(
+        PI5_16GB, raspberry_pi_fan={'kind': 'active-cooler', 'levels': OVERCLOCKED_PI5_CURVE[:1]}
+    )
+
+    assert block_text(**variables) == (
+        '[pi5]\n'
+        'arm_freq=3000\n'
+        'gpu_freq=1100\n'
+        'over_voltage=6\n'
+        'dtparam=fan_temp0=45000\n'
+        'dtparam=fan_temp0_hyst=4000\n'
+        'dtparam=fan_temp0_speed=100\n'
+        '[all]'
+    )
+
+
+@pytest.mark.parametrize(
+    ('host', 'overrides', 'state'),
+    [
+        (PI4, {}, 'absent'),
+        (PI5_16GB, {}, 'present'),
+        (PI5_8GB, {}, 'absent'),
+        (
+            PI5_8GB,
+            {'raspberry_pi_fan': {'kind': 'active-cooler', 'levels': OVERCLOCKED_PI5_CURVE}},
+            'present',
+        ),
+        (
+            PI4,
+            {
+                'raspberry_pi_fan': {
+                    'kind': 'gpio-fan',
+                    'pin': 14,
+                    'levels': [{'start_celsius': 50, 'stop_below_celsius': 45, 'speed': 255}],
+                }
+            },
+            'present',
+        ),
+    ],
+)
+def test_a_pi_with_nothing_to_set_has_no_block(host, overrides, state):
+    """Stock clock and a default (or no) fan: no block; any setting writes it."""
+    task_arguments = firmware_task(BLOCK_TASK)['ansible.builtin.blockinfile']
+
+    assert render(task_arguments['state'], **host_variables(host, **overrides)) == state
+
+
+# --- Settings typed by hand ----------------------------------------------------------------
+
+
+def test_raspberry_pi_ubuntu_overclock():
+    """The 16 GB Pi 5 names its hand-typed [pi5] section; the role removes what a Pi names."""
+    cleanup = firmware_task('Remove the settings typed by hand that the block takes over')
+    (pattern_text,) = host_variables(PI5_16GB)['raspberry_pi_firmware_hand_typed_patterns']
+    pattern = re.compile(pattern_text, re.MULTILINE)
+    cleaned = pattern.sub('', PI5_16GB_CONFIG)
+
+    assert cleanup['ansible.builtin.replace']['regexp'] == '{{ item }}'
+    assert cleanup['loop'] == '{{ raspberry_pi_firmware_hand_typed_patterns }}'
+    assert cleaned == PI5_8GB_CONFIG
+    assert pattern.sub('', blocked(cleaned, host=PI5_16GB)) == blocked(cleaned, host=PI5_16GB)
+
+
+@pytest.mark.parametrize('host', [PI4, PI5_8GB])
+def test_a_pi_that_typed_nothing_by_hand_removes_nothing(host):
+    """The role's default: no patterns."""
+    assert host_variables(host)['raspberry_pi_firmware_hand_typed_patterns'] == []
+
+
+# --- The backup (/boot/firmware is FAT: vfat, 2026-11-14) ------------------------------------
+
+
+def boot_partition_tasks() -> list[dict[str, Any]]:
+    """Return every Pi task that writes the firmware's config.txt or its backup.
+
+    Returns:
+        The tasks.
+
+    """
+    tasks = [each for play in plays() for each in play['tasks']]
+    for path in ROLES.glob('raspberry_pi_*/tasks/*.yml'):
+        tasks += yaml_file(path)
+    writes = []
+    for each in tasks:
+        for module, arguments in each.items():
+            if module.startswith('ansible.builtin.') and isinstance(arguments, dict):
+                target = str(arguments.get('path', '')) + str(arguments.get('dest', ''))
+                if (
+                    'raspberry_pi_firmware_config' in target
+                    or 'raspberry_pi_firmware_backup' in target
+                ):
+                    writes.append({'name': each.get('name'), 'module': module, **arguments})
+    return writes
+
+
+def test_no_task_on_the_boot_partition_uses_ansibles_backup():
+    """No task writing to the boot partition may use Ansible's backup option.
+
+    It names its copy <file>.<pid>.<date>@<hh:mm:ss>~, and a colon is not a FAT file name: the
+    16 GB Pi 5's first run failed with [Errno 22] (2026-11-14).
+    """
+    writes = boot_partition_tasks()
+
+    assert writes
+    assert [write['name'] for write in writes if 'backup' in write] == []
+
+
+def test_the_backup_name_is_valid_on_fat():
+    """One fixed name, of characters FAT allows, beside config.txt."""
+    backup = render(
+        firmware_defaults()['raspberry_pi_firmware_backup'],
+        raspberry_pi_firmware_config='/boot/firmware/config.txt',
+    )
+
+    assert backup == '/boot/firmware/config.txt.ansible-backup'
+    assert not set(Path(backup).name) & set('"*/:<>?\\|')
+
+
+def test_config_txt_is_read_before_anything_changes_it():
+    """The file as it was is kept in memory first, so the backup can hold it after a change."""
+    names = [each['name'] for each in role_tasks('raspberry_pi_firmware')]
+    read = firmware_task('Read config.txt as it is before this run')
+
+    assert read['ansible.builtin.slurp']['src'] == '{{ raspberry_pi_firmware_config }}'
+    assert read['register'] == 'raspberry_pi_firmware_original'
+    assert names.index('Read config.txt as it is before this run') < names.index(
+        'Remove the settings typed by hand that the block takes over'
+    )
+    assert names.index('Write the firmware settings in their board section') < names.index(
+        'Keep config.txt as it was before this change'
+    )
+
+
+def test_the_backup_is_made_once_and_kept_up_to_date_with_each_change():
+    """Made when there is none; replaced with the file as it was whenever the run changed it."""
+    save = firmware_task('Keep config.txt as it was before this change')
+
+    assert save['ansible.builtin.copy'] == {
+        'content': '{{ raspberry_pi_firmware_original.content | b64decode }}',
+        'dest': '{{ raspberry_pi_firmware_backup }}',
+    }
+    assert save['when'] == f'not raspberry_pi_firmware_backup_file.stat.exists or {CHANGED}'
+    exists = firmware_task('Read whether config.txt has its backup')
+    assert exists['ansible.builtin.stat']['path'] == '{{ raspberry_pi_firmware_backup }}'
+    assert exists['register'] == 'raspberry_pi_firmware_backup_file'
+
+
+def test_the_check_finds_clock_lines_set_by_hand(tmp_path):
+    """On the 16 GB Pi 5's file as it was, the check reports its hand-set clock lines."""
+    found = hand_set_lines(PI5_16GB_CONFIG, host=PI5_16GB, tmp_path=tmp_path)
+
+    assert 'arm_freq=3000' in found
+    assert 'over_voltage=6' in found
+
+
+@pytest.mark.parametrize(
+    'line',
+    [
+        'dtparam=fan_temp0=40000',
+        'dtoverlay=gpio-fan,gpiopin=14,temp=50000',
+        'dtoverlay=pwm-gpio-fan,fan_gpio=18',
+    ],
+)
+def test_the_check_finds_fan_lines_set_by_hand(tmp_path, line):
+    """A fan setting typed by hand (raspi-config's Fan menu writes gpio-fan) is refused too."""
+    found = hand_set_lines(PI5_8GB_CONFIG + line + '\n', host=PI5_8GB, tmp_path=tmp_path)
+
+    assert line in found
+
+
+def test_the_check_passes_lines_inside_a_block(tmp_path):
+    """After the cleanup and the block, nothing is reported; nor on a stock Pi with no block."""
+    assert not hand_set_lines(
+        blocked(PI5_8GB_CONFIG, host=PI5_16GB), host=PI5_16GB, tmp_path=tmp_path
+    )
+    assert not hand_set_lines(PI5_8GB_CONFIG, host=PI5_8GB, tmp_path=tmp_path)
+
+
+def test_the_check_ignores_other_settings_and_comments(tmp_path):
+    """Comments, near-miss names and other overlays are not managed lines."""
+    text = (
+        PI5_8GB_CONFIG
+        + '#arm_freq=2000\narm_freqency=1\n#dtparam=fan_temp0=1\ndtoverlay=vc4-kms-v3d\n'
+    )
+
+    assert not hand_set_lines(text, host=PI5_8GB, tmp_path=tmp_path)
+
+
+# --- Board, reboot and what the firmware applied -------------------------------------------
+
+
+def test_the_pi_must_be_the_board_its_section_names():
+    """A [pi5] section on a Pi 4 would do nothing: the role checks the model matches the board."""
+    defaults = yaml_file(ROLES / 'raspberry_pi_firmware' / 'defaults' / 'main.yml')
+    (condition,) = firmware_task('Refuse a Pi whose board is not the one the inventory names')[
+        'ansible.builtin.assert'
+    ]['that']
+
+    assert defaults['raspberry_pi_board_models'] == {
+        'pi4': 'Raspberry Pi 4 ',
+        'pi5': 'Raspberry Pi 5 ',
+    }
+    variables = host_variables(PI4)
+    assert 'raspberry_pi_board_models[raspberry_pi_board]' in condition
+    assert variables['raspberry_pi_board'] == 'pi4'
+
+
+def test_a_change_says_a_reboot_is_needed_and_reboots_nothing():
+    """config.txt is read at boot; nothing here reboots (it would end the desktop session)."""
+    notice = firmware_task('Say a reboot is needed for the new firmware settings')
+    texts = [PLAYBOOK_PATH.read_text(encoding='utf-8')] + [
+        path.read_text(encoding='utf-8') for path in ROLES.glob('raspberry_pi_*/**/*.yml')
+    ]
+
+    assert (
+        notice['when']
+        == 'raspberry_pi_hand_typed_removed.changed or raspberry_pi_firmware_block.changed'
+    )
+    assert not any('ansible.builtin.reboot' in text for text in texts)
+
+
+def test_an_unchanged_clock_is_checked_against_what_the_firmware_applied():
+    """When nothing changed, each clock setting must be what vcgencmd get_config reports."""
+    check = firmware_task('Check the firmware runs the configured clock')
+
+    assert check['ansible.builtin.command']['cmd'] == 'vcgencmd get_config {{ item.key }}'
+    assert check['loop'] == '{{ raspberry_pi_overclock_settings | dict2items }}'
+    assert (
+        check['failed_when'] == "raspberry_pi_applied_clock.stdout != item.key ~ '=' ~ item.value"
+    )
+    assert (
+        check['when']
+        == 'not (raspberry_pi_hand_typed_removed.changed or raspberry_pi_firmware_block.changed)'
+    )
+
+
+def test_an_unchanged_curve_is_checked_against_the_kernels_trip_points():
+    """Each Active Cooler level's start must be its trip point in thermal zone 0.
+
+    The levels are trip points 1 to 4 (the audit read the defaults there: 50000, 60000, 67500,
+    75000).
+    """
+    check = firmware_task('Check the kernel runs the configured fan curve')
+
+    assert check['ansible.builtin.slurp']['src'] == (
+        '/sys/class/thermal/thermal_zone0/trip_point_{{ raspberry_pi_level_index + 1 }}_temp'
+    )
+    assert check['loop'] == '{{ raspberry_pi_fan.levels | default([]) }}'
+    assert check['loop_control'] == {'index_var': 'raspberry_pi_level_index'}
+    assert check['when'] == f"not ({CHANGED}) and raspberry_pi_fan.kind == 'active-cooler'"
+
+
+# --- Overclocking, per OS ------------------------------------------------------------------
+
+
+def raspberry_pi_os_host(**host: Any) -> dict[str, Any]:
+    """Return what a Raspberry Pi OS Pi's firmware tasks would see (no such Pi is in the inventory).
+
+    Returns:
+        The role's defaults, the Raspberry Pi OS group's variables, then the host's own.
+
+    """
+    group = inventory_group('raspberry_pis')['children'][RASPBERRY_PI_OS_GROUP]['vars']
+    return {**firmware_defaults(), **group, 'raspberry_pi_os_release': '13', **host}
+
+
+@pytest.mark.parametrize(
+    ('board', 'settings', 'fan'),
+    [
+        (
+            'pi5',
+            {'arm_freq': 2800, 'over_voltage_delta': 50000},
+            {'kind': 'active-cooler', 'levels': []},
+        ),
+        ('pi4', {'arm_freq': 2000, 'over_voltage': 6}, {'kind': 'none'}),
+    ],
+)
+def test_raspberry_pi_os_overclock(board, settings, fan, tmp_path):
+    """An overclocked Pi on Raspberry Pi OS goes through the same role, on that OS's own config.txt.
+
+    Its default config.txt already has a [pi5] section (dtoverlay=nospi10) and ends with [all],
+    and sets arm_boost=1 for every board: the block leaves all of that alone and comes last.
+    """
+    variables = raspberry_pi_os_host(
+        raspberry_pi_board=board,
+        raspberry_pi_overclock_enabled=True,
+        raspberry_pi_overclock_settings=settings,
+        raspberry_pi_fan=fan,
+    )
+    task_arguments = firmware_task(BLOCK_TASK)['ansible.builtin.blockinfile']
+    marker = render(task_arguments['marker'], **variables)
+    block = block_text(**variables)
+    configured = (
+        f'{RASPBERRY_PI_OS_CONFIG}{marker.replace("{mark}", "BEGIN")}\n{block}\n'
+        f'{marker.replace("{mark}", "END")}\n'
+    )
+    config = tmp_path / 'config.txt'
+    config.write_text(configured, encoding='utf-8')
+    check = render(
+        firmware_task('Refuse firmware settings set by hand')['ansible.builtin.command']['cmd'],
+        **{**variables, 'raspberry_pi_firmware_config': str(config)},
+    )
+    found = run_command(
+        command=shlex.split(check),
+        environment={'PATH': os.environ['PATH']},
+        timeout_seconds=30,
+        capture_output=OutputCapture.APART,
+    )
+
+    assert variables['raspberry_pi_firmware_config'] == '/boot/firmware/config.txt'
+    assert all(holds(condition, **variables) for condition in settings_conditions())
+    assert render(task_arguments['state'], **variables) == 'present'
+    expected_lines = [
+        f'[{board}]',
+        *(f'{key}={value}' for key, value in sorted(settings.items())),
+        '[all]',
+    ]
+    assert block.splitlines() == expected_lines
+    assert configured.startswith(RASPBERRY_PI_OS_CONFIG)
+    assert found.returncode == 0
+    assert not found.stdout
+
+
+def test_raspberry_pi_os_has_its_own_firmware_play():
+    """The Raspberry Pi OS group's play runs the OS check and the firmware role, nothing else."""
+    play = plays()[2]
+
+    assert play['hosts'] == RASPBERRY_PI_OS_GROUP
+    assert [each['ansible.builtin.import_role']['name'] for each in play['tasks']] == [
+        'raspberry_pi_os',
+        'raspberry_pi_firmware',
+    ]
+
+
+# --- The CI user's display mode (Ubuntu: GNOME's mutter over D-Bus) -------------------------
+
+PLAN_DISPLAY_MODE_PATH = ROLES / 'raspberry_pi_desktop' / 'files' / 'plan_display_mode.py'
+MUTTER_FIXTURES = PROJECT_ROOT / 'tests' / 'fixtures' / 'mutter'
+# What the inventory asks for (the owner, 2026-11-14): 1920x1080 at 120 Hz on every Pi, the
+# standard 1080p120 timing both boards offer (a Pi 5 also offers 120.04, a Pi 4 doesn't), so all
+# three drive the display alike; else the highest rate a board offers at that size
+WANTED_MODE = {'width': 1920, 'height': 1080, 'refresh_rates': [120.0]}
+
+
+def load_set_display_mode() -> Any:
+    """Load the role's display planner by its path (it is copied to the Pi, not installed).
+
+    Returns:
+        The module.
+
+    Raises:
+        ImportError: When the file can't be loaded.
+
+    """
+    specification = importlib.util.spec_from_file_location(
+        'plan_display_mode', PLAN_DISPLAY_MODE_PATH
+    )
+    if specification is None or specification.loader is None:
+        raise ImportError(PLAN_DISPLAY_MODE_PATH)
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
+def mutter_state(board: str) -> Any:
+    """Return a Pi's captured GetCurrentState in the shape GLib.Variant.unpack() gives the script.
+
+    The captures are gdbus's text (2026-11-14, the CI user's session on the 16 GB Pi 5 and the
+    Pi 4); unpacking turns structs into tuples, arrays into lists, a{sv} into dicts and every
+    variant into its value, which is what dropping the type annotations here produces.
+
+    Returns:
+        The state.
+
+    """
+    text = (MUTTER_FIXTURES / f'{board}-get-current-state.txt').read_text(encoding='utf-8')
+    text = text.replace('@a{sv} ', '').replace('uint32 ', '')
+    text = re.sub(r'[<>]', '', text)
+    text = re.sub(r'\btrue\b', 'True', re.sub(r'\bfalse\b', 'False', text))
+    return ast.literal_eval(text)
+
+
+@pytest.mark.parametrize('board', ['raspberry-pi-5', 'raspberry-pi-4'])
+def test_every_board_gets_1080p_at_120_hz(board):
+    """Both boards offer the standard 120.000 Hz at 1080p (their sessions, 2026-11-14)."""
+    script = load_set_display_mode()
+    ((_, modes, _),) = mutter_state(board)[1]
+
+    mode = script.chosen_mode(modes=modes, **WANTED_MODE)
+
+    assert mode[0] == '1920x1080@120.000'
+
+
+@pytest.mark.parametrize(
+    ('board', 'expected'),
+    [('raspberry-pi-5', '1920x1080@120.040'), ('raspberry-pi-4', '1920x1080@120.000')],
+)
+def test_rates_are_tried_in_the_order_listed(board, expected):
+    """Asked for 120.04 then 120: a Pi 5 has 120.040; a Pi 4 doesn't, so it gets 120.000."""
+    script = load_set_display_mode()
+    ((_, modes, _),) = mutter_state(board)[1]
+
+    mode = script.chosen_mode(modes=modes, width=1920, height=1080, refresh_rates=[120.04, 120.0])
+
+    assert mode[0] == expected
+
+
+def test_with_no_wanted_rate_offered_the_highest_at_that_size_is_chosen():
+    """Asking for 144 Hz, which no board offers, still gets 1080p at its best rate."""
+    script = load_set_display_mode()
+    ((_, modes, _),) = mutter_state('raspberry-pi-4')[1]
+
+    mode = script.chosen_mode(modes=modes, width=1920, height=1080, refresh_rates=[144.0])
+
+    assert mode[0] == '1920x1080@120.000'
+
+
+def test_a_size_the_monitor_does_not_offer_chooses_nothing():
+    """No mode at that size: nothing to choose."""
+    script = load_set_display_mode()
+    ((_, modes, _),) = mutter_state('raspberry-pi-5')[1]
+
+    assert script.chosen_mode(modes=modes, width=5120, height=2880, refresh_rates=[60.0]) is None
+
+
+@pytest.mark.parametrize(
+    ('board', 'mode_id'),
+    [('raspberry-pi-5', '1920x1080@120.000'), ('raspberry-pi-4', '1920x1080@120.000')],
+)
+def test_the_ci_users_4k_session_is_planned_to_1080p(board, mode_id):
+    """The CI user's 3840x2160 session at scale 1.5 is planned to 1080p at 120 Hz on HDMI-1."""
+    script = load_set_display_mode()
+    state = mutter_state(board)
+
+    plan = script.plan(state=state, **WANTED_MODE)
+
+    assert plan['action'] == 'apply'
+    assert plan['mode'] == mode_id
+    assert plan['connector'] == 'HDMI-1'
+
+
+def test_a_session_already_in_the_mode_is_left_alone():
+    """Run again once the mode is in place, nothing is applied."""
+    script = load_set_display_mode()
+    serial, monitors, _logical, properties = mutter_state('raspberry-pi-5')
+    ((spec, modes, monitor_properties),) = monitors
+    modes = [
+        (mode[0], *mode[1:6], {'is-current': True} if mode[0] == '1920x1080@120.000' else {})
+        for mode in modes
+    ]
+    state = (
+        serial,
+        [(spec, modes, monitor_properties)],
+        [(0, 0, 1.0, 0, True, [spec], {})],
+        properties,
+    )
+
+    plan = script.plan(state=state, **WANTED_MODE)
+
+    assert plan['action'] == 'none'
+    assert plan['mode'] == '1920x1080@120.000'
+
+
+def test_more_than_one_monitor_is_left_as_it_is():
+    """With two monitors there is no one display to set: the plan says so and changes nothing."""
+    script = load_set_display_mode()
+    serial, monitors, logical, properties = mutter_state('raspberry-pi-5')
+
+    plan = script.plan(state=(serial, monitors * 2, logical, properties), **WANTED_MODE)
+
+    assert plan['action'] == 'skip'
+    assert '2 monitors' in plan['reason']
+
+
+def test_a_monitor_without_the_size_fails_the_run():
+    """Asked for a size the monitor can't show, the plan says it can't, by name."""
+    script = load_set_display_mode()
+
+    plan = script.plan(
+        state=mutter_state('raspberry-pi-4'), width=5120, height=2880, refresh_rates=[60.0]
+    )
+
+    assert plan['action'] == 'fail'
+    assert '5120x2880' in plan['reason']
+
+
+def test_the_script_needs_no_gi_to_plan():
+    """PyGObject is the Pi's (the desktop's python3-gi); loading the script to plan needs none."""
+    assert (
+        'from gi' not in PLAN_DISPLAY_MODE_PATH.read_text(encoding='utf-8').split('def main', 1)[0]
+    )
+
+
+def test_the_planner_only_reads():
+    """It reads mutter's state and changes nothing: gdctl applies the mode.
+
+    The owner, 2026-11-14: GNOME reverts what isn't set through its own tools. mutter's
+    ApplyMonitorsConfig called directly was reverted after 20 s (the 16 GB Pi 5's journal,
+    22:27:23 to 22:27:43).
+    """
+    source = PLAN_DISPLAY_MODE_PATH.read_text(encoding='utf-8')
+
+    assert 'ApplyMonitorsConfig' not in source
+    assert 'subprocess' not in source
+
+
+def display_block() -> dict[str, Any]:
+    """Return the Ubuntu desktop's block that sets the runner's display mode.
+
+    Returns:
+        The block.
+
+    """
+    return task(role_tasks('raspberry_pi_desktop', 'ubuntu.yml'), "Set the runner's display mode")
+
+
+APPLY_DISPLAY_MODE_PATH = ROLES / 'raspberry_pi_desktop' / 'files' / 'apply_display_mode'
+APPLY_DISPLAY_MODE_ARGV = [
+    '/usr/local/lib/glitchygames/apply_display_mode',
+    '{{ raspberry_pi_display_mode.width }}',
+    '{{ raspberry_pi_display_mode.height }}',
+    "{{ raspberry_pi_display_mode.refresh_rates | join(',') }}",
+]
+
+
+def test_the_planner_prints_a_line_the_shell_can_split():
+    """The words form: action, connector, mode; a dash for what a plan doesn't name."""
+    script = load_set_display_mode()
+
+    assert script.plan_words(script.plan(state=mutter_state('raspberry-pi-4'), **WANTED_MODE)) == (
+        'apply HDMI-1 1920x1080@120.000'
+    )
+    assert script.plan_words({'action': 'skip', 'connector': None, 'mode': None}) == 'skip - -'
+
+
+def run_apply_display_mode(tmp_path: Path, *, plan_line: str, planner_status: int = 0) -> tuple:
+    """Run the real wrapper beside a stand-in planner, with a stand-in gdctl first on PATH.
+
+    The planner prints the plan line it is given (and exits with the status given); gdctl writes
+    its arguments to a file. The wrapper finds the planner beside itself and gdctl on PATH, as
+    on a Pi.
+
+    Returns:
+        (the wrapper's exit status, its output, gdctl's arguments or None when it never ran).
+
+    """
+    library = tmp_path / 'library'
+    tools = tmp_path / 'tools'
+    library.mkdir()
+    tools.mkdir()
+    wrapper = library / 'apply_display_mode'
+    wrapper.write_text(APPLY_DISPLAY_MODE_PATH.read_text(encoding='utf-8'), encoding='utf-8')
+    wrapper.chmod(0o755)
+    planner = library / 'plan_display_mode.py'
+    planner.write_text(
+        f'import sys\nprint({plan_line!r})\nsys.exit({planner_status})\n', encoding='utf-8'
+    )
+    calls = tmp_path / 'gdctl-arguments'
+    gdctl = tools / 'gdctl'
+    gdctl.write_text(f'#!/bin/sh\nprintf "%s\\n" "$@" > {calls}\n', encoding='utf-8')
+    gdctl.chmod(0o755)
+    result = run_command(
+        command=[str(wrapper), '1920', '1080', '120.0'],
+        environment={'PATH': f'{tools}:{os.environ["PATH"]}'},
+        timeout_seconds=30,
+        capture_output=OutputCapture.APART,
+    )
+    arguments = calls.read_text(encoding='utf-8').splitlines() if calls.exists() else None
+    return result.returncode, result.stdout, arguments
+
+
+def test_the_wrapper_sets_a_planned_mode_with_gdctl_temporarily(tmp_path):
+    """On apply, gdctl sets the planned connector and mode, temporarily.
+
+    Not --persistent: a persistent change waits for someone to click Keep and reverts after 20 s
+    (2026-11-14), while a temporary one never asks.
+    """
+    status, output, arguments = run_apply_display_mode(
+        tmp_path, plan_line='apply HDMI-1 1920x1080@120.000'
+    )
+
+    assert status == 0
+    assert output.splitlines() == ['apply HDMI-1 1920x1080@120.000']
+    assert arguments == [
+        'set',
+        '--logical-monitor',
+        '--primary',
+        '--scale',
+        '1',
+        '--monitor',
+        'HDMI-1',
+        '--mode',
+        '1920x1080@120.000',
+    ]
+
+
+@pytest.mark.parametrize('plan_line', ['none HDMI-1 1920x1080@120.000', 'skip - -'])
+def test_the_wrapper_leaves_a_settled_or_skipped_display_alone(tmp_path, plan_line):
+    """Nothing to apply: gdctl never runs, and the wrapper succeeds."""
+    status, output, arguments = run_apply_display_mode(tmp_path, plan_line=plan_line)
+
+    assert (status, output.splitlines(), arguments) == (0, [plan_line], None)
+
+
+def test_the_wrapper_fails_when_the_plan_fails(tmp_path):
+    """A planner that can't plan fails the wrapper, and gdctl never runs."""
+    status, _output, arguments = run_apply_display_mode(
+        tmp_path, plan_line='fail HDMI-1 -', planner_status=1
+    )
+
+    assert status != 0
+    assert arguments is None
+
+
+def test_nothing_in_the_desktop_role_asks_for_a_persistent_change():
+    """Nothing in the desktop role asks gdctl for a persistent change.
+
+    --persistent reverted on every Pi it ran on once. The 16 GB Pi 5 held only because it ran
+    twice within the 20 s, which made the revert restore 1080p itself (2026-11-14 journals).
+    """
+    role = ROLES / 'raspberry_pi_desktop'
+    files = [path for path in role.rglob('*') if path.is_file() and '__pycache__' not in path.parts]
+    texts = [path.read_text(encoding='utf-8') for path in files]
+
+    assert texts
+    assert not any('--persistent' in text for text in texts)
+
+
+def test_the_display_is_set_as_the_ci_user_in_its_session():
+    """Every step runs as the CI user, in its session's D-Bus."""
+    block = display_block()
+
+    assert block['become'] is True
+    assert block['become_user'] == '{{ ci_user }}'
+    assert block['environment'] == {
+        'XDG_RUNTIME_DIR': '/run/user/{{ raspberry_pi_runner_user.uid }}',
+        'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/{{ raspberry_pi_runner_user.uid }}/bus',
+    }
+
+
+def test_the_planner_and_wrapper_are_installed_side_by_side():
+    """Both in /usr/local/lib/glitchygames, where the wrapper looks for the planner."""
+    tasks = role_tasks('raspberry_pi_desktop', 'ubuntu.yml')
+
+    assert task(tasks, 'Install the display mode planner')['ansible.builtin.copy'] == {
+        'src': 'plan_display_mode.py',
+        'dest': '/usr/local/lib/glitchygames/plan_display_mode.py',
+        'mode': '0755',
+    }
+    assert task(tasks, 'Install the display mode wrapper')['ansible.builtin.copy'] == {
+        'src': 'apply_display_mode',
+        'dest': '/usr/local/lib/glitchygames/apply_display_mode',
+        'mode': '0755',
+    }
+
+
+def test_each_login_applies_the_mode_through_gnomes_autostart():
+    """The CI user's autostart entry runs the wrapper with the inventory's mode at each login."""
+    tasks = role_tasks('raspberry_pi_desktop', 'ubuntu.yml')
+    directory = task(tasks, "Create the runner's autostart directory")['ansible.builtin.file']
+    entry = task(tasks, 'Apply the display mode at each login')['ansible.builtin.copy']
+
+    assert directory == {
+        'path': '{{ raspberry_pi_runner_home }}/.config/autostart',
+        'state': 'directory',
+        'owner': '{{ ci_user }}',
+        'group': '{{ ci_user }}',
+        'mode': '0755',
+    }
+    assert entry['dest'] == (
+        '{{ raspberry_pi_runner_home }}/.config/autostart/glitchygames-display-mode.desktop'
+    )
+    assert (entry['owner'], entry['group'], entry['mode']) == (
+        '{{ ci_user }}',
+        '{{ ci_user }}',
+        '0644',
+    )
+    lines = render(entry['content'], **raspberry_pi_hosts()[PI4]).splitlines()
+    assert '[Desktop Entry]' in lines
+    assert 'Type=Application' in lines
+    assert 'Exec=/usr/local/lib/glitchygames/apply_display_mode 1920 1080 120.0' in lines
+
+
+def test_a_deploy_applies_the_mode_as_a_login_would_then_proves_it_held():
+    """The same wrapper, then a wait past GNOME's 20 s revert and a fresh plan that must be none."""
+    steps = display_block()['block']
+    applying = task(steps, 'Apply the display mode as a login does')
+    wait = task(steps, "Wait past GNOME's 20-second revert")
+    check = task(steps, 'Check the mode held')
+    applied_for_real = 'raspberry_pi_display_applied.changed and not ansible_check_mode'
+
+    assert [step['name'] for step in steps] == [
+        'Apply the display mode as a login does',
+        "Wait past GNOME's 20-second revert",
+        'Check the mode held',
+    ]
+    assert applying['ansible.builtin.command']['argv'] == APPLY_DISPLAY_MODE_ARGV
+    assert applying['changed_when'] == "raspberry_pi_display_applied.stdout.startswith('apply ')"
+    assert wait['ansible.builtin.pause'] == {'seconds': 25}
+    assert wait['when'] == applied_for_real
+    assert check['ansible.builtin.command']['argv'][:2] == [
+        '/usr/bin/python3',
+        '/usr/local/lib/glitchygames/plan_display_mode.py',
+    ]
+    assert check['failed_when'] == (
+        "(raspberry_pi_display_check.stdout | from_json).action != 'none'"
+    )
+    assert check['when'] == applied_for_real
+
+
+def test_every_pi_asks_for_1080p_at_120():
+    """The inventory's mode, for every Pi (one monitor, shared through a switch)."""
+    for host, variables in raspberry_pi_hosts().items():
+        assert variables['raspberry_pi_display_mode'] == WANTED_MODE, host
+
+
+def test_the_first_builds_display_script_is_removed():
+    """The first build installed set_display_mode.py (2026-11-14); the planner replaced it."""
+    removal = task(
+        role_tasks('raspberry_pi_desktop', 'ubuntu.yml'), 'Remove the replaced display script'
+    )
+
+    assert removal['ansible.builtin.file'] == {
+        'path': '/usr/local/lib/glitchygames/set_display_mode.py',
+        'state': 'absent',
+    }
+
+
+# --- CircleCI's package repository ---------------------------------------------------------
+
+
+def runner_play_tasks() -> list[dict[str, Any]]:
+    """Return the runner play's tasks.
+
+    Returns:
+        The tasks, in order.
+
+    """
+    return plays()[0]['tasks']
+
+
+def test_circleci_runner_repository_is_declared_not_scripted():
+    """Ansible's own repository module, which reports a change only when something changed.
+
+    packagecloud's install script, piped to bash, ran on every deploy: its creates: named
+    circleci_runner.list, but with ?any=true the script writes circleci_runner_any.list (the Pis,
+    2026-11-14), so creates: never matched.
+    """
+    repository = task(runner_play_tasks(), "Add CircleCI's package repository")
+
+    assert repository['ansible.builtin.deb822_repository'] == {
+        'name': 'circleci_runner',
+        'types': ['deb'],
+        'uris': ['https://packagecloud.io/circleci/runner/any/'],
+        'suites': ['any'],
+        'components': ['main'],
+        # Redirects to the key file; the same two fingerprints the script's keyring held:
+        # 81F73EBF5373FB699904EA158CD45F21E87AC85C and its subkey
+        # FD7A3274C654790BD61C06ACB450FEA075A11BD3
+        'signed_by': 'https://packagecloud.io/circleci/runner/gpgkey',
+    }
+    assert repository['register'] == 'raspberry_pi_circleci_repository'
+    assert 'packagecloud.io/install/repositories' not in PLAYBOOK_PATH.read_text(encoding='utf-8')
+
+
+def test_the_scripts_repository_files_are_removed_before_the_declared_one_is_added():
+    """The script's files go first: apt refuses one repository listed twice with two keys."""
+    names = [each['name'] for each in runner_play_tasks()]
+    removal = task(runner_play_tasks(), "Remove the install script's repository files")
+
+    assert removal['ansible.builtin.file'] == {'path': '{{ item }}', 'state': 'absent'}
+    assert removal['loop'] == [
+        '/etc/apt/sources.list.d/circleci_runner_any.list',
+        '/etc/apt/keyrings/circleci_runner-archive-keyring.gpg',
+    ]
+    assert names.index("Remove the install script's repository files") < names.index(
+        "Add CircleCI's package repository"
+    )
+
+
+def test_apts_lists_are_refreshed_only_when_the_repository_changed():
+    """A new or changed repository needs fresh package lists before the runner installs."""
+    names = [each['name'] for each in runner_play_tasks()]
+    refresh = task(runner_play_tasks(), "Refresh the package lists for CircleCI's repository")
+
+    assert refresh['ansible.builtin.apt'] == {'update_cache': True}
+    assert refresh['when'] == 'raspberry_pi_circleci_repository.changed'
+    assert (
+        names.index("Add CircleCI's package repository")
+        < names.index("Refresh the package lists for CircleCI's repository")
+        < names.index('Install machine runner 3')
+    )
+
+
+def test_the_repository_modules_own_dependency_is_installed():
+    """deb822_repository needs python3-debian on the Pi."""
+    packages = task(
+        runner_play_tasks(), 'Install what the checkout, the tests and the source builds need'
+    )
+
+    assert 'python3-debian' in packages['ansible.builtin.apt']['name']
+
+
+# --- Each Pi's cooling ---------------------------------------------------------------------
+
+REQUIREMENTS_PATH = PROJECT_ROOT / 'docs' / 'data' / 'requirements.json'
+# The requirements page's platforms that are inventory hosts (the 8 GB Pi 5 isn't on it yet)
+REQUIREMENTS_PLATFORM_OF_HOST = {PI4: 'raspberry-pi-4', PI5_16GB: 'raspberry-pi-5'}
+
+
+@pytest.mark.parametrize(
+    ('host', 'cooling'),
+    [
+        # Read 2026-11-14: no fan, no heat sink
+        (PI4, 'None added'),
+        # The official Raspberry Pi 5 case with its fan
+        (PI5_8GB, 'Active cooling; the official cooled case'),
+        # The Active Cooler, booting from an NVMe SSD in a case that is itself a heat sink
+        (PI5_16GB, 'Active cooling; the NVMe case is a large heat sink'),
+    ],
+)
+def test_each_pi_says_how_it_is_cooled(host, cooling):
+    """The cooling as a whole (the fan role configures only the fan): its kind, in plain words."""
+    assert raspberry_pi_hosts()[host]['raspberry_pi_cooling'] == cooling
+
+
+def test_a_pi_without_a_fan_says_it_has_no_added_cooling():
+    """The cooling and the fan agree: no fan is no added cooling, a fan is active cooling."""
+    for host, variables in raspberry_pi_hosts().items():
+        no_fan = variables['raspberry_pi_fan']['kind'] == 'none'
+        assert variables['raspberry_pi_cooling'].startswith('None' if no_fan else 'Active'), host
+
+
+def test_the_requirements_page_describes_each_pis_cooling_as_the_inventory_does():
+    """The page's Cooling row starts with the inventory's words (it may add a reading after)."""
+    requirements = json.loads(REQUIREMENTS_PATH.read_text(encoding='utf-8'))
+    cooling_by_platform = {
+        platform['slug']: dict(platform.get('specs', [])).get('Cooling')
+        for platform in requirements['platforms']
+    }
+
+    for host, platform in REQUIREMENTS_PLATFORM_OF_HOST.items():
+        page = cooling_by_platform[platform]
+        assert page is not None, f'{platform} has no Cooling row'
+        assert page.startswith(raspberry_pi_hosts()[host]['raspberry_pi_cooling']), (host, page)
+
+
+def test_every_raspberry_pi_on_the_requirements_page_is_mapped_to_a_host():
+    """A Pi added to the page must be mapped here, so its cooling is checked too."""
+    requirements = json.loads(REQUIREMENTS_PATH.read_text(encoding='utf-8'))
+    pis_on_the_page = {
+        platform['slug']
+        for platform in requirements['platforms']
+        if platform['slug'].startswith('raspberry-pi-')
+    }
+
+    assert pis_on_the_page == set(REQUIREMENTS_PLATFORM_OF_HOST.values())
