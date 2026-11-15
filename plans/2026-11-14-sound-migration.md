@@ -85,10 +85,24 @@ cache in them (a PaddleSlap golden replayed under `--sound-cache disk` wrote no 
   (today's `Tone` fields), frozen pydantic models; `audio.sound(Effect(...))`.
 - Sound files: `[effects.<name>]` (volume, peak) with `[[effects.<name>.tones]]`; `[recipes.*]`
   still read as effects.
-- `Instrument(..., live=True, parameters={'speed': Parameter(range=(0, 1), default=0,
-  smoothing_ms=30)}, routes=[Route(source='speed', destination='pitch', curve='linear',
-  output=(45, 110)), ...], tremolo=Tremolo(rate_hz=..., depth=...))`; tremolo rate and depth
-  routable like any destination.
+- Live instruments (the owner, 2026-11-14, took the sketch as recommended):
+  - `Instrument(..., live=True, tremolo=Tremolo(rate_hz, depth), parameters={'speed':
+    Parameter(range=(0.0, 1.0), default=0.0, smoothing_ms=30)}, routes=[Route(source='speed',
+    destination='pitch', curve='linear', output=(45.0, 110.0)), ...])`. `Parameter` and
+    `Route` mirror the TOML schema one to one (frozen pydantic models), so sound files'
+    `[instruments.x.parameters.*]` and `[[instruments.x.routes]]` stop being refused.
+    `Tremolo` is the effects' own (`audio/effects.py`), reused.
+  - Route destinations: `pitch`, `level`, `filter.cutoff`, `tremolo.rate`, `tremolo.depth`,
+    `sources.<name>.level`; curves `linear`, `exponential`, `logarithmic`, `smoothstep`,
+    `steps(n)`; at most 8 routes; a route's source is an exposed parameter.
+  - Smoothing: the spec's one-pole glide per sample, `target + (start - target) * exp(-n / tau)`,
+    vectorized per chunk. Updates coalesce: the latest value per chunk counts.
+  - Rendering reuses the live-voice chunk code (phase-continuous oscillators, the crossfaded
+    FIR low-pass, tremolo, 100 ms chunks) on the context's live pool, so the Arcade's rules hold;
+    the motor renders what today's voice does for the same settings (tested).
+  - The rest of M2 neither game needs is left as TODOs (`plans/future-work.md`): the
+    state-variable filter and resonance, pink noise, `note_on`/`note_off` and retrigger, bit and
+    rate reduction, `at_frame`, the Audio panel's live-voices section, `--live-chunk-ms`.
 - `Sound.start(*, parameters=None, volume=..., pan=..., bus=..., priority=..., owner=None)
   -> LiveSoundHandle` (`set(name, value) -> bool`, `release()`, `stop()`).
 - A scene declares the sounds its game needs at start (`Scene.SOUNDS`, a sequence of sources),

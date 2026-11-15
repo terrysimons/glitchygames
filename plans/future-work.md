@@ -1234,6 +1234,13 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   - The proof the disk branch could not have: every golden and bundled demo replays under
     `--sound-cache disk` cold and warm with the `disk_sound_cache` fixture (writes, then hits,
     nothing compiled twice, digests equal).
+- **The rest of sound engine M2's live instruments** (not built with the migration, which built
+  what the two live sounds need: parameters, routes, curves, smoothing, tremolo, `start`/`set`;
+  plans/2026-11-14-sound-migration.md): the state-variable filter and its resonance, pink noise,
+  `note_on`/`note_off` and the retrigger rules, bit and rate reduction, `at_frame` and
+  `unschedule`, the Audio panel's live-voices section (AUD-DIAG-003), `--live-chunk-ms`, the
+  loudness budget and device-loss handling. Spec: the feature spec's 5.3-5.4 and 6, the
+  implementation spec's M2.
 - ~~**CLAUDE.md carries its old long Architecture Overview again**~~ **Done** 2026-11-14
   (#211, `chore/claude-md-and-hook-speedups`): the block is gone (CLAUDE.md is 333fcc0d's again
   plus later edits), and `tests/test_claude_md.py` fails on a repeated heading or component name
