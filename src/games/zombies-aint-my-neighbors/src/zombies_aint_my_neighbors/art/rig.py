@@ -151,18 +151,23 @@ def tone(*, value: float, ramp: str) -> str:
 
 
 class Canvas:
-    """A 32x48 grid of palette characters, transparent to start, offset by a pose's bob and lean."""
+    """A grid of palette characters (32x48 by default), transparent to start.
 
-    def __init__(self) -> None:
-        """Make an empty, transparent canvas."""
-        self.cells = [[TRANSPARENT] * WIDTH for _ in range(HEIGHT)]
+    Drawing is offset by ``shift_x`` and ``shift_y`` (a pose's lean and bob).
+    """
+
+    def __init__(self, *, width: int = WIDTH, height: int = HEIGHT) -> None:
+        """Make an empty, transparent canvas (a kid's 32x48 unless sized otherwise)."""
+        self.width = width
+        self.height = height
+        self.cells = [[TRANSPARENT] * width for _ in range(height)]
         self.shift_x = 0
         self.shift_y = 0
 
     def put(self, *, x: float, y: float, character: str) -> None:
         """Paint one cell, shifted (cells outside the canvas are ignored)."""
         column, row = int(x) + self.shift_x, int(y) + self.shift_y
-        if 0 <= column < WIDTH and 0 <= row < HEIGHT:
+        if 0 <= column < self.width and 0 <= row < self.height:
             self.cells[row][column] = character
 
     def at(self, *, x: int, y: int) -> str:
@@ -172,7 +177,7 @@ class Canvas:
             The character.
 
         """
-        if 0 <= x < WIDTH and 0 <= y < HEIGHT:
+        if 0 <= x < self.width and 0 <= y < self.height:
             return self.cells[y][x]
         return TRANSPARENT
 
@@ -190,10 +195,10 @@ class Canvas:
         """Paint a shaded ellipse (only rows down to ``bottom``, when given)."""
         centre_x, centre_y = centre
         radius_x, radius_y = radii
-        for y in range(HEIGHT):
+        for y in range(self.height):
             if bottom is not None and y > bottom:
                 break
-            for x in range(WIDTH):
+            for x in range(self.width):
                 across = (x + 0.5 - centre_x) / radius_x
                 down = (y + 0.5 - centre_y) / radius_y
                 if across * across + down * down <= 1:
@@ -217,8 +222,8 @@ class Canvas:
         (start_x, start_y), (end_x, end_y) = start, end
         delta_x, delta_y = end_x - start_x, end_y - start_y
         length_squared = delta_x * delta_x + delta_y * delta_y or 1.0
-        for y in range(HEIGHT):
-            for x in range(WIDTH):
+        for y in range(self.height):
+            for x in range(self.width):
                 point_x, point_y = x + 0.5, y + 0.5
                 along = (point_x - start_x) * delta_x + (point_y - start_y) * delta_y
                 along = max(0.0, min(1.0, along / length_squared))
@@ -747,16 +752,16 @@ def _draw_headphones(canvas: Canvas, *, facing: Facing) -> None:
         canvas.ellipse(centre=(cup_x, 21.6), radii=(1.6, 1.6), ramp=HEADSET + OUTLINE)
 
 
-def _outline(canvas: Canvas) -> None:
+def outline_figure(canvas: Canvas) -> None:
     """Outline the figure: every transparent cell beside a drawn one becomes the outline."""
     drawn = [[cell != TRANSPARENT for cell in cells] for cells in canvas.cells]
-    for y in range(HEIGHT):
-        for x in range(WIDTH):
+    for y in range(canvas.height):
+        for x in range(canvas.width):
             if drawn[y][x]:
                 continue
             neighbours = ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1))
             if any(
-                0 <= near_x < WIDTH and 0 <= near_y < HEIGHT and drawn[near_y][near_x]
+                0 <= near_x < canvas.width and 0 <= near_y < canvas.height and drawn[near_y][near_x]
                 for near_x, near_y in neighbours
             ):
                 canvas.cells[y][x] = OUTLINE
@@ -781,7 +786,7 @@ def _draw_lying(canvas: Canvas, *, stars: bool) -> None:
         canvas.put(x=9, y=eye_y + 1, character=OUTLINE)
         canvas.put(x=8, y=eye_y + 1, character=SKIN_SHADE)
         canvas.put(x=9, y=eye_y, character=OUTLINE)
-    _outline(canvas)
+    outline_figure(canvas)
     if stars:
         for star_x, star_y in ((5, 26), (11, 23), (17, 26)):
             canvas.put(x=star_x, y=star_y, character=WHITE)
@@ -826,7 +831,7 @@ def draw_kid(*, pose: Pose, look: KidLook) -> Grid:
     if not arms_behind:
         _draw_arms(canvas, pose=pose)
     canvas.shift_x = canvas.shift_y = 0
-    _outline(canvas)
+    outline_figure(canvas)
     if pose.sparkle:
         for spark_x, spark_y in ((29, 5), (30, 9), (26, 3)):
             canvas.put(x=spark_x, y=spark_y, character=WHITE)

@@ -11,10 +11,10 @@ import argparse
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from zombies_aint_my_neighbors.art import palettes, poses, rig
+from zombies_aint_my_neighbors.art import palettes, poses, rig, tv_rig, zombie_rig
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from zombies_aint_my_neighbors.art.palettes import KidLook
 
@@ -25,6 +25,10 @@ KIDS_TO_BUILD: Final = palettes.KIDS
 # BOM section 3: the kids' body hitbox, in native pixels
 KID_HITBOX: Final = {'offset_x': 6, 'offset_y': 12, 'width': 20, 'height': 36}
 KID_TAGS: Final = ('character', 'kid', 'player')
+# Character BOM 5.1: the Lawn Zombie's body hitbox (a kid's), and the props BOM's TV's
+ZOMBIE_HITBOX: Final = {'offset_x': 6, 'offset_y': 12, 'width': 20, 'height': 36}
+TV_HITBOX: Final = {'offset_x': 4, 'offset_y': 12, 'width': 40, 'height': 32}
+_BUILT_HEADER: Final = 'rebuild, never this file'
 
 
 def _format_interval(seconds: float) -> str:
@@ -37,41 +41,60 @@ def _format_interval(seconds: float) -> str:
     return repr(seconds)
 
 
-def sprite_file_text(*, look: KidLook) -> str:
-    """Return a kid's sprite file, as TOML.
+def character_sprite_text(  # ruff: ignore[too-many-arguments] - a sprite file has this many parts, each named
+    *,
+    header: Sequence[str],
+    name: str,
+    description: str,
+    tags: Sequence[str],
+    hitbox: Mapping[str, int],
+    palette: Mapping[str, tuple[int, int, int]],
+    frames: Mapping[str, Sequence[rig.Grid]],
+    specs: Sequence[poses.AnimationSpec],
+) -> str:
+    """Return a sprite file, as TOML: any character or prop the rigs draw.
+
+    Args:
+        header: Comment lines at the top (without their ``# ``).
+        name: The sprite's name.
+        description: Its description.
+        tags: Its tags.
+        hitbox: Its hitbox (``offset_x``, ``offset_y``, ``width``, ``height``).
+        palette: Palette character -> colour.
+        frames: Namespace -> its frames, in the file's order.
+        specs: The animation specs (by state); a Then naming a namespace in the file becomes a
+            ``[[transition]]``.
 
     Returns:
         The file's text.
 
     """
     lines = [
-        "# Written by zombies_aint_my_neighbors.art.build from the kids' rig: edit the rig and",
-        '# rebuild, never this file (plans/2026-11-14-zombies-aint-my-neighbors-3-dex.md)',
+        *(f'# {line}' for line in header),
         '[sprite]',
-        f'name = "{look.name}"',
-        f'description = "{look.name.title()}, a player kid: every animation in the character BOM"',
-        'tags = [' + ', '.join(f'"{tag}"' for tag in KID_TAGS) + ']',
+        f'name = "{name}"',
+        f'description = "{description}"',
+        'tags = [' + ', '.join(f'"{tag}"' for tag in tags) + ']',
         'frame_anchor = "bottom"',
         '',
         '[sprite.hitbox]',
-        *(f'{key} = {value}' for key, value in KID_HITBOX.items()),
+        *(f'{key} = {value}' for key, value in hitbox.items()),
         '',
         '[colors]',
         *(
             f'"{character}" = {{ red = {red}, green = {green}, blue = {blue} }}'
-            for character, (red, green, blue) in look.palette.items()
+            for character, (red, green, blue) in palette.items()
         ),
     ]
-    frames = rig.kid_frames(look=look)
-    specs = {spec.state: spec for spec in poses.KID_ANIMATIONS}
+    by_state = {spec.state: spec for spec in specs}
     transitions: list[tuple[str, str, str]] = []
-    for name, grids in frames.items():
-        state, _, facing = name.rpartition('_')
-        spec = specs[state] if state in specs else specs[name]
+    for namespace, grids in frames.items():
+        state, _, facing = namespace.rpartition('_')
+        spec = by_state[state] if state in by_state else by_state[namespace]
         lines += [
             '',
             '[[animation]]',
-            f'namespace = "{name}"',
+            f'namespace = "{namespace}"',
             f'frame_interval = {_format_interval(spec.frame_interval)}',
             f'loop = {"true" if spec.loop else "false"}',
         ]
@@ -79,7 +102,7 @@ def sprite_file_text(*, look: KidLook) -> str:
             lines += [
                 '',
                 '[[animation.frame]]',
-                f'namespace = "{name}"',
+                f'namespace = "{namespace}"',
                 f'frame_index = {index}',
                 'pixels = """',
                 *grid,
@@ -87,7 +110,7 @@ def sprite_file_text(*, look: KidLook) -> str:
             ]
         if spec.then_state is not None:
             target = spec.then_state if spec.then_state in frames else f'{spec.then_state}_{facing}'
-            transitions.append((name, target, spec.when))
+            transitions.append((namespace, target, spec.when))
     for source, target, when in transitions:
         lines += [
             '',
@@ -99,18 +122,88 @@ def sprite_file_text(*, look: KidLook) -> str:
     return '\n'.join(lines) + '\n'
 
 
+def sprite_file_text(*, look: KidLook) -> str:
+    """Return a kid's sprite file, as TOML.
+
+    Returns:
+        The file's text.
+
+    """
+    return character_sprite_text(
+        header=(
+            "Written by zombies_aint_my_neighbors.art.build from the kids' rig: edit the rig and",
+            'rebuild, never this file (plans/2026-11-14-zombies-aint-my-neighbors-3-dex.md)',
+        ),
+        name=look.name,
+        description=f'{look.name.title()}, a player kid: every animation in the character BOM',
+        tags=KID_TAGS,
+        hitbox=KID_HITBOX,
+        palette=look.palette,
+        frames=rig.kid_frames(look=look),
+        specs=poses.KID_ANIMATIONS,
+    )
+
+
+def zombie_sprite_text() -> str:
+    """Return the Lawn Zombie's sprite file, as TOML.
+
+    Returns:
+        The file's text.
+
+    """
+    return character_sprite_text(
+        header=(
+            "Written by zombies_aint_my_neighbors.art.build from the zombie's rig: edit the",
+            'rig and '
+            + _BUILT_HEADER
+            + ' (plans/2026-11-14-zombies-aint-my-neighbors-5-zombies.md)',
+        ),
+        name='lawn_zombie',
+        description='The Lawn Zombie: a shambling neighbor in a bathrobe (character BOM 5.1)',
+        tags=('character', 'monster', 'zombie'),
+        hitbox=ZOMBIE_HITBOX,
+        palette=zombie_rig.ZOMBIE_PALETTE,
+        frames=zombie_rig.zombie_frames(),
+        specs=zombie_rig.ZOMBIE_ANIMATIONS,
+    )
+
+
+def tv_sprite_text() -> str:
+    """Return the TV's sprite file, as TOML.
+
+    Returns:
+        The file's text.
+
+    """
+    return character_sprite_text(
+        header=(
+            "Written by zombies_aint_my_neighbors.art.build from the TV's rig: edit the rig and",
+            f'{_BUILT_HEADER} (plans/2026-11-14-zombies-aint-my-neighbors-props-bom.md)',
+        ),
+        name='tv',
+        description='A TV set showing static: monsters come out of it (props BOM)',
+        tags=('prop', 'spawner', 'tv'),
+        hitbox=TV_HITBOX,
+        palette=tv_rig.TV_PALETTE,
+        frames=tv_rig.tv_frames(),
+        specs=tv_rig.TV_ANIMATIONS,
+    )
+
+
 def build(*, directory: Path, kids: Sequence[KidLook] = KIDS_TO_BUILD) -> list[Path]:
-    """Write each kid's sprite file into a directory.
+    """Write each kid's sprite file, the Lawn Zombie's and the TV's into a directory.
 
     Returns:
         The files written.
 
     """
     directory.mkdir(parents=True, exist_ok=True)
+    texts = {f'{look.name}.toml': sprite_file_text(look=look) for look in kids}
+    texts |= {'lawn_zombie.toml': zombie_sprite_text(), 'tv.toml': tv_sprite_text()}
     written: list[Path] = []
-    for look in kids:
-        path = directory / f'{look.name}.toml'
-        path.write_text(sprite_file_text(look=look))
+    for file_name, text in texts.items():
+        path = directory / file_name
+        path.write_text(text)
         written.append(path)
     return written
 

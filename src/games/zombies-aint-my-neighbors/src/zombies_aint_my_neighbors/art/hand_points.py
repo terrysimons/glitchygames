@@ -10,9 +10,13 @@ sees it (both hands meet there when aiming), or the near hand in the side view. 
 
 from __future__ import annotations
 
-from typing import Final
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Final
 
 from zombies_aint_my_neighbors.art import poses, rig
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 # The kid animations that hold a weapon
 WEAPON_STATES: Final = ('shoot', 'walk-shoot', 'spray', 'swing', 'launch', 'throw')
@@ -32,4 +36,7 @@ def _weapon_hand_points() -> dict[str, tuple[rig.Point, ...]]:
     }
 
 
-KID_HAND_POINTS: Final[dict[str, tuple[rig.Point, ...]]] = _weapon_hand_points()
+# Read-only: module state shared by every engine context (tests/test_process_state_guard.py)
+KID_HAND_POINTS: Final[Mapping[str, tuple[rig.Point, ...]]] = MappingProxyType(
+    _weapon_hand_points()
+)

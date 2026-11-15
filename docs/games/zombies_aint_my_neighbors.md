@@ -10,7 +10,9 @@ PRESS START in its player's colour, joined from the keyboard or any of up to fou
 title card, FEATURE PRESENTATION; and the neighborhood, a yard larger than the screen where each
 joined player walks their own kid (Dex, Marisol, Theo, June: 32x48 SNES-era sprites written by
 the game's own rig, `zombies_aint_my_neighbors/art/`) under one camera that keeps the group on
-screen. The design, its decisions and the engine wishlist
+screen. Four old TV sets in the yard push Lawn Zombies out through their screens every 6 to 9
+seconds (3 per set, 10 in all); a zombie that touches a kid knocks it out, and the kid gets back
+up and blinks, untouchable, for two seconds. There are no weapons yet: for now, dodge. The design, its decisions and the engine wishlist
 are in the master plan, `plans/2026-11-14-zombies-aint-my-neighbors.md`.
 
 Its package: `src/games/zombies-aint-my-neighbors/`, a workspace member

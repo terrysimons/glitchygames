@@ -9,12 +9,23 @@ from __future__ import annotations
 import pygame
 import pytest
 
-from zombies_aint_my_neighbors.kid import Kid, KidFacing, MirrorCache
+from zombies_aint_my_neighbors.kid import (
+    KNOCKOUT_SECONDS,
+    LYING_SECONDS,
+    RESPAWN_SECONDS,
+    UNTOUCHABLE_SECONDS,
+    Kid,
+    KidFacing,
+    KidState,
+    MirrorCache,
+)
 
 # The walk's frame interval (BOM section 3), and a step just past it
 WALK_INTERVAL = 0.12
 PAST_ONE_WALK_FRAME = WALK_INTERVAL + 0.01
 SIXTIETH_OF_A_SECOND = 1.0 / 60.0
+# The knockout's last frame: flat, with stars (BOM section 3)
+KNOCKOUT_LAST_FRAME = 4
 
 
 def same_pixels(first: pygame.Surface, second: pygame.Surface) -> bool:
@@ -219,3 +230,139 @@ def test_left_hand_diagonals_show_their_frames_as_drawn(kid, direction):
 
     assert kid.image is kid.drawn_frame_surface()
     assert not kid.hitbox_flip_x
+
+
+# --- Knocked out (feature plan 5, Task 6) -----------------------------------------------------
+
+
+# A minute of frames: a kid that has not reached a state by then never will
+FRAME_LIMIT = 60 * 60
+
+
+def tick_while(kid: Kid, *, state: KidState, reached: bool = False) -> list[int]:
+    """Tick a kid while it is in a state (or, with ``reached``, until it is), failing at the limit.
+
+    Returns:
+        The frame index shown before each tick.
+
+    """
+    frames: list[int] = []
+    for _ in range(FRAME_LIMIT):
+        if (kid.state is state) is reached:
+            return frames
+        frames.append(kid.current_frame)
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    pytest.fail(f'the kid never {"reached" if reached else "left"} {state}')
+
+
+def run_for(kid: Kid, *, seconds: float) -> None:
+    """Tick a kid for some seconds at 60 frames a second."""
+    for _ in range(round(seconds * 60)):
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+
+def test_a_knocked_out_kid_plays_its_knockout_and_cannot_move(kid):
+    """A zombie's touch: the knockout plays, and the player's input no longer moves the kid."""
+    kid.dt_tick(0.0)
+
+    assert kid.knock_out()
+
+    kid.walk(direction_x=1.0, direction_y=0.0)
+    kid.dt_tick(0.0)
+    assert kid.state is KidState.KNOCKED_OUT
+    assert kid.current_animation == 'knocked-out'
+    assert not kid.can_move
+    assert not kid.moving
+    assert not kid.is_touchable
+
+
+def test_a_knocked_out_kid_lies_still_then_loads_back_in(kid):
+    """The knockout (0.5 s), lying still (1.0 s), then the respawn plays (0.4 s)."""
+    kid.knock_out()
+
+    run_for(kid, seconds=KNOCKOUT_SECONDS + 0.05)
+    assert kid.state is KidState.LYING
+    assert kid.current_animation == 'knocked-out'
+    # Lying still holds the knockout's last frame (flat, with stars): it never plays again
+    frames_while_lying = set(tick_while(kid, state=KidState.LYING))
+    assert frames_while_lying == {KNOCKOUT_LAST_FRAME}
+    assert kid.state is KidState.RESPAWNING
+    assert kid.current_animation == 'respawn'
+    run_for(kid, seconds=RESPAWN_SECONDS)
+
+    assert kid.state is KidState.ACTIVE
+    assert kid.can_move
+    assert kid.current_animation == 'idle_down'
+
+
+def test_a_respawned_kid_blinks_and_cannot_be_knocked_out_for_a_while(kid):
+    """Untouchable for 2 s after loading back in, blinking; then touchable and steady again."""
+    kid.knock_out()
+    run_for(kid, seconds=KNOCKOUT_SECONDS + LYING_SECONDS + RESPAWN_SECONDS + 0.05)
+    assert kid.state is KidState.ACTIVE
+    hidden_seen = set()
+    for _ in range(30):
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+        hidden_seen.add(kid.hidden)
+
+    assert hidden_seen == {True, False}
+    assert not kid.is_touchable
+    assert not kid.knock_out()
+    run_for(kid, seconds=UNTOUCHABLE_SECONDS)
+    assert kid.is_touchable
+    assert not kid.hidden
+
+
+def test_a_kid_already_knocked_out_is_not_knocked_out_again(kid):
+    """A second touch during the knockout changes nothing (no restart of the fall)."""
+    kid.knock_out()
+    run_for(kid, seconds=0.2)
+    frame = kid.current_frame
+
+    assert not kid.knock_out()
+    kid.dt_tick(0.0)
+    assert kid.state is KidState.KNOCKED_OUT
+    assert kid.current_frame == frame
+
+
+def test_knocked_out_frames_are_never_mirrored(kid):
+    """The knockout is drawn facing down only: a kid that faced right still falls as drawn."""
+    kid.walk(direction_x=1.0, direction_y=0.0)
+    kid.dt_tick(0.0)
+
+    kid.knock_out()
+    kid.dt_tick(0.0)
+
+    assert kid.image is kid.drawn_frame_surface()
+    assert not kid.hitbox_flip_x
+
+
+@pytest.mark.parametrize(
+    ('state', 'seconds', 'following'),
+    [
+        (KidState.KNOCKED_OUT, KNOCKOUT_SECONDS, KidState.LYING),
+        (KidState.LYING, LYING_SECONDS, KidState.RESPAWNING),
+        (KidState.RESPAWNING, RESPAWN_SECONDS, KidState.ACTIVE),
+    ],
+)
+def test_each_knockout_step_lasts_exactly_its_frames(kid, state, seconds, following):
+    """At 60 frames a second, a 0.5 s step ends on frame 30, not 31 (frame times sum in floats)."""
+    kid.knock_out()
+    tick_while(kid, state=state, reached=True)
+    frames = round(seconds * 60)
+
+    run_for(kid, seconds=(frames - 1) / 60)
+    assert kid.state is state
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    assert kid.state is following
+
+
+def test_untouchable_lasts_exactly_its_frames(kid):
+    """Two seconds untouchable is 120 frames."""
+    kid.knock_out()
+    tick_while(kid, state=KidState.ACTIVE, reached=True)
+
+    run_for(kid, seconds=(round(UNTOUCHABLE_SECONDS * 60) - 1) / 60)
+    assert not kid.is_touchable
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    assert kid.is_touchable

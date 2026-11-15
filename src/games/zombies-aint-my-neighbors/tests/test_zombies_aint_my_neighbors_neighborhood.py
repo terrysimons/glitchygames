@@ -14,9 +14,10 @@ import pygame
 import pytest
 
 from glitchygames.input.state import InputSnapshot, set_current_input
+from glitchygames.randomness import reset_streams
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from tests.input.stand_in_devices import STAND_IN_PAD
-from zombies_aint_my_neighbors.kid import KID_HEIGHT, KID_WIDTH
+from zombies_aint_my_neighbors.kid import KID_HEIGHT, KID_WIDTH, KNOCKOUT_SECONDS, KidState
 from zombies_aint_my_neighbors.neighborhood import (
     LAWN_COLOUR,
     SCREEN_MARGIN,
@@ -27,6 +28,12 @@ from zombies_aint_my_neighbors.neighborhood import (
 )
 from zombies_aint_my_neighbors.roster import JoinRoster
 from zombies_aint_my_neighbors.title import TitleScene
+from zombies_aint_my_neighbors.tv import (
+    SPAWN_MINIMUM_SECONDS,
+    TV_SIZE,
+    ZOMBIES_IN_ALL,
+    ZOMBIES_PER_TV,
+)
 
 support = importlib.import_module('src.games.zombies-aint-my-neighbors.tests.screen_support')
 KEYBOARD = support.KEYBOARD
@@ -387,3 +394,128 @@ def test_with_nobody_left_the_camera_aims_at_the_middle_of_the_yard():
     scene.kids.pop(0).kill()
 
     assert scene.camera_target() == (YARD_WIDTH / 2, YARD_HEIGHT / 2)
+
+
+# --- Zombies and TVs (feature plan 5, Task 7) -------------------------------------------------
+
+
+def test_four_tvs_stand_one_in_each_quarter_of_the_yard():
+    """Each quarter of the yard holds one TV's frame."""
+    scene = neighborhood()
+    quarters = {
+        (tv.world_x + TV_SIZE / 2 >= YARD_WIDTH / 2, tv.world_y + TV_SIZE / 2 >= YARD_HEIGHT / 2)
+        for tv in scene.tvs
+    }
+
+    assert len(scene.tvs) == 4
+    assert len(quarters) == 4
+    for tv in scene.tvs:
+        assert 0 <= tv.world_x <= YARD_WIDTH - TV_SIZE
+        assert 0 <= tv.world_y <= YARD_HEIGHT - TV_SIZE
+
+
+def test_no_zombie_comes_before_six_seconds_and_every_tv_has_spawned_by_ten():
+    """The first waits are 6 to 9 s; each TV's zombie then pops out in front of it."""
+    scene = neighborhood()
+
+    run(scene, seconds=SPAWN_MINIMUM_SECONDS - 0.1)
+    assert scene.zombies == []
+    run(scene, seconds=10.0 - SPAWN_MINIMUM_SECONDS)
+
+    assert [tv.zombies for tv in scene.tvs] == [1, 1, 1, 1]
+    assert len(scene.zombies) == 4
+
+
+def test_a_new_zombie_stands_at_its_tvs_spawn_point():
+    """On the frame it appears, a zombie is where its TV puts it."""
+    scene = neighborhood()
+    spawn_points = {tv.spawn_point() for tv in scene.tvs}
+    for _ in range(round(10.0 * 60)):
+        before = len(scene.zombies)
+        support.tick_to(scene, seconds=scene.game_time + FRAME_SECONDS)
+        if len(scene.zombies) > before:
+            newest = scene.zombies[-1]
+            # It has had its first frame of shambling (a third of a pixel at most)
+            assert any(
+                abs(newest.world_x - x) <= 1 and abs(newest.world_y - y) <= 1
+                for x, y in spawn_points
+            )
+            return
+    pytest.fail('no zombie appeared in 10 s')
+
+
+def test_the_caps_hold_over_a_long_game():
+    """In two minutes, never more than 3 zombies from a TV, nor 10 in all."""
+    scene = neighborhood(four_players())
+    for _ in range(120):
+        run(scene, seconds=1.0)
+        assert all(tv.zombies <= ZOMBIES_PER_TV for tv in scene.tvs)
+        assert len(scene.zombies) <= ZOMBIES_IN_ALL
+        assert len(scene.zombies) == sum(tv.zombies for tv in scene.tvs) - sum(
+            tv.is_spawning and not tv.zombie_out for tv in scene.tvs
+        )
+
+    assert len(scene.zombies) == ZOMBIES_IN_ALL
+
+
+def test_a_zombie_touching_a_kid_knocks_it_out_and_grabs():
+    """The core threat: one touch, a knockout and a grab."""
+    scene = neighborhood()
+    kid = scene.kids[0]
+    zombie = scene.add_zombie(world_x=kid.world_x + 4, world_y=kid.world_y)
+
+    support.tick_to(scene, seconds=scene.game_time + FRAME_SECONDS)
+
+    assert kid.state is KidState.KNOCKED_OUT
+    assert zombie.is_grabbing
+
+
+def test_a_zombie_out_of_reach_knocks_nobody_out():
+    """Not touching, nothing happens."""
+    scene = neighborhood()
+    kid = scene.kids[0]
+    zombie = scene.add_zombie(world_x=kid.world_x + 200, world_y=kid.world_y)
+
+    support.tick_to(scene, seconds=scene.game_time + FRAME_SECONDS)
+
+    assert kid.state is KidState.ACTIVE
+    assert not zombie.is_grabbing
+
+
+def test_a_knocked_out_kid_ignores_its_player():
+    """Holding right while knocked out moves the kid nowhere."""
+    scene = neighborhood()
+    kid = scene.kids[0]
+    kid.knock_out()
+    before = (kid.world_x, kid.world_y)
+    hold(scancodes=(pygame.KSCAN_D,))
+
+    run(scene, seconds=KNOCKOUT_SECONDS)
+
+    assert (kid.world_x, kid.world_y) == before
+
+
+def test_zombies_and_tvs_are_drawn_by_their_feet_with_the_kids():
+    """One depth rule: each sprite's layer is the row of its feet."""
+    scene = neighborhood()
+    kid = scene.kids[0]
+    scene.add_zombie(world_x=kid.world_x + 300, world_y=kid.world_y + 100)
+    support.tick_to(scene, seconds=scene.game_time + FRAME_SECONDS)
+
+    for sprite, height in [(tv, TV_SIZE) for tv in scene.tvs] + [
+        (zombie, KID_HEIGHT) for zombie in scene.zombies
+    ]:
+        assert scene.all_sprites.get_layer_of_sprite(sprite) == round(sprite.world_y + height)
+
+
+def test_the_same_seed_brings_the_same_zombies():
+    """The spawns come from the named stream: the same engine seed, the same zombies."""
+    places = []
+    for _ in range(2):
+        reset_streams(seed=20261114)
+        scene = neighborhood()
+        run(scene, seconds=10.0)
+        places.append([(round(z.world_x, 3), round(z.world_y, 3)) for z in scene.zombies])
+
+    assert places[0] == places[1]
+    assert places[0]

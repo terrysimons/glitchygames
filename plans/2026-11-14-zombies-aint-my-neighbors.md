@@ -295,7 +295,11 @@ Each feature gets its own plan in `plans/`, linked here and linking back to this
 3. [Dex, the first kid on the shared rig](2026-11-14-zombies-aint-my-neighbors-3-dex.md): BUILT
    at 32x48 SNES-era detail: Dex approved by the owner, then all four kids written.
 4. [The kids walk the neighborhood](2026-11-14-zombies-aint-my-neighbors-4-walking.md): BUILT,
-   uncommitted.
+   committed locally (bfa4544c).
+5. [Zombies come out of the TVs](2026-11-14-zombies-aint-my-neighbors-5-zombies.md): BUILT,
+   uncommitted, awaiting the owner's review. Four TVs spawn Lawn Zombies (6 to 9 s waits, 3 per
+   TV, 10 in all); zombies chase and knock kids out; kids recover and blink. The props BOM is
+   started ([2026-11-14-zombies-aint-my-neighbors-props-bom.md](2026-11-14-zombies-aint-my-neighbors-props-bom.md)).
 
 ## Sources
 

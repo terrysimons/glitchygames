@@ -27,6 +27,15 @@ from glitchygames.world import CoordinateSpace
 
 # The kids' sprite files (package data), written by zombies_aint_my_neighbors.art.build
 SPRITES_DIRECTORY: Final = Path(__file__).resolve().parent / 'sprites'
+# How long each part of a knockout lasts (feature plan 5): the fall (the 5-frame knockout at 0.1 s),
+# lying still, loading back in (the 4-frame respawn at 0.1 s), and then the untouchable blink
+KNOCKOUT_SECONDS: Final = 0.5
+LYING_SECONDS: Final = 1.0
+RESPAWN_SECONDS: Final = 0.4
+UNTOUCHABLE_SECONDS: Final = 2.0
+BLINK_SECONDS: Final = 0.1
+# Frame times add up in floats (30 sixtieths make 0.49999...): a step ends this close to its time
+TIME_TOLERANCE: Final = 1e-9
 # A kid's frame, in native pixels (BOM decision 10)
 KID_WIDTH: Final = 32
 KID_HEIGHT: Final = 48
@@ -64,11 +73,29 @@ _FACINGS_BY_SECTOR: Final = (
 )
 
 
-class MirrorCache:
-    """Mirrored frames, made once each and shared by every kid of a scene.
+class KidState(StrEnum):
+    """What a kid is doing: playing, or somewhere in a knockout."""
 
-    Keyed by (sprite name, animation, frame), so two kids of the same look share a flipped frame
-    and different kids never do. ``flips`` counts the flips made, for checking the reuse.
+    ACTIVE = 'active'
+    KNOCKED_OUT = 'knocked-out'
+    LYING = 'lying'
+    RESPAWNING = 'respawning'
+
+
+# Each knockout state, how long it lasts, and what follows it
+_KNOCKOUT_STEPS: Final[dict[KidState, tuple[float, KidState]]] = {
+    KidState.KNOCKED_OUT: (KNOCKOUT_SECONDS, KidState.LYING),
+    KidState.LYING: (LYING_SECONDS, KidState.RESPAWNING),
+    KidState.RESPAWNING: (RESPAWN_SECONDS, KidState.ACTIVE),
+}
+
+
+class MirrorCache:
+    """Mirrored frames, made once each and shared by every kid and monster of a scene.
+
+    Keyed by (sprite name, animation, frame), so two kids of the same look (or two zombies)
+    share a flipped frame and different sprites never do. ``flips`` counts the flips made, for
+    checking the reuse.
     """
 
     def __init__(self) -> None:
@@ -98,6 +125,34 @@ class MirrorCache:
             self._mirrored[key] = surface
             self.flips += 1
         return surface
+
+    def show_frame(self, *, sprite: AnimatedSprite, sprite_name: str, mirrored: bool) -> None:
+        """Show an animated sprite's current frame, flipped when it faces right.
+
+        The one place a kid or a monster takes its image, so mirroring and the hitbox's flip
+        always agree.
+
+        Args:
+            sprite: The sprite, its animation already advanced this frame.
+            sprite_name: The sprite's name (its TOML ``[sprite] name``), the cache's key.
+            mirrored: Whether to show the frame flipped left to right.
+
+        """
+        drawn = sprite.drawn_frame_surface()
+        image = (
+            self.mirrored(
+                sprite_name=sprite_name,
+                animation=sprite.current_animation,
+                frame=sprite.current_frame,
+                drawn=drawn,
+            )
+            if mirrored
+            else drawn
+        )
+        if sprite.image is not image:
+            sprite.image = image
+            sprite.dirty = 1
+        sprite.hitbox_flip_x = mirrored
 
 
 def facing_for(*, direction_x: float, direction_y: float, current: KidFacing) -> KidFacing:
@@ -149,6 +204,38 @@ class Kid(AnimatedSprite):
         self.mirror_cache = mirror_cache
         self.facing = KidFacing.DOWN
         self.moving = False
+        self.state = KidState.ACTIVE
+        # Seconds spent in the current knockout state, and untouchable seconds left
+        self._state_seconds = 0.0
+        self.untouchable_seconds = 0.0
+        # Blinking while untouchable hides the kid (the engine reads ``hidden`` on world sprites)
+        self.hidden = False
+        # The animation last started (None: none yet), so each is started once
+        self._started_animation: str | None = None
+
+    @property
+    def can_move(self) -> bool:
+        """Whether the kid's player moves it (not while knocked out)."""
+        return self.state is KidState.ACTIVE
+
+    @property
+    def is_touchable(self) -> bool:
+        """Whether a monster can knock the kid out now."""
+        return self.state is KidState.ACTIVE and self.untouchable_seconds <= TIME_TOLERANCE
+
+    def knock_out(self) -> bool:
+        """Knock the kid out, if it can be: it falls, lies still, loads back in, then blinks.
+
+        Returns:
+            True when the kid was knocked out; False when it already was, or is untouchable.
+
+        """
+        if not self.is_touchable:
+            return False
+        self.state = KidState.KNOCKED_OUT
+        self._state_seconds = 0.0
+        self.moving = False
+        return True
 
     def walk(self, *, direction_x: float, direction_y: float) -> None:
         """Set which way the kid is going this frame (0, 0 to stand still).
@@ -158,6 +245,9 @@ class Kid(AnimatedSprite):
             direction_y: The vertical part (negative is up).
 
         """
+        if not self.can_move:
+            self.moving = False
+            return
         self.moving = direction_x != 0 or direction_y != 0
         self.facing = facing_for(
             direction_x=direction_x, direction_y=direction_y, current=self.facing
@@ -170,6 +260,10 @@ class Kid(AnimatedSprite):
             The namespace (right plays left's).
 
         """
+        if self.state in {KidState.KNOCKED_OUT, KidState.LYING}:
+            return 'knocked-out'
+        if self.state is KidState.RESPAWNING:
+            return 'respawn'
         state = 'walk' if self.moving else 'idle'
         drawn_facing = _MIRRORED_FROM.get(self.facing, self.facing)
         return f'{state}_{drawn_facing}'
@@ -181,24 +275,39 @@ class Kid(AnimatedSprite):
             dt: The frame's time, in seconds.
 
         """
+        self._advance_knockout(dt)
         name = self.animation_name()
-        if self.current_animation != name or not self.is_playing:
+        if name != self._started_animation:
             self.play(name)
+            self._started_animation = name
         AnimatedSprite.update(self, dt)
-        facing_right = self.facing in _MIRRORED_FROM
-        if facing_right:
-            image = self.mirror_cache.mirrored(
-                sprite_name=self.look_name,
-                animation=self.current_animation,
-                frame=self.current_frame,
-                drawn=self.drawn_frame_surface(),
-            )
+        # Only standing and walking are mirrored: the knockout and respawn face down
+        facing_right = self.state is KidState.ACTIVE and self.facing in _MIRRORED_FROM
+        self.mirror_cache.show_frame(sprite=self, sprite_name=self.look_name, mirrored=facing_right)
+        self._blink()
+
+    def _advance_knockout(self, dt: float) -> None:
+        """Move through the knockout's steps, and count down the untouchable time."""
+        step = _KNOCKOUT_STEPS.get(self.state)
+        if step is not None:
+            self._state_seconds += dt
+            seconds, following = step
+            if self._state_seconds >= seconds - TIME_TOLERANCE:
+                self.state = following
+                self._state_seconds = 0.0
+                if following is KidState.ACTIVE:
+                    self.untouchable_seconds = UNTOUCHABLE_SECONDS
+                    self.facing = KidFacing.DOWN
+            return
+        self.untouchable_seconds = max(0.0, self.untouchable_seconds - dt)
+
+    def _blink(self) -> None:
+        """Blink while untouchable: hidden and shown by turns (world sprites hide by ``hidden``)."""
+        if self.untouchable_seconds > TIME_TOLERANCE:
+            blinks = int((UNTOUCHABLE_SECONDS - self.untouchable_seconds) / BLINK_SECONDS)
+            self.hidden = blinks % 2 == 1
         else:
-            image = self.drawn_frame_surface()
-        if self.image is not image:
-            self.image = image
-            self.dirty = 1
-        self.hitbox_flip_x = facing_right
+            self.hidden = False
 
     @override
     def update(self: Self, dt: float = 0.016) -> None:

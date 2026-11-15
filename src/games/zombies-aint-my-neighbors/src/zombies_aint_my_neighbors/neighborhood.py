@@ -7,6 +7,12 @@ middle of the group's bounding box, always shows everyone (arcade co-op). Kids a
 order of their feet. A pad unplugged here takes its kid with it; with nobody left, the game goes
 back to the title. Start or P pauses.
 
+Feature plan 5 (plans/2026-11-14-zombies-aint-my-neighbors-5-zombies.md) adds four TVs, one in
+each quarter of the yard, that Lawn Zombies pop out of (waits from the named random stream
+``zombies_aint_my_neighbors.tv-spawns``; 3 zombies per TV, 10 in all). Zombies shamble toward the
+nearest standing kid; a touch knocks the kid out (its player can't move it until it is back up)
+and the zombie grabs. TVs and zombies are drawn by their feet with the kids.
+
 Built from options alone, as a recording's first scene is, the keyboard plays P1.
 """
 
@@ -18,11 +24,14 @@ import pygame
 
 from glitchygames.camera import Camera2D
 from glitchygames.input.state import current_input
+from glitchygames.randomness import random_stream
 from zombies_aint_my_neighbors.art.palettes import KIDS
 from zombies_aint_my_neighbors.controls import DEFAULT_DEADZONE, player_direction
 from zombies_aint_my_neighbors.kid import KID_HEIGHT, KID_WIDTH, Kid, MirrorCache
 from zombies_aint_my_neighbors.roster import JoinRoster
 from zombies_aint_my_neighbors.roster_scene import KEYBOARD_IDENTITY, RosterScene
+from zombies_aint_my_neighbors.tv import TV_SIZE, Tv, may_spawn
+from zombies_aint_my_neighbors.zombie import Zombie, touches
 
 if TYPE_CHECKING:
     from zombies_aint_my_neighbors.roster import DeviceIdentity
@@ -46,6 +55,17 @@ LAWN_CHECKER_SIZE: Final = 48
 HEDGE_THICKNESS: Final = 16
 # The yard is drawn under everything (kids' layers are their feet's rows, 0 and up)
 YARD_LAYER: Final = -1000
+# The TVs' frames (top-left corners): one in the middle of each quarter of the yard
+TV_PLACES: Final[tuple[tuple[float, float], ...]] = tuple(
+    (
+        column * YARD_WIDTH / 2 + YARD_WIDTH / 4 - TV_SIZE / 2,
+        row * YARD_HEIGHT / 2 + YARD_HEIGHT / 4 - TV_SIZE / 2,
+    )
+    for row in (0, 1)
+    for column in (0, 1)
+)
+# The named random stream the TVs' waits come from (randomness: <game>.<purpose>)
+TV_SPAWN_STREAM: Final = 'zombies_aint_my_neighbors.tv-spawns'
 
 
 def draw_yard(surface: pygame.Surface, offset_x: float, offset_y: float) -> None:
@@ -145,6 +165,15 @@ class NeighborhoodScene(RosterScene):
         self.kids: dict[int, Kid] = {}
         self._yard_drawn = False
         self.add_missing_kids()
+        stream = random_stream(TV_SPAWN_STREAM)
+        self.tvs = [
+            Tv(world_x=world_x, world_y=world_y, stream=stream, groups=self.all_sprites)
+            for world_x, world_y in TV_PLACES
+        ]
+        for tv in self.tvs:
+            tv.dt_tick(0.0)
+            self._order_by_feet(tv, height=TV_SIZE)
+        self.zombies: list[Zombie] = []
 
     @override
     def setup(self) -> None:
@@ -176,9 +205,31 @@ class NeighborhoodScene(RosterScene):
             self.kids[player.slot_index] = kid
             self._order_by_feet(kid)
 
-    def _order_by_feet(self, kid: Kid) -> None:
-        """Draw a kid in order of its feet: lower on the screen is in front."""
-        self.all_sprites.change_layer(kid, round(kid.world_y + KID_HEIGHT))
+    def add_zombie(self, *, world_x: float, world_y: float) -> Zombie:
+        """Put a Lawn Zombie in the yard.
+
+        Args:
+            world_x: Its frame's left edge in the world.
+            world_y: Its frame's top edge in the world.
+
+        Returns:
+            The zombie.
+
+        """
+        zombie = Zombie(
+            world_x=world_x,
+            world_y=world_y,
+            mirror_cache=self.mirror_cache,
+            groups=self.all_sprites,
+        )
+        zombie.dt_tick(0.0)
+        self._order_by_feet(zombie)
+        self.zombies.append(zombie)
+        return zombie
+
+    def _order_by_feet(self, sprite: Kid | Zombie | Tv, *, height: int = KID_HEIGHT) -> None:
+        """Draw a sprite in order of its feet: lower on the screen is in front."""
+        self.all_sprites.change_layer(sprite, round(sprite.world_y + height))
 
     @override
     def dt_tick(self, dt: float) -> None:
@@ -196,6 +247,9 @@ class NeighborhoodScene(RosterScene):
             direction_x, direction_y = player_direction(
                 snapshot=snapshot, device=player.device, deadzone=self.deadzone
             )
+            if not kid.can_move:
+                # Knocked out: the player can't move the kid until it is back up
+                direction_x = direction_y = 0.0
             self._move(
                 kid,
                 world_x=kid.world_x + direction_x * WALK_SPEED * dt,
@@ -204,6 +258,32 @@ class NeighborhoodScene(RosterScene):
             kid.walk(direction_x=direction_x, direction_y=direction_y)
             kid.dt_tick(dt)
             self._order_by_feet(kid)
+        self._run_tvs(dt)
+        self._run_zombies(dt)
+
+    def _run_tvs(self, dt: float) -> None:
+        """Tick each TV under the caps, and put out each zombie whose pop has ended."""
+        for tv in self.tvs:
+            allowed = may_spawn(
+                zombies_from_this_tv=tv.zombies,
+                zombies_in_all=sum(each.zombies for each in self.tvs),
+            )
+            if tv.tick_spawning(dt=dt, allowed=allowed):
+                world_x, world_y = tv.spawn_point()
+                self.add_zombie(world_x=world_x, world_y=world_y)
+            tv.dt_tick(dt)
+
+    def _run_zombies(self, dt: float) -> None:
+        """Move each zombie, knock out each touchable kid it touches, and pose it."""
+        kids = list(self.kids.values())
+        for zombie in self.zombies:
+            zombie.chase(kids=kids, dt=dt)
+            for kid in kids:
+                if kid.is_touchable and touches(zombie=zombie, kid=kid):
+                    kid.knock_out()
+                    zombie.grab()
+            zombie.dt_tick(dt)
+            self._order_by_feet(zombie)
 
     def _move(self, kid: Kid, *, world_x: float, world_y: float) -> None:
         """Move a kid toward a place, as far as the yard and the group's screen span allow."""
