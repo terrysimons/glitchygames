@@ -186,4 +186,5 @@ VICTORY = Effect(
     ),
 )
 
-ALL_RECIPES = (JUMP, LAND, COG_PICKUP, DEATH, GAME_OVER, ELEVATOR_CLANK, VICTORY)
+# Every effect the game plays, requested from the sound library when a floor is built
+EFFECTS = (JUMP, LAND, COG_PICKUP, DEATH, GAME_OVER, ELEVATOR_CLANK, VICTORY)

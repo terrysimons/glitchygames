@@ -134,13 +134,13 @@ class TestElevatorActivation:
 @pytest.fixture
 def played(clockwork_scene, mocker):
     """Record sound-bank plays without rendering audio."""
-    return mocker.patch.object(clockwork_scene.sounds, 'play')
+    return mocker.patch.object(clockwork_scene, 'play_sound')
 
 
 class TestRecipes:
     """Every Clockwork Keep recipe renders."""
 
-    @pytest.mark.parametrize('recipe', clockwork_sounds.ALL_RECIPES, ids=lambda r: r.name)
+    @pytest.mark.parametrize('recipe', clockwork_sounds.EFFECTS, ids=lambda r: r.name)
     def test_every_recipe_renders(self, recipe):
         samples = recipe.render(sample_rate=44100)
         assert len(samples) > 0
@@ -219,10 +219,24 @@ class TestGameplaySounds:
         clockwork_scene.setup()
         assert math.isclose(clockwork_scene.target_fps, 0.0, abs_tol=1e-9)
 
-    def test_setup_prerenders_sounds(self, clockwork_scene, mocker):
-        prerender = mocker.patch.object(clockwork_scene.sounds, 'prerender')
-        clockwork_scene.setup()
-        prerender.assert_called_once()
+    def test_every_effect_is_compiled_when_the_floor_is_built(self, clockwork_scene):
+        """Each effect is the library's sound, compiled before the floor runs, at its volume.
+
+        Compiled up front so the elevator clank never compiles on the slam frame.
+        """
+        audio = clockwork_scene.scene_manager.audio
+        for effect in clockwork_sounds.EFFECTS:
+            sound = clockwork_scene.sounds[effect.name]
+            assert sound is audio.sound(effect)
+            assert sound.is_compiled
+            assert sound.playback_defaults.volume == effect.volume
+
+    def test_play_sound_plays_the_named_effect(self, clockwork_scene, mocker):
+        play = mocker.patch.object(clockwork_scene.sounds['jump'], 'play')
+
+        clockwork_scene.play_sound('jump')
+
+        play.assert_called_once_with()
 
 
 class TestElevatorRide:
@@ -910,7 +924,7 @@ class TestClockFaceMovingGear:
     @pytest.fixture
     def clock_face_played(self, clock_face_scene, mocker):
         """Record the Clock Face's sound-bank plays without rendering audio."""
-        return mocker.patch.object(clock_face_scene.sounds, 'play')
+        return mocker.patch.object(clock_face_scene, 'play_sound')
 
     @staticmethod
     def _platform_at(scene, position):
@@ -1311,7 +1325,7 @@ class TestFloorInput:
 
     def test_controller_button_a_jumps_and_its_release_lets_go(self, mocker):
         scene = ClockworkKeepScene(options={'input_mode': 'controller'})
-        played = mocker.patch.object(scene.sounds, 'play')
+        played = mocker.patch.object(scene, 'play_sound')
         _stand_on_first_elevator(scene)
         button = pygame.CONTROLLER_BUTTON_A
 
@@ -1487,7 +1501,7 @@ class TestClockFaceVictory:
         )
         scene.saves = DiskSaveManager('clockwork-keep', save_dir=tmp_path)
         mocker.patch.object(scene, 'transition_to')
-        mocker.patch.object(scene.sounds, 'play')
+        mocker.patch.object(scene, 'play_sound')
         return scene
 
     @staticmethod
@@ -1529,7 +1543,7 @@ class TestClockFaceVictory:
 
         clock_face_scene.dt_tick(FRAME_TIME)
 
-        played = [call.args[0] for call in clock_face_scene.sounds.play.call_args_list]
+        played = [call.args[0] for call in clock_face_scene.play_sound.call_args_list]
         assert played.count('victory') == 1
         assert 'elevator_clank' not in played
 

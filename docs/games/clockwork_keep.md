@@ -190,7 +190,7 @@ classDiagram
             platform_sprites, elevator_sprites
             moving_gear_sprites, collectible_sprites
             actions: ActionMap
-            sounds: SoundBank
+            sounds: dict[str, Sound]
             camera: Camera2D
             saves: SaveManager
             victory_platform
@@ -584,9 +584,10 @@ dropping through it.
 ## Sound
 
 `sounds.py` defines seven `Effect`s (synthesized tones: oscillators, envelopes, filters,
-tremolo), played through one `SoundBank(ALL_RECIPES)` per floor. `setup()` calls
-`sounds.prerender()`, so no sound renders mid-frame (the clank would otherwise render on the slam
-frame).
+tremolo), `EFFECTS`. Each floor asks the engine's sound library for all of them when it is built
+(`self.sounds`, by name; `play_sound(name)` plays one): the library compiles each once per engine
+context and caches it (on disk too, under `--sound-cache disk`), so no sound compiles mid-frame
+(the clank would otherwise compile on the slam frame). Each plays at its own volume.
 
 | Sound | When |
 |---|---|
@@ -600,7 +601,7 @@ frame).
 
 The elevator's motor is not a recipe but a live voice: a low-passed sawtooth with tremolo, made
 with `scene_manager.live_audio.create_voice(owner=transition)` and retuned every frame of the
-ride (`ELEVATOR_MOTOR_*` constants). `SoundBank.play` is a no-op when audio is unavailable.
+ride (`ELEVATOR_MOTOR_*` constants). Without an audio device a play is a silent no-op.
 
 ## State, score, lives and saves
 
@@ -693,7 +694,7 @@ the native-driver comparison while iterating).
 | `src/games/clockwork-keep/src/clockwork_keep/terrain.py` | `Platform`, `Elevator`, `MovingGear` |
 | `src/games/clockwork-keep/src/clockwork_keep/levels.py` | `FloorData`, `MovingGearData`, the three floors, `ALL_FLOORS` |
 | `src/games/clockwork-keep/src/clockwork_keep/drawing.py` | Primitive drawing: the Tinker, platforms, elevator, cogs, the three backgrounds, `clock_hand_angles` |
-| `src/games/clockwork-keep/src/clockwork_keep/sounds.py` | The six `Effect`s, `ALL_RECIPES` |
+| `src/games/clockwork-keep/src/clockwork_keep/sounds.py` | The seven `Effect`s, `EFFECTS` |
 | `src/games/clockwork-keep/src/clockwork_keep/constants.py` | Screen, physics, layers, gameplay, colours, elevator ride feel, the clock |
 | `src/glitchygames/transitions/elevator.py` | `ElevatorTransition` (engine, written for this game) |
 | `src/glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The pause and game-over screens |
