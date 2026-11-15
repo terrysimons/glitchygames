@@ -339,7 +339,7 @@ Plus, for every kind: `normalize` (bool, default true).
 | `filter` with `band_pass`, `resonance`, `envelope` | as above + `resonance` 0–0.95, `envelope` table with `amount_octaves` | none | M2 |
 | `drive` | 0–20 | 0 | M1 |
 | `bits`, `sample_rate_reduction` | 1–16; Hz | none | M2 |
-| `parameters.<name>` | `{ range = [lo, hi], default, smoothing_ms = 30, unit = "" }` | none | M2 |
+| `parameters.<name>` | `{ range = [lo, hi], default, smoothing_ms = 30, glide = "one_pole", unit = "" }`; `glide = "linear"` reaches the target in a straight line over `smoothing_ms` (plans/2026-11-14-sound-migration.md, step 7b) | none | M2 |
 | `routes` | array of `{ from, to, curve = "linear", output = [a, b] }`; `output` in numbers (Hz for `pitch`): note names are later work, since they would resolve without the game's tuning | none | M2 |
 | `chunk_seconds` | 0.03–0.5, live only: the voice's chunk length, its latency (below 30 ms a chunk cannot cover a 60 fps frame plus the device buffer) | 0.1 | M2 (plans/2026-11-14-sound-migration.md, step 7b) |
 | `tremolo` | `{ rate_hz, depth }` (an effect tone's form), live only; `tremolo.rate` and `tremolo.depth` are route destinations | none | M2 (plans/2026-11-14-sound-migration.md) |

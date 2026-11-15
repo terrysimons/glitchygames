@@ -985,6 +985,7 @@ cutoff = 900.0
 range = [0.0, 1.0]
 default = 0.25
 smoothing_ms = 60
+glide = "linear"
 unit = "fraction"
 
 [[instruments.motor.routes]]
@@ -1016,7 +1017,9 @@ def test_a_live_instrument_loads_with_its_tremolo_parameters_and_routes(tmp_path
     assert motor.chunk_seconds == 0.05
     assert motor.tremolo == Tremolo(rate_hz=8.0, depth=0.4)
     assert dict(motor.parameters) == {
-        'speed': Parameter(range=(0.0, 1.0), default=0.25, smoothing_ms=60.0, unit='fraction')
+        'speed': Parameter(
+            range=(0.0, 1.0), default=0.25, smoothing_ms=60.0, glide='linear', unit='fraction'
+        )
     }
     assert motor.routes == (
         Route(source='speed', destination='pitch', curve='exponential', output=(45.0, 110.0)),
@@ -1069,6 +1072,11 @@ def test_a_live_instrument_loads_with_its_tremolo_parameters_and_routes(tmp_path
             'positive output ends',
         ),
         (('chunk_seconds = 0.05', 'chunk_seconds = 0.01'), 'instruments.motor', 'chunk_seconds'),
+        (
+            ('glide = "linear"', 'glide = "wobbly"'),
+            'instruments.motor.parameters.speed.glide',
+            'linear',
+        ),
         (('depth = 0.4', 'depth = 1.5'), 'instruments.motor.tremolo.depth', 'less than or equal'),
         (('rate_hz = 8.0', 'rate_hz = 0.0'), 'instruments.motor.tremolo.rate_hz', 'greater than'),
         (('live = true', 'live = false'), 'instruments.motor', 'only on a live instrument'),

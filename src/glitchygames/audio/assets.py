@@ -26,7 +26,7 @@ import tomllib
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Final, Self, cast
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Final, Literal, Self, cast
 
 from pydantic import (
     BaseModel,
@@ -600,6 +600,7 @@ class ParameterTable(_Table):
     range: tuple[float, float]
     default: float
     smoothing_ms: Annotated[float, Field(ge=0.0)] = DEFAULT_SMOOTHING_MS
+    glide: Literal['one_pole', 'linear'] = 'one_pole'
     unit: str = ''
 
     @model_validator(mode='after')
@@ -617,7 +618,11 @@ class ParameterTable(_Table):
             The parameter.
         """
         return Parameter(
-            range=self.range, default=self.default, smoothing_ms=self.smoothing_ms, unit=self.unit
+            range=self.range,
+            default=self.default,
+            smoothing_ms=self.smoothing_ms,
+            glide=self.glide,
+            unit=self.unit,
         )
 
 

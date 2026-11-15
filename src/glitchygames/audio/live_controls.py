@@ -25,7 +25,9 @@ Rules:
    form (the specs' envelope and LFO sources are later work).
 4. Smoothing is a one-pole glide per sample, ``target + (start - target) * exp(-n / tau)`` with
    ``tau`` the parameter's ``smoothing_ms`` in samples, so a jump never clicks; 0 reaches the
-   target at once. Updates coalesce: the voice reads the latest value once per chunk.
+   target at once. Updates coalesce: the voice reads the latest value once per chunk. A
+   parameter with ``glide='linear'`` moves in a straight line instead, reaching the target in
+   ``smoothing_ms`` (``LinearGlide``; a new target starts a new line from where it got to).
 
 This module is a leaf: numpy, pydantic and the standard library.
 """
@@ -33,7 +35,7 @@ This module is a leaf: numpy, pydantic and the standard library.
 from __future__ import annotations
 
 import re
-from typing import Final, Self
+from typing import Final, Literal, Self
 
 import numpy as np
 import numpy.typing as npt
@@ -76,6 +78,7 @@ class Parameter(BaseModel):
     range: tuple[float, float]
     default: float
     smoothing_ms: float = Field(default=DEFAULT_SMOOTHING_MS, ge=0.0)
+    glide: Literal['one_pole', 'linear'] = 'one_pole'
     unit: str = ''
 
     @model_validator(mode='after')

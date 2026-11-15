@@ -53,7 +53,12 @@ from glitchygames.audio.live import (
     LiveVoiceOptions,
     VoiceState,
 )
-from glitchygames.audio.live_controls import LinearGlide, route_output, smoothed
+from glitchygames.audio.live_controls import (
+    MILLISECONDS_PER_SECOND,
+    LinearGlide,
+    route_output,
+    smoothed,
+)
 from glitchygames.audio.synth import FloatArray, Waveform, oscillator, sample_count
 from glitchygames.audio.voices import DEFAULT_STOP_FADE_SECONDS
 from glitchygames.audio.waves import Wave
@@ -64,6 +69,7 @@ if TYPE_CHECKING:
 
     import pygame
 
+    from glitchygames.audio.effects import Tremolo
     from glitchygames.audio.instrument import Instrument, Source
     from glitchygames.audio.live_controls import Parameter, Route
 
@@ -161,8 +167,10 @@ class InstrumentVoice:
             raise ValueError(message)
         self._instrument = instrument
         self._sample_rate = sample_rate
-        self._frequency = frequency
+        self._frequency = LinearGlide(frequency)
         self._volume = LinearGlide(volume)
+        self._tremolo = instrument.tremolo
+        self._base_cutoff = None if instrument.filter is None else instrument.filter.cutoff_hz
         self._sources = [
             LiveSource(name=name, source=source) for name, source in instrument.sources
         ]
@@ -176,6 +184,12 @@ class InstrumentVoice:
         for name, value in (parameters or {}).items():
             self._store(name, value)
         self._current = dict(self._targets)
+        # Rule 1's linear glides, by parameter (the one-pole ones need only _current)
+        self._linear_glides = {
+            name: LinearGlide(self._current[name])
+            for name, parameter in self._parameters.items()
+            if parameter.glide == 'linear'
+        }
         self._refuse_cutoffs_at_or_above_nyquist()
         filter_spec = instrument.filter
         self._filter = FilterState(
@@ -212,6 +226,110 @@ class InstrumentVoice:
             return False
         self._store(name, value)
         return True
+
+    def set_frequency(self, frequency: float) -> bool:
+        """Set the pitch straight, gliding in a line over the next chunk (the older voice's).
+
+        Returns:
+            True when taken; False once the voice is stopping or stopped.
+
+        Raises:
+            ValueError: For a frequency not above 0, or when a route moves ``pitch``.
+        """
+        self._refuse_what_a_route_moves(('pitch',))
+        if frequency <= 0.0:
+            message = f'frequency must be above 0, got {frequency}'
+            raise ValueError(message)
+        if not self.stream.accepts_changes:
+            return False
+        self._frequency.set(frequency, samples=self.stream.chunk_samples)
+        return True
+
+    def set_cutoff(self, cutoff: float | None) -> bool:
+        """Set the filter's cutoff straight, crossfaded across the next chunk; None removes it.
+
+        An instrument with no filter gains a low-pass.
+
+        Returns:
+            True when taken; False once the voice is stopping or stopped.
+
+        Raises:
+            ValueError: For a cutoff not above 0 or at or above the Nyquist frequency, or when a
+                route moves ``filter.cutoff``.
+        """
+        self._refuse_what_a_route_moves(('filter.cutoff',))
+        if cutoff is not None:
+            nyquist = self._sample_rate * NYQUIST_FRACTION
+            if cutoff <= 0.0:
+                message = f'cutoff must be above 0, got {cutoff}'
+                raise ValueError(message)
+            if cutoff >= nyquist:
+                message = f'a filter cutoff must stay below the Nyquist frequency, {nyquist:g} Hz'
+                raise ValueError(message)
+        if not self.stream.accepts_changes:
+            return False
+        self._base_cutoff = cutoff
+        return True
+
+    def set_tremolo(self, tremolo: Tremolo | None) -> bool:
+        """Set the tremolo straight from the next chunk (its phase carries on); None removes it.
+
+        Returns:
+            True when taken; False once the voice is stopping or stopped.
+
+        Raises:
+            ValueError: For a rate not above 0 or a depth outside 0-1, or when a route moves
+                ``tremolo.rate`` or ``tremolo.depth``.
+        """
+        self._refuse_what_a_route_moves(('tremolo.rate', 'tremolo.depth'))
+        if tremolo is not None:
+            if tremolo.rate_hz <= 0.0:
+                message = f'a tremolo rate_hz must be above 0, got {tremolo.rate_hz}'
+                raise ValueError(message)
+            if not 0.0 <= tremolo.depth <= 1.0:
+                message = f'a tremolo depth must be between 0 and 1, got {tremolo.depth}'
+                raise ValueError(message)
+        if not self.stream.accepts_changes:
+            return False
+        self._tremolo = tremolo
+        return True
+
+    def _refuse_what_a_route_moves(self, destinations: tuple[str, ...]) -> None:
+        """Refuse a direct setting of something a route moves (plan step 7b.6, a call).
+
+        Raises:
+            ValueError: Naming the route.
+        """
+        for route in self._routes:
+            if route.destination in destinations:
+                message = (
+                    f'a route moves {route.destination} (from {route.source!r}): set '
+                    f'{route.source!r} instead'
+                )
+                raise ValueError(message)
+
+    def _glided(self, name: str, target: float, count: int) -> FloatArray:
+        """A parameter's values across a chunk: its one-pole or linear glide (rule 1).
+
+        Returns:
+            One value per sample.
+        """
+        parameter = self._parameters[name]
+        linear = self._linear_glides.get(name)
+        if linear is None:
+            return smoothed(
+                start=self._current[name],
+                target=target,
+                count=count,
+                smoothing_ms=parameter.smoothing_ms,
+                sample_rate=self._sample_rate,
+            )
+        if target != linear.target:
+            linear.set(
+                target,
+                samples=round(parameter.smoothing_ms * self._sample_rate / MILLISECONDS_PER_SECOND),
+            )
+        return linear.values(count)
 
     def set_volume(self, volume: float, *, fade: float = 0.0) -> bool:
         """Glide the volume in a straight line, over ``fade`` seconds and at least one chunk.
@@ -252,20 +370,17 @@ class InstrumentVoice:
         self._targets[name] = inside
 
     def _cutoff_at(self, values: Mapping[str, float]) -> float | None:
-        """The filter's cutoff for parameter values (its route's, else the instrument's).
+        """The filter's cutoff for parameter values (its route's, else the one set or given).
 
         Returns:
             The cutoff in hertz, or None without a filter.
         """
-        filter_spec = self._instrument.filter
-        if filter_spec is None:
-            return None
         for route in self._routes:
             if route.destination == 'filter.cutoff':
                 parameter = self._parameters[route.source]
                 at = np.array([values[route.source]], dtype=np.float64)
                 return float(route_output(route=route, parameter=parameter, values=at)[0])
-        return filter_spec.cutoff_hz
+        return self._base_cutoff
 
     def _refuse_cutoffs_at_or_above_nyquist(self) -> None:
         nyquist = self._sample_rate * NYQUIST_FRACTION
@@ -286,16 +401,7 @@ class InstrumentVoice:
         Returns:
             The chunk's samples, before any stopping fade.
         """
-        values = {
-            name: smoothed(
-                start=self._current[name],
-                target=target,
-                count=count,
-                smoothing_ms=self._parameters[name].smoothing_ms,
-                sample_rate=self._sample_rate,
-            )
-            for name, target in self._targets.items()
-        }
+        values = {name: self._glided(name, target, count) for name, target in self._targets.items()}
         self._current = {name: float(series[-1]) for name, series in values.items()}
         routed: dict[str, list[FloatArray]] = {}
         for route in self._routes:
@@ -304,7 +410,7 @@ class InstrumentVoice:
             )
             routed.setdefault(route.destination, []).append(output)
 
-        pitch = routed['pitch'][0] if 'pitch' in routed else np.full(count, self._frequency)
+        pitch = routed['pitch'][0] if 'pitch' in routed else self._frequency.values(count)
         mixed = np.zeros(count)
         for source in self._sources:
             raw, source.phase = oscillator(
@@ -320,7 +426,7 @@ class InstrumentVoice:
 
         ramp = np.arange(1, count + 1) / count
         samples = self._filter.filtered(raw=mixed, ramp=ramp, cutoff=self._cutoff_at(self._current))
-        tremolo = self._instrument.tremolo
+        tremolo = self._tremolo
         if tremolo is not None:
             rates = (
                 routed['tremolo.rate'][0]
@@ -408,6 +514,30 @@ class LiveSoundHandle:
             Whether a pause was ended.
         """
         return self._voice is not None and self._voice.stream.release_hold()
+
+    def set_frequency(self, frequency: float) -> bool:
+        """Set its pitch straight, gliding over a chunk (``InstrumentVoice.set_frequency``).
+
+        Returns:
+            True when taken; False once stopping or stopped, or for a silent handle.
+        """
+        return self._voice is not None and self._voice.set_frequency(frequency)
+
+    def set_cutoff(self, cutoff: float | None) -> bool:
+        """Set its filter's cutoff straight, or None to remove it (``InstrumentVoice``).
+
+        Returns:
+            True when taken; False once stopping or stopped, or for a silent handle.
+        """
+        return self._voice is not None and self._voice.set_cutoff(cutoff)
+
+    def set_tremolo(self, tremolo: Tremolo | None) -> bool:
+        """Set its tremolo straight, or None to remove it (``InstrumentVoice.set_tremolo``).
+
+        Returns:
+            True when taken; False once stopping or stopped, or for a silent handle.
+        """
+        return self._voice is not None and self._voice.set_tremolo(tremolo)
 
     def set_pan(self, pan: float) -> bool:
         """Pan it, -1 (left) to 1 (right), by the constant-power law every sound pans by.

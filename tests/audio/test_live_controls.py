@@ -142,3 +142,11 @@ def test_a_jump_never_overshoots_and_moves_toward_the_target_every_sample():
     assert np.all(np.diff(values) < 0)
     assert values[0] < 1.0
     assert values[-1] > 0.0
+
+
+def test_a_parameter_glides_one_pole_unless_told_linear():
+    """The spec's glide by default; a straight line when asked (migration step 7b)."""
+    assert Parameter(range=(0.0, 1.0), default=0.0).glide == 'one_pole'
+    assert Parameter(range=(0.0, 1.0), default=0.0, glide='linear').glide == 'linear'
+    with pytest.raises(ValidationError):
+        Parameter(range=(0.0, 1.0), default=0.0, glide='wobbly')

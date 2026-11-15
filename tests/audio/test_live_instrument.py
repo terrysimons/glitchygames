@@ -748,3 +748,162 @@ def test_both_kinds_of_handle_are_a_playing_sound():
         assert isinstance(handle, PlayingSound)
         assert not handle.stop(fade=0.05)
         assert not handle.is_playing
+
+
+class TestDirectSettings:
+    """Frequency, cutoff and tremolo set straight on a playing sound (migration step 7b)."""
+
+    def _handle(self, channel, instrument, **voice_settings):
+        from glitchygames.audio.live_instrument import LiveSoundHandle
+
+        voice = _voice(channel, instrument, **voice_settings)
+        voice.stream.start()
+        return LiveSoundHandle(voice)
+
+    def test_set_frequency_glides_over_one_chunk_then_holds(self, channel, rendered_chunks):
+        """The old voice's ramp: 220 to 440 Hz across the next chunk, then 88 crossings."""
+        handle = self._handle(channel, _live(wave='sine'), frequency=220.0)
+
+        assert handle.set_frequency(440.0)
+        handle._voice.stream.update()
+        handle._voice.stream.update()
+
+        assert abs(rendered_chunks[1][0] - rendered_chunks[0][-1]) < 0.1  # no click
+        assert abs(_zero_crossings(rendered_chunks[2]) - 88) <= 1
+
+    def test_set_cutoff_adds_a_low_pass_and_none_removes_it(self, channel, rendered_chunks):
+        def sharpest(chunk):
+            return np.abs(np.diff(chunk)).max()
+
+        handle = self._handle(channel, _live(wave='saw'), frequency=233.0)
+        assert handle.set_cutoff(300.0)
+        for _ in range(2):
+            handle._voice.stream.update()
+        assert handle.set_cutoff(None)
+        for _ in range(2):
+            handle._voice.stream.update()
+
+        assert sharpest(rendered_chunks[2]) < sharpest(rendered_chunks[0]) / 3
+        assert sharpest(rendered_chunks[4]) == pytest.approx(sharpest(rendered_chunks[0]), rel=0.2)
+
+    def test_set_tremolo_adds_one_and_none_takes_it_away(self, channel, rendered_chunks):
+        """Off again, the chunk is the untouched tone, phase and all."""
+        handle = self._handle(channel, _live(wave='sine'))
+        _chunks(_voice(channel, _live(wave='sine')), 3)
+        plain = rendered_chunks[-3:]
+        del rendered_chunks[-3:]
+
+        assert handle.set_tremolo(Tremolo(rate_hz=10.0, depth=1.0))
+        handle._voice.stream.update()
+        assert handle.set_tremolo(None)
+        handle._voice.stream.update()
+
+        assert np.abs(rendered_chunks[1]).min() < 0.01  # dipping to silence
+        np.testing.assert_allclose(rendered_chunks[2], plain[2], atol=1e-12)
+
+    @pytest.mark.parametrize(
+        ('destination', 'output', 'setting'),
+        [
+            ('pitch', (100.0, 400.0), ('set_frequency', 300.0)),
+            ('filter.cutoff', (300.0, 3000.0), ('set_cutoff', 800.0)),
+            ('tremolo.rate', (2.0, 9.0), ('set_tremolo', None)),
+        ],
+    )
+    def test_a_direct_setting_of_what_a_route_moves_is_refused(
+        self, channel, destination, output, setting
+    ):
+        """[Call, the plan's 7b.6] One of them would silently win; neither does."""
+        instrument = _speed_to(
+            destination,
+            output,
+            filter=Filter('low_pass', 3000.0),
+            tremolo=Tremolo(rate_hz=4.0, depth=0.5),
+        )
+        name, value = setting
+
+        with pytest.raises(ValueError, match=rf'route.*{destination}'):
+            getattr(self._handle(channel, instrument), name)(value)
+
+    def test_a_direct_setting_beside_routes_elsewhere_is_taken(self, channel, rendered_chunks):
+        """Only what a route moves is refused: a level route leaves the pitch free."""
+        handle = self._handle(channel, _speed_to('level', (0.2, 1.0)), frequency=220.0)
+
+        assert handle.set_frequency(440.0)
+
+    @pytest.mark.parametrize(
+        ('setting', 'match'),
+        [
+            (('set_frequency', 0.0), 'frequency'),
+            (('set_cutoff', 30000.0), 'Nyquist'),
+            (('set_cutoff', 0.0), 'cutoff'),
+            (('set_tremolo', Tremolo(rate_hz=5.0, depth=1.5)), 'depth'),
+            (('set_tremolo', Tremolo(rate_hz=0.0, depth=0.5)), 'rate'),
+        ],
+    )
+    def test_a_setting_that_cannot_sound_is_refused(self, channel, setting, match):
+        name, value = setting
+
+        with pytest.raises(ValueError, match=match):
+            getattr(self._handle(channel, _live(wave='sine')), name)(value)
+
+    def test_a_stopped_or_silent_handle_takes_no_settings(self, channel):
+        from glitchygames.audio.live_instrument import LiveSoundHandle
+
+        stopped = self._handle(channel, _live(wave='sine'))
+        stopped.cancel()
+        for handle in (stopped, LiveSoundHandle(None)):
+            assert not handle.set_frequency(330.0)
+            assert not handle.set_cutoff(800.0)
+            assert not handle.set_tremolo(None)
+
+
+class TestLinearGlides:
+    """Parameter(glide='linear'): a straight line to the target over smoothing_ms."""
+
+    def test_a_linear_glide_reaches_its_target_in_a_straight_line(self, channel, rendered_chunks):
+        """100 ms to go from 0 to 1: exactly the next chunk, then it holds."""
+        straight = Parameter(range=(0.0, 1.0), default=0.0, smoothing_ms=100.0, glide='linear')
+        instrument = _live(
+            wave='sine',
+            parameters={'speed': straight},
+            routes=[Route(source='speed', destination='level', output=(0.0, 1.0))],
+        )
+        voice = _voice(channel, instrument)
+        voice.stream.start()
+        voice.set('speed', 1.0)
+        voice.stream.update()
+        voice.stream.update()
+        _chunks(_voice(channel, _live(wave='sine')), 3)
+        gliding, held = rendered_chunks[1], rendered_chunks[2]
+        plain_gliding, plain_held = rendered_chunks[4], rendered_chunks[5]
+
+        audible = np.abs(plain_gliding) > 0.1
+        expected = np.arange(1, CHUNK + 1) / CHUNK
+        np.testing.assert_allclose(gliding[audible] / plain_gliding[audible], expected[audible])
+        np.testing.assert_allclose(held, plain_held, atol=1e-12)
+
+    def test_a_new_target_mid_glide_starts_a_new_line_from_where_it_got_to(
+        self, channel, rendered_chunks
+    ):
+        """Half way to 1 after 100 ms of a 200 ms glide, then back to 0 over 200 ms from 0.5."""
+        straight = Parameter(range=(0.0, 1.0), default=0.0, smoothing_ms=200.0, glide='linear')
+        instrument = _live(
+            wave='sine',
+            parameters={'speed': straight},
+            routes=[Route(source='speed', destination='level', output=(0.0, 1.0))],
+        )
+        voice = _voice(channel, instrument)
+        voice.stream.start()
+        voice.set('speed', 1.0)
+        voice.stream.update()
+        voice.set('speed', 0.0)
+        voice.stream.update()
+        _chunks(_voice(channel, _live(wave='sine')), 3)
+        plain = rendered_chunks[3:]
+
+        audible = np.abs(plain[2]) > 0.1
+        steps = np.arange(1, CHUNK + 1) / (2 * CHUNK)
+        expected = 0.5 + (0.0 - 0.5) * steps
+        np.testing.assert_allclose(
+            rendered_chunks[2][audible] / plain[2][audible], expected[audible]
+        )
