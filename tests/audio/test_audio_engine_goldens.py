@@ -60,6 +60,7 @@ def golden_of(console_script: str) -> Path:
 
 # A game whose sounds come from the sound library (plans/2026-11-14-sound-migration.md)
 DISK_GOLDEN_GAME = 'clockwork-keep'
+DISK_GOLDEN_PACKAGE = 'clockwork_keep'
 LONG_AGO = 1_000_000.0
 
 
@@ -67,21 +68,27 @@ def test_a_golden_under_cache_disk_writes_its_sounds_then_reads_them_back(disk_s
     """Cold, the replay matches and writes its sounds; warm, it matches and reads every one back.
 
     Run in children, so the option and the cache root (inherited from the environment) both
-    reach the replayed game. A disk hit marks its file used; a write moves a new file into place.
-    So with every file's time set long ago before the warm run, every time refreshed, every file
-    the same file (its inode) and none added means every sound was read from disk and none was
-    compiled and written again.
+    reach the replayed game. Every miss takes its sound's write lock, which leaves
+    ``<key>.wav.lock`` behind (filelock keeps the file on macOS and Linux; on Windows it deletes
+    it on release, so there this proof would pass vacuously). So with the cold run's lock files
+    removed, no lock file afterwards means no sound missed. A hit writes nothing: every file
+    keeps the time set before the warm run, and stays the same file (its inode), and none is
+    added. The files are in the game's own folder (its package, clockwork_keep).
     """
     golden = golden_of(DISK_GOLDEN_GAME)
     arguments = ('--sound-cache', 'disk')
+    game_folder = disk_sound_cache / DISK_GOLDEN_PACKAGE
 
     cold = replay_recording_headless(
         console_script=DISK_GOLDEN_GAME, path=golden, game_arguments=arguments
     )
-    written = sorted((disk_sound_cache / 'sounds').rglob('*.wav'))
+    written = sorted(disk_sound_cache.rglob('*.wav'))
     inodes = {path: path.stat().st_ino for path in written}
     for path in written:
         os.utime(path, (LONG_AGO, LONG_AGO))
+    cold_locks = sorted(disk_sound_cache.rglob('*.wav.lock'))
+    for lock in cold_locks:
+        lock.unlink()
     warm = replay_recording_headless(
         console_script=DISK_GOLDEN_GAME, path=golden, game_arguments=arguments
     )
@@ -89,6 +96,9 @@ def test_a_golden_under_cache_disk_writes_its_sounds_then_reads_them_back(disk_s
     assert cold.returncode == ExitCode.SUCCESS, cold.stdout
     assert warm.returncode == ExitCode.SUCCESS, warm.stdout
     assert written
-    assert sorted((disk_sound_cache / 'sounds').rglob('*.wav')) == written
-    assert all(path.stat().st_mtime > LONG_AGO for path in written)
+    assert all(path.is_relative_to(game_folder) for path in written)
+    assert len(cold_locks) == len(written)
+    assert not list(disk_sound_cache.rglob('*.wav.lock')), 'a sound missed and was compiled'
+    assert sorted(disk_sound_cache.rglob('*.wav')) == written
+    assert all(path.stat().st_mtime == LONG_AGO for path in written)
     assert {path: path.stat().st_ino for path in written} == inodes

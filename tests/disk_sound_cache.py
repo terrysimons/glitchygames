@@ -29,7 +29,7 @@ def disk_sound_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterato
     """Point the sound cache's root at a fresh folder; fail the test if nothing used it.
 
     Yields:
-        The cache root (sounds go under ``<root>/sounds/<render_version>/``).
+        The cache root (sounds go under ``<root>/<game>/sounds/<render_version>/``).
     """
     root = tmp_path / 'sound-cache'
     root.mkdir()

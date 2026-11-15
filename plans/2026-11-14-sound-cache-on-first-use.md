@@ -26,6 +26,12 @@ time, so first use is the earliest point; a subcommand fills the cache ahead of 
    M3 list are updated to say the layer was built early, and why.
 2. **`disk` is opt-in; `ram` stays the default** (the owner, 2026-11-14). `--sound-cache disk`
    stops being refused. Making it the default waits for M3's numbers or the owner's say-so.
+   **Superseded 2026-11-15 (the owner):** `disk` is the default. Measured with
+   `scripts/benchmark_sound_cache.py`, a cold read beats compiling 2x to 9x on a Raspberry Pi 4
+   and Pi 5 from SD cards and a Pi 5 from NVMe, and 7x to 31x warm on an Apple M4 Max. With it:
+   one folder per game (`<root>/<game package>/sounds/<render_version>/`, its own 64 MB), and a
+   hit writes nothing, so pruning goes oldest written first (decision 3's "oldest-accessed" and
+   the read's time refresh are gone).
 3. **The spec's layout and limits hold** (§6.4, owner decisions): `<cache>/sounds/
    <render_version>/<key[:2]>/<key>.wav`, 16-bit PCM at the mixer rate, written aside then moved;
    64 MB, oldest-accessed pruned at startup; a read

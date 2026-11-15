@@ -167,6 +167,22 @@ def console_script_distribution(*, entry_point: EntryPoint) -> str | None:
     return None if entry_point.dist is None else entry_point.dist.name
 
 
+def game_package(*, game: type[Scene] | Scene) -> str:
+    """Return the top-level package a game's scene class is in, looking nothing up.
+
+    The cheap, stable part of a game's identity (the sound cache's per-game folder uses it).
+
+    Args:
+        game: The game's scene class, or a scene of it.
+
+    Returns:
+        The package name (``clockwork_keep`` for ``clockwork_keep.game``).
+
+    """
+    scene_class = game if isinstance(game, type) else type(game)
+    return scene_class.__module__.partition('.')[0]
+
+
 def game_identity(*, game: type[Scene] | Scene) -> GameIdentity:
     """Return a game's identity from its scene class (or a scene of that class).
 
@@ -181,7 +197,7 @@ def game_identity(*, game: type[Scene] | Scene) -> GameIdentity:
     """
     scene_class = game if isinstance(game, type) else type(game)
     game_module = scene_class.__module__
-    package = game_module.partition('.')[0]
+    package = game_package(game=scene_class)
     entry_point = starting_entry_point(package=package, game_module=game_module)
     return GameIdentity(
         package=package,

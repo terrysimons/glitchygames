@@ -107,8 +107,11 @@ if TYPE_CHECKING:
 log: logging.Logger = logging.getLogger('game.audio.engine')
 
 
-def _disk_layer() -> DiskSoundCache | None:
+def _disk_layer(*, game_name: str) -> DiskSoundCache | None:
     """Make cache ``disk``'s layer, or say once why there is none (it then runs as ``ram``).
+
+    Args:
+        game_name: The game's folder under the cache root (``sounds_directory``).
 
     Returns:
         The layer under ``sound_cache_root()``, or None in the browser (no lasting files) or with
@@ -125,7 +128,7 @@ def _disk_layer() -> DiskSoundCache | None:
         )
         return None
     return DiskSoundCache(
-        directory=sounds_directory(root=root, render_version=AUDIO_RENDER_VERSION),
+        directory=sounds_directory(root=root, game=game_name, render_version=AUDIO_RENDER_VERSION),
         limit_bytes=DISK_CACHE_LIMIT_BYTES,
     )
 
@@ -138,6 +141,11 @@ LEGACY_CHANNELS: Final[int] = 8
 DEFAULT_LIVE_POOL: Final[int] = 4
 BYTES_PER_MEGABYTE: Final[int] = 1024 * 1024
 DEFAULT_CACHE_MEMORY_MEGABYTES: Final[int] = DEFAULT_MEMORY_LIMIT_BYTES // BYTES_PER_MEGABYTE
+# --sound-cache's default (the owner, 2026-11-15): reading a sound back beats compiling it on
+# every machine measured, a Raspberry Pi's SD card included (scripts/benchmark_sound_cache.py)
+DEFAULT_SOUND_CACHE: Final[CacheMode] = CacheMode.DISK
+# The disk cache folder of an audio engine no game names (a tool's, a test's)
+NO_GAME_CACHE_FOLDER: Final[str] = 'no-game'
 # Feature spec 7.4: a scene's voices fade over 50 ms when it is cleaned up
 SCENE_CLEANUP_FADE_SECONDS: Final[float] = DEFAULT_STOP_FADE_SECONDS
 # Impl spec 10.3: shutdown fades everything over 50 ms and waits at most 100 ms
@@ -324,6 +332,7 @@ class AudioEngine:
         partition: ChannelPartition,
         cache: CacheMode = CacheMode.RAM,
         memory_limit_bytes: int = DEFAULT_MEMORY_LIMIT_BYTES,
+        game_name: str = NO_GAME_CACHE_FOLDER,
         scene_source: Callable[[], object | None] = _no_scene,
         frame_number: int | None = None,
         setup_mode: bool = True,
@@ -334,8 +343,12 @@ class AudioEngine:
             partition: The mixer's channel partition (``reserve_channels``).
             cache: The cache mode. ``disk`` keeps sounds under ``sound_cache_root()``; with no
                 root (``GLITCHYGAMES_SOUND_CACHE_ROOT`` empty) or in the browser it runs as
-                ``ram``, says why once, and ``cache_mode`` reads ``ram``.
+                ``ram``, says why once, and ``cache_mode`` reads ``ram``. A game's engine takes
+                ``--sound-cache`` (default ``DEFAULT_SOUND_CACHE``, ``disk``); one made
+                directly (a tool's, a test's) keeps sounds in memory unless it asks.
             memory_limit_bytes: The bytes compiled sounds may hold under ``ram``.
+            game_name: The game's folder under the disk cache root (its package name), so each
+                game keeps, limits and prunes only its own sounds.
             scene_source: Gives the scene plays belong to and short names resolve in (the scene
                 in setup, else the active scene), or None.
             frame_number: The frame being run, for the compile log.
@@ -346,7 +359,7 @@ class AudioEngine:
         self.waves: WaveRegistry = current_wave_registry()
         self.buses = BusTree()
         self.tuning = Tuning()
-        disk = _disk_layer() if cache is CacheMode.DISK else None
+        disk = _disk_layer(game_name=game_name) if cache is CacheMode.DISK else None
         if cache is CacheMode.DISK and disk is None:
             cache = CacheMode.RAM
         self.cache_mode = cache

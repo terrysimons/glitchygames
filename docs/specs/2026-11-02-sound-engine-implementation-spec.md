@@ -431,12 +431,17 @@ both.
   Above `--sound-cache-memory` (default 256 MB), the least recently played sounds that are not
   playing are dropped. They are recompiled on their next request, which is counted.
 - **Disk (`'disk'`, M3):** memory first, then disk.
-  - Layout: `<cache>/sounds/<render_version>/<key[:2]>/<key>.wav` (16-bit PCM WAV at the mixer
-    rate), written with `output_files.write_aside_then_replace` [Fact].
+  - Layout: `<cache>/<game package>/sounds/<render_version>/<key[:2]>/<key>.wav` (16-bit PCM WAV
+    at the mixer rate), written aside to a temporary file of its own, then moved into place
+    (plans/2026-11-14-sound-cache-on-first-use.md, decision 3). One folder per game (the owner,
+    2026-11-15), so a game's limit and pruning touch only its own files.
+  - **`'disk'` is the default** (the owner, 2026-11-15, ahead of M3's benchmarks): a read beats
+    a compile on every machine measured, a Raspberry Pi's SD card cold included
+    (`scripts/benchmark_sound_cache.py`). A read writes nothing (SD cards wear from writes).
   - The cache root is a new `state/paths.get_cache_directory(app_name)` beside
     `get_save_directory` [Fact]: macOS `~/Library/Caches/<app>/`, Linux `$XDG_CACHE_HOME/<app>/`
     (default `~/.cache/<app>/`), Windows `%LOCALAPPDATA%\<app>\Cache\`.
-  - The size limit is 64 MB, and the oldest-accessed files are pruned at startup.
+  - The size limit is 64 MB per game, and the oldest written files are pruned at startup.
   - Reads verify the WAV header's rate and length. A bad file is deleted and recompiled.
   - In the browser and in tests, `'disk'` falls back to `'ram'` with one log line. Under
     `--headless` outside tests it is honoured, so the M2 startup benchmark can measure it.

@@ -923,13 +923,46 @@ class TestDiskCacheMode:
         from glitchygames.audio.spec import AUDIO_RENDER_VERSION
 
         monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, str(tmp_path))
-        engine = AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK)
+        engine = AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK, game_name='keep')
 
         engine.sound(Instrument(wave='square'), pitch='C5')
 
         assert engine.cache_mode is CacheMode.DISK
         assert engine.sounds.statistics().disk_writes == 1
-        assert list((tmp_path / 'sounds' / str(AUDIO_RENDER_VERSION)).rglob('*.wav'))
+        assert list((tmp_path / 'keep' / 'sounds' / str(AUDIO_RENDER_VERSION)).rglob('*.wav'))
+
+    def test_an_engine_with_no_game_keeps_its_sounds_in_the_no_game_folder(
+        self, tmp_path, monkeypatch
+    ):
+        from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
+        from glitchygames.audio.engine import NO_GAME_CACHE_FOLDER
+        from glitchygames.audio.library import CacheMode
+
+        monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, str(tmp_path))
+        engine = AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK)
+
+        engine.sound(Instrument(wave='square'), pitch='C5')
+
+        assert [path.name for path in tmp_path.iterdir()] == [NO_GAME_CACHE_FOLDER]
+
+    def test_a_games_start_prunes_only_its_own_folder(self, tmp_path, monkeypatch):
+        """Per-game limits: one game's start never removes another game's sounds."""
+        from glitchygames.audio import engine as engine_module
+        from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
+        from glitchygames.audio.library import ENGINE_SOUND_CACHE, CacheMode
+
+        monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, str(tmp_path))
+        for game in ('first', 'second'):
+            AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK, game_name=game).sound(
+                Instrument(wave='square'), pitch='C5'
+            )
+            ENGINE_SOUND_CACHE.clear()  # each game compiles and writes its own copy
+        monkeypatch.setattr(engine_module, 'DISK_CACHE_LIMIT_BYTES', 0)
+
+        AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK, game_name='second')
+
+        assert list((tmp_path / 'first').rglob('*.wav'))
+        assert not list((tmp_path / 'second').rglob('*.wav'))
 
     def test_an_empty_root_runs_as_ram_and_says_so_once(self, monkeypatch, caplog):
         from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE

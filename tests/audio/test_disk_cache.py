@@ -185,10 +185,10 @@ def test_the_size_counts_every_kept_file(tmp_path: Path) -> None:
     assert cache.size_bytes() == sum(path.stat().st_size for path in tmp_path.rglob('*.wav'))
 
 
-def test_pruning_removes_the_least_recently_used_files_until_under_the_limit(
+def test_pruning_removes_the_oldest_written_files_until_under_the_limit(
     tmp_path: Path,
 ) -> None:
-    """The least recently used files go first, and only until the folder fits."""
+    """The oldest written files go first, and only until the folder fits."""
     writer = make_cache(tmp_path)
     keys = [f'{index:02x}' + '0' * 30 for index in range(4)]
     for key in keys:
@@ -197,7 +197,7 @@ def test_pruning_removes_the_least_recently_used_files_until_under_the_limit(
         )
     file_size = (tmp_path / keys[0][:2] / f'{keys[0]}.wav').stat().st_size
     for age, key in enumerate(keys):
-        # keys[0] used longest ago, keys[3] most recently
+        # keys[0] written longest ago, keys[3] most recently
         os.utime(tmp_path / key[:2] / f'{key}.wav', (1_000_000 + age, 1_000_000 + age))
 
     make_cache(tmp_path, limit_bytes=file_size * 2).prune()
@@ -205,16 +205,18 @@ def test_pruning_removes_the_least_recently_used_files_until_under_the_limit(
     assert sorted(path.stem for path in tmp_path.rglob('*.wav')) == keys[2:]
 
 
-def test_reading_a_file_marks_it_used(tmp_path: Path) -> None:
-    """A hit refreshes the file, so pruning keeps what is played."""
+def test_reading_a_file_writes_nothing(tmp_path: Path) -> None:
+    """A hit is a pure read: an SD card wears from writes (the owner, 2026-11-15)."""
     cache = make_cache(tmp_path)
     cache.write(identity_key=KEY, samples_int16=samples(), peak=0.5, sample_rate=SAMPLE_RATE)
     path = tmp_path / KEY[:2] / f'{KEY}.wav'
     os.utime(path, (1_000_000, 1_000_000))
+    folder_entries = sorted(tmp_path.rglob('*'))
 
     cache.read(identity_key=KEY, sample_rate=SAMPLE_RATE, frame_count=100)
 
-    assert path.stat().st_mtime > 1_000_000
+    assert path.stat().st_mtime == 1_000_000
+    assert sorted(tmp_path.rglob('*')) == folder_entries
 
 
 def test_pruning_removes_temporary_files_a_killed_writer_left(tmp_path: Path) -> None:
@@ -279,6 +281,22 @@ def test_an_empty_root_means_no_disk_layer(monkeypatch: pytest.MonkeyPatch) -> N
     assert disk_cache.sound_cache_root() is None
 
 
-def test_the_sounds_folder_is_versioned_by_the_render_version(tmp_path: Path) -> None:
-    """Sounds live in <root>/sounds/<render_version>/, so a render change reads no old file."""
-    assert disk_cache.sounds_directory(root=tmp_path, render_version=7) == tmp_path / 'sounds' / '7'
+def test_each_game_has_its_own_sounds_folder_versioned_by_the_render_version(
+    tmp_path: Path,
+) -> None:
+    """<root>/<game>/sounds/<render_version>/: a game prunes only its own files (2026-11-15).
+
+    A render change reads no old file.
+    """
+    assert disk_cache.sounds_directory(root=tmp_path, game='mr_muncher', render_version=7) == (
+        tmp_path / 'mr_muncher' / 'sounds' / '7'
+    )
+
+
+@pytest.mark.parametrize('game', ['', '.', '..', 'a/b', 'a\\b', 'two words'])
+def test_a_game_name_that_is_not_one_plain_folder_name_is_refused(
+    tmp_path: Path, game: str
+) -> None:
+    """A game's folder is one plain name inside the root, never a path out of it."""
+    with pytest.raises(ValueError, match='game'):
+        disk_cache.sounds_directory(root=tmp_path, game=game, render_version=7)

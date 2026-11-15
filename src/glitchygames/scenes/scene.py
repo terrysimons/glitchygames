@@ -1388,11 +1388,14 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         from glitchygames.audio.engine import (
             BYTES_PER_MEGABYTE,
             DEFAULT_CACHE_MEMORY_MEGABYTES,
+            DEFAULT_SOUND_CACHE,
+            NO_GAME_CACHE_FOLDER,
             AudioEngine,
             default_channel_partition,
             install_audio_engine,
         )
         from glitchygames.audio.library import CacheMode
+        from glitchygames.replay.tools.identity import game_package
 
         audio_engine = _existing_audio_engine()
         if audio_engine is not None:
@@ -1403,10 +1406,13 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             else game_engine.reserved_channel_partition()
         )
         options: Mapping[str, Any] = {} if game_engine is None else game_engine.options
+        game = None if game_engine is None else game_engine.game
         return install_audio_engine(
             engine=AudioEngine(
                 partition=partition,
-                cache=CacheMode(options.get('sound_cache', CacheMode.RAM.value)),
+                cache=CacheMode(options.get('sound_cache', DEFAULT_SOUND_CACHE.value)),
+                # Each game keeps its own disk cache folder (the owner, 2026-11-15)
+                game_name=NO_GAME_CACHE_FOLDER if game is None else game_package(game=game),
                 memory_limit_bytes=int(
                     options.get('sound_cache_memory', DEFAULT_CACHE_MEMORY_MEGABYTES)
                 )

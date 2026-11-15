@@ -1192,6 +1192,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         from glitchygames.audio.engine import (
             DEFAULT_CACHE_MEMORY_MEGABYTES,
             DEFAULT_LIBRARY_CHANNELS,
+            DEFAULT_SOUND_CACHE,
         )
         from glitchygames.audio.library import CacheMode
 
@@ -1209,10 +1210,11 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             choices=[mode.value for mode in CacheMode],
             help=(
                 'how compiled sounds are kept: none (compiled again at every play), ram (in '
-                'memory, default) or disk (in memory and in the cache folder, so a later launch '
-                'compiles nothing: GLITCHYGAMES_SOUND_CACHE_ROOT names it, empty for none)'
+                "memory) or disk (in memory and in the game's cache folder, so a later launch "
+                'compiles nothing: GLITCHYGAMES_SOUND_CACHE_ROOT names the root, empty for none) '
+                f'(default: {DEFAULT_SOUND_CACHE.value})'
             ),
-            default=CacheMode.RAM.value,
+            default=DEFAULT_SOUND_CACHE.value,
         )
         group.add_argument(
             '--sound-cache-memory',

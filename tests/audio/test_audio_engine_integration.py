@@ -112,7 +112,7 @@ class TestSoundOptions:
     def test_the_sound_options_have_the_spec_defaults(self, mocker):
         options = build_engine(mocker, game=SoundingGame).options
         assert options['sound_channels'] == 32
-        assert options['sound_cache'] == 'ram'
+        assert options['sound_cache'] == 'disk'  # the owner, 2026-11-15
         assert options['sound_cache_memory'] == 256
         assert options['crt_power_on_sound'] == 'on'
         assert options['sound_diagnostics'] is False
@@ -145,6 +145,19 @@ class TestSoundOptions:
         engine = build_engine(mocker, game=SoundingGame, extra_arguments=('--sound-cache', 'disk'))
 
         assert engine.options['sound_cache'] == 'disk'
+
+    def test_a_games_sounds_go_in_its_own_cache_folder(self, mocker, tmp_path, monkeypatch):
+        """The scene manager names the game's package as the audio engine's cache folder."""
+        from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
+
+        monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, str(tmp_path))
+        engine = build_engine(mocker, game=SoundingGame)
+
+        audio = engine.scene_manager.audio_for(game_engine=engine)
+        audio.sound(Instrument(wave='square'), pitch='C5')
+
+        assert audio.cache_mode is CacheMode.DISK
+        assert [path.name for path in tmp_path.iterdir()] == ['tests']  # SoundingGame's package
 
     def test_the_channels_are_partitioned_from_the_options(self, mocker):
         engine = build_engine(

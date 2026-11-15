@@ -882,7 +882,7 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
     },
     'audio/library.py': {
         'ENGINE_SOUND_CACHE': (
-            "R17: compiled, read-only samples by identity key, one cache per process by design "
+            'R17: compiled, read-only samples by identity key, one cache per process by design '
             "(the owner, 2026-11-02, for the engine's own sounds, pinned; 2026-11-14, for every "
             "game's too, so an Arcade tile's restart compiles nothing; CLAUDE.md)."
         ),

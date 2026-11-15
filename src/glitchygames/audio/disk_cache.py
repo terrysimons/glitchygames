@@ -4,8 +4,10 @@ Sound engine implementation spec 6.4 (the layer, its layout and its limits; owne
 plans/2026-11-14-sound-cache-on-first-use.md (built before M2, opt-in). The rules:
 
 1. One file per sound, ``<directory>/<key[:2]>/<key>.wav``: a mono 16-bit PCM WAV at the mixer
-   rate that any WAV reader opens. The caller names the directory, versioned by the audio render
-   version (``<cache>/sounds/<render_version>/``), so a render change never reads an old file.
+   rate that any WAV reader opens. The caller names the directory: one per game, versioned by
+   the audio render version (``<cache>/<game>/sounds/<render_version>/``, ``sounds_directory``),
+   so a render change never reads an old file and a game's limit and pruning touch only its own
+   files (the owner, 2026-11-15; the engine's own sounds are kept once per game, about 0.5 MB).
 2. Each file also carries the compile's exact peak, a little-endian float64 in a private RIFF
    chunk (``gGpk``, which WAV readers skip), because a sound's peak must never depend on the
    cache and 16-bit samples alone cannot give it back. Float samples are not kept.
@@ -23,9 +25,11 @@ plans/2026-11-14-sound-cache-on-first-use.md (built before M2, opt-in). The rule
    the library reads again under it before compiling, so a sound is compiled and written once.
    A lock not had within ``WRITE_LOCK_TIMEOUT_SECONDS`` (another process compiling a long sound)
    gives way: the caller compiles without writing.
-5. A hit marks the file used (its modification time), and ``prune`` removes the least recently
-   used files until the folder is at most its limit, and every temporary file a killed writer
-   left. Files are read whole, so none is ever held open.
+5. A hit writes nothing: a read is a pure read, because SD cards (a Raspberry Pi's) wear from
+   writes (the owner, 2026-11-15). So ``prune`` removes the oldest written files until the
+   folder is at most its limit, and every temporary file a killed writer left. Lock files
+   (rule 5a) are never removed: one held by another process must stay the same file. They are
+   empty, one per sound ever written. Files are read whole, so none is ever held open.
 6. Where the cache lives is explicit (the plan's decision 7), never guessed from whether a test
    is running: ``GLITCHYGAMES_SOUND_CACHE_ROOT`` unset means the platform's cache folder
    (``state.paths.get_cache_directory``), a path means that folder, and an empty value means no
@@ -33,7 +37,7 @@ plans/2026-11-14-sound-cache-on-first-use.md (built before M2, opt-in). The rule
    An environment variable rather than an option, because golden replays and bundled demos run
    as child processes, which inherit it. The test harness sets it empty (tests/harness.py), so
    no test writes to a user's cache folder; a test that wants the disk sets it to its own
-   folder. Sounds live under ``<root>/sounds/<render_version>/`` (``sounds_directory``).
+   folder. Sounds live under ``<root>/<game>/sounds/<render_version>/`` (``sounds_directory``).
 
 This module imports numpy, pydantic, the standard library and ``glitchygames.state.paths``.
 """
@@ -44,6 +48,7 @@ import contextlib
 import logging
 import operator
 import os
+import re
 import struct
 import tempfile
 from pathlib import Path
@@ -81,6 +86,8 @@ SOUND_SUFFIX: Final[str] = '.wav'
 TEMPORARY_MARKER: Final[str] = '.writing-'
 KEY_PREFIX_LENGTH: Final[int] = 2
 LOCK_SUFFIX: Final[str] = '.lock'
+# Rule 1: a game's folder is one plain name inside the root
+GAME_FOLDER_NAME: Final[re.Pattern[str]] = re.compile(r'[A-Za-z0-9_.-]+')
 # Rule 5a: how long a writer waits for another process writing the same sound
 WRITE_LOCK_TIMEOUT_SECONDS: Final[float] = 5.0
 
@@ -107,17 +114,25 @@ def sound_cache_root() -> Path | None:
     return Path(configured) if configured else None
 
 
-def sounds_directory(*, root: Path, render_version: int) -> Path:
-    """Name the folder a render version's sounds live in.
+def sounds_directory(*, root: Path, game: str, render_version: int) -> Path:
+    """Name the folder a game's sounds of one render version live in (rule 1).
 
     Args:
         root: The cache root (``sound_cache_root``).
+        game: The game's folder name (its package name): one plain name, never a path.
         render_version: The audio render version.
 
     Returns:
-        ``<root>/sounds/<render_version>``.
+        ``<root>/<game>/sounds/<render_version>``.
+
+    Raises:
+        ValueError: The game name is empty, ``.`` or ``..``, or has anything but letters,
+            digits, ``_``, ``-`` and ``.``.
     """
-    return root / SOUNDS_FOLDER / str(render_version)
+    if GAME_FOLDER_NAME.fullmatch(game) is None or game in {'.', '..'}:
+        message = f'a game cache folder is one plain name (letters, digits, _ - .), got {game!r}'
+        raise ValueError(message)
+    return root / game / SOUNDS_FOLDER / str(render_version)
 
 
 class CachedSamples(BaseModel):
@@ -180,8 +195,6 @@ class DiskSoundCache:
         if cached is None:
             path.unlink(missing_ok=True)
             return None
-        with contextlib.suppress(OSError):
-            os.utime(path)
         return cached
 
     @contextlib.contextmanager
@@ -255,7 +268,7 @@ class DiskSoundCache:
         return sum(path.stat().st_size for path in self._sound_files())
 
     def prune(self) -> None:
-        """Remove temporary files, then the least recently used sounds until under the limit."""
+        """Remove temporary files, then the oldest written sounds until under the limit."""
         if not self._directory.is_dir():
             return
         for leftover in self._directory.glob(f'*/*{TEMPORARY_MARKER}*'):
@@ -264,8 +277,8 @@ class DiskSoundCache:
             ((path.stat().st_mtime, path.stat().st_size, path) for path in self._sound_files()),
             key=operator.itemgetter(0),
         )
-        total = sum(size for _used, size, _path in files)
-        for _used, size, path in files:
+        total = sum(size for _written, size, _path in files)
+        for _written, size, path in files:
             if total <= self._limit_bytes:
                 break
             path.unlink(missing_ok=True)
