@@ -412,3 +412,32 @@ class TestTheReservedPartition:
         assert held.live == (100, 101, 102, 103)
         assert second_host.reserved_channel_partition().library == tuple(range(4, 36))
         assert inner_game_channels_declared()
+
+
+class EarlyAskingGame(Scene):
+    """A stand-in game whose constructor asks for audio, as a sprite loading a sound would."""
+
+    NAME = 'EarlyAskingGame'
+    VERSION = '1.0'
+
+    def __init__(self, *args, **kwargs):
+        """Ask for the audio engine while the game is being built."""
+        super().__init__(*args, **kwargs)
+        self.cache_mode_seen = self.scene_manager.audio.cache_mode
+
+    def dt_tick(self, dt):
+        """Quit in the first frame."""
+        del dt
+        self.scene_manager.quit()
+
+
+def test_a_constructor_that_asks_for_audio_gets_the_games_sound_options(mocker):
+    """The game engine is set before the game is built, so its sound options apply from there.
+
+    Built while the CRT power-on is skipped (the dummy driver), before this the audio engine was
+    made without the game engine: cache ram whatever --sound-cache said.
+    """
+    engine = build_engine(mocker, game=EarlyAskingGame, extra_arguments=('--sound-cache', 'none'))
+    engine.start()
+
+    assert engine.running_game.instance.cache_mode_seen.value == 'none'

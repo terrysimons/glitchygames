@@ -4063,12 +4063,15 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         if self.ai_link is not None:
             self.ai_link.start()
 
+        # The setter gives the scene manager this engine's options (manager.engine_options).
+        # Before the game is built: a constructor asking for scene_manager.audio (a sprite
+        # loading its sound) gets an audio engine made from these options, where it once got
+        # cache ram and the default partition whenever the CRT power-on had not made one first
+        self.scene_manager.game_engine = self
+
         # Build the game's scene: engine.game stays its class, the scene is running_game.instance
         scene = self.game(options=self.options)
         self.running_game = RunningGame(game_class=self.game, instance=scene)
-
-        # The setter gives the scene manager this engine's options (manager.engine_options)
-        self.scene_manager.game_engine = self
 
         self._initialize_event_managers()
 
