@@ -29,8 +29,8 @@ time, so first use is the earliest point; a subcommand fills the cache ahead of 
    <render_version>/<key[:2]>/<key>.wav`, 16-bit PCM at the mixer rate, written aside then moved;
    64 MB, oldest-accessed pruned at startup; a read
    verifies the header (rate, channels, width, length) and a bad file is deleted and compiled
-   again; in tests and in the browser `disk` falls back to `ram` with one log line (outside tests
-   `--headless` honours it). One change from the spec's text: a write goes to a temporary file of
+   again; in the browser `disk` falls back to `ram` with one log line. Where tests are concerned
+   decision 7 replaces the spec's "falls back in tests". One change from the spec's text: a write goes to a temporary file of
    its own (`<key>.wav.writing-*`, `tempfile.mkstemp` in the same folder), not
    `output_files.write_aside_then_replace`, whose one fixed `.partial` name two processes writing
    the same sound would share (one could move the other's half-written file into place).
@@ -54,6 +54,20 @@ time, so first use is the earliest point; a subcommand fills the cache ahead of 
    `$XDG_CACHE_HOME/<app>/` (default `~/.cache/<app>/`), Windows `%LOCALAPPDATA%\<app>\Cache\`.
    The engine's app name is `glitchygames` (one cache per machine, shared by every game, since a
    sound's identity already names everything that makes it).
+7. **Explicit controls, not a hidden "in tests" switch** (the owner, 2026-11-14, after a review
+   noted that the spec's "in tests, `disk` falls back to `ram`" would make the replay proof run
+   on the memory cache and pass without touching the disk):
+   - `GLITCHYGAMES_SOUND_CACHE_ROOT` overrides the cache root: unset, the platform folder
+     (decision 6); a path, that folder; empty, no disk layer (`disk` runs as `ram` and logs one
+     line saying why). An environment variable, not a command-line option, because golden
+     replays and bundled demos run as child processes, which inherit it; an option would have to
+     be threaded through every launcher. The pattern is `GLITCHYGAMES_AI_INSTALL_ROOT`'s.
+   - The test harness sets it empty by default, so no test writes to the user's cache folder; a
+     test that wants the disk sets it to its own `tmp_path`.
+   - A `disk_sound_cache` fixture does that and fails the test at teardown when no file in its
+     folder was written or read, so a test that claims to test the disk proves it touched it.
+   - `CacheStatistics` gains `disk_hits`, `disk_misses` and `disk_writes` (also shown in the Audio
+     panel and by `sound-cache size`).
 
 ## Interfaces
 
@@ -67,8 +81,9 @@ time, so first use is the earliest point; a subcommand fills the cache ahead of 
 - `SoundLibrary(cache=CacheMode.DISK, disk=DiskSoundCache | None)`: memory first, then disk, then
   compile and write. `ENGINE_SOUND_CACHE` (the engine's own sounds, process-wide) reads and writes
   the same disk layer when the mode is `disk`.
-- `GameEngine`: `--sound-cache disk` no longer refused; the test harness and the browser fall
-  back to `ram` (one log line).
+- `GameEngine`: `--sound-cache disk` no longer refused; the root comes from
+  `GLITCHYGAMES_SOUND_CACHE_ROOT` (decision 7); an empty root and the browser run as `ram` (one
+  log line).
 - Subcommands (each a `Tool` in `replay/tools/registry.py`, so also a game flag with a game
   handler, as the registry requires of a tool that runs no game):
   - `glitchygames listening instruments [--family F] [--only TEXT]` and `glitchygames listening
@@ -93,7 +108,13 @@ time, so first use is the earliest point; a subcommand fills the cache ahead of 
 - Pruning removes the oldest-accessed files until the folder is under the limit and never a file
   a library holds open; an over-limit folder at startup is pruned once.
 - Two processes writing the same key never leave a partial file (write aside, then replace).
-- Under the test harness and in the browser, `disk` falls back to `ram` and logs once.
+- The root's three states: unset gives the platform folder, a path gives that folder, empty runs
+  `disk` as `ram` and logs exactly once; the browser runs `disk` as `ram` and logs once.
+- The replay proof cannot pass on the wrong layer: the cold run shows `disk_writes > 0`, the
+  warm run `disk_hits > 0` and no compile of a sound already kept, and both match the solo
+  replay's digests; it uses `disk_sound_cache`, which fails a test that touched no file.
+- `disk_sound_cache` itself: a test that writes or reads a file passes; one that touches none
+  fails at teardown (checked with pytester).
 - `get_cache_directory` per platform (the three branches, with the environment variables set and
   unset), and an invalid app name refused as `get_save_directory` refuses it.
 - The offline render of a sound that came from disk equals the offline render of a fresh compile.
