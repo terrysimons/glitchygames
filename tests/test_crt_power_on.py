@@ -23,6 +23,7 @@ from glitchygames.crt_power_on import (
     CRT_POWER_ON_VARIABLE,
     DOT_STAGE_START,
     FRAME_SECONDS,
+    IDLE_WORK_SECONDS,
     LINE_STAGE_START,
     OPEN_STAGE_START,
     SEQUENCE_SECONDS,
@@ -470,3 +471,87 @@ def test_the_power_on_module_stays_a_leaf_without_audio():
     }
 
     assert not any('audio' in module for module in imported)
+
+
+class SteppedCounter:
+    """A raw counter that idle work advances by what it spends (no real time passes)."""
+
+    def __init__(self) -> None:
+        """Start at zero."""
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        """Return the time now.
+
+        Returns:
+            Seconds.
+        """
+        return self.now
+
+
+def test_idle_work_runs_after_each_frame_and_the_sleep_is_what_it_left(mocker):
+    """Each frame hands the idle work its budget, then sleeps only the rest of the frame."""
+    measured_clock(mocker, step=FRAME_SECONDS)
+    counter = SteppedCounter()
+    mocker.patch('glitchygames.clock.raw_counter_seconds', side_effect=counter)
+    budgets: list[float] = []
+    pauses: list[float] = []
+
+    def idle_work(budget: float) -> None:
+        budgets.append(budget)
+        counter.now += 0.004  # the work takes 4 ms
+
+    outcome = play_power_on(
+        screen=pygame.display.get_surface(),
+        sources=ScriptedEvents(batches=[]),
+        sleep=pauses.append,
+        idle_work=idle_work,
+    )
+
+    assert outcome is PowerOnOutcome.FINISHED
+    assert set(budgets) == {IDLE_WORK_SECONDS}
+    assert len(budgets) == len(pauses)
+    assert all(pause == pytest.approx(FRAME_SECONDS - 0.004) for pause in pauses)
+
+
+def test_idle_work_longer_than_a_frame_sleeps_nothing(mocker):
+    """Work over the frame (one long sound) delays that frame; it never sleeps less than 0."""
+    measured_clock(mocker, step=FRAME_SECONDS)
+    counter = SteppedCounter()
+    mocker.patch('glitchygames.clock.raw_counter_seconds', side_effect=counter)
+    pauses: list[float] = []
+
+    def idle_work(budget: float) -> None:
+        del budget
+        counter.now += FRAME_SECONDS * 3
+
+    play_power_on(
+        screen=pygame.display.get_surface(),
+        sources=ScriptedEvents(batches=[]),
+        sleep=pauses.append,
+        idle_work=idle_work,
+    )
+
+    assert set(pauses) == {0.0}
+
+
+def test_the_async_player_does_idle_work_before_each_tick(mocker):
+    """In a browser the idle work runs in each frame's tick too."""
+    measured_clock(mocker, step=FRAME_SECONDS)
+    order: list[str] = []
+
+    async def wait_for_tick() -> float:
+        await asyncio.sleep(0)
+        order.append('tick')
+        return 0.0
+
+    asyncio.run(
+        play_power_on_async(
+            screen=pygame.display.get_surface(),
+            sources=ScriptedEvents(batches=[]),
+            wait_for_tick=wait_for_tick,
+            idle_work=lambda budget: order.append(f'work {budget}'),
+        )
+    )
+
+    assert order[:4] == [f'work {IDLE_WORK_SECONDS}', 'tick', f'work {IDLE_WORK_SECONDS}', 'tick']

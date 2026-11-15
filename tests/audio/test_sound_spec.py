@@ -10,6 +10,7 @@ import textwrap
 import pytest
 
 from glitchygames.audio import synth
+from glitchygames.audio.effects import Tremolo
 from glitchygames.audio.instrument import (
     Filter,
     Instrument,
@@ -18,6 +19,7 @@ from glitchygames.audio.instrument import (
     Source,
     build_spec,
 )
+from glitchygames.audio.live_controls import Parameter, Route
 from glitchygames.audio.pitch import Hz, Midi, Tuning
 from glitchygames.audio.spec import (
     ENVELOPE_PRESETS,
@@ -486,3 +488,173 @@ def test_spec_float_fields_are_always_floats():
     assert type(spec.sources[0].level) is float
     assert type(spec.sources[0].semitones) is float
     assert type(notes_of(spec)[0].length_seconds) is float
+
+
+SPEED = Parameter(range=(0.0, 1.0), default=0.0)
+
+
+def _live_motor(**changes):
+    """A live saw with a speed parameter routed to pitch and level (Clockwork Keep's motor)."""
+    arguments = {
+        'wave': 'saw',
+        'live': True,
+        'tremolo': Tremolo(rate_hz=8.0, depth=0.4),
+        'parameters': {'speed': SPEED},
+        'routes': [
+            Route(source='speed', destination='pitch', output=(45.0, 110.0)),
+            Route(source='speed', destination='level', output=(0.15, 0.6)),
+        ],
+    }
+    return Instrument(**(arguments | changes))
+
+
+def test_a_live_instrument_holds_its_tremolo_parameters_and_routes():
+    """They read back as given (parameters by name, routes in order)."""
+    motor = _live_motor()
+
+    assert motor.tremolo == Tremolo(rate_hz=8.0, depth=0.4)
+    assert dict(motor.parameters) == {'speed': SPEED}
+    assert [route.destination for route in motor.routes] == ['pitch', 'level']
+
+
+def test_controls_are_part_of_an_instruments_identity():
+    """Two instruments differing only in a route or the tremolo are different sounds."""
+    first = _live_motor()
+
+    assert first == _live_motor()
+    assert hash(first) == hash(_live_motor())
+    assert first != _live_motor(tremolo=Tremolo(rate_hz=9.0, depth=0.4))
+    assert first != _live_motor(
+        routes=[Route(source='speed', destination='pitch', output=(40.0, 110.0))]
+    )
+
+
+@pytest.mark.parametrize('field', ['tremolo', 'parameters', 'routes'])
+def test_controls_need_a_live_instrument(field):
+    """A baked sound has no player to set them on (AUD-GAME-004's fixed parameters are later)."""
+    controls = {
+        'tremolo': Tremolo(rate_hz=8.0, depth=0.4),
+        'parameters': {'speed': SPEED},
+        'routes': [Route(source='speed', destination='level', output=(0.0, 1.0))],
+    }
+    arguments = {'wave': 'saw', field: controls[field]}
+    if field == 'routes':
+        arguments['parameters'] = {'speed': SPEED}
+
+    with pytest.raises(ValueError, match='only on a live instrument'):
+        Instrument(**arguments)
+
+
+def test_a_route_from_a_parameter_the_instrument_lacks_is_refused():
+    """A route must come from one of the instrument's parameters."""
+    with pytest.raises(ValueError, match=r"route from 'rpm'.*no parameter named"):
+        _live_motor(routes=[Route(source='rpm', destination='pitch', output=(45.0, 110.0))])
+
+
+def test_a_route_to_a_source_the_instrument_lacks_is_refused():
+    """A source-level route must name one of its sources."""
+    with pytest.raises(ValueError, match=r"sources\.air\.level.*no source named 'air'"):
+        _live_motor(
+            routes=[Route(source='speed', destination='sources.air.level', output=(0.1, 0.5))]
+        )
+
+
+def test_a_route_to_a_named_source_is_accepted():
+    """The spec's vehicle routes a parameter to one source's level."""
+    vehicle = Instrument(
+        sources={'engine': Wave('saw'), 'air': Wave('sine')},
+        live=True,
+        parameters={'load': Parameter(range=(0.0, 1.0), default=0.2)},
+        routes=[Route(source='load', destination='sources.air.level', output=(0.1, 0.5))],
+    )
+
+    assert vehicle.routes[0].destination == 'sources.air.level'
+
+
+def test_at_most_eight_routes():
+    """The spec's limit (implementation spec D7)."""
+    many = [Route(source='speed', destination='level', output=(0.0, 1.0))] * 9
+
+    with pytest.raises(ValueError, match='at most 8 routes'):
+        _live_motor(routes=many)
+
+
+@pytest.mark.parametrize('destination', ['pitch', 'filter.cutoff', 'tremolo.rate', 'tremolo.depth'])
+def test_a_second_route_to_a_destination_that_does_not_multiply_is_refused(destination):
+    """Pitch, cutoff and tremolo take one route each; there is no rule to combine two."""
+    outputs = {
+        'pitch': (45.0, 110.0),
+        'filter.cutoff': (300.0, 3000.0),
+        'tremolo.rate': (2.0, 9.0),
+        'tremolo.depth': (0.1, 0.5),
+    }
+    route = Route(source='speed', destination=destination, output=outputs[destination])
+
+    with pytest.raises(ValueError, match=rf'one route to {re.escape(destination)}'):
+        _live_motor(filter=Filter('low_pass', 4000.0), routes=[route, route])
+
+
+def test_several_routes_to_level_or_a_source_level_multiply_and_are_accepted():
+    """Levels multiply, so any number of routes to one combines."""
+    level = Route(source='speed', destination='level', output=(0.2, 1.0))
+    source_level = Route(source='speed', destination='sources.main.level', output=(0.2, 1.0))
+
+    assert len(_live_motor(routes=[level, level, source_level, source_level]).routes) == 4
+
+
+@pytest.mark.parametrize(
+    ('destination', 'missing'),
+    [('filter.cutoff', 'filter'), ('tremolo.rate', 'tremolo'), ('tremolo.depth', 'tremolo')],
+)
+def test_a_route_to_a_filter_or_tremolo_the_instrument_lacks_is_refused(destination, missing):
+    """A route moves a setting the instrument has; it never invents one."""
+    route = Route(source='speed', destination=destination, output=(0.1, 0.5))
+
+    with pytest.raises(ValueError, match=rf'{re.escape(destination)} needs a {missing}'):
+        _live_motor(tremolo=None, routes=[route])
+
+
+@pytest.mark.parametrize(
+    ('destination', 'output'),
+    [
+        ('level', (0.0, 1.5)),
+        ('sources.main.level', (-0.1, 1.0)),
+        ('tremolo.depth', (0.0, 1.2)),
+        ('tremolo.rate', (0.0, 9.0)),
+        ('pitch', (0.0, 110.0)),
+        ('filter.cutoff', (-5.0, 3000.0)),
+    ],
+)
+def test_a_route_whose_output_the_destination_cannot_take_is_refused(destination, output):
+    """Levels and depth stay in 0-1; rates, pitches and cutoffs stay above zero.
+
+    Every curve stays between its output's ends, so the ends decide.
+    """
+    route = Route(source='speed', destination=destination, output=output)
+
+    with pytest.raises(ValueError, match=rf'{re.escape(destination)}.*output'):
+        _live_motor(filter=Filter('low_pass', 4000.0), routes=[route])
+
+
+def test_a_live_instruments_chunk_length_is_its_latency_and_defaults_to_100_ms():
+    """Part of how a live sound is designed, beside its filter and tremolo (step 7b)."""
+    assert _live_motor().chunk_seconds == 0.1
+    assert _live_motor(chunk_seconds=0.05).chunk_seconds == 0.05
+
+
+def test_a_chunk_length_is_part_of_an_instruments_identity():
+    """Two instruments differing only in chunk length are different sounds."""
+    assert _live_motor(chunk_seconds=0.05) != _live_motor()
+
+
+@pytest.mark.parametrize('seconds', [0.02, 0.6])
+def test_a_chunk_length_outside_its_safe_range_is_refused(seconds):
+    """Below 30 ms a chunk cannot cover a 60 fps frame and the device buffer."""
+    with pytest.raises(ValueError, match='chunk_seconds'):
+        _live_motor(chunk_seconds=seconds)
+
+
+def test_a_chunk_length_needs_a_live_instrument():
+    """A baked sound has no chunks."""
+    with pytest.raises(ValueError, match='chunk_seconds only on a live instrument'):
+        Instrument(wave='saw', chunk_seconds=0.05)

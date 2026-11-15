@@ -64,6 +64,13 @@ import pygame
 from glitchygames import clock
 from glitchygames.audio.accounting import AudioAccountant, AudioFrameAccount
 from glitchygames.audio.buses import BusTree
+from glitchygames.audio.disk_cache import (
+    DISK_CACHE_LIMIT_BYTES,
+    SOUND_CACHE_ROOT_VARIABLE,
+    DiskSoundCache,
+    sound_cache_root,
+    sounds_directory,
+)
 from glitchygames.audio.instrument import Instrument
 from glitchygames.audio.library import (
     DEFAULT_MEMORY_LIMIT_BYTES,
@@ -73,6 +80,7 @@ from glitchygames.audio.library import (
     SoundLibrary,
 )
 from glitchygames.audio.pitch import Tuning
+from glitchygames.audio.spec import AUDIO_RENDER_VERSION
 from glitchygames.audio.voices import (
     DEFAULT_STOP_FADE_SECONDS,
     LIBRARY_GROUP,
@@ -90,12 +98,43 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Mapping, Sequence
 
     from glitchygames.audio.accounting import CompileRecord
+    from glitchygames.audio.effects import Effect
+    from glitchygames.audio.library import LivePlayback
+    from glitchygames.audio.live import LiveAudio
+    from glitchygames.audio.live_instrument import LiveSoundHandle
     from glitchygames.audio.pitch import PitchLike
     from glitchygames.audio.voices import SoundHandle
     from glitchygames.audio.waves import WaveRegistry
     from glitchygames.scenes import Scene
 
 log: logging.Logger = logging.getLogger('game.audio.engine')
+
+
+def _disk_layer(*, game_name: str) -> DiskSoundCache | None:
+    """Make cache ``disk``'s layer, or say once why there is none (it then runs as ``ram``).
+
+    Args:
+        game_name: The game's folder under the cache root (``sounds_directory``).
+
+    Returns:
+        The layer under ``sound_cache_root()``, or None in the browser (no lasting files) or with
+        ``GLITCHYGAMES_SOUND_CACHE_ROOT`` empty (the test harness's setting).
+    """
+    if sys.platform == 'emscripten':
+        log.info('--sound-cache disk runs as ram in the browser, which keeps no files')
+        return None
+    root = sound_cache_root()
+    if root is None:
+        log.info(
+            '--sound-cache disk runs as ram: %s is empty, so there is no disk layer',
+            SOUND_CACHE_ROOT_VARIABLE,
+        )
+        return None
+    return DiskSoundCache(
+        directory=sounds_directory(root=root, game=game_name, render_version=AUDIO_RENDER_VERSION),
+        limit_bytes=DISK_CACHE_LIMIT_BYTES,
+    )
+
 
 # Impl spec 7.1 and 10.2: the library's channels (--sound-channels) and the unreserved ones left
 # for Sound.play() callers (pygame's default count)
@@ -105,6 +144,11 @@ LEGACY_CHANNELS: Final[int] = 8
 DEFAULT_LIVE_POOL: Final[int] = 4
 BYTES_PER_MEGABYTE: Final[int] = 1024 * 1024
 DEFAULT_CACHE_MEMORY_MEGABYTES: Final[int] = DEFAULT_MEMORY_LIMIT_BYTES // BYTES_PER_MEGABYTE
+# --sound-cache's default (the owner, 2026-11-15): reading a sound back beats compiling it on
+# every machine measured, a Raspberry Pi's SD card included (scripts/benchmark_sound_cache.py)
+DEFAULT_SOUND_CACHE: Final[CacheMode] = CacheMode.DISK
+# The disk cache folder of an audio engine no game names (a tool's, a test's)
+NO_GAME_CACHE_FOLDER: Final[str] = 'no-game'
 # Feature spec 7.4: a scene's voices fade over 50 ms when it is cleaned up
 SCENE_CLEANUP_FADE_SECONDS: Final[float] = DEFAULT_STOP_FADE_SECONDS
 # Impl spec 10.3: shutdown fades everything over 50 ms and waits at most 100 ms
@@ -280,7 +324,7 @@ class AudioEngine:
         waves: The context's wave registry.
         buses: The bus tree.
         tuning: The tuning pitches resolve with (part of what a sound is).
-        sounds: The sound library (``warm``, ``names``, ``statistics``).
+        sounds: The sound library (``names``, ``statistics``, ``add_effects``).
         accountant: The audio work accounting (impl spec 11.0).
         cache_mode: The cache mode.
     """
@@ -291,6 +335,8 @@ class AudioEngine:
         partition: ChannelPartition,
         cache: CacheMode = CacheMode.RAM,
         memory_limit_bytes: int = DEFAULT_MEMORY_LIMIT_BYTES,
+        game_name: str = NO_GAME_CACHE_FOLDER,
+        live_pool: Callable[[], LiveAudio] | None = None,
         scene_source: Callable[[], object | None] = _no_scene,
         frame_number: int | None = None,
         setup_mode: bool = True,
@@ -299,8 +345,16 @@ class AudioEngine:
 
         Args:
             partition: The mixer's channel partition (``reserve_channels``).
-            cache: The cache mode (``disk`` arrives in M3: ValueError).
+            cache: The cache mode. ``disk`` keeps sounds under ``sound_cache_root()``; with no
+                root (``GLITCHYGAMES_SOUND_CACHE_ROOT`` empty) or in the browser it runs as
+                ``ram``, says why once, and ``cache_mode`` reads ``ram``. A game's engine takes
+                ``--sound-cache`` (default ``DEFAULT_SOUND_CACHE``, ``disk``); one made
+                directly (a tool's, a test's) keeps sounds in memory unless it asks.
             memory_limit_bytes: The bytes compiled sounds may hold under ``ram``.
+            game_name: The game's folder under the disk cache root (its package name), so each
+                game keeps, limits and prunes only its own sounds.
+            live_pool: Gives the context's live voice pool ``Sound.start()`` starts live sounds
+                on (the scene manager's ``live_audio``), or None: live sounds are then silent.
             scene_source: Gives the scene plays belong to and short names resolve in (the scene
                 in setup, else the active scene), or None.
             frame_number: The frame being run, for the compile log.
@@ -311,12 +365,19 @@ class AudioEngine:
         self.waves: WaveRegistry = current_wave_registry()
         self.buses = BusTree()
         self.tuning = Tuning()
+        disk = _disk_layer(game_name=game_name) if cache is CacheMode.DISK else None
+        if cache is CacheMode.DISK and disk is None:
+            cache = CacheMode.RAM
         self.cache_mode = cache
         self.accountant = AudioAccountant()
         self.accountant.frame_number = frame_number
         self.accountant.setup_mode = setup_mode
         self._partition = partition
         self._scene_source = scene_source
+        self._live_pool = live_pool
+        # The pool this engine has started live sounds on: update() applies its owner rules
+        self._live_pool_in_use: LiveAudio | None = None
+        self._warned_no_live_pool = False
         self._voices = VoiceTable(
             partition=partition, buses=self.buses, compile_for_play=self._compile_for_play
         )
@@ -327,6 +388,7 @@ class AudioEngine:
             tuning_source=self._current_tuning,
             memory_limit_bytes=memory_limit_bytes,
             is_playing=self._voices.is_playing_sound,
+            disk=disk,
         )
         # Scene classes' (package directory, sound directory), looked up once each
         self._scene_paths: dict[type, tuple[Path | None, Path | None]] = {}
@@ -346,7 +408,7 @@ class AudioEngine:
 
     def sound(  # ruff: ignore[too-many-arguments] - impl spec 8
         self,
-        source: str | Instrument,
+        source: str | Instrument | Effect,
         *,
         pitch: PitchLike | None = None,
         notes: str | Sequence[tuple[PitchLike, float]] | None = None,
@@ -365,7 +427,8 @@ class AudioEngine:
             chord: Pitches played together.
             length: Seconds per note or chord before release.
             transpose: Semitones to shift notes or a chord.
-            parameters: Live parameters (M2).
+            parameters: They identify the request; a baked sound ignores them, and a live
+                sound refuses them (its starting values go to ``Sound.start``).
 
         Returns:
             The sound; its ``play()`` plays it through this engine.
@@ -383,6 +446,7 @@ class AudioEngine:
             parameters=parameters,
         )
         sound.attach_player(self._play_sound)
+        sound.attach_live_starter(self._start_live_sound)
         return sound
 
     def engine_sound(
@@ -408,7 +472,7 @@ class AudioEngine:
 
     def play(  # ruff: ignore[too-many-arguments] - impl spec 8
         self,
-        source: str | Instrument,
+        source: str | Instrument | Effect,
         *,
         pitch: PitchLike | None = None,
         notes: str | Sequence[tuple[PitchLike, float]] | None = None,
@@ -645,6 +709,15 @@ class AudioEngine:
         fades, self._fades_at_next_update = self._fades_at_next_update, []
         for handle, fade in fades:
             handle.stop(fade=fade)
+        if self._live_pool_in_use is not None:
+            # The live voices first, by LiveAudio's own rules (a previous scene's pause), as the
+            # scene manager ran them before this moved here: one call a frame for any caller
+            self._live_pool_in_use.update(
+                active_scene=active_scene,
+                previous_scene=previous_scene,
+                active_transitions=active_transitions,
+                paused_owners=paused_owners,
+            )
         playing_owners = [
             SYSTEM_OWNER,
             *(owner for owner in (active_scene, *active_transitions) if owner is not None),
@@ -739,6 +812,69 @@ class AudioEngine:
             The sound to play.
         """
         return self.sounds.compile_for_play(sound)
+
+    def _start_live_sound(  # ruff: ignore[too-many-arguments] - Sound.start's and the sound's
+        self,
+        sound: Sound,
+        *,
+        instrument: Instrument,
+        frequency: float,
+        parameters: Mapping[str, float] | None,
+        volume: float | None,
+        owner: object | None,
+        playback: LivePlayback,
+    ) -> LiveSoundHandle:
+        """Start a live sound on the context's live pool (``Sound.start``).
+
+        Its bus, priority and pan default to the sound file's; the bus's gain is read as each chunk
+        is rendered (``LiveVoiceOptions``). A bus that does not exist is the bus tree's
+        KeyError.
+
+        Returns:
+            Its handle; a silent one when this engine has no live pool (made outside a scene
+            manager), which is logged once.
+
+        Raises:
+            ValueError: With no owner and no scene (no owner rule would keep it), when every
+                pool channel is in use by voices of a higher priority
+                (``LiveAudio.take_channel``), or for a chunk or pan out of range.
+        """
+        from glitchygames.audio.live import LiveVoiceOptions
+        from glitchygames.audio.live_instrument import LiveSoundHandle
+
+        voice_owner = owner if owner is not None else self._scene_source()
+        if voice_owner is None:
+            message = (
+                f'{sound.name!r}: a live sound needs an owner; start it from a scene, or pass '
+                'owner= (a scene or a transition)'
+            )
+            raise ValueError(message)
+        if self._live_pool is None:
+            if not self._warned_no_live_pool:
+                self._warned_no_live_pool = True
+                log.warning('This audio engine has no live voice pool: live sounds are silent')
+            return LiveSoundHandle(None)
+        defaults = sound.playback_defaults
+        bus = self.buses[defaults.bus if playback.bus is None else playback.bus]
+        options = LiveVoiceOptions(
+            chunk_seconds=instrument.chunk_seconds,
+            persist=playback.persist,
+            priority=defaults.priority if playback.priority is None else playback.priority,
+            pan=defaults.pan if playback.pan is None else playback.pan,
+            gain_source=bus.effective_gain,
+        )
+        pool = self._live_pool()
+        self._live_pool_in_use = pool
+        voice = pool.create_instrument_voice(
+            owner=voice_owner,
+            instrument=instrument,
+            frequency=frequency,
+            volume=defaults.volume if volume is None else volume,
+            parameters=parameters,
+            options=options,
+        )
+        voice.stream.start()
+        return LiveSoundHandle(voice)
 
     def _play_sound(  # ruff: ignore[too-many-arguments] - impl spec 8's playback arguments
         self,

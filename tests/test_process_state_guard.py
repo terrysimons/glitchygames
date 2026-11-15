@@ -882,8 +882,9 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
     },
     'audio/library.py': {
         'ENGINE_SOUND_CACHE': (
-            "R17: the engine's own sounds' compiled, read-only samples by identity key, one "
-            'cache per process by design (the owner, 2026-11-02; CLAUDE.md, Scene backgrounds).'
+            'R17: compiled, read-only samples by identity key, one cache per process by design '
+            "(the owner, 2026-11-02, for the engine's own sounds, pinned; 2026-11-14, for every "
+            "game's too, so an Arcade tile's restart compiles nothing; CLAUDE.md)."
         ),
     },
     'audio/pitch.py': {
@@ -1099,6 +1100,12 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
     'src/games/brave-adventurer/src/brave_adventurer_core/drawing.py': {
         '_vertical_gradient_cache': DRAWING_CACHE,
     },
+    'src/games/clockwork-keep/src/clockwork_keep/sounds.py': {
+        'ELEVATOR_MOTOR': (
+            "R14: the game's live elevator motor, an Instrument (immutable, hashed by value), "
+            'never written.'
+        ),
+    },
     'src/games/clockwork-keep/src/clockwork_keep/levels.py': {
         'FLOOR_BOILER_ROOM': "R14: the game's floor table (a FloorData), never written.",
         'FLOOR_GEAR_WORKS': "R14: the game's floor table (a FloorData), never written.",
@@ -1123,14 +1130,15 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         'bonus_reel_picture': DRAWING_CACHE,
         'film_strip_panel': DRAWING_CACHE,
     },
-    'src/games/mr-muncher/src/mr_muncher/game.py': {
-        'shared_sound_bank': "R14: the game's sound bank, built once from its recipes.",
-    },
     'src/games/mr-muncher/src/mr_muncher/sounds.py': {
-        'CRUNCH_ONE': "R14: one of the game's sound recipes, never written.",
-        'CRUNCH_TWO': "R14: one of the game's sound recipes, never written.",
-        'CRUNCH_RECIPES': "R14: a tuple of the game's sound recipes, never written.",
-        'ALL_RECIPES': "R14: a tuple of the game's sound recipes, never written.",
+        'CRUNCH_ONE': "R14: one of the game's sound effects, never written.",
+        'CRUNCH_TWO': "R14: one of the game's sound effects, never written.",
+        'CRUNCH_EFFECTS': "R14: a tuple of the game's sound effects, never written.",
+        'EFFECTS': "R14: a tuple of the game's sound effects, never written.",
+        'PROJECTOR': (
+            "R14: the game's live projector, an Instrument (immutable, hashed by value), never "
+            'written.'
+        ),
     },
 }
 # Each listing's reason begins with its audit row's name and a colon

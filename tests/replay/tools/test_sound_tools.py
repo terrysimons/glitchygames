@@ -300,9 +300,9 @@ def legacy_and_migrated(original, migrated, *, name):
         The two float sample arrays: the recipe's, then the migrated sound's.
     """
     library, _ = make_library(CacheMode.RAM)
-    recipe = original.sounds[name].legacy_recipe
+    recipe = original.sounds[name].effect
     assert recipe is not None
-    library.add_recipes([recipe])
+    library.add_effects([recipe])
     legacy = library.sound(name, scene_sound_directory=None).samples_float
     migrated_samples = library.sound(f'{migrated}#{name}', scene_sound_directory=None).samples_float
     assert legacy is not None

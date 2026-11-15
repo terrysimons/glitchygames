@@ -260,7 +260,7 @@ class MouseEventManager(ResourceManager):
             self.current_focus = entering_focus
 
             # Send an enter event for the new focus.
-            entering_focus.on_mouse_focus_event(event, self.current_focus)  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[unresolved-attribute]
+            entering_focus.on_mouse_focus_event(event, self.current_focus)  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[missing-attribute]
 
             self.log.info('Entered Focus: %s', self.current_focus)
 
@@ -276,7 +276,7 @@ class MouseEventManager(ResourceManager):
             self.previous_focus = leaving_focus
 
             if leaving_focus:
-                leaving_focus.on_mouse_unfocus_event(event)  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[unresolved-attribute]
+                leaving_focus.on_mouse_unfocus_event(event)  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[missing-attribute]
                 self.current_focus = None
 
                 self.log.info('Left Focus: %s', self.previous_focus)

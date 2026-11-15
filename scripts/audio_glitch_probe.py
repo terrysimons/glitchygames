@@ -2,7 +2,7 @@
 
 Two independent checks, because they find different problems:
 
-  dsp       Plays a live voice configured like the Clockwork Keep elevator motor through SDL's
+  dsp       Plays the Clockwork Keep elevator motor (its live instrument) through SDL's
             disk audio driver, then analyzes the raw recording for silent gaps, discontinuities
             and edge cuts. While playing, the main loop does game-like work (busy Python code
             plus FastTimer pacing), not plain sleeps, so the recording is made under realistic
@@ -97,31 +97,23 @@ def run_dsp_worker(arguments: argparse.Namespace) -> None:
     # Imports are deferred: SDL_AUDIODRIVER must be set (by the parent) before pygame loads
     import pygame
 
-    from clockwork_keep.constants import (
-        ELEVATOR_MOTOR_IDLE_FREQUENCY,
-        ELEVATOR_MOTOR_LOW_PASS_CUTOFF,
-        ELEVATOR_MOTOR_MAXIMUM_VOLUME,
-        ELEVATOR_MOTOR_MINIMUM_VOLUME,
-        ELEVATOR_MOTOR_PEAK_FREQUENCY,
-        ELEVATOR_MOTOR_TREMOLO_DEPTH,
-        ELEVATOR_MOTOR_TREMOLO_RATE,
-    )
-    from glitchygames.audio.live import LiveAudio, reserve_live_voice_pool
-    from glitchygames.audio.recipes import Tremolo
-    from glitchygames.audio.synth import Waveform
+    from clockwork_keep.sounds import ELEVATOR_MOTOR
+    from glitchygames.audio.live import LiveAudio
+    from glitchygames.audio.voices import reserve_channels
 
     sys.setswitchinterval(arguments.switch_interval_ms / 1000.0)
     pygame.mixer.init()
-    live_audio = LiveAudio(channel_indices=reserve_live_voice_pool(1))
-    motor = live_audio.create_voice(
-        owner=object(),
-        waveform=Waveform.SAWTOOTH,
-        frequency=ELEVATOR_MOTOR_IDLE_FREQUENCY,
-        volume=ELEVATOR_MOTOR_MINIMUM_VOLUME,
-        low_pass_cutoff=ELEVATOR_MOTOR_LOW_PASS_CUTOFF,
-        tremolo=Tremolo(rate_hz=ELEVATOR_MOTOR_TREMOLO_RATE, depth=ELEVATOR_MOTOR_TREMOLO_DEPTH),
+    # One live channel, as an engine reserves its live pool (no library channels needed here)
+    partition = reserve_channels(
+        live_pool=1, library_channels=0, legacy_channels=pygame.mixer.get_num_channels()
     )
-    motor.start()
+    live_audio = LiveAudio(channel_indices=partition.live)
+    motor = live_audio.create_instrument_voice(
+        owner=object(),
+        instrument=ELEVATOR_MOTOR,
+        frequency=440.0,  # replaced by its pitch route (speed 0: 45 Hz)
+    )
+    motor.stream.start()
 
     timer = FastTimer()
     period_ns = timer.start_frame(arguments.target_fps)
@@ -132,13 +124,8 @@ def run_dsp_worker(arguments: argparse.Namespace) -> None:
         # The ride uses ease_in_sine, whose normalized slope is sin(pi * progress / 2)
         progress = min(1.0, (time.perf_counter_ns() - start_ns) / 1e9 / arguments.seconds)
         speed_fraction = math.sin(math.pi * progress / 2.0)
-        motor.frequency = ELEVATOR_MOTOR_IDLE_FREQUENCY + (
-            (ELEVATOR_MOTOR_PEAK_FREQUENCY - ELEVATOR_MOTOR_IDLE_FREQUENCY) * speed_fraction
-        )
-        motor.volume = ELEVATOR_MOTOR_MINIMUM_VOLUME + (
-            (ELEVATOR_MOTOR_MAXIMUM_VOLUME - ELEVATOR_MOTOR_MINIMUM_VOLUME) * speed_fraction
-        )
-        motor.update()
+        motor.set('speed', speed_fraction)
+        motor.stream.update()
         timer.sleep_until_next(deadline_ns)
         deadline_ns = timer.compute_deadline(deadline_ns, period_ns)
     live_audio.release_voice(motor)

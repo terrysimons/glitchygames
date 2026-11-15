@@ -4,10 +4,14 @@ Brassy squares and saws, filtered noise for steam, low booms. Values are startin
 tuned by ear; edit them freely.
 """
 
-from glitchygames.audio.recipes import SoundRecipe, Tone, Tremolo
+import math
+
+from glitchygames.audio.effects import Effect, Tone, Tremolo
+from glitchygames.audio.instrument import Filter, Instrument
+from glitchygames.audio.live_controls import Parameter, Route
 from glitchygames.audio.synth import Envelope, Waveform
 
-JUMP = SoundRecipe(
+JUMP = Effect(
     name='jump',
     volume=0.35,
     tones=(
@@ -30,7 +34,7 @@ JUMP = SoundRecipe(
     ),
 )
 
-LAND = SoundRecipe(
+LAND = Effect(
     name='land',
     volume=0.3,
     tones=(
@@ -53,7 +57,7 @@ LAND = SoundRecipe(
     ),
 )
 
-COG_PICKUP = SoundRecipe(
+COG_PICKUP = Effect(
     name='cog_pickup',
     volume=0.3,
     tones=(
@@ -73,7 +77,7 @@ COG_PICKUP = SoundRecipe(
     ),
 )
 
-DEATH = SoundRecipe(
+DEATH = Effect(
     name='death',
     volume=0.4,
     tones=(
@@ -90,7 +94,7 @@ DEATH = SoundRecipe(
     ),
 )
 
-GAME_OVER = SoundRecipe(
+GAME_OVER = Effect(
     name='game_over',
     volume=0.4,
     tones=tuple(
@@ -109,7 +113,7 @@ GAME_OVER = SoundRecipe(
     ),
 )
 
-ELEVATOR_CLANK = SoundRecipe(
+ELEVATOR_CLANK = Effect(
     name='elevator_clank',
     volume=0.6,
     tones=(
@@ -174,7 +178,7 @@ def bell(*, frequency: float, offset: float, duration: float, volume: float) -> 
 
 # Reaching the top of the Clock Face: the clock tower's chime, C5, E5 and G5 climbing, then C6
 # ringing out over a deep C3 strike
-VICTORY = SoundRecipe(
+VICTORY = Effect(
     name='victory',
     volume=0.45,
     tones=(
@@ -186,4 +190,29 @@ VICTORY = SoundRecipe(
     ),
 )
 
-ALL_RECIPES = (JUMP, LAND, COG_PICKUP, DEATH, GAME_OVER, ELEVATOR_CLANK, VICTORY)
+# Every effect the game plays, requested from the sound library when a floor is built
+EFFECTS = (JUMP, LAND, COG_PICKUP, DEATH, GAME_OVER, ELEVATOR_CLANK, VICTORY)
+
+# A live sound plays centred, 3 dB down on each side by the constant-power pan law every sound
+# pans by; the motor's levels are raised by the same (times the square root of 2), so it sounds
+# as loud as it did before live sounds took a pan (the owner, 2026-11-15)
+CENTRE_PAN_COMPENSATION = math.sqrt(2.0)
+
+# The elevator motor: a deep, chugging saw whose pitch and level follow the car's speed (the
+# ride sets ``speed``, 0 at rest to 1 at the easing's peak slope, every frame). Live: started
+# by the ride, which owns it, and cut as the car lands.
+ELEVATOR_MOTOR = Instrument(
+    wave='saw',
+    live=True,
+    filter=Filter('low_pass', 600.0),  # keeps the saw deep
+    tremolo=Tremolo(rate_hz=8.0, depth=0.4),  # the motor's chug
+    parameters={'speed': Parameter(range=(0.0, 1.0), default=0.0)},
+    routes=[
+        Route(source='speed', destination='pitch', output=(45.0, 110.0)),  # Hz, rest to full
+        Route(
+            source='speed',
+            destination='level',
+            output=(0.15 * CENTRE_PAN_COMPENSATION, 0.6 * CENTRE_PAN_COMPENSATION),
+        ),
+    ],
+)

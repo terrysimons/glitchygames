@@ -62,7 +62,6 @@ from mr_muncher.game import (
     MrMuncherScene,
     Phase,
     maze_geometry,
-    shared_sound_bank,
 )
 from mr_muncher.maze import Direction, build_maze
 
@@ -112,7 +111,7 @@ def scene(save_directory):
 @pytest.fixture
 def played(scene, mocker):
     """Record the sounds the scene plays."""
-    return mocker.patch.object(scene.sounds, 'play')
+    return mocker.patch.object(scene, 'play_sound')
 
 
 @pytest.fixture
@@ -218,8 +217,20 @@ class TestLayout:
         assert scene.all_sprites is group
         assert scene.player in group
 
-    def test_the_sound_bank_is_shared_by_every_level(self, scene):
-        assert scene.sounds is shared_sound_bank()
+    def test_every_effect_is_the_librarys_compiled_sound_shared_by_every_level(
+        self, scene, save_directory
+    ):
+        """Built levels hold the library's sounds: compiled once per context, at their volume."""
+        from mr_muncher.sounds import EFFECTS
+
+        another_level = MrMuncherScene(options={})
+        audio = scene.scene_manager.audio
+        for effect in EFFECTS:
+            sound = scene.sounds[effect.name]
+            assert sound is audio.sound(effect)
+            assert sound is another_level.sounds[effect.name]
+            assert sound.is_compiled
+            assert sound.playback_defaults.volume == effect.volume
 
 
 class TestStartingALevel:
@@ -243,7 +254,7 @@ class TestStartingALevel:
 
     def test_a_later_reel_shows_its_number(self, save_directory, mocker):
         later = MrMuncherScene(options={}, progress=GameProgress(level=2, score=4000, lives=2))
-        played = mocker.patch.object(later.sounds, 'play')
+        played = mocker.patch.object(later, 'play_sound')
         later.setup()
         assert later.message_shown[0] == 'REEL 2'
         played.assert_not_called()
@@ -702,13 +713,16 @@ class TestProjector:
     def test_it_speeds_up_as_sprockets_go(self, projector_scene):
         projector_scene._update_projector()
         cutoff, flutter = projector_scene.projector_settings
-        assert projector_scene.projector.low_pass_cutoff == cutoff
+        assert projector_scene.projector.parameter_values == {'cutoff': cutoff, 'flutter': flutter}
         _eat_all_but(projector_scene, (1, 1))
         projector_scene._update_projector()
         later_cutoff, later_flutter = projector_scene.projector_settings
         assert later_cutoff > cutoff
         assert later_flutter > flutter
-        assert projector_scene.projector.tremolo.rate_hz == later_flutter
+        assert projector_scene.projector.parameter_values == {
+            'cutoff': later_cutoff,
+            'flutter': later_flutter,
+        }
 
     def test_it_wobbles_while_munchers_are_frightened_and_races_for_eyes(self, projector_scene):
         projector_scene._start_fright()
@@ -723,6 +737,8 @@ class TestProjector:
             mr_muncher_game.EYES_PROJECTOR_CUTOFF_HZ,
             mr_muncher_game.EYES_PROJECTOR_FLUTTER_HZ,
         )
+        # Every setting the game gives is inside its parameter's range: none is clamped
+        assert projector_scene.projector.clamp_count == 0
 
     def test_a_catch_stops_the_projector(self, projector_scene):
         projector_scene._catch_player()
@@ -891,3 +907,46 @@ def test_main_runs_the_game_through_the_engine(mocker, capsys):
 
     assert exit_info.value.code == ExitCode.SUCCESS
     assert 'Replay matched' in capsys.readouterr().out
+
+
+def test_building_a_level_compiles_nothing_the_game_did_not_declare(save_directory):
+    """Every sound a level asks for is in MrMuncherScene.SOUNDS, compiled when the game starts."""
+    from glitchygames.audio.startup import StartupSounds
+    from glitchygames.scenes import SceneManager
+
+    audio = SceneManager().audio
+    StartupSounds(audio=audio, sources=MrMuncherScene.SOUNDS).finish()
+    declared = audio.sounds.statistics().compiles
+
+    MrMuncherScene(options={'input_mode': 'joystick'})
+
+    assert audio.sounds.statistics().compiles == declared
+
+
+def test_the_projector_is_a_live_instrument_the_game_declares():
+    """Noise, low-passed and fluttering; cutoff and flutter move them one to one."""
+    from glitchygames.audio.live_controls import Route
+    from mr_muncher import sounds as mr_muncher_sounds
+
+    projector = mr_muncher_sounds.PROJECTOR
+
+    assert projector.live
+    assert projector in MrMuncherScene.SOUNDS
+    assert projector.routes == (
+        Route(source='cutoff', destination='filter.cutoff', output=(300.0, 2000.0)),
+        Route(source='flutter', destination='tremolo.rate', output=(8.0, 40.0)),
+    )
+    assert {name: parameter.range for name, parameter in projector.parameters.items()} == {
+        'cutoff': (300.0, 2000.0),
+        'flutter': (8.0, 40.0),
+    }
+
+
+def test_the_projector_is_heard_at_its_old_volume_when_centred():
+    """0.05 on each side, as before live sounds took a pan: raised for the centred 3 dB."""
+    from glitchygames.audio.voices import constant_power_gains
+
+    left, right = constant_power_gains(pan=0.0, gain=1.0)
+
+    assert mr_muncher_game.PROJECTOR_VOLUME * left == pytest.approx(0.05)
+    assert right == pytest.approx(left)

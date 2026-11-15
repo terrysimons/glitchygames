@@ -253,7 +253,7 @@ The glitchygames.sprites module provides extended subclasses for sprite handling
 
 The glitchygames.ui module provides common UI elements such as menubars, buttons, sliders, etc...
 
-Also in the reference: [glitchygames.audio](./audio/index.md) (synthesis, recipes, live voices),
+Also in the reference: [glitchygames.audio](./audio/index.md) (the sound engine: effects, instruments, live sounds, the cache),
 [glitchygames.collision](./collision/index.md) (layers and hitbox-aware detection),
 [glitchygames.effects](./effects/index.md) (easing, tweens, screen shake),
 [glitchygames.input](./input/index.md) (action maps, devices, the per-frame input snapshot, rumble),

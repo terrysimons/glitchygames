@@ -82,11 +82,13 @@ from glitchygames.timing import DEFAULT_TARGET_FPS
 from glitchygames.world import aim_camera, is_world_positioned, position_world_sprites
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Mapping, Sequence
     from pathlib import Path
 
     from glitchygames.audio.accounting import AudioFrameAccount
+    from glitchygames.audio.effects import Effect
     from glitchygames.audio.engine import AudioEngine
+    from glitchygames.audio.instrument import Instrument
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
     from glitchygames.input.input_devices import InputDevice
@@ -1309,7 +1311,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             devices=list if self.in_playback_scope else self._rumble_devices,
         )
 
-        if self._live_audio is None and audio_engine is None:
+        if audio_engine is None:
             return
         # The pending transition counts: a ride creates its motor before transition_to starts it
         pending_transition = (
@@ -1330,23 +1332,15 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
                 if owner is not None
             ]
         )
-        if self._live_audio is not None:
-            self._live_audio.update(
-                active_scene=self.active_scene,
-                previous_scene=self.previous_scene,
-                active_transitions=active_transitions,
-                paused_owners=paused_owners,
-            )
-        if audio_engine is not None:
-            # The library's voices follow the same owner rules, moved by the frame's served dt
-            # (glitchygames/audio/engine.py; sound engine impl spec 4.2)
-            audio_engine.update(
-                dt=self.dt,
-                active_scene=self.active_scene,
-                previous_scene=self.previous_scene,
-                active_transitions=active_transitions,
-                paused_owners=paused_owners,
-            )
+        # The live voices and the library's follow the owner rules, the library's moved by the
+        # frame's served dt (glitchygames/audio/engine.py; sound engine impl spec 4.2)
+        audio_engine.update(
+            dt=self.dt,
+            active_scene=self.active_scene,
+            previous_scene=self.previous_scene,
+            active_transitions=active_transitions,
+            paused_owners=paused_owners,
+        )
 
     def _rumble_devices(self: Self) -> list[RumbleDevice]:
         """Return every device the game sees (``input_devices``): each can be rumbled.
@@ -1387,11 +1381,14 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         from glitchygames.audio.engine import (
             BYTES_PER_MEGABYTE,
             DEFAULT_CACHE_MEMORY_MEGABYTES,
+            DEFAULT_SOUND_CACHE,
+            NO_GAME_CACHE_FOLDER,
             AudioEngine,
             default_channel_partition,
             install_audio_engine,
         )
         from glitchygames.audio.library import CacheMode
+        from glitchygames.replay.tools.identity import game_package
 
         audio_engine = _existing_audio_engine()
         if audio_engine is not None:
@@ -1402,10 +1399,15 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             else game_engine.reserved_channel_partition()
         )
         options: Mapping[str, Any] = {} if game_engine is None else game_engine.options
+        game = None if game_engine is None else game_engine.game
         return install_audio_engine(
             engine=AudioEngine(
                 partition=partition,
-                cache=CacheMode(options.get('sound_cache', CacheMode.RAM.value)),
+                cache=CacheMode(options.get('sound_cache', DEFAULT_SOUND_CACHE.value)),
+                # Each game keeps its own disk cache folder (the owner, 2026-11-15)
+                game_name=NO_GAME_CACHE_FOLDER if game is None else game_package(game=game),
+                # Live sounds start on this scene manager's own live pool
+                live_pool=self._live_pool,
                 memory_limit_bytes=int(
                     options.get('sound_cache_memory', DEFAULT_CACHE_MEMORY_MEGABYTES)
                 )
@@ -1425,9 +1427,15 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         """
         return self._scene_in_setup if self._scene_in_setup is not None else self.active_scene
 
-    @property
-    def live_audio(self: Self) -> LiveAudio:
-        """Live synth voices, created on first use from the engine's reserved channels."""
+    def _live_pool(self: Self) -> LiveAudio:
+        """The live pool ``Sound.start()`` plays on, made on first use from the engine's channels.
+
+        Private since sound migration step 7: a game starts live sounds through
+        ``audio.sound(Instrument(..., live=True)).start()``, never on the pool itself.
+
+        Returns:
+            The pool.
+        """
         if self._live_audio is None:
             from glitchygames.audio.live import LiveAudio
 
@@ -3157,6 +3165,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # package directory (an absolute path is used as is), or None for no short names
     # (glitchygames/audio/engine.py; sound engine feature spec 3.2)
     SOUND_DIRECTORY: ClassVar[str | None] = 'sounds'
+    # Every sound the game plays, on the class it hands GameEngine: compiled when the game
+    # starts, in the CRT power-on's idle time, so none compiles mid-frame (and under
+    # --sound-cache disk a later launch reads them back). Complete sounds only: effects, a sound
+    # file's 'path#name' entries, live instruments (which compile nothing) and unpitched ones. A
+    # short name resolves through a scene, and none is active yet; a pitched instrument that is
+    # not live needs a pitch, which only a sound file's entry gives here (refused otherwise).
+    # Empty: a game that declares none makes no audio engine for them
+    # (glitchygames/audio/startup.py; plans/2026-11-14-sound-migration.md decision 6)
+    SOUNDS: ClassVar[Sequence[str | Instrument | Effect]] = ()
 
     def __init__(
         self: Self,

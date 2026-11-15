@@ -1181,36 +1181,118 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   - Not done: folding `test-random` into the comparison (shuffling one dummy run). The comparison
     passes on failing tests (`_PYTEST_FINISHED_CODES = [0, 1]`), and order-dependent frames would
     read as "varies between runs" rather than fail; little to save (80 s).
-- **Upgrade every locked dependency, in a branch of its own** (the owner, 2026-11-14: one
-  upgrade, not a tornado-only branch). `uv sync --upgrade --all-extras --all-groups
-  --all-packages`, then the gates in order (ruff, basedpyright and ty, the suite) and
-  `nox -s security-scan`, committing the regenerated `docs/sbom.cyclonedx.json` with `uv.lock`.
-  A trial run on 2026-11-14 (main at c3beb0a8, not kept) changed 31 packages, none added or
-  removed: tornado 6.6 -> 6.6.1 closes Dependabot alert 196
-  (bugs/2026-11-14-dependabot-alert-196-tornado-open-redirect.md); two major versions to check,
-  pymdown-extensions 12.3 -> 13.1 (the docs build) and python-dateutil 2.9.0.post0 -> 4.0.0; ruff
-  0.17.3 -> 0.17.5 and ty 0.0.95 -> 0.0.104 may report new findings.
+- **Upgrade every locked dependency, then generate sounds on first use: one branch,
+  `chore/upgrade-and-sounds-on-first-use`** (the owner, 2026-11-14: one upgrade, not a
+  tornado-only branch; sounds and the instrument and demo WAVs made on first use, never stored
+  in the repository; the two combined). The upgrade lands first, as its own commit with every
+  gate green, so a replay or sound that changes afterwards points at the cache code alone.
+  - The upgrade: `uv sync --upgrade --all-extras --all-groups --all-packages`, then the gates in order (ruff, basedpyright and ty, the suite) and
+    `nox -s security-scan`, committing the regenerated `docs/sbom.cyclonedx.json` with `uv.lock`.
+    A trial run on 2026-11-14 (main at c3beb0a8, not kept) changed 31 packages, none added or
+    removed: tornado 6.6 -> 6.6.1 closes Dependabot alert 196
+    (bugs/2026-11-14-dependabot-alert-196-tornado-open-redirect.md); two major versions to check,
+    pymdown-extensions 12.3 -> 13.1 (the docs build) and python-dateutil 2.9.0.post0 -> 4.0.0; ruff
+    0.17.3 -> 0.17.5 and ty 0.0.95 -> 0.0.104 may report new findings.
+  - Sounds on first use (an installed wheel runs no code at install time, so first use is the
+    earliest point):
+    - Runtime sounds: compiled samples are cached only in memory, per process
+      (`ENGINE_SOUND_CACHE`, `src/glitchygames/audio/library.py`), so every launch compiles them
+      again (the CRT power-on sound included). Add a disk cache in the user's cache folder
+      (`src/glitchygames/state/paths.py` finds the platform folders), keyed by the engine version
+      and the sound's identity, so a machine compiles each sound once. Replays must still get the
+      same samples (a cached sample equals a fresh compile; test it), and a corrupt or old-version
+      entry is compiled again and replaced, never trusted.
+    - Listening WAVs: the instrument demos (`scripts/make_instrument_demos.py`, 724 files, about
+      219 MB) and the pipe tunes (`scripts/make_pipes.py`, `scripts/pipe_tunes.py`, about 85 MB)
+      are written to the git-ignored `build/` by hand today, so an installed copy cannot make them.
+      Make them `glitchygames` subcommands that render into the same cache folder on first request
+      (a family or instrument at a time, not all 300 MB at once).
+    - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
+      clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
+- ~~**Move the games onto the new sound library (sound engine M2's migration), in
+  `chore/upgrade-and-sounds-on-first-use` with the upgrade and the disk cache**~~ **Done**
+  2026-11-15 (plans/2026-11-14-sound-migration.md, steps 1-9, and its two measurements: ten
+  Arcade tiles hold one copy of a game's sounds, about 16 KB more per tile; every start-up
+  compile fits the CRT power-on).
+- **A first launch's long sound stalls the CRT power-on on a slow machine** (measured
+  2026-11-15, `scripts/measure_sound_start.py`): a start-up slice compiles at least one whole
+  sound, and Clockwork Keep's victory jingle takes 117 ms on a Raspberry Pi 4 (Mr. Muncher's
+  film snap 81 ms), so the power-on stalls once for about 7 frames there (about 2 on a Pi 5).
+  Once per machine: later launches read the disk cache. Remedies, in order: `sound-cache fill`
+  (the disk plan's subcommand, so an install fills the cache and even a first launch reads);
+  rendering a long effect tone by tone across slices and mixing at the end (keeps the
+  no-thread design; the longest tone bounds the stall). Not a background thread (the plan's
+  decision 6; the mixer's callback needs the GIL, BUGS.md #27).
+  (the owner,
+  2026-11-14: "Update the games to use it"; "I want to do the migration here in this branch. All
+  together."; live instruments built as part of it; "make them all compile at the init of each
+  game, so we cache from the start"). Plan: `plans/2026-11-14-sound-migration.md`. Found while building the disk cache: no golden or bundled demo makes
+  a sound through `scene_manager.audio` today, so the disk layer has nothing to cache in them
+  (a PaddleSlap golden under `--sound-cache disk` wrote no file; the `disk_sound_cache` fixture
+  failed the test). Spec: `docs/specs/2026-11-02-sound-engine-implementation-spec.md` §10.4.
+  - Clockwork Keep and Mr. Muncher: `SoundBank(ALL_RECIPES)` to `audio.sounds.add_recipes` and
+    `audio.sound(name)`; version 0 recipes compile through the same renderer, so a test proves
+    the samples bit-identical.
+  - Brave Adventurer: `GameSounds` and its five `_generate_*_sound()` functions re-authored as
+    `Instrument(...)` requests, within 1 LSB or by RMS spectrum within 0.5 dB, then the owner's
+    listening check.
+  - Live instruments (M2's first item: `Instrument(..., live=True)`, `start(parameters=...)`),
+    then Clockwork Keep's elevator motor and Mr. Muncher's projector on them; the Arcade's live
+    pools and heard-tile switching must hold (the inner-game proof).
+  - Every game compiles all its sounds when it starts, so the cache is warm from the first frame
+    (measure the first launch's cost; compiling during the CRT power-on would hide it; measure
+    the memory of ten Arcade tiles each holding their game's set).
+  - Then the clean-up: `SoundBank`, `live_audio`/`create_voice`, `GameSounds`, `load_sound` and
+    `add_recipes` (once the recipes are TOML) removed, with their tests.
+  - ~~The proof the disk branch could not have: every golden and bundled demo replays under
+    `--sound-cache disk` cold and warm with the `disk_sound_cache` fixture (writes, then hits,
+    nothing compiled twice, digests equal).~~ **Done** 2026-11-15 (migration step 8,
+    `tests/audio/test_audio_engine_goldens.py`): all 16 recordings, cold then warm, digests
+    equal; the 8 that cache sounds write into their game's folder (written down per recording)
+    and read every one back with nothing compiled or written again; the 8 that cache none write
+    nothing. A planted warm recompile, and a planted write on a hit, each fail the 8.
+- **The rest of sound engine M2's live instruments** (not built with the migration, which built
+  what the two live sounds need: parameters, routes, curves, smoothing, tremolo, `start`/`set`;
+  plans/2026-11-14-sound-migration.md): the state-variable filter and its resonance, pink noise,
+  `note_on`/`note_off` and the retrigger rules, bit and rate reduction, `at_frame` and
+  `unschedule`, the Audio panel's live-voices section (AUD-DIAG-003), `--live-chunk-ms`, the
+  loudness budget and device-loss handling. Spec: the feature spec's 5.3-5.4 and 6, the
+  implementation spec's M2. A live voice (`src/glitchygames/audio/live_instrument.py`, rule 3)
+  also refuses, for now: waves other than sine, square, saw and triangle (pulse, mixes,
+  blends, drawn and registered waves; it renders the plain oscillator, not the PolyBLEP
+  tables a baked sound uses), LFSR noise and a noise seed, a source's own pitch, glide,
+  envelope and filter, and drive; and it applies no envelope (a live sound sustains until
+  stopped, then fades). Sound files (`src/glitchygames/audio/assets.py`) take a live
+  instrument's `live`, `tremolo`, `parameters` and `routes`, but not yet note names in a
+  route's `output` (they need the game's tuning at start, not the default at load) nor a
+  `[sounds.<name>]` entry's own starting `parameters` ("arrives in M2").
+- **Replace `assert` outside tests with explicit raises, and turn ruff's S101 back on** (the
+  owner, 2026-11-15: "Make a TODO for later"; its own branch). The owner's global rule: never
+  `assert` outside tests, since `python -O` strips them and bandit flags them (B101). This
+  project turned S101 off repository-wide in #71 (2026-03-21: "assert is used intentionally for
+  type narrowing and runtime invariant checks", `pyproject.toml`'s ignore list), so no lint,
+  hook or CI step ever flags one and the conflict went unseen. Counted 2026-11-15 (with
+  `git grep -E '^[[:space:]]+assert '`; `\s` matches nothing in git grep): 203 outside tests,
+  the same on `main` and on `chore/upgrade-and-sounds-on-first-use`, 154 in shipped code (51
+  files: engine core 77, Bitmappy 38, audio 26, games and demos 13; most in `scenes/scene.py`,
+  24) and 49 in `scripts/` (18 files). 200 are type narrowing (`is not None`, `isinstance`).
+  Each becomes an explicit check raising an error with a real message; the 100% coverage gate
+  may need a test per new branch. Then remove S101 from the ignore list so none returns.
+  Decide with the owner whether `scripts/` (hand-run tools, never shipped) is in scope.
+- **Stereo synthesis** (the owner, 2026-11-15: "couldn't we make them stereo since we own the
+  sound waves?"; its own branch, after the sound migration). The renderer makes mono samples
+  and every sound, live and baked, pans by the constant-power law (`voices.constant_power_gains`,
+  centre 3 dB down on each side). An instrument could render two channels: a pan per source
+  (the feature spec's Game Boy-style profile has channels "hard-panned in stereo", M4), width
+  (detuned copies left and right, a short one-sided delay), later stereo chorus and ping-pong
+  delay (with M4's delays); live voices would render stereo chunks. A stereo sound pans by the
+  balance law (centre at full, the far side turned down), chosen by what the sound is (mono or
+  stereo), as mixing desks do, never by a per-sound setting. Cost: a stereo sound holds twice
+  the samples in memory and in the disk cache; mono sounds, their keys and files, unchanged.
 - ~~**CLAUDE.md carries its old long Architecture Overview again**~~ **Done** 2026-11-14
   (#211, `chore/claude-md-and-hook-speedups`): the block is gone (CLAUDE.md is 333fcc0d's again
   plus later edits), and `tests/test_claude_md.py` fails on a repeated heading or component name
   or past 360 lines; both checks failed on the 1476-line file.
-- **Generate sounds on first use, cached on disk, never stored in the repository** (the owner,
-  2026-11-14: "on first use", for the engine's sounds and for the instrument and demo WAVs too).
-  An installed wheel runs no code at install time, so first use is the earliest point.
-  - Runtime sounds: compiled samples are cached only in memory, per process
-    (`ENGINE_SOUND_CACHE`, `src/glitchygames/audio/library.py`), so every launch compiles them
-    again (the CRT power-on sound included). Add a disk cache in the user's cache folder
-    (`src/glitchygames/state/paths.py` finds the platform folders), keyed by the engine version
-    and the sound's identity, so a machine compiles each sound once. Replays must still get the
-    same samples (a cached sample equals a fresh compile; test it), and a corrupt or old-version
-    entry is compiled again and replaced, never trusted.
-  - Listening WAVs: the instrument demos (`scripts/make_instrument_demos.py`, 724 files, about
-    219 MB) and the pipe tunes (`scripts/make_pipes.py`, `scripts/pipe_tunes.py`, about 85 MB)
-    are written to the git-ignored `build/` by hand today, so an installed copy cannot make them.
-    Make them `glitchygames` subcommands that render into the same cache folder on first request
-    (a family or instrument at a time, not all 300 MB at once).
-  - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
-    clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
 - **Time each pre-push hook before splitting `lint` into hooks of its own** (the owner asked,
   2026-11-14, whether one hook per lint step would be faster). pre-commit runs hooks one after
   another; it runs in parallel only inside a hook given file names, and every hook here has

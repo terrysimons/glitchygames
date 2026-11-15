@@ -7,10 +7,10 @@ import pygame
 import pytest
 
 from glitchygames.audio.assets import clear_sound_file_cache
+from glitchygames.audio.effects import Effect, Tone
 from glitchygames.audio.exceptions import SoundAssetError, SoundRenderError
 from glitchygames.audio.instrument import Instrument
-from glitchygames.audio.library import CacheMode, SoundRequest
-from glitchygames.audio.recipes import SoundRecipe, Tone
+from glitchygames.audio.library import CacheMode
 from glitchygames.audio.spec import PlaybackDefaults
 from glitchygames.audio.synth import Envelope, Waveform
 from glitchygames.audio.waves import Harmonics, Wave, current_wave_registry
@@ -25,7 +25,7 @@ from tests.audio.library_support import (
     write_wave_file,
 )
 
-MUNCHER_LIKE_RECIPE = SoundRecipe(
+MUNCHER_LIKE_RECIPE = Effect(
     name='crunch_like',
     tones=(
         Tone(
@@ -127,20 +127,83 @@ def test_notes_chords_length_and_transpose_are_part_of_the_identity():
     assert library.sound(PULSE_INSTRUMENT, scene_sound_directory=None, **requests[2]) is sounds[2]
 
 
-def test_a_live_instrument_is_refused_until_m2():
-    """A live sound has no baked audio in M1."""
+@pytest.mark.parametrize('mode', [CacheMode.RAM, CacheMode.NONE])
+def test_a_live_instrument_is_a_live_sound_that_compiles_nothing(mode):
+    """A live sound has no baked audio: it holds its instrument and the pitch it starts at."""
+    library, _ = make_library(mode)
+    instrument = Instrument(wave='sine', live=True)
+
+    sound = library.sound(instrument, scene_sound_directory=None, pitch='A5')
+
+    assert sound.is_live
+    assert sound.live_instrument is instrument
+    assert sound.live_frequency == pytest.approx(880.0)
+    assert not sound.is_compiled
+    assert (library.statistics().compiles, library.statistics().misses) == (0, 0)
+
+
+def test_a_live_sound_without_a_pitch_starts_at_the_reference_pitch():
+    """A noise, or a sound whose pitch route moves it, needs none: it starts at 440 Hz."""
     library, _ = make_library()
 
-    for mode in (CacheMode.RAM, CacheMode.NONE):
-        library, _ = make_library(mode)
-        with pytest.raises(SoundRenderError, match='live'):
-            library.sound(Instrument(wave='sine', live=True), scene_sound_directory=None)
+    sound = library.sound(Instrument(noise='white', live=True), scene_sound_directory=None)
+
+    assert sound.live_frequency == 440.0
+
+
+def test_two_live_instruments_differing_only_in_their_controls_are_two_sounds():
+    """A live sound is never kept by its spec's key, which holds none of its live controls."""
+    from glitchygames.audio.effects import Tremolo
+
+    library, _ = make_library()
+    slow = Instrument(wave='saw', live=True, tremolo=Tremolo(rate_hz=2.0, depth=0.3))
+    fast = Instrument(wave='saw', live=True, tremolo=Tremolo(rate_hz=9.0, depth=0.3))
+
+    sounds = [library.sound(instrument, scene_sound_directory=None) for instrument in (slow, fast)]
+
+    assert [sound.live_instrument for sound in sounds] == [slow, fast]
+
+
+@pytest.mark.parametrize(
+    'request_arguments', [{'notes': 'C4:0.25 E4:0.25'}, {'chord': ['C4', 'E4']}]
+)
+def test_a_live_sound_plays_one_pitch(request_arguments):
+    """Notes and chords on a live sound are later work (note_on/note_off)."""
+    library, _ = make_library()
+
+    with pytest.raises(SoundRenderError, match='one pitch'):
+        library.sound(
+            Instrument(wave='sine', live=True), scene_sound_directory=None, **request_arguments
+        )
+
+
+def test_a_live_sound_starts_and_a_baked_one_plays():
+    """play() bakes and start() is live: each refuses the other kind."""
+    library, _ = make_library()
+    live = library.sound(Instrument(wave='sine', live=True), scene_sound_directory=None)
+    baked = library.sound(Instrument(wave='sine'), scene_sound_directory=None, pitch='A4')
+
+    with pytest.raises(SoundRenderError, match=r'start\(\)'):
+        live.play()
+    with pytest.raises(SoundRenderError, match=r'play\(\)'):
+        baked.start()
+
+
+def test_a_live_sound_no_audio_engine_handed_out_starts_silently(caplog):
+    """As play(): its handle answers False, and a warning is logged once per sound."""
+    library, _ = make_library()
+    live = library.sound(Instrument(wave='sine', live=True), scene_sound_directory=None)
+
+    handles = [live.start(), live.start()]
+
+    assert not any(handle.set('anything', 1.0) or handle.is_playing for handle in handles)
+    assert caplog.text.count('not got from an audio engine') == 1
 
 
 def test_v0_recipes_compile_bit_identical_to_today():
     """A v0 recipe compiles through today's renderer, unchanged (impl 10.4)."""
     library, _ = make_library()
-    library.add_recipes([MUNCHER_LIKE_RECIPE])
+    library.add_effects([MUNCHER_LIKE_RECIPE])
 
     compiled = library.sound('crunch_like', scene_sound_directory=None)
 
@@ -161,25 +224,23 @@ def test_v0_recipe_files_in_a_directory_compile_bit_identical():
 
     from glitchygames.audio.assets import load_sound_file
 
-    recipe = (
-        load_sound_file(FIXTURE_SOUNDS / 'legacy_recipes.toml').sounds['sugar_rush'].legacy_recipe
-    )
+    recipe = load_sound_file(FIXTURE_SOUNDS / 'legacy_recipes.toml').sounds['sugar_rush'].effect
     np.testing.assert_array_equal(compiled.samples_float, recipe.render(sample_rate=44100))
 
 
-def test_a_name_in_add_recipes_and_in_the_directory_names_both():
-    """A name in add_recipes and in the directory raises, naming both."""
+def test_a_name_in_add_effects_and_in_the_directory_names_both():
+    """A name in add_effects and in the directory raises, naming both."""
     library, _ = make_library()
-    library.add_recipes([dataclasses.replace(MUNCHER_LIKE_RECIPE, name='sugar_rush')])
+    library.add_effects([dataclasses.replace(MUNCHER_LIKE_RECIPE, name='sugar_rush')])
 
-    with pytest.raises(SoundAssetError, match=r'sugar_rush.*add_recipes.*legacy_recipes\.toml'):
+    with pytest.raises(SoundAssetError, match=r'sugar_rush.*add_effects.*legacy_recipes\.toml'):
         library.sound('sugar_rush', scene_sound_directory=FIXTURE_SOUNDS)
 
 
 def test_recipes_win_when_the_directory_has_no_such_name():
-    """A recipe name the directory lacks resolves from add_recipes even with a directory."""
+    """A recipe name the directory lacks resolves from add_effects even with a directory."""
     library, _ = make_library()
-    library.add_recipes([MUNCHER_LIKE_RECIPE])
+    library.add_effects([MUNCHER_LIKE_RECIPE])
 
     assert library.sound('crunch_like', scene_sound_directory=FIXTURE_SOUNDS).name == 'crunch_like'
 
@@ -298,7 +359,7 @@ def test_a_recorded_or_v0_sound_takes_no_identity_arguments(tmp_path):
     """A pitch (or notes, chord, length, transpose) on a recorded or v0 sound is refused."""
     write_wave_file(tmp_path / 'thud.wav')
     library, _ = make_library()
-    library.add_recipes([MUNCHER_LIKE_RECIPE])
+    library.add_effects([MUNCHER_LIKE_RECIPE])
 
     with pytest.raises(ValueError, match='takes no pitch'):
         library.sound('thud', scene_sound_directory=tmp_path, pitch='C4')
@@ -506,46 +567,6 @@ def test_a_mixer_that_is_not_signed_16_bit_is_refused(mocker):
         sound.mixer_sound()
 
 
-def test_warm_compiles_what_fits_the_budget_and_reports_progress():
-    """Warm compiles requests while the budget lasts and returns the fraction done."""
-    library, _ = make_library()
-    requests = [
-        SoundRequest(source=PULSE_INSTRUMENT, scene_sound_directory=None, pitch=pitch)
-        for pitch in ('C5', 'D5', 'E5', 'F5')
-    ]
-
-    assert library.warm(requests, budget_ms=0.0) == pytest.approx(0.25)  # one at least
-    assert library.statistics().compiles == 1
-    assert library.warm(requests, budget_ms=1e9) == 1.0  # a huge budget finishes the rest
-    assert library.statistics().compiles == 4
-    assert library.warm(requests, budget_ms=0.0) == 1.0  # nothing left to compile
-    assert library.warm([]) == 1.0
-    assert library.statistics().compiles == 4
-
-
-def test_warm_without_a_budget_compiles_everything():
-    """No budget means compile every request."""
-    library, _ = make_library()
-    requests = [
-        SoundRequest(source=PULSE_INSTRUMENT, scene_sound_directory=None, pitch=pitch)
-        for pitch in ('C5', 'D5')
-    ]
-
-    assert library.warm(requests) == 1.0
-    assert library.statistics().compiles == 2
-
-
-def test_warm_under_cache_none_only_resolves():
-    """With cache none there is nothing to keep, so warm resolves and reports done."""
-    library, _ = make_library(CacheMode.NONE)
-    requests = [SoundRequest(source=PULSE_INSTRUMENT, scene_sound_directory=None, pitch='C5')]
-
-    assert library.warm(requests) == 1.0
-    assert library.warm(requests) == 1.0
-    assert library.statistics().compiles == 0
-    assert library.statistics().bytes_held == 0
-
-
 def test_the_fixture_sfx_slap_decodes_without_a_mixer(no_mixer):
     """The bundled recorded fixture is a real WAV that decodes by its short name."""
     library, _ = make_library()
@@ -556,3 +577,95 @@ def test_the_fixture_sfx_slap_decodes_without_a_mixer(no_mixer):
     assert len(sound.samples_int16) == 400
     assert sound.sample_rate == 44100
     assert sound.peak > 0.0
+
+
+def test_an_effect_object_is_a_source_and_compiles_to_its_render():
+    """audio.sound(Effect(...)) gives a Sound of the effect's own samples (decision 2)."""
+    library, _ = make_library()
+
+    compiled = library.sound(MUNCHER_LIKE_RECIPE, scene_sound_directory=None)
+
+    np.testing.assert_array_equal(
+        compiled.samples_float, MUNCHER_LIKE_RECIPE.render(sample_rate=44100)
+    )
+    assert compiled.name == MUNCHER_LIKE_RECIPE.name
+    assert library.sound(MUNCHER_LIKE_RECIPE, scene_sound_directory=None) is compiled
+    assert library.statistics().compiles == 1
+
+
+def test_an_effect_object_plays_at_its_own_volume():
+    """The effect's volume is the play's default; a play may still give another."""
+    library, _ = make_library()
+
+    compiled = library.sound(MUNCHER_LIKE_RECIPE, scene_sound_directory=None)
+
+    assert compiled.playback_defaults.volume == MUNCHER_LIKE_RECIPE.volume
+
+
+def test_an_effect_added_by_name_plays_at_its_own_volume():
+    """add_effects registers short names whose plays default to each effect's volume."""
+    library, _ = make_library()
+    library.add_effects([MUNCHER_LIKE_RECIPE])
+
+    compiled = library.sound('crunch_like', scene_sound_directory=None)
+
+    assert compiled.playback_defaults == PlaybackDefaults(volume=MUNCHER_LIKE_RECIPE.volume)
+
+
+def test_an_effect_takes_no_pitch():
+    """An effect is fixed sound: a pitch is a mistake, said so."""
+    library, _ = make_library()
+
+    with pytest.raises(ValueError, match=r'crunch_like.*an effect.*takes no pitch'):
+        library.sound(MUNCHER_LIKE_RECIPE, scene_sound_directory=None, pitch='C5')
+
+
+def test_an_effect_in_an_effects_table_sounds_as_in_a_recipe_file(tmp_path):
+    """[effects.*] and [recipes.*] are two spellings of one effect: identical samples."""
+    recipe_text = (FIXTURE_SOUNDS / 'legacy_recipes.toml').read_text()
+    effects_text = '[glitchygames]\nkind = "sounds"\nversion = 1\n\n' + recipe_text.replace(
+        '[recipes.', '[effects.'
+    ).replace('[[recipes.', '[[effects.')
+    (tmp_path / 'effects.toml').write_text(effects_text)
+    library, _ = make_library()
+
+    from_recipes = library.sound(
+        str(FIXTURE_SOUNDS / 'legacy_recipes.toml') + '#sugar_rush', scene_sound_directory=None
+    )
+    from_effects = library.sound(
+        str(tmp_path / 'effects.toml') + '#sugar_rush', scene_sound_directory=None
+    )
+
+    assert from_effects.samples_int16 is not None
+    assert from_recipes.samples_int16 is not None
+    assert from_effects.samples_int16.tobytes() == from_recipes.samples_int16.tobytes()
+
+
+def test_a_live_sounds_parameters_go_to_start_not_sound():
+    """sound(parameters=) would be ignored by a live sound: refused, naming start()."""
+    library, _ = make_library()
+
+    with pytest.raises(SoundRenderError, match=r'start\(parameters='):
+        library.sound(
+            Instrument(wave='sine', live=True), scene_sound_directory=None, parameters={'x': 1.0}
+        )
+
+
+def test_a_live_sound_from_a_sound_file_is_live_with_its_routes(tmp_path):
+    """A file's live instrument reaches start() the same as one built in code."""
+    sound_file = tmp_path / 'motor.toml'
+    sound_file.write_text(
+        '[glitchygames]\nkind = "sounds"\nversion = 1\n\n'
+        '[instruments.motor]\nlive = true\n\n'
+        '[instruments.motor.sources.main]\nwave = "saw"\n\n'
+        '[instruments.motor.parameters.speed]\nrange = [0.0, 1.0]\ndefault = 0.0\n\n'
+        '[[instruments.motor.routes]]\nfrom = "speed"\nto = "pitch"\noutput = [45.0, 110.0]\n\n'
+        '[sounds.motor]\ninstrument = "motor"\n'
+    )
+    library, _ = make_library()
+
+    sound = library.sound(f'{sound_file}#motor', scene_sound_directory=None)
+
+    assert sound.is_live
+    assert sound.live_instrument is not None
+    assert [route.destination for route in sound.live_instrument.routes] == ['pitch']

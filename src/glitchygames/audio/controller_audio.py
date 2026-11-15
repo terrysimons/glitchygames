@@ -48,7 +48,7 @@ except ImportError:  # pragma: no cover
     sr = None
 
 try:
-    import hid as hidapi  # ty: ignore[unresolved-import]
+    import hid as hidapi  # ty: ignore[import-not-found]
 except ImportError:  # pragma: no cover
     hidapi = None
 

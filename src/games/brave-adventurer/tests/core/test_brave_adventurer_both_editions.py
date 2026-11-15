@@ -1034,7 +1034,7 @@ class TestJumpInput:
 
         assert player.velocity_y < 0
         assert not player.on_ground
-        jump_scene.sounds.play_jump.assert_called_once_with()
+        jump_scene.sounds.jump.play.assert_called_once_with()
 
     def test_jump_in_the_air_does_nothing(self, jump_scene, jump_source):
         player = _player_in_the_air(jump_scene)
@@ -1042,7 +1042,7 @@ class TestJumpInput:
         self._press_jump(jump_scene, jump_source)
 
         assert player.velocity_y == 120.0
-        jump_scene.sounds.play_jump.assert_not_called()
+        jump_scene.sounds.jump.play.assert_not_called()
 
     def test_an_unbound_button_does_nothing(self, jump_scene, jump_source):
         player = _drawn_player(jump_scene)

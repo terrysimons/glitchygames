@@ -12,9 +12,10 @@ The design is in two specifications:
 - [Sound engine implementation specification](../specs/2026-11-02-sound-engine-implementation-spec.md):
   how each requirement is met, the decision and risk registers, and the measurements.
 
-M2 adds live instruments (sounds that follow game parameters), moves the five games onto this
-API and removes the old sound paths (`SoundBank`, `load_sound`, `live_audio`). Until then those
-keep working beside it on channels of their own.
+M2 adds live instruments (sounds that follow game parameters: `Sound.start()` and its
+`LiveSoundHandle`), moves the five games onto this API and removes the old sound paths:
+`SoundBank`, `load_sound`, `live_audio.create_voice` and `LiveVoice` are gone (sound migration
+step 7, plans/2026-11-14-sound-migration.md).
 
 ## One call
 
@@ -52,11 +53,15 @@ class Game(Scene):
   `WavePoint`, with the `CYCLE` and `LEVEL` named positions). Each engine context has its own
   wave registry.
 
-Compile in `setup()`. That is the convention, not a rule: a sound first asked for during gameplay
+Declare every sound the game plays on the scene class it hands `GameEngine`, as `SOUNDS`
+(effects, a sound file's `path#name` entries, live instruments and unpitched ones; a pitched
+sound needs a sound file's entry, which holds its pitch): the engine compiles them when the game starts,
+in the CRT power-on's spare time, a slice a frame, and finishes them before the game is built (at
+once where the power-on is skipped). The game's own requests then find each one compiled. A game
+that declares none makes no audio engine for them. A sound first asked for during gameplay still
 compiles in that frame, and the engine counts it, logs it and shows it in the Audio panel as a
-gameplay compile, so you can move it into `setup()`. A setup whose compiles take more than 50 ms
-logs one INFO line naming its slowest sounds. A loading screen can spread compiles across frames
-with `audio.sounds.warm(requests, budget_ms=...)`.
+gameplay compile, so you can add it to `SOUNDS`. A setup whose compiles take more than 50 ms logs
+one INFO line naming its slowest sounds.
 
 ## Short names and paths
 
@@ -92,6 +97,126 @@ volume = 0.6
 Version 0 recipe files (`[recipes.*]`) still load and sound exactly as before;
 `glitchygames sound-migrate FILE` converts one to version 1.
 
+## Effects
+
+An effect is a synthetic sound effect: tones mixed straight, exact and cheap (blips, sweeps,
+crunches, jingles). It is one of the two kinds of sound; instruments are the other, the layered
+renderer for music and live sounds. Both play through `audio.sound(...)`.
+
+```python
+from glitchygames.audio import Effect, Envelope, Tone, Waveform
+
+JUMP = Effect(
+    name='jump',
+    volume=0.35,
+    tones=(
+        Tone(waveform=Waveform.SQUARE, start_frequency=330.0, end_frequency=660.0, duration=0.1,
+             envelope=Envelope(attack=0.005, decay=0.03, sustain_level=0.6, release=0.05)),
+    ),
+)
+audio.sound(JUMP).play()   # plays at its own volume unless play(volume=...) says otherwise
+```
+
+In a sound file, an effect is an `[effects.<name>]` table, the same fields as data:
+
+```toml
+[effects.jump]
+volume = 0.35
+
+[[effects.jump.tones]]
+waveform = "square"
+start_frequency = 330.0
+end_frequency = 660.0
+duration = 0.1
+envelope = { attack = 0.005, decay = 0.03, sustain_level = 0.6, release = 0.05 }
+```
+
+`audio.sounds.add_effects([...])` registers effects by name, looked up before the sound directory.
+Each tone is oscillator, distortion, filters, tremolo, envelope, volume; the tones are mixed at
+their offsets and normalized to `peak`, or left exactly as summed with `normalize=False`.
+
+## Live sounds
+
+A live sound is rendered while it plays, chunk by chunk, so the game can move it: an engine
+whose pitch follows its speed, a projector whose flutter follows the action. It is an
+`Instrument(live=True)` with **parameters** the game sets and **routes** that map each onto what
+the sound does:
+
+```python
+from glitchygames.audio import Instrument, Parameter, Route, Tremolo
+from glitchygames.audio.instrument import Filter
+
+MOTOR = Instrument(
+    wave='saw',
+    live=True,
+    filter=Filter('low_pass', 600.0),
+    tremolo=Tremolo(rate_hz=8.0, depth=0.4),
+    parameters={'speed': Parameter(range=(0.0, 1.0), default=0.0)},
+    routes=[
+        Route(source='speed', destination='pitch', curve='exponential', output=(45.0, 110.0)),
+        Route(source='speed', destination='level', output=(0.2, 0.85)),
+    ],
+)
+
+motor = audio.sound(MOTOR).start(owner=ride)   # a LiveSoundHandle
+motor.set('speed', 0.7)                        # each frame, or whenever it changes
+motor.release()                                # fades it out over 100 ms
+```
+
+- **Parameters** clamp to their range (each clamp counted, `handle.clamp_count`) and glide to a
+  new value: one-pole over `smoothing_ms` (30 by default), or a straight line with
+  `glide='linear'`. Any number of `set` calls before a chunk count as the last one.
+- **Routes** (at most 8) map a parameter onto `pitch` (Hz), `level` (multiplied in),
+  `filter.cutoff`, `tremolo.rate`, `tremolo.depth` or `sources.<name>.level`, by a curve:
+  `linear`, `exponential`, `logarithmic`, `smoothstep` or `steps(n)`. Levels multiply; pitch,
+  cutoff and the tremolo take one route each. A route needs the filter or tremolo it moves.
+- **Sources** are sine, square, saw, triangle and white noise for now, each with its own level
+  and `semitones`/`detune_cents`. `chunk_seconds` (0.03-0.5, default 0.1) is its latency.
+- **`start(parameters=, volume=, owner=, persist=, pan=, bus=, priority=)`**: the owner (the
+  scene that starts it, by default; a transition keeps it playing through the ride) decides when
+  it pauses and ends, as for baked plays; `persist=True` outlives the owner. Pan, bus and priority
+  default to the sound file's; every sound pans by the constant-power law, so centred is 3 dB
+  down on each side. A full live pool (`--live-voice-pool`, 4) steals the lowest-priority voice
+  at or below the new one's, else refuses with `ValueError`.
+- **The handle:** `set`, `release()`, `stop(fade=)`, `cancel()` (at once, the chunk already
+  queued included), `set_volume(volume, fade=)`, `set_pan`, `pause()`/`resume()` (a pause holds
+  whatever the scene rules say), and `set_frequency`, `set_cutoff` (None removes the filter) and
+  `set_tremolo` (None removes it) for what no route moves. Like a `SoundHandle`, every method
+  answers False once the sound has ended; both kinds are a `PlayingSound`.
+- `play()` refuses a live sound and `start()` a baked one. A live sound compiles nothing, so it
+  costs nothing to declare in `SOUNDS`.
+
+In a sound file:
+
+```toml
+[instruments.motor]
+live = true
+tremolo = { rate_hz = 8.0, depth = 0.4 }
+
+[instruments.motor.sources.main]
+wave = "saw"
+
+[instruments.motor.filter]
+type = "low_pass"
+cutoff = 600.0
+
+[instruments.motor.parameters.speed]
+range = [0.0, 1.0]
+default = 0.0
+
+[[instruments.motor.routes]]
+from = "speed"
+to = "pitch"
+curve = "exponential"
+output = [45.0, 110.0]
+
+[sounds.motor]
+instrument = "motor"
+```
+
+Route outputs are numbers (hertz for pitch). Live voices, their parameters and routes:
+`audio/live_instrument.py`, `audio/live_controls.py`; their channel and pool: `audio/live.py`.
+
 ## Cache modes
 
 `--sound-cache` chooses how compiled sounds are kept (replay-local: a recording replays under any
@@ -99,9 +224,9 @@ mode):
 
 | Mode | What happens |
 | --- | --- |
-| `ram` (default) | Compiled sounds stay in memory. Above `--sound-cache-memory` (256 MB) the least recently played sounds that are not playing are dropped, and compiled again on their next request (counted). |
+| `ram` | Compiled sounds stay in memory. Above `--sound-cache-memory` (256 MB) the least recently played sounds that are not playing are dropped, and compiled again on their next request (counted). |
 | `none` | Nothing is kept: every `play()` compiles in its frame. This is the switch that shows what compiling in gameplay costs. Getting a sound renders nothing, and a sound played 5 times compiles 5 times. What a game reads of a sound never depends on the cache (a replay may run under another mode): a synthesized sound's `length` is worked out without rendering, exactly as a compile would size it; whatever only a compile can tell (every `peak`, and a recorded file's `length` and rate) comes from one compile on its first read, counted like any compile, then kept. A play's compile gives them too, so a read after a play compiles nothing more. |
-| `disk` | Arrives in M3; refused now (`OPTIONS_REFUSED`). |
+| `disk` (default) | As `ram`, and each compiled sound is also kept as a file in the game's own folder, `<root>/<game package>/sounds/<render version>/<key[:2]>/<key>.wav`, so a later launch reads it back instead of compiling (faster on every machine measured, a Raspberry Pi's SD card included: `scripts/benchmark_sound_cache.py`). A read writes nothing; each game's folder is limited to 64 MB, oldest written files pruned at startup. `GLITCHYGAMES_SOUND_CACHE_ROOT` names the root (unset: the platform's cache folder; empty: no disk layer, so `ram`; the test harness sets it empty). In the browser it runs as `ram`. Compiled sounds are also shared by every engine context in a process (an Arcade tile's restart compiles nothing). |
 
 ## Voices, channels and buses
 
@@ -192,8 +317,8 @@ docstring of `src/glitchygames/audio/voices.py` are the contract):
   or past the declared count, fails alone (`InnerGameChannelsError`); one whose
   `--sound-channels` outnumber a heard set's channels replays silent and refuses to be heard.
 - **A silent tile touches no channel.** Its voice table makes no mixer call; while it builds,
-  steps or finishes every channel is reserved, so its plain `Sound.play()` (PaddleSlap's,
-  `SoundBank`'s) returns None and starts nothing, as on a busy mixer; its live voices play
+  steps or finishes every channel is reserved, so a plain `pygame.mixer.Sound.play()` (a game's
+  own) returns None and starts nothing, as on a busy mixer; its live voices play
   chunks at volume 0 on its own pool.
 - **Switching.** A heard tile's plain plays are heard, and followed: each step notes the
   unreserved channels it started a sound on. Switching it silent (or its finish) fades its
@@ -391,3 +516,33 @@ key never compiles anything.
 `glitchygames.audio.render_to_file(sound, path, ...)` writes a sound to a WAV file with no audio
 device; `glitchygames sound-render SOURCE --sound-output PATH` does the same from the command
 line. A sound rendered alone is its compiled buffer, bit for bit.
+
+## Outside a game
+
+A tool, test bench or script can have an audio engine of its own, without a `GameEngine` or
+scene manager: reserve the mixer's channels, make a live pool on the live ones, make the engine,
+and call its `update` once a frame. That one call moves the baked voices by the frame's time
+(they end by played time, so without it a one-shot never ends) and applies the owner rules to
+the live voices.
+
+```python
+import pygame
+
+from glitchygames.audio import AudioEngine, Instrument, LiveAudio
+from glitchygames.audio.voices import reserve_channels
+
+pygame.mixer.init()
+partition = reserve_channels(live_pool=4, library_channels=32, legacy_channels=8)
+tool = object()  # owns the tool's sounds, as a scene owns a game's
+pool = LiveAudio(channel_indices=partition.live)  # one pool: the engine asks for it at each start
+audio = AudioEngine(partition=partition, scene_source=lambda: tool, live_pool=lambda: pool)
+
+audio.sound('sounds/ui.toml#click').play()
+drone = audio.sound(Instrument(wave='sine', live=True), pitch='A2').start()
+
+while running:
+    audio.update(dt=1 / 60, active_scene=tool, previous_scene=None, active_transitions=())
+```
+
+A sound handed out by a bare `SoundLibrary`, with no engine, plays nothing (a warning says so
+once per sound).

@@ -1,12 +1,18 @@
-"""Cross-platform save directory resolution.
+"""Cross-platform save and cache directory resolution.
 
-Resolves the appropriate user data directory for each platform
+Resolves the appropriate user data and cache directories for each platform
 without requiring external dependencies like platformdirs.
 
-Platforms:
+Saves (``get_save_directory``):
     macOS:   ~/Library/Application Support/<app_name>/
     Linux:   $XDG_DATA_HOME/<app_name>/ (default ~/.local/share/<app_name>/)
     Windows: %APPDATA%/<app_name>/
+
+Caches (``get_cache_directory``: what can be made again, such as rendered sounds; sound engine
+implementation spec 6.4):
+    macOS:   ~/Library/Caches/<app_name>/
+    Linux:   $XDG_CACHE_HOME/<app_name>/ (default ~/.cache/<app_name>/)
+    Windows: %LOCALAPPDATA%/<app_name>/Cache/
 """
 
 from __future__ import annotations
@@ -76,3 +82,34 @@ def get_save_directory(app_name: str) -> Path:
     if xdg_data_home:
         return Path(xdg_data_home) / app_name
     return Path.home() / '.local' / 'share' / app_name
+
+
+def get_cache_directory(app_name: str) -> Path:
+    """Get the platform-specific cache directory for an application.
+
+    Everything under it can be made again, so the user or the system may delete it at any time.
+    The directory is not created here.
+
+    Args:
+        app_name: Application name (used as the directory name). Must match [a-z0-9_-]+.
+
+    Returns:
+        Path to the application's cache directory.
+
+    """
+    validate_app_name(app_name)
+
+    if sys.platform == 'darwin':
+        return Path.home() / 'Library' / 'Caches' / app_name
+
+    if sys.platform.startswith('win'):
+        local_app_data = os.environ.get('LOCALAPPDATA')
+        if local_app_data:
+            return Path(local_app_data) / app_name / 'Cache'
+        return Path.home() / 'AppData' / 'Local' / app_name / 'Cache'
+
+    # Linux and other POSIX
+    xdg_cache_home = os.environ.get('XDG_CACHE_HOME')
+    if xdg_cache_home:
+        return Path(xdg_cache_home) / app_name
+    return Path.home() / '.cache' / app_name

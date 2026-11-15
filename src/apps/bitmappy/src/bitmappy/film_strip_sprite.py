@@ -160,7 +160,7 @@ class FilmStripSprite(BitmappySprite):
             LOG.debug('FilmStripSprite: Click is outside bounds or no widget')
 
     @override
-    def on_right_mouse_button_up_event(self, event: events.MouseButtonEvent) -> bool | None:  # type: ignore[override] # ty: ignore[invalid-method-override]
+    def on_right_mouse_button_up_event(self, event: events.MouseButtonEvent) -> bool | None:  # type: ignore[override] # ty: ignore[incompatible-method-override]
         """Handle right mouse clicks on the film strip for onion skinning and color sampling.
 
         Returns:
