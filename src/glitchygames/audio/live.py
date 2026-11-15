@@ -54,7 +54,7 @@ from glitchygames.render_target import is_inner_context
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from glitchygames.audio.recipes import Tremolo
+    from glitchygames.audio.effects import Tremolo
 
 log: logging.Logger = logging.getLogger('game.audio.live')
 

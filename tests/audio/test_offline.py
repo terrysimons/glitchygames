@@ -11,6 +11,7 @@ import pytest
 
 from glitchygames.audio import OfflineEvent, RenderReport, render_to_file
 from glitchygames.audio.assets import clear_sound_file_cache
+from glitchygames.audio.effects import Effect, Tone
 from glitchygames.audio.instrument import Instrument
 from glitchygames.audio.library import CacheMode
 from glitchygames.audio.offline import (
@@ -19,7 +20,6 @@ from glitchygames.audio.offline import (
     WAVE_FORMAT_IEEE_FLOAT,
     nominal_end_frame,
 )
-from glitchygames.audio.recipes import SoundRecipe, Tone
 from glitchygames.audio.render import render_sound
 from glitchygames.audio.spec import EnvelopeSpec
 from glitchygames.audio.synth import Envelope, Waveform, to_pcm16
@@ -60,7 +60,7 @@ instrument = "blip"
 pitch = "G4"
 bus = "music"
 """
-LEGACY_RECIPE = SoundRecipe(
+LEGACY_RECIPE = Effect(
     name='beep_like',
     tones=(
         Tone(
@@ -196,7 +196,7 @@ def test_a_sound_not_yet_compiled_is_compiled_through_the_librarys_path(tmp_path
 
 def test_a_version_0_recipe_renders_as_it_compiles(tmp_path, library_without_mixer):
     """A version 0 recipe's render is its legacy compile, bit for bit."""
-    library_without_mixer.add_recipes([LEGACY_RECIPE])
+    library_without_mixer.add_effects([LEGACY_RECIPE])
     sound = library_without_mixer.sound('beep_like', scene_sound_directory=None)
 
     report = render_to_file(sound, tmp_path / 'beep.wav')
@@ -277,7 +277,7 @@ def test_the_nominal_end_of_an_instrument_sound_is_its_last_gate(library_without
     sound = library_without_mixer.sound(
         PULSE_INSTRUMENT, scene_sound_directory=None, notes='B5:0.06 E6:0.18'
     )
-    library_without_mixer.add_recipes([LEGACY_RECIPE])
+    library_without_mixer.add_effects([LEGACY_RECIPE])
     legacy = library_without_mixer.sound('beep_like', scene_sound_directory=None)
 
     assert nominal_end_frame(sound, sample_rate=SAMPLE_RATE) == round(0.06 * SAMPLE_RATE) + round(

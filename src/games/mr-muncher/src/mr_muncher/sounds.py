@@ -10,7 +10,7 @@ falling minor phrase. Values are starting points tuned by ear; edit them freely.
 
 from __future__ import annotations
 
-from glitchygames.audio.recipes import SoundRecipe, Tone, Tremolo
+from glitchygames.audio.effects import Effect, Tone, Tremolo
 from glitchygames.audio.synth import Envelope, Waveform
 
 # One beat of the jingles, in seconds
@@ -95,7 +95,7 @@ def _clack(*, offset: float = 0.0) -> Tone:
     )
 
 
-def _crunch(*, name: str, cutoff: float, pop_frequency: float) -> SoundRecipe:
+def _crunch(*, name: str, cutoff: float, pop_frequency: float) -> Effect:
     """Return a popcorn crunch: a short burst of filtered noise over a falling pop.
 
     Args:
@@ -107,7 +107,7 @@ def _crunch(*, name: str, cutoff: float, pop_frequency: float) -> SoundRecipe:
         The recipe.
 
     """
-    return SoundRecipe(
+    return Effect(
         name=name,
         volume=0.18,
         tones=(
@@ -136,7 +136,7 @@ CRUNCH_TWO = _crunch(name='crunch_two', cutoff=2600.0, pop_frequency=820.0)
 # Played alternately, one per sprocket
 CRUNCH_RECIPES = (CRUNCH_ONE, CRUNCH_TWO)
 
-SUGAR_RUSH = SoundRecipe(
+SUGAR_RUSH = Effect(
     name='sugar_rush',
     volume=0.3,
     tones=(
@@ -155,7 +155,7 @@ SUGAR_RUSH = SoundRecipe(
     ),
 )
 
-CAMERA_FLASH = SoundRecipe(
+CAMERA_FLASH = Effect(
     name='camera_flash',
     volume=0.32,
     tones=(
@@ -175,7 +175,7 @@ CAMERA_FLASH = SoundRecipe(
     ),
 )
 
-EAT_BONUS = SoundRecipe(
+EAT_BONUS = Effect(
     name='eat_bonus',
     volume=0.3,
     tones=_melody(
@@ -186,7 +186,7 @@ EAT_BONUS = SoundRecipe(
 )
 
 # Caught: the film snaps, then a sad trombone slides down four notes, sagging on the last
-FILM_SNAP = SoundRecipe(
+FILM_SNAP = Effect(
     name='film_snap',
     volume=0.4,
     tones=(
@@ -220,7 +220,7 @@ FILM_SNAP = SoundRecipe(
     ),
 )
 
-LEVEL_CLEAR = SoundRecipe(
+LEVEL_CLEAR = Effect(
     name='level_clear',
     volume=0.35,
     tones=_melody(
@@ -235,7 +235,7 @@ LEVEL_CLEAR = SoundRecipe(
     ),
 )
 
-EXTRA_LIFE = SoundRecipe(
+EXTRA_LIFE = Effect(
     name='extra_life',
     volume=0.3,
     tones=_melody(
@@ -246,7 +246,7 @@ EXTRA_LIFE = SoundRecipe(
 )
 
 # A film leader's countdown beep, one per number
-COUNTDOWN_BEEP = SoundRecipe(
+COUNTDOWN_BEEP = Effect(
     name='countdown_beep',
     volume=0.25,
     tones=(
@@ -260,7 +260,7 @@ COUNTDOWN_BEEP = SoundRecipe(
 )
 
 # ACTION!: the clapperboard, then a bright major chord over a low root
-ACTION = SoundRecipe(
+ACTION = Effect(
     name='action',
     volume=0.32,
     tones=(
@@ -284,7 +284,7 @@ ACTION = SoundRecipe(
     ),
 )
 
-THE_END = SoundRecipe(
+THE_END = Effect(
     name='the_end',
     volume=0.35,
     tones=_melody(

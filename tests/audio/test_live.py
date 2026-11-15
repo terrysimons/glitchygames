@@ -5,8 +5,8 @@ import pygame
 import pytest
 
 from glitchygames.audio import live, voices
+from glitchygames.audio.effects import Tremolo
 from glitchygames.audio.live import LiveAudio, LiveVoice, VoiceState, reserve_live_voice_pool
-from glitchygames.audio.recipes import Tremolo
 from glitchygames.audio.route import set_audible
 from glitchygames.audio.synth import Waveform
 from glitchygames.audio.voices import inner_context_partition, reserve_inner_game_channels

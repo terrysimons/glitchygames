@@ -12,7 +12,7 @@ cache, which is replay-local, so a replay under another mode reads the same, bit
 ``ram`` the request's compile sets them, and ``release()`` (the memory limit's eviction) keeps
 them. Under ``none`` (Rulings R49 and R50) nothing renders or decodes at request:
 - a spec's and a version 0 recipe's ``length`` is derived the way the compile sizes its samples
-  (``render.rendered_frame_count``, ``SoundRecipe.frame_count``), and their ``sample_rate`` is
+  (``render.rendered_frame_count``, ``Effect.frame_count``), and their ``sample_rate`` is
   the rate they compile at;
 - a recorded file's ``length`` and ``sample_rate`` are known only by decoding it (a mixer
   converts it as it loads; a truncated WAV decodes fewer frames than its header claims), so
@@ -85,8 +85,8 @@ from glitchygames.audio.voices import SoundHandle
 if TYPE_CHECKING:
     from glitchygames.audio.accounting import AudioAccountant
     from glitchygames.audio.disk_cache import DiskSoundCache
+    from glitchygames.audio.effects import Effect
     from glitchygames.audio.pitch import PitchLike, Tuning
-    from glitchygames.audio.recipes import SoundRecipe
     from glitchygames.audio.waves import WaveRegistry
 
 log: logging.Logger = logging.getLogger('game.audio.library')
@@ -266,7 +266,7 @@ class SoundPlayer(Protocol):
 class Sound:
     """A sound the library compiled (or, under cache ``none``, will compile at each play).
 
-    Exactly one of ``spec`` (a version 1 sound or an instrument), ``legacy_recipe`` (version 0) and
+    Exactly one of ``spec`` (a version 1 sound or an instrument), ``effect`` (version 0) and
     ``recorded_file`` says how it is compiled. ``length``, ``peak`` and ``sample_rate`` are what a
     game may read of it, the same under either cache (see the module docstring): a sound got from
     the library gives all three (under ``none`` the ones not derived come from one compile on
@@ -281,7 +281,7 @@ class Sound:
         identity_key: The cache key.
         playback_defaults: The sound file's playback defaults.
         spec: The spec of a version 1 sound, or None.
-        legacy_recipe: The version 0 recipe, or None.
+        effect: The version 0 recipe, or None.
         recorded_file: The WAV/OGG path of a recorded sound, or None.
         samples_float: Mono float64 samples, or None until compiled.
         samples_int16: The same as signed 16-bit PCM, or None until compiled.
@@ -295,7 +295,7 @@ class Sound:
         sample_rate: int,
         playback_defaults: PlaybackDefaults,
         spec: SoundSpec | None = None,
-        legacy_recipe: SoundRecipe | None = None,
+        effect: Effect | None = None,
         recorded_file: Path | None = None,
     ) -> None:
         """Make an uncompiled sound.
@@ -306,7 +306,7 @@ class Sound:
             sample_rate: The rate to compile at.
             playback_defaults: The default playback settings.
             spec: The spec of a version 1 sound.
-            legacy_recipe: The version 0 recipe.
+            effect: The version 0 recipe.
             recorded_file: A recorded sound's file.
         """
         self.name = name
@@ -315,7 +315,7 @@ class Sound:
         self._sample_rate = sample_rate
         self.playback_defaults = playback_defaults
         self.spec = spec
-        self.legacy_recipe = legacy_recipe
+        self.effect = effect
         self.recorded_file = recorded_file
         self.is_live = spec.live if spec is not None else False
         # The engine's own sound (engine_sound): compiled once per process, never evicted or
@@ -490,7 +490,7 @@ class Sound:
             sample_rate=rate,
             playback_defaults=self.playback_defaults,
             spec=spec,
-            legacy_recipe=self.legacy_recipe,
+            effect=self.effect,
             recorded_file=self.recorded_file,
         )
 
@@ -583,8 +583,8 @@ def _compiled_frame_count(sound: Sound) -> int:
     """
     if sound.spec is not None:
         return rendered_frame_count(sound.spec)
-    assert sound.legacy_recipe is not None
-    return sound.legacy_recipe.frame_count(sample_rate=sound.sample_rate)
+    assert sound.effect is not None
+    return sound.effect.frame_count(sample_rate=sound.sample_rate)
 
 
 def _nothing_plays(_sound: Sound) -> bool:
@@ -689,7 +689,7 @@ class SoundLibrary:
         self._tuning_source = tuning_source
         self._memory_limit_bytes = memory_limit_bytes
         self._is_playing = is_playing
-        self._recipes: dict[str, SoundRecipe] = {}
+        self._effects: dict[str, Effect] = {}
         self._indexes: dict[tuple[Path, Path | None], ShortNameIndex] = {}
         # request -> identity key, so a repeated request is a dictionary hit (impl spec 6.2).
         # A sound file edited after its first request is not re-read: hot reload is M4.
@@ -706,14 +706,14 @@ class SoundLibrary:
         self._disk_misses = 0
         self._disk_writes = 0
 
-    def add_recipes(self, recipes: Iterable[SoundRecipe]) -> None:
+    def add_effects(self, recipes: Iterable[Effect]) -> None:
         """Add version 0 recipes by name; they are looked up before the sound directory.
 
         Args:
             recipes: The recipes.
         """
         for recipe in recipes:
-            self._recipes[recipe.name] = recipe
+            self._effects[recipe.name] = recipe
 
     def names(self) -> tuple[str, ...]:
         """The names of the added recipes and of every sound requested so far.
@@ -721,7 +721,7 @@ class SoundLibrary:
         Returns:
             The names, sorted.
         """
-        known = set(self._recipes)
+        known = set(self._effects)
         known.update(sound.name for sound in self._sounds.values())
         return tuple(sorted(known))
 
@@ -921,15 +921,15 @@ class SoundLibrary:
         ``length`` is the compile's frame count over the rate it compiles at, the same division
         ``Sound.install`` makes, so it is ``ram``'s bit for bit: a spec's from
         ``rendered_frame_count`` (the renderer's own buffer size), a version 0 recipe's from
-        ``SoundRecipe.frame_count`` (``mix``'s own). A recorded file's length and rate are known
+        ``Effect.frame_count`` (``mix``'s own). A recorded file's length and rate are known
         only by decoding it, and every peak only by compiling: those come from
         ``_compiled_copy`` on their first read.
         """
         compile_rate = sound.sample_rate  # known for every sound until it is described
         if sound.spec is not None:
             length = rendered_frame_count(sound.spec) / compile_rate
-        elif sound.legacy_recipe is not None:
-            length = sound.legacy_recipe.frame_count(sample_rate=compile_rate) / compile_rate
+        elif sound.effect is not None:
+            length = sound.effect.frame_count(sample_rate=compile_rate) / compile_rate
         else:
             length = None
         sound.describe_lazily(
@@ -1075,17 +1075,17 @@ class SoundLibrary:
                 tuning=tuning,
             )
         entry = self._resolve_entry(request)
-        if (entry.legacy_recipe is not None or entry.file is not None) and _names_identity(request):
+        if (entry.effect is not None or entry.file is not None) and _names_identity(request):
             message = (
                 f'{entry.name!r} is a recorded or version 0 sound: it takes no pitch, notes, '
                 f'chord, length or transpose'
             )
             raise ValueError(message)
-        if entry.legacy_recipe is not None:
+        if entry.effect is not None:
             return Sound(
                 name=entry.name,
                 identity_key=_digest({
-                    'legacy_recipe': entry.legacy_recipe.to_dict(),
+                    'effect': entry.effect.to_dict(),
                     'name': entry.name,
                     'sample_rate': sample_rate,
                     'render_version': AUDIO_RENDER_VERSION,
@@ -1094,7 +1094,7 @@ class SoundLibrary:
                 }),
                 sample_rate=sample_rate,
                 playback_defaults=entry.playback_defaults,
-                legacy_recipe=entry.legacy_recipe,
+                effect=entry.effect,
             )
         if entry.file is not None:
             path = require_recorded_file(entry)
@@ -1189,7 +1189,7 @@ class SoundLibrary:
 
         Raises:
             KeyError: For a short name with no sound directory. (Other failures come from the
-                helpers: ``SoundAssetError`` for a name in both ``add_recipes`` and the
+                helpers: ``SoundAssetError`` for a name in both ``add_effects`` and the
                 directory or a bad path, ``KeyError`` for an unknown name.)
         """
         source = request.source
@@ -1198,9 +1198,9 @@ class SoundLibrary:
         package_root = request.package_root
         if is_path_reference(source):
             return self._path_entry(source, package_root=package_root)
-        if source in self._recipes:
+        if source in self._effects:
             self._refuse_name_in_both(source, directory=directory, package_root=package_root)
-            return SoundEntry(name=source, legacy_recipe=self._recipes[source])
+            return SoundEntry(name=source, effect=self._effects[source])
         if directory is None:
             message = f'no sound named {source!r}: the scene has no sound directory'
             raise KeyError(message)
@@ -1218,7 +1218,7 @@ class SoundLibrary:
         """Refuse a recipe name the sound directory also defines (Ruling R2).
 
         Raises:
-            SoundAssetError: Naming add_recipes and the directory's file.
+            SoundAssetError: Naming add_effects and the directory's file.
         """
         if directory is None:
             return
@@ -1227,7 +1227,7 @@ class SoundLibrary:
         except KeyError:
             return
         message = (
-            f'the sound name {name!r} is defined in add_recipes and in {location.path}; rename one'
+            f'the sound name {name!r} is defined in add_effects and in {location.path}; rename one'
         )
         raise SoundAssetError(message)
 
@@ -1324,9 +1324,9 @@ def compile_sound(sound: Sound) -> None:
             sample_rate=sound.sample_rate,
         )
     else:
-        assert sound.legacy_recipe is not None
+        assert sound.effect is not None
         # Version 0 recipes compile through today's renderer, unchanged (impl spec 10.4)
-        samples = sound.legacy_recipe.render(sample_rate=sound.sample_rate)
+        samples = sound.effect.render(sample_rate=sound.sample_rate)
         sound.install(
             samples_float=samples,
             samples_int16=to_pcm16(samples),

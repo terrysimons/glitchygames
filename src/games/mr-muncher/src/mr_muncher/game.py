@@ -37,8 +37,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 import pygame
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.audio.effects import SoundBank, Tremolo
 from glitchygames.audio.exceptions import AudioUnavailableError
-from glitchygames.audio.recipes import SoundBank, Tremolo
 from glitchygames.audio.synth import Waveform
 from glitchygames.color import BLACK
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle, ShakeTarget

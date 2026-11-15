@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from glitchygames.audio.exceptions import AudioUnavailableError, SoundRecipeError
+from glitchygames.audio.exceptions import AudioUnavailableError, EffectError
 from glitchygames.audio.synth import (
     Envelope,
     FloatArray,
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
     import pygame
 
-log: logging.Logger = logging.getLogger('game.audio.recipes')
+log: logging.Logger = logging.getLogger('game.audio.effects')
 
 RECIPE_NOISE_SEED = 0  # Fixed so a recipe sounds identical every time it renders
 
@@ -139,7 +139,7 @@ class Tone:
 
 
 @dataclasses.dataclass(frozen=True)
-class SoundRecipe:
+class Effect:
     """A named sound made of tones."""
 
     name: str
@@ -195,14 +195,14 @@ class SoundRecipe:
         }
 
     @classmethod
-    def from_dict(cls, name: str, data: dict[str, Any]) -> SoundRecipe:
+    def from_dict(cls, name: str, data: dict[str, Any]) -> Effect:
         """Build a recipe from to_dict() output.
 
         Returns:
             The recipe.
 
         Raises:
-            SoundRecipeError: Naming the recipe and field that is invalid.
+            EffectError: Naming the recipe and field that is invalid.
 
         """
         tones: list[Tone] = []
@@ -217,7 +217,7 @@ class SoundRecipe:
             )
         except (TypeError, ValueError) as error:
             message = f'{name}: {error}'
-            raise SoundRecipeError(message) from error
+            raise EffectError(message) from error
 
 
 def _tone_to_dict(tone: Tone) -> dict[str, Any]:
@@ -245,12 +245,12 @@ def _tone_from_dict(*, name: str, index: int, data: dict[str, Any]) -> Tone:
         waveform = Waveform(data['waveform'])
     except (KeyError, ValueError) as error:
         message = f'{location}.waveform: {data.get("waveform")!r} is not a waveform'
-        raise SoundRecipeError(message) from error
+        raise EffectError(message) from error
     try:
         envelope = Envelope(**data['envelope'])
     except (KeyError, TypeError) as error:
         message = f'{location}.envelope: {error}'
-        raise SoundRecipeError(message) from error
+        raise EffectError(message) from error
     tremolo_data = data.get('tremolo')
     try:
         return Tone(
@@ -269,10 +269,10 @@ def _tone_from_dict(*, name: str, index: int, data: dict[str, Any]) -> Tone:
         )
     except (KeyError, TypeError, ValueError) as error:
         message = f'{location}: {error}'
-        raise SoundRecipeError(message) from error
+        raise EffectError(message) from error
 
 
-def load_sound_recipes(path: Path) -> dict[str, SoundRecipe]:
+def load_effects(path: Path) -> dict[str, Effect]:
     """Load every [recipes.<name>] table from a TOML file.
 
     Returns:
@@ -282,27 +282,26 @@ def load_sound_recipes(path: Path) -> dict[str, SoundRecipe]:
     with path.open('rb') as recipe_file:
         document = tomllib.load(recipe_file)
     return {
-        name: SoundRecipe.from_dict(name, data)
-        for name, data in document.get('recipes', {}).items()
+        name: Effect.from_dict(name, data) for name, data in document.get('recipes', {}).items()
     }
 
 
 class SoundBank:
     """Plays recipes by name, rendering each on first use."""
 
-    def __init__(self, recipes: Iterable[SoundRecipe]) -> None:
+    def __init__(self, recipes: Iterable[Effect]) -> None:
         """Index the recipes by name.
 
         Raises:
             ValueError: If two recipes share a name.
 
         """
-        self._recipes: dict[str, SoundRecipe] = {}
+        self._effects: dict[str, Effect] = {}
         for recipe in recipes:
-            if recipe.name in self._recipes:
+            if recipe.name in self._effects:
                 message = f'duplicate sound recipe name {recipe.name!r}'
                 raise ValueError(message)
-            self._recipes[recipe.name] = recipe
+            self._effects[recipe.name] = recipe
         self._sounds: dict[tuple[str, int], pygame.mixer.Sound] = {}
         self._unavailable_logged = False
 
@@ -313,7 +312,7 @@ class SoundBank:
             KeyError: If no recipe has this name.
 
         """
-        recipe = self._recipes.get(name)
+        recipe = self._effects.get(name)
         if recipe is None:
             message = f'no sound recipe named {name!r}'
             raise KeyError(message)
@@ -330,11 +329,11 @@ class SoundBank:
 
         A no-op (logged once, like play) when audio is unavailable.
         """
-        for recipe in self._recipes.values():
+        for recipe in self._effects.values():
             if self._render_cached(recipe) is None:
                 return
 
-    def _render_cached(self, recipe: SoundRecipe) -> pygame.mixer.Sound | None:
+    def _render_cached(self, recipe: Effect) -> pygame.mixer.Sound | None:
         """Return the recipe's Sound for the current mixer rate, rendering it on first use.
 
         Returns:

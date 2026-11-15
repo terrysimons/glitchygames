@@ -62,8 +62,8 @@ from clockwork_keep.levels import ALL_FLOORS, FloorData
 from clockwork_keep.player import Tinker
 from clockwork_keep.sounds import ALL_RECIPES
 from clockwork_keep.terrain import Elevator, MovingGear, Platform
+from glitchygames.audio.effects import SoundBank, Tremolo
 from glitchygames.audio.exceptions import AudioUnavailableError
-from glitchygames.audio.recipes import SoundBank, Tremolo
 from glitchygames.audio.synth import Waveform
 from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect

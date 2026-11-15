@@ -19,9 +19,9 @@ from glitchygames.audio.assets import (
     load_sound_file,
     require_recorded_file,
 )
+from glitchygames.audio.effects import Effect
 from glitchygames.audio.exceptions import GlitchyGamesAudioError, SoundAssetError
 from glitchygames.audio.instrument import Instrument, Noise
-from glitchygames.audio.recipes import SoundRecipe
 from glitchygames.audio.spec import ENVELOPE_PRESETS, EnvelopeSpec, PlaybackDefaults
 from glitchygames.audio.waves import Harmonics, Wave, current_wave_registry
 from glitchygames.engine_context import EngineContext
@@ -96,7 +96,7 @@ def test_the_pickup_example_loads():
         attack=0.002, decay=0.04, sustain=0.0, release=0.02, curve='steps(16)'
     )
     assert coin.file is None
-    assert coin.legacy_recipe is None
+    assert coin.effect is None
 
 
 def test_every_field_of_the_extras_file_reaches_its_object():
@@ -253,8 +253,8 @@ def test_a_v0_recipe_file_loads_each_recipe_as_a_short_name():
     assert sound_file.version == 0
     assert set(sound_file.sounds) == {'crunch_one', 'sugar_rush', 'camera_flash'}
     entry = sound_file.sounds['sugar_rush']
-    assert isinstance(entry.legacy_recipe, SoundRecipe)
-    assert entry.legacy_recipe.name == 'sugar_rush'
+    assert isinstance(entry.effect, Effect)
+    assert entry.effect.name == 'sugar_rush'
     assert entry.instrument is None
     assert entry.playback_defaults == PlaybackDefaults()
     assert not sound_file.waves

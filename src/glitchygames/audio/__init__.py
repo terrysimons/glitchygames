@@ -22,11 +22,18 @@ Usage:
 from typing import TYPE_CHECKING
 
 from glitchygames.audio.controller_audio import ControllerAudio
+from glitchygames.audio.effects import (
+    Effect,
+    SoundBank,
+    Tone,
+    Tremolo,
+    load_effects,
+)
 from glitchygames.audio.engine import AudioEngine
 from glitchygames.audio.exceptions import (
     AudioUnavailableError,
+    EffectError,
     SoundAssetError,
-    SoundRecipeError,
     SoundRenderError,
 )
 from glitchygames.audio.instrument import Instrument, Noise
@@ -34,13 +41,6 @@ from glitchygames.audio.library import CacheMode, Sound
 from glitchygames.audio.live import LiveAudio, LiveVoice
 from glitchygames.audio.offline import OfflineEvent, RenderReport, render_to_file
 from glitchygames.audio.pitch import Hz, Midi, Note, PitchTable, Scale, Tuning
-from glitchygames.audio.recipes import (
-    SoundBank,
-    SoundRecipe,
-    Tone,
-    Tremolo,
-    load_sound_recipes,
-)
 from glitchygames.audio.synth import Envelope, Waveform
 from glitchygames.audio.tts import MacOSTTS, get_tts_backend
 from glitchygames.audio.voices import (
@@ -64,6 +64,8 @@ __all__ = [
     'CacheMode',
     'ChannelsHeldError',
     'ControllerAudio',
+    'Effect',
+    'EffectError',
     'Envelope',
     'Harmonics',
     'Hz',
@@ -85,8 +87,6 @@ __all__ = [
     'SoundAssetError',
     'SoundBank',
     'SoundHandle',
-    'SoundRecipe',
-    'SoundRecipeError',
     'SoundRenderError',
     'Tone',
     'Tremolo',
@@ -96,7 +96,7 @@ __all__ = [
     'WavePoint',
     'Waveform',
     'get_tts_backend',
-    'load_sound_recipes',
+    'load_effects',
     'render_to_file',
     'reserve_inner_game_channels',
 ]

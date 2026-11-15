@@ -519,7 +519,7 @@ engine's synthesizer toolkit (`glitchygames.audio.synth`: `oscillator`, `frequen
 
 If audio is unavailable (`AudioUnavailableError`), no sound is set and the game plays silent
 rather than with some of its sounds; every `play_*()` checks for `None`. The game uses plain
-one-shot `pygame.mixer.Sound`s: no `SoundRecipe` files and no live voices.
+one-shot `pygame.mixer.Sound`s: no effects and no live voices.
 
 ## State, score and saves
 

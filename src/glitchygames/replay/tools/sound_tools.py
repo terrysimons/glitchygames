@@ -69,7 +69,7 @@ if TYPE_CHECKING:
     import argparse
 
     from glitchygames.audio.assets import SoundFile
-    from glitchygames.audio.recipes import SoundRecipe, Tone
+    from glitchygames.audio.effects import Effect, Tone
     from glitchygames.replay.tools.registry import Tool
     from glitchygames.scenes import Scene
 
@@ -291,12 +291,12 @@ def migration_problems(sound_file: SoundFile) -> list[str]:
     """
     problems: list[str] = []
     for entry in sound_file.sounds.values():
-        assert entry.legacy_recipe is not None  # every entry of a version 0 file is a recipe
-        problems.extend(_recipe_problems(entry.legacy_recipe))
+        assert entry.effect is not None  # every entry of a version 0 file is a recipe
+        problems.extend(_recipe_problems(entry.effect))
     return problems
 
 
-def _recipe_problems(recipe: SoundRecipe) -> list[str]:
+def _recipe_problems(recipe: Effect) -> list[str]:
     """Name every field of one recipe that version 1 cannot say yet.
 
     Returns:
@@ -381,7 +381,7 @@ def _tone_problems(tone: Tone, *, first: Tone, where: str) -> list[str]:
     return problems
 
 
-def _sound_volume(recipe: SoundRecipe) -> float:
+def _sound_volume(recipe: Effect) -> float:
     """The version 1 volume that plays a recipe as loud: its volume, at its peak, at -1 dBFS.
 
     Returns:
@@ -408,7 +408,7 @@ def migrated_document(sound_file: SoundFile) -> dict[str, Any]:
     instruments: dict[str, Any] = {}
     sounds: dict[str, Any] = {}
     for name, entry in sound_file.sounds.items():
-        recipe = entry.legacy_recipe
+        recipe = entry.effect
         assert recipe is not None
         instruments[name] = _instrument_table(recipe)
         sounds[name] = _sound_table(recipe, instrument=name)
@@ -419,7 +419,7 @@ def migrated_document(sound_file: SoundFile) -> dict[str, Any]:
     }
 
 
-def _instrument_table(recipe: SoundRecipe) -> dict[str, Any]:
+def _instrument_table(recipe: Effect) -> dict[str, Any]:
     """A recipe's ``[instruments.<name>]`` table.
 
     Returns:
@@ -468,7 +468,7 @@ def _source_table(tone: Tone) -> dict[str, Any]:
     return table
 
 
-def _sound_table(recipe: SoundRecipe, *, instrument: str) -> dict[str, Any]:
+def _sound_table(recipe: Effect, *, instrument: str) -> dict[str, Any]:
     """A recipe's ``[sounds.<name>]`` table.
 
     The sound's pitch is its first pitched tone's (every source has its own fixed pitch, so this

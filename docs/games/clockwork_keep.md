@@ -583,7 +583,7 @@ dropping through it.
 
 ## Sound
 
-`sounds.py` defines seven `SoundRecipe`s (synthesized tones: oscillators, envelopes, filters,
+`sounds.py` defines seven `Effect`s (synthesized tones: oscillators, envelopes, filters,
 tremolo), played through one `SoundBank(ALL_RECIPES)` per floor. `setup()` calls
 `sounds.prerender()`, so no sound renders mid-frame (the clank would otherwise render on the slam
 frame).
@@ -693,7 +693,7 @@ the native-driver comparison while iterating).
 | `src/games/clockwork-keep/src/clockwork_keep/terrain.py` | `Platform`, `Elevator`, `MovingGear` |
 | `src/games/clockwork-keep/src/clockwork_keep/levels.py` | `FloorData`, `MovingGearData`, the three floors, `ALL_FLOORS` |
 | `src/games/clockwork-keep/src/clockwork_keep/drawing.py` | Primitive drawing: the Tinker, platforms, elevator, cogs, the three backgrounds, `clock_hand_angles` |
-| `src/games/clockwork-keep/src/clockwork_keep/sounds.py` | The six `SoundRecipe`s, `ALL_RECIPES` |
+| `src/games/clockwork-keep/src/clockwork_keep/sounds.py` | The six `Effect`s, `ALL_RECIPES` |
 | `src/games/clockwork-keep/src/clockwork_keep/constants.py` | Screen, physics, layers, gameplay, colours, elevator ride feel, the clock |
 | `src/glitchygames/transitions/elevator.py` | `ElevatorTransition` (engine, written for this game) |
 | `src/glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The pause and game-over screens |

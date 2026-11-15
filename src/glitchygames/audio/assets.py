@@ -36,7 +36,8 @@ from pydantic import (
 )
 from pydantic_core import PydanticCustomError
 
-from glitchygames.audio.exceptions import SoundAssetError, SoundRecipeError
+from glitchygames.audio.effects import Effect, Tone
+from glitchygames.audio.exceptions import EffectError, SoundAssetError
 from glitchygames.audio.instrument import (
     DRIVE_HIGHEST,
     MAXIMUM_SOURCES,
@@ -48,7 +49,6 @@ from glitchygames.audio.instrument import (
     Source,
 )
 from glitchygames.audio.pitch import PitchLike, Tuning, resolve_pitch
-from glitchygames.audio.recipes import SoundRecipe, Tone
 from glitchygames.audio.spec import (
     ENVELOPE_CURVE_PATTERN,
     ENVELOPE_PRESETS,
@@ -81,7 +81,7 @@ log: logging.Logger = logging.getLogger('game.audio.assets')
 
 CURRENT_SCHEMA_VERSION: Final[int] = 1
 LEGACY_SCHEMA_VERSION: Final[int] = 0
-# The fields a version 0 recipe and tone are read from (the keys SoundRecipe.to_dict writes)
+# The fields a version 0 recipe and tone are read from (the keys Effect.to_dict writes)
 LEGACY_RECIPE_FIELDS: Final[frozenset[str]] = frozenset({'volume', 'peak', 'tones'})
 LEGACY_TONE_FIELDS: Final[frozenset[str]] = frozenset(
     field_info.name for field_info in dataclasses.fields(Tone)
@@ -697,7 +697,7 @@ class SoundEntry:
         length: Seconds per note or chord before release, or None for the default.
         transpose: Semitones to shift notes or a chord.
         playback_defaults: The playback defaults, overridable in ``.play()``.
-        legacy_recipe: The v0 recipe, or None.
+        effect: The v0 recipe, or None.
         source_path: The sound file that defines this entry.
     """
 
@@ -711,7 +711,7 @@ class SoundEntry:
     length: float | None = None
     transpose: float = 0.0
     playback_defaults: PlaybackDefaults = field(default_factory=PlaybackDefaults)
-    legacy_recipe: SoundRecipe | None = None
+    effect: Effect | None = None
     source_path: Path | None = None
 
 
@@ -1273,7 +1273,7 @@ def _load_version_zero(definitions: _Definitions) -> SoundFile:
     """Load a ``[recipes.<name>]`` file: each recipe is a short name.
 
     Returns:
-        The file, with a ``legacy_recipe`` entry per recipe. An invalid recipe, or a
+        The file, with a ``effect`` entry per recipe. An invalid recipe, or a
         ``recipes`` that is not a table, is a ``SoundAssetError``.
     """
     path = definitions.path
@@ -1290,11 +1290,11 @@ def _load_version_zero(definitions: _Definitions) -> SoundFile:
     sounds: dict[str, SoundEntry] = {}
     for name, data in definitions.document['recipes'].items():
         try:
-            recipe = SoundRecipe.from_dict(name, data)
-        except (SoundRecipeError, KeyError, TypeError, ValueError, AttributeError) as error:
+            recipe = Effect.from_dict(name, data)
+        except (EffectError, KeyError, TypeError, ValueError, AttributeError) as error:
             problems.append(_Problem(f'recipes.{name}', f'{type(error).__name__}: {error}'))
             continue
-        sounds[name] = SoundEntry(name=name, legacy_recipe=recipe, source_path=path)
+        sounds[name] = SoundEntry(name=name, effect=recipe, source_path=path)
     if problems:
         error = _asset_error(path, problems)
         raise error

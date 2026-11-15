@@ -4,10 +4,10 @@ Brassy squares and saws, filtered noise for steam, low booms. Values are startin
 tuned by ear; edit them freely.
 """
 
-from glitchygames.audio.recipes import SoundRecipe, Tone, Tremolo
+from glitchygames.audio.effects import Effect, Tone, Tremolo
 from glitchygames.audio.synth import Envelope, Waveform
 
-JUMP = SoundRecipe(
+JUMP = Effect(
     name='jump',
     volume=0.35,
     tones=(
@@ -30,7 +30,7 @@ JUMP = SoundRecipe(
     ),
 )
 
-LAND = SoundRecipe(
+LAND = Effect(
     name='land',
     volume=0.3,
     tones=(
@@ -53,7 +53,7 @@ LAND = SoundRecipe(
     ),
 )
 
-COG_PICKUP = SoundRecipe(
+COG_PICKUP = Effect(
     name='cog_pickup',
     volume=0.3,
     tones=(
@@ -73,7 +73,7 @@ COG_PICKUP = SoundRecipe(
     ),
 )
 
-DEATH = SoundRecipe(
+DEATH = Effect(
     name='death',
     volume=0.4,
     tones=(
@@ -90,7 +90,7 @@ DEATH = SoundRecipe(
     ),
 )
 
-GAME_OVER = SoundRecipe(
+GAME_OVER = Effect(
     name='game_over',
     volume=0.4,
     tones=tuple(
@@ -109,7 +109,7 @@ GAME_OVER = SoundRecipe(
     ),
 )
 
-ELEVATOR_CLANK = SoundRecipe(
+ELEVATOR_CLANK = Effect(
     name='elevator_clank',
     volume=0.6,
     tones=(
@@ -174,7 +174,7 @@ def bell(*, frequency: float, offset: float, duration: float, volume: float) -> 
 
 # Reaching the top of the Clock Face: the clock tower's chime, C5, E5 and G5 climbing, then C6
 # ringing out over a deep C3 strike
-VICTORY = SoundRecipe(
+VICTORY = Effect(
     name='victory',
     volume=0.45,
     tones=(

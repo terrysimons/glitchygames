@@ -9,15 +9,15 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from glitchygames.audio import synth
-from glitchygames.audio.exceptions import AudioUnavailableError, SoundRecipeError
-from glitchygames.audio.recipes import (
+from glitchygames.audio.effects import (
     RECIPE_NOISE_SEED,
+    Effect,
     SoundBank,
-    SoundRecipe,
     Tone,
     Tremolo,
-    load_sound_recipes,
+    load_effects,
 )
+from glitchygames.audio.exceptions import AudioUnavailableError, EffectError
 from glitchygames.audio.synth import Envelope, Waveform
 
 RATE = 44100
@@ -25,7 +25,7 @@ ENVELOPE = Envelope(attack=0.001, decay=0.01, sustain_level=0.7, release=0.02)
 
 
 def _two_tone_recipe():
-    return SoundRecipe(
+    return Effect(
         name='ting',
         tones=(
             Tone(
@@ -73,8 +73,8 @@ class TestRender:
         np.testing.assert_allclose(recipe.render(sample_rate=RATE), expected)
 
     def test_to_sound_wraps_the_render_at_the_mixer_rate_with_the_recipe_volume(self, mocker):
-        mocker.patch('glitchygames.audio.recipes.mixer_sample_rate', return_value=RATE)
-        to_sound = mocker.patch('glitchygames.audio.recipes.to_sound')
+        mocker.patch('glitchygames.audio.effects.mixer_sample_rate', return_value=RATE)
+        to_sound = mocker.patch('glitchygames.audio.effects.to_sound')
         recipe = _two_tone_recipe()
 
         sound = recipe.to_sound()
@@ -85,7 +85,7 @@ class TestRender:
         assert to_sound.call_args.kwargs == {'volume': recipe.volume}
 
     def test_noise_is_repeatable(self):
-        recipe = SoundRecipe(
+        recipe = Effect(
             name='hiss',
             tones=(
                 Tone(
@@ -122,13 +122,13 @@ class TestValidationAndSerialization:
 
     def test_round_trip(self):
         recipe = _two_tone_recipe()
-        assert SoundRecipe.from_dict('ting', recipe.to_dict()) == recipe
+        assert Effect.from_dict('ting', recipe.to_dict()) == recipe
 
     def test_from_dict_names_recipe_and_field(self):
         data = _two_tone_recipe().to_dict()
         data['tones'][1]['waveform'] = 'kazoo'
-        with pytest.raises(SoundRecipeError, match=r'ting\.tones\[1\]\.waveform'):
-            SoundRecipe.from_dict('ting', data)
+        with pytest.raises(EffectError, match=r'ting\.tones\[1\]\.waveform'):
+            Effect.from_dict('ting', data)
 
     @pytest.mark.parametrize(
         ('field', 'value', 'match'),
@@ -141,19 +141,19 @@ class TestValidationAndSerialization:
     def test_from_dict_reports_bad_tone_fields(self, field, value, match):
         data = _two_tone_recipe().to_dict()
         data['tones'][1][field] = value
-        with pytest.raises(SoundRecipeError, match=match):
-            SoundRecipe.from_dict('ting', data)
+        with pytest.raises(EffectError, match=match):
+            Effect.from_dict('ting', data)
 
     @pytest.mark.parametrize(('field', 'value'), [('volume', 'loud'), ('peak', [0.9])])
     def test_from_dict_reports_bad_recipe_fields(self, field, value):
         """A recipe-level value that is not a number names the recipe."""
         data = _two_tone_recipe().to_dict()
         data[field] = value
-        with pytest.raises(SoundRecipeError, match=r'^ting: '):
-            SoundRecipe.from_dict('ting', data)
+        with pytest.raises(EffectError, match=r'^ting: '):
+            Effect.from_dict('ting', data)
 
     def test_cutoff_at_nyquist_rejected_at_render(self):
-        recipe = SoundRecipe(
+        recipe = Effect(
             name='bad',
             tones=(
                 Tone(
@@ -178,7 +178,7 @@ class TestValidationAndSerialization:
             'sustain_level = 0.5\nrelease = 0.05\n',
             encoding='utf-8',
         )
-        recipes = load_sound_recipes(path)
+        recipes = load_effects(path)
         assert recipes['beep'].name == 'beep'
         assert recipes['beep'].volume == 0.4
         assert recipes['beep'].tones[0].waveform is Waveform.SINE
@@ -188,8 +188,8 @@ class TestSoundBank:
     """Tests for playing recipes through the sound bank."""
 
     def test_renders_once_and_caches(self, mocker):
-        mocker.patch('glitchygames.audio.recipes.mixer_sample_rate', return_value=RATE)
-        to_sound = mocker.patch('glitchygames.audio.recipes.to_sound')
+        mocker.patch('glitchygames.audio.effects.mixer_sample_rate', return_value=RATE)
+        to_sound = mocker.patch('glitchygames.audio.effects.to_sound')
         bank = SoundBank([_two_tone_recipe()])
         bank.play('ting')
         bank.play('ting')
@@ -202,25 +202,25 @@ class TestSoundBank:
 
     def test_no_audio_is_a_logged_no_op(self, mocker):
         mocker.patch(
-            'glitchygames.audio.recipes.to_sound',
+            'glitchygames.audio.effects.to_sound',
             side_effect=AudioUnavailableError('x'),
         )
-        warning = mocker.patch('glitchygames.audio.recipes.log.warning')
+        warning = mocker.patch('glitchygames.audio.effects.log.warning')
         bank = SoundBank([_two_tone_recipe()])
         bank.play('ting')
         bank.play('ting')
         assert warning.call_count == 1
 
     def test_busy_mixer_logs_debug(self, mocker):
-        to_sound = mocker.patch('glitchygames.audio.recipes.to_sound')
+        to_sound = mocker.patch('glitchygames.audio.effects.to_sound')
         to_sound.return_value.play.return_value = None
-        debug = mocker.patch('glitchygames.audio.recipes.log.debug')
+        debug = mocker.patch('glitchygames.audio.effects.log.debug')
         SoundBank([_two_tone_recipe()]).play('ting')
         assert debug.called
 
     def test_prerender_caches_every_recipe_so_play_does_not_render(self, mocker):
-        mocker.patch('glitchygames.audio.recipes.mixer_sample_rate', return_value=RATE)
-        to_sound = mocker.patch('glitchygames.audio.recipes.to_sound')
+        mocker.patch('glitchygames.audio.effects.mixer_sample_rate', return_value=RATE)
+        to_sound = mocker.patch('glitchygames.audio.effects.to_sound')
         other_recipe = dataclasses.replace(_two_tone_recipe(), name='other')
         bank = SoundBank([_two_tone_recipe(), other_recipe])
         bank.prerender()
@@ -231,10 +231,10 @@ class TestSoundBank:
 
     def test_prerender_without_audio_warns_once_and_does_not_raise(self, mocker):
         mocker.patch(
-            'glitchygames.audio.recipes.to_sound',
+            'glitchygames.audio.effects.to_sound',
             side_effect=AudioUnavailableError('x'),
         )
-        warning = mocker.patch('glitchygames.audio.recipes.log.warning')
+        warning = mocker.patch('glitchygames.audio.effects.log.warning')
         bank = SoundBank([_two_tone_recipe()])
         bank.prerender()
         bank.prerender()
@@ -264,14 +264,14 @@ fuzzed_tones = st.builds(
     offset=st.floats(min_value=0.0, max_value=0.2),
 )
 fuzzed_recipes = st.builds(
-    SoundRecipe, name=st.just('fuzzed'), tones=st.lists(fuzzed_tones, max_size=4).map(tuple)
+    Effect, name=st.just('fuzzed'), tones=st.lists(fuzzed_tones, max_size=4).map(tuple)
 )
 
 
 @settings(derandomize=True, database=None, max_examples=200)
 @given(recipe=fuzzed_recipes, sample_rate=st.sampled_from([8000, 22050, 44100, 48000]))
 def test_a_recipes_frame_count_is_its_render_length(recipe, sample_rate):
-    """``SoundRecipe.frame_count`` (a v0 sound's length without rendering) is what render gives."""
+    """``Effect.frame_count`` (a v0 sound's length without rendering) is what render gives."""
     assert recipe.frame_count(sample_rate=sample_rate) == len(
         recipe.render(sample_rate=sample_rate)
     )

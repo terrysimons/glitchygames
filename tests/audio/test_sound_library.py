@@ -7,10 +7,10 @@ import pygame
 import pytest
 
 from glitchygames.audio.assets import clear_sound_file_cache
+from glitchygames.audio.effects import Effect, Tone
 from glitchygames.audio.exceptions import SoundAssetError, SoundRenderError
 from glitchygames.audio.instrument import Instrument
 from glitchygames.audio.library import CacheMode, SoundRequest
-from glitchygames.audio.recipes import SoundRecipe, Tone
 from glitchygames.audio.spec import PlaybackDefaults
 from glitchygames.audio.synth import Envelope, Waveform
 from glitchygames.audio.waves import Harmonics, Wave, current_wave_registry
@@ -25,7 +25,7 @@ from tests.audio.library_support import (
     write_wave_file,
 )
 
-MUNCHER_LIKE_RECIPE = SoundRecipe(
+MUNCHER_LIKE_RECIPE = Effect(
     name='crunch_like',
     tones=(
         Tone(
@@ -140,7 +140,7 @@ def test_a_live_instrument_is_refused_until_m2():
 def test_v0_recipes_compile_bit_identical_to_today():
     """A v0 recipe compiles through today's renderer, unchanged (impl 10.4)."""
     library, _ = make_library()
-    library.add_recipes([MUNCHER_LIKE_RECIPE])
+    library.add_effects([MUNCHER_LIKE_RECIPE])
 
     compiled = library.sound('crunch_like', scene_sound_directory=None)
 
@@ -161,25 +161,23 @@ def test_v0_recipe_files_in_a_directory_compile_bit_identical():
 
     from glitchygames.audio.assets import load_sound_file
 
-    recipe = (
-        load_sound_file(FIXTURE_SOUNDS / 'legacy_recipes.toml').sounds['sugar_rush'].legacy_recipe
-    )
+    recipe = load_sound_file(FIXTURE_SOUNDS / 'legacy_recipes.toml').sounds['sugar_rush'].effect
     np.testing.assert_array_equal(compiled.samples_float, recipe.render(sample_rate=44100))
 
 
-def test_a_name_in_add_recipes_and_in_the_directory_names_both():
-    """A name in add_recipes and in the directory raises, naming both."""
+def test_a_name_in_add_effects_and_in_the_directory_names_both():
+    """A name in add_effects and in the directory raises, naming both."""
     library, _ = make_library()
-    library.add_recipes([dataclasses.replace(MUNCHER_LIKE_RECIPE, name='sugar_rush')])
+    library.add_effects([dataclasses.replace(MUNCHER_LIKE_RECIPE, name='sugar_rush')])
 
-    with pytest.raises(SoundAssetError, match=r'sugar_rush.*add_recipes.*legacy_recipes\.toml'):
+    with pytest.raises(SoundAssetError, match=r'sugar_rush.*add_effects.*legacy_recipes\.toml'):
         library.sound('sugar_rush', scene_sound_directory=FIXTURE_SOUNDS)
 
 
 def test_recipes_win_when_the_directory_has_no_such_name():
-    """A recipe name the directory lacks resolves from add_recipes even with a directory."""
+    """A recipe name the directory lacks resolves from add_effects even with a directory."""
     library, _ = make_library()
-    library.add_recipes([MUNCHER_LIKE_RECIPE])
+    library.add_effects([MUNCHER_LIKE_RECIPE])
 
     assert library.sound('crunch_like', scene_sound_directory=FIXTURE_SOUNDS).name == 'crunch_like'
 
@@ -298,7 +296,7 @@ def test_a_recorded_or_v0_sound_takes_no_identity_arguments(tmp_path):
     """A pitch (or notes, chord, length, transpose) on a recorded or v0 sound is refused."""
     write_wave_file(tmp_path / 'thud.wav')
     library, _ = make_library()
-    library.add_recipes([MUNCHER_LIKE_RECIPE])
+    library.add_effects([MUNCHER_LIKE_RECIPE])
 
     with pytest.raises(ValueError, match='takes no pitch'):
         library.sound('thud', scene_sound_directory=tmp_path, pitch='C4')
