@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 
 import pytest
+from filelock import FileLock
 
 from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
 from glitchygames.exit_codes import ExitCode
@@ -72,6 +73,23 @@ SOUND_FOLDERS = {
 }
 
 
+def lock_files_outlive_their_lock(folder: Path) -> bool:
+    """Whether a released ``filelock`` lock leaves its file behind here.
+
+    It does on macOS and Linux; on Windows ``filelock`` deletes the file on release (CircleCI's
+    Windows job, PR #213). Asked of the library itself, never inferred from the platform's
+    name, so a release that changes it is noticed.
+
+    Returns:
+        True when the lock file remains after release.
+    """
+    probe = folder / 'probe.lock'
+    lock = FileLock(probe)
+    lock.acquire()
+    lock.release()
+    return probe.exists()
+
+
 def test_every_golden_and_bundled_demo_has_its_sound_folder_written_down():
     """A new recording must say where its sounds go (or that it caches none)."""
     assert {(console_script, path.name) for console_script, path in RECORDINGS} == set(
@@ -90,15 +108,18 @@ def test_every_recording_writes_its_sounds_cold_and_reads_every_one_back_warm(
     """The disk proof (migration step 8): cold writes, warm reads, nothing compiled twice.
 
     Run in children, so the option and the cache root (inherited from the environment) both
-    reach the replayed game. Every miss takes its sound's write lock, which leaves
-    ``<key>.wav.lock`` behind (filelock keeps the file on macOS and Linux; on Windows it deletes
-    it on release, so there this proof would pass vacuously). So with the cold run's lock files
-    removed, no lock file afterwards means no sound missed. A hit writes nothing: every file
-    keeps the time set before the warm run, stays the same file (its inode), and none is added.
-    Both runs match the recording, frame for frame, with equal digests. A recording that caches
-    nothing writes nothing, and still matches.
+    reach the replayed game. A miss on the warm run compiles and writes its sound again, which
+    replaces the file (a new inode) and gives it a new time; a hit writes nothing. So every file
+    keeping the time set before the warm run and its inode, and none added, means every sound
+    was read back and none compiled again, on every platform. Where lock files outlive their
+    lock (``lock_files_outlive_their_lock``: macOS and Linux, not Windows), a second witness:
+    every miss takes its sound's write lock, which leaves ``<key>.wav.lock`` behind, so with the
+    cold run's removed, none afterwards means no sound missed (and a miss that could not write,
+    its lock held elsewhere, is caught too). Both runs match the recording, frame for frame,
+    with equal digests. A recording that caches nothing writes nothing, and still matches.
     """
     folder = SOUND_FOLDERS[console_script, recording.name]
+    locks_witness = lock_files_outlive_their_lock(tmp_path)
     if folder is None:
         root = tmp_path / 'sound-cache'
         root.mkdir()
@@ -133,8 +154,9 @@ def test_every_recording_writes_its_sounds_cold_and_reads_every_one_back_warm(
         return
     assert written
     assert all(path.is_relative_to(root / folder) for path in written)
-    assert len(cold_locks) == len(written)
-    assert not list(root.rglob('*.wav.lock')), 'a sound missed and was compiled'
+    if locks_witness:
+        assert len(cold_locks) == len(written)
+        assert not list(root.rglob('*.wav.lock')), 'a sound missed and was compiled'
     assert sorted(root.rglob('*.wav')) == written
     assert all(path.stat().st_mtime == LONG_AGO for path in written)
     assert {path: path.stat().st_ino for path in written} == inodes
