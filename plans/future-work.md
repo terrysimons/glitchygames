@@ -1266,6 +1266,19 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   instrument's `live`, `tremolo`, `parameters` and `routes`, but not yet note names in a
   route's `output` (they need the game's tuning at start, not the default at load) nor a
   `[sounds.<name>]` entry's own starting `parameters` ("arrives in M2").
+- **Replace `assert` outside tests with explicit raises, and turn ruff's S101 back on** (the
+  owner, 2026-11-15: "Make a TODO for later"; its own branch). The owner's global rule: never
+  `assert` outside tests, since `python -O` strips them and bandit flags them (B101). This
+  project turned S101 off repository-wide in #71 (2026-03-21: "assert is used intentionally for
+  type narrowing and runtime invariant checks", `pyproject.toml`'s ignore list), so no lint,
+  hook or CI step ever flags one and the conflict went unseen. Counted 2026-11-15 (with
+  `git grep -E '^[[:space:]]+assert '`; `\s` matches nothing in git grep): 203 outside tests,
+  the same on `main` and on `chore/upgrade-and-sounds-on-first-use`, 154 in shipped code (51
+  files: engine core 77, Bitmappy 38, audio 26, games and demos 13; most in `scenes/scene.py`,
+  24) and 49 in `scripts/` (18 files). 200 are type narrowing (`is not None`, `isinstance`).
+  Each becomes an explicit check raising an error with a real message; the 100% coverage gate
+  may need a test per new branch. Then remove S101 from the ignore list so none returns.
+  Decide with the owner whether `scripts/` (hand-run tools, never shipped) is in scope.
 - **Stereo synthesis** (the owner, 2026-11-15: "couldn't we make them stereo since we own the
   sound waves?"; its own branch, after the sound migration). The renderer makes mono samples
   and every sound, live and baked, pans by the constant-power law (`voices.constant_power_gains`,
