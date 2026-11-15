@@ -133,8 +133,22 @@ time, so first use is the earliest point; a subcommand fills the cache ahead of 
 3. The listening code moved into the engine, reproduced sample for sample, then the scripts
    removed.
 4. The subcommands.
-5. Docs: spec §6.4 and M3 (built early, why), `docs/architecture/sound.md`, CLAUDE.md's Sound
-   Synthesis lines, the TODO marked done.
+5. Docs (the owner, 2026-11-14: every new environment variable and option is documented):
+   - `GLITCHYGAMES_SOUND_CACHE_ROOT`: its three states, why an environment variable, and that
+     the test harness sets it empty, in `docs/architecture/sound.md` (the cache section), in
+     CLAUDE.md's Sound Synthesis lines and Testing Guidelines (beside the harness's other
+     defaults), and in the docstring of the module that reads it.
+   - `--sound-cache disk`: its entry in `docs/architecture/argument_system.md` (no longer
+     "arrives in M3") and the `disk` row of `docs/architecture/sound.md`'s mode table.
+   - Every new subcommand and its options (`listening instruments|pipes`, `sound-cache
+     fill|clear|size`, `--family`, `--only`, `--listening`) in
+     `docs/architecture/gameplay_replay.md` (the command reference) and, where a subcommand is
+     also a game flag, `docs/architecture/argument_system.md`.
+   - The disk counters in `docs/architecture/sound.md`'s Audio panel section.
+   - Spec §6.4 and M3 (built early, why; decision 7 replaces "falls back in tests"), the TODO
+     marked done.
+   - Before the push, grep the docs for each new name to show it is documented, and run the
+     docs claims check and the strict docs build.
 
 ## Risks
 
