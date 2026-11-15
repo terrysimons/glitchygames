@@ -1,8 +1,14 @@
-"""Sound recipes: sounds described as layered tones, rendered with the synth toolkit.
+"""Effects: synthetic sound effects, tones mixed straight, rendered with the synth toolkit.
 
-Recipes are data (to_dict/from_dict and TOML files), so a sound can live next to sprites and
-be edited without code. Processing order per tone: oscillator, distortion, filters, tremolo,
-envelope, volume. Tones are mixed at their offsets and the result normalized to `peak`.
+One of the two kinds of sound (plans/2026-11-14-sound-migration.md, decision 2): effects are
+exact and cheap (blips, sweeps, crunches, jingles); instruments (``audio/instrument.py``) are
+the layered renderer, for music and live voices. Both are played through ``audio.sound(...)``.
+
+Effects are data (to_dict/from_dict and TOML files: ``[effects.<name>]`` in a sound file, or
+``[recipes.<name>]`` in an older one), so a sound can live next to sprites and be edited without
+code. Processing order per tone: oscillator, distortion, filters, tremolo, envelope, volume.
+Tones are mixed at their offsets; the mix is then normalized to ``peak``, or, with
+``normalize=False``, left exactly as summed.
 """
 
 from __future__ import annotations
@@ -146,6 +152,8 @@ class Effect:
     tones: tuple[Tone, ...]
     volume: float = 0.5
     peak: float = 0.9
+    # False mixes the tones straight: their sum, not scaled (peak is then unused)
+    normalize: bool = True
 
     def frame_count(self, *, sample_rate: int) -> int:
         """How many frames ``render`` gives at a rate, without rendering (cache ``none``'s length).
@@ -170,7 +178,8 @@ class Effect:
         """
         rate = mixer_sample_rate() if sample_rate is None else sample_rate
         layers = [(tone.render(sample_rate=rate), tone.offset) for tone in self.tones]
-        return normalize(mix(*layers, sample_rate=rate), peak=self.peak)
+        mixed = mix(*layers, sample_rate=rate)
+        return normalize(mixed, peak=self.peak) if self.normalize else mixed
 
     def to_sound(self) -> pygame.mixer.Sound:
         """Render at the mixer's rate and wrap as a pygame Sound.
@@ -188,11 +197,16 @@ class Effect:
             The recipe as a dict (without its name, which is the key it is stored under).
 
         """
-        return {
+        data: dict[str, Any] = {
             'volume': self.volume,
             'peak': self.peak,
             'tones': [_tone_to_dict(tone) for tone in self.tones],
         }
+        # Written only when false, so every normalizing effect's data, and so its identity key
+        # and its disk cache file, stay as they were
+        if not self.normalize:
+            data['normalize'] = False
+        return data
 
     @classmethod
     def from_dict(cls, name: str, data: dict[str, Any]) -> Effect:
@@ -214,10 +228,26 @@ class Effect:
                 tones=tuple(tones),
                 volume=float(data.get('volume', 0.5)),
                 peak=float(data.get('peak', 0.9)),
+                normalize=_boolean(name=name, field='normalize', value=data.get('normalize', True)),
             )
         except (TypeError, ValueError) as error:
             message = f'{name}: {error}'
             raise EffectError(message) from error
+
+
+def _boolean(*, name: str, field: str, value: object) -> bool:
+    """Read a true/false field, refusing anything else (TOML has booleans; 1 is not one).
+
+    Returns:
+        The value.
+
+    Raises:
+        EffectError: Naming the effect and field.
+    """
+    if not isinstance(value, bool):
+        message = f'{name}: {field} must be true or false, got {value!r}'
+        raise EffectError(message)
+    return value
 
 
 def _tone_to_dict(tone: Tone) -> dict[str, Any]:

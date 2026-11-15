@@ -64,6 +64,7 @@ from glitchygames.audio.assets import (
     load_sound_file,
     require_recorded_file,
 )
+from glitchygames.audio.effects import Effect
 from glitchygames.audio.exceptions import AudioUnavailableError, SoundAssetError, SoundRenderError
 from glitchygames.audio.instrument import Instrument, build_spec
 from glitchygames.audio.render import render_sound, rendered_frame_count
@@ -85,7 +86,6 @@ from glitchygames.audio.voices import SoundHandle
 if TYPE_CHECKING:
     from glitchygames.audio.accounting import AudioAccountant
     from glitchygames.audio.disk_cache import DiskSoundCache
-    from glitchygames.audio.effects import Effect
     from glitchygames.audio.pitch import PitchLike, Tuning
     from glitchygames.audio.waves import WaveRegistry
 
@@ -232,7 +232,7 @@ class SoundRequest:
         parameters: Live parameters (M2), or None.
     """
 
-    source: str | Instrument
+    source: str | Instrument | Effect
     scene_sound_directory: Path | None
     package_root: Path | None = None
     pitch: PitchLike | None = None
@@ -572,6 +572,17 @@ class Sound:
         return self._mixer_sound
 
 
+def _effect_entry(effect: Effect) -> SoundEntry:
+    """Make an effect's entry: its name, the effect, and its own volume as the play's default.
+
+    Returns:
+        The entry.
+    """
+    return SoundEntry(
+        name=effect.name, effect=effect, playback_defaults=PlaybackDefaults(volume=effect.volume)
+    )
+
+
 def _compiled_frame_count(sound: Sound) -> int:
     """The frames a sound's compile makes, known without compiling (a spec's or a recipe's).
 
@@ -706,14 +717,16 @@ class SoundLibrary:
         self._disk_misses = 0
         self._disk_writes = 0
 
-    def add_effects(self, recipes: Iterable[Effect]) -> None:
-        """Add version 0 recipes by name; they are looked up before the sound directory.
+    def add_effects(self, effects: Iterable[Effect]) -> None:
+        """Register effects by name; they are looked up before the sound directory.
+
+        Each plays at its own volume by default, as an ``[effects.*]`` table's does.
 
         Args:
-            recipes: The recipes.
+            effects: The effects.
         """
-        for recipe in recipes:
-            self._effects[recipe.name] = recipe
+        for effect in effects:
+            self._effects[effect.name] = effect
 
     def names(self) -> tuple[str, ...]:
         """The names of the added recipes and of every sound requested so far.
@@ -743,7 +756,7 @@ class SoundLibrary:
 
     def sound(  # ruff: ignore[too-many-arguments] - impl spec 8
         self,
-        source: str | Instrument,
+        source: str | Instrument | Effect,
         *,
         scene_sound_directory: Path | None,
         package_root: Path | None = None,
@@ -1027,11 +1040,12 @@ class SoundLibrary:
         sample_rate = mixer_sample_rate()
         tuning = self._tuning_source()
         source = request.source
-        source_key: object = (
-            ('instrument', source)
-            if isinstance(source, Instrument)
-            else ('name', source, request.scene_sound_directory, request.package_root)
-        )
+        if isinstance(source, Instrument):
+            source_key: object = ('instrument', source)
+        elif isinstance(source, Effect):
+            source_key = ('effect', source)
+        else:
+            source_key = ('name', source, request.scene_sound_directory, request.package_root)
         memo_key = (
             source_key,
             _freeze(request.pitch),
@@ -1074,11 +1088,15 @@ class SoundLibrary:
                 sample_rate=sample_rate,
                 tuning=tuning,
             )
-        entry = self._resolve_entry(request)
+        entry = (
+            _effect_entry(request.source)
+            if isinstance(request.source, Effect)
+            else self._resolve_entry(request)
+        )
         if (entry.effect is not None or entry.file is not None) and _names_identity(request):
+            kind = 'an effect' if entry.effect is not None else 'a recorded sound'
             message = (
-                f'{entry.name!r} is a recorded or version 0 sound: it takes no pitch, notes, '
-                f'chord, length or transpose'
+                f'{entry.name!r} is {kind}: it takes no pitch, notes, chord, length or transpose'
             )
             raise ValueError(message)
         if entry.effect is not None:
@@ -1200,7 +1218,7 @@ class SoundLibrary:
             return self._path_entry(source, package_root=package_root)
         if source in self._effects:
             self._refuse_name_in_both(source, directory=directory, package_root=package_root)
-            return SoundEntry(name=source, effect=self._effects[source])
+            return _effect_entry(self._effects[source])
         if directory is None:
             message = f'no sound named {source!r}: the scene has no sound directory'
             raise KeyError(message)

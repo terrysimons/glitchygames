@@ -11,7 +11,7 @@ path = "glitchygames.version"
 reason = "version 99"
 
 ["unknown_top_level_table.toml"]
-path = "effects"
+path = "reverbs"
 reason = "unknown table"
 
 ["unknown_instrument_field.toml"]

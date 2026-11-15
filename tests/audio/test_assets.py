@@ -256,7 +256,8 @@ def test_a_v0_recipe_file_loads_each_recipe_as_a_short_name():
     assert isinstance(entry.effect, Effect)
     assert entry.effect.name == 'sugar_rush'
     assert entry.instrument is None
-    assert entry.playback_defaults == PlaybackDefaults()
+    # An effect plays at its own volume (plans/2026-11-14-sound-migration.md, decision 2)
+    assert entry.playback_defaults == PlaybackDefaults(volume=entry.effect.volume)
     assert not sound_file.waves
     assert not sound_file.instruments
 
@@ -878,3 +879,89 @@ def test_an_envelope_curve_with_a_trailing_newline_is_refused(curve):
         EnvelopeSpec(attack=0.0, decay=0.0, sustain=1.0, release=0.0, curve=curve)
     with pytest.raises(ValueError, match='unknown envelope curve'):
         EnvelopeTable(attack=0.0, decay=0.0, sustain=1.0, release=0.0, curve=curve)
+
+
+EFFECT_TABLE = (
+    '[effects.jump]\nvolume = 0.35\nnormalize = false\n\n'
+    '[[effects.jump.tones]]\nwaveform = "sine"\nstart_frequency = 220.0\nend_frequency = 660.0\n'
+    'duration = 0.12\nenvelope = { attack = 0.005, decay = 0.0, sustain_level = 1.0, '
+    'release = 0.08 }\n'
+)
+
+
+def test_an_effects_table_in_a_sound_file_is_a_short_name(tmp_path):
+    """[effects.<name>] is one of a sound file's tables; its entry carries the effect."""
+    sound_file = load_sound_file(_write(tmp_path, 'effects.toml', VALID_HEADER + EFFECT_TABLE))
+
+    entry = sound_file.sounds['jump']
+    assert entry.effect is not None
+    assert entry.effect.name == 'jump'
+    assert entry.effect.normalize is False
+    assert entry.effect.tones[0].end_frequency == 660.0
+
+
+def test_an_effect_plays_at_its_own_volume_by_default(tmp_path):
+    """An effect's volume is its default playback volume (overridable in .play())."""
+    sound_file = load_sound_file(_write(tmp_path, 'effects.toml', VALID_HEADER + EFFECT_TABLE))
+
+    assert sound_file.sounds['jump'].playback_defaults.volume == 0.35
+
+
+def test_a_recipe_file_plays_each_effect_at_its_own_volume_too():
+    """The older [recipes.*] files keep loading, as effects, at their own volumes."""
+    sound_file = load_sound_file(FIXTURES / 'sounds' / 'legacy_recipes.toml')
+
+    for entry in sound_file.sounds.values():
+        assert entry.effect is not None
+        assert entry.playback_defaults.volume == entry.effect.volume
+
+
+def test_an_unknown_field_in_an_effect_is_refused_with_a_suggestion(tmp_path):
+    """The current format refuses what it does not read, as its other tables do."""
+    text = VALID_HEADER + EFFECT_TABLE.replace('volume = 0.35', 'volumme = 0.35')
+
+    with pytest.raises(SoundAssetError, match=r"effects\.jump.*volumme.*did you mean 'volume'"):
+        load_sound_file(_write(tmp_path, 'effects.toml', text))
+
+
+def test_an_unknown_field_in_an_effects_tone_is_refused_with_a_suggestion(tmp_path):
+    """A tone's fields are checked the same way."""
+    text = VALID_HEADER + EFFECT_TABLE.replace('end_frequency', 'end_frequncy')
+
+    with pytest.raises(
+        SoundAssetError,
+        match=r"effects\.jump\.tones\[0\].*end_frequncy.*did you mean 'end_frequency'",
+    ):
+        load_sound_file(_write(tmp_path, 'effects.toml', text))
+
+
+def test_a_name_that_is_both_a_sound_and_an_effect_is_refused(tmp_path):
+    """Short names are unique within a file."""
+    text = VALID_HEADER + VALID_INSTRUMENT + '[sounds.jump]\ninstrument = "beep"\n\n' + EFFECT_TABLE
+
+    with pytest.raises(SoundAssetError, match=r'jump.*both.*\[sounds\.jump\].*\[effects\.jump\]'):
+        load_sound_file(_write(tmp_path, 'effects.toml', text))
+
+
+def test_an_invalid_effect_is_refused_naming_it(tmp_path):
+    """A bad value (a negative duration) names the effect."""
+    text = VALID_HEADER + EFFECT_TABLE.replace('duration = 0.12', 'duration = -1.0')
+
+    with pytest.raises(SoundAssetError, match=r'effects\.jump.*duration must be > 0'):
+        load_sound_file(_write(tmp_path, 'effects.toml', text))
+
+
+def test_an_effect_that_is_not_a_table_is_refused(tmp_path):
+    """An effects entry that is a number, not a table, is no effect."""
+    text = VALID_HEADER + '[effects]\njump = 3\n'
+
+    with pytest.raises(SoundAssetError, match=r'effects\.jump.*must be a table, got int'):
+        load_sound_file(_write(tmp_path, 'effects.toml', text))
+
+
+def test_a_tone_that_is_not_a_table_is_refused(tmp_path):
+    """An effect's tones are tables; a number among them names the effect."""
+    text = VALID_HEADER + '[effects.jump]\nvolume = 0.35\ntones = [3]\n'
+
+    with pytest.raises(SoundAssetError, match=r'effects\.jump'):
+        load_sound_file(_write(tmp_path, 'effects.toml', text))

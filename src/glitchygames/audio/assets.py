@@ -1,9 +1,13 @@
 """Sound files: the v1 TOML schema, v0 recipes and the short-name index.
 
 A sound file is TOML with a ``[glitchygames]`` header (``kind = "sounds"``, ``version = 1``) and
-any number of ``[waves.*]``, ``[instruments.*]`` and ``[sounds.*]`` tables (impl spec 6.1). A
-file without a header whose tables are ``[recipes.<name>]`` is a version 0 recipe file. Games refer
-to a sound by short name (``'coin'``) or by path (``'sounds/pickups.toml#coin'``, feature spec 3.2).
+any number of ``[waves.*]``, ``[instruments.*]``, ``[sounds.*]`` and ``[effects.*]`` tables (impl
+spec 6.1). An ``[effects.<name>]`` table is a synthetic sound effect (``audio/effects.py``: tones
+mixed straight) under a short name, checked as strictly as the other tables, and played at its
+own volume. A file without a header whose tables are ``[recipes.<name>]`` is an older file of
+effects, read leniently (unknown fields warned about) and also played at each one's volume. Games
+refer to a sound by short name (``'coin'``) or by path (``'sounds/pickups.toml#coin'``, feature
+spec 3.2).
 
 ``load_sound_file`` reads and validates one file; it builds the file's waves and instruments but
 registers and compiles nothing (compiling and caching are the library's job).
@@ -82,7 +86,7 @@ log: logging.Logger = logging.getLogger('game.audio.assets')
 CURRENT_SCHEMA_VERSION: Final[int] = 1
 LEGACY_SCHEMA_VERSION: Final[int] = 0
 # The fields a version 0 recipe and tone are read from (the keys Effect.to_dict writes)
-LEGACY_RECIPE_FIELDS: Final[frozenset[str]] = frozenset({'volume', 'peak', 'tones'})
+LEGACY_RECIPE_FIELDS: Final[frozenset[str]] = frozenset({'volume', 'peak', 'tones', 'normalize'})
 LEGACY_TONE_FIELDS: Final[frozenset[str]] = frozenset(
     field_info.name for field_info in dataclasses.fields(Tone)
 )
@@ -680,6 +684,7 @@ class DefinitionsTable(_Table):
     waves: dict[str, WaveTable] = Field(default_factory=dict)
     instruments: dict[str, InstrumentTable] = Field(default_factory=dict)
     sounds: dict[str, object] = Field(default_factory=dict)
+    effects: dict[str, object] = Field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -1294,7 +1299,12 @@ def _load_version_zero(definitions: _Definitions) -> SoundFile:
         except (EffectError, KeyError, TypeError, ValueError, AttributeError) as error:
             problems.append(_Problem(f'recipes.{name}', f'{type(error).__name__}: {error}'))
             continue
-        sounds[name] = SoundEntry(name=name, effect=recipe, source_path=path)
+        sounds[name] = SoundEntry(
+            name=name,
+            effect=recipe,
+            playback_defaults=PlaybackDefaults(volume=recipe.volume),
+            source_path=path,
+        )
     if problems:
         error = _asset_error(path, problems)
         raise error
@@ -1336,6 +1346,24 @@ def _load_version_one(definitions: _Definitions, *, boundary: Path) -> SoundFile
         )
         if entry is not None:
             sounds[name] = entry
+    for name, raw_effect in definitions.tables.effects.items():
+        if name in definitions.tables.sounds:
+            problems.append(
+                _Problem(
+                    f'effects.{name}',
+                    f'{name!r} is both [sounds.{name}] and [effects.{name}]; '
+                    'a short name names one',
+                )
+            )
+            continue
+        effect = _effect_from_table(name, raw_effect, problems=problems)
+        if effect is not None:
+            sounds[name] = SoundEntry(
+                name=name,
+                effect=effect,
+                playback_defaults=PlaybackDefaults(volume=effect.volume),
+                source_path=path,
+            )
     if problems:
         error = _asset_error(path, problems)
         raise error
@@ -1347,6 +1375,45 @@ def _load_version_one(definitions: _Definitions, *, boundary: Path) -> SoundFile
         sounds=MappingProxyType(sounds),
         modification_times=tuple(dependencies.items()),
     )
+
+
+def _effect_from_table(name: str, raw: object, *, problems: list[_Problem]) -> Effect | None:
+    """Build one ``[effects.<name>]`` table, refusing fields it does not read (with a suggestion).
+
+    Returns:
+        The effect, or None when it is not valid (the reasons are added to ``problems``).
+    """
+    location = f'effects.{name}'
+    if not isinstance(raw, dict):
+        problems.append(_Problem(location, f'must be a table, got {type(raw).__name__}'))
+        return None
+    fields = cast('dict[str, Any]', raw)
+    unknown = [
+        _Problem(
+            f'{location}.{key}', f'unknown field{_suggestion(key, sorted(LEGACY_RECIPE_FIELDS))}'
+        )
+        for key in fields
+        if key not in LEGACY_RECIPE_FIELDS
+    ]
+    tones = fields.get('tones', [])
+    for index, tone in enumerate(cast('list[Any]', tones) if isinstance(tones, list) else []):
+        if isinstance(tone, dict):
+            unknown.extend(
+                _Problem(
+                    f'{location}.tones[{index}].{key}',
+                    f'unknown field{_suggestion(key, sorted(LEGACY_TONE_FIELDS))}',
+                )
+                for key in cast('dict[str, Any]', tone)
+                if key not in LEGACY_TONE_FIELDS
+            )
+    if unknown:
+        problems.extend(unknown)
+        return None
+    try:
+        return Effect.from_dict(name, fields)
+    except (EffectError, KeyError, TypeError, ValueError, AttributeError) as error:
+        problems.append(_Problem(location, f'{type(error).__name__}: {error}'))
+        return None
 
 
 def _sound_entry(  # ruff: ignore[too-many-arguments] - one call site

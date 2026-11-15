@@ -98,6 +98,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Mapping, Sequence
 
     from glitchygames.audio.accounting import CompileRecord
+    from glitchygames.audio.effects import Effect
     from glitchygames.audio.pitch import PitchLike
     from glitchygames.audio.voices import SoundHandle
     from glitchygames.audio.waves import WaveRegistry
@@ -384,7 +385,7 @@ class AudioEngine:
 
     def sound(  # ruff: ignore[too-many-arguments] - impl spec 8
         self,
-        source: str | Instrument,
+        source: str | Instrument | Effect,
         *,
         pitch: PitchLike | None = None,
         notes: str | Sequence[tuple[PitchLike, float]] | None = None,
@@ -446,7 +447,7 @@ class AudioEngine:
 
     def play(  # ruff: ignore[too-many-arguments] - impl spec 8
         self,
-        source: str | Instrument,
+        source: str | Instrument | Effect,
         *,
         pitch: PitchLike | None = None,
         notes: str | Sequence[tuple[PitchLike, float]] | None = None,

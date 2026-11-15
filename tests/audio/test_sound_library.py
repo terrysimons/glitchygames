@@ -554,3 +554,65 @@ def test_the_fixture_sfx_slap_decodes_without_a_mixer(no_mixer):
     assert len(sound.samples_int16) == 400
     assert sound.sample_rate == 44100
     assert sound.peak > 0.0
+
+
+def test_an_effect_object_is_a_source_and_compiles_to_its_render():
+    """audio.sound(Effect(...)) gives a Sound of the effect's own samples (decision 2)."""
+    library, _ = make_library()
+
+    compiled = library.sound(MUNCHER_LIKE_RECIPE, scene_sound_directory=None)
+
+    np.testing.assert_array_equal(
+        compiled.samples_float, MUNCHER_LIKE_RECIPE.render(sample_rate=44100)
+    )
+    assert compiled.name == MUNCHER_LIKE_RECIPE.name
+    assert library.sound(MUNCHER_LIKE_RECIPE, scene_sound_directory=None) is compiled
+    assert library.statistics().compiles == 1
+
+
+def test_an_effect_object_plays_at_its_own_volume():
+    """The effect's volume is the play's default; a play may still give another."""
+    library, _ = make_library()
+
+    compiled = library.sound(MUNCHER_LIKE_RECIPE, scene_sound_directory=None)
+
+    assert compiled.playback_defaults.volume == MUNCHER_LIKE_RECIPE.volume
+
+
+def test_an_effect_added_by_name_plays_at_its_own_volume():
+    """add_effects registers short names whose plays default to each effect's volume."""
+    library, _ = make_library()
+    library.add_effects([MUNCHER_LIKE_RECIPE])
+
+    compiled = library.sound('crunch_like', scene_sound_directory=None)
+
+    assert compiled.playback_defaults == PlaybackDefaults(volume=MUNCHER_LIKE_RECIPE.volume)
+
+
+def test_an_effect_takes_no_pitch():
+    """An effect is fixed sound: a pitch is a mistake, said so."""
+    library, _ = make_library()
+
+    with pytest.raises(ValueError, match=r'crunch_like.*an effect.*takes no pitch'):
+        library.sound(MUNCHER_LIKE_RECIPE, scene_sound_directory=None, pitch='C5')
+
+
+def test_an_effect_in_an_effects_table_sounds_as_in_a_recipe_file(tmp_path):
+    """[effects.*] and [recipes.*] are two spellings of one effect: identical samples."""
+    recipe_text = (FIXTURE_SOUNDS / 'legacy_recipes.toml').read_text()
+    effects_text = '[glitchygames]\nkind = "sounds"\nversion = 1\n\n' + recipe_text.replace(
+        '[recipes.', '[effects.'
+    ).replace('[[recipes.', '[[effects.')
+    (tmp_path / 'effects.toml').write_text(effects_text)
+    library, _ = make_library()
+
+    from_recipes = library.sound(
+        str(FIXTURE_SOUNDS / 'legacy_recipes.toml') + '#sugar_rush', scene_sound_directory=None
+    )
+    from_effects = library.sound(
+        str(tmp_path / 'effects.toml') + '#sugar_rush', scene_sound_directory=None
+    )
+
+    assert from_effects.samples_int16 is not None
+    assert from_recipes.samples_int16 is not None
+    assert from_effects.samples_int16.tobytes() == from_recipes.samples_int16.tobytes()

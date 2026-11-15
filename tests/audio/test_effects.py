@@ -275,3 +275,59 @@ def test_a_recipes_frame_count_is_its_render_length(recipe, sample_rate):
     assert recipe.frame_count(sample_rate=sample_rate) == len(
         recipe.render(sample_rate=sample_rate)
     )
+
+
+def _two_tones() -> tuple[Tone, Tone]:
+    """Two sine tones, one offset, whose straight sum peaks below 1."""
+    return (
+        Tone(
+            waveform=Waveform.SINE,
+            start_frequency=440.0,
+            duration=0.05,
+            envelope=ENVELOPE,
+            volume=0.3,
+        ),
+        Tone(
+            waveform=Waveform.SINE,
+            start_frequency=660.0,
+            duration=0.05,
+            envelope=ENVELOPE,
+            volume=0.2,
+            offset=0.02,
+        ),
+    )
+
+
+def test_an_effect_that_does_not_normalize_is_its_tones_mixed_straight():
+    """normalize=False: the tones summed at their offsets, untouched (straight channel mixing)."""
+    tones = _two_tones()
+    effect = Effect(name='straight', tones=tones, normalize=False)
+
+    expected = synth.mix(
+        *((tone.render(sample_rate=RATE), tone.offset) for tone in tones), sample_rate=RATE
+    )
+
+    assert np.array_equal(effect.render(sample_rate=RATE), expected)
+
+
+def test_an_effect_normalizes_to_its_peak_by_default():
+    """The default keeps every existing effect's sound: the mix scaled to peak."""
+    effect = Effect(name='scaled', tones=_two_tones(), peak=0.8)
+
+    assert np.max(np.abs(effect.render(sample_rate=RATE))) == pytest.approx(0.8)
+
+
+def test_normalize_survives_a_round_trip_through_plain_data():
+    """to_dict and from_dict keep normalize, so a file can say it."""
+    effect = Effect(name='straight', tones=_two_tones(), normalize=False)
+
+    assert Effect.from_dict('straight', effect.to_dict()) == effect
+    assert Effect.from_dict('straight', effect.to_dict()).normalize is False
+
+
+def test_a_normalize_that_is_not_true_or_false_is_refused():
+    """TOML has booleans; 1 or "no" is a mistake, said with the effect's name."""
+    data = Effect(name='straight', tones=_two_tones()).to_dict() | {'normalize': 1}
+
+    with pytest.raises(EffectError, match='straight: normalize must be true or false'):
+        Effect.from_dict('straight', data)
