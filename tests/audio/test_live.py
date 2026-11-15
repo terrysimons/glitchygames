@@ -13,7 +13,7 @@ import pytest
 from glitchygames.audio import live
 from glitchygames.audio.effects import Tremolo
 from glitchygames.audio.instrument import Filter, Instrument
-from glitchygames.audio.live import LiveAudio, VoiceState
+from glitchygames.audio.live import LiveAudio, LiveVoiceOptions, VoiceState
 from glitchygames.audio.live_instrument import InstrumentVoice
 from glitchygames.audio.route import set_audible
 from glitchygames.audio.voices import inner_context_partition, reserve_inner_game_channels
@@ -231,8 +231,11 @@ class TestLiveAudio:
         return LiveAudio(channel_indices=(0, 1))
 
     @staticmethod
-    def _create(audio, owner):
-        return audio.create_instrument_voice(owner=owner, instrument=SINE, frequency=100.0)
+    def _create(audio, owner, *, priority=50):
+        options = LiveVoiceOptions(priority=priority)
+        return audio.create_instrument_voice(
+            owner=owner, instrument=SINE, frequency=100.0, options=options
+        )
 
     def test_a_refused_instrument_voice_gives_its_channel_back(self, audio):
         with pytest.raises(ValueError, match='live=True'):
@@ -244,8 +247,9 @@ class TestLiveAudio:
         assert {first.stream.channel.id, second.stream.channel.id} == {0, 1}
 
     def test_pool_exhaustion_raises_at_limit_plus_one(self, audio):
-        self._create(audio, 'scene')
-        self._create(audio, 'scene')
+        """Full of voices of a higher priority, with nothing it may steal: refused."""
+        self._create(audio, 'scene', priority=60)
+        self._create(audio, 'scene', priority=60)
         with pytest.raises(ValueError, match='live-voice-pool'):
             self._create(audio, 'scene')
 
@@ -329,11 +333,12 @@ class TestLiveAudio:
         assert self._create(single, 'scene') is not None
 
     def test_releasing_a_voice_twice_is_idempotent(self, audio):
+        """The channel goes back once: two more voices fill the pool, a third is refused."""
         first = self._create(audio, 'scene')
         audio.release_voice(first)
         audio.release_voice(first)
-        self._create(audio, 'scene')
-        self._create(audio, 'scene')
+        self._create(audio, 'scene', priority=60)
+        self._create(audio, 'scene', priority=60)
         with pytest.raises(ValueError, match='live-voice-pool'):
             self._create(audio, 'scene')
 
@@ -441,3 +446,165 @@ class TestLiveVoicesOnLivePools:
         assert audio.playing_voice_count == 0
         assert self._create(audio) is not None
         assert self._create(audio) is not None
+
+
+class TestLiveStreamControls:
+    """Bus gain, pan, a held pause, persist and stealing (migration step 7b)."""
+
+    @pytest.fixture
+    def chunk_volumes(self, mocker):
+        """Capture the volume each chunk plays at.
+
+        Returns:
+            The list of volumes.
+        """
+        volumes = []
+
+        def fake_to_sound(samples, *, volume):
+            volumes.append(volume)
+            return mocker.Mock(name=f'sound{len(volumes)}')
+
+        mocker.patch.object(live, 'to_sound', side_effect=fake_to_sound)
+        return volumes
+
+    def test_each_chunk_plays_at_the_bus_gain_read_as_it_is_rendered(self, channel, chunk_volumes):
+        gains = iter([0.5, 0.25])
+        stream = _voice(channel, options=LiveVoiceOptions(gain_source=lambda: next(gains))).stream
+
+        stream.start()
+        stream.update()
+
+        assert chunk_volumes == [0.5, 0.25]
+
+    def test_without_a_bus_a_chunk_plays_at_full_volume(self, channel, chunk_volumes):
+        stream = _voice(channel).stream
+
+        stream.start()
+
+        assert chunk_volumes == [1.0]
+
+    def test_a_silent_context_plays_at_zero_whatever_the_bus(self, channel, chunk_volumes):
+        tile = EngineContext(name='tile')
+        with tile.active():
+            set_audible(audible=False)
+            stream = _voice(channel, options=LiveVoiceOptions(gain_source=lambda: 0.5)).stream
+            stream.start()
+
+        assert chunk_volumes == [0.0]
+
+    def test_every_voice_pans_its_channel_by_the_constant_power_law_centre_by_default(
+        self, channel, rendered_chunks
+    ):
+        """One law for every sound, live and baked: centre is 3 dB down on each side."""
+        from glitchygames.audio.voices import constant_power_gains
+
+        centred = _voice(channel).stream
+        centred.start()
+        channel.set_volume.assert_called_with(*constant_power_gains(pan=0.0, gain=1.0))
+
+        panned = _voice(channel, options=LiveVoiceOptions(pan=0.5)).stream
+        panned.start()
+        channel.set_volume.assert_called_with(*constant_power_gains(pan=0.5, gain=1.0))
+
+        panned.set_pan(-0.25)
+        channel.set_volume.assert_called_with(*constant_power_gains(pan=-0.25, gain=1.0))
+
+    def test_a_voice_never_inherits_the_pan_its_channel_had(self, channel, rendered_chunks):
+        """Each voice sets its channel's pan as it starts: the pool's channels are reused."""
+        from glitchygames.audio.voices import constant_power_gains
+
+        hard_left = _voice(channel, options=LiveVoiceOptions(pan=-1.0)).stream
+        hard_left.start()
+        hard_left.stop_now()
+
+        _voice(channel).stream.start()
+
+        channel.set_volume.assert_called_with(*constant_power_gains(pan=0.0, gain=1.0))
+
+    def test_a_silent_voice_takes_a_pan_and_does_nothing_with_it(self, rendered_chunks):
+        stream = _voice(None).stream
+
+        stream.set_pan(0.5)
+        stream.start()
+
+        assert not stream.is_playing
+
+    def test_a_pan_outside_minus_one_to_one_is_refused(self, channel):
+        with pytest.raises(ValueError, match='pan'):
+            _voice(channel).stream.set_pan(1.5)
+
+    def test_a_held_pause_survives_the_owner_rules_until_resumed(self, mocker, rendered_chunks):
+        mocker.patch('pygame.mixer.get_init', return_value=(RATE, -16, 2))
+        mocker.patch('pygame.mixer.Channel', side_effect=lambda index: mocker.Mock(id=index))
+        pool = LiveAudio(channel_indices=(0,))
+        stream = pool.create_instrument_voice(
+            owner='scene', instrument=SINE, frequency=100.0
+        ).stream
+        stream.start()
+
+        stream.hold()
+        pool.update(active_scene='scene', previous_scene=None, active_transitions=())
+        assert stream.state is VoiceState.PAUSED
+        stream.release_hold()
+
+        assert stream.state is VoiceState.PLAYING
+
+    def test_a_persisting_voice_outlives_its_owner_but_pauses_behind_a_pause_screen(
+        self, mocker, rendered_chunks
+    ):
+        """The baked plays' persist: no release when its owner goes; the pause rules hold."""
+        mocker.patch('pygame.mixer.get_init', return_value=(RATE, -16, 2))
+        mocker.patch(
+            'pygame.mixer.Channel',
+            side_effect=lambda index: mocker.Mock(
+                id=index,
+                get_queue=mocker.Mock(return_value=None),
+                get_busy=mocker.Mock(return_value=True),
+            ),
+        )
+        pool = LiveAudio(channel_indices=(0, 1))
+        ambience = pool.create_instrument_voice(
+            owner='forest', instrument=SINE, frequency=100.0, options=LiveVoiceOptions(persist=True)
+        ).stream
+        footsteps = pool.create_instrument_voice(
+            owner='forest', instrument=SINE, frequency=100.0
+        ).stream
+        ambience.start()
+        footsteps.start()
+
+        pool.update(active_scene='pause', previous_scene='forest', active_transitions=())
+        assert ambience.state is VoiceState.PAUSED
+        pool.update(active_scene='castle', previous_scene=None, active_transitions=())
+
+        assert ambience.state is VoiceState.PLAYING
+        assert footsteps.state is VoiceState.STOPPED
+
+    def test_a_full_pool_steals_the_lowest_priority_voice_at_or_below_the_new_one(
+        self, mocker, rendered_chunks
+    ):
+        """Lowest priority first, then the earliest made; none at or below: refused as before."""
+        mocker.patch('pygame.mixer.get_init', return_value=(RATE, -16, 2))
+        mocker.patch('pygame.mixer.Channel', side_effect=lambda index: mocker.Mock(id=index))
+        pool = LiveAudio(channel_indices=(0, 1))
+
+        def make(priority):
+            voice = pool.create_instrument_voice(
+                owner='scene',
+                instrument=SINE,
+                frequency=100.0,
+                options=LiveVoiceOptions(priority=priority),
+            )
+            voice.stream.start()
+            return voice.stream
+
+        low, high = make(30), make(60)
+        stealer = make(50)
+
+        assert low.state is VoiceState.STOPPED
+        assert stealer.channel.id == 0
+        assert high.state is VoiceState.PLAYING
+        with pytest.raises(ValueError, match='live-voice-pool'):
+            make(20)
+        equal = make(50)  # ties: the earliest made of the lowest (the first stealer) goes
+        assert stealer.state is VoiceState.STOPPED
+        assert equal.state is VoiceState.PLAYING

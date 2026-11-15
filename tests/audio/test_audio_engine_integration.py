@@ -158,7 +158,12 @@ class TestSoundOptions:
         audio.sound(instrument, pitch='A4').start(owner='scene')
 
         pool.create_instrument_voice.assert_called_once_with(
-            owner='scene', instrument=instrument, frequency=440.0, volume=1.0, parameters=None
+            owner='scene',
+            instrument=instrument,
+            frequency=440.0,
+            volume=1.0,
+            parameters=None,
+            options=mocker.ANY,  # its contents: tests/audio/test_live_instrument.py
         )
         pool.create_instrument_voice.return_value.stream.start.assert_called_once_with()
 

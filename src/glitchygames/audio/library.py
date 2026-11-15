@@ -52,6 +52,7 @@ from typing import TYPE_CHECKING, Any, Final, Protocol, cast
 import numpy as np
 import numpy.typing as npt
 import pygame
+from pydantic import BaseModel, ConfigDict
 
 from glitchygames.audio.assets import (
     INSTRUMENT_SEPARATOR,
@@ -67,6 +68,7 @@ from glitchygames.audio.assets import (
 from glitchygames.audio.effects import Effect
 from glitchygames.audio.exceptions import AudioUnavailableError, SoundAssetError, SoundRenderError
 from glitchygames.audio.instrument import UNPITCHED_REFERENCE_HZ, Instrument, build_spec
+from glitchygames.audio.live import DEFAULT_CHUNK_DURATION
 from glitchygames.audio.pitch import resolve_pitch
 from glitchygames.audio.render import render_sound, rendered_frame_count
 from glitchygames.audio.spec import (
@@ -320,6 +322,18 @@ class SoundPlayer(Protocol):
         ...
 
 
+class LivePlayback(BaseModel):
+    """``Sound.start()``'s playback arguments, as given (None: the sound file's)."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    persist: bool
+    pan: float | None
+    bus: str | None
+    priority: int | None
+    chunk_seconds: float
+
+
 class LiveStarter(Protocol):
     """Starts a live sound on a live pool (the audio engine's ``Sound.start``)."""
 
@@ -332,6 +346,7 @@ class LiveStarter(Protocol):
         parameters: Mapping[str, float] | None,
         volume: float | None,
         owner: object | None,
+        playback: LivePlayback,
     ) -> LiveSoundHandle:
         """Start ``sound``: ``instrument`` at ``frequency``."""
         ...
@@ -436,12 +451,17 @@ class Sound:
         """
         self._live_starter = starter
 
-    def start(
+    def start(  # ruff: ignore[too-many-arguments] - impl spec 8's playback arguments, as play()'s
         self,
         *,
         parameters: Mapping[str, float] | None = None,
         volume: float | None = None,
         owner: object | None = None,
+        persist: bool = False,
+        pan: float | None = None,
+        bus: str | None = None,
+        priority: int | None = None,
+        chunk_seconds: float = DEFAULT_CHUNK_DURATION,
     ) -> LiveSoundHandle:
         """Start a live sound on the context's live pool (``live_instrument``).
 
@@ -450,6 +470,13 @@ class Sound:
             volume: 0-1; None is the sound file's volume.
             owner: The scene or transition whose life it follows; None is the scene that
                 starts it (the scene in setup, else the active scene).
+            persist: Outlive its owner, as a baked play's ``persist``; it ends through its
+                handle (the pause rules still hold).
+            pan: -1 (left) to 1 (right), by the constant-power law every sound pans by (centre
+                3 dB down on each side); None is the sound file's.
+            bus: The bus whose gain it follows; None is the sound file's.
+            priority: 0-100, for stealing on a full live pool; None is the sound file's.
+            chunk_seconds: Seconds per chunk (its latency), 0.03 to 0.5.
 
         Returns:
             Its handle. A sound no audio engine handed out starts nothing: its handle answers
@@ -474,6 +501,9 @@ class Sound:
             parameters=parameters,
             volume=volume,
             owner=owner,
+            playback=LivePlayback(
+                persist=persist, pan=pan, bus=bus, priority=priority, chunk_seconds=chunk_seconds
+            ),
         )
 
     def _warn_no_engine(self) -> None:

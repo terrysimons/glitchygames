@@ -594,6 +594,53 @@ class TestStartingALiveSound:
 
         assert [call.kwargs['volume'] for call in create.call_args_list] == [1.0, 0.25]
 
+    def test_start_passes_persist_pan_priority_chunk_and_the_bus_gain_to_the_pool(
+        self, pool, mocker
+    ):
+        create = mocker.spy(pool, 'create_instrument_voice')
+        engine = self._engine(pool)
+        engine.buses['music'].volume = 0.4
+
+        engine.sound(self.MOTOR).start(
+            persist=True, pan=0.25, bus='music', priority=70, chunk_seconds=0.05
+        )
+
+        options = create.call_args.kwargs['options']
+        assert (options.persist, options.pan, options.priority) == (True, 0.25, 70)
+        assert options.chunk_seconds == 0.05
+        assert options.gain_source() == pytest.approx(0.4)
+
+    def test_the_bus_and_priority_default_to_the_sound_files(self, pool, mocker):
+        create = mocker.spy(pool, 'create_instrument_voice')
+
+        self._engine(pool).sound(self.MOTOR).start()
+
+        options = create.call_args.kwargs['options']
+        assert (options.priority, options.pan, options.persist) == (50, 0.0, False)
+        assert options.gain_source() == pytest.approx(1.0)  # the effects bus, untouched
+
+    def test_with_no_pan_given_it_takes_the_sound_files_as_play_does(self, pool, mocker):
+        from glitchygames.audio.spec import PlaybackDefaults
+
+        create = mocker.spy(pool, 'create_instrument_voice')
+        sound = self._engine(pool).sound(self.MOTOR)
+        sound.playback_defaults = PlaybackDefaults(pan=-0.5)
+
+        sound.start()
+        sound.start(pan=0.75)
+
+        assert [call.kwargs['options'].pan for call in create.call_args_list] == [-0.5, 0.75]
+
+    def test_an_unknown_bus_is_refused(self, pool):
+        with pytest.raises(KeyError, match='nowhere'):
+            self._engine(pool).sound(self.MOTOR).start(bus='nowhere')
+
+    @pytest.mark.parametrize('seconds', [0.02, 0.6])
+    def test_a_chunk_outside_its_safe_range_is_refused(self, pool, seconds):
+        """Below 30 ms a chunk cannot cover a 60 fps frame and the device buffer."""
+        with pytest.raises(ValueError, match='chunk_seconds'):
+            self._engine(pool).sound(self.MOTOR).start(chunk_seconds=seconds)
+
     def test_an_engine_with_no_pool_starts_it_silently(self, caplog):
         from glitchygames.audio.engine import AudioEngine
         from glitchygames.audio.voices import ChannelPartition
@@ -608,3 +655,82 @@ class TestStartingALiveSound:
         assert not any(handle.is_playing or handle.set('speed', 1.0) for handle in handles)
         assert not any(handle.cancel() for handle in handles)
         assert caplog.text.count('no live voice pool') == 1
+
+
+class TestTheHandlesControls:
+    """Volume, pause and pan on a started live sound (migration step 7b)."""
+
+    def _handle(self, channel, **voice_settings):
+        from glitchygames.audio.live_instrument import LiveSoundHandle
+
+        voice = _voice(channel, _live(wave='sine'), **voice_settings)
+        voice.stream.start()
+        return LiveSoundHandle(voice)
+
+    def test_set_volume_glides_linearly_over_the_fade(self, channel, rendered_chunks):
+        """0.5 to 0 over 200 ms: the next chunk goes 0.5 to 0.25, the one after 0.25 to 0."""
+        handle = self._handle(channel, volume=0.5)
+        _chunks(_voice(channel, _live(wave='sine')), 3)
+        plain = rendered_chunks[1:]
+
+        assert handle.set_volume(0.0, fade=0.2)
+        handle._voice.stream.update()
+        handle._voice.stream.update()
+
+        steps = np.arange(1, 2 * CHUNK + 1) / (2 * CHUNK)
+        expected = 0.5 + (0.0 - 0.5) * steps
+        gliding = np.concatenate(rendered_chunks[-2:])
+        reference = np.concatenate(plain[:2])
+        audible = np.abs(reference) > 0.1
+        np.testing.assert_allclose(gliding[audible] / reference[audible], expected[audible])
+
+    def test_set_volume_without_a_fade_takes_one_chunk(self, channel, rendered_chunks):
+        """The old voice's volume ramp: across the next chunk, so it never clicks."""
+        handle = self._handle(channel, volume=0.5)
+
+        handle.set_volume(1.0)
+        handle._voice.stream.update()
+
+        envelope = np.abs(rendered_chunks[-1])
+        assert envelope[:100].max() < 0.55
+        assert envelope[-200:].max() > 0.95
+
+    @pytest.mark.parametrize('volume', [-0.1, 1.1])
+    def test_a_volume_outside_zero_to_one_is_refused(self, channel, volume):
+        with pytest.raises(ValueError, match='volume'):
+            self._handle(channel).set_volume(volume)
+
+    def test_a_negative_fade_is_refused(self, channel):
+        with pytest.raises(ValueError, match='fade'):
+            self._handle(channel).set_volume(0.5, fade=-0.1)
+
+    def test_pause_and_resume(self, channel, rendered_chunks):
+        handle = self._handle(channel)
+
+        assert handle.pause()
+        assert handle.is_paused
+        assert not handle.pause()
+        assert handle.resume()
+
+        assert not handle.is_paused
+        assert not handle.resume()
+
+    def test_set_pan_takes_the_constant_power_law(self, channel, rendered_chunks):
+        from glitchygames.audio.voices import constant_power_gains
+
+        handle = self._handle(channel)
+
+        assert handle.set_pan(-0.5)
+        channel.set_volume.assert_called_with(*constant_power_gains(pan=-0.5, gain=1.0))
+
+    def test_every_control_on_a_stopped_or_silent_handle_answers_false(self, channel):
+        from glitchygames.audio.live_instrument import LiveSoundHandle
+
+        stopped = self._handle(channel)
+        stopped.cancel()
+        for handle in (stopped, LiveSoundHandle(None)):
+            assert not handle.set_volume(0.5)
+            assert not handle.pause()
+            assert not handle.resume()
+            assert not handle.set_pan(0.0)
+            assert not handle.is_paused

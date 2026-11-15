@@ -123,6 +123,33 @@ cache in them (a PaddleSlap golden replayed under `--sound-cache disk` wrote no 
 7. Clean-up: `SoundBank`, `live_audio`/`create_voice`/`LiveAudio`'s public face, `GameSounds`,
    `load_sound`/`SFX`, `shared_sound_bank` and its process-state rows, their tests; the
    stand-in games' live voice moved to a live instrument.
+   - **7b. Live parity** (the owner, 2026-11-15: "I want all of them"): what the removed
+     `LiveVoice`/`LiveAudio`/`SoundBank` could do that the live API could not, built into the
+     live API (the handle, `InstrumentVoice`, `LiveStream`), never by restoring the old classes,
+     reusing the baked plays' rules where they exist:
+     1. `start(persist=True)`: the baked plays' rule; scene changes never release it, the pause
+        rules still apply; it ends through its handle or the pool's release.
+     2. `handle.set_volume(volume, fade=0.0)`: a linear glide over at least one chunk.
+     3. `handle.pause()`/`resume()`: a pause made through the handle holds until resumed (the
+        owner rules no longer resume it).
+     4. `start(pan=, bus=, priority=)`, `handle.set_pan()`: `voices.constant_power_gains` on
+        the voice's channel, always (the owner, 2026-11-15, option 1 of three: one pan law for
+        every sound, so a centred live sound is as loud as a baked one and its first pan never
+        jumps; Clockwork Keep's motor level and Mr. Muncher's projector volume raised by the
+        square root of 2 to sound as before); pan, bus and priority default to the sound
+        file's; the bus's `effective_gain` per chunk; a full pool steals the lowest-priority
+        live voice of equal or lower priority (earliest made first), else refuses as before.
+     5. `start(chunk_seconds=0.1)`, 0.03-0.5 s (below 0.03 a chunk cannot cover a 60 fps frame
+        plus the device buffer).
+     6. `handle.set_frequency(hz)`, `set_cutoff(hz | None)`, `set_tremolo(Tremolo | None)`:
+        base values with no declared range; a cutoff on an instrument without a filter adds a
+        low-pass, None removes it; linear over one chunk for frequency (the old voice's), the
+        crossfade for cutoff. **[Call]** A direct set of what a route moves is refused,
+        naming the route.
+     7. `Parameter(glide='linear')` (and in TOML): a straight line to the target over
+        `smoothing_ms`, beside the one-pole glide.
+     8. `LiveAudio` exported again, and `AudioEngine` outside a game documented and tested
+        (reserve channels, a live pool, `update(dt)` each frame): what `SoundBank` offered.
 8. The proof: every golden and bundled demo under `--sound-cache disk`, cold and warm, with
    `disk_sound_cache` (writes, then hits, nothing compiled twice, digests equal).
 9. Docs and spec: §4.1 (start-up slices), §7.5/§8/§10.4 (effects first-class, live instruments,

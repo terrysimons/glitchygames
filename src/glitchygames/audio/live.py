@@ -29,11 +29,13 @@ switched audible is heard from its next chunk.
 from __future__ import annotations
 
 import enum
+import itertools
 import logging
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import numpy as np
 import pygame
+from pydantic import BaseModel, ConfigDict, Field
 
 from glitchygames.audio.route import AUDIO_ROUTE_SLOT
 from glitchygames.audio.synth import (
@@ -45,6 +47,7 @@ from glitchygames.audio.synth import (
     sample_count,
     to_sound,
 )
+from glitchygames.audio.voices import constant_power_gains
 from glitchygames.engine_context import current_context
 
 if TYPE_CHECKING:
@@ -59,6 +62,48 @@ DEFAULT_CHUNK_DURATION = 0.1
 # The engine numpy stream a voice's noise comes from when none is given (glitchygames/randomness.py)
 LIVE_RANDOM_STREAM = 'audio.live'
 DEFAULT_FADE_OUT = 0.1
+# A start's chunk length (Sound.start(chunk_seconds=)): below 30 ms one chunk cannot cover a
+# 60 fps frame plus the 11.6 ms device buffer, so the voice would underrun every frame
+MINIMUM_CHUNK_SECONDS = 0.03
+MAXIMUM_CHUNK_SECONDS = 0.5
+# A live voice's stealing priority when none is given (the baked plays' default)
+DEFAULT_LIVE_PRIORITY = 50
+PAN_RANGE = (-1.0, 1.0)
+
+
+@runtime_checkable
+class GainSource(Protocol):
+    """Gives a live voice's bus gain as each chunk is rendered (``Bus.effective_gain``)."""
+
+    def __call__(self) -> float:
+        """The gain, 0 or more."""
+        ...
+
+
+class LiveVoiceOptions(BaseModel):
+    """How a live voice plays beside what it plays: ``Sound.start()``'s playback settings.
+
+    Attributes:
+        chunk_seconds: Seconds per chunk (the voice's latency), 0.03 to 0.5.
+        persist: Outlive its owner; the pause rules still hold (``LiveAudio.update``).
+        priority: Its stealing priority: a full pool steals a lower one first.
+        pan: -1 (left) to 1 (right), by the constant-power law every sound pans by (centre is
+            3 dB down on each side, as a baked play's).
+        gain_source: Gives its bus's gain, read as each chunk is rendered; None is 1.0.
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid', arbitrary_types_allowed=True)
+
+    chunk_seconds: float = Field(
+        default=DEFAULT_CHUNK_DURATION, ge=MINIMUM_CHUNK_SECONDS, le=MAXIMUM_CHUNK_SECONDS
+    )
+    persist: bool = False
+    priority: int = DEFAULT_LIVE_PRIORITY
+    pan: float = Field(default=0.0, ge=PAN_RANGE[0], le=PAN_RANGE[1])
+    gain_source: GainSource | None = None
+
+
+DEFAULT_LIVE_VOICE_OPTIONS = LiveVoiceOptions()
 
 
 class VoiceState(enum.Enum):
@@ -77,8 +122,16 @@ class LiveStream:
 
     Every live voice (``live_instrument.InstrumentVoice``) has one: it asks its
     voice's ``render`` for each chunk's samples, applies a stopping fade, and plays them at the
-    volume the voice's context's route gives (the module docstring). The pool (``LiveAudio``)
-    applies the owner rules to streams. A stream without a channel (no mixer) does nothing.
+    volume the voice's context's route gives (the module docstring), times its bus's gain read
+    as each chunk is rendered. The pool (``LiveAudio``) applies the owner rules to streams. A
+    stream without a channel (no mixer) does nothing.
+
+    Its channel pans by the constant-power law every sound pans by (the owner, 2026-11-15: one
+    law, so a live sound centred is as loud as a baked one, and its first pan never jumps); it
+    sets its channel's pan as it starts, so it never inherits the pan a pool channel had. A
+    pause made by ``hold`` holds until
+    ``release_hold``: the owner rules never resume it. ``persist`` and ``priority`` are the
+    pool's to read (``LiveAudio.update``, ``LiveAudio.take_channel``).
     """
 
     def __init__(
@@ -87,8 +140,8 @@ class LiveStream:
         channel: pygame.mixer.Channel | None,
         owner: object,
         render: Callable[[int], FloatArray],
-        chunk_samples: int,
         sample_rate: int,
+        options: LiveVoiceOptions = DEFAULT_LIVE_VOICE_OPTIONS,
     ) -> None:
         """Make a stopped stream in the current engine context.
 
@@ -96,18 +149,29 @@ class LiveStream:
             channel: Its pool channel, or None for a silent no-op stream.
             owner: The scene or transition whose life it follows (``LiveAudio.update``).
             render: Renders the next chunk's samples, given their count.
-            chunk_samples: Samples per chunk.
             sample_rate: The mixer's rate.
+            options: Its chunk length, persist, priority, pan and bus gain.
         """
         self._channel = channel
         self._audio_route = current_context().value(slot=AUDIO_ROUTE_SLOT)
         self.owner = owner
         self._render = render
-        self._chunk_samples = chunk_samples
+        self._chunk_samples = sample_count(options.chunk_seconds, sample_rate)
         self._sample_rate = sample_rate
         self._fade_total_samples = 0
         self._fade_remaining_samples = 0
         self._state = VoiceState.IDLE
+        self.persist = options.persist
+        self.priority = options.priority
+        self.made_order = 0  # set by the pool: earlier voices are stolen first among equals
+        self._gain_source = options.gain_source
+        self._pan = options.pan
+        self._held = False
+
+    @property
+    def chunk_samples(self) -> int:
+        """Samples per chunk."""
+        return self._chunk_samples
 
     @property
     def channel(self) -> pygame.mixer.Channel | None:
@@ -144,11 +208,54 @@ class LiveStream:
             and not self._channel.get_busy()
         )
 
+    @property
+    def is_held(self) -> bool:
+        """Whether a pause made by ``hold`` is holding it."""
+        return self._held
+
+    def set_pan(self, pan: float) -> None:
+        """Pan its channel by the constant-power law.
+
+        Raises:
+            ValueError: For a pan outside -1 to 1.
+        """
+        if not PAN_RANGE[0] <= pan <= PAN_RANGE[1]:
+            message = f'pan must be between -1 and 1, got {pan}'
+            raise ValueError(message)
+        self._pan = pan
+        if self._channel is not None:
+            self._channel.set_volume(*self._channel_gains())
+
+    def hold(self) -> bool:
+        """Pause until ``release_hold``, whatever the owner rules say.
+
+        Returns:
+            Whether it was playing and is now held.
+        """
+        if self._channel is None or self._state is not VoiceState.PLAYING:
+            return False
+        self.pause()
+        self._held = True
+        return True
+
+    def release_hold(self) -> bool:
+        """End a pause ``hold`` made: it plays on.
+
+        Returns:
+            Whether a hold was ended.
+        """
+        if not self._held:
+            return False
+        self._held = False
+        self.resume()
+        return True
+
     def start(self) -> None:
         """Start playing (renders and plays the first chunk)."""
         if self._channel is None or self._state is not VoiceState.IDLE:
             return
         self._state = VoiceState.PLAYING
+        self._channel.set_volume(*self._channel_gains())
         self._channel.play(self._next_chunk())
 
     def update(self) -> None:
@@ -186,6 +293,7 @@ class LiveStream:
             self._channel.stop()
             self._channel.stop()
         self._state = VoiceState.STOPPED
+        self._held = False
 
     def pause(self) -> None:
         """Pause; the queued chunk is kept."""
@@ -208,7 +316,17 @@ class LiveStream:
         samples = self._render(self._chunk_samples)
         if self._state is VoiceState.FADING:
             samples *= self._fade_gains(self._chunk_samples)
-        return to_sound(samples, volume=1.0 if self._audio_route.audible else 0.0)
+        if not self._audio_route.audible:
+            return to_sound(samples, volume=0.0)
+        return to_sound(samples, volume=1.0 if self._gain_source is None else self._gain_source())
+
+    def _channel_gains(self) -> tuple[float, float]:
+        """Its channel's left and right gains, by the constant-power law.
+
+        Returns:
+            The gains.
+        """
+        return constant_power_gains(pan=self._pan, gain=1.0)
 
     def _fade_gains(self, count: int) -> FloatArray:
         positions = self._fade_remaining_samples - np.arange(1, count + 1)
@@ -278,6 +396,7 @@ class LiveAudio:
         self._stream_channels: dict[int, int] = {}  # id(stream) -> channel index
         self._streams: list[LiveStream] = []
         self._unavailable_logged = False
+        self._made = itertools.count(1)
 
     def create_instrument_voice(  # ruff: ignore[too-many-arguments] - the voice's whole setting
         self,
@@ -287,12 +406,13 @@ class LiveAudio:
         frequency: float,
         volume: float = 1.0,
         parameters: Mapping[str, float] | None = None,
-        chunk_duration: float = DEFAULT_CHUNK_DURATION,
+        options: LiveVoiceOptions = DEFAULT_LIVE_VOICE_OPTIONS,
     ) -> InstrumentVoice:
         """Create a stopped live instrument voice on a free pool channel (``live_instrument``).
 
-        Without a mixer the voice is silent (logged once). A channel taken for a voice that is
-        then refused goes back to the pool.
+        Without a mixer the voice is silent (logged once). A full pool steals for it
+        (``take_channel``). A channel taken for a voice that is then refused goes back to the
+        pool. ``options`` are its stream's.
 
         Returns:
             The voice; ``voice.stream.start()`` plays it.
@@ -303,7 +423,7 @@ class LiveAudio:
         """
         from glitchygames.audio.live_instrument import InstrumentVoice
 
-        channel = self.take_channel()
+        channel = self.take_channel(priority=options.priority)
         try:
             voice = InstrumentVoice(
                 channel=channel,
@@ -312,7 +432,7 @@ class LiveAudio:
                 frequency=frequency,
                 volume=volume,
                 parameters=parameters,
-                chunk_duration=chunk_duration,
+                options=options,
                 sample_rate=mixer_sample_rate(),
             )
         except ValueError:
@@ -322,14 +442,20 @@ class LiveAudio:
         self.track(voice.stream)
         return voice
 
-    def take_channel(self) -> pygame.mixer.Channel | None:
+    def take_channel(self, *, priority: int = DEFAULT_LIVE_PRIORITY) -> pygame.mixer.Channel | None:
         """Take a free pool channel for a new voice (``track`` its stream next).
+
+        A full pool steals: the voice of the lowest priority at or below ``priority`` (the
+        earliest made among equals) is cut at once and its channel taken.
+
+        Args:
+            priority: The new voice's priority.
 
         Returns:
             The channel, or None without a mixer (the voice is then silent; logged once).
 
         Raises:
-            ValueError: If every pool channel is in use.
+            ValueError: If every pool channel is in use by voices of a higher priority.
         """
         if pygame.mixer.get_init() is None:
             if not self._unavailable_logged:
@@ -337,10 +463,15 @@ class LiveAudio:
                 self._unavailable_logged = True
             return None
         if not self._free_channel_indices:
-            message = (
-                f'All {self._pool_size} live voice channels are in use; raise --live-voice-pool'
-            )
-            raise ValueError(message)
+            stealable = [stream for stream in self._streams if stream.priority <= priority]
+            if not stealable:
+                message = (
+                    f'All {self._pool_size} live voice channels are in use; raise --live-voice-pool'
+                )
+                raise ValueError(message)
+            victim = min(stealable, key=lambda stream: (stream.priority, stream.made_order))
+            log.debug('Live voice of priority %d stolen for one of %d', victim.priority, priority)
+            self._release(victim)
         return pygame.mixer.Channel(self._free_channel_indices.pop(0))
 
     def track(self, stream: LiveStream) -> None:
@@ -349,6 +480,7 @@ class LiveAudio:
         if channel is None:
             return
         self._stream_channels[id(stream)] = channel.id
+        stream.made_order = next(self._made)
         self._streams.append(stream)
 
     @property
@@ -383,7 +515,8 @@ class LiveAudio:
 
         Voices that are stopped, or faded out and drained, give their channel back first. A
         fading or draining voice keeps updating even when its owner is paused: stopping wins
-        over pausing, so the fade is rendered instead of cut off.
+        over pausing, so the fade is rendered instead of cut off. A persisting voice whose
+        owner is gone plays on instead of being released, and a held one stays paused.
 
         Args:
             active_scene: SceneManager.active_scene.
@@ -406,15 +539,23 @@ class LiveAudio:
                 owner is live_transition for live_transition in live_transitions
             )
             if owner is active_scene or owner_is_live_transition:
-                stream.resume()
-                stream.update()
+                self._play_on(stream)
             elif owner is previous_scene or any(owner is paused for paused in paused_owners):
                 if stream.state in {VoiceState.FADING, VoiceState.DRAINING}:
                     stream.update()
                 else:
                     stream.pause()
+            elif stream.persist:
+                self._play_on(stream)
             else:
                 self._release(stream)
+
+    @staticmethod
+    def _play_on(stream: LiveStream) -> None:
+        """Resume a stream the owner rules let play (unless held) and keep a chunk queued."""
+        if not stream.is_held:
+            stream.resume()
+        stream.update()
 
 
 class VoiceWithStream(Protocol):

@@ -4,6 +4,8 @@ Brassy squares and saws, filtered noise for steam, low booms. Values are startin
 tuned by ear; edit them freely.
 """
 
+import math
+
 from glitchygames.audio.effects import Effect, Tone, Tremolo
 from glitchygames.audio.instrument import Filter, Instrument
 from glitchygames.audio.live_controls import Parameter, Route
@@ -191,6 +193,11 @@ VICTORY = Effect(
 # Every effect the game plays, requested from the sound library when a floor is built
 EFFECTS = (JUMP, LAND, COG_PICKUP, DEATH, GAME_OVER, ELEVATOR_CLANK, VICTORY)
 
+# A live sound plays centred, 3 dB down on each side by the constant-power pan law every sound
+# pans by; the motor's levels are raised by the same (times the square root of 2), so it sounds
+# as loud as it did before live sounds took a pan (the owner, 2026-11-15)
+CENTRE_PAN_COMPENSATION = math.sqrt(2.0)
+
 # The elevator motor: a deep, chugging saw whose pitch and level follow the car's speed (the
 # ride sets ``speed``, 0 at rest to 1 at the easing's peak slope, every frame). Live: started
 # by the ride, which owns it, and cut as the car lands.
@@ -202,6 +209,10 @@ ELEVATOR_MOTOR = Instrument(
     parameters={'speed': Parameter(range=(0.0, 1.0), default=0.0)},
     routes=[
         Route(source='speed', destination='pitch', output=(45.0, 110.0)),  # Hz, rest to full
-        Route(source='speed', destination='level', output=(0.15, 0.6)),
+        Route(
+            source='speed',
+            destination='level',
+            output=(0.15 * CENTRE_PAN_COMPENSATION, 0.6 * CENTRE_PAN_COMPENSATION),
+        ),
     ],
 )

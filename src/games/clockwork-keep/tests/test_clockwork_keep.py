@@ -1608,8 +1608,13 @@ def test_building_a_floor_compiles_nothing_the_game_did_not_declare():
 
 
 def test_the_elevator_motor_is_a_live_instrument_the_game_declares():
-    """Speed moves its pitch 45-110 Hz and its level 0.15-0.6; a saw, low-passed, chugging."""
+    """Speed moves its pitch 45-110 Hz and its level 0.15-0.6 as heard; a saw, low-passed.
+
+    Heard at centre, its level route is raised by the square root of 2: the constant-power pan
+    law puts a centred sound 3 dB down on each side.
+    """
     from glitchygames.audio.live_controls import Route
+    from glitchygames.audio.voices import constant_power_gains
 
     motor = clockwork_sounds.ELEVATOR_MOTOR
 
@@ -1617,7 +1622,13 @@ def test_the_elevator_motor_is_a_live_instrument_the_game_declares():
     assert motor in ClockworkKeepScene.SOUNDS
     assert motor.routes == (
         Route(source='speed', destination='pitch', output=(45.0, 110.0)),
-        Route(source='speed', destination='level', output=(0.15, 0.6)),
+        Route(
+            source='speed', destination='level', output=(0.15 * math.sqrt(2), 0.6 * math.sqrt(2))
+        ),
     )
+    left, right = constant_power_gains(pan=0.0, gain=1.0)
+    heard = [end * left for end in motor.routes[1].output]
+    assert heard == pytest.approx([0.15, 0.6])
+    assert right == pytest.approx(left)
     assert (motor.filter.kind, motor.filter.cutoff_hz) == ('low_pass', 600.0)
     assert (motor.tremolo.rate_hz, motor.tremolo.depth) == (8.0, 0.4)

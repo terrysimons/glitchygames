@@ -672,7 +672,8 @@ volume.
 | `the_end` | THE END |
 
 Behind play runs the **projector**, a live instrument (`sounds.PROJECTOR`, started with
-`start(owner=self, volume=0.05)`) of low-pass filtered noise with a tremolo, so it flutters like a
+`start(owner=self, volume=PROJECTOR_VOLUME)`, 0.05 as heard: raised by √2 for the centred pan's
+3 dB) of low-pass filtered noise with a tremolo, so it flutters like a
 projector's shutter. Its `cutoff` and `flutter` parameters route one to one to the filter and the
 tremolo rate. `_update_projector` sets them only when they change: brighter and
 faster as the sprockets run out (500 to 1200 Hz, 20 to 30 Hz), slow and low while the munchers

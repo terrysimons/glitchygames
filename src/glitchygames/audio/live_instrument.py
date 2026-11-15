@@ -45,13 +45,15 @@ from typing import TYPE_CHECKING, Final
 import numpy as np
 
 from glitchygames.audio.live import (
-    DEFAULT_CHUNK_DURATION,
     DEFAULT_FADE_OUT,
+    DEFAULT_LIVE_VOICE_OPTIONS,
     LIVE_RANDOM_STREAM,
     FilterState,
     LiveStream,
+    LiveVoiceOptions,
+    VoiceState,
 )
-from glitchygames.audio.live_controls import route_output, smoothed
+from glitchygames.audio.live_controls import LinearGlide, route_output, smoothed
 from glitchygames.audio.synth import FloatArray, Waveform, oscillator, sample_count
 from glitchygames.audio.voices import DEFAULT_STOP_FADE_SECONDS
 from glitchygames.audio.waves import Wave
@@ -131,7 +133,7 @@ class InstrumentVoice:
         volume: float,
         sample_rate: int,
         parameters: Mapping[str, float] | None = None,
-        chunk_duration: float = DEFAULT_CHUNK_DURATION,
+        options: LiveVoiceOptions = DEFAULT_LIVE_VOICE_OPTIONS,
         random_source: np.random.Generator | None = None,
     ) -> None:
         """Make a stopped voice; channel None makes a silent no-op voice.
@@ -144,7 +146,7 @@ class InstrumentVoice:
             volume: Its volume, 0-1 (a ``level`` route multiplies it).
             sample_rate: The mixer's rate.
             parameters: Starting values by name; the rest start at their defaults.
-            chunk_duration: Seconds per chunk.
+            options: Its chunk length, persist, priority, pan and bus gain (its stream's).
             random_source: The noise's generator; None is the engine's ``audio.live`` stream.
 
         Raises:
@@ -160,7 +162,7 @@ class InstrumentVoice:
         self._instrument = instrument
         self._sample_rate = sample_rate
         self._frequency = frequency
-        self._volume = volume
+        self._volume = LinearGlide(volume)
         self._sources = [
             LiveSource(name=name, source=source) for name, source in instrument.sources
         ]
@@ -186,8 +188,8 @@ class InstrumentVoice:
             channel=channel,
             owner=owner,
             render=self._render_chunk,
-            chunk_samples=sample_count(chunk_duration, sample_rate),
             sample_rate=sample_rate,
+            options=options,
         )
 
     @property
@@ -209,6 +211,31 @@ class InstrumentVoice:
             self._known(name)
             return False
         self._store(name, value)
+        return True
+
+    def set_volume(self, volume: float, *, fade: float = 0.0) -> bool:
+        """Glide the volume in a straight line, over ``fade`` seconds and at least one chunk.
+
+        Args:
+            volume: 0-1.
+            fade: Seconds to take (0: one chunk, the older voice's ramp, so it never clicks).
+
+        Returns:
+            True when taken; False once the voice is stopping or stopped.
+
+        Raises:
+            ValueError: For a volume outside 0-1 or a negative fade.
+        """
+        if not 0.0 <= volume <= 1.0:
+            message = f'volume must be between 0 and 1, got {volume}'
+            raise ValueError(message)
+        if fade < 0.0:
+            message = f'fade must not be negative, got {fade}'
+            raise ValueError(message)
+        if not self.stream.accepts_changes:
+            return False
+        samples = max(sample_count(fade, self._sample_rate), self.stream.chunk_samples)
+        self._volume.set(volume, samples=samples)
         return True
 
     def _known(self, name: str) -> Parameter:
@@ -303,7 +330,8 @@ class InstrumentVoice:
             depths = routed['tremolo.depth'][0] if 'tremolo.depth' in routed else tremolo.depth
             samples *= self._tremolo_gains(rates=rates, depths=depths)
         level_routes = routed.get('level')
-        return samples * (self._volume * math.prod(level_routes) if level_routes else self._volume)
+        volumes = self._volume.values(count)
+        return samples * (volumes * math.prod(level_routes) if level_routes else volumes)
 
     def _tremolo_gains(self, *, rates: FloatArray, depths: FloatArray | float) -> FloatArray:
         """Gain 1 at phase 0 and 1 - depth half a cycle later (``synth.tremolo``), per sample.
@@ -351,6 +379,46 @@ class LiveSoundHandle:
             True when taken; False once stopping or stopped, or for a silent handle.
         """
         return self._voice is not None and self._voice.set(name, value)
+
+    @property
+    def is_paused(self) -> bool:
+        """Whether it is paused (by ``pause``, or behind a pause screen)."""
+        return self._voice is not None and self._voice.stream.state is VoiceState.PAUSED
+
+    def set_volume(self, volume: float, *, fade: float = 0.0) -> bool:
+        """Glide its volume, over ``fade`` seconds and at least one chunk (``InstrumentVoice``).
+
+        Returns:
+            True when taken; False once stopping or stopped, or for a silent handle.
+        """
+        return self._voice is not None and self._voice.set_volume(volume, fade=fade)
+
+    def pause(self) -> bool:
+        """Pause it until ``resume`` (the owner rules never resume it meanwhile).
+
+        Returns:
+            Whether it was playing and is now paused.
+        """
+        return self._voice is not None and self._voice.stream.hold()
+
+    def resume(self) -> bool:
+        """Resume what ``pause`` paused.
+
+        Returns:
+            Whether a pause was ended.
+        """
+        return self._voice is not None and self._voice.stream.release_hold()
+
+    def set_pan(self, pan: float) -> bool:
+        """Pan it, -1 (left) to 1 (right), by the constant-power law every sound pans by.
+
+        Returns:
+            True when taken; False once finished, or for a silent handle.
+        """
+        if self._voice is None or self._voice.stream.is_finished:
+            return False
+        self._voice.stream.set_pan(pan)
+        return True
 
     def release(self) -> bool:
         """End the sound: it fades out over the live release (``live.DEFAULT_FADE_OUT``).

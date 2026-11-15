@@ -99,6 +99,7 @@ if TYPE_CHECKING:
 
     from glitchygames.audio.accounting import CompileRecord
     from glitchygames.audio.effects import Effect
+    from glitchygames.audio.library import LivePlayback
     from glitchygames.audio.live import LiveAudio
     from glitchygames.audio.live_instrument import LiveSoundHandle
     from glitchygames.audio.pitch import PitchLike
@@ -810,17 +811,24 @@ class AudioEngine:
         parameters: Mapping[str, float] | None,
         volume: float | None,
         owner: object | None,
+        playback: LivePlayback,
     ) -> LiveSoundHandle:
         """Start a live sound on the context's live pool (``Sound.start``).
+
+        Its bus, priority and pan default to the sound file's; the bus's gain is read as each chunk
+        is rendered (``LiveVoiceOptions``). A bus that does not exist is the bus tree's
+        KeyError.
 
         Returns:
             Its handle; a silent one when this engine has no live pool (made outside a scene
             manager), which is logged once.
 
         Raises:
-            ValueError: With no owner and no scene (no owner rule would keep it), or when every
-                pool channel is in use (``LiveAudio.take_channel``).
+            ValueError: With no owner and no scene (no owner rule would keep it), when every
+                pool channel is in use by voices of a higher priority
+                (``LiveAudio.take_channel``), or for a chunk or pan out of range.
         """
+        from glitchygames.audio.live import LiveVoiceOptions
         from glitchygames.audio.live_instrument import LiveSoundHandle
 
         voice_owner = owner if owner is not None else self._scene_source()
@@ -835,12 +843,22 @@ class AudioEngine:
                 self._warned_no_live_pool = True
                 log.warning('This audio engine has no live voice pool: live sounds are silent')
             return LiveSoundHandle(None)
+        defaults = sound.playback_defaults
+        bus = self.buses[defaults.bus if playback.bus is None else playback.bus]
+        options = LiveVoiceOptions(
+            chunk_seconds=playback.chunk_seconds,
+            persist=playback.persist,
+            priority=defaults.priority if playback.priority is None else playback.priority,
+            pan=defaults.pan if playback.pan is None else playback.pan,
+            gain_source=bus.effective_gain,
+        )
         voice = self._live_pool().create_instrument_voice(
             owner=voice_owner,
             instrument=instrument,
             frequency=frequency,
-            volume=sound.playback_defaults.volume if volume is None else volume,
+            volume=defaults.volume if volume is None else volume,
             parameters=parameters,
+            options=options,
         )
         voice.stream.start()
         return LiveSoundHandle(voice)

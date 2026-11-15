@@ -602,7 +602,8 @@ context and caches it (on disk too, under `--sound-cache disk`), so no sound com
 
 The elevator's motor is not an effect but a live instrument, `sounds.ELEVATOR_MOTOR`: a
 low-passed saw with a tremolo chug, whose `speed` parameter routes to its pitch (45 to 110 Hz) and
-level (0.15 to 0.6). The ride starts it with `start(owner=transition)`, so it plays on behind the
+level (0.15 to 0.6 as heard: the route's ends are raised by √2, because a centred sound is 3 dB
+down on each side by the constant-power pan law every sound pans by). The ride starts it with `start(owner=transition)`, so it plays on behind the
 next floor until the ride ends, sets `speed` every frame, and cuts it with `cancel()` as the car
 lands (a fade would sound after the clank). Without a free live voice or an audio device the ride
 is silent.

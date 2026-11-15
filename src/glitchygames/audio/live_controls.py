@@ -202,3 +202,41 @@ def smoothed(
     tau = smoothing_ms * sample_rate / MILLISECONDS_PER_SECOND
     samples = np.arange(1, count + 1, dtype=np.float64)
     return target + (start - target) * np.exp(-samples / tau)
+
+
+class LinearGlide:
+    """A value moving in a straight line to a target over some samples, chunk after chunk.
+
+    The older live voice's ramps (volume, frequency) and a ``linear`` parameter glide. A new
+    target starts a new line from wherever the value has got to; past its end the value holds.
+    """
+
+    def __init__(self, value: float) -> None:
+        """Start at rest at a value."""
+        self.value = value
+        self.target = value
+        self._remaining = 0
+
+    def set(self, target: float, *, samples: int) -> None:
+        """Move to ``target`` over ``samples`` samples (at least one).
+
+        Args:
+            target: Where the line ends.
+            samples: How many samples it takes.
+        """
+        self.target = target
+        self._remaining = max(1, samples)
+
+    def values(self, count: int) -> FloatArray:
+        """The next ``count`` values, one per sample, the line carried on from the last call.
+
+        Returns:
+            The values.
+        """
+        if self._remaining <= 0:
+            return np.full(count, self.target, dtype=np.float64)
+        steps = np.minimum(np.arange(1, count + 1, dtype=np.float64), self._remaining)
+        values = self.value + (self.target - self.value) * steps / self._remaining
+        self.value = float(values[-1])
+        self._remaining = max(0, self._remaining - count)
+        return values
