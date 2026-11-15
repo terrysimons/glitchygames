@@ -167,6 +167,34 @@ class TestSoundOptions:
         )
         pool.create_instrument_voice.return_value.stream.start.assert_called_once_with()
 
+    def test_a_games_live_sound_is_kept_fed_by_the_frame_loop(self, mocker):
+        """End to end: the scene manager's frame step, the audio engine's update, the pool.
+
+        A ride's motor, started before transition_to runs the ride (the pending transition
+        owns it), gets its next chunk queued by the frame.
+        """
+        from glitchygames.audio.live import LiveAudio
+
+        engine = build_engine(mocker, game=SoundingGame)
+        manager = engine.scene_manager
+        assert pygame.mixer.get_init() is not None  # the harness's dummy-driver mixer
+        manager._live_audio = LiveAudio(channel_indices=(0,))
+        ride = object()
+        manager._pending_transition = (mocker.Mock(), ride)
+        audio = manager.audio_for(game_engine=engine)
+        motor = audio.sound(Instrument(wave='saw', live=True), pitch='A1').start(owner=ride)
+        channel = pygame.mixer.Channel(0)
+        try:
+            assert channel.get_queue() is None  # only the first chunk, playing
+
+            manager._update_frame_services()
+
+            assert motor.is_playing
+            assert channel.get_queue() is not None
+        finally:
+            motor.cancel()
+            manager._pending_transition = None
+
     def test_a_games_sounds_go_in_its_own_cache_folder(self, mocker, tmp_path, monkeypatch):
         """The scene manager names the game's package as the audio engine's cache folder."""
         from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE

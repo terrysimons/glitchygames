@@ -907,3 +907,61 @@ class TestLinearGlides:
         np.testing.assert_allclose(
             rendered_chunks[2][audible] / plain[2][audible], expected[audible]
         )
+
+
+class TestAnAudioEngineOutsideAGame:
+    """A tool's own audio engine (what SoundBank offered): plays, live sounds, one update."""
+
+    @pytest.fixture(autouse=True)
+    def partitioned_mixer(self):
+        """A stereo mixer partitioned as an engine does; stopped after.
+
+        Yields:
+            The partition.
+        """
+        yield start_reserved_mixer()
+        pygame.mixer.stop()
+        stop_mixer()
+
+    def test_baked_and_live_sounds_play_and_one_update_a_frame_moves_both(self, partitioned_mixer):
+        """The baked click ends by played time; the live drone plays on until stopped."""
+        from glitchygames.audio import AudioEngine, Effect, LiveAudio, Tone
+        from glitchygames.audio.synth import Envelope
+
+        tool = object()  # what owns the tool's sounds, as a scene owns a game's
+        pool = LiveAudio(channel_indices=partitioned_mixer.live)
+        engine = AudioEngine(
+            partition=partitioned_mixer, scene_source=lambda: tool, live_pool=lambda: pool
+        )
+        blip = Tone(
+            waveform=Waveform.SQUARE,
+            start_frequency=880.0,
+            duration=0.05,
+            envelope=Envelope(attack=0.001, decay=0.0, sustain_level=1.0, release=0.01),
+        )
+        click = engine.sound(Effect(name='click', tones=(blip,))).play()
+        drone = engine.sound(Instrument(wave='sine', live=True), pitch='A3').start()
+
+        for _ in range(12):  # 0.2 s of frames
+            engine.update(dt=1 / 60, active_scene=tool, previous_scene=None, active_transitions=())
+
+        assert not click.is_playing
+        assert drone.is_playing
+        assert pygame.mixer.Channel(partitioned_mixer.live[0]).get_queue() is not None
+        assert drone.stop()
+
+    def test_the_engines_update_applies_the_live_owner_rules(self, partitioned_mixer):
+        """When its owner is no longer active, a live sound is released by the next update."""
+        from glitchygames.audio import AudioEngine, LiveAudio
+
+        tool, other = object(), object()
+        pool = LiveAudio(channel_indices=partitioned_mixer.live)
+        engine = AudioEngine(
+            partition=partitioned_mixer, scene_source=lambda: tool, live_pool=lambda: pool
+        )
+        drone = engine.sound(Instrument(wave='sine', live=True), pitch='A3').start()
+
+        engine.update(dt=1 / 60, active_scene=other, previous_scene=None, active_transitions=())
+
+        assert not drone.is_playing
+        assert pool.playing_voice_count == 0

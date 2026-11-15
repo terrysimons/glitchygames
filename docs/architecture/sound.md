@@ -395,3 +395,33 @@ key never compiles anything.
 `glitchygames.audio.render_to_file(sound, path, ...)` writes a sound to a WAV file with no audio
 device; `glitchygames sound-render SOURCE --sound-output PATH` does the same from the command
 line. A sound rendered alone is its compiled buffer, bit for bit.
+
+## Outside a game
+
+A tool, test bench or script can have an audio engine of its own, without a `GameEngine` or
+scene manager: reserve the mixer's channels, make a live pool on the live ones, make the engine,
+and call its `update` once a frame. That one call moves the baked voices by the frame's time
+(they end by played time, so without it a one-shot never ends) and applies the owner rules to
+the live voices.
+
+```python
+import pygame
+
+from glitchygames.audio import AudioEngine, Instrument, LiveAudio
+from glitchygames.audio.voices import reserve_channels
+
+pygame.mixer.init()
+partition = reserve_channels(live_pool=4, library_channels=32, legacy_channels=8)
+tool = object()  # owns the tool's sounds, as a scene owns a game's
+pool = LiveAudio(channel_indices=partition.live)  # one pool: the engine asks for it at each start
+audio = AudioEngine(partition=partition, scene_source=lambda: tool, live_pool=lambda: pool)
+
+audio.sound('sounds/ui.toml#click').play()
+drone = audio.sound(Instrument(wave='sine', live=True), pitch='A2').start()
+
+while running:
+    audio.update(dt=1 / 60, active_scene=tool, previous_scene=None, active_transitions=())
+```
+
+A sound handed out by a bare `SoundLibrary`, with no engine, plays nothing (a warning says so
+once per sound).

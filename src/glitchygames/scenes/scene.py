@@ -1311,7 +1311,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             devices=list if self.in_playback_scope else self._rumble_devices,
         )
 
-        if self._live_audio is None and audio_engine is None:
+        if audio_engine is None:
             return
         # The pending transition counts: a ride creates its motor before transition_to starts it
         pending_transition = (
@@ -1332,23 +1332,15 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
                 if owner is not None
             ]
         )
-        if self._live_audio is not None:
-            self._live_audio.update(
-                active_scene=self.active_scene,
-                previous_scene=self.previous_scene,
-                active_transitions=active_transitions,
-                paused_owners=paused_owners,
-            )
-        if audio_engine is not None:
-            # The library's voices follow the same owner rules, moved by the frame's served dt
-            # (glitchygames/audio/engine.py; sound engine impl spec 4.2)
-            audio_engine.update(
-                dt=self.dt,
-                active_scene=self.active_scene,
-                previous_scene=self.previous_scene,
-                active_transitions=active_transitions,
-                paused_owners=paused_owners,
-            )
+        # The live voices and the library's follow the owner rules, the library's moved by the
+        # frame's served dt (glitchygames/audio/engine.py; sound engine impl spec 4.2)
+        audio_engine.update(
+            dt=self.dt,
+            active_scene=self.active_scene,
+            previous_scene=self.previous_scene,
+            active_transitions=active_transitions,
+            paused_owners=paused_owners,
+        )
 
     def _rumble_devices(self: Self) -> list[RumbleDevice]:
         """Return every device the game sees (``input_devices``): each can be rumbled.

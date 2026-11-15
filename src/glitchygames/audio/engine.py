@@ -375,6 +375,8 @@ class AudioEngine:
         self._partition = partition
         self._scene_source = scene_source
         self._live_pool = live_pool
+        # The pool this engine has started live sounds on: update() applies its owner rules
+        self._live_pool_in_use: LiveAudio | None = None
         self._warned_no_live_pool = False
         self._voices = VoiceTable(
             partition=partition, buses=self.buses, compile_for_play=self._compile_for_play
@@ -707,6 +709,15 @@ class AudioEngine:
         fades, self._fades_at_next_update = self._fades_at_next_update, []
         for handle, fade in fades:
             handle.stop(fade=fade)
+        if self._live_pool_in_use is not None:
+            # The live voices first, by LiveAudio's own rules (a previous scene's pause), as the
+            # scene manager ran them before this moved here: one call a frame for any caller
+            self._live_pool_in_use.update(
+                active_scene=active_scene,
+                previous_scene=previous_scene,
+                active_transitions=active_transitions,
+                paused_owners=paused_owners,
+            )
         playing_owners = [
             SYSTEM_OWNER,
             *(owner for owner in (active_scene, *active_transitions) if owner is not None),
@@ -852,7 +863,9 @@ class AudioEngine:
             pan=defaults.pan if playback.pan is None else playback.pan,
             gain_source=bus.effective_gain,
         )
-        voice = self._live_pool().create_instrument_voice(
+        pool = self._live_pool()
+        self._live_pool_in_use = pool
+        voice = pool.create_instrument_voice(
             owner=voice_owner,
             instrument=instrument,
             frequency=frequency,

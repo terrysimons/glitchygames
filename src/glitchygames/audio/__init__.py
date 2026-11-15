@@ -37,6 +37,7 @@ from glitchygames.audio.exceptions import (
 )
 from glitchygames.audio.instrument import Instrument, Noise
 from glitchygames.audio.library import CacheMode, Sound
+from glitchygames.audio.live import LiveAudio
 from glitchygames.audio.live_controls import Parameter, Route
 from glitchygames.audio.live_instrument import LiveSoundHandle
 from glitchygames.audio.offline import OfflineEvent, RenderReport, render_to_file
@@ -73,6 +74,7 @@ __all__ = [
     'InnerGameChannelLayout',
     'InnerGameChannelsError',
     'Instrument',
+    'LiveAudio',
     'LiveSoundHandle',
     'MacOSTTS',
     'Midi',
