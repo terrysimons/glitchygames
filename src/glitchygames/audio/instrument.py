@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import math
 from dataclasses import KW_ONLY, dataclass
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Final, override
 
+from glitchygames.audio.live_controls import MAXIMUM_ROUTES, SOURCE_LEVEL_DESTINATION
 from glitchygames.audio.pitch import PitchLike, Tuning, resolve_pitch
 from glitchygames.audio.spec import (
     ENVELOPE_PRESETS,
@@ -34,6 +36,8 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
     from glitchygames.audio import synth
+    from glitchygames.audio.effects import Tremolo
+    from glitchygames.audio.live_controls import Parameter, Route
 
 MAXIMUM_SOURCES: Final[int] = 4
 DEFAULT_NOTE_LENGTH_SECONDS: Final[float] = 0.25
@@ -193,9 +197,12 @@ class Instrument:
         '_hard_edges',
         '_live',
         '_normalize',
+        '_parameters',
         '_profile',
+        '_routes',
         '_seed',
         '_sources',
+        '_tremolo',
     )
 
     def __init__(  # ruff: ignore[too-many-arguments] - mirrors impl spec 8
@@ -212,6 +219,9 @@ class Instrument:
         seed: int | None = None,
         normalize: bool = False,
         hard_edges: bool = False,
+        tremolo: Tremolo | None = None,
+        parameters: Mapping[str, Parameter] | None = None,
+        routes: Sequence[Route] | None = None,
     ) -> None:
         """Build an instrument.
 
@@ -227,10 +237,17 @@ class Instrument:
             seed: The noise seed; None derives it from the sound's name.
             normalize: Normalize the rendered peak.
             hard_edges: Skip the de-click fades.
+            tremolo: Amplitude modulation for a live sound (rate and depth are route
+                destinations: ``tremolo.rate``, ``tremolo.depth``).
+            parameters: A live sound's exposed parameters, by name (``audio/live_controls.py``).
+            routes: How a live sound's parameters move it, at most ``MAXIMUM_ROUTES``; each
+                from one of ``parameters``, a ``sources.<name>.level`` to one of its sources.
 
         Raises:
             ValueError: Unless exactly one of wave, noise and sources is given, on more than
-                four sources, on a drive outside 0-20 or an unknown profile or envelope.
+                four sources, on a drive outside 0-20 or an unknown profile or envelope, and for
+                controls (tremolo, parameters, routes) on an instrument that is not live or that
+                do not fit it.
         """
         given = [argument for argument in (wave, noise, sources) if argument is not None]
         if len(given) != 1:
@@ -266,6 +283,47 @@ class Instrument:
         self._seed = seed
         self._normalize = normalize
         self._hard_edges = hard_edges
+        self._tremolo = tremolo
+        self._parameters: tuple[tuple[str, Parameter], ...] = tuple((parameters or {}).items())
+        self._routes: tuple[Route, ...] = tuple(routes or ())
+        self._check_controls()
+
+    def _check_controls(self) -> None:
+        """Refuse controls that need a live instrument or do not fit this one.
+
+        Raises:
+            ValueError: Naming what does not fit.
+        """
+        if not self._live:
+            given = [
+                name
+                for name, value in (
+                    ('tremolo', self._tremolo),
+                    ('parameters', self._parameters),
+                    ('routes', self._routes),
+                )
+                if value
+            ]
+            if given:
+                message = f'{", ".join(given)} only on a live instrument (live=True)'
+                raise ValueError(message)
+            return
+        if len(self._routes) > MAXIMUM_ROUTES:
+            message = f'an instrument has at most {MAXIMUM_ROUTES} routes, got {len(self._routes)}'
+            raise ValueError(message)
+        parameter_names = {name for name, _ in self._parameters}
+        source_names = {name for name, _ in self._sources}
+        for route in self._routes:
+            if route.source not in parameter_names:
+                message = f'a route from {route.source!r}: the instrument has no parameter named so'
+                raise ValueError(message)
+            source_level = SOURCE_LEVEL_DESTINATION.fullmatch(route.destination)
+            if source_level is not None and source_level.group('name') not in source_names:
+                message = (
+                    f'a route to {route.destination}: the instrument has no source named '
+                    f"'{source_level.group('name')}'"
+                )
+                raise ValueError(message)
 
     @property
     def sources(self) -> tuple[tuple[str, Source], ...]:
@@ -291,6 +349,21 @@ class Instrument:
     def live(self) -> bool:
         """Whether the sound is live."""
         return self._live
+
+    @property
+    def tremolo(self) -> Tremolo | None:
+        """A live sound's amplitude modulation, or None."""
+        return self._tremolo
+
+    @property
+    def parameters(self) -> Mapping[str, Parameter]:
+        """A live sound's exposed parameters, by name (read-only)."""
+        return MappingProxyType(dict(self._parameters))
+
+    @property
+    def routes(self) -> tuple[Route, ...]:
+        """How a live sound's parameters move it, in order."""
+        return self._routes
 
     @property
     def seed(self) -> int | None:
@@ -323,6 +396,9 @@ class Instrument:
             self._seed,
             self._normalize,
             self._hard_edges,
+            self._tremolo,
+            self._parameters,
+            self._routes,
         )
 
     @override

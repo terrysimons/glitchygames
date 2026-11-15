@@ -10,6 +10,7 @@ import textwrap
 import pytest
 
 from glitchygames.audio import synth
+from glitchygames.audio.effects import Tremolo
 from glitchygames.audio.instrument import (
     Filter,
     Instrument,
@@ -18,6 +19,7 @@ from glitchygames.audio.instrument import (
     Source,
     build_spec,
 )
+from glitchygames.audio.live_controls import Parameter, Route
 from glitchygames.audio.pitch import Hz, Midi, Tuning
 from glitchygames.audio.spec import (
     ENVELOPE_PRESETS,
@@ -486,3 +488,92 @@ def test_spec_float_fields_are_always_floats():
     assert type(spec.sources[0].level) is float
     assert type(spec.sources[0].semitones) is float
     assert type(notes_of(spec)[0].length_seconds) is float
+
+
+SPEED = Parameter(range=(0.0, 1.0), default=0.0)
+
+
+def _live_motor(**changes):
+    """A live saw with a speed parameter routed to pitch and level (Clockwork Keep's motor)."""
+    arguments = {
+        'wave': 'saw',
+        'live': True,
+        'tremolo': Tremolo(rate_hz=8.0, depth=0.4),
+        'parameters': {'speed': SPEED},
+        'routes': [
+            Route(source='speed', destination='pitch', output=(45.0, 110.0)),
+            Route(source='speed', destination='level', output=(0.15, 0.6)),
+        ],
+    }
+    return Instrument(**(arguments | changes))
+
+
+def test_a_live_instrument_holds_its_tremolo_parameters_and_routes():
+    """They read back as given (parameters by name, routes in order)."""
+    motor = _live_motor()
+
+    assert motor.tremolo == Tremolo(rate_hz=8.0, depth=0.4)
+    assert dict(motor.parameters) == {'speed': SPEED}
+    assert [route.destination for route in motor.routes] == ['pitch', 'level']
+
+
+def test_controls_are_part_of_an_instruments_identity():
+    """Two instruments differing only in a route or the tremolo are different sounds."""
+    first = _live_motor()
+
+    assert first == _live_motor()
+    assert hash(first) == hash(_live_motor())
+    assert first != _live_motor(tremolo=Tremolo(rate_hz=9.0, depth=0.4))
+    assert first != _live_motor(
+        routes=[Route(source='speed', destination='pitch', output=(40.0, 110.0))]
+    )
+
+
+@pytest.mark.parametrize('field', ['tremolo', 'parameters', 'routes'])
+def test_controls_need_a_live_instrument(field):
+    """A baked sound has no player to set them on (AUD-GAME-004's fixed parameters are later)."""
+    controls = {
+        'tremolo': Tremolo(rate_hz=8.0, depth=0.4),
+        'parameters': {'speed': SPEED},
+        'routes': [Route(source='speed', destination='level', output=(0.0, 1.0))],
+    }
+    arguments = {'wave': 'saw', field: controls[field]}
+    if field == 'routes':
+        arguments['parameters'] = {'speed': SPEED}
+
+    with pytest.raises(ValueError, match='only on a live instrument'):
+        Instrument(**arguments)
+
+
+def test_a_route_from_a_parameter_the_instrument_lacks_is_refused():
+    """A route must come from one of the instrument's parameters."""
+    with pytest.raises(ValueError, match=r"route from 'rpm'.*no parameter named"):
+        _live_motor(routes=[Route(source='rpm', destination='pitch', output=(45.0, 110.0))])
+
+
+def test_a_route_to_a_source_the_instrument_lacks_is_refused():
+    """A source-level route must name one of its sources."""
+    with pytest.raises(ValueError, match=r"sources\.air\.level.*no source named 'air'"):
+        _live_motor(
+            routes=[Route(source='speed', destination='sources.air.level', output=(0.1, 0.5))]
+        )
+
+
+def test_a_route_to_a_named_source_is_accepted():
+    """The spec's vehicle routes a parameter to one source's level."""
+    vehicle = Instrument(
+        sources={'engine': Wave('saw'), 'air': Wave('sine')},
+        live=True,
+        parameters={'load': Parameter(range=(0.0, 1.0), default=0.2)},
+        routes=[Route(source='load', destination='sources.air.level', output=(0.1, 0.5))],
+    )
+
+    assert vehicle.routes[0].destination == 'sources.air.level'
+
+
+def test_at_most_eight_routes():
+    """The spec's limit (implementation spec D7)."""
+    many = [Route(source='speed', destination='level', output=(0.0, 1.0))] * 9
+
+    with pytest.raises(ValueError, match='at most 8 routes'):
+        _live_motor(routes=many)
