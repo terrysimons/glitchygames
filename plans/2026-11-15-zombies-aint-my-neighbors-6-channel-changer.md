@@ -87,7 +87,7 @@ member-scanning tests (process-state guard and the like) run on push.
 | A hit's flash lasts 0.05 s (white on the 2 frames before it runs out at 60 fps), where the plan said "one frame (0.05 s)" | At 60 fps those disagree; every other timing in the game is in seconds | A flash a frame longer than meant |
 | The wait running when a TV breaks doubles too, not only the waits drawn after | "The rate halves at each stage" takes effect at once; still one draw per wait, so replays repeat it | A TV that spawns a little later than a stricter reading |
 | `tests/replay/golden_replay_controls.py` is unchanged | The neighborhood's polled keys (WASD, the arrows) are covered by the golden's main script, not its controls tail; fire is polled too, so `J` and right `Shift` are in the main script | Two entries in a shared file |
-| The golden runs 720 script frames (872 with its tail; 46 KB), not 660 | So it holds a zapped zombie, a destroyed TV (frame 659: the world shakes) and zaps passing through it | A larger fixture |
+| The golden runs 720 script frames (872 with its tail; 46 KB), not 660 | So it holds a zapped zombie (frame 509), a destroyed TV (frame 658: the world shakes) and zaps passing through it | A larger fixture |
 
 ## Found while building
 
@@ -118,14 +118,25 @@ member-scanning tests (process-state guard and the like) run on push.
   (`pool.py`; master plan decision 11). `test_no_sprite_file_loads_during_play` failed before
   (327 loads) and passes now; the golden was re-recorded for the pooled sprites (872 frames,
   45 KB). The engine-side cache is Engine wishlist #12.
-- **Deferred (Minor), for the owner:**
-  - Zaps can step over targets when a frame is longer than about 0.09 s (under about 11 fps).
-    The scene sets no `MAX_FRAME_SECONDS`; a cap would bound this and other long-frame effects.
-  - The remote and the zap's start sit 1 px off a true mirror when facing right: the grip,
-    column 6 of a 12-wide canvas, flips to column 5.
-  - A TV destroyed mid-spawn shows its smoke, not the spawn, while its zombie still pops out.
-  - Held fire drifts at frame rates that don't divide 0.25 s: every 0.26 s at 50 fps. It is
-    exact at 60, 120 and 144.
+- **The review's four Minor findings, fixed at the owner's word ("Fix the 4 minors", 2026-11-15),
+  each with a test that failed first:**
+  - Zaps could step over targets when a frame was longer than about 0.09 s. The neighborhood now
+    caps a frame at 0.05 s (`MAX_FRAME_SECONDS`, as Clockwork Keep does), so a zap's step stays
+    under 16 px, shorter than its hitbox and a zombie's together
+    (`test_the_neighborhoods_frame_cap_keeps_a_zap_from_stepping_over_a_zombie`, and a sweep of
+    40 starts at the capped frame).
+  - The remote and the zap's start sat 1 px off a true mirror when facing right. The grip now
+    flips with the frame, column 6 to column 5
+    (`test_facing_right_the_remote_mirrors_facing_left_exactly`).
+  - A TV destroyed mid-spawn showed its smoke while its zombie popped out. It now plays the spawn
+    out, as a smashed TV's, then smokes
+    (`test_a_tv_destroyed_mid_spawn_plays_the_spawn_out_then_smokes`).
+  - Held fire drifted at frame rates that don't divide 0.25 s. Held fire now carries the part of
+    a frame past each 0.25 s, so 50 and 40 fps keep four a second; a fresh press starts the rhythm
+    from zero, so a release banks nothing (`test_held_fire_keeps_four_a_second_at_any_frame_rate`,
+    `test_a_long_release_does_not_bank_shots`).
+  The golden was re-recorded for the carried rhythm (its second zap one frame sooner; the TV now
+  destroyed at frame 658).
 - **Not built:** the browser page has no on-screen walk or fire buttons (its touch layout has
   only Start and Pause), so the neighborhood needs a keyboard or a pad there. It predates this
   feature. Touch walking and firing belong together, in a feature of their own.

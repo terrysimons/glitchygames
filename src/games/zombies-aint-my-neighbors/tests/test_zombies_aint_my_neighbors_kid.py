@@ -529,17 +529,23 @@ def test_the_remote_shows_only_while_shooting(kid):
     ],
 )
 def test_the_remote_is_centred_on_the_hand_point(kid, direction, namespace, mirrored):
-    """The remote's centre (6, 6) sits on the frame's hand point; a mirrored point is 31 - x."""
+    """The remote's grip sits on the frame's hand point; mirrored, both flip.
+
+    The grip is column 6, row 6 of the 12x12 remote; mirrored it is column 5 (11 - 6), and a
+    mirrored hand point is 31 - x.
+    """
     kid.walk(direction_x=direction[0], direction_y=direction[1])
     kid.dt_tick(SIXTIETH_OF_A_SECOND)
     kid.walk(direction_x=0.0, direction_y=0.0)
     kid.pull_trigger(held=True)
     kid.dt_tick(SIXTIETH_OF_A_SECOND)
     hand_x, hand_y = KID_HAND_POINTS[namespace][kid.current_frame]
+    grip_x = 6
     if mirrored:
         hand_x = 31 - hand_x
+        grip_x = 11 - 6
 
-    assert (kid.remote.world_x + 6, kid.remote.world_y + 6) == (
+    assert (kid.remote.world_x + grip_x, kid.remote.world_y + 6) == (
         kid.world_x + hand_x,
         kid.world_y + hand_y,
     )
@@ -633,3 +639,45 @@ def test_a_standing_shot_on_a_slow_frame_still_poses_and_places_the_remote(kid):
         kid.world_x + hand_x,
         kid.world_y + hand_y,
     )
+
+
+def test_facing_right_the_remote_mirrors_facing_left_exactly(kid):
+    """Right is left flipped: the remote and the zap's start mirror about the kid's middle."""
+
+    def shoot(direction_x: float) -> tuple[float, float]:
+        kid.walk(direction_x=direction_x, direction_y=0.0)
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+        kid.walk(direction_x=0.0, direction_y=0.0)
+        for _ in range(15):
+            kid.pull_trigger(held=False)
+            kid.dt_tick(SIXTIETH_OF_A_SECOND)
+        kid.pull_trigger(held=True)
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+        return kid.remote.world_x - kid.world_x, kid.muzzle()[0] - kid.world_x
+
+    left_remote, left_muzzle = shoot(-1.0)
+    right_remote, right_muzzle = shoot(1.0)
+
+    # The kid's frame is 32 wide and the remote's 12: x' = 32 - 12 - x for its left edge
+    assert right_remote == 32 - 12 - left_remote
+    assert right_muzzle == pytest.approx(32 - left_muzzle)
+
+
+@pytest.mark.parametrize(('frames_per_second', 'seconds', 'shots'), [(50, 10, 40), (40, 10, 40)])
+def test_held_fire_keeps_four_a_second_at_any_frame_rate(kid, frames_per_second, seconds, shots):
+    """The rhythm carries the part of a frame past each 0.25 s, so it never drifts slower."""
+    fired = 0
+    for _ in range(frames_per_second * seconds):
+        fired += kid.pull_trigger(held=True)
+        kid.dt_tick(1.0 / frames_per_second)
+
+    assert fired == shots
+
+
+def test_a_long_release_does_not_bank_shots(kid):
+    """Seconds without firing fire once on the press, then keep the 0.25 s rhythm."""
+    for _ in range(120):
+        kid.pull_trigger(held=False)
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert frames_firing(kid, frames=30) == [0, 15]

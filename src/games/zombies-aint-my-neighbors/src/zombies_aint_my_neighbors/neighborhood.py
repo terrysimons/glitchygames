@@ -161,6 +161,10 @@ class NeighborhoodScene(RosterScene):
 
     NAME = "Zombies Ain't My Neighbors"
     VERSION = '1.0'
+    # After a hitch the yard advances at most this much (as Clockwork Keep's does): a zap's step
+    # (320 px/s) stays under 16 px, shorter than its hitbox and a zombie's together, so it never
+    # passes through one; a standing shot's pose and a hit's flash stay on screen
+    MAX_FRAME_SECONDS = 0.05
 
     @override
     def __init__(

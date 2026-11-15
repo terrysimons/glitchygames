@@ -205,3 +205,35 @@ def test_a_spent_zap_launched_again_flies_fresh():
     assert zap.state is ZapState.FLYING
     assert zap.current_animation == 'fly'
     assert zap.centre() == pytest.approx((100.0, 200.0 - 80.0))
+
+
+# The neighborhood caps a frame at 0.05 s (MAX_FRAME_SECONDS), so a zap's step stays shorter
+# than its hitbox and a zombie's together: it can never pass through one between two tests
+NARROWEST_TARGET_HITBOX = 20
+ZAP_HITBOX = 8
+
+
+def test_the_neighborhoods_frame_cap_keeps_a_zap_from_stepping_over_a_zombie():
+    """320 px/s for at most 0.05 s is 16 px, under 8 + 20."""
+    from zombies_aint_my_neighbors.neighborhood import NeighborhoodScene
+
+    cap = NeighborhoodScene.MAX_FRAME_SECONDS
+    assert cap == 0.05
+    assert cap is not None
+    assert ZAP_SPEED * cap < ZAP_HITBOX + NARROWEST_TARGET_HITBOX
+
+
+@pytest.mark.parametrize('offset', range(40))
+def test_at_the_capped_frame_a_zap_never_passes_through_a_zombie_ahead(offset):
+    """Every start, 0.05 s frames: the zap strikes the zombie dead ahead, within its range."""
+    # The body hitbox spans x 456 to 476: in reach of every start (192 px, plus 4 px of hitbox)
+    zombie = zombie_at(450.0, 270.0)
+    zap = make_zap(centre=(300.0 + offset, 300.0))
+    struck = None
+    for _ in range(round(ZAP_RANGE_SECONDS / 0.05)):
+        zap.dt_tick(0.05)
+        struck = first_struck(zap=zap, targets=[zombie])
+        if struck is not None:
+            break
+
+    assert struck is zombie

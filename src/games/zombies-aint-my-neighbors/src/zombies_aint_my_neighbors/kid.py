@@ -289,10 +289,17 @@ class Kid(AnimatedSprite):
             True when a shot fires this frame.
 
         """
+        held_before = self._trigger_held
         self._trigger_held = held and self.can_move
         if not self._trigger_held or self._fire_cooldown > TIME_TOLERANCE:
             return False
-        self._fire_cooldown = FIRE_SECONDS
+        if held_before:
+            # Held on: the part of a frame past the last 0.25 s counts toward the next (at most
+            # one rhythm's worth, after a hitch), so the rhythm holds at any frame rate
+            self._fire_cooldown = max(self._fire_cooldown, -FIRE_SECONDS) + FIRE_SECONDS
+        else:
+            # A fresh press starts the rhythm from now: time while released is never banked
+            self._fire_cooldown = FIRE_SECONDS
         self._shot_age = 0.0
         self._fired_this_frame = True
         return True
@@ -384,7 +391,7 @@ class Kid(AnimatedSprite):
 
         """
         self._advance_knockout(dt)
-        self._fire_cooldown = max(0.0, self._fire_cooldown - dt)
+        self._fire_cooldown -= dt
         self._shot_age += dt
         name = self.animation_name()
         # Each standing shot plays its pose from the first frame

@@ -2,9 +2,9 @@
 
 The props BOM's remote (plans/2026-11-14-zombies-aint-my-neighbors-props-bom.md), feature plan 6.
 Its kid places it every frame it shoots (``hold``) and puts it away otherwise; it never moves
-itself. Its 12x12 canvas's centre goes on the hand point, it mirrors with the kid's frame
-(through the scene's ``MirrorCache``, as the kid does), and a zap leaves from its LED
-(``muzzle``).
+itself. Its 12x12 canvas's grip (column 6, row 6; column 5 when mirrored) goes on the hand
+point, it mirrors with the kid's frame (through the scene's ``MirrorCache``, as the kid does),
+and a zap leaves from its LED (``muzzle``).
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Final, Self, override
 
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.world import CoordinateSpace
-from zombies_aint_my_neighbors.art.weapon_rig import GRIP, remote_tip
+from zombies_aint_my_neighbors.art.weapon_rig import GRIP, SIZE, remote_tip
 
 if TYPE_CHECKING:
     import pygame
@@ -62,7 +62,9 @@ class ChannelChanger(AnimatedSprite):
             shown: Whether to show it (False while its kid blinks out).
 
         """
-        self.world_x = hand_x - GRIP[0]
+        # Mirrored, the grip's column 6 of 12 flips to column 5 (x' = 11 - x)
+        grip_x = SIZE - 1 - GRIP[0] if mirrored else GRIP[0]
+        self.world_x = hand_x - grip_x
         self.world_y = hand_y - GRIP[1]
         name = f'held_{drawn_facing}'
         if name != self._started_animation:

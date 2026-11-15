@@ -339,3 +339,19 @@ def test_a_zombie_leaving_frees_its_place_under_the_caps():
     tv.zombie_left()
 
     assert tv.zombies == 0
+
+
+def test_a_tv_destroyed_mid_spawn_plays_the_spawn_out_then_smokes():
+    """Its zombie comes out of a spawn you can see; the smoke follows when the spawn ends."""
+    tv = tv_with_seed(1)
+    zap_times(tv, 8)
+    frames_until_spawn_starts(tv)
+    tick(tv)
+    tv.zap()
+    tick(tv)
+
+    assert tv.is_destroyed
+    assert tv.current_animation == 'smashed-spawn'
+    finish_spawn(tv)
+    tick(tv)
+    assert tv.current_animation == 'destroyed'

@@ -249,7 +249,8 @@ class Tv(AnimatedSprite):
 
         """
         if self.is_destroyed:
-            return DESTROYED
+            # A spawn it had started plays out (as the last stage that spawns), then it smokes
+            return f'{STAGES[-2]}-spawn' if self.is_spawning else DESTROYED
         prefix = '' if self.stage == STAGES[0] else f'{self.stage}-'
         return f'{prefix}spawn' if self.is_spawning else f'{prefix}static'
 
