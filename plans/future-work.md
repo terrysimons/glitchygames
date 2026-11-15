@@ -1146,6 +1146,21 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   - Not done: folding `test-random` into the comparison (shuffling one dummy run). The comparison
     passes on failing tests (`_PYTEST_FINISHED_CODES = [0, 1]`), and order-dependent frames would
     read as "varies between runs" rather than fail; little to save (80 s).
+- **Upgrade every locked dependency, in a branch of its own** (the owner, 2026-11-14: one
+  upgrade, not a tornado-only branch). `uv sync --upgrade --all-extras --all-groups
+  --all-packages`, then the gates in order (ruff, basedpyright and ty, the suite) and
+  `nox -s security-scan`, committing the regenerated `docs/sbom.cyclonedx.json` with `uv.lock`.
+  A trial run on 2026-11-14 (main at c3beb0a8, not kept) changed 31 packages, none added or
+  removed: tornado 6.6 -> 6.6.1 closes Dependabot alert 196
+  (bugs/2026-11-14-dependabot-alert-196-tornado-open-redirect.md); two major versions to check,
+  pymdown-extensions 12.3 -> 13.1 (the docs build) and python-dateutil 2.9.0.post0 -> 4.0.0; ruff
+  0.17.3 -> 0.17.5 and ty 0.0.95 -> 0.0.104 may report new findings.
+- **CLAUDE.md carries its old long Architecture Overview again** (landed with #207, 2026-11-14:
+  312 -> 1476 lines). Lines 93-1256 on main at c3beb0a8 are the pre-condensation sections,
+  merged back beside the condensed ones (GameEngine at 93 and 1257); deleting them gives
+  333fcc0d's CLAUDE.md byte for byte. The second time (#192, undone by #203): add a test that
+  fails when a `**Section**` heading appears twice or the file passes a line limit just above
+  its condensed size.
 
 ## Upstream issues to file
 

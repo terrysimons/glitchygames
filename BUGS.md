@@ -2,6 +2,8 @@
 
 This document tracks bugs reported during development. Bugs are listed in order of discovery and will be investigated and fixed as time allows.
 
+New bugs go in `bugs/`, one file each, named `YYYY-MM-DD-short-slug.md` (the date reported), with the fields used here. The file name is the bug's name: cite it as `bugs/2026-11-14-type-gate-never-reads-the-tests.md`. Branches that each add a bug add different files, so they never conflict over the next number or the same insertion point (the owner, 2026-11-14). The numbered entries below stay where they are until they are moved, and are still cited by number.
+
 ## Active Bugs
 
 ### 276. The Digest-File Test's Watched Replay Diverged at Frame 0 Once
