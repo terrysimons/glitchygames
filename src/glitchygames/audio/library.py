@@ -41,6 +41,7 @@ import hashlib
 import json
 import logging
 import sysconfig
+import threading
 import wave
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -84,7 +85,7 @@ from glitchygames.audio.voices import SoundHandle
 
 if TYPE_CHECKING:
     from glitchygames.audio.accounting import AudioAccountant
-    from glitchygames.audio.disk_cache import DiskSoundCache
+    from glitchygames.audio.disk_cache import CachedSamples, DiskSoundCache
     from glitchygames.audio.pitch import PitchLike, Tuning
     from glitchygames.audio.waves import WaveRegistry
 
@@ -119,18 +120,29 @@ class CompiledSamples:
     sample_rate: int
 
 
-class EngineSoundCache:
-    """The engine's own sounds' compiled samples, one cache per process, by identity key.
+class SharedSoundCache:
+    """The process's compiled samples by identity key, shared by every engine context.
 
-    Only the engine's sounds (the CRT power-on's, ``SoundLibrary.engine_sound``) are kept here;
-    a game's sounds stay in its context's library. Nothing here is ever evicted: the engine's
-    sounds are few and short (the CRT's five or six, about 0.5 MB at 44.1 kHz). ``clear`` exists
-    for the test harness, which starts every test with an empty cache.
+    The engine's own sounds (the CRT power-on's, ``SoundLibrary.engine_sound``) are pinned: never
+    evicted (few and short, about 0.5 MB). A game's sounds are shared the same way, so a second
+    engine context (an Arcade tile, or one restarted) compiles nothing the process compiled
+    already; past ``limit_bytes`` the least recently used of them go (a library holding one keeps
+    it until its own memory limit drops it). Each library still has its own ``Sound`` over the
+    shared, read-only arrays.
+
+    Reads (``compiled``) take no lock: an entry never changes once kept. ``lock_for`` is the
+    per-key lock a library holds around "look, else compile, then keep", so a sound asked for at
+    once by several callers is compiled once (plans/2026-11-14-sound-migration.md). ``clear``
+    exists for the test harness, which starts every test with an empty cache.
     """
 
     def __init__(self) -> None:
         """Start empty."""
-        self._compiled: dict[str, CompiledSamples] = {}
+        self._compiled: OrderedDict[str, CompiledSamples] = OrderedDict()
+        self._pinned: set[str] = set()
+        self._locks: dict[str, threading.Lock] = {}
+        self._locks_guard = threading.Lock()
+        self.limit_bytes = DEFAULT_MEMORY_LIMIT_BYTES
 
     def __len__(self) -> int:
         """The number of sounds kept.
@@ -140,8 +152,20 @@ class EngineSoundCache:
         """
         return len(self._compiled)
 
+    def lock_for(self, identity_key: str) -> threading.Lock:
+        """The lock held while a sound is looked up, compiled and kept.
+
+        Args:
+            identity_key: The sound's identity key.
+
+        Returns:
+            Its lock, the same one for every caller.
+        """
+        with self._locks_guard:
+            return self._locks.setdefault(identity_key, threading.Lock())
+
     def compiled(self, identity_key: str) -> CompiledSamples | None:
-        """The compiled samples of a sound, if this process compiled it already.
+        """The compiled samples of a sound, if this process compiled it already (now most recent).
 
         Args:
             identity_key: The sound's identity key.
@@ -149,13 +173,17 @@ class EngineSoundCache:
         Returns:
             The samples, or None.
         """
-        return self._compiled.get(identity_key)
+        compiled = self._compiled.get(identity_key)
+        if compiled is not None:
+            self._compiled.move_to_end(identity_key)
+        return compiled
 
-    def keep(self, sound: Sound) -> CompiledSamples:
+    def keep(self, sound: Sound, *, pinned: bool = False) -> CompiledSamples:
         """Keep a freshly compiled sound's samples, made read-only, for every later request.
 
         Args:
             sound: The compiled sound.
+            pinned: Never evict it (the engine's own sounds).
 
         Returns:
             The samples kept.
@@ -172,15 +200,40 @@ class EngineSoundCache:
             sample_rate=sound.sample_rate,
         )
         self._compiled[sound.identity_key] = compiled
+        if pinned:
+            self._pinned.add(sound.identity_key)
+        self._evict_past_the_limit(keep=sound.identity_key)
         return compiled
 
     def clear(self) -> None:
         """Forget every sound (the test harness's reset; the next request compiles)."""
         self._compiled.clear()
+        self._pinned.clear()
+
+    def _evict_past_the_limit(self, *, keep: str) -> None:
+        """Drop the least recently used unpinned sounds until the game sounds fit the limit."""
+        evictable = [key for key in self._compiled if key not in self._pinned]
+        held = sum(_compiled_bytes(self._compiled[key]) for key in evictable)
+        for key in evictable:
+            if held <= self.limit_bytes:
+                return
+            if key == keep:
+                continue
+            held -= _compiled_bytes(self._compiled.pop(key))
 
 
-# The process's one cache of the engine's own compiled sounds (see the module docstring)
-ENGINE_SOUND_CACHE: Final[EngineSoundCache] = EngineSoundCache()
+def _compiled_bytes(compiled: CompiledSamples) -> int:
+    """The bytes a kept sound's arrays hold.
+
+    Returns:
+        The byte count.
+    """
+    float_bytes = 0 if compiled.samples_float is None else compiled.samples_float.nbytes
+    return compiled.samples_int16.nbytes + float_bytes
+
+
+# The process's one cache of compiled sounds, the engine's own pinned (SharedSoundCache)
+ENGINE_SOUND_CACHE: Final[SharedSoundCache] = SharedSoundCache()
 
 
 class CacheMode(enum.StrEnum):
@@ -204,6 +257,8 @@ class CacheStatistics:
         disk_hits: Sounds read from the disk layer instead of compiled (cache ``disk``).
         disk_misses: Sounds the disk layer did not hold (or held damaged), so compiled.
         disk_writes: Compiled sounds written to the disk layer.
+        shared_hits: Sounds this library did not hold that the process had compiled already
+            (another engine context's, or before this library's memory limit dropped them).
     """
 
     hits: int
@@ -213,6 +268,7 @@ class CacheStatistics:
     disk_hits: int = 0
     disk_misses: int = 0
     disk_writes: int = 0
+    shared_hits: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -715,6 +771,9 @@ class SoundLibrary:
         self._disk_hits = 0
         self._disk_misses = 0
         self._disk_writes = 0
+        self._shared_hits = 0
+        # The process store's limit follows the libraries' (one --sound-cache-memory a process)
+        ENGINE_SOUND_CACHE.limit_bytes = memory_limit_bytes
 
     def add_effects(self, effects: Iterable[Effect]) -> None:
         """Register effects by name; they are looked up before the sound directory.
@@ -751,6 +810,7 @@ class SoundLibrary:
             disk_hits=self._disk_hits,
             disk_misses=self._disk_misses,
             disk_writes=self._disk_writes,
+            shared_hits=self._shared_hits,
         )
 
     def sound(  # ruff: ignore[too-many-arguments] - impl spec 8
@@ -828,7 +888,7 @@ class SoundLibrary:
             return fresh
         if not sound.is_compiled:
             self._misses += 1
-            self._compile_through_disk(sound)
+            self._compile_shared(sound)
             self._hold(sound)
         else:
             self._play_order.move_to_end(sound.identity_key)
@@ -864,19 +924,10 @@ class SoundLibrary:
         )
         sound = self._build(request, sample_rate=sample_rate, tuning=tuning)
         sound.is_engine_sound = True
-        compiled = ENGINE_SOUND_CACHE.compiled(sound.identity_key)
-        if compiled is None:
-            self._misses += 1
-            self._compile_through_disk(sound)
-            ENGINE_SOUND_CACHE.keep(sound)
-        else:
+        if self._compile_shared(sound, pinned=True):
             self._hits += 1
-            sound.install(
-                samples_float=compiled.samples_float,
-                samples_int16=compiled.samples_int16,
-                peak=compiled.peak,
-                sample_rate=compiled.sample_rate,
-            )
+        else:
+            self._misses += 1
         self._engine_sounds[request_key] = sound
         return sound
 
@@ -896,7 +947,7 @@ class SoundLibrary:
             self._hits += 1
             return
         self._misses += 1
-        self._compile_through_disk(sound)
+        self._compile_shared(sound)
         self._hold(sound)
 
     def _describe(self, sound: Sound) -> None:
@@ -956,44 +1007,86 @@ class SoundLibrary:
         """
         return sum(held.retained_bytes for held in self._play_order.values())
 
-    def _compile_through_disk(self, sound: Sound) -> None:
-        """Read a sound from the disk layer, else compile it and write it there.
+    def _compile_shared(self, sound: Sound, *, pinned: bool = False) -> bool:
+        """Install a sound's samples: the process store's, else the disk layer's, else compiled.
 
-        Without a disk layer (cache ``ram``), or for a recorded file (already a file: decoding it
-        costs what reading a copy would), this is ``_compile``. A hit installs the kept int16
-        samples and the compile's exact peak, with no float samples (a caller that needs them
-        compiles a copy: ``offline._samples_at``). The read is timed as ``cache_read`` work;
-        only a compile counts as one.
+        Under the sound's lock in the process store (``SharedSoundCache.lock_for``), so a sound
+        asked for at once is compiled once. Under cache ``disk`` (not for a recorded file, which
+        is already a file), a miss takes the disk layer's cross-process write lock and reads
+        again before it compiles, so a sound another process just wrote is read, not compiled
+        again; without the lock in time it compiles without writing. What was installed is kept
+        in the process store (``pinned`` for the engine's own sounds). A disk hit has int16
+        samples and the exact peak only (a caller that needs float samples compiles a copy:
+        ``offline._samples_at``). Disk reads are timed as ``cache_read`` work; only a compile
+        counts as one.
+
+        Returns:
+            True when the process store had it (no read, no compile).
         """
-        disk = self._disk
-        if disk is None or sound.recorded_file is not None:
-            self._compile(sound)
-            return
+        store = ENGINE_SOUND_CACHE
+        with store.lock_for(sound.identity_key):
+            shared = store.compiled(sound.identity_key)
+            if shared is not None:
+                self._shared_hits += 0 if pinned else 1
+                sound.install(
+                    samples_float=shared.samples_float,
+                    samples_int16=shared.samples_int16,
+                    peak=shared.peak,
+                    sample_rate=shared.sample_rate,
+                )
+                return True
+            disk = self._disk if sound.recorded_file is None else None
+            if disk is None:
+                self._compile(sound)
+            else:
+                self._read_or_compile_and_write(sound, disk=disk)
+            store.keep(sound, pinned=pinned)
+            return False
+
+    def _read_or_compile_and_write(self, sound: Sound, *, disk: DiskSoundCache) -> None:
+        """Install a sound from the disk layer, else compile it and write it there (locked)."""
+        cached = self._read_from_disk(sound, disk=disk)
+        if cached is None:
+            with disk.write_lock(identity_key=sound.identity_key) as locked:
+                # Another process may have written it while this one waited for the lock
+                cached = self._read_from_disk(sound, disk=disk) if locked else None
+                if cached is None:
+                    self._disk_misses += 1
+                    self._compile(sound)
+                    if locked:
+                        self._write_to_disk(sound, disk=disk)
+                    return
+        self._disk_hits += 1
+        sound.install(
+            samples_float=None,
+            samples_int16=cached.samples_int16,
+            peak=cached.peak,
+            sample_rate=sound.sample_rate,
+        )
+
+    def _read_from_disk(self, sound: Sound, *, disk: DiskSoundCache) -> CachedSamples | None:
+        """Read a sound's file, timed as cache_read work.
+
+        Returns:
+            Its samples and peak, or None.
+        """
         with self._accountant.measure('cache_read', sound.name):
-            cached = disk.read(
+            return disk.read(
                 identity_key=sound.identity_key,
                 sample_rate=sound.sample_rate,
                 frame_count=_compiled_frame_count(sound),
             )
-        if cached is not None:
-            self._disk_hits += 1
-            sound.install(
-                samples_float=None,
-                samples_int16=cached.samples_int16,
-                peak=cached.peak,
-                sample_rate=sound.sample_rate,
-            )
-            return
-        self._disk_misses += 1
-        self._compile(sound)
+
+    def _write_to_disk(self, sound: Sound, *, disk: DiskSoundCache) -> None:
+        """Write a compiled sound's file (a write the system refuses is logged, not raised)."""
         assert sound.samples_int16 is not None
-        disk.write(
+        if disk.write(
             identity_key=sound.identity_key,
             samples_int16=sound.samples_int16,
             peak=sound.peak,
             sample_rate=sound.sample_rate,
-        )
-        self._disk_writes += 1
+        ):
+            self._disk_writes += 1
 
     def _compile(self, sound: Sound) -> None:
         """Compile a sound into itself, timed and counted."""

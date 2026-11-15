@@ -15,7 +15,14 @@ plans/2026-11-14-sound-cache-on-first-use.md (built before M2, opt-in). The rule
 4. A write goes to a temporary file of its own in the same folder (``<key>.wav.writing-*``) and
    is then moved into place, so a reader never sees half a file and two writers of one sound
    never share a temporary file (``output_files.write_aside_then_replace`` uses one fixed
-   partial name, which two processes would share).
+   partial name, which two processes would share). A write the system refuses (Windows will not
+   replace a file another process has open) is logged and reported, never raised: the sound is
+   compiled either way. Reads take no lock: a file is whole or absent.
+5a. Writers of one sound in several processes take its lock file first (``write_lock``:
+   ``<key>.wav.lock``, a kernel lock through ``filelock``, released if its process dies), and
+   the library reads again under it before compiling, so a sound is compiled and written once.
+   A lock not had within ``WRITE_LOCK_TIMEOUT_SECONDS`` (another process compiling a long sound)
+   gives way: the caller compiles without writing.
 5. A hit marks the file used (its modification time), and ``prune`` removes the least recently
    used files until the folder is at most its limit, and every temporary file a killed writer
    left. Files are read whole, so none is ever held open.
@@ -34,18 +41,23 @@ This module imports numpy, pydantic, the standard library and ``glitchygames.sta
 from __future__ import annotations
 
 import contextlib
+import logging
 import operator
 import os
 import struct
 import tempfile
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 import numpy as np
 import numpy.typing as npt
+from filelock import FileLock, Timeout
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.state.paths import get_cache_directory
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 # RIFF layout (little-endian throughout, as WAV requires)
 RIFF_TAG: Final[bytes] = b'RIFF'
@@ -68,6 +80,11 @@ RIFF_HEADER_SIZE: Final[int] = 12
 SOUND_SUFFIX: Final[str] = '.wav'
 TEMPORARY_MARKER: Final[str] = '.writing-'
 KEY_PREFIX_LENGTH: Final[int] = 2
+LOCK_SUFFIX: Final[str] = '.lock'
+# Rule 5a: how long a writer waits for another process writing the same sound
+WRITE_LOCK_TIMEOUT_SECONDS: Final[float] = 5.0
+
+log: logging.Logger = logging.getLogger('game.audio.disk_cache')
 # Rule 6: where the cache lives, and the app name its platform folder is named after (one cache
 # per machine, shared by every game: a sound's identity names everything that makes it)
 SOUND_CACHE_ROOT_VARIABLE: Final[str] = 'GLITCHYGAMES_SOUND_CACHE_ROOT'
@@ -167,6 +184,30 @@ class DiskSoundCache:
             os.utime(path)
         return cached
 
+    @contextlib.contextmanager
+    def write_lock(self, *, identity_key: str) -> Generator[bool]:
+        """Hold a sound's cross-process write lock while it is read again, compiled and written.
+
+        Args:
+            identity_key: The sound's identity key.
+
+        Yields:
+            Whether the lock is held (False after ``WRITE_LOCK_TIMEOUT_SECONDS``: write nothing).
+        """
+        path = self.path_for(identity_key=identity_key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lock = FileLock(f'{path}{LOCK_SUFFIX}', timeout=WRITE_LOCK_TIMEOUT_SECONDS)
+        try:
+            lock.acquire()
+        except Timeout:
+            log.info('Sound %s: another process holds its cache lock; not writing it', identity_key)
+            yield False
+            return
+        try:
+            yield True
+        finally:
+            lock.release()
+
     def write(
         self,
         *,
@@ -174,7 +215,7 @@ class DiskSoundCache:
         samples_int16: npt.NDArray[np.int16],
         peak: float,
         sample_rate: int,
-    ) -> None:
+    ) -> bool:
         """Keep a sound (rule 4).
 
         Args:
@@ -182,6 +223,9 @@ class DiskSoundCache:
             samples_int16: Its mono 16-bit samples.
             peak: The compile's exact peak.
             sample_rate: Its rate.
+
+        Returns:
+            Whether it was written (a write the system refused is logged instead).
         """
         path = self.path_for(identity_key=identity_key)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -195,8 +239,12 @@ class DiskSoundCache:
                     _wav_bytes(samples_int16=samples_int16, peak=peak, sample_rate=sample_rate)
                 )
             temporary.replace(path)
+        except OSError as error:
+            log.warning('Sound %s was not written to the disk cache: %s', identity_key, error)
+            return False
         finally:
             temporary.unlink(missing_ok=True)
+        return True
 
     def size_bytes(self) -> int:
         """Total the folder's sound files.
