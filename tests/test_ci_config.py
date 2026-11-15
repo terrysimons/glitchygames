@@ -744,9 +744,13 @@ def run_project_hooks_on(*, tmp_path: Path, changed_paths: list[str], stage: str
         (repository / changed_path).write_text('changed\n', encoding='utf-8')
     git(repository=repository, arguments=['init', '--quiet'])
     git(repository=repository, arguments=['add', '.'])
-    environment = environment_without_git_variables() | {
-        'PRE_COMMIT_HOME': str(tmp_path / 'pre-commit-home')
-    }
+    # Without the outer hook run's own controls: the suite runs inside the pre-push hook, and a
+    # push's SKIP (or another PRE_COMMIT_ variable) would steer this pre-commit run too
+    environment = {
+        name: value
+        for name, value in environment_without_git_variables().items()
+        if name != 'SKIP' and not name.startswith('PRE_COMMIT_')
+    } | {'PRE_COMMIT_HOME': str(tmp_path / 'pre-commit-home')}
 
     completed = run_command(
         command=[
@@ -806,6 +810,30 @@ def test_any_other_change_runs_every_hook(tmp_path, stage):
     """One file that is not Markdown, beside Markdown, and every hook of the stage runs."""
     verdicts = run_project_hooks_on(
         tmp_path=tmp_path, changed_paths=['BUGS.md', 'src/module.py'], stage=stage
+    )
+
+    assert set(verdicts.values()) == {'Passed'}, verdicts
+
+
+def test_the_outer_runs_skip_list_never_reaches_the_hooks_under_test(tmp_path, monkeypatch):
+    """A push's own SKIP (SKIP=raspberry-pi-replay-metrics git push) leaves these tests' run alone.
+
+    The suite runs inside the pre-push hook, so this process has the push's environment: once,
+    the inner pre-commit took its SKIP and skipped the Pi hook, failing the test above in the
+    gate only (2026-11-14). Here every hook's id is in SKIP, and every hook still runs.
+    """
+    configuration = yaml.safe_load(
+        (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
+    )
+    hook_ids = [
+        hook['id']
+        for repository_entry in configuration['repos']
+        for hook in repository_entry['hooks']
+    ]
+    monkeypatch.setenv('SKIP', ','.join(hook_ids))
+
+    verdicts = run_project_hooks_on(
+        tmp_path=tmp_path, changed_paths=['src/module.py'], stage='pre-push'
     )
 
     assert set(verdicts.values()) == {'Passed'}, verdicts
