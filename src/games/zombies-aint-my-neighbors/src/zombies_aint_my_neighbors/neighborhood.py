@@ -13,24 +13,45 @@ each quarter of the yard, that Lawn Zombies pop out of (waits from the named ran
 nearest standing kid; a touch knocks the kid out (its player can't move it until it is back up)
 and the zombie grabs. TVs and zombies are drawn by their feet with the kids.
 
+Feature plan 6 (plans/2026-11-15-zombies-aint-my-neighbors-6-channel-changer.md) arms the kids
+with the Channel Changer: each player's fire (``controls.player_firing``) fires zaps from their
+kid's remote. A zap strikes the first zombie or TV it meets (never a kid): a zombie crumbles and
+frees its TV's place under the caps at once; a TV takes damage, and a destroyed one shakes the
+world and rumbles the pad of the kid whose zap destroyed it. Each frame runs the kids (who fire),
+the TVs, the zombies, then the zaps.
+
+Zombies and zaps come from pools built with the scene (``pool.py``; master plan decision 11), so
+no sprite file loads mid-game: a zombie's load took 27 to 41 ms. Idle ones are out of every
+group; a spawn or a shot takes one and puts it in the yard, and one that has gone is given back.
+
 Built from options alone, as a recording's first scene is, the keyboard plays P1.
 """
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Any, Final, override
 
 import pygame
 
 from glitchygames.camera import Camera2D
+from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.input.state import current_input
 from glitchygames.randomness import random_stream
 from zombies_aint_my_neighbors.art.palettes import KIDS
-from zombies_aint_my_neighbors.controls import DEFAULT_DEADZONE, player_direction
-from zombies_aint_my_neighbors.kid import KID_HEIGHT, KID_WIDTH, Kid, MirrorCache
+from zombies_aint_my_neighbors.controls import DEFAULT_DEADZONE, player_direction, player_firing
+from zombies_aint_my_neighbors.kid import FIRE_SECONDS, KID_HEIGHT, KID_WIDTH, Kid, MirrorCache
+from zombies_aint_my_neighbors.pool import SpritePool
 from zombies_aint_my_neighbors.roster import JoinRoster
 from zombies_aint_my_neighbors.roster_scene import KEYBOARD_IDENTITY, RosterScene
-from zombies_aint_my_neighbors.tv import TV_SIZE, Tv, may_spawn
+from zombies_aint_my_neighbors.tv import TV_SIZE, ZOMBIES_IN_ALL, Tv, TvHit, may_spawn
+from zombies_aint_my_neighbors.zap import (
+    FIZZLE_SECONDS,
+    ZAP_RANGE_SECONDS,
+    ZAP_SIZE,
+    Zap,
+    first_struck,
+)
 from zombies_aint_my_neighbors.zombie import Zombie, touches
 
 if TYPE_CHECKING:
@@ -66,6 +87,20 @@ TV_PLACES: Final[tuple[tuple[float, float], ...]] = tuple(
 )
 # The named random stream the TVs' waits come from (randomness: <game>.<purpose>)
 TV_SPAWN_STREAM: Final = 'zombies_aint_my_neighbors.tv-spawns'
+# Feature plan 6: a destroyed TV's world shake, and the rumble on the destroying kid's pad
+TV_DESTROYED_SHAKE: Final = Shake(
+    style=ShakeStyle.NOISE, strength=4.0, duration=0.3, frequency=24.0
+)
+TV_DESTROYED_RUMBLE_LOW: Final = 0.8
+TV_DESTROYED_RUMBLE_HIGH: Final = 0.5
+TV_DESTROYED_RUMBLE_MILLISECONDS: Final = 300
+# The pools (pool.py). Zombies: the 10 the caps allow alive, and room for ones still fading (a
+# kill frees its place at once, but the fade lasts 1 s). Zaps: a zap lasts 0.72 s (its flight and
+# fizzle) and a kid fires every 0.25 s, so each of the four kids has at most 3 in the air
+MAXIMUM_PLAYERS: Final = 4
+ZOMBIE_POOL_SIZE: Final = ZOMBIES_IN_ALL + 6
+ZAPS_IN_THE_AIR_PER_KID: Final = math.ceil((ZAP_RANGE_SECONDS + FIZZLE_SECONDS) / FIRE_SECONDS)
+ZAP_POOL_SIZE: Final = MAXIMUM_PLAYERS * ZAPS_IN_THE_AIR_PER_KID
 
 
 def draw_yard(surface: pygame.Surface, offset_x: float, offset_y: float) -> None:
@@ -174,6 +209,37 @@ class NeighborhoodScene(RosterScene):
             tv.dt_tick(0.0)
             self._order_by_feet(tv, height=TV_SIZE)
         self.zombies: list[Zombie] = []
+        # Each zombie's TV (one put in by hand has none), whose place it frees when it dies
+        self.zombie_homes: dict[Zombie, Tv] = {}
+        # The zaps in the air, and the slot of the kid who fired each
+        self.zaps: list[Zap] = []
+        self.zap_owners: dict[Zap, int] = {}
+        self.yard_bounds = pygame.Rect(0, 0, YARD_WIDTH, YARD_HEIGHT)
+        # Built now, before play: every zombie and zap the yard will need
+        self.zombie_pool = SpritePool(make=self._make_zombie, size=ZOMBIE_POOL_SIZE)
+        self.zap_pool = SpritePool(make=self._make_zap, size=ZAP_POOL_SIZE)
+
+    def _make_zombie(self) -> Zombie:
+        """Make a zombie for the pool, out of every group.
+
+        Returns:
+            The zombie.
+
+        """
+        zombie = Zombie(world_x=0.0, world_y=0.0, mirror_cache=self.mirror_cache, groups=None)
+        zombie.kill()
+        return zombie
+
+    def _make_zap(self) -> Zap:
+        """Make a zap for the pool, out of every group.
+
+        Returns:
+            The zap.
+
+        """
+        zap = Zap(centre=(0.0, 0.0), direction=(1.0, 0.0), bounds=self.yard_bounds, groups=None)
+        zap.kill()
+        return zap
 
     @override
     def setup(self) -> None:
@@ -205,31 +271,56 @@ class NeighborhoodScene(RosterScene):
             self.kids[player.slot_index] = kid
             self._order_by_feet(kid)
 
-    def add_zombie(self, *, world_x: float, world_y: float) -> Zombie:
+    def add_zombie(self, *, world_x: float, world_y: float, home: Tv | None = None) -> Zombie:
         """Put a Lawn Zombie in the yard.
 
         Args:
             world_x: Its frame's left edge in the world.
             world_y: Its frame's top edge in the world.
+            home: The TV it came out of (it frees that TV's place when it dies), if any.
 
         Returns:
             The zombie.
 
         """
-        zombie = Zombie(
-            world_x=world_x,
-            world_y=world_y,
-            mirror_cache=self.mirror_cache,
-            groups=self.all_sprites,
-        )
+        zombie = self.zombie_pool.take()
+        zombie.spawn_at(world_x=world_x, world_y=world_y)
+        self.all_sprites.add(zombie)
         zombie.dt_tick(0.0)
         self._order_by_feet(zombie)
         self.zombies.append(zombie)
+        if home is not None:
+            self.zombie_homes[zombie] = home
         return zombie
 
-    def _order_by_feet(self, sprite: Kid | Zombie | Tv, *, height: int = KID_HEIGHT) -> None:
+    def add_zap(self, *, kid: Kid, slot_index: int) -> Zap:
+        """Fire a zap from a kid's remote, the kid's way.
+
+        Args:
+            kid: The kid who fired (posed this frame, so its remote is in its hand).
+            slot_index: The kid's player slot.
+
+        Returns:
+            The zap.
+
+        """
+        zap = self.zap_pool.take()
+        zap.launch(centre=kid.muzzle(), direction=kid.aim())
+        self.all_sprites.add(zap)
+        self.zaps.append(zap)
+        self.zap_owners[zap] = slot_index
+        self._order_by_feet(zap, height=ZAP_SIZE)
+        return zap
+
+    def _order_by_feet(self, sprite: Kid | Zombie | Tv | Zap, *, height: int = KID_HEIGHT) -> None:
         """Draw a sprite in order of its feet: lower on the screen is in front."""
         self.all_sprites.change_layer(sprite, round(sprite.world_y + height))
+
+    def _order_kid(self, kid: Kid) -> None:
+        """Draw a kid by its feet, its remote just in front of it (just behind when facing up)."""
+        self._order_by_feet(kid)
+        kid_layer = self.all_sprites.get_layer_of_sprite(kid)
+        self.all_sprites.change_layer(kid.remote, kid_layer + (1 if kid.remote_in_front else -1))
 
     @override
     def dt_tick(self, dt: float) -> None:
@@ -256,10 +347,14 @@ class NeighborhoodScene(RosterScene):
                 world_y=kid.world_y + direction_y * WALK_SPEED * dt,
             )
             kid.walk(direction_x=direction_x, direction_y=direction_y)
+            fired = kid.pull_trigger(held=player_firing(snapshot=snapshot, device=player.device))
             kid.dt_tick(dt)
-            self._order_by_feet(kid)
+            self._order_kid(kid)
+            if fired:
+                self.add_zap(kid=kid, slot_index=player.slot_index)
         self._run_tvs(dt)
         self._run_zombies(dt)
+        self._run_zaps(dt)
 
     def _run_tvs(self, dt: float) -> None:
         """Tick each TV under the caps, and put out each zombie whose pop has ended."""
@@ -270,7 +365,7 @@ class NeighborhoodScene(RosterScene):
             )
             if tv.tick_spawning(dt=dt, allowed=allowed):
                 world_x, world_y = tv.spawn_point()
-                self.add_zombie(world_x=world_x, world_y=world_y)
+                self.add_zombie(world_x=world_x, world_y=world_y, home=tv)
             tv.dt_tick(dt)
 
     def _run_zombies(self, dt: float) -> None:
@@ -283,7 +378,61 @@ class NeighborhoodScene(RosterScene):
                     kid.knock_out()
                     zombie.grab()
             zombie.dt_tick(dt)
-            self._order_by_feet(zombie)
+            # A zombie whose fade ended this frame has left its groups: no layer to change
+            if not zombie.is_gone:
+                self._order_by_feet(zombie)
+        for zombie in [zombie for zombie in self.zombies if zombie.is_gone]:
+            self.zombie_pool.give_back(zombie)
+        self.zombies = [zombie for zombie in self.zombies if not zombie.is_gone]
+
+    def _run_zaps(self, dt: float) -> None:
+        """Fly each zap; each strikes the first living zombie or standing TV it meets."""
+        for zap in self.zaps:
+            zap.dt_tick(dt)
+            if not zap.alive():
+                # Fizzled out this frame: it has left its groups
+                continue
+            self._order_by_feet(zap, height=ZAP_SIZE)
+            targets: list[Zombie | Tv] = [
+                *(zombie for zombie in self.zombies if not zombie.is_dying),
+                *(tv for tv in self.tvs if not tv.is_destroyed),
+            ]
+            struck = first_struck(zap=zap, targets=targets)
+            if struck is None:
+                continue
+            zap.strike()
+            if isinstance(struck, Zombie):
+                self._zombie_zapped(struck)
+            elif struck.zap() is TvHit.DESTROYED:
+                self._tv_destroyed(slot_index=self.zap_owners[zap])
+        for zap in [zap for zap in self.zaps if not zap.alive()]:
+            self.zaps.remove(zap)
+            del self.zap_owners[zap]
+            self.zap_pool.give_back(zap)
+
+    def _zombie_zapped(self, zombie: Zombie) -> None:
+        """Kill a zombie, freeing its TV's place under the caps at once."""
+        if zombie.zap():
+            home = self.zombie_homes.pop(zombie, None)
+            if home is not None:
+                home.zombie_left()
+
+    def _tv_destroyed(self, *, slot_index: int) -> None:
+        """Shake the world, and rumble the pad of the kid whose zap destroyed the TV."""
+        self.shake(TV_DESTROYED_SHAKE, targets=ShakeTarget.WORLD)
+        player = next(
+            (player for player in self.roster.joined_players if player.slot_index == slot_index),
+            None,
+        )
+        if player is None or player.device.instance_id is None:
+            return
+        device = self.input_devices.get(instance_id=player.device.instance_id)
+        if device is not None:
+            device.rumble(
+                low_frequency=TV_DESTROYED_RUMBLE_LOW,
+                high_frequency=TV_DESTROYED_RUMBLE_HIGH,
+                duration_milliseconds=TV_DESTROYED_RUMBLE_MILLISECONDS,
+            )
 
     def _move(self, kid: Kid, *, world_x: float, world_y: float) -> None:
         """Move a kid toward a place, as far as the yard and the group's screen span allow."""

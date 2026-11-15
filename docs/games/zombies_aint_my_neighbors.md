@@ -12,8 +12,11 @@ joined player walks their own kid (Dex, Marisol, Theo, June: 32x48 SNES-era spri
 the game's own rig, `zombies_aint_my_neighbors/art/`) under one camera that keeps the group on
 screen. Four old TV sets in the yard push Lawn Zombies out through their screens every 6 to 9
 seconds (3 per set, 10 in all); a zombie that touches a kid knocks it out, and the kid gets back
-up and blinks, untouchable, for two seconds. There are no weapons yet: for now, dodge. The design, its decisions and the engine wishlist
-are in the master plan, `plans/2026-11-14-zombies-aint-my-neighbors.md`.
+up and blinks, untouchable, for two seconds. The kids fight back with the Channel Changer, a TV
+remote that fires zaps of static four times a second: one zap crumbles a zombie, and three zaps
+break a TV into its next stage (cracked, smashed and sparking, destroyed and smoking), each
+stage spawning half as often, until a destroyed one spawns nothing. The design, its decisions and
+the engine wishlist are in the master plan, `plans/2026-11-14-zombies-aint-my-neighbors.md`.
 
 Its package: `src/games/zombies-aint-my-neighbors/`, a workspace member
 ([Games as Their Own Packages](../architecture/game_packages.md)).
@@ -37,6 +40,7 @@ The game adds no options of its own; the engine's are in
 | Begin (a joined device), and skip the feature card | `Enter` or keypad `Enter` | `START` |
 | Back from the feature card to the title | `Backspace` | `BACK` |
 | Walk (the neighborhood) | `WASD` or the arrows (by position) | left stick or d-pad |
+| Fire the Channel Changer (the neighborhood; hold to keep firing) | `J` or right `Shift` (by position) | `A` (button 0 in `--input-mode joystick`) |
 | Pause (every screen) | `P` position; `Enter` in the neighborhood | `START` in the neighborhood |
 | Resume from the pause screen | `Space` | `START` or `A` |
 | Quit | `Q` or `Esc` (on release) | `B` or `Back` on the pause screen |
@@ -49,8 +53,9 @@ mapping. A per-device lookup of START's raw button is on the master plan's Engin
 
 The keys are bound by position (scancodes), so they sit in the same place on every layout. The
 game never uses `Space` or `Esc` for its own actions: the engine's shared pause and game-over
-screens use them, in the browser too. In the browser, on-screen **Start** and **Pause** buttons
-press `Enter` and `P`.
+screens use them, in the browser too. `J` sits under a WASD hand and right `Shift` under an
+arrows hand. In the browser, on-screen **Start** and **Pause** buttons press `Enter` and `P`;
+there are no on-screen walk or fire buttons yet, so the neighborhood needs a keyboard or a pad.
 
 ## The screens
 
@@ -91,9 +96,25 @@ up-right show their left-hand frames mirrored, each frame flipped once
 into a cache the scene owns, with `hitbox_flip_x` set. A pad unplugged here takes its kid with
 it; with nobody left, the game goes back to the title.
 
+Each player's fire (`controls.player_firing`) fires their kid's Channel Changer (feature plan 6,
+`plans/2026-11-15-zombies-aint-my-neighbors-6-channel-changer.md`): a press fires at once and
+holding fires every 0.25 s. Standing, the kid plays `shoot_<facing>`; walking, `walk-shoot_<facing>`;
+diagonals use the side pose, but the zap flies the eight-way facing. The remote (`channel_changer.py`)
+is drawn on the frame's hand point only while shooting, behind the kid when it faces up. A zap
+(`zap.py`) flies 320 px a second for 0.6 s, then fizzles; it strikes the first zombie or standing TV
+its hitbox meets and passes through kids. A zapped zombie flashes, crumbles and fades, freeing its
+TV's place under the caps at once. A TV takes 3 zaps a stage; each stage doubles its wait between
+spawns, and destroying one shakes the world and rumbles the destroying player's pad.
+
+Zombies and zaps come from pools the scene builds before play (`pool.py`), so no sprite file
+loads mid-game: the engine keeps no cache of loaded sprite files, and a zombie's took 27 to 41 ms
+to load. Idle ones are out of every group; a spawn or a shot takes one, and one that has gone is
+given back. A test fails if any sprite file loads during twenty busy seconds.
+
 Built from options alone, as a recording's first scene is, the neighborhood has the keyboard as
 P1. The game has two golden replays: the title's (`golden.jsonl.gz`) and the neighborhood's
-(`golden-neighborhood.jsonl.gz`); `main` (`launcher.py`) starts a replay on the scene its
+(`golden-neighborhood.jsonl.gz`: walking every way, then firing with `J` and right `Shift`, a
+zombie zapped and the top-left TV destroyed); `main` (`launcher.py`) starts a replay on the scene its
 recording names, as Brave Adventurer's launcher does.
 
 ## The join roster

@@ -565,12 +565,15 @@ def zombies_aint_my_neighbors_script() -> InputScript:
 
 
 def zombies_aint_my_neighbors_neighborhood_script() -> InputScript:
-    """Zombies Ain't My Neighbors' neighborhood: keyboard P1 walks with every key it reads.
+    """Zombies Ain't My Neighbors' neighborhood: keyboard P1 walks and fires with every key read.
 
     The neighborhood reads the keyboard as polled input (held scancodes), so each key is held for
     a stretch: WASD round a square, the arrows round another, then W and D together for a
-    diagonal. The recording begins in the neighborhood with the keyboard as P1 (built from
-    options alone).
+    diagonal. Then the Channel Changer (feature plan 6): Dex walks up-left firing with J (zaps
+    flying the diagonal), walks to the top-left TV, zapping its first zombie on the way, and
+    holds Right Shift at the TV until it is destroyed (frame 659: the world shakes), firing on
+    through it after. Run at 720 frames under the goldens' seed. The recording begins in the
+    neighborhood with the keyboard as P1 (built from options alone).
 
     Returns:
         The input script.
@@ -587,6 +590,11 @@ def zombies_aint_my_neighbors_neighborhood_script() -> InputScript:
         ((pygame.K_LEFT,), 230, 260),
         ((pygame.K_UP,), 260, 290),
         ((pygame.K_w, pygame.K_d), 290, 320),
+        ((pygame.K_a, pygame.K_w, pygame.K_j), 320, 410),
+        ((pygame.K_a,), 410, 470),
+        ((pygame.K_w,), 470, 497),
+        ((pygame.K_a,), 497, 499),
+        ((pygame.K_RSHIFT,), 499, 700),
     )
     for keys, start, end in stretches:
         script.at(start, *(press(key) for key in keys))

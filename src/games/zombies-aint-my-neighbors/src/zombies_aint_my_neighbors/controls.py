@@ -1,4 +1,4 @@
-"""Which way each player is pushing, from the frame's polled input.
+"""Which way each player is pushing, and whether they are firing, from the frame's polled input.
 
 Every player reads only their own device (master plan, decision 5):
 
@@ -7,6 +7,11 @@ Every player reads only their own device (master plan, decision 5):
   there (it appears in the snapshot's ``controller_axes``); otherwise, as in joystick mode, which
   scripted sessions force, it is read on the joystick layer: axes 0 and 1, hat 0, and the d-pad
   buttons by the controller layer's numbers (the engine's convention, gamepad_choice.py).
+
+Firing (feature plan 6) is held, not pressed: J (under a WASD hand) or Right Shift (under an
+arrows hand) on the keyboard, by scancode; A on a pad's controller layer, or button 0, A's
+number, on its joystick layer. None of the keys the shared screens, the title, the AI console
+or the overlay use (Space, Esc, Enter, P, Q, backtick, F3, F4: ``roster_scene.py``).
 
 A direction is ``(x, y)`` with ``y`` positive downwards, never longer than 1, so diagonals are no
 faster. The engine has no polled deadzone helper; the default is ``ActionMap``'s.
@@ -42,6 +47,10 @@ _KEYS_UP: Final = frozenset({pygame.KSCAN_W, pygame.KSCAN_UP})
 _KEYS_DOWN: Final = frozenset({pygame.KSCAN_S, pygame.KSCAN_DOWN})
 _KEYS_LEFT: Final = frozenset({pygame.KSCAN_A, pygame.KSCAN_LEFT})
 _KEYS_RIGHT: Final = frozenset({pygame.KSCAN_D, pygame.KSCAN_RIGHT})
+# The keys that fire, by scancode
+FIRE_SCANCODES: Final = frozenset({pygame.KSCAN_J, pygame.KSCAN_RSHIFT})
+# A pad's fire button: A on the controller layer, the same number on the joystick layer
+FIRE_BUTTON: Final = pygame.CONTROLLER_BUTTON_A
 
 
 def limited(*, x: float, y: float) -> Direction:
@@ -186,3 +195,37 @@ def player_direction(
     if device.kind is DeviceKind.KEYBOARD or device.instance_id is None:
         return keyboard_direction(snapshot=snapshot)
     return gamepad_direction(snapshot=snapshot, instance_id=device.instance_id, deadzone=deadzone)
+
+
+def keyboard_firing(*, snapshot: InputSnapshot) -> bool:
+    """Return whether the keyboard player holds a fire key (J or Right Shift).
+
+    Returns:
+        True while one is held.
+
+    """
+    return bool(snapshot.pressed_scancodes & FIRE_SCANCODES)
+
+
+def gamepad_firing(*, snapshot: InputSnapshot, instance_id: int) -> bool:
+    """Return whether a pad holds its fire button, on its controller layer when it has one.
+
+    Returns:
+        True while it is held (never for a pad the snapshot does not hold).
+
+    """
+    if instance_id in snapshot.controller_axes:
+        return snapshot.controller_button(device_id=instance_id, button=FIRE_BUTTON)
+    return snapshot.button(device_id=instance_id, button=FIRE_BUTTON)
+
+
+def player_firing(*, snapshot: InputSnapshot, device: DeviceIdentity) -> bool:
+    """Return whether the player on a device holds fire: the keyboard, or a pad by instance id.
+
+    Returns:
+        True while fire is held.
+
+    """
+    if device.kind is DeviceKind.KEYBOARD or device.instance_id is None:
+        return keyboard_firing(snapshot=snapshot)
+    return gamepad_firing(snapshot=snapshot, instance_id=device.instance_id)

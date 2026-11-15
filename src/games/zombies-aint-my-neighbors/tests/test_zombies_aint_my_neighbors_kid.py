@@ -6,13 +6,20 @@ mirroring rules are the character BOM's section 1.
 
 from __future__ import annotations
 
+import math
+
 import pygame
 import pytest
 
+from zombies_aint_my_neighbors.art.hand_points import KID_HAND_POINTS
+from zombies_aint_my_neighbors.art.weapon_rig import remote_tip
 from zombies_aint_my_neighbors.kid import (
+    BLINK_SECONDS,
+    FIRE_SECONDS,
     KNOCKOUT_SECONDS,
     LYING_SECONDS,
     RESPAWN_SECONDS,
+    SHOOT_POSE_SECONDS,
     UNTOUCHABLE_SECONDS,
     Kid,
     KidFacing,
@@ -366,3 +373,263 @@ def test_untouchable_lasts_exactly_its_frames(kid):
     assert not kid.is_touchable
     kid.dt_tick(SIXTIETH_OF_A_SECOND)
     assert kid.is_touchable
+
+
+# Shooting the Channel Changer (feature plan 6): a press fires at once, holding fires every
+# 0.25 s; the kid poses shoot_<f> standing and walk-shoot_<f> moving; the remote is drawn at the
+# frame's hand point only while shooting
+
+
+def frames_firing(kid: Kid, *, frames: int, held: bool = True) -> list[int]:
+    """Tick a kid ``frames`` sixtieths with the trigger ``held``; return the frames that fired.
+
+    Returns:
+        The frame numbers that fired, from 0.
+
+    """
+    fired = []
+    for frame in range(frames):
+        if kid.pull_trigger(held=held):
+            fired.append(frame)
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    return fired
+
+
+def test_a_press_fires_at_once(kid):
+    """The first frame the trigger is held fires."""
+    kid.dt_tick(0.0)
+
+    assert kid.pull_trigger(held=True)
+
+
+def test_nothing_fires_while_the_trigger_is_up(kid):
+    """No trigger, no shot."""
+    assert frames_firing(kid, frames=60, held=False) == []
+
+
+def test_holding_fires_four_times_a_second_on_exact_frames(kid):
+    """Every 0.25 s: frames 0, 15, 30 and 45 of a second at 60 frames a second."""
+    assert FIRE_SECONDS == 0.25
+    assert frames_firing(kid, frames=60) == [0, 15, 30, 45]
+
+
+def test_tapping_faster_than_the_rhythm_is_capped(kid):
+    """A press within 0.25 s of the last shot waits: four shots a second at most."""
+    assert kid.pull_trigger(held=True)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    kid.pull_trigger(held=False)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert not kid.pull_trigger(held=True)
+
+
+def test_a_knocked_out_kid_cannot_fire(kid):
+    """Down, no shots; nor while it lies still or loads back in."""
+    kid.knock_out()
+
+    total = round((KNOCKOUT_SECONDS + LYING_SECONDS + RESPAWN_SECONDS) / SIXTIETH_OF_A_SECOND)
+    assert frames_firing(kid, frames=total - 1) == []
+
+
+@pytest.mark.parametrize(
+    ('direction', 'animation', 'mirrored'),
+    [
+        ((0.0, 1.0), 'shoot_down', False),
+        ((0.0, -1.0), 'shoot_up', False),
+        ((-1.0, 0.0), 'shoot_left', False),
+        ((1.0, 0.0), 'shoot_left', True),
+        # Diagonals use the nearest straight pose, the side one at exactly 45 degrees
+        ((-0.7, 0.7), 'shoot_left', False),
+        ((-0.7, -0.7), 'shoot_left', False),
+        ((0.7, 0.7), 'shoot_left', True),
+        ((0.7, -0.7), 'shoot_left', True),
+    ],
+)
+def test_a_standing_shot_poses_the_nearest_straight_facing(kid, direction, animation, mirrored):
+    """The kid turns as it walks, stops, then shoots in its facing's pose."""
+    kid.walk(direction_x=direction[0], direction_y=direction[1])
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    kid.walk(direction_x=0.0, direction_y=0.0)
+    kid.pull_trigger(held=True)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert kid.current_animation == animation
+    assert kid.hitbox_flip_x is mirrored
+
+
+def test_the_standing_pose_ends_after_its_two_frames(kid):
+    """shoot_<f> lasts 0.16 s (two 0.08 s frames), then the kid idles."""
+    kid.pull_trigger(held=True)
+    for _ in range(round(SHOOT_POSE_SECONDS / SIXTIETH_OF_A_SECOND) - 1):
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+        kid.pull_trigger(held=False)
+        assert kid.current_animation == 'shoot_down'
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert kid.current_animation == 'idle_down'
+
+
+def test_each_held_shot_restarts_the_standing_pose(kid):
+    """A shot 0.25 s after the last plays shoot_<f> from its first frame again."""
+    frames_firing(kid, frames=15)
+    kid.pull_trigger(held=True)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert (kid.current_animation, kid.current_frame) == ('shoot_down', 0)
+
+
+def test_walking_while_firing_plays_walk_shoot(kid):
+    """Moving with the trigger held: walk-shoot_<f>, the walk's legs with the arms forward."""
+    kid.walk(direction_x=-1.0, direction_y=0.0)
+    kid.pull_trigger(held=True)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert kid.current_animation == 'walk-shoot_left'
+
+
+def test_walk_shoot_holds_for_a_shot_under_a_quarter_second_old(kid):
+    """Released after a shot, the kid keeps walk-shoot until the shot is 0.25 s old, then walks."""
+    kid.walk(direction_x=0.0, direction_y=1.0)
+    kid.pull_trigger(held=True)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    for _ in range(13):
+        kid.walk(direction_x=0.0, direction_y=1.0)
+        kid.pull_trigger(held=False)
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    assert kid.current_animation == 'walk-shoot_down'
+    kid.walk(direction_x=0.0, direction_y=1.0)
+    kid.pull_trigger(held=False)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert kid.current_animation == 'walk_down'
+
+
+def test_the_remote_shows_only_while_shooting(kid):
+    """Hidden standing; shown on the shot; hidden again when the pose ends."""
+    kid.dt_tick(0.0)
+    assert kid.remote.hidden
+
+    kid.pull_trigger(held=True)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    assert not kid.remote.hidden
+
+    for _ in range(round(SHOOT_POSE_SECONDS / SIXTIETH_OF_A_SECOND)):
+        kid.pull_trigger(held=False)
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    assert kid.remote.hidden
+
+
+@pytest.mark.parametrize(
+    ('direction', 'namespace', 'mirrored'),
+    [
+        ((0.0, 1.0), 'shoot_down', False),
+        ((0.0, -1.0), 'shoot_up', False),
+        ((-1.0, 0.0), 'shoot_left', False),
+        ((1.0, 0.0), 'shoot_left', True),
+    ],
+)
+def test_the_remote_is_centred_on_the_hand_point(kid, direction, namespace, mirrored):
+    """The remote's centre (6, 6) sits on the frame's hand point; a mirrored point is 31 - x."""
+    kid.walk(direction_x=direction[0], direction_y=direction[1])
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    kid.walk(direction_x=0.0, direction_y=0.0)
+    kid.pull_trigger(held=True)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    hand_x, hand_y = KID_HAND_POINTS[namespace][kid.current_frame]
+    if mirrored:
+        hand_x = 31 - hand_x
+
+    assert (kid.remote.world_x + 6, kid.remote.world_y + 6) == (
+        kid.world_x + hand_x,
+        kid.world_y + hand_y,
+    )
+    assert kid.remote.hitbox_flip_x is mirrored
+
+
+@pytest.mark.parametrize(
+    ('direction', 'in_front'),
+    [((0.0, 1.0), True), ((-1.0, 0.0), True), ((1.0, 0.0), True), ((0.0, -1.0), False)],
+)
+def test_the_remote_is_behind_the_kid_only_when_it_faces_up(kid, direction, in_front):
+    """Facing up, the hands are in front of the body, away from the viewer."""
+    kid.walk(direction_x=direction[0], direction_y=direction[1])
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert kid.remote_in_front is in_front
+
+
+@pytest.mark.parametrize(
+    ('direction', 'tip_facing'),
+    [((0.0, 1.0), 'down'), ((0.0, -1.0), 'up'), ((-1.0, 0.0), 'left'), ((1.0, 0.0), 'right')],
+)
+def test_the_muzzle_is_the_remotes_led(kid, direction, tip_facing):
+    """A zap starts at the middle of the LED's cell, wherever the remote is."""
+    kid.walk(direction_x=direction[0], direction_y=direction[1])
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    kid.walk(direction_x=0.0, direction_y=0.0)
+    kid.pull_trigger(held=True)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    tip_x, tip_y = remote_tip(facing=tip_facing)
+
+    assert kid.muzzle() == (kid.remote.world_x + tip_x + 0.5, kid.remote.world_y + tip_y + 0.5)
+
+
+@pytest.mark.parametrize(
+    ('direction', 'aim'),
+    [
+        ((1.0, 0.0), (1.0, 0.0)),
+        ((-1.0, 0.0), (-1.0, 0.0)),
+        ((0.0, 1.0), (0.0, 1.0)),
+        ((0.0, -1.0), (0.0, -1.0)),
+        ((0.7, 0.7), (math.sqrt(0.5), math.sqrt(0.5))),
+        ((-0.7, 0.7), (-math.sqrt(0.5), math.sqrt(0.5))),
+        ((0.7, -0.7), (math.sqrt(0.5), -math.sqrt(0.5))),
+        ((-0.7, -0.7), (-math.sqrt(0.5), -math.sqrt(0.5))),
+    ],
+)
+def test_the_aim_is_the_eight_way_facing(kid, direction, aim):
+    """Shots fly the way the kid faces, diagonals included, at unit length."""
+    kid.walk(direction_x=direction[0], direction_y=direction[1])
+
+    assert kid.aim() == pytest.approx(aim)
+
+
+def test_a_blinking_kid_hides_its_remote_with_itself(kid):
+    """Untouchable kids may shoot; when the blink hides the kid, the remote goes too."""
+    kid.untouchable_seconds = UNTOUCHABLE_SECONDS - BLINK_SECONDS - 0.01
+    kid.pull_trigger(held=True)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert kid.hidden
+    assert kid.remote.hidden
+
+
+def test_killing_a_kid_takes_its_remote(cache):
+    """An unplugged pad's kid leaves the yard with its remote."""
+    group = pygame.sprite.LayeredDirty()
+    kid = Kid(look_name='dex', world_x=0.0, world_y=0.0, mirror_cache=cache, groups=group)
+
+    kid.kill()
+
+    assert not group.sprites()
+
+
+def test_a_standing_shot_on_a_slow_frame_still_poses_and_places_the_remote(kid):
+    """A slow frame still shows the shot and puts the remote in the hand.
+
+    A frame longer than the pose (0.2 s, a hitch) must not leave the zap to start where the
+    remote last was (or at the yard's corner, before any shot).
+    """
+    kid.walk(direction_x=-1.0, direction_y=0.0)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    kid.walk(direction_x=0.0, direction_y=0.0)
+    kid.pull_trigger(held=True)
+    kid.dt_tick(0.2)
+    hand_x, hand_y = KID_HAND_POINTS['shoot_left'][kid.current_frame]
+
+    assert kid.current_animation == 'shoot_left'
+    assert not kid.remote.hidden
+    assert (kid.remote.world_x + 6, kid.remote.world_y + 6) == (
+        kid.world_x + hand_x,
+        kid.world_y + hand_y,
+    )

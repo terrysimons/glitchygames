@@ -5,6 +5,7 @@ Feature plan 5 (plans/2026-11-14-zombies-aint-my-neighbors-5-zombies.md), Task 4
 
 from __future__ import annotations
 
+import itertools
 import math
 
 import pygame
@@ -13,6 +14,9 @@ import pytest
 from zombies_aint_my_neighbors.kid import Kid, MirrorCache
 from zombies_aint_my_neighbors.neighborhood import WALK_SPEED
 from zombies_aint_my_neighbors.zombie import (
+    CRUMBLE_SECONDS,
+    FADE_SECONDS,
+    FLASH_SECONDS,
     GRAB_SECONDS,
     ZOMBIE_SPEED,
     Zombie,
@@ -184,3 +188,122 @@ def test_a_zombie_never_walks_faster_diagonally(cache):
 
     travelled = math.hypot(zombie.world_x - 100.0, zombie.world_y - 100.0)
     assert travelled == pytest.approx(ZOMBIE_SPEED, abs=1.0)
+
+
+# A zapped zombie (feature plan 6): one zap; a 0.05 s white flash; crumble (5 frames, 0.5 s),
+# touching no one; the slippers (crumble's last frame) fade out over 0.5 s; then it is gone
+
+
+def visible_and_clear_pixels(surface: pygame.Surface) -> tuple[tuple[int, int], tuple[int, int]]:
+    """Return one drawn pixel and one transparent pixel of a frame.
+
+    Returns:
+        (a drawn pixel's position, a transparent pixel's position).
+
+    """
+    mask = pygame.mask.from_surface(surface)
+    width, height = surface.get_size()
+    cells = [(x, y) for y in range(height) for x in range(width)]
+    drawn = next(cell for cell in cells if mask.get_at(cell))
+    clear = next(cell for cell in cells if not mask.get_at(cell))
+    return drawn, clear
+
+
+def test_a_zapped_zombie_crumbles(cache):
+    """One zap: it plays crumble, facing down, never mirrored."""
+    zombie = zombie_at(cache, 100.0, 100.0)
+    zombie.facing = ZombieFacing.RIGHT
+    zombie.dt_tick(SIXTIETH)
+
+    assert zombie.zap()
+    zombie.dt_tick(SIXTIETH)
+
+    assert zombie.current_animation == 'crumble'
+    assert zombie.is_dying
+    assert zombie.hitbox_flip_x is False
+
+
+def test_a_crumbling_zombie_takes_no_second_zap(cache):
+    """A zap passing a dying zombie is not spent on it."""
+    zombie = zombie_at(cache, 100.0, 100.0)
+    zombie.zap()
+
+    assert not zombie.zap()
+
+
+def test_a_crumbling_zombie_neither_chases_nor_touches(cache):
+    """It stays where it fell, and a kid standing in it is not knocked out."""
+    kid = kid_at(cache, 100.0, 100.0)
+    zombie = zombie_at(cache, 100.0, 100.0)
+    zombie.zap()
+
+    shamble(zombie, [kid], seconds=0.25)
+
+    assert (zombie.world_x, zombie.world_y) == (100.0, 100.0)
+    assert not touches(zombie=zombie, kid=kid)
+
+
+def test_a_zapped_zombie_flashes_white_for_its_flash_time(cache):
+    """For 0.05 s its drawn pixels are white and its clear ones stay clear; then it crumbles."""
+    assert FLASH_SECONDS == 0.05
+    zombie = zombie_at(cache, 100.0, 100.0)
+    zombie.zap()
+    zombie.dt_tick(SIXTIETH)
+    drawn, clear = visible_and_clear_pixels(zombie.drawn_frame_surface())
+
+    assert tuple(zombie.image.get_at(drawn))[:3] == (255, 255, 255)
+    assert pygame.mask.from_surface(zombie.image).get_at(clear) == 0
+    for _ in range(2):
+        zombie.dt_tick(SIXTIETH)
+    assert zombie.image is zombie.drawn_frame_surface()
+
+
+def test_the_crumble_lasts_its_five_frames_then_the_slippers_fade(cache):
+    """30 frames of crumble at full strength; then each frame fainter than the last."""
+    zombie = zombie_at(cache, 100.0, 100.0)
+    zombie.zap()
+    for _ in range(round(CRUMBLE_SECONDS / SIXTIETH)):
+        zombie.dt_tick(SIXTIETH)
+    assert zombie.current_frame == 4
+    alphas = []
+    for _ in range(round(FADE_SECONDS / SIXTIETH) - 1):
+        zombie.dt_tick(SIXTIETH)
+        alphas.append(zombie.image.get_alpha())
+
+    assert all(later < earlier for earlier, later in itertools.pairwise(alphas))
+
+
+def test_a_faded_zombie_is_gone(cache):
+    """After its crumble and fade (1.0 s), it leaves its group."""
+    group = pygame.sprite.LayeredDirty()
+    zombie = Zombie(world_x=0.0, world_y=0.0, mirror_cache=cache, groups=group)
+    zombie.zap()
+    total = round((CRUMBLE_SECONDS + FADE_SECONDS) / SIXTIETH)
+    for _ in range(total - 1):
+        zombie.dt_tick(SIXTIETH)
+    assert zombie.alive()
+
+    zombie.dt_tick(SIXTIETH)
+
+    assert not zombie.alive()
+    assert zombie.is_gone
+
+
+def test_a_faded_zombie_comes_back_fresh(cache):
+    """Reused from the pool: standing, walking, untouched by its last life."""
+    group = pygame.sprite.LayeredDirty()
+    zombie = Zombie(world_x=0.0, world_y=0.0, mirror_cache=cache, groups=group)
+    zombie.zap()
+    for _ in range(round((CRUMBLE_SECONDS + FADE_SECONDS) / SIXTIETH)):
+        zombie.dt_tick(SIXTIETH)
+    assert zombie.is_gone
+
+    zombie.spawn_at(world_x=50.0, world_y=60.0)
+    zombie.dt_tick(SIXTIETH)
+
+    assert (zombie.world_x, zombie.world_y) == (50.0, 60.0)
+    assert not zombie.is_dying
+    assert not zombie.is_gone
+    assert zombie.facing is ZombieFacing.DOWN
+    assert zombie.current_animation == 'walk_down'
+    assert zombie.image is zombie.drawn_frame_surface()

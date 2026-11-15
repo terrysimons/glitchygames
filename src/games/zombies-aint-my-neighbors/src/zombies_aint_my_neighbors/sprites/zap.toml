@@ -1,0 +1,131 @@
+# Written by zombies_aint_my_neighbors.art.build from the weapons' rig: edit the rig
+# and rebuild, never this file (plans/2026-11-14-zombies-aint-my-neighbors-props-bom.md)
+[sprite]
+name = "zap"
+description = "A zap of TV static, fired by the Channel Changer (props BOM)"
+tags = ["prop", "projectile"]
+frame_anchor = "bottom"
+
+[sprite.hitbox]
+offset_x = 2
+offset_y = 2
+width = 8
+height = 8
+
+[colors]
+"." = { red = 255, green = 0, blue = 255 }
+"O" = { red = 24, green = 16, blue = 32 }
+"a" = { red = 92, green = 92, blue = 106 }
+"b" = { red = 56, green = 56, blue = 68 }
+"c" = { red = 32, green = 32, blue = 40 }
+"h" = { red = 44, green = 44, blue = 52 }
+"g" = { red = 214, green = 218, blue = 222 }
+"G" = { red = 160, green = 166, blue = 174 }
+"d" = { red = 104, green = 110, blue = 120 }
+"D" = { red = 58, green = 62, blue = 70 }
+"j" = { red = 196, green = 255, blue = 186 }
+"J" = { red = 86, green = 236, blue = 96 }
+"k" = { red = 34, green = 150, blue = 64 }
+"r" = { red = 224, green = 44, blue = 52 }
+"w" = { red = 244, green = 244, blue = 236 }
+"m" = { red = 120, green = 124, blue = 146 }
+
+[[animation]]
+namespace = "fly"
+frame_interval = 0.06
+loop = true
+
+[[animation.frame]]
+namespace = "fly"
+frame_index = 0
+pixels = """
+.....OO.....
+...OOdgOO...
+..ODGdGDGO..
+.OggGGGgDGO.
+.OddOOOOGdO.
+ODdGOJJOgDgO
+OdddOJJOdDdO
+.OgGOOOOggO.
+.ODgDDdgGgO.
+..OgdddggO..
+...OOdGOO...
+.....OO.....
+"""
+
+[[animation.frame]]
+namespace = "fly"
+frame_index = 1
+pixels = """
+.....OO.....
+...OOGGOO...
+..ODddgGgO..
+.OdGDddgGDO.
+.ODDOOOOgDO.
+OGGGOwwOggGO
+ODDGOwwOGGGO
+.OGDOOOOgGO.
+.OgGDGDgDgO.
+..OGddDGDO..
+...OODgOO...
+.....OO.....
+"""
+
+[[animation.frame]]
+namespace = "fly"
+frame_index = 2
+pixels = """
+.....OO.....
+...OOGgOO...
+..OGGGddGO..
+.OdDggdddDO.
+.OgDOOOODGO.
+OGdGOjjOGGGO
+OgGgOjjOgggO
+.OGGOOOOgdO.
+.OGddggGddO.
+..OGdDDgGO..
+...OODdOO...
+.....OO.....
+"""
+
+[[animation]]
+namespace = "fizzle"
+frame_interval = 0.06
+loop = false
+
+[[animation.frame]]
+namespace = "fizzle"
+frame_index = 0
+pixels = """
+......O.....
+...O.OwO....
+..OJOwOOO...
+...O.OOJgO..
+..O....OO...
+.OJO........
+..O.........
+.......O....
+......OJO...
+.......O....
+............
+............
+"""
+
+[[animation.frame]]
+namespace = "fizzle"
+frame_index = 1
+pixels = """
+............
+............
+............
+............
+............
+.........O..
+........OwO.
+.........O..
+....O.......
+...OwO......
+....OwO.....
+.....O......
+"""

@@ -17,8 +17,11 @@ from glitchygames.input.state import InputSnapshot
 from zombies_aint_my_neighbors.controls import (
     DEFAULT_DEADZONE,
     gamepad_direction,
+    gamepad_firing,
     keyboard_direction,
+    keyboard_firing,
     player_direction,
+    player_firing,
 )
 from zombies_aint_my_neighbors.roster import DeviceIdentity, DeviceKind
 
@@ -189,3 +192,94 @@ def test_each_player_reads_only_their_own_device():
 
     assert approx(player_direction(snapshot=frame, device=keyboard, deadzone=0.15), (1.0, 0.0))
     assert approx(player_direction(snapshot=frame, device=pad, deadzone=0.15), (0.0, 1.0))
+
+
+# Firing (feature plan 6): J or Right Shift on the keyboard, A on a pad (button 0 on the joystick
+# layer, the same number: the engine reads that layer by the controller layer's numbers)
+RESERVED_SCANCODES = (
+    pygame.KSCAN_SPACE,
+    pygame.KSCAN_ESCAPE,
+    pygame.KSCAN_RETURN,
+    pygame.KSCAN_KP_ENTER,
+    pygame.KSCAN_P,
+    pygame.KSCAN_Q,
+    pygame.KSCAN_GRAVE,
+    pygame.KSCAN_F3,
+    pygame.KSCAN_F4,
+)
+
+
+@pytest.mark.parametrize('scancode', [pygame.KSCAN_J, pygame.KSCAN_RSHIFT])
+def test_the_keyboard_fires_with_j_or_right_shift(scancode):
+    """J under a WASD hand, Right Shift under an arrows hand."""
+    assert keyboard_firing(snapshot=snapshot(pressed_scancodes=frozenset({scancode})))
+
+
+@pytest.mark.parametrize('scancode', RESERVED_SCANCODES)
+def test_no_reserved_key_fires(scancode):
+    """The pause and game-over screens', the title's, the AI console's and the overlay's keys."""
+    assert not keyboard_firing(snapshot=snapshot(pressed_scancodes=frozenset({scancode})))
+
+
+def test_the_keyboard_does_not_fire_when_nothing_is_held():
+    """No key, no shot."""
+    assert not keyboard_firing(snapshot=snapshot())
+
+
+def test_a_pad_fires_with_a_on_its_controller_layer():
+    """The south face button."""
+    frame = snapshot(
+        controller_axes={PAD: (0, 0, 0, 0, 0, 0)},
+        controller_buttons={PAD: controller_buttons(pygame.CONTROLLER_BUTTON_A)},
+    )
+
+    assert gamepad_firing(snapshot=frame, instance_id=PAD)
+
+
+def test_a_pad_does_not_fire_with_its_other_buttons():
+    """B, X, Y and START don't fire."""
+    frame = snapshot(
+        controller_axes={PAD: (0, 0, 0, 0, 0, 0)},
+        controller_buttons={
+            PAD: controller_buttons(
+                pygame.CONTROLLER_BUTTON_B,
+                pygame.CONTROLLER_BUTTON_X,
+                pygame.CONTROLLER_BUTTON_Y,
+                pygame.CONTROLLER_BUTTON_START,
+            )
+        },
+    )
+
+    assert not gamepad_firing(snapshot=frame, instance_id=PAD)
+
+
+def test_a_pad_in_joystick_mode_fires_with_button_0():
+    """The joystick layer's button 0, A's number on the controller layer."""
+    held = tuple(button == 0 for button in range(CONTROLLER_BUTTON_COUNT))
+    frame = snapshot(device_axes={PAD: (0.0, 0.0)}, device_buttons={PAD: held})
+
+    assert gamepad_firing(snapshot=frame, instance_id=PAD)
+
+
+def test_an_unknown_pad_does_not_fire():
+    """A pad the snapshot does not hold never fires."""
+    assert not gamepad_firing(snapshot=snapshot(), instance_id=PAD)
+
+
+def test_each_player_fires_only_from_their_own_device():
+    """The keyboard's J fires for the keyboard player alone; another pad's A for that pad alone."""
+    frame = snapshot(
+        pressed_scancodes=frozenset({pygame.KSCAN_J}),
+        controller_axes={PAD: (0, 0, 0, 0, 0, 0), 4: (0, 0, 0, 0, 0, 0)},
+        controller_buttons={
+            PAD: controller_buttons(),
+            4: controller_buttons(pygame.CONTROLLER_BUTTON_A),
+        },
+    )
+    keyboard = DeviceIdentity(kind=DeviceKind.KEYBOARD, instance_id=None)
+    pad = DeviceIdentity(kind=DeviceKind.GAMEPAD, instance_id=PAD)
+    other_pad = DeviceIdentity(kind=DeviceKind.GAMEPAD, instance_id=4)
+
+    assert player_firing(snapshot=frame, device=keyboard)
+    assert not player_firing(snapshot=frame, device=pad)
+    assert player_firing(snapshot=frame, device=other_pad)

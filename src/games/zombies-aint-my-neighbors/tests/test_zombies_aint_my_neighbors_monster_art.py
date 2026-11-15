@@ -1,12 +1,17 @@
-"""The Lawn Zombie's and the TV's sprite files, checked against the character and props BOMs.
+"""The cast's and props' sprite files, checked against the character and props BOMs.
+
+The Lawn Zombie, the TV, the Channel Changer and the zap.
 
 The expected names, frames, timings, loops and transitions are copied from the BOMs (character
-BOM section 5.1, less ``rise``: decision 6; props BOM, the TV), not read from the rigs, so a rig
-that drifts from its BOM fails here.
+BOM section 5.1, less ``rise``: decision 6; props BOM, the TV with its damage stages, the
+Channel Changer and the zap), not read from the rigs, so a rig that drifts from its BOM fails
+here.
 """
 
 from __future__ import annotations
 
+import hashlib
+import itertools
 import tomllib
 from pathlib import Path
 
@@ -14,7 +19,7 @@ import pytest
 
 from glitchygames.sprites import SpriteFactory
 from glitchygames.testing import sprite_files
-from zombies_aint_my_neighbors.art import build, rig, tv_rig, zombie_rig
+from zombies_aint_my_neighbors.art import build, rig, tv_rig, weapon_rig, zombie_rig
 
 SPRITES_DIRECTORY = Path(build.__file__).resolve().parents[1] / 'sprites'
 FACINGS = ('down', 'up', 'left')
@@ -32,10 +37,31 @@ BOM_ZOMBIE_TRANSITIONS = frozenset(
     (f'grab_{facing}', f'walk_{facing}', 'animation_complete') for facing in FACINGS
 )
 BOM_ZOMBIE_HITBOX = {'offset_x': 6, 'offset_y': 12, 'width': 20, 'height': 36}
-# Props BOM, the TV
-BOM_TV = {'static': (3, 0.08, True), 'spawn': (4, 0.08, False)}
-BOM_TV_TRANSITIONS = frozenset({('spawn', 'static', 'animation_complete')})
+# Props BOM, the TV and its damage stages
+BOM_TV = {
+    'static': (3, 0.08, True),
+    'spawn': (4, 0.08, False),
+    'cracked-static': (3, 0.08, True),
+    'cracked-spawn': (4, 0.08, False),
+    'smashed-static': (3, 0.08, True),
+    'smashed-spawn': (4, 0.08, False),
+    'destroyed': (3, 0.1, True),
+}
+BOM_TV_TRANSITIONS = frozenset({
+    ('spawn', 'static', 'animation_complete'),
+    ('cracked-spawn', 'cracked-static', 'animation_complete'),
+    ('smashed-spawn', 'smashed-static', 'animation_complete'),
+})
 BOM_TV_HITBOX = {'offset_x': 4, 'offset_y': 12, 'width': 40, 'height': 32}
+# The intact TV's frames as feature plan 5 drew them (sha256 of their rows): damage stages are
+# added beside them, never drawn over them
+INTACT_TV_FINGERPRINT = '2674e988412580cf7231e6aadc92d8f1f73999c6dbab7ec8c9d761e0db7d62e7'
+# Props BOM, the Channel Changer: one frame per drawn facing, its whole canvas as its hitbox
+BOM_CHANNEL_CHANGER = {f'held_{facing}': (1, 0.08, True) for facing in FACINGS}
+BOM_CHANNEL_CHANGER_HITBOX = {'offset_x': 0, 'offset_y': 0, 'width': 12, 'height': 12}
+# Props BOM, the zap (fizzle ends in removal: no transition)
+BOM_ZAP = {'fly': (3, 0.06, True), 'fizzle': (2, 0.06, False)}
+BOM_ZAP_HITBOX = {'offset_x': 2, 'offset_y': 2, 'width': 8, 'height': 8}
 
 # (file, its BOM animations, transitions, hitbox, size, palette)
 SPRITES = {
@@ -47,9 +73,27 @@ SPRITES = {
         zombie_rig.ZOMBIE_PALETTE,
     ),
     'tv': (BOM_TV, BOM_TV_TRANSITIONS, BOM_TV_HITBOX, (48, 48), tv_rig.TV_PALETTE),
+    'channel_changer': (
+        BOM_CHANNEL_CHANGER,
+        frozenset(),
+        BOM_CHANNEL_CHANGER_HITBOX,
+        (12, 12),
+        weapon_rig.WEAPON_PALETTE,
+    ),
+    'zap': (BOM_ZAP, frozenset(), BOM_ZAP_HITBOX, (12, 12), weapon_rig.WEAPON_PALETTE),
 }
-FRAMES = {'lawn_zombie': zombie_rig.zombie_frames, 'tv': tv_rig.tv_frames}
-TEXTS = {'lawn_zombie': build.zombie_sprite_text, 'tv': build.tv_sprite_text}
+FRAMES = {
+    'lawn_zombie': zombie_rig.zombie_frames,
+    'tv': tv_rig.tv_frames,
+    'channel_changer': weapon_rig.channel_changer_frames,
+    'zap': weapon_rig.zap_frames,
+}
+TEXTS = {
+    'lawn_zombie': build.zombie_sprite_text,
+    'tv': build.tv_sprite_text,
+    'channel_changer': build.channel_changer_sprite_text,
+    'zap': build.zap_sprite_text,
+}
 
 
 def sprite_file(name: str) -> Path:
@@ -77,9 +121,48 @@ def test_the_zombie_bom_totals_23_frames():
     assert sum(frames for frames, _interval, _loop in BOM_ZOMBIE.values()) == 23
 
 
-def test_the_tv_bom_totals_7_frames():
-    """Props BOM: 3 + 4."""
-    assert sum(frames for frames, _interval, _loop in BOM_TV.values()) == 7
+def test_the_tv_bom_totals_24_frames():
+    """Props BOM: the intact 3 + 4, and the damage stages' 17."""
+    assert sum(frames for frames, _interval, _loop in BOM_TV.values()) == 24
+
+
+def test_the_weapon_boms_total_8_frames():
+    """Props BOM: the Channel Changer's 3 and the zap's 5."""
+    assert sum(frames for frames, _i, _l in (*BOM_CHANNEL_CHANGER.values(), *BOM_ZAP.values())) == 8
+
+
+def test_the_intact_tv_is_drawn_as_before():
+    """Adding damage stages leaves the intact TV's frames as feature plan 5 drew them."""
+    frames = tv_rig.tv_frames()
+    rows = '\n'.join(row for name in ('static', 'spawn') for grid in frames[name] for row in grid)
+
+    assert hashlib.sha256(rows.encode()).hexdigest() == INTACT_TV_FINGERPRINT
+
+
+def test_each_damage_stage_looks_different_from_the_one_before():
+    """Cracked, smashed and destroyed are each told apart from the stage before at a glance."""
+    frames = tv_rig.tv_frames()
+    stages = ('static', 'cracked-static', 'smashed-static', 'destroyed')
+
+    for before, after in itertools.pairwise(stages):
+        assert frames[before][0] != frames[after][0], (before, after)
+
+
+@pytest.mark.parametrize('facing', [*FACINGS, 'right'])
+def test_the_remote_tip_is_its_led(facing):
+    """A zap leaves from the LED, on every facing (right mirrors left: x' = 11 - x)."""
+    drawn = 'left' if facing == 'right' else facing
+    grid = weapon_rig.channel_changer_frames()[f'held_{drawn}'][0]
+    tip_x, tip_y = weapon_rig.remote_tip(facing=facing)
+    column = 11 - tip_x if facing == 'right' else tip_x
+
+    assert grid[tip_y][column] == weapon_rig.LED
+
+
+def test_the_remote_is_centred_on_the_hand():
+    """The hand point is the canvas's centre on every facing: the grip's cells are drawn there."""
+    for name, (grid,) in weapon_rig.channel_changer_frames().items():
+        assert grid[6][6] != '.', name
 
 
 @pytest.mark.parametrize('name', SPRITES)
@@ -121,10 +204,10 @@ def test_each_file_holds_its_bom_animations(name):
 
 @pytest.mark.parametrize('name', SPRITES)
 def test_each_file_has_its_bom_transitions(name):
-    """Each Then naming a namespace in the same file is a transition."""
+    """Each Then naming a namespace in the same file is a transition (a file may have none)."""
     found = {
         (transition['from'], transition['to'], transition['when'])
-        for transition in document(name)['transition']
+        for transition in document(name).get('transition', [])
     }
 
     assert found == SPRITES[name][1]

@@ -9,9 +9,11 @@ from __future__ import annotations
 import math
 import random
 
+import pygame
 import pytest
 
 from zombies_aint_my_neighbors.tv import (
+    HITS_PER_STAGE,
     POP_SECONDS,
     SPAWN_MAXIMUM_SECONDS,
     SPAWN_MINIMUM_SECONDS,
@@ -19,6 +21,7 @@ from zombies_aint_my_neighbors.tv import (
     ZOMBIES_IN_ALL,
     ZOMBIES_PER_TV,
     Tv,
+    TvHit,
     may_spawn,
 )
 
@@ -201,3 +204,138 @@ def test_the_zombie_stands_in_front_of_its_tv_centred():
 
     assert zombie_x + 32 / 2 == pytest.approx(tv.world_x + 48 / 2)
     assert zombie_y + 48 > tv.world_y + 48
+
+
+# Damage (feature plan 6): 3 zaps a stage, intact -> cracked -> smashed -> destroyed; each stage
+# doubles the wait between spawns; a destroyed TV spawns nothing; a started spawn finishes
+
+
+def zap_times(tv: Tv, times: int) -> list[TvHit]:
+    """Zap a TV ``times`` times, returning each hit's result.
+
+    Returns:
+        The results.
+
+    """
+    return [tv.zap() for _ in range(times)]
+
+
+def test_three_zaps_break_a_tv_into_its_next_stage():
+    """Two hits mark it; the third breaks it to the next stage."""
+    tv = tv_with_seed(1)
+
+    assert zap_times(tv, 3) == [TvHit.HIT, TvHit.HIT, TvHit.BROKE]
+    assert tv.stage == 'cracked'
+
+
+def test_nine_zaps_destroy_a_tv_and_more_pass_by():
+    """Cracked at 3, smashed at 6, destroyed at 9; a destroyed TV takes no more hits."""
+    tv = tv_with_seed(1)
+
+    results = zap_times(tv, 10)
+
+    assert results[2] == results[5] == TvHit.BROKE
+    assert results[8] == TvHit.DESTROYED
+    assert results[9] == TvHit.MISSED
+    assert tv.stage == 'destroyed'
+    assert tv.is_destroyed
+    assert HITS_PER_STAGE == 3
+
+
+@pytest.mark.parametrize(
+    ('zaps', 'animation'),
+    [(0, 'static'), (3, 'cracked-static'), (6, 'smashed-static'), (9, 'destroyed')],
+)
+def test_each_stage_shows_its_own_static(zaps, animation):
+    """The TV's animation follows its stage."""
+    tv = tv_with_seed(1)
+    zap_times(tv, zaps)
+
+    tick(tv)
+
+    assert tv.current_animation == animation
+
+
+@pytest.mark.parametrize(('zaps', 'animation'), [(3, 'cracked-spawn'), (6, 'smashed-spawn')])
+def test_a_damaged_tv_spawns_with_its_stages_spawn(zaps, animation):
+    """A cracked or smashed TV's spawn is its own stage's."""
+    tv = tv_with_seed(1)
+    zap_times(tv, zaps)
+
+    frames_until_spawn_starts(tv)
+    tick(tv)
+
+    assert tv.current_animation == animation
+
+
+@pytest.mark.parametrize(('zaps', 'factor'), [(0, 1), (3, 2), (6, 4)])
+def test_each_stage_doubles_the_wait(zaps, factor):
+    """The same stream's first wait, doubled at each stage: 6-9 s, then 12-18 s, then 24-36 s."""
+    intact = tv_with_seed(7)
+    damaged = tv_with_seed(7)
+    zap_times(damaged, zaps)
+
+    assert damaged.seconds_until_spawn == pytest.approx(intact.seconds_until_spawn * factor)
+
+
+def test_the_next_waits_are_doubled_too():
+    """After a cracked TV's spawn, its next wait is drawn and doubled."""
+    intact = tv_with_seed(7)
+    cracked = tv_with_seed(7)
+    zap_times(cracked, 3)
+    frames_until_spawn_starts(intact)
+    frames_until_spawn_starts(cracked)
+
+    assert cracked.seconds_until_spawn == pytest.approx(intact.seconds_until_spawn * 2)
+
+
+def test_a_destroyed_tv_never_spawns():
+    """A minute of frames, no spawn and no zombie due."""
+    tv = tv_with_seed(1)
+    zap_times(tv, 9)
+
+    assert not any(tick(tv) for _ in range(FRAME_LIMIT))
+    assert not tv.is_spawning
+
+
+def test_a_spawn_already_started_finishes_when_the_tv_is_destroyed():
+    """Destroyed mid-spawn, the zombie still comes out."""
+    tv = tv_with_seed(1)
+    zap_times(tv, 8)
+    frames_until_spawn_starts(tv)
+    tv.zap()
+
+    assert any(tick(tv) for _ in range(round(POP_SECONDS / SIXTIETH) + 1))
+
+
+def test_a_zapped_tv_flashes_white_for_its_flash_time():
+    """Its drawn pixels go white for 0.05 s, then it shows its frame again."""
+    tv = tv_with_seed(1)
+    tick(tv)
+    tv.zap()
+    tick(tv)
+    frame = tv.drawn_frame_surface()
+    mask = pygame.mask.from_surface(frame)
+    drawn = next(
+        (x, y)
+        for y in range(frame.get_height())
+        for x in range(frame.get_width())
+        if mask.get_at((x, y))
+    )
+
+    assert tuple(tv.image.get_at(drawn))[:3] == (255, 255, 255)
+    tick(tv)
+    tick(tv)
+    assert tv.image is tv.drawn_frame_surface()
+
+
+def test_a_zombie_leaving_frees_its_place_under_the_caps():
+    """When one of its zombies dies, the TV counts one fewer (never below none)."""
+    tv = tv_with_seed(1)
+    tv.zombies = 2
+
+    tv.zombie_left()
+    tv.zombie_left()
+    tv.zombie_left()
+
+    assert tv.zombies == 0

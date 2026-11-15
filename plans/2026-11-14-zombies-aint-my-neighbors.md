@@ -279,6 +279,7 @@ when filed; this table links to them.
 | 11 | 2026-11-14 | bug (engine) | `collision.detection.get_collision_rect_with_margin` shrinks a rect by twice the margin and pygame-ce normalises the negative size, so a box narrower than twice the margin becomes a hittable box (`Rect(10, 10, 0, 0).inflate(-4, -4)` gives `Rect(12, 12, -4, -4)`). Found by the character BOM's audit 2 | **FIXED on this branch** (owner's permission, 2026-11-14: "as long as it remains a small fix"): each side shrinks to zero at most, keeping the centre; regression tests in `tests/collision/test_collision.py` |
 | 10 | 2026-11-14 | bug (engine) | The engine's `PauseScene` leaves raw device events (JOYDEVICEREMOVED and the like) unhandled, so unplugging a pad while any game is paused raises under `--no-unhandled-events` (off by default, so players only see a log line at most). Found by this game's pause-unplug test, which runs that path without the flag | not yet |
 | 8 | 2026-11-14 | bug (repo tooling) | `scripts/build_browser_bundle.py` `render_page` puts a game's title into the page's `<title>` unescaped (the index page escapes it). Harmless for this title, but a title with `&` or `<` would make invalid HTML | not yet |
+| 12 | 2026-11-15 | feature | The engine keeps no cache of loaded sprite files: every `AnimatedSprite(filename=...)` reads and parses its TOML and rebuilds its frame surfaces, so a game that creates sprites mid-play drops frames (a Lawn Zombie: 27 to 41 ms). A shared, read-only cache of parsed files (frames and surfaces), keyed by path, would let every game spawn freely. This game works around it with pools (feature plan 6) | not yet |
 | 7 | 2026-11-14 | to consider | `tests/replay/test_golden_replays.py` assumes a game is one scene (header game == gameplay scene; the recording ends in it). A title in front of gameplay has to be left out of the golden. The tests could accept a start scene that differs from the gameplay scene | not yet |
 
 ## Feature plans
@@ -300,6 +301,9 @@ Each feature gets its own plan in `plans/`, linked here and linking back to this
    uncommitted, awaiting the owner's review. Four TVs spawn Lawn Zombies (6 to 9 s waits, 3 per
    TV, 10 in all); zombies chase and knock kids out; kids recover and blink. The props BOM is
    started ([2026-11-14-zombies-aint-my-neighbors-props-bom.md](2026-11-14-zombies-aint-my-neighbors-props-bom.md)).
+6. [The Channel Changer](2026-11-15-zombies-aint-my-neighbors-6-channel-changer.md): BUILT,
+   uncommitted, awaiting the owner's review. The first weapon, a TV remote with unlimited zaps (owner,
+   2026-11-15); zombies crumble in one zap; TVs crack, smash and die in 3 zaps a stage.
 
 ## Sources
 

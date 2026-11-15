@@ -9,14 +9,24 @@ The caps (3 zombies per TV, 10 in all) are the scene's to check, since only it s
 passes the answer to ``tick_spawning``. A TV counts a zombie when its spawn starts, so two TVs
 starting together can't pass the cap. A TV whose wait runs out while it may not spawn skips that
 spawn and waits again. TVs are not solid (feature plan 5, Collisions).
+
+Feature plan 6 (plans/2026-11-15-zombies-aint-my-neighbors-6-channel-changer.md): zaps damage a
+TV, 3 a stage, through intact, cracked, smashed and destroyed (master plan decision 19). Each
+stage shows its own static and spawn, and doubles the wait between spawns: the wait running
+when it breaks, and every wait drawn after (still one draw per wait, so a replay repeats them).
+A destroyed TV smokes and spawns nothing, though a spawn it had started finishes. A hit flashes
+the TV white for 0.05 s. ``zombie_left`` frees a place under the caps when one of its zombies dies.
 """
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Final, Self, override
 
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.world import CoordinateSpace
+from zombies_aint_my_neighbors.art.tv_rig import STAGES
+from zombies_aint_my_neighbors.hit_effects import white_silhouette
 from zombies_aint_my_neighbors.kid import SPRITES_DIRECTORY, TIME_TOLERANCE
 
 if TYPE_CHECKING:
@@ -42,6 +52,22 @@ ZOMBIE_HEIGHT: Final = 48
 SPAWN_STEP_FORWARD: Final = 6
 # The sprite file's name
 SPRITE_NAME: Final = 'tv'
+# Feature plan 6: zaps to break a stage, the wait's growth per stage, and a hit's flash
+HITS_PER_STAGE: Final = 3
+WAIT_GROWTH_PER_STAGE: Final = 2
+FLASH_SECONDS: Final = 0.05
+DESTROYED: Final = STAGES[-1]
+
+
+class TvHit(StrEnum):
+    """What a zap did to a TV."""
+
+    # Destroyed already: the zap passes by
+    MISSED = 'missed'
+    HIT = 'hit'
+    # Broke it into its next stage (cracked or smashed)
+    BROKE = 'broke'
+    DESTROYED = 'destroyed'
 
 
 def may_spawn(*, zombies_from_this_tv: int, zombies_in_all: int) -> bool:
@@ -84,22 +110,65 @@ class Tv(AnimatedSprite):
         self.world_x = world_x
         self.world_y = world_y
         self.stream = stream
+        # Zaps taken in all (the stage, so the waits, follow from it), and white flash left
+        self.hits = 0
+        self.flash_seconds = 0.0
         self.seconds_until_spawn = self._draw_wait()
         # Seconds into the current spawn (None: not spawning), and whether its zombie came out
         self.spawning_seconds: float | None = None
         self.zombie_out = False
-        # Zombies from this TV alive or popping out (zombies never die until Feature 6)
+        # Zombies from this TV alive or popping out
         self.zombies = 0
         self._started_animation: str | None = None
+
+    @property
+    def stage_index(self) -> int:
+        """The damage stage's place in ``STAGES`` (0: intact)."""
+        return min(self.hits // HITS_PER_STAGE, len(STAGES) - 1)
+
+    @property
+    def stage(self) -> str:
+        """The damage stage: intact, cracked, smashed or destroyed."""
+        return STAGES[self.stage_index]
+
+    @property
+    def is_destroyed(self) -> bool:
+        """Whether the TV is destroyed (it spawns nothing and takes no more zaps)."""
+        return self.stage == DESTROYED
+
+    def zap(self) -> TvHit:
+        """Take a zap: flash, and break into the next stage on every third.
+
+        Returns:
+            What the zap did.
+
+        """
+        if self.is_destroyed:
+            return TvHit.MISSED
+        before = self.stage_index
+        self.hits += 1
+        self.flash_seconds = FLASH_SECONDS
+        if self.stage_index == before:
+            return TvHit.HIT
+        if self.is_destroyed:
+            return TvHit.DESTROYED
+        # The wait running now grows with the stage, as every later wait does
+        self.seconds_until_spawn *= WAIT_GROWTH_PER_STAGE
+        return TvHit.BROKE
+
+    def zombie_left(self) -> None:
+        """One of this TV's zombies has gone: a place under the caps is free."""
+        self.zombies = max(0, self.zombies - 1)
 
     def _draw_wait(self) -> float:
         """Return a wait before the next spawn, drawn from the stream.
 
         Returns:
-            Seconds, from 6 to 9.
+            Seconds: 6 to 9, doubled for each stage of damage.
 
         """
-        return self.stream.uniform(SPAWN_MINIMUM_SECONDS, SPAWN_MAXIMUM_SECONDS)
+        growth = WAIT_GROWTH_PER_STAGE**self.stage_index
+        return self.stream.uniform(SPAWN_MINIMUM_SECONDS, SPAWN_MAXIMUM_SECONDS) * growth
 
     @property
     def is_spawning(self) -> bool:
@@ -125,6 +194,8 @@ class Tv(AnimatedSprite):
             if self.spawning_seconds >= SPAWN_SECONDS - TIME_TOLERANCE:
                 self.spawning_seconds = None
             return False
+        if self.is_destroyed:
+            return False
         self.seconds_until_spawn -= dt
         if self.seconds_until_spawn > TIME_TOLERANCE:
             return False
@@ -148,21 +219,49 @@ class Tv(AnimatedSprite):
         )
 
     def dt_tick(self, dt: float) -> None:
-        """Pose the TV for this frame: static, or the spawn.
+        """Pose the TV for this frame: its stage's static or spawn, or smoke; white when struck.
 
         Args:
             dt: The frame's time, in seconds.
 
         """
-        name = 'spawn' if self.is_spawning else 'static'
+        name = self.animation_name()
         if name != self._started_animation:
+            carried_frame = self.current_frame if self._is_spawn(self._started_animation) else 0
             self.play(name)
+            if self._is_spawn(name) and carried_frame:
+                # Broken mid-spawn: the new stage's spawn carries on from the same frame
+                self.set_frame(carried_frame)
             self._started_animation = name
         AnimatedSprite.update(self, dt)
-        image = self.drawn_frame_surface()
+        self.flash_seconds = max(0.0, self.flash_seconds - dt)
+        frame = self.drawn_frame_surface()
+        image = white_silhouette(frame) if self.flash_seconds > TIME_TOLERANCE else frame
         if self.image is not image:
             self.image = image
             self.dirty = 1
+
+    def animation_name(self) -> str:
+        """Return the animation for the TV's stage: its static or spawn, or ``destroyed``.
+
+        Returns:
+            The namespace.
+
+        """
+        if self.is_destroyed:
+            return DESTROYED
+        prefix = '' if self.stage == STAGES[0] else f'{self.stage}-'
+        return f'{prefix}spawn' if self.is_spawning else f'{prefix}static'
+
+    @staticmethod
+    def _is_spawn(name: str | None) -> bool:
+        """Return whether an animation is a spawn.
+
+        Returns:
+            True for any stage's spawn.
+
+        """
+        return name is not None and name.endswith('spawn')
 
     @override
     def update(self: Self, dt: float = 0.016) -> None:

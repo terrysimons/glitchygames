@@ -11,7 +11,7 @@ import argparse
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from zombies_aint_my_neighbors.art import palettes, poses, rig, tv_rig, zombie_rig
+from zombies_aint_my_neighbors.art import palettes, poses, rig, tv_rig, weapon_rig, zombie_rig
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -28,6 +28,9 @@ KID_TAGS: Final = ('character', 'kid', 'player')
 # Character BOM 5.1: the Lawn Zombie's body hitbox (a kid's), and the props BOM's TV's
 ZOMBIE_HITBOX: Final = {'offset_x': 6, 'offset_y': 12, 'width': 20, 'height': 36}
 TV_HITBOX: Final = {'offset_x': 4, 'offset_y': 12, 'width': 40, 'height': 32}
+# The props BOM's Channel Changer (its whole canvas: never collided, it is in a hand) and zap
+CHANNEL_CHANGER_HITBOX: Final = {'offset_x': 0, 'offset_y': 0, 'width': 12, 'height': 12}
+ZAP_HITBOX: Final = {'offset_x': 2, 'offset_y': 2, 'width': 8, 'height': 8}
 _BUILT_HEADER: Final = 'rebuild, never this file'
 
 
@@ -190,8 +193,52 @@ def tv_sprite_text() -> str:
     )
 
 
+def channel_changer_sprite_text() -> str:
+    """Return the Channel Changer's sprite file, as TOML.
+
+    Returns:
+        The file's text.
+
+    """
+    return character_sprite_text(
+        header=(
+            "Written by zombies_aint_my_neighbors.art.build from the weapons' rig: edit the rig",
+            f'and {_BUILT_HEADER} (plans/2026-11-14-zombies-aint-my-neighbors-props-bom.md)',
+        ),
+        name='channel_changer',
+        description="The Channel Changer: the kids' TV remote, held while shooting (props BOM)",
+        tags=('prop', 'weapon'),
+        hitbox=CHANNEL_CHANGER_HITBOX,
+        palette=weapon_rig.WEAPON_PALETTE,
+        frames=weapon_rig.channel_changer_frames(),
+        specs=weapon_rig.CHANNEL_CHANGER_ANIMATIONS,
+    )
+
+
+def zap_sprite_text() -> str:
+    """Return the zap's sprite file, as TOML.
+
+    Returns:
+        The file's text.
+
+    """
+    return character_sprite_text(
+        header=(
+            "Written by zombies_aint_my_neighbors.art.build from the weapons' rig: edit the rig",
+            f'and {_BUILT_HEADER} (plans/2026-11-14-zombies-aint-my-neighbors-props-bom.md)',
+        ),
+        name='zap',
+        description='A zap of TV static, fired by the Channel Changer (props BOM)',
+        tags=('prop', 'projectile'),
+        hitbox=ZAP_HITBOX,
+        palette=weapon_rig.WEAPON_PALETTE,
+        frames=weapon_rig.zap_frames(),
+        specs=weapon_rig.ZAP_ANIMATIONS,
+    )
+
+
 def build(*, directory: Path, kids: Sequence[KidLook] = KIDS_TO_BUILD) -> list[Path]:
-    """Write each kid's sprite file, the Lawn Zombie's and the TV's into a directory.
+    """Write each kid's sprite file, the Lawn Zombie's, the TV's and the weapons' into a directory.
 
     Returns:
         The files written.
@@ -199,7 +246,12 @@ def build(*, directory: Path, kids: Sequence[KidLook] = KIDS_TO_BUILD) -> list[P
     """
     directory.mkdir(parents=True, exist_ok=True)
     texts = {f'{look.name}.toml': sprite_file_text(look=look) for look in kids}
-    texts |= {'lawn_zombie.toml': zombie_sprite_text(), 'tv.toml': tv_sprite_text()}
+    texts |= {
+        'lawn_zombie.toml': zombie_sprite_text(),
+        'tv.toml': tv_sprite_text(),
+        'channel_changer.toml': channel_changer_sprite_text(),
+        'zap.toml': zap_sprite_text(),
+    }
     written: list[Path] = []
     for file_name, text in texts.items():
         path = directory / file_name

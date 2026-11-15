@@ -56,12 +56,13 @@ dt included: plans/2026-10-20-recording-content-hash-and-history.md.) Then, one 
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python -m scripts.record_scripted_session \
         --game zombies_aint_my_neighbors --frames 240
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python -m scripts.record_scripted_session \
-        --game zombies_aint_my_neighbors_neighborhood --frames 660
+        --game zombies_aint_my_neighbors_neighborhood --frames 720
 
 With their controls tails the recordings hold 622 (PaddleSlap), 532 (Clockwork Keep), 472 (each
 Brave Adventurer edition), 2072 (Mr. Muncher), 1614 (Drawing Fire), 342 (Zombies Ain't My
-Neighbors) and 812 (its neighborhood) frames. The neighborhood's script runs 660 frames (11 s) so
-every TV's first zombie (a 6 to 9 s wait, then the pop) is in it. Mr. Muncher's
+Neighbors) and 872 (its neighborhood) frames. The neighborhood's script runs 720 frames (12 s) so
+every TV's first zombie (a 6 to 9 s wait, then the pop) is in it, and the Channel Changer kills a
+zombie and destroys a TV (frame 659) in it. Mr. Muncher's
 script runs 1950 frames, not more (its death at about frame 1650 and the next life's READY
 included), so its fixture stays under 100 KB. Drawing Fire's cannot: its first frame alone is
 about 125 KB compressed (the scene start holds every random stream's state, a Mersenne Twister's

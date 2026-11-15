@@ -11,6 +11,14 @@ nothing, so it never advances twice a frame; this follows Brave Adventurer's Pap
 (src/games/brave-adventurer/src/brave_adventurer_papyrus/player.py). An animation is only
 started when its name changes, since ``AnimatedSprite.play`` resets the frame timer, so walking
 the same way every tick keeps the cycle going.
+
+Feature plan 6 (plans/2026-11-15-zombies-aint-my-neighbors-6-channel-changer.md): the kid shoots
+the Channel Changer. ``pull_trigger`` is called once a frame, before ``dt_tick``, with whether
+its player holds fire: a press fires at once and holding fires every 0.25 s. Standing, a shot
+plays ``shoot_<f>`` (its two frames); moving, ``walk-shoot_<f>`` plays while fire is held or the
+last shot is under 0.25 s old. The poses use the nearest straight facing (the side one at
+exactly 45 degrees); the shot flies the eight-way facing (``aim``). The remote is drawn on the
+frame's hand point only while a weapon animation plays, behind the kid when it faces up.
 """
 
 from __future__ import annotations
@@ -24,6 +32,8 @@ import pygame
 
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.world import CoordinateSpace
+from zombies_aint_my_neighbors.art.hand_points import KID_HAND_POINTS
+from zombies_aint_my_neighbors.channel_changer import ChannelChanger
 
 # The kids' sprite files (package data), written by zombies_aint_my_neighbors.art.build
 SPRITES_DIRECTORY: Final = Path(__file__).resolve().parent / 'sprites'
@@ -36,6 +46,10 @@ UNTOUCHABLE_SECONDS: Final = 2.0
 BLINK_SECONDS: Final = 0.1
 # Frame times add up in floats (30 sixtieths make 0.49999...): a step ends this close to its time
 TIME_TOLERANCE: Final = 1e-9
+# Shooting (feature plan 6): seconds between held shots (4 a second), and how long a standing
+# shot's pose lasts (shoot_<f>: two frames of 0.08 s)
+FIRE_SECONDS: Final = 0.25
+SHOOT_POSE_SECONDS: Final = 0.16
 # A kid's frame, in native pixels (BOM decision 10)
 KID_WIDTH: Final = 32
 KID_HEIGHT: Final = 48
@@ -71,6 +85,27 @@ _FACINGS_BY_SECTOR: Final = (
     KidFacing.UP,
     KidFacing.UP_RIGHT,
 )
+
+
+# The straight pose a facing shoots in: diagonals take the side one (feature plan 6)
+_SHOOTING_FACING: Final[dict[KidFacing, KidFacing]] = {
+    KidFacing.DOWN_LEFT: KidFacing.LEFT,
+    KidFacing.UP_LEFT: KidFacing.LEFT,
+    KidFacing.DOWN_RIGHT: KidFacing.RIGHT,
+    KidFacing.UP_RIGHT: KidFacing.RIGHT,
+}
+_DIAGONAL: Final = math.sqrt(0.5)
+# Which way a shot flies from each facing, at unit length (the screen's y is down)
+_AIMS: Final[dict[KidFacing, tuple[float, float]]] = {
+    KidFacing.RIGHT: (1.0, 0.0),
+    KidFacing.DOWN_RIGHT: (_DIAGONAL, _DIAGONAL),
+    KidFacing.DOWN: (0.0, 1.0),
+    KidFacing.DOWN_LEFT: (-_DIAGONAL, _DIAGONAL),
+    KidFacing.LEFT: (-1.0, 0.0),
+    KidFacing.UP_LEFT: (-_DIAGONAL, -_DIAGONAL),
+    KidFacing.UP: (0.0, -1.0),
+    KidFacing.UP_RIGHT: (_DIAGONAL, -_DIAGONAL),
+}
 
 
 class KidState(StrEnum):
@@ -212,6 +247,13 @@ class Kid(AnimatedSprite):
         self.hidden = False
         # The animation last started (None: none yet), so each is started once
         self._started_animation: str | None = None
+        # Shooting: whether fire is held this frame, seconds until the next shot may fire, the
+        # last shot's age (infinite: none yet), and whether a shot fired this frame
+        self._trigger_held = False
+        self._fire_cooldown = 0.0
+        self._shot_age = math.inf
+        self._fired_this_frame = False
+        self.remote = ChannelChanger(mirror_cache=mirror_cache, groups=groups)
 
     @property
     def can_move(self) -> bool:
@@ -236,6 +278,68 @@ class Kid(AnimatedSprite):
         self._state_seconds = 0.0
         self.moving = False
         return True
+
+    def pull_trigger(self, *, held: bool) -> bool:
+        """Say whether fire is held this frame; fire when it may (call before ``dt_tick``).
+
+        Args:
+            held: Whether the kid's player holds fire.
+
+        Returns:
+            True when a shot fires this frame.
+
+        """
+        self._trigger_held = held and self.can_move
+        if not self._trigger_held or self._fire_cooldown > TIME_TOLERANCE:
+            return False
+        self._fire_cooldown = FIRE_SECONDS
+        self._shot_age = 0.0
+        self._fired_this_frame = True
+        return True
+
+    def aim(self) -> tuple[float, float]:
+        """Return which way a shot flies: the kid's eight-way facing, at unit length.
+
+        Returns:
+            The direction (the screen's y is down).
+
+        """
+        return _AIMS[self.facing]
+
+    def muzzle(self) -> tuple[float, float]:
+        """Return where a shot starts: the remote's LED, in the world (after ``dt_tick``).
+
+        Returns:
+            The world point.
+
+        """
+        return self.remote.muzzle()
+
+    @property
+    def remote_in_front(self) -> bool:
+        """Whether the remote is drawn in front of the kid (not when it faces up)."""
+        return _SHOOTING_FACING.get(self.facing, self.facing) is not KidFacing.UP
+
+    def _shooting_state(self) -> str | None:
+        """Return the weapon animation's state this frame, or None when not shooting.
+
+        Returns:
+            ``shoot``, ``walk-shoot`` or None.
+
+        """
+        if self.state is not KidState.ACTIVE:
+            return None
+        if self._fired_this_frame:
+            # The frame a shot fires always shows it, however long the frame (a hitch longer
+            # than the pose would otherwise skip it, leaving the remote out of the hand)
+            return 'walk-shoot' if self.moving else 'shoot'
+        if self.moving:
+            if self._trigger_held or self._shot_age < FIRE_SECONDS - TIME_TOLERANCE:
+                return 'walk-shoot'
+            return None
+        if self._shot_age < SHOOT_POSE_SECONDS - TIME_TOLERANCE:
+            return 'shoot'
+        return None
 
     def walk(self, *, direction_x: float, direction_y: float) -> None:
         """Set which way the kid is going this frame (0, 0 to stand still).
@@ -264,6 +368,10 @@ class Kid(AnimatedSprite):
             return 'knocked-out'
         if self.state is KidState.RESPAWNING:
             return 'respawn'
+        shooting = self._shooting_state()
+        if shooting is not None:
+            facing = _SHOOTING_FACING.get(self.facing, self.facing)
+            return f'{shooting}_{_MIRRORED_FROM.get(facing, facing)}'
         state = 'walk' if self.moving else 'idle'
         drawn_facing = _MIRRORED_FROM.get(self.facing, self.facing)
         return f'{state}_{drawn_facing}'
@@ -276,15 +384,49 @@ class Kid(AnimatedSprite):
 
         """
         self._advance_knockout(dt)
+        self._fire_cooldown = max(0.0, self._fire_cooldown - dt)
+        self._shot_age += dt
         name = self.animation_name()
-        if name != self._started_animation:
+        # Each standing shot plays its pose from the first frame
+        restart = self._fired_this_frame and name.startswith('shoot_')
+        self._fired_this_frame = False
+        if name != self._started_animation or restart:
             self.play(name)
             self._started_animation = name
         AnimatedSprite.update(self, dt)
-        # Only standing and walking are mirrored: the knockout and respawn face down
-        facing_right = self.state is KidState.ACTIVE and self.facing in _MIRRORED_FROM
+        # Only standing, walking and shooting are mirrored: the knockout and respawn face down
+        posed_facing = (
+            _SHOOTING_FACING.get(self.facing, self.facing)
+            if name in KID_HAND_POINTS
+            else self.facing
+        )
+        facing_right = self.state is KidState.ACTIVE and posed_facing in _MIRRORED_FROM
         self.mirror_cache.show_frame(sprite=self, sprite_name=self.look_name, mirrored=facing_right)
         self._blink()
+        self._place_remote(mirrored=facing_right)
+
+    def _place_remote(self, *, mirrored: bool) -> None:
+        """Put the remote on the hand point while a weapon animation plays; away otherwise."""
+        hand_points = KID_HAND_POINTS.get(self.current_animation)
+        if hand_points is None:
+            self.remote.put_away()
+            return
+        hand_x, hand_y = hand_points[self.current_frame]
+        if mirrored:
+            hand_x = KID_WIDTH - 1 - hand_x
+        self.remote.hold(
+            hand_x=self.world_x + hand_x,
+            hand_y=self.world_y + hand_y,
+            drawn_facing=self.current_animation.rpartition('_')[2],
+            mirrored=mirrored,
+            shown=not self.hidden,
+        )
+
+    @override
+    def kill(self) -> None:
+        """Leave the yard, with the remote."""
+        self.remote.kill()
+        super().kill()
 
     def _advance_knockout(self, dt: float) -> None:
         """Move through the knockout's steps, and count down the untouchable time."""

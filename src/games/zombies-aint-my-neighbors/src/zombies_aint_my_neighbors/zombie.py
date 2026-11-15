@@ -7,6 +7,11 @@ walk frame 0 (its idle, character BOM 5.1). ``grab`` plays the lunge and clamp, 
 then the shamble resumes. Touching is the two hitboxes meeting after each is shrunk by a 4 px
 forgiveness margin (the engine's ``get_collision_rect_with_margin``).
 
+Feature plan 6 (plans/2026-11-15-zombies-aint-my-neighbors-6-channel-changer.md): one zap
+(``zap``) kills it. It flashes white for 0.05 s, plays ``crumble`` (5 frames, 0.5 s) where it
+fell, touching and chasing no one, then its last frame (the slippers) fades out over 0.5 s and
+it leaves its groups (``is_gone``).
+
 Like the kid, it chooses and advances its animation in ``dt_tick`` (the pose rule, CLAUDE.md
 World Space), and ``update`` does nothing.
 """
@@ -20,6 +25,7 @@ from typing import TYPE_CHECKING, Any, Final, Self, override
 from glitchygames.collision.detection import get_collision_rect_with_margin
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.world import CoordinateSpace
+from zombies_aint_my_neighbors.hit_effects import faded, white_silhouette
 from zombies_aint_my_neighbors.kid import SPRITES_DIRECTORY, TIME_TOLERANCE, KidState
 
 if TYPE_CHECKING:
@@ -42,6 +48,11 @@ FRAME_WIDTH: Final = 32
 FRAME_HEIGHT: Final = 48
 # Closer than this, the zombie stops rather than jitter about its target
 ARRIVED_DISTANCE: Final = 0.5
+# Feature plan 6: a hit's white flash, the crumble (5 frames of 0.1 s), the slippers' fade
+FLASH_SECONDS: Final = 0.05
+CRUMBLE_SECONDS: Final = 0.5
+FADE_SECONDS: Final = 0.5
+OPAQUE: Final = 255
 
 
 class ZombieFacing(StrEnum):
@@ -79,6 +90,8 @@ def touches(*, zombie: Zombie, kid: Kid) -> bool:
         True when they touch.
 
     """
+    if zombie.is_dying:
+        return False
     zombie_rect = get_collision_rect_with_margin(
         zombie, zombie.world_x, zombie.world_y, margin=TOUCH_MARGIN
     )
@@ -109,15 +122,50 @@ class Zombie(AnimatedSprite):
 
         """
         super().__init__(filename=str(SPRITES_DIRECTORY / f'{SPRITE_NAME}.toml'), groups=groups)
+        self.mirror_cache = mirror_cache
+        self.spawn_at(world_x=world_x, world_y=world_y)
+
+    def spawn_at(self, *, world_x: float, world_y: float) -> None:
+        """Start a fresh life at a place: as new, or reused from the scene's pool.
+
+        Args:
+            world_x: Its frame's left edge in the world.
+            world_y: Its frame's top edge in the world.
+
+        """
         self.world_x = world_x
         self.world_y = world_y
-        self.mirror_cache = mirror_cache
         self.facing = ZombieFacing.DOWN
         self.moving = False
         # Seconds of the grab left (0: not grabbing)
         self.grab_seconds = 0.0
         # The animation last started (None: none yet), so each is started once
         self._started_animation: str | None = None
+        # Seconds since the zap (None: not zapped), seconds of white flash left, and whether it
+        # has faded out and left its groups
+        self.dying_seconds: float | None = None
+        self.flash_seconds = 0.0
+        self.is_gone = False
+
+    @property
+    def is_dying(self) -> bool:
+        """Whether the zombie has been zapped (crumbling or fading)."""
+        return self.dying_seconds is not None
+
+    def zap(self) -> bool:
+        """Take a zap: flash, crumble, fade, go.
+
+        Returns:
+            True when the zap killed it; False when it was already dying.
+
+        """
+        if self.is_dying:
+            return False
+        self.dying_seconds = 0.0
+        self.flash_seconds = FLASH_SECONDS
+        self.grab_seconds = 0.0
+        self.moving = False
+        return True
 
     @property
     def is_grabbing(self) -> bool:
@@ -137,7 +185,7 @@ class Zombie(AnimatedSprite):
             dt: The frame's time, in seconds.
 
         """
-        if self.is_grabbing:
+        if self.is_grabbing or self.is_dying:
             return
         standing = [kid for kid in kids if kid.state is KidState.ACTIVE]
         if not standing:
@@ -166,6 +214,8 @@ class Zombie(AnimatedSprite):
             The namespace (right plays left's).
 
         """
+        if self.is_dying:
+            return 'crumble'
         state = 'grab' if self.is_grabbing else 'walk'
         drawn_facing = ZombieFacing.LEFT if self.facing is ZombieFacing.RIGHT else self.facing
         return f'{state}_{drawn_facing}'
@@ -177,6 +227,9 @@ class Zombie(AnimatedSprite):
             dt: The frame's time, in seconds.
 
         """
+        if self.dying_seconds is not None:
+            self._crumble(dt)
+            return
         if self.is_grabbing:
             self.grab_seconds = max(0.0, self.grab_seconds - dt)
         name = self.animation_name()
@@ -193,6 +246,30 @@ class Zombie(AnimatedSprite):
         self.mirror_cache.show_frame(
             sprite=self, sprite_name=SPRITE_NAME, mirrored=self.facing is ZombieFacing.RIGHT
         )
+
+    def _crumble(self, dt: float) -> None:
+        """Flash, crumble where it fell, fade the slippers, then leave the yard."""
+        if self.dying_seconds is None:  # pragma: no cover - dt_tick calls this only when dying
+            return
+        self.dying_seconds += dt
+        self.flash_seconds = max(0.0, self.flash_seconds - dt)
+        if self.dying_seconds >= CRUMBLE_SECONDS + FADE_SECONDS - TIME_TOLERANCE:
+            self.is_gone = True
+            self.kill()
+            return
+        if self._started_animation != 'crumble':
+            self.play('crumble')
+            self._started_animation = 'crumble'
+        AnimatedSprite.update(self, dt)
+        self.mirror_cache.show_frame(sprite=self, sprite_name=SPRITE_NAME, mirrored=False)
+        frame = self.drawn_frame_surface()
+        if self.flash_seconds > TIME_TOLERANCE:
+            self.image = white_silhouette(frame)
+            self.dirty = 1
+        elif self.dying_seconds > CRUMBLE_SECONDS + TIME_TOLERANCE:
+            left = 1.0 - (self.dying_seconds - CRUMBLE_SECONDS) / FADE_SECONDS
+            self.image = faded(frame, alpha=round(OPAQUE * left))
+            self.dirty = 1
 
     @override
     def update(self: Self, dt: float = 0.016) -> None:

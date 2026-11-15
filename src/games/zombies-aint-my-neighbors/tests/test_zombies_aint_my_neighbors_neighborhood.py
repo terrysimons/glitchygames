@@ -13,11 +13,20 @@ import random
 import pygame
 import pytest
 
+from glitchygames.effects.shake import ShakeTarget
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.randomness import reset_streams
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from glitchygames.sprites import AnimatedSprite
 from tests.input.stand_in_devices import STAND_IN_PAD
-from zombies_aint_my_neighbors.kid import KID_HEIGHT, KID_WIDTH, KNOCKOUT_SECONDS, KidState
+from zombies_aint_my_neighbors.kid import (
+    KID_HEIGHT,
+    KID_WIDTH,
+    KNOCKOUT_SECONDS,
+    Kid,
+    KidFacing,
+    KidState,
+)
 from zombies_aint_my_neighbors.neighborhood import (
     LAWN_COLOUR,
     SCREEN_MARGIN,
@@ -33,7 +42,10 @@ from zombies_aint_my_neighbors.tv import (
     TV_SIZE,
     ZOMBIES_IN_ALL,
     ZOMBIES_PER_TV,
+    Tv,
 )
+from zombies_aint_my_neighbors.zap import Zap
+from zombies_aint_my_neighbors.zombie import Zombie
 
 support = importlib.import_module('src.games.zombies-aint-my-neighbors.tests.screen_support')
 KEYBOARD = support.KEYBOARD
@@ -42,6 +54,8 @@ OPTIONS = {'input_mode': 'auto', 'no_unhandled_events': True}
 FRAME_SECONDS = 1.0 / 60.0
 SCREEN_WIDTH, SCREEN_HEIGHT = support.SCREEN_SIZE
 FULL = 32767
+# Controller-layer button tuples are indexed by CONTROLLER_BUTTON_* id
+CONTROLLER_BUTTON_COUNT = 21
 
 
 @pytest.fixture(autouse=True)
@@ -519,3 +533,294 @@ def test_the_same_seed_brings_the_same_zombies():
 
     assert places[0] == places[1]
     assert places[0]
+
+
+# The Channel Changer in the yard (feature plan 6)
+
+
+def hold_fire(*, scancodes=(), pads_firing=()) -> None:
+    """Make this frame's polled input hold keys and the A button of some pads (sticks centred).
+
+    Args:
+        scancodes: The keys held.
+        pads_firing: Instance ids of pads holding A, on the controller layer.
+
+    """
+    pressed_a = tuple(
+        button == pygame.CONTROLLER_BUTTON_A for button in range(CONTROLLER_BUTTON_COUNT)
+    )
+    set_current_input(
+        snapshot=InputSnapshot(
+            pressed_scancodes=frozenset(scancodes),
+            modifiers=0,
+            mouse_position=(0, 0),
+            mouse_buttons=(False, False, False),
+            mouse_focused=True,
+            controller_axes=dict.fromkeys(pads_firing, (0, 0, 0, 0, 0, 0)),
+            controller_buttons=dict.fromkeys(pads_firing, pressed_a),
+        )
+    )
+
+
+def face(kid: Kid, facing: KidFacing) -> None:
+    """Turn a kid to a facing, standing still."""
+    kid.facing = facing
+    kid.moving = False
+
+
+def test_holding_j_fires_zaps_from_the_kids_remote_its_way():
+    """Two zaps in half a second (0.25 s apart), flying the kid's aim."""
+    scene = neighborhood()
+    dex = scene.kids[0]
+    face(dex, KidFacing.LEFT)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+
+    run(scene, seconds=0.5)
+
+    assert len(scene.zaps) == 2
+    assert all(zap.direction == (-1.0, 0.0) for zap in scene.zaps)
+
+
+def test_a_pad_fires_for_its_own_kid():
+    """A on pad 1 fires Marisol's remote, not Dex's."""
+    roster = JoinRoster.empty().join(device=KEYBOARD).join(device=gamepad(1))
+    scene = neighborhood(roster)
+    marisol = scene.kids[1]
+    face(marisol, KidFacing.DOWN)
+    hold_fire(pads_firing=(1,))
+
+    run(scene, seconds=FRAME_SECONDS)
+
+    assert len(scene.zaps) == 1
+    assert scene.zap_owners[scene.zaps[0]] == 1
+
+
+def test_a_zap_kills_a_zombie_in_its_path_and_is_spent():
+    """Dex fires left at a zombie beside him: it crumbles and the zap is gone."""
+    scene = neighborhood()
+    dex = scene.kids[0]
+    face(dex, KidFacing.LEFT)
+    zombie = scene.add_zombie(world_x=dex.world_x - 70, world_y=dex.world_y)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+    run(scene, seconds=FRAME_SECONDS)
+    hold_fire()
+
+    run(scene, seconds=0.25)
+
+    assert zombie.is_dying
+    assert scene.zaps == []
+
+
+def test_a_zapped_zombie_frees_its_tvs_place_at_once():
+    """The caps count living zombies: a crumbling one no longer counts."""
+    scene = neighborhood()
+    dex = scene.kids[0]
+    face(dex, KidFacing.LEFT)
+    tv = scene.tvs[0]
+    tv.zombies = 1
+    zombie = scene.add_zombie(world_x=dex.world_x - 70, world_y=dex.world_y, home=tv)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+    run(scene, seconds=FRAME_SECONDS)
+    hold_fire()
+
+    run(scene, seconds=0.25)
+
+    assert zombie.is_dying
+    assert tv.zombies == 0
+
+
+def test_a_crumbled_zombie_leaves_the_yard():
+    """After its crumble and fade, it is out of the scene's zombies and sprites."""
+    scene = neighborhood()
+    zombie = scene.add_zombie(world_x=100.0, world_y=100.0)
+    zombie.zap()
+
+    run(scene, seconds=1.1)
+
+    assert zombie not in scene.zombies
+    assert zombie not in scene.all_sprites
+
+
+def test_a_zap_that_fizzles_out_leaves_the_yard():
+    """A zap at nothing flies its range, fizzles and is gone from the zaps and the sprites."""
+    scene = neighborhood()
+    face(scene.kids[0], KidFacing.LEFT)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+    run(scene, seconds=FRAME_SECONDS)
+    hold_fire()
+    (zap,) = scene.zaps
+
+    run(scene, seconds=1.0)
+
+    assert scene.zaps == []
+    assert zap not in scene.all_sprites
+    assert scene.zap_owners == {}
+
+
+def test_zaps_pass_through_kids():
+    """Dex fires down through Marisol: she stays standing and the zap flies on."""
+    roster = JoinRoster.empty().join(device=KEYBOARD).join(device=gamepad(1))
+    scene = neighborhood(roster)
+    dex, marisol = scene.kids[0], scene.kids[1]
+    marisol.world_x, marisol.world_y = dex.world_x, dex.world_y + 40
+    face(dex, KidFacing.DOWN)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+    run(scene, seconds=FRAME_SECONDS)
+    hold_fire()
+
+    run(scene, seconds=0.2)
+
+    assert marisol.state is KidState.ACTIVE
+    assert len(scene.zaps) == 1
+    assert scene.zaps[0].is_live
+
+
+def kid_under_a_tv(scene: NeighborhoodScene) -> tuple[Kid, Tv]:
+    """Put Dex just below the first TV, facing up at it.
+
+    Returns:
+        (Dex, the TV).
+
+    """
+    dex, tv = scene.kids[0], scene.tvs[0]
+    dex.world_x = tv.world_x + (TV_SIZE - KID_WIDTH) / 2
+    dex.world_y = tv.world_y + TV_SIZE + 12
+    face(dex, KidFacing.UP)
+    return dex, tv
+
+
+def test_nine_zaps_destroy_a_tv():
+    """Holding fire at a TV for 2.25 s (9 zaps at 4 a second) destroys it."""
+    scene = neighborhood()
+    scene.shake = lambda *arguments, **keywords: None
+    _dex, tv = kid_under_a_tv(scene)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+
+    run(scene, seconds=2.0)
+    assert tv.stage == 'smashed'
+    run(scene, seconds=0.5)
+
+    assert tv.is_destroyed
+
+
+def test_a_destroyed_tv_takes_no_more_zaps():
+    """Zaps fly through a destroyed TV."""
+    scene = neighborhood()
+    scene.shake = lambda *arguments, **keywords: None
+    _dex, tv = kid_under_a_tv(scene)
+    tv.hits = 9
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+    run(scene, seconds=FRAME_SECONDS)
+    hold_fire()
+
+    run(scene, seconds=0.3)
+
+    assert tv.hits == 9
+    assert len(scene.zaps) == 1
+    assert scene.zaps[0].is_live
+
+
+def test_destroying_a_tv_shakes_the_world_and_rumbles_the_destroying_pad(mocker):
+    """One short world shake, and a rumble on the pad whose kid fired the last zap."""
+    roster = JoinRoster.empty().join(device=gamepad(1))
+    scene = neighborhood(roster)
+    shake = mocker.patch.object(scene, 'shake')
+    pad = mocker.Mock()
+    devices = mocker.Mock()
+    devices.get.return_value = pad
+    mocker.patch.object(
+        NeighborhoodScene, 'input_devices', new_callable=mocker.PropertyMock, return_value=devices
+    )
+    # The only player, on pad 1, holds slot 0
+    dex = scene.kids[0]
+    tv = scene.tvs[0]
+    dex.world_x = tv.world_x + (TV_SIZE - KID_WIDTH) / 2
+    dex.world_y = tv.world_y + TV_SIZE + 12
+    face(dex, KidFacing.UP)
+    tv.hits = 8
+    hold_fire(pads_firing=(1,))
+    run(scene, seconds=FRAME_SECONDS)
+    hold_fire()
+
+    run(scene, seconds=0.3)
+
+    assert tv.is_destroyed
+    shake.assert_called_once()
+    assert shake.call_args.kwargs['targets'] == ShakeTarget.WORLD
+    devices.get.assert_called_with(instance_id=1)
+    pad.rumble.assert_called_once()
+
+
+def test_destroying_a_tv_from_the_keyboard_rumbles_nothing(mocker):
+    """The keyboard has no motors: the shake alone."""
+    scene = neighborhood()
+    shake = mocker.patch.object(scene, 'shake')
+    devices = mocker.Mock()
+    mocker.patch.object(
+        NeighborhoodScene, 'input_devices', new_callable=mocker.PropertyMock, return_value=devices
+    )
+    _dex, tv = kid_under_a_tv(scene)
+    tv.hits = 8
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+    run(scene, seconds=FRAME_SECONDS)
+    hold_fire()
+
+    run(scene, seconds=0.3)
+
+    shake.assert_called_once()
+    devices.get.assert_not_called()
+
+
+@pytest.mark.parametrize(('facing', 'in_front'), [(KidFacing.DOWN, True), (KidFacing.UP, False)])
+def test_the_remote_is_layered_against_its_kid(facing, in_front):
+    """Just in front of the kid's layer, except facing up, when it is just behind."""
+    scene = neighborhood()
+    dex = scene.kids[0]
+    face(dex, facing)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+
+    run(scene, seconds=FRAME_SECONDS)
+
+    remote_layer = scene.all_sprites.get_layer_of_sprite(dex.remote)
+    kid_layer = scene.all_sprites.get_layer_of_sprite(dex)
+    assert remote_layer == kid_layer + (1 if in_front else -1)
+
+
+def test_everything_the_scene_tracks_is_in_its_sprites_through_a_busy_game():
+    """Whatever the scene tracks is drawn, and nothing it drops is left in its sprites.
+
+    Twenty seconds of four kids firing every way: zombies spawn, die and fade; zaps fly, strike
+    and fizzle; TVs break.
+    """
+    scene = neighborhood(four_players())
+    scene.shake = lambda *arguments, **keywords: None
+    for kid, facing in zip(scene.kids.values(), KidFacing, strict=False):
+        face(kid, facing)
+    hold_fire(scancodes=(pygame.KSCAN_J,), pads_firing=(1, 2, 3))
+
+    for _ in range(round(20.0 / FRAME_SECONDS)):
+        run(scene, seconds=FRAME_SECONDS)
+        tracked = {*scene.zombies, *scene.zaps, *scene.kids.values(), *scene.tvs}
+        tracked |= {kid.remote for kid in scene.kids.values()}
+        assert tracked <= set(scene.all_sprites)
+        assert set(scene.zap_owners) == set(scene.zaps)
+        assert set(scene.zombie_homes) <= set(scene.zombies)
+    in_the_yard = {sprite for sprite in scene.all_sprites if isinstance(sprite, (Zombie, Zap))}
+    assert in_the_yard <= {*scene.zombies, *scene.zaps}
+
+
+def test_no_sprite_file_loads_during_play(mocker):
+    """Zombies and zaps come from pools built before play: twenty busy seconds load nothing."""
+    scene = neighborhood(four_players())
+    scene.shake = lambda *arguments, **keywords: None
+    for kid, facing in zip(scene.kids.values(), KidFacing, strict=False):
+        face(kid, facing)
+    loads = mocker.spy(AnimatedSprite, '__init__')
+    hold_fire(scancodes=(pygame.KSCAN_J,), pads_firing=(1, 2, 3))
+
+    run(scene, seconds=20.0)
+
+    assert loads.call_count == 0
+    # The run did reuse: zombies and zaps were taken from their pools and given back
+    assert scene.zombie_pool.given_back > 0
+    assert scene.zap_pool.given_back > scene.zap_pool.size
