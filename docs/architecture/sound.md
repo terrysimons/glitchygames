@@ -52,11 +52,14 @@ class Game(Scene):
   `WavePoint`, with the `CYCLE` and `LEVEL` named positions). Each engine context has its own
   wave registry.
 
-Compile in `setup()`. That is the convention, not a rule: a sound first asked for during gameplay
+Declare every sound the game plays on the scene class it hands `GameEngine`, as `SOUNDS`
+(effects, or a sound file's `path#name` entries): the engine compiles them when the game starts,
+in the CRT power-on's spare time, a slice a frame, and finishes them before the game is built (at
+once where the power-on is skipped). The game's own requests then find each one compiled. A game
+that declares none makes no audio engine for them. A sound first asked for during gameplay still
 compiles in that frame, and the engine counts it, logs it and shows it in the Audio panel as a
-gameplay compile, so you can move it into `setup()`. A setup whose compiles take more than 50 ms
-logs one INFO line naming its slowest sounds. A loading screen can spread compiles across frames
-with `audio.sounds.warm(requests, budget_ms=...)`.
+gameplay compile, so you can add it to `SOUNDS`. A setup whose compiles take more than 50 ms logs
+one INFO line naming its slowest sounds.
 
 ## Short names and paths
 

@@ -134,3 +134,31 @@ def test_requested_sounds_are_the_librarys_sounds_of_the_effects():
         assert sound is audio.sound(sounds.EFFECTS[name])
         assert sound.effect is sounds.EFFECTS[name]
         assert sound.playback_defaults.volume == OLD_VOLUMES[name]
+
+
+@pytest.mark.parametrize('edition', ['classic', 'papyrus'])
+def test_building_either_edition_compiles_nothing_the_launcher_did_not_declare(edition):
+    """The launcher's SOUNDS hold every sound either game asks for, so choosing one compiles none.
+
+    Each edition's own SOUNDS (the shared base's) are the same.
+    """
+    import pygame
+
+    from brave_adventurer.game import BraveAdventurerScene
+    from brave_adventurer_modes.title import TitleScene
+    from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
+    from glitchygames.audio.startup import StartupSounds
+    from glitchygames.display_mode import set_display_mode
+    from glitchygames.scenes import SceneManager
+
+    scene_class = BraveAdventurerScene if edition == 'classic' else PapyrusBraveAdventurerScene
+    if pygame.display.get_surface() is None:
+        set_display_mode(size=(800, 480))
+    audio = SceneManager().audio
+    StartupSounds(audio=audio, sources=TitleScene.SOUNDS).finish()
+    declared = audio.sounds.statistics().compiles
+
+    scene_class(options={'input_mode': 'joystick'})
+
+    assert audio.sounds.statistics().compiles == declared
+    assert tuple(scene_class.SOUNDS) == tuple(TitleScene.SOUNDS)

@@ -30,6 +30,7 @@ import pygame
 from brave_adventurer.game import BraveAdventurerScene
 from brave_adventurer_core.constants import HUD_SHADOW_COLOR, HUD_TEXT_COLOR, SKY_COLOR
 from brave_adventurer_core.drawing import draw_pyramids, draw_sky
+from brave_adventurer_core.sounds import EFFECTS
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.fonts import FontManager
 from glitchygames.input import ActionMap
@@ -238,6 +239,9 @@ class TitleScene(Scene):
 
     NAME = 'Brave Adventurer'
     VERSION = '1.0'
+    # The sounds of the game chosen here, compiled when the launcher starts (Scene.SOUNDS), so
+    # choosing a game compiles none
+    SOUNDS = tuple(EFFECTS.values())
 
     def __init__(
         self: Self,

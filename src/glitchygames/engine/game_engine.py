@@ -195,6 +195,7 @@ if TYPE_CHECKING:
     from types import FrameType
 
     from glitchygames.ai_console import AiConsole
+    from glitchygames.audio.startup import StartupSounds
     from glitchygames.audio.voices import ChannelPartition
     from glitchygames.crt_power_on_sound import CrtPowerOnSound
     from glitchygames.input.devices import OpenedController, ReplayDeviceRegistry
@@ -1722,6 +1723,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # The mixer's channels: live voices, the sound library's, the legacy rest (set as the
         # event managers are made; None before)
         self.channel_partition: ChannelPartition | None = None
+        # The game's declared sounds still to compile at start (Scene.SOUNDS), made once
+        self._startup_sounds: StartupSounds | None = None
         self._partition_a_host_now()
         self.drop_manager: DropEventManager
         self.controller_manager: ControllerEventManager | None = None
@@ -3765,12 +3768,16 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             if self._begin_run():
                 if self._power_on_plays():
                     sound_cues = self._power_on_sound_cues()
+                    startup_sounds = self._prepared_startup_sounds()
                     self._hand_back_power_on(
                         outcome=await play_power_on_async(
                             screen=self.screen,
                             sources=active_sources(),
                             wait_for_tick=wait_for_tick,
                             sound_cues=sound_cues,
+                            idle_work=(
+                                None if startup_sounds is None else startup_sounds.compile_for
+                            ),
                         ),
                         sound_cues=sound_cues,
                     )
@@ -3912,9 +3919,13 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             return
         if self._power_on_plays():
             sound_cues = self._power_on_sound_cues()
+            startup_sounds = self._prepared_startup_sounds()
             self._hand_back_power_on(
                 outcome=play_power_on(
-                    screen=self.screen, sources=active_sources(), sound_cues=sound_cues
+                    screen=self.screen,
+                    sources=active_sources(),
+                    sound_cues=sound_cues,
+                    idle_work=None if startup_sounds is None else startup_sounds.compile_for,
                 ),
                 sound_cues=sound_cues,
             )
@@ -4063,6 +4074,12 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         if self.ai_link is not None:
             self.ai_link.start()
 
+        # Every declared sound compiled before the game is built: what the power-on's idle time
+        # left, or all of them where it was skipped (and in a hosted start, which has none)
+        startup_sounds = self._prepared_startup_sounds()
+        if startup_sounds is not None:
+            startup_sounds.finish()
+
         # The setter gives the scene manager this engine's options (manager.engine_options).
         # Before the game is built: a constructor asking for scene_manager.audio (a sprite
         # loading its sound) gets an audio engine made from these options, where it once got
@@ -4078,6 +4095,21 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         self.scene_manager.switch_to_scene(scene)
         self._configure_timer_and_performance(paced_by_timer=paced_by_timer)
         self._start_requested_trace_recording()
+
+    def _prepared_startup_sounds(self: Self) -> StartupSounds | None:
+        """Make, once, the compile of the game's declared sounds (``Scene.SOUNDS``).
+
+        Returns:
+            It, over this context's audio engine; None when the game declares no sounds (so a
+            game without sound makes no audio engine).
+        """
+        if self._startup_sounds is None and self.game.SOUNDS:
+            from glitchygames.audio.startup import StartupSounds
+
+            self._startup_sounds = StartupSounds(
+                audio=self.scene_manager.audio_for(game_engine=self), sources=self.game.SOUNDS
+            )
+        return self._startup_sounds
 
     def _describe_exit_request(self: Self, *, exit_status: object) -> str:
         """Describe a SystemExit that ended the run, for the log and the replay report.

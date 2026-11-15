@@ -1236,3 +1236,17 @@ def test_main_runs_the_game_through_the_engine(mocker, capsys):
 
     assert exit_info.value.code == ExitCode.SUCCESS
     assert 'Replay matched' in capsys.readouterr().out
+
+
+def test_building_the_game_compiles_nothing_it_did_not_declare():
+    """Every sound the game asks for is in Game.SOUNDS, compiled (decoded) when it starts."""
+    from glitchygames.audio.startup import StartupSounds
+    from glitchygames.scenes import SceneManager
+
+    audio = SceneManager().audio
+    StartupSounds(audio=audio, sources=Game.SOUNDS).finish()
+    declared = audio.sounds.statistics().compiles
+
+    Game(options=dict(PADDLESLAP_TEST_OPTIONS))
+
+    assert audio.sounds.statistics().compiles == declared

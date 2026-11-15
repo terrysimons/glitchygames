@@ -1601,3 +1601,19 @@ class TestClockFaceVictory:
             len([sprite for sprite in victory.all_sprites if sprite.rect.width == title_size[0]])
             == 1
         )
+
+
+def test_building_a_floor_compiles_nothing_the_game_did_not_declare():
+    """Every sound a floor asks for is in ClockworkKeepScene.SOUNDS, compiled at start."""
+    from glitchygames.audio.startup import StartupSounds
+    from glitchygames.scenes import SceneManager
+
+    if pygame.display.get_surface() is None:
+        set_display_mode(size=(800, 480))
+    audio = SceneManager().audio
+    StartupSounds(audio=audio, sources=ClockworkKeepScene.SOUNDS).finish()
+    declared = audio.sounds.statistics().compiles
+
+    ClockworkKeepScene(options={'input_mode': 'joystick'})
+
+    assert audio.sounds.statistics().compiles == declared

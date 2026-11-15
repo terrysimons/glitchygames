@@ -313,7 +313,7 @@ class AudioEngine:
         waves: The context's wave registry.
         buses: The bus tree.
         tuning: The tuning pitches resolve with (part of what a sound is).
-        sounds: The sound library (``warm``, ``names``, ``statistics``).
+        sounds: The sound library (``names``, ``statistics``, ``add_effects``).
         accountant: The audio work accounting (impl spec 11.0).
         cache_mode: The cache mode.
     """

@@ -52,7 +52,6 @@ import numpy as np
 import numpy.typing as npt
 import pygame
 
-from glitchygames import clock
 from glitchygames.audio.assets import (
     INSTRUMENT_SEPARATOR,
     RECORDED_SOUND_SUFFIXES,
@@ -218,7 +217,7 @@ class CacheStatistics:
 
 @dataclass(frozen=True, slots=True)
 class SoundRequest:
-    """One set of ``sound()`` arguments, for ``SoundLibrary.warm``.
+    """One set of ``sound()`` arguments, as the library resolves them.
 
     Attributes:
         source: A short name, a path, or an ``Instrument``.
@@ -880,34 +879,6 @@ class SoundLibrary:
             )
         self._engine_sounds[request_key] = sound
         return sound
-
-    def warm(self, requests: Sequence[SoundRequest], *, budget_ms: float | None = None) -> float:
-        """Compile as many of the requests as fit in a time budget (for a loading scene).
-
-        At least one request compiles per call. It uses the same compile path as ``sound()``.
-
-        Args:
-            requests: The ``sound()`` argument sets to have compiled.
-            budget_ms: The milliseconds to spend this call, or None for no limit.
-
-        Returns:
-            Progress from 0 to 1: the share of requests that are compiled.
-        """
-        if not requests:
-            return 1.0
-        started = clock.raw_counter_ns()
-        compiled_this_call = 0
-        done = 0
-        for request in requests:
-            sound, known = self._lookup(request)
-            if self._cache is CacheMode.RAM and not sound.is_compiled:
-                elapsed_ms = (clock.raw_counter_ns() - started) / 1_000_000
-                if budget_ms is not None and compiled_this_call > 0 and elapsed_ms >= budget_ms:
-                    continue
-                compiled_this_call += 1
-            self._ensure_compiled(sound, known=known)
-            done += 1
-        return done / len(requests)
 
     def _ensure_compiled(self, sound: Sound, *, known: bool) -> None:
         """Count the request and, under ``ram``, compile the sound unless it is already.

@@ -53,7 +53,7 @@ from brave_adventurer_core.drawing import (
     draw_sky,
 )
 from brave_adventurer_core.levels import LEVEL_1
-from brave_adventurer_core.sounds import BraveAdventurerSounds, request_sounds
+from brave_adventurer_core.sounds import EFFECTS, BraveAdventurerSounds, request_sounds
 from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
@@ -94,6 +94,8 @@ class BraveAdventurerSceneBase(Scene):
 
     # NAME is each game's own (the --version line and the setup log)
     VERSION = '1.0'
+    # Every sound the game plays, compiled when it starts (Scene.SOUNDS)
+    SOUNDS = tuple(EFFECTS.values())
     # Each game's own: its level manager (its enemies and gold scarabs), its player and where
     # it starts (standing on the ground), and the name its high scores are saved under
     LEVEL_MANAGER_CLASS: ClassVar[type[LevelManager]]

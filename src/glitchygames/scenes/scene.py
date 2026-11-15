@@ -82,10 +82,11 @@ from glitchygames.timing import DEFAULT_TARGET_FPS
 from glitchygames.world import aim_camera, is_world_positioned, position_world_sprites
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Mapping, Sequence
     from pathlib import Path
 
     from glitchygames.audio.accounting import AudioFrameAccount
+    from glitchygames.audio.effects import Effect
     from glitchygames.audio.engine import AudioEngine
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
@@ -3157,6 +3158,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # package directory (an absolute path is used as is), or None for no short names
     # (glitchygames/audio/engine.py; sound engine feature spec 3.2)
     SOUND_DIRECTORY: ClassVar[str | None] = 'sounds'
+    # Every sound the game plays, on the class it hands GameEngine: compiled when the game
+    # starts, in the CRT power-on's idle time, so none compiles mid-frame (and under
+    # --sound-cache disk a later launch reads them back). Complete sounds only: effects, or a
+    # sound file's 'path#name' entries (a short name resolves through a scene, and none is active
+    # yet; an instrument needs a pitch). Empty: a game that declares none makes no audio engine
+    # for them (glitchygames/audio/startup.py; plans/2026-11-14-sound-migration.md decision 6)
+    SOUNDS: ClassVar[Sequence[str | Effect]] = ()
 
     def __init__(
         self: Self,

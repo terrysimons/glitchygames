@@ -14,7 +14,9 @@ import pytest
 from glitchygames.audio import CacheMode, Instrument
 from glitchygames.audio import voices as voices_module
 from glitchygames.audio.accounting import CompileRecord
+from glitchygames.audio.effects import Effect, Tone
 from glitchygames.audio.engine import AudioEngine, existing_audio_engine
+from glitchygames.audio.synth import Envelope, Waveform
 from glitchygames.audio.voices import (
     ChannelPartition,
     ChannelsHeldError,
@@ -441,3 +443,80 @@ def test_a_constructor_that_asks_for_audio_gets_the_games_sound_options(mocker):
     engine.start()
 
     assert engine.running_game.instance.cache_mode_seen.value == 'none'
+
+
+def _declared_effect(name: str, frequency: float) -> Effect:
+    """A short one-tone effect for a game to declare."""
+    envelope = Envelope(attack=0.001, decay=0.0, sustain_level=1.0, release=0.01)
+    tone = Tone(waveform=Waveform.SINE, start_frequency=frequency, duration=0.02, envelope=envelope)
+    return Effect(name=name, tones=(tone,))
+
+
+# Declared sounds are complete sounds: effects, or a sound file's path#name entries
+DECLARED = (
+    _declared_effect('low', 220.0),
+    _declared_effect('mid', 330.0),
+    _declared_effect('high', 440.0),
+)
+
+
+class DeclaringGame(Scene):
+    """A stand-in game that declares its sounds and records what was compiled when it was built."""
+
+    NAME = 'DeclaringGame'
+    VERSION = '1.0'
+    SOUNDS = DECLARED
+
+    def __init__(self, *args, **kwargs):
+        """Count the compiles done before the game was built, then ask for its sounds."""
+        super().__init__(*args, **kwargs)
+        audio = self.scene_manager.audio
+        self.compiles_before_build = audio.sounds.statistics().compiles
+        self.compiled_at_build = [audio.sound(source).is_compiled for source in self.SOUNDS]
+
+    def dt_tick(self, dt):
+        """Quit in the first frame."""
+        del dt
+        self.scene_manager.quit()
+
+
+def test_a_games_declared_sounds_are_compiled_before_it_is_built(mocker):
+    """Where the power-on is skipped (the dummy driver), every declared sound compiles first."""
+    engine = build_engine(mocker, game=DeclaringGame)
+    engine.start()
+
+    game = engine.running_game.instance
+    assert game.compiles_before_build == len(DECLARED)
+    assert all(game.compiled_at_build)
+
+
+def test_the_declared_sounds_compile_in_the_power_ons_idle_time(mocker):
+    """With the power-on playing, its frames' idle work compiles them; the rest before the build."""
+    from glitchygames.audio.startup import StartupSounds
+
+    mocker.patch('glitchygames.clock.raw_sleep')
+    slices = mocker.spy(StartupSounds, 'compile_for')
+    finish = mocker.spy(StartupSounds, 'finish')
+    engine = build_engine(
+        mocker,
+        game=DeclaringGame,
+        extra_arguments=('--crt-power-on', 'on', '--crt-power-on-sound', 'off'),
+    )
+    engine.start()
+
+    assert slices.call_count >= 1
+    finish.assert_called_once()
+    game = engine.running_game.instance
+    assert game.compiles_before_build == len(DECLARED)
+    assert all(game.compiled_at_build)
+
+
+def test_a_declared_sound_that_cannot_compile_ends_the_run_through_the_crash_boundary(mocker):
+    """It is raised where it compiles, inside start()'s boundary: logged, exit INTERNAL_ERROR."""
+    broken = type('BrokenGame', (DeclaringGame,), {'SOUNDS': ('/nowhere/sounds.toml#gone',)})
+    engine = build_engine(mocker, game=broken)
+
+    with pytest.raises(SystemExit) as exit_information:
+        engine.start()
+
+    assert exit_information.value.code == ExitCode.INTERNAL_ERROR

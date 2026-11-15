@@ -10,7 +10,7 @@ from glitchygames.audio.assets import clear_sound_file_cache
 from glitchygames.audio.effects import Effect, Tone
 from glitchygames.audio.exceptions import SoundAssetError, SoundRenderError
 from glitchygames.audio.instrument import Instrument
-from glitchygames.audio.library import CacheMode, SoundRequest
+from glitchygames.audio.library import CacheMode
 from glitchygames.audio.spec import PlaybackDefaults
 from glitchygames.audio.synth import Envelope, Waveform
 from glitchygames.audio.waves import Harmonics, Wave, current_wave_registry
@@ -502,46 +502,6 @@ def test_a_mixer_that_is_not_signed_16_bit_is_refused(mocker):
 
     with pytest.raises(AudioUnavailableError, match='signed 16-bit'):
         sound.mixer_sound()
-
-
-def test_warm_compiles_what_fits_the_budget_and_reports_progress():
-    """Warm compiles requests while the budget lasts and returns the fraction done."""
-    library, _ = make_library()
-    requests = [
-        SoundRequest(source=PULSE_INSTRUMENT, scene_sound_directory=None, pitch=pitch)
-        for pitch in ('C5', 'D5', 'E5', 'F5')
-    ]
-
-    assert library.warm(requests, budget_ms=0.0) == pytest.approx(0.25)  # one at least
-    assert library.statistics().compiles == 1
-    assert library.warm(requests, budget_ms=1e9) == 1.0  # a huge budget finishes the rest
-    assert library.statistics().compiles == 4
-    assert library.warm(requests, budget_ms=0.0) == 1.0  # nothing left to compile
-    assert library.warm([]) == 1.0
-    assert library.statistics().compiles == 4
-
-
-def test_warm_without_a_budget_compiles_everything():
-    """No budget means compile every request."""
-    library, _ = make_library()
-    requests = [
-        SoundRequest(source=PULSE_INSTRUMENT, scene_sound_directory=None, pitch=pitch)
-        for pitch in ('C5', 'D5')
-    ]
-
-    assert library.warm(requests) == 1.0
-    assert library.statistics().compiles == 2
-
-
-def test_warm_under_cache_none_only_resolves():
-    """With cache none there is nothing to keep, so warm resolves and reports done."""
-    library, _ = make_library(CacheMode.NONE)
-    requests = [SoundRequest(source=PULSE_INSTRUMENT, scene_sound_directory=None, pitch='C5')]
-
-    assert library.warm(requests) == 1.0
-    assert library.warm(requests) == 1.0
-    assert library.statistics().compiles == 0
-    assert library.statistics().bytes_held == 0
 
 
 def test_the_fixture_sfx_slap_decodes_without_a_mixer(no_mixer):

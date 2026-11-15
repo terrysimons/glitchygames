@@ -289,6 +289,8 @@ class MrMuncherScene(Scene):
 
     NAME = 'Mr. Muncher'
     VERSION = '2.0'
+    # Every sound the game plays, compiled when it starts (Scene.SOUNDS)
+    SOUNDS = EFFECTS
     # After a hitch (a window drag, focus loss) logic advances at most this much in one frame
     MAX_FRAME_SECONDS: ClassVar[float | None] = 0.05
 

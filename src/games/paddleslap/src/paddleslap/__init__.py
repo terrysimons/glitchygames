@@ -166,6 +166,8 @@ class Game(Scene):
     # Set your game name/version here.
     NAME = 'Paddle Slap'
     VERSION = '1.1'
+    # Every sound the game plays, compiled when it starts (Scene.SOUNDS)
+    SOUNDS = tuple(f'{SOUNDS_FILE}#{name}' for name in SOUND_NAMES)
 
     def __init__(
         self: Self,

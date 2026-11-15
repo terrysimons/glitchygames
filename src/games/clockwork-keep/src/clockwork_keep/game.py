@@ -202,6 +202,8 @@ class ClockworkKeepScene(Scene):
 
     NAME = 'Clockwork Keep'
     VERSION = '1.0'
+    # Every sound the game plays, compiled when it starts (Scene.SOUNDS)
+    SOUNDS = EFFECTS
     # Cap dt so a hitch (focus loss, Cmd-Tab, ...) advances the game at most 50 ms (20 fps).
     # The engine caps the dt dt_tick and the camera aim receive. A capped tick still moves a
     # falling Tinker 40 px, so the ground check sweeps the fall (_resolve_ground_collision)

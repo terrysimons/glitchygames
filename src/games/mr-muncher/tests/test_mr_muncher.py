@@ -902,3 +902,17 @@ def test_main_runs_the_game_through_the_engine(mocker, capsys):
 
     assert exit_info.value.code == ExitCode.SUCCESS
     assert 'Replay matched' in capsys.readouterr().out
+
+
+def test_building_a_level_compiles_nothing_the_game_did_not_declare(save_directory):
+    """Every sound a level asks for is in MrMuncherScene.SOUNDS, compiled when the game starts."""
+    from glitchygames.audio.startup import StartupSounds
+    from glitchygames.scenes import SceneManager
+
+    audio = SceneManager().audio
+    StartupSounds(audio=audio, sources=MrMuncherScene.SOUNDS).finish()
+    declared = audio.sounds.statistics().compiles
+
+    MrMuncherScene(options={'input_mode': 'joystick'})
+
+    assert audio.sounds.statistics().compiles == declared
