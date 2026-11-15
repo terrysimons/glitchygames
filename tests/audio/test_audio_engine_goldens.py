@@ -1,4 +1,4 @@
-"""PaddleSlap's golden replay still matches under each sound cache mode.
+"""Golden replays still match under each sound cache mode, and cache disk reads its files back.
 
 A repository test (tests/test_suite_collection.py ``REPOSITORY_TEST_FILES``): it replays our
 member's golden, found through the workspace (tests/workspace_goldens.py), headless in a child
@@ -6,6 +6,7 @@ member's golden, found through the workspace (tests/workspace_goldens.py), headl
 whichever mode is given.
 """
 
+import os
 from pathlib import Path
 
 import pytest
@@ -44,13 +45,50 @@ def test_golden_replay_still_matches_under_each_cache_mode(cache_mode):
     assert replayed.returncode == ExitCode.SUCCESS, replayed.stdout
 
 
-def test_the_cache_mode_reaches_the_replayed_game():
-    """The disk mode, refused until M3, is refused in the replay: the option reached the game."""
-    replayed = replay_recording_headless(
-        console_script=GOLDEN_GAME,
-        path=paddleslap_golden(),
-        game_arguments=('--sound-cache', 'disk'),
+def golden_of(console_script: str) -> Path:
+    """A game's golden replay, from the workspace (its first, by path).
+
+    Returns:
+        Its path.
+    """
+    return min(
+        path
+        for path in every_games_golden(project_root=PROJECT_ROOT)
+        if recording_console_script(path=path) == console_script
     )
 
-    assert replayed.returncode == ExitCode.OPTIONS_REFUSED, replayed.stdout
-    assert 'arrives in M3' in replayed.stdout
+
+# A game whose sounds come from the sound library (plans/2026-11-14-sound-migration.md)
+DISK_GOLDEN_GAME = 'clockwork-keep'
+LONG_AGO = 1_000_000.0
+
+
+def test_a_golden_under_cache_disk_writes_its_sounds_then_reads_them_back(disk_sound_cache):
+    """Cold, the replay matches and writes its sounds; warm, it matches and reads every one back.
+
+    Run in children, so the option and the cache root (inherited from the environment) both
+    reach the replayed game. A disk hit marks its file used; a write moves a new file into place.
+    So with every file's time set long ago before the warm run, every time refreshed, every file
+    the same file (its inode) and none added means every sound was read from disk and none was
+    compiled and written again.
+    """
+    golden = golden_of(DISK_GOLDEN_GAME)
+    arguments = ('--sound-cache', 'disk')
+
+    cold = replay_recording_headless(
+        console_script=DISK_GOLDEN_GAME, path=golden, game_arguments=arguments
+    )
+    written = sorted((disk_sound_cache / 'sounds').rglob('*.wav'))
+    inodes = {path: path.stat().st_ino for path in written}
+    for path in written:
+        os.utime(path, (LONG_AGO, LONG_AGO))
+    warm = replay_recording_headless(
+        console_script=DISK_GOLDEN_GAME, path=golden, game_arguments=arguments
+    )
+
+    assert cold.returncode == ExitCode.SUCCESS, cold.stdout
+    assert warm.returncode == ExitCode.SUCCESS, warm.stdout
+    assert written
+    assert sorted((disk_sound_cache / 'sounds').rglob('*.wav')) == written
+    assert all(path.stat().st_mtime > LONG_AGO for path in written)
+    assert {path: path.stat().st_ino for path in written} == inodes
