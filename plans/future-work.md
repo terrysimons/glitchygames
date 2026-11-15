@@ -1159,6 +1159,23 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   (#211, `chore/claude-md-and-hook-speedups`): the block is gone (CLAUDE.md is 333fcc0d's again
   plus later edits), and `tests/test_claude_md.py` fails on a repeated heading or component name
   or past 360 lines; both checks failed on the 1476-line file.
+- **Generate sounds on first use, cached on disk, never stored in the repository** (the owner,
+  2026-11-14: "on first use", for the engine's sounds and for the instrument and demo WAVs too).
+  An installed wheel runs no code at install time, so first use is the earliest point.
+  - Runtime sounds: compiled samples are cached only in memory, per process
+    (`ENGINE_SOUND_CACHE`, `src/glitchygames/audio/library.py`), so every launch compiles them
+    again (the CRT power-on sound included). Add a disk cache in the user's cache folder
+    (`src/glitchygames/state/paths.py` finds the platform folders), keyed by the engine version
+    and the sound's identity, so a machine compiles each sound once. Replays must still get the
+    same samples (a cached sample equals a fresh compile; test it), and a corrupt or old-version
+    entry is compiled again and replaced, never trusted.
+  - Listening WAVs: the instrument demos (`scripts/make_instrument_demos.py`, 724 files, about
+    219 MB) and the pipe tunes (`scripts/make_pipes.py`, `scripts/pipe_tunes.py`, about 85 MB)
+    are written to the git-ignored `build/` by hand today, so an installed copy cannot make them.
+    Make them `glitchygames` subcommands that render into the same cache folder on first request
+    (a family or instrument at a time, not all 300 MB at once).
+  - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
+    clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
 - **Time each pre-push hook before splitting `lint` into hooks of its own** (the owner asked,
   2026-11-14, whether one hook per lint step would be faster). pre-commit runs hooks one after
   another; it runs in parallel only inside a hook given file names, and every hook here has
