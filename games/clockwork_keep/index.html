@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../img/favicon.ico">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -3403,7 +3403,7 @@ holds. The scene owns everything on a floor. The five sprite classes all declare
             platform_sprites, elevator_sprites
             moving_gear_sprites, collectible_sprites
             actions: ActionMap
-            sounds: SoundBank
+            sounds: dict[str, Sound]
             camera: Camera2D
             saves: SaveManager
             victory_platform
@@ -3789,15 +3789,16 @@ are the game's (Clockwork Keep box).</p>
     Old-&gt;&gt;Old: _check_elevator (next dt_tick):&lt;br/&gt;on an elevator, not the last floor
     Old-&gt;&gt;New: ClockworkKeepScene(floor_index=N+1,&lt;br/&gt;player_score, player_lives, options)
     Old-&gt;&gt;ET: ElevatorTransition(duration=4.0,&lt;br/&gt;easing='ease_in_sine', player_surface=...)
-    Old-&gt;&gt;SM: create_voice(owner=transition), motor.start()
+    Old-&gt;&gt;SM: audio.sound(ELEVATOR_MOTOR).start(owner=transition)
     Old-&gt;&gt;SM: transition_to(New, ET)&lt;br/&gt;with a cue at progress 1.0
     loop every frame of the ride
         ET-&gt;&gt;Old: on_update: _update_elevator_motor(transition)
         Old-&gt;&gt;SM: rumble.set_sustained(low, high)&lt;br/&gt;scaled by car speed
-        Note over Old: motor pitch 45 to 110 Hz, volume 0.15 to 0.6
+        Old-&gt;&gt;SM: motor.set('speed', car speed 0-1)
+        Note over Old: its routes: pitch 45 to 110 Hz, level 0.15 to 0.6
     end
     ET-&gt;&gt;Old: cue 1.0: _elevator_arrived()
-    Old-&gt;&gt;SM: motor.stop_now(), rumble.clear_sustained()
+    Old-&gt;&gt;SM: motor.cancel(), rumble.clear_sustained()
     Old-&gt;&gt;SM: play 'elevator_clank',&lt;br/&gt;SCREEN shakes: bounce + rattle
     SM-&gt;&gt;New: the ride ends, Floor N+1 is active</code></pre>
 <p>The ride is <code>src/glitchygames/transitions/elevator.py</code>: a tall composite of the old floor, a shaft and
@@ -3844,10 +3845,11 @@ lands on the ground: the pit check is a safety net, not a hazard the levels use.
 check sweeps the fall, even a slow frame at terminal speed lands on the ground rather than
 dropping through it.</p>
 <h2 id="sound">Sound<a class="headerlink" href="#sound" title="Permanent link">#</a></h2>
-<p><code>sounds.py</code> defines seven <code>SoundRecipe</code>s (synthesized tones: oscillators, envelopes, filters,
-tremolo), played through one <code>SoundBank(ALL_RECIPES)</code> per floor. <code>setup()</code> calls
-<code>sounds.prerender()</code>, so no sound renders mid-frame (the clank would otherwise render on the slam
-frame).</p>
+<p><code>sounds.py</code> defines seven <code>Effect</code>s (synthesized tones: oscillators, envelopes, filters,
+tremolo), <code>EFFECTS</code>. Each floor asks the engine's sound library for all of them when it is built
+(<code>self.sounds</code>, by name; <code>play_sound(name)</code> plays one): the library compiles each once per engine
+context and caches it (on disk too, under <code>--sound-cache disk</code>), so no sound compiles mid-frame
+(the clank would otherwise compile on the slam frame). Each plays at its own volume.</p>
 <table>
 <thead>
 <tr>
@@ -3886,9 +3888,13 @@ frame).</p>
 </tr>
 </tbody>
 </table>
-<p>The elevator's motor is not a recipe but a live voice: a low-passed sawtooth with tremolo, made
-with <code>scene_manager.live_audio.create_voice(owner=transition)</code> and retuned every frame of the
-ride (<code>ELEVATOR_MOTOR_*</code> constants). <code>SoundBank.play</code> is a no-op when audio is unavailable.</p>
+<p>The elevator's motor is not an effect but a live instrument, <code>sounds.ELEVATOR_MOTOR</code>: a
+low-passed saw with a tremolo chug, whose <code>speed</code> parameter routes to its pitch (45 to 110 Hz) and
+level (0.15 to 0.6 as heard: the route's ends are raised by √2, because a centred sound is 3 dB
+down on each side by the constant-power pan law every sound pans by). The ride starts it with <code>start(owner=transition)</code>, so it plays on behind the
+next floor until the ride ends, sets <code>speed</code> every frame, and cuts it with <code>cancel()</code> as the car
+lands (a fade would sound after the clank). Without a free live voice or an audio device the ride
+is silent.</p>
 <h2 id="state-score-lives-and-saves">State, score, lives and saves<a class="headerlink" href="#state-score-lives-and-saves" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -3974,7 +3980,7 @@ real high scores.</p>
 </tr>
 <tr>
 <td>Sound synthesis</td>
-<td>Six recipes and one live voice</td>
+<td>Seven effects and one live instrument</td>
 </tr>
 <tr>
 <td>Saves</td>
@@ -4039,7 +4045,7 @@ otherwise auto-pause the game. Never re-record either baseline to make a change 
 <tbody>
 <tr>
 <td><code>src/games/clockwork-keep/tests/test_clockwork_keep.py</code></td>
-<td>The game itself: elevator activation by interact only (not jump, BUGS.md #24), every recipe renders and each sound plays once at its moment, the elevator ride's motor, rumble, shakes and silent fallbacks, the clock's hand angles and animated layer, <code>MAX_FRAME_SECONDS</code>, <code>replay_arguments</code>, <code>--floor</code>, hitbox-based support, walls and pickups, collision layers, world space (no sprite positions itself, the engine follows the player, follow stops at game over), the pose rule at walls, scancode bindings, the moving gear and the Clock Face route, no fall-through after a slow frame (the swept ground check), victory on the Clock Face's top platform, death, high scores, pause/quit/focus input, joystick and controller buttons, the <abbr title="Heads-up display: what a game draws over its world (score, lives)">HUD</abbr>, <code>main()</code></td>
+<td>The game itself: elevator activation by interact only (not jump, BUGS.md #24), every effect renders and each sound plays once at its moment, the elevator ride's motor, rumble, shakes and silent fallbacks, the clock's hand angles and animated layer, <code>MAX_FRAME_SECONDS</code>, <code>replay_arguments</code>, <code>--floor</code>, hitbox-based support, walls and pickups, collision layers, world space (no sprite positions itself, the engine follows the player, follow stops at game over), the pose rule at walls, scancode bindings, the moving gear and the Clock Face route, no fall-through after a slow frame (the swept ground check), victory on the Clock Face's top platform, death, high scores, pause/quit/focus input, joystick and controller buttons, the <abbr title="Heads-up display: what a game draws over its world (score, lives)">HUD</abbr>, <code>main()</code></td>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/tests/test_clockwork_keep_logical_names.py</code>, <code>test_clockwork_keep_install_location.py</code>, <code>test_clockwork_keep_recording_history.py</code></td>
@@ -4108,7 +4114,7 @@ the native-driver comparison while iterating).</p>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/src/clockwork_keep/sounds.py</code></td>
-<td>The six <code>SoundRecipe</code>s, <code>ALL_RECIPES</code></td>
+<td>The seven <code>Effect</code>s, <code>EFFECTS</code></td>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/src/clockwork_keep/constants.py</code></td>
@@ -4168,7 +4174,7 @@ the native-driver comparison while iterating).</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 2, 2026 03:48:43 UTC">November 2, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:25:25 UTC">November 15, 2026</span>
   </span>
 
     
@@ -4271,7 +4277,7 @@ the native-driver comparison while iterating).</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
       

@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../img/favicon.ico">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -3400,7 +3400,7 @@ starts the engine on its title screen, which switches to the chosen game's scene
     over --&gt;|"Esc, B or Back, or Q released"| quit</code></pre>
 <p>Resuming from the pause screen switches back to the <em>same</em> scene object, so the game picks up
 where it stopped; its <code>setup()</code> runs again (it only rebuilds the <abbr title="Heads-up display: what a game draws over its world (score, lives)">HUD</abbr> font and re-follows the
-player; the sounds are generated once). The pause screen's <code>debug_subject</code> is the paused game,
+player; the sounds are asked for once, when the scene is built). The pause screen's <code>debug_subject</code> is the paused game,
 so the debug overlay keeps showing the game's hitboxes over the frozen picture.</p>
 <p>The game-over screen does not resume the old scene: <code>GameOverScene.resume()</code> builds a new
 instance of the previous scene's class with the same options, so a restart is a clean game
@@ -3879,9 +3879,11 @@ mic button as 15 on the controller <abbr title="Application programming interfac
 own: <code>controller_layer_button=MIC_BUTTON_CONTROLLER</code> (the controller layer only, so raw button
 15 is not the mic) and <code>joystick_button=MIC_BUTTON_JOYSTICK</code>. The Papyrus Edition has no voice assistant.</p>
 <h2 id="sound">Sound<a class="headerlink" href="#sound" title="Permanent link">#</a></h2>
-<p><code>brave_adventurer_core/sounds.py</code> generates five effects once, in <code>setup()</code> (<code>GameSounds.initialize()</code>), with the
-engine's synthesizer toolkit (<code>glitchygames.audio.synth</code>: <code>oscillator</code>, <code>frequency_curve</code>,
-<code>apply_envelope</code>, <code>concatenate</code>, <code>to_sound</code>), at the mixer's sample rate:</p>
+<p><code>brave_adventurer_core/sounds.py</code> defines five effects (<code>glitchygames.audio.effects.Effect</code>: sine
+tones at a fixed peak, faded in and out, mixed straight with <code>normalize=False</code>). The scene asks
+the engine's sound library for them when it is built (<code>request_sounds(audio=...)</code>), which
+compiles each on its first request and caches it (on disk too, under <code>--sound-cache disk</code>), and
+plays them on the library's channels:</p>
 <table>
 <thead>
 <tr>
@@ -3918,9 +3920,9 @@ engine's synthesizer toolkit (<code>glitchygames.audio.synth</code>: <code>oscil
 </tr>
 </tbody>
 </table>
-<p>If audio is unavailable (<code>AudioUnavailableError</code>), no sound is set and the game plays silent
-rather than with some of its sounds; every <code>play_*()</code> checks for <code>None</code>. The game uses plain
-one-shot <code>pygame.mixer.Sound</code>s: no <code>SoundRecipe</code> files and no live voices.</p>
+<p>Each plays at the volume it always had (0.35, 0.25, 0.3, 0.4, 0.4), and its 16-bit samples are
+byte-identical to the synth-toolkit functions they replaced. Without an audio device the library
+still compiles them and a play is a silent no-op. The game has no live voices.</p>
 <h2 id="state-score-and-saves">State, score and saves<a class="headerlink" href="#state-score-and-saves" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -4069,7 +4071,7 @@ deliberately, after finding out why it changed (the scripts' docstrings give the
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/core/test_brave_adventurer_sounds.py</code></td>
-<td>The synthesized sounds against stored goldens (<code>tests/core/brave_adventurer_golden/*.npy</code>): length, envelope and pitch; silent play without a mixer</td>
+<td>The five effects: 16-bit samples byte-identical to the old synth functions' at 44.1 and 48 kHz, their volumes, and the stored goldens (<code>tests/core/brave_adventurer_golden/*.npy</code>: length, envelope and pitch); the library's sounds handed to the scene</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/classic/test_brave_adventurer_classic.py</code></td>
@@ -4134,7 +4136,7 @@ data, terrain, background drawing, sounds and constants with the classic edition
 <td>The player stands on a fixed foot line, <code>PAPYRUS_PLAYER_HEIGHT</code> = 27 × 2 px below its snapped world y, instead of its hitbox bottom</td>
 </tr>
 <tr>
-<td><code>GameSounds</code> and every sound</td>
+<td>The five sound effects (<code>sounds.py</code>)</td>
 <td>Animation state machines come from the <abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr> <code>[[transition]]</code> sections (the player's, the cobra's timed strike)</td>
 </tr>
 <tr>
@@ -4373,7 +4375,7 @@ names; and its one browser page, the title screen, ships all four archives, the 
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/src/brave_adventurer_core/sounds.py</code></td>
-<td>The synthesized effects and <code>GameSounds</code></td>
+<td>The five effects (<code>EFFECTS</code>) and <code>BraveAdventurerSounds</code>, the game's compiled set</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/src/brave_adventurer_core/scene.py</code></td>
@@ -4485,7 +4487,7 @@ names; and its one browser page, the title screen, ships all four archives, the 
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 3, 2026 04:15:36 UTC">November 3, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:25:25 UTC">November 15, 2026</span>
   </span>
 
     
@@ -4588,7 +4590,7 @@ names; and its one browser page, the title screen, ships all four archives, the 
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
       

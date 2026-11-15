@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../img/favicon.ico">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -3132,7 +3132,7 @@ each with its type and default, then its help text.</p>
 <li><code>--rumble-intensity RUMBLE_INTENSITY</code> (<code>float</code>): controller rumble strength from 0.0 (off) to 1.0 (default: 1.0)</li>
 <li><code>--live-voice-pool LIVE_VOICE_POOL</code> (<code>int</code>): mixer channels reserved for real-time synth voices (default: 4)</li>
 <li><code>--sound-channels SOUND_CHANNELS</code> (<code>int</code>): mixer channels reserved for the sound library (scene_manager.audio) (default: 32)</li>
-<li><code>--sound-cache {none,ram,disk}</code> (<code>choice</code>, default <code>ram</code>): how compiled sounds are kept: none (compiled again at every play), ram (in memory, default) or disk (arrives in M3; refused with OPTIONS_REFUSED until then). Replay-local: a recording replays under any mode</li>
+<li><code>--sound-cache {none,ram,disk}</code> (<code>choice</code>, default <code>disk</code>): how compiled sounds are kept: none (compiled again at every play), ram (in memory) or disk (in memory and in the game's own cache folder, <code>&lt;root&gt;/&lt;game package&gt;/sounds/&lt;render version&gt;/</code>, so a later launch compiles nothing; <code>GLITCHYGAMES_SOUND_CACHE_ROOT</code> names the root: unset is the platform's cache folder, empty is no disk layer, which runs as ram, as the browser does). Replay-local: a recording replays under any mode</li>
 <li><code>--sound-cache-memory MB</code> (<code>int</code>, default <code>256</code>): megabytes the ram sound cache may hold before the least recently played idle sounds go</li>
 <li><code>--crt-power-on-sound {on,off}</code> (<code>choice</code>, default <code>on</code>): play the <abbr title="Cathode-ray tube: the old television the power-on sequence imitates">CRT</abbr> power-on sequence with its sound</li>
 <li><code>--crt-power-on {auto,on,off}</code> (<code>choice</code>, default <code>auto</code>): show the game's canvas switching on like a <abbr title="Cathode-ray tube: the old television the power-on sequence imitates">CRT</abbr> before the game starts: auto (default: when someone can see it, so not on <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s dummy driver or before a replay, audit, rebaseline or recording), on (always; refused with a replay or a recording) or off</li>
@@ -3423,7 +3423,7 @@ the <code>--help</code> output, separate from all engine-level flags.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 11, 2026 18:59:50 UTC">November 11, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:25:25 UTC">November 15, 2026</span>
   </span>
 
     
@@ -3526,7 +3526,7 @@ the <code>--help</code> output, separate from all engine-level flags.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
       

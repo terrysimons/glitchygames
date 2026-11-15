@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../img/favicon.ico">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -3752,8 +3752,10 @@
 <h1 id="glitchygames-sound-engine-feature-specification">GlitchyGames Sound Engine — Feature Specification<a class="headerlink" href="#glitchygames-sound-engine-feature-specification" title="Permanent link">#</a></h1>
 <ul>
 <li><strong>Date:</strong> 2026-11-02 (revision 2: the one-call <code>audio.sound(...)</code> <abbr title="Application programming interface">API</abbr>)</li>
-<li><strong>Status:</strong> DRAFT for the owner's review. M1 is built on this branch (2026-11-02; user docs:
-  <code>docs/architecture/sound.md</code>); M2 onwards is not.</li>
+<li><strong>Status:</strong> DRAFT for the owner's review. M1 is built (2026-11-02; user docs:
+  <code>docs/architecture/sound.md</code>). M2's live instruments and the migration of all five games, with
+  the old sound paths removed, are built (2026-11-15, plans/2026-11-14-sound-migration.md); the
+  rest of M2 and M3 onwards are not (plans/future-work.md).</li>
 <li><strong>Companion:</strong> <code>docs/specs/2026-11-02-sound-engine-implementation-spec.md</code> (how each requirement
   is met, the traceability table, the decision and risk registers, the measurements).</li>
 <li><strong>Source brief:</strong> <code>~/Documents/ChatGPT/GlitchyGames/glitchygames-sound-engine-development-brief.md</code>
@@ -3831,6 +3833,9 @@ building an audio buffer.</p>
   file without opening an audio device.</li>
 </ul>
 <h3 id="11-what-exists-today-fact">1.1 What exists today [Fact]<a class="headerlink" href="#11-what-exists-today-fact" title="Permanent link">#</a></h3>
+<p>The codebase on the spec's date (2026-11-02), what the engine was built on. The migration since
+(plans/2026-11-14-sound-migration.md) moved every game onto the library and removed <code>SoundBank</code>,
+<code>LiveVoice</code> and <code>load_sound</code>; recipes are effects (<code>effects.py</code>).</p>
 <p>The engine already has a solid base, and this spec builds on it <strong>[Owner: "we can absolutely build
 on existing infra"]</strong>:</p>
 <table>
@@ -4546,9 +4551,9 @@ resonance.</p>
 <li><strong>Live voices</strong> render in Python and keep the reserved live pool [Fact: <code>--live-voice-pool</code>,
   default 4]. M3 raises the pool to 8 if its frame-time measurements allow (implementation
   spec §11).</li>
-<li><strong>Older code</strong> that calls <code>Sound.play()</code> directly (<code>SoundBank</code>, <code>load_sound</code>) keeps its own
-  unreserved channels (pygame's default 8), so it never takes a library channel and the library
-  never cuts it off.</li>
+<li><strong>Older code</strong> that calls <code>Sound.play()</code> directly (a game's own <code>pygame.mixer.Sound</code>; the
+  engine's <code>SoundBank</code> and <code>load_sound</code> were removed in M2) keeps its own unreserved channels
+  (pygame's default 8), so it never takes a library channel and the library never cuts it off.</li>
 <li><strong>Category reservations:</strong> each bus may reserve a minimum number of mixer channels (<code>ui</code>: 2,
   <code>music</code>: 2 by default), so a storm of effects can never silence a menu click.</li>
 </ul>
@@ -5533,7 +5538,7 @@ traceability table (§14 there).</p>
 <td>Existing <code>SoundBank</code>, <code>SoundRecipe</code>, synth functions, <code>LiveVoice</code> and <code>load_sound</code> keep working beside the library</td>
 <td>P0</td>
 <td>M1</td>
-<td>Existing tests pass unchanged; a scene using both <code>SoundBank.play</code> and <code>audio.play</code> hears both (no channel taken from the other)</td>
+<td>Existing tests pass unchanged; a scene using both <code>SoundBank.play</code> and <code>audio.play</code> hears both (no channel taken from the other). <strong>Superseded in M2</strong> (2026-11-15): with every game migrated, <code>SoundBank</code>, <code>LiveVoice</code> and <code>load_sound</code> were removed (the owner: removal, not deprecation); <code>SoundRecipe</code> lives on as <code>Effect</code>, and the synth functions stay</td>
 </tr>
 <tr>
 <td>AUD-FUNC-008</td>
@@ -5981,7 +5986,7 @@ traceability table (§14 there).</p>
 <td>Legacy <code>Sound.play()</code> callers keep their own channels</td>
 <td>P0</td>
 <td>M1</td>
-<td>40 library plays and 8 <code>SoundBank</code> plays at once: neither cuts the other</td>
+<td>40 library plays and 8 <code>SoundBank</code> plays at once: neither cuts the other (since M2, a game's own <code>pygame.mixer.Sound.play()</code> stands for <code>SoundBank</code>'s)</td>
 </tr>
 </tbody>
 </table>
@@ -6406,7 +6411,7 @@ caching saves.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 4, 2026 07:57:03 UTC">November 4, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:25:25 UTC">November 15, 2026</span>
   </span>
 
     
@@ -6509,7 +6514,7 @@ caching saves.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
       

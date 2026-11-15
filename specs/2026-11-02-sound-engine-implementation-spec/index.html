@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../img/favicon.ico">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -3531,9 +3531,14 @@
 <h1 id="glitchygames-sound-engine-implementation-specification">GlitchyGames Sound Engine — Implementation Specification<a class="headerlink" href="#glitchygames-sound-engine-implementation-specification" title="Permanent link">#</a></h1>
 <ul>
 <li><strong>Date:</strong> 2026-11-02 (revision 2: the one-call <code>audio.sound(...)</code> <abbr title="Application programming interface">API</abbr>; builder-check fixes)</li>
-<li><strong>Status:</strong> DRAFT for the owner's review. M1 is built on this branch (2026-11-02; user docs:
-  <code>docs/architecture/sound.md</code>); M2 onwards is not. The experiments in Appendix A are throwaway
-  and are not in the repository.</li>
+<li><strong>Status:</strong> DRAFT for the owner's review. M1 is built (2026-11-02; user docs:
+  <code>docs/architecture/sound.md</code>). M2's migration is built (2026-11-15, branch
+  <code>chore/upgrade-and-sounds-on-first-use</code>, plans/2026-11-14-sound-migration.md): effects
+  first-class, the five games on the library, the start-up compile, live instruments with
+  parameters, routes, curves and smoothing, the old sound paths removed, and the disk cache
+  (§6.4, built ahead of M3, the default). The rest of M2 and M3 onwards are not
+  (plans/future-work.md). Sections that changed with the migration say so. The experiments in
+  Appendix A are throwaway and are not in the repository.</li>
 <li><strong>Companion:</strong> <code>docs/specs/2026-11-02-sound-engine-feature-spec.md</code> (what the engine does; the
   requirement IDs used below).</li>
 <li><strong>Branch:</strong> <code>docs/sound-engine-specs</code>.</li>
@@ -3545,6 +3550,11 @@
 by the spec's author after the builder check, open to the owner's change).</p>
 <hr />
 <h2 id="1-repository-evidence">1. Repository evidence<a class="headerlink" href="#1-repository-evidence" title="Permanent link">#</a></h2>
+<p>These are the codebase's facts on the spec's date (<code>origin/main</code> 0f1a4b81), what the design was
+built on. The migration changed several since (plans/2026-11-14-sound-migration.md):
+<code>recipes.py</code> is <code>effects.py</code> (recipes are effects), <code>LiveVoice</code>, <code>SoundBank</code>, <code>load_sound</code>,
+<code>reserve_live_voice_pool</code> and the public <code>live_audio</code> are gone, and every live voice is a live
+instrument's (§7.5).</p>
 <table>
 <thead>
 <tr>
@@ -3781,9 +3791,10 @@ by the spec's author after the builder check, open to the owner's change).</p>
      "setup" (before the scene's first logic frame) or to the current frame number.</li>
 <li><strong>Play</strong>: <code>sound.play(...)</code> allocates a channel (§7.1), calls <code>Channel.play(sound, loops)</code>
    and then <code>Channel.set_volume(left, right)</code>. The mixer (C, <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s audio thread) does the rest.</li>
-<li><strong>Live</strong>: <code>sound.start(...)</code> creates a <code>LiveVoice</code> on a reserved live channel. Each frame,
-   <code>AudioEngine.update</code> renders the next chunk when the queue has room (today's mechanism
-   [Fact]), reading the latest coalesced parameter values.</li>
+<li><strong>Live</strong>: <code>sound.start(...)</code> creates an <code>InstrumentVoice</code> on a channel of the context's live
+   pool (§7.5). Each frame, <code>AudioEngine.update</code> applies the live pool's owner rules and renders
+   each voice's next chunk when its queue has room, reading the latest coalesced parameter
+   values.</li>
 <li><strong>Offline</strong>: <code>OfflineMixer</code> takes compiled float buffers (or steps live renderers with a
    parameter timeline) and sums them at exact sample offsets into a file.</li>
 </ol>
@@ -3894,12 +3905,16 @@ harness. If it fails, the fallback is A as specified. The Renderer layer is pure
 </tr>
 </tbody>
 </table>
-<p>No new thread is created <strong>[Proposal]</strong>. The brief's command-queue and memory-ordering
+<p>No new thread is created <strong>[Proposal]</strong>. The start-up compile (a game's declared sounds,
+<code>Scene.SOUNDS</code>) runs on the main thread too, in slices during the <abbr title="Cathode-ray tube: the old television the power-on sequence imitates">CRT</abbr> power-on's frames' idle
+time, then whatever is left before the game is built (<code>audio/startup.py</code>; migration decision 6).
+The brief's command-queue and memory-ordering
 requirements apply only to the deferred native core (§3.4). With one thread there is nothing to
 queue: an <abbr title="Application programming interface">API</abbr> call takes effect through pygame's own thread-safe mixer calls.</p>
 <h3 id="42-bounded-work-per-frame">4.2 Bounded work per frame<a class="headerlink" href="#42-bounded-work-per-frame" title="Permanent link">#</a></h3>
-<p><code>AudioEngine.update(dt=...)</code> runs once per frame, in the slot where <code>LiveAudio.update</code> runs today
-[Fact: <code>scene.py:1227</code>], with the same scene and pause arguments. It:</p>
+<p><code>AudioEngine.update(dt=...)</code> runs once per frame, in the slot where <code>LiveAudio.update</code> ran
+[Fact: <code>scene.py:1227</code>], with the same scene and pause arguments, and applies the live pool's owner
+rules itself (built: migration step 7b, so a caller outside a game makes one call a frame). It:</p>
 <ol>
 <li>advances scheduled plays whose frame has arrived (M2; feature spec §7.1, late rule);</li>
 <li>advances each unpaused voice's played time by <code>dt</code> and reaps voices whose sound has ended
@@ -4166,7 +4181,7 @@ logged once.</p>
 <p>The models are pydantic v2 [Fact: an engine dependency] with <code>extra='forbid'</code>. Error messages
 render pydantic's <code>loc</code> tuple as a <abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr> path (<code>instruments.vehicle.routes[1].output</code>), with a "did
 you mean" from <code>difflib.get_close_matches</code>. A field that exists in the schema but belongs to a
-later milestone is rejected with "<code>routes</code> arrives in M2" until its milestone lands
+later milestone is rejected with "<code>vibrato</code> arrives in M4" until its milestone lands
 (AUD-ASSET-003). Defaults are listed; a field without one is required.</p>
 <p><strong><code>[glitchygames]</code></strong>: <code>kind = "sounds"</code> (required), <code>version = 1</code> (required).</p>
 <p><strong><code>[waves.&lt;name&gt;]</code></strong> — exactly one of:</p>
@@ -4292,15 +4307,27 @@ later milestone is rejected with "<code>routes</code> arrives in M2" until its m
 </tr>
 <tr>
 <td><code>parameters.&lt;name&gt;</code></td>
-<td><code>{ range = [lo, hi], default, smoothing_ms = 30, unit = "" }</code></td>
+<td><code>{ range = [lo, hi], default, smoothing_ms = 30, glide = "one_pole", unit = "" }</code>; <code>glide = "linear"</code> reaches the target in a straight line over <code>smoothing_ms</code> (plans/2026-11-14-sound-migration.md, step 7b)</td>
 <td>none</td>
 <td>M2</td>
 </tr>
 <tr>
 <td><code>routes</code></td>
-<td>array of <code>{ from, to, curve = "linear", output = [a, b] }</code></td>
+<td>array of <code>{ from, to, curve = "linear", output = [a, b] }</code>; <code>output</code> in numbers (Hz for <code>pitch</code>): note names are later work, since they would resolve without the game's tuning</td>
 <td>none</td>
 <td>M2</td>
+</tr>
+<tr>
+<td><code>chunk_seconds</code></td>
+<td>0.03–0.5, live only: the voice's chunk length, its latency (below 30 ms a chunk cannot cover a 60 fps frame plus the device buffer)</td>
+<td>0.1</td>
+<td>M2 (plans/2026-11-14-sound-migration.md, step 7b)</td>
+</tr>
+<tr>
+<td><code>tremolo</code></td>
+<td><code>{ rate_hz, depth }</code> (an effect tone's form), live only; <code>tremolo.rate</code> and <code>tremolo.depth</code> are route destinations</td>
+<td>none</td>
+<td>M2 (plans/2026-11-14-sound-migration.md)</td>
 </tr>
 <tr>
 <td><code>vibrato</code>, <code>lfos</code>, <code>glide</code>, <code>bend_range</code></td>
@@ -4550,12 +4577,17 @@ both.</p>
   Above <code>--sound-cache-memory</code> (default 256 MB), the least recently played sounds that are not
   playing are dropped. They are recompiled on their next request, which is counted.</li>
 <li><strong>Disk (<code>'disk'</code>, M3):</strong> memory first, then disk.</li>
-<li>Layout: <code>&lt;cache&gt;/sounds/&lt;render_version&gt;/&lt;key[:2]&gt;/&lt;key&gt;.wav</code> (16-bit PCM <abbr title="Waveform Audio File Format">WAV</abbr> at the mixer
-    rate), written with <code>output_files.write_aside_then_replace</code> [Fact].</li>
+<li>Layout: <code>&lt;cache&gt;/&lt;game package&gt;/sounds/&lt;render_version&gt;/&lt;key[:2]&gt;/&lt;key&gt;.wav</code> (16-bit PCM <abbr title="Waveform Audio File Format">WAV</abbr>
+    at the mixer rate), written aside to a temporary file of its own, then moved into place
+    (plans/2026-11-14-sound-cache-on-first-use.md, decision 3). One folder per game (the owner,
+    2026-11-15), so a game's limit and pruning touch only its own files.</li>
+<li><strong><code>'disk'</code> is the default</strong> (the owner, 2026-11-15, ahead of M3's benchmarks): a read beats
+    a compile on every machine measured, a Raspberry Pi's SD card cold included
+    (<code>scripts/benchmark_sound_cache.py</code>). A read writes nothing (SD cards wear from writes).</li>
 <li>The cache root is a new <code>state/paths.get_cache_directory(app_name)</code> beside
     <code>get_save_directory</code> [Fact]: macOS <code>~/Library/Caches/&lt;app&gt;/</code>, Linux <code>$XDG_CACHE_HOME/&lt;app&gt;/</code>
     (default <code>~/.cache/&lt;app&gt;/</code>), Windows <code>%LOCALAPPDATA%\&lt;app&gt;\Cache\</code>.</li>
-<li>The size limit is 64 MB, and the oldest-accessed files are pruned at startup.</li>
+<li>The size limit is 64 MB per game, and the oldest written files are pruned at startup.</li>
 <li>Reads verify the <abbr title="Waveform Audio File Format">WAV</abbr> header's rate and length. A bad file is deleted and recompiled.</li>
 <li>In the browser and in tests, <code>'disk'</code> falls back to <code>'ram'</code> with one log line. Under
     <code>--headless</code> outside tests it is honoured, so the M2 startup benchmark can measure it.</li>
@@ -4570,10 +4602,11 @@ conventions, not separate APIs.</p>
 <li><strong>Setup (the convention):</strong> games call <code>audio.sound(...)</code> in <code>setup()</code>. Those compiles run
    before the scene's first logic frame and are attributed to setup. A setup whose compiles exceed
    50 ms logs one INFO line naming the slowest sounds.</li>
-<li><strong>Loading screens:</strong> <code>audio.sounds.warm(requests, budget_ms=...)</code> takes a list of <code>sound(...)</code>
-   argument sets and compiles as many as fit in the budget each time it is called, returning
-   progress from 0 to 1. It exists only so a loading scene can spread work across frames; it calls
-   the same compile path.</li>
+<li><strong>The game's start (built in the migration, replacing <code>warm</code>):</strong> a game declares every sound
+   it plays (<code>Scene.SOUNDS</code> on the class it hands <code>GameEngine</code>); <code>StartupSounds</code> compiles them
+   in slices during the <abbr title="Cathode-ray tube: the old television the power-on sequence imitates">CRT</abbr> power-on's idle time and the rest before the game is built, through
+   the same compile path, so none compiles mid-frame (<code>audio/startup.py</code>; migration decision 6).
+   <code>audio.sounds.warm(...)</code> was removed with it.</li>
 <li><strong>Gameplay:</strong> a first request inside a gameplay frame compiles there. It is timed, counted and
    listed with its frame (AUD-FUNC-003).</li>
 <li><strong>The engine's own sounds</strong> (<abbr title="Cathode-ray tube: the old television the power-on sequence imitates">CRT</abbr>) compile before the power-on, in
@@ -4622,7 +4655,7 @@ replay. For each changed file:</p>
 </tr>
 <tr>
 <td>the rest (8, pygame's default count)</td>
-<td>legacy <code>Sound.play()</code> callers: <code>SoundBank</code>, <code>load_sound</code>, any game code</td>
+<td>a game's own <code>pygame.mixer.Sound.play()</code> (<code>SoundBank</code> and <code>load_sound</code>, the engine's, were removed in M2)</td>
 <td><abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> picks among unreserved channels</td>
 </tr>
 </tbody>
@@ -4719,16 +4752,28 @@ loudness_budget)</code>:</p>
   estimate from compiled peaks and never reads audio back.</li>
 </ul>
 <h3 id="75-live-voices-m2">7.5 Live voices (M2)<a class="headerlink" href="#75-live-voices-m2" title="Permanent link">#</a></h3>
-<p>The existing <code>LiveVoice</code>/<code>LiveAudio</code> [Fact] is generalized. A <code>LiveVoice</code> renders chunks from a
-compiled live instrument (sources, routes, filter state, smoothed parameters) instead of a single
-waveform with a cutoff:</p>
+<p><strong>Built in the migration</strong> (plans/2026-11-14-sound-migration.md steps 5-7b), as follows. The
+older <code>LiveVoice</code> was split, then removed: its channel and lifecycle are <code>live.LiveStream</code> (start,
+one chunk playing and one queued, fades rendered in, pause, drain, the context's audible route),
+its crossfaded filter <code>live.FilterState</code>, and every live voice is a live instrument's:</p>
 <ul>
-<li>The chunk length is configurable with <code>--live-chunk-ms</code> (default 100). M3 measures 50 ms against
-  the underrun probe (<code>scripts/audio_glitch_probe.py</code> [Fact]). The safety margin is the chunk
-  minus the device buffer [Fact: module docstring], so 50 ms leaves about 38 ms.</li>
+<li><code>live_instrument.InstrumentVoice</code> renders an <code>Instrument(live=True)</code> per chunk: smoothed
+  parameters (one-pole, or <code>glide='linear'</code>), routes, its sources (sine, square, saw, triangle
+  and white noise for now) mixed by level, the filter, tremolo, then volume and level. Steady
+  settings render what the old voice rendered (tested to rounding against its rendering, kept in
+  the test).</li>
+<li><code>Sound.start()</code> puts it on the context's live pool (<code>live.LiveAudio</code>, the audio engine's) and
+  returns a <code>LiveSoundHandle</code> (§8). Its playback settings travel as one
+  <code>live.LiveVoiceOptions</code>: persist, priority (a full pool steals the lowest at or below), pan
+  (the constant-power law every sound pans by) and the bus's gain, read per chunk.</li>
+<li>The chunk length is the instrument's (<code>Instrument(chunk_seconds=)</code>, 0.03-0.5 s, default 0.1),
+  not an engine option: latency is part of a live sound's design (the owner, 2026-11-15).
+  <code>--live-chunk-ms</code> is not built. M3 measures 50 ms against the underrun probe
+  (<code>scripts/audio_glitch_probe.py</code>, which plays the elevator motor). The safety margin is the
+  chunk minus the device buffer, so 50 ms leaves about 38 ms.</li>
 <li>The pool grows from 4 to 8 only if AUD-RT-002 holds on the <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> Linux container profile (1 <abbr title="Central processing unit">CPU</abbr>
   [Fact: <code>nox -s test-linux-ci</code>]).</li>
-<li><code>scene_manager.live_audio.create_voice(...)</code> stays, implemented on the new voice table.</li>
+<li><code>scene_manager.live_audio.create_voice(...)</code> was removed with the old paths (§10.4).</li>
 </ul>
 <h3 id="76-streams-m5">7.6 Streams (M5)<a class="headerlink" href="#76-streams-m5" title="Permanent link">#</a></h3>
 <p><code>audio.music.play_file</code> wraps <code>pygame.mixer.music</code>: one stream, decoded by SDL_mixer. Its volume
@@ -4839,7 +4884,7 @@ after the first are keyword-only. Thread affinity: the main thread only.</p>
 </span><span id="__span-3-100"><a id="__codelineno-3-100" name="__codelineno-3-100" href="#__codelineno-3-100"></a>    <span class="n">buses</span><span class="p">:</span> <span class="n">BusTree</span>
 </span><span id="__span-3-101"><a id="__codelineno-3-101" name="__codelineno-3-101" href="#__codelineno-3-101"></a>    <span class="n">music</span><span class="p">:</span> <span class="n">MusicTransport</span>            <span class="c1"># M5</span>
 </span><span id="__span-3-102"><a id="__codelineno-3-102" name="__codelineno-3-102" href="#__codelineno-3-102"></a>    <span class="n">tuning</span><span class="p">:</span> <span class="n">Tuning</span>
-</span><span id="__span-3-103"><a id="__codelineno-3-103" name="__codelineno-3-103" href="#__codelineno-3-103"></a>    <span class="n">sounds</span><span class="p">:</span> <span class="n">SoundLibrary</span>             <span class="c1"># warm(), names(), cache statistics</span>
+</span><span id="__span-3-103"><a id="__codelineno-3-103" name="__codelineno-3-103" href="#__codelineno-3-103"></a>    <span class="n">sounds</span><span class="p">:</span> <span class="n">SoundLibrary</span>             <span class="c1"># names(), cache statistics</span>
 </span><span id="__span-3-104"><a id="__codelineno-3-104" name="__codelineno-3-104" href="#__codelineno-3-104"></a>
 </span><span id="__span-3-105"><a id="__codelineno-3-105" name="__codelineno-3-105" href="#__codelineno-3-105"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">sound</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">:</span> <span class="n">SoundSource</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">pitch</span><span class="p">:</span> <span class="n">PitchLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-3-106"><a id="__codelineno-3-106" name="__codelineno-3-106" href="#__codelineno-3-106"></a>              <span class="n">notes</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">PitchLike</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -4872,36 +4917,47 @@ after the first are keyword-only. Thread affinity: the main thread only.</p>
 </span><span id="__span-3-133"><a id="__codelineno-3-133" name="__codelineno-3-133" href="#__codelineno-3-133"></a>             <span class="n">position</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SoundHandle</span><span class="p">:</span> <span class="o">...</span>
 </span><span id="__span-3-134"><a id="__codelineno-3-134" name="__codelineno-3-134" href="#__codelineno-3-134"></a>             <span class="c1"># None = the sound file's default, else the engine default</span>
 </span><span id="__span-3-135"><a id="__codelineno-3-135" name="__codelineno-3-135" href="#__codelineno-3-135"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">parameters</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-3-136"><a id="__codelineno-3-136" name="__codelineno-3-136" href="#__codelineno-3-136"></a>              <span class="n">volume</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">pan</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">bus</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-3-137"><a id="__codelineno-3-137" name="__codelineno-3-137" href="#__codelineno-3-137"></a>              <span class="n">priority</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">persist</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">LiveSoundHandle</span><span class="p">:</span> <span class="o">...</span>
-</span><span id="__span-3-138"><a id="__codelineno-3-138" name="__codelineno-3-138" href="#__codelineno-3-138"></a>              <span class="c1"># live sounds only; TypeError on a baked sound</span>
-</span><span id="__span-3-139"><a id="__codelineno-3-139" name="__codelineno-3-139" href="#__codelineno-3-139"></a>
-</span><span id="__span-3-140"><a id="__codelineno-3-140" name="__codelineno-3-140" href="#__codelineno-3-140"></a><span class="k">class</span><span class="w"> </span><span class="nc">SoundHandle</span><span class="p">:</span>   <span class="c1"># frozen (slot, generation); methods consult the engine's voice table</span>
-</span><span id="__span-3-141"><a id="__codelineno-3-141" name="__codelineno-3-141" href="#__codelineno-3-141"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">stop</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fade</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
-</span><span id="__span-3-142"><a id="__codelineno-3-142" name="__codelineno-3-142" href="#__codelineno-3-142"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">cancel</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
-</span><span id="__span-3-143"><a id="__codelineno-3-143" name="__codelineno-3-143" href="#__codelineno-3-143"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">release</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>            <span class="c1"># live: envelope release; looping baked: end loop</span>
-</span><span id="__span-3-144"><a id="__codelineno-3-144" name="__codelineno-3-144" href="#__codelineno-3-144"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">unschedule</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>         <span class="c1"># M2</span>
-</span><span id="__span-3-145"><a id="__codelineno-3-145" name="__codelineno-3-145" href="#__codelineno-3-145"></a>    <span class="nd">@property</span>
-</span><span id="__span-3-146"><a id="__codelineno-3-146" name="__codelineno-3-146" href="#__codelineno-3-146"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">is_playing</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
-</span><span id="__span-3-147"><a id="__codelineno-3-147" name="__codelineno-3-147" href="#__codelineno-3-147"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_volume</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">volume</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fade</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
-</span><span id="__span-3-148"><a id="__codelineno-3-148" name="__codelineno-3-148" href="#__codelineno-3-148"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_pan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pan</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
-</span><span id="__span-3-149"><a id="__codelineno-3-149" name="__codelineno-3-149" href="#__codelineno-3-149"></a>
-</span><span id="__span-3-150"><a id="__codelineno-3-150" name="__codelineno-3-150" href="#__codelineno-3-150"></a><span class="k">class</span><span class="w"> </span><span class="nc">LiveSoundHandle</span><span class="p">(</span><span class="n">SoundHandle</span><span class="p">):</span>
-</span><span id="__span-3-151"><a id="__codelineno-3-151" name="__codelineno-3-151" href="#__codelineno-3-151"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">set</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parameter</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>   <span class="c1"># KeyError for an unknown name</span>
-</span><span id="__span-3-152"><a id="__codelineno-3-152" name="__codelineno-3-152" href="#__codelineno-3-152"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">note_on</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pitch</span><span class="p">:</span> <span class="n">PitchLike</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">velocity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
-</span><span id="__span-3-153"><a id="__codelineno-3-153" name="__codelineno-3-153" href="#__codelineno-3-153"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">note_off</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
-</span><span id="__span-3-154"><a id="__codelineno-3-154" name="__codelineno-3-154" href="#__codelineno-3-154"></a>
-</span><span id="__span-3-155"><a id="__codelineno-3-155" name="__codelineno-3-155" href="#__codelineno-3-155"></a><span class="k">class</span><span class="w"> </span><span class="nc">SoundLibrary</span><span class="p">:</span>
-</span><span id="__span-3-156"><a id="__codelineno-3-156" name="__codelineno-3-156" href="#__codelineno-3-156"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">warm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">requests</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]],</span> <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-3-157"><a id="__codelineno-3-157" name="__codelineno-3-157" href="#__codelineno-3-157"></a>             <span class="n">budget_ms</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span> <span class="o">...</span>       <span class="c1"># progress 0-1</span>
-</span><span id="__span-3-158"><a id="__codelineno-3-158" name="__codelineno-3-158" href="#__codelineno-3-158"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span> <span class="o">...</span>                      <span class="c1"># the short names indexed</span>
-</span><span id="__span-3-159"><a id="__codelineno-3-159" name="__codelineno-3-159" href="#__codelineno-3-159"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">statistics</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CacheStatistics</span><span class="p">:</span> <span class="o">...</span>
-</span><span id="__span-3-160"><a id="__codelineno-3-160" name="__codelineno-3-160" href="#__codelineno-3-160"></a>
-</span><span id="__span-3-161"><a id="__codelineno-3-161" name="__codelineno-3-161" href="#__codelineno-3-161"></a><span class="k">def</span><span class="w"> </span><span class="nf">render_to_file</span><span class="p">(</span><span class="n">sound</span><span class="p">:</span> <span class="n">Sound</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-3-162"><a id="__codelineno-3-162" name="__codelineno-3-162" href="#__codelineno-3-162"></a>                   <span class="n">sample_format</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'int16'</span><span class="p">,</span> <span class="n">loops</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
-</span><span id="__span-3-163"><a id="__codelineno-3-163" name="__codelineno-3-163" href="#__codelineno-3-163"></a>                   <span class="n">tail_seconds</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">stems</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="__span-3-164"><a id="__codelineno-3-164" name="__codelineno-3-164" href="#__codelineno-3-164"></a>                   <span class="n">parameter_timeline</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-3-165"><a id="__codelineno-3-165" name="__codelineno-3-165" href="#__codelineno-3-165"></a>                   <span class="n">events</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">OfflineEvent</span><span class="p">]</span> <span class="o">=</span> <span class="p">())</span> <span class="o">-&gt;</span> <span class="n">RenderReport</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-136"><a id="__codelineno-3-136" name="__codelineno-3-136" href="#__codelineno-3-136"></a>              <span class="n">volume</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">owner</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-3-137"><a id="__codelineno-3-137" name="__codelineno-3-137" href="#__codelineno-3-137"></a>              <span class="n">persist</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">pan</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">bus</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-3-138"><a id="__codelineno-3-138" name="__codelineno-3-138" href="#__codelineno-3-138"></a>              <span class="n">priority</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">LiveSoundHandle</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-139"><a id="__codelineno-3-139" name="__codelineno-3-139" href="#__codelineno-3-139"></a>              <span class="c1"># live sounds only (SoundRenderError on a baked one, and play() on a live one);</span>
+</span><span id="__span-3-140"><a id="__codelineno-3-140" name="__codelineno-3-140" href="#__codelineno-3-140"></a>              <span class="c1"># owner None: the scene that starts it; built 2026-11-15 (migration 5d, 7b)</span>
+</span><span id="__span-3-141"><a id="__codelineno-3-141" name="__codelineno-3-141" href="#__codelineno-3-141"></a>
+</span><span id="__span-3-142"><a id="__codelineno-3-142" name="__codelineno-3-142" href="#__codelineno-3-142"></a><span class="k">class</span><span class="w"> </span><span class="nc">SoundHandle</span><span class="p">:</span>   <span class="c1"># frozen (slot, generation); methods consult the engine's voice table</span>
+</span><span id="__span-3-143"><a id="__codelineno-3-143" name="__codelineno-3-143" href="#__codelineno-3-143"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">stop</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fade</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-144"><a id="__codelineno-3-144" name="__codelineno-3-144" href="#__codelineno-3-144"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">cancel</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-145"><a id="__codelineno-3-145" name="__codelineno-3-145" href="#__codelineno-3-145"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">release</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>            <span class="c1"># live: envelope release; looping baked: end loop</span>
+</span><span id="__span-3-146"><a id="__codelineno-3-146" name="__codelineno-3-146" href="#__codelineno-3-146"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">unschedule</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>         <span class="c1"># M2</span>
+</span><span id="__span-3-147"><a id="__codelineno-3-147" name="__codelineno-3-147" href="#__codelineno-3-147"></a>    <span class="nd">@property</span>
+</span><span id="__span-3-148"><a id="__codelineno-3-148" name="__codelineno-3-148" href="#__codelineno-3-148"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">is_playing</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-149"><a id="__codelineno-3-149" name="__codelineno-3-149" href="#__codelineno-3-149"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_volume</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">volume</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fade</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-150"><a id="__codelineno-3-150" name="__codelineno-3-150" href="#__codelineno-3-150"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_pan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pan</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-151"><a id="__codelineno-3-151" name="__codelineno-3-151" href="#__codelineno-3-151"></a>
+</span><span id="__span-3-152"><a id="__codelineno-3-152" name="__codelineno-3-152" href="#__codelineno-3-152"></a><span class="k">class</span><span class="w"> </span><span class="nc">LiveSoundHandle</span><span class="p">:</span>   <span class="c1"># built: live_instrument.py; both handles are a voices.PlayingSound</span>
+</span><span id="__span-3-153"><a id="__codelineno-3-153" name="__codelineno-3-153" href="#__codelineno-3-153"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">set</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parameter</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>   <span class="c1"># ValueError for an unknown name</span>
+</span><span id="__span-3-154"><a id="__codelineno-3-154" name="__codelineno-3-154" href="#__codelineno-3-154"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">stop</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fade</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-155"><a id="__codelineno-3-155" name="__codelineno-3-155" href="#__codelineno-3-155"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">cancel</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>             <span class="c1"># at once, the queued chunk included</span>
+</span><span id="__span-3-156"><a id="__codelineno-3-156" name="__codelineno-3-156" href="#__codelineno-3-156"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">release</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>            <span class="c1"># the live release (a 100 ms fade)</span>
+</span><span id="__span-3-157"><a id="__codelineno-3-157" name="__codelineno-3-157" href="#__codelineno-3-157"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_volume</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">volume</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fade</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-158"><a id="__codelineno-3-158" name="__codelineno-3-158" href="#__codelineno-3-158"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_pan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pan</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-159"><a id="__codelineno-3-159" name="__codelineno-3-159" href="#__codelineno-3-159"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pause</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>              <span class="c1"># holds until resume(), whatever the owner rules</span>
+</span><span id="__span-3-160"><a id="__codelineno-3-160" name="__codelineno-3-160" href="#__codelineno-3-160"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">resume</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-161"><a id="__codelineno-3-161" name="__codelineno-3-161" href="#__codelineno-3-161"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_frequency</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frequency</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>     <span class="c1"># refused where a route moves it</span>
+</span><span id="__span-3-162"><a id="__codelineno-3-162" name="__codelineno-3-162" href="#__codelineno-3-162"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_cutoff</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cutoff</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>    <span class="c1"># None removes the filter</span>
+</span><span id="__span-3-163"><a id="__codelineno-3-163" name="__codelineno-3-163" href="#__codelineno-3-163"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_tremolo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tremolo</span><span class="p">:</span> <span class="n">Tremolo</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-164"><a id="__codelineno-3-164" name="__codelineno-3-164" href="#__codelineno-3-164"></a>    <span class="nd">@property</span>
+</span><span id="__span-3-165"><a id="__codelineno-3-165" name="__codelineno-3-165" href="#__codelineno-3-165"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">is_playing</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-166"><a id="__codelineno-3-166" name="__codelineno-3-166" href="#__codelineno-3-166"></a>    <span class="c1"># note_on(pitch, velocity=...) and note_off(): later M2 work (plans/future-work.md)</span>
+</span><span id="__span-3-167"><a id="__codelineno-3-167" name="__codelineno-3-167" href="#__codelineno-3-167"></a>
+</span><span id="__span-3-168"><a id="__codelineno-3-168" name="__codelineno-3-168" href="#__codelineno-3-168"></a><span class="k">class</span><span class="w"> </span><span class="nc">SoundLibrary</span><span class="p">:</span>
+</span><span id="__span-3-169"><a id="__codelineno-3-169" name="__codelineno-3-169" href="#__codelineno-3-169"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span> <span class="o">...</span>                      <span class="c1"># the short names indexed</span>
+</span><span id="__span-3-170"><a id="__codelineno-3-170" name="__codelineno-3-170" href="#__codelineno-3-170"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">statistics</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CacheStatistics</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-171"><a id="__codelineno-3-171" name="__codelineno-3-171" href="#__codelineno-3-171"></a>
+</span><span id="__span-3-172"><a id="__codelineno-3-172" name="__codelineno-3-172" href="#__codelineno-3-172"></a><span class="k">def</span><span class="w"> </span><span class="nf">render_to_file</span><span class="p">(</span><span class="n">sound</span><span class="p">:</span> <span class="n">Sound</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-3-173"><a id="__codelineno-3-173" name="__codelineno-3-173" href="#__codelineno-3-173"></a>                   <span class="n">sample_format</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'int16'</span><span class="p">,</span> <span class="n">loops</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="__span-3-174"><a id="__codelineno-3-174" name="__codelineno-3-174" href="#__codelineno-3-174"></a>                   <span class="n">tail_seconds</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">stems</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-3-175"><a id="__codelineno-3-175" name="__codelineno-3-175" href="#__codelineno-3-175"></a>                   <span class="n">parameter_timeline</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-3-176"><a id="__codelineno-3-176" name="__codelineno-3-176" href="#__codelineno-3-176"></a>                   <span class="n">events</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">OfflineEvent</span><span class="p">]</span> <span class="o">=</span> <span class="p">())</span> <span class="o">-&gt;</span> <span class="n">RenderReport</span><span class="p">:</span> <span class="o">...</span>
 </span></code></pre></div>
 <p><strong>Rules:</strong></p>
 <ul>
@@ -4913,19 +4969,19 @@ after the first are keyword-only. Thread affinity: the main thread only.</p>
 <li><strong>Errors:</strong> <code>SoundAssetError</code> (file problems, duplicate names), <code>SoundRenderError</code> (a compile
   bug), <code>KeyError</code> (unknown short name or parameter) and <code>ValueError</code> (invalid argument). The new
   errors derive from the existing <code>glitchygames.audio.exceptions</code> hierarchy [Fact:
-  <code>AudioUnavailableError</code>, <code>SoundRecipeError</code>].</li>
+  <code>AudioUnavailableError</code>, <code>SoundRecipeError</code> (now <code>EffectError</code>)].</li>
 <li><strong>No mixer:</strong> <code>sound()</code> compiles to float buffers (no <code>pygame.mixer.Sound</code>), so offline
   rendering and tests work. <code>play()</code> returns a handle whose methods return <code>False</code>, and a warning
   is logged once (AUD-FUNC-006).</li>
 <li><strong>Access point:</strong> <code>SceneManager.audio</code>, a property creating the <code>AudioEngine</code> on first use, as
-  <code>live_audio</code> does today [Fact: <code>scene.py:1262</code>]. It is a <code>ContextSlot</code> value, so each engine
+  <code>live_audio</code> did [Fact: <code>scene.py:1262</code>]. It is a <code>ContextSlot</code> value, so each engine
   context has its own library, voices and short-name index. <strong>[Call]</strong> M1 adds only the slot.
   Muting all but the audible context is Arcade work, done with the Arcade.</li>
 <li><code>Scene.SOUND_DIRECTORY</code> is a class attribute (default <code>'sounds'</code>), resolved relative to the
   scene's package directory (<code>identity.game_identity(...).package_directory</code> [Fact]). The index
   is per directory, so scenes sharing a directory share it.</li>
-<li><strong>Compatibility:</strong> <code>scene_manager.live_audio</code> stays. In M2 it is implemented on the new voice
-  table.</li>
+<li><strong>Compatibility:</strong> <code>scene_manager.live_audio</code> was removed in M2's clean-up (§10.4); the
+  scene manager's live pool is private, the audio engine's (<code>Sound.start()</code>).</li>
 </ul>
 <hr />
 <h2 id="9-determinism-and-offline-rendering">9. Determinism and offline rendering<a class="headerlink" href="#9-determinism-and-offline-rendering" title="Permanent link">#</a></h2>
@@ -5047,12 +5103,12 @@ after the first are keyword-only. Thread affinity: the main thread only.</p>
 <tr>
 <td><code>--live-chunk-ms</code></td>
 <td>100</td>
-<td>M2</td>
+<td>not built: a live sound's chunk length is its instrument's (<code>Instrument(chunk_seconds=)</code>, §7.5)</td>
 </tr>
 <tr>
 <td><code>--sound-cache {none,ram,disk}</code></td>
-<td>ram</td>
-<td><code>none</code> and <code>ram</code> from M1; <code>disk</code> is refused (<code>OPTIONS_REFUSED</code>, "arrives in M3") until M3. Replay-local (added to <code>REPLAY_LOCAL_OPTIONS</code> [Fact: <code>replay/driver.py</code>]), so a recording replays under any mode</td>
+<td>disk</td>
+<td><code>none</code> and <code>ram</code> from M1; <code>disk</code> built ahead of M3 and the default since 2026-11-15 (§6.4): each game's sounds in its own folder, read back on later launches. Replay-local (added to <code>REPLAY_LOCAL_OPTIONS</code> [Fact: <code>replay/driver.py</code>]), so a recording replays under any mode</td>
 </tr>
 <tr>
 <td><code>--sound-cache-memory MB</code></td>
@@ -5087,6 +5143,13 @@ after the first are keyword-only. Thread affinity: the main thread only.</p>
   sleep].</li>
 </ul>
 <h3 id="104-migration-and-clean-up-m2-and-legacy-parity-fixes-the-builder-checks-third-finding">10.4 Migration and clean-up (M2), and legacy parity (fixes the builder check's third finding)<a class="headerlink" href="#104-migration-and-clean-up-m2-and-legacy-parity-fixes-the-builder-checks-third-finding" title="Permanent link">#</a></h3>
+<p><strong>Built 2026-11-15</strong> (plans/2026-11-14-sound-migration.md). As built, beside the plan below:
+recipes became effects (<code>Effect</code>, <code>[effects.*]</code>, <code>add_effects</code>; <code>[recipes.*]</code> still loads), so
+Clockwork Keep and Mr. Muncher request their <code>Effect</code>s directly rather than through a short-name
+adapter; Brave Adventurer's five sounds are effects too, byte-identical at 16 bits; PaddleSlap's
+WAVs are its own sound files; the motor and the projector are live instruments; every game
+declares its sounds for the start-up compile; and the old paths below were removed. The
+"Today" column is the codebase before the migration.</p>
 <p><strong>Version 0 recipes compile through today's renderer.</strong> A <code>[recipes.*]</code> table (version 0)
 resolves to a <code>LegacyRecipeSpec</code>, and its compile calls <code>SoundRecipe.render()</code> unchanged [Fact:
 <code>recipes.py</code>]. That means no de-click ramps, no normalization changes and the same noise source
@@ -5389,7 +5452,8 @@ ship the same modules.</p>
 <li><code>assets.py</code>: v1 models for the M1 fields (§6.1), "arrives in Mx" rejection, v0 recipes as
    <code>LegacyRecipeSpec</code>, error formatting, the malformed corpus (≥ 20 cases), the short-name index.</li>
 <li><code>library.py</code>: <code>sound()</code> resolution, identity hashing and memoization, compile accounting
-   (setup vs gameplay frames), the memory cache with its LRU limit, <code>warm</code>, <code>add_recipes</code>.</li>
+   (setup vs gameplay frames), the memory cache with its LRU limit, <code>warm</code>, <code>add_recipes</code>
+   (since removed and renamed in M2's migration: §6.5, §10.4).</li>
 <li><code>voices.py</code>/<code>buses.py</code>: the channel partition (§7.1), table allocation and stealing, handles
    with generations, <code>played_seconds</code> with pause, constant-power pan, bus volume/mute/solo.</li>
 <li><code>engine.py</code>: the facade, the <code>SceneManager.audio</code> slot, <code>update(dt)</code> in the frame, the
@@ -5407,6 +5471,9 @@ ship the same modules.</p>
     section, and <code>plans/future-features.md</code> #53 marked built for the sound.</li>
 </ol>
 <h3 id="m2-live-migration-and-clean-up">M2 — Live, migration and clean-up<a class="headerlink" href="#m2-live-migration-and-clean-up" title="Permanent link">#</a></h3>
+<p>Built 2026-11-15: live instruments (parameters, routes, curves, smoothing, tremolo, <code>start()</code>
+and its handle) and the migration of all five games with the removal of the old paths (§10.4).
+The rest is not yet (plans/future-work.md).</p>
 <ul>
 <li>Live instruments with parameters, routes, curves and smoothing.</li>
 <li>State-variable filter, pink noise, bit and rate reduction.</li>
@@ -6032,8 +6099,8 @@ ship the same modules.</p>
   <code>.play()</code> plays it.</li>
 <li>The surrounding <abbr title="Application programming interface">API</abbr> covers pitch types (notes, hertz, <abbr title="Musical Instrument Digital Interface">MIDI</abbr> and scale steps side by side), named
   and blendable waves whose numbers are named, and <abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr> instruments.</li>
-<li>Continuously controlled sounds render in live chunks on the main thread, extending today's
-  <code>LiveVoice</code>.</li>
+<li>Continuously controlled sounds render in live chunks on the main thread, as the old
+  <code>LiveVoice</code> did (built: live instruments, §7.5).</li>
 <li>There are no new dependencies and no new threads, and nothing new for replays, headless runs or
   the browser's compiled-sound path to learn.</li>
 </ul>
@@ -6306,7 +6373,7 @@ would change this set, and would go through the license check and the <abbr titl
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 4, 2026 07:57:03 UTC">November 4, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:25:25 UTC">November 15, 2026</span>
   </span>
 
     
@@ -6409,7 +6476,7 @@ would change this set, and would go through the license check and the <abbr titl
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
       

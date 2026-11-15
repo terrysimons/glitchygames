@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../img/favicon.ico">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -1095,6 +1095,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#effects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Effects
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#live-sounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live sounds
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cache-modes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1204,6 +1226,17 @@
     <span class="md-ellipsis">
       
         Offline rendering
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#outside-a-game" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Outside a game
       
     </span>
   </a>
@@ -2938,9 +2971,10 @@ request. Getting a sound never plays it.</p>
 <li><a href="../../specs/2026-11-02-sound-engine-implementation-spec/">Sound engine implementation specification</a>:
   how each requirement is met, the decision and risk registers, and the measurements.</li>
 </ul>
-<p>M2 adds live instruments (sounds that follow game parameters), moves the five games onto this
-<abbr title="Application programming interface">API</abbr> and removes the old sound paths (<code>SoundBank</code>, <code>load_sound</code>, <code>live_audio</code>). Until then those
-keep working beside it on channels of their own.</p>
+<p>M2 adds live instruments (sounds that follow game parameters: <code>Sound.start()</code> and its
+<code>LiveSoundHandle</code>), moves the five games onto this <abbr title="Application programming interface">API</abbr> and removes the old sound paths:
+<code>SoundBank</code>, <code>load_sound</code>, <code>live_audio.create_voice</code> and <code>LiveVoice</code> are gone (sound migration
+step 7, plans/2026-11-14-sound-migration.md).</p>
 <h2 id="one-call">One call<a class="headerlink" href="#one-call" title="Permanent link">#</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.audio</span><span class="w"> </span><span class="kn">import</span> <span class="n">Instrument</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.scenes</span><span class="w"> </span><span class="kn">import</span> <span class="n">Scene</span>
@@ -2975,11 +3009,15 @@ keep working beside it on channels of their own.</p>
   <code>WavePoint</code>, with the <code>CYCLE</code> and <code>LEVEL</code> named positions). Each engine context has its own
   wave registry.</li>
 </ul>
-<p>Compile in <code>setup()</code>. That is the convention, not a rule: a sound first asked for during gameplay
+<p>Declare every sound the game plays on the scene class it hands <code>GameEngine</code>, as <code>SOUNDS</code>
+(effects, a sound file's <code>path#name</code> entries, live instruments and unpitched ones; a pitched
+sound needs a sound file's entry, which holds its pitch): the engine compiles them when the game starts,
+in the <abbr title="Cathode-ray tube: the old television the power-on sequence imitates">CRT</abbr> power-on's spare time, a slice a frame, and finishes them before the game is built (at
+once where the power-on is skipped). The game's own requests then find each one compiled. A game
+that declares none makes no audio engine for them. A sound first asked for during gameplay still
 compiles in that frame, and the engine counts it, logs it and shows it in the Audio panel as a
-gameplay compile, so you can move it into <code>setup()</code>. A setup whose compiles take more than 50 ms
-logs one INFO line naming its slowest sounds. A loading screen can spread compiles across frames
-with <code>audio.sounds.warm(requests, budget_ms=...)</code>.</p>
+gameplay compile, so you can add it to <code>SOUNDS</code>. A setup whose compiles take more than 50 ms logs
+one INFO line naming its slowest sounds.</p>
 <h2 id="short-names-and-paths">Short names and paths<a class="headerlink" href="#short-names-and-paths" title="Permanent link">#</a></h2>
 <p>A short name (<code>'coin'</code>) is looked up in the active scene's <code>SOUND_DIRECTORY</code> (a class attribute,
 <code>'sounds'</code> by default), relative to the scene's package directory. Every sound file there
@@ -3007,6 +3045,111 @@ directory and always works, whatever the short-name index holds.</p>
 </span></code></pre></div>
 <p>Version 0 recipe files (<code>[recipes.*]</code>) still load and sound exactly as before;
 <code>glitchygames sound-migrate FILE</code> converts one to version 1.</p>
+<h2 id="effects">Effects<a class="headerlink" href="#effects" title="Permanent link">#</a></h2>
+<p>An effect is a synthetic sound effect: tones mixed straight, exact and cheap (blips, sweeps,
+crunches, jingles). It is one of the two kinds of sound; instruments are the other, the layered
+renderer for music and live sounds. Both play through <code>audio.sound(...)</code>.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.audio</span><span class="w"> </span><span class="kn">import</span> <span class="n">Effect</span><span class="p">,</span> <span class="n">Envelope</span><span class="p">,</span> <span class="n">Tone</span><span class="p">,</span> <span class="n">Waveform</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">JUMP</span> <span class="o">=</span> <span class="n">Effect</span><span class="p">(</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">name</span><span class="o">=</span><span class="s1">'jump'</span><span class="p">,</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">volume</span><span class="o">=</span><span class="mf">0.35</span><span class="p">,</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">tones</span><span class="o">=</span><span class="p">(</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        <span class="n">Tone</span><span class="p">(</span><span class="n">waveform</span><span class="o">=</span><span class="n">Waveform</span><span class="o">.</span><span class="n">SQUARE</span><span class="p">,</span> <span class="n">start_frequency</span><span class="o">=</span><span class="mf">330.0</span><span class="p">,</span> <span class="n">end_frequency</span><span class="o">=</span><span class="mf">660.0</span><span class="p">,</span> <span class="n">duration</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>             <span class="n">envelope</span><span class="o">=</span><span class="n">Envelope</span><span class="p">(</span><span class="n">attack</span><span class="o">=</span><span class="mf">0.005</span><span class="p">,</span> <span class="n">decay</span><span class="o">=</span><span class="mf">0.03</span><span class="p">,</span> <span class="n">sustain_level</span><span class="o">=</span><span class="mf">0.6</span><span class="p">,</span> <span class="n">release</span><span class="o">=</span><span class="mf">0.05</span><span class="p">)),</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="p">),</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="p">)</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">audio</span><span class="o">.</span><span class="n">sound</span><span class="p">(</span><span class="n">JUMP</span><span class="p">)</span><span class="o">.</span><span class="n">play</span><span class="p">()</span>   <span class="c1"># plays at its own volume unless play(volume=...) says otherwise</span>
+</span></code></pre></div>
+<p>In a sound file, an effect is an <code>[effects.&lt;name&gt;]</code> table, the same fields as data:</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">[effects.jump]</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">volume</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.35</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">[[effects.jump.tones]]</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">waveform</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"square"</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">start_frequency</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">330.0</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">end_frequency</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">660.0</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">duration</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.1</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="n">envelope</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">attack</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">0.005</span><span class="p">,</span><span class="w"> </span><span class="n">decay</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">0.03</span><span class="p">,</span><span class="w"> </span><span class="n">sustain_level</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">0.6</span><span class="p">,</span><span class="w"> </span><span class="n">release</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">0.05</span><span class="w"> </span><span class="p">}</span>
+</span></code></pre></div>
+<p><code>audio.sounds.add_effects([...])</code> registers effects by name, looked up before the sound directory.
+Each tone is oscillator, distortion, filters, tremolo, envelope, volume; the tones are mixed at
+their offsets and normalized to <code>peak</code>, or left exactly as summed with <code>normalize=False</code>.</p>
+<h2 id="live-sounds">Live sounds<a class="headerlink" href="#live-sounds" title="Permanent link">#</a></h2>
+<p>A live sound is rendered while it plays, chunk by chunk, so the game can move it: an engine
+whose pitch follows its speed, a projector whose flutter follows the action. It is an
+<code>Instrument(live=True)</code> with <strong>parameters</strong> the game sets and <strong>routes</strong> that map each onto what
+the sound does:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.audio</span><span class="w"> </span><span class="kn">import</span> <span class="n">Instrument</span><span class="p">,</span> <span class="n">Parameter</span><span class="p">,</span> <span class="n">Route</span><span class="p">,</span> <span class="n">Tremolo</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.audio.instrument</span><span class="w"> </span><span class="kn">import</span> <span class="n">Filter</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">MOTOR</span> <span class="o">=</span> <span class="n">Instrument</span><span class="p">(</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">wave</span><span class="o">=</span><span class="s1">'saw'</span><span class="p">,</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">live</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="nb">filter</span><span class="o">=</span><span class="n">Filter</span><span class="p">(</span><span class="s1">'low_pass'</span><span class="p">,</span> <span class="mf">600.0</span><span class="p">),</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">tremolo</span><span class="o">=</span><span class="n">Tremolo</span><span class="p">(</span><span class="n">rate_hz</span><span class="o">=</span><span class="mf">8.0</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="mf">0.4</span><span class="p">),</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="n">parameters</span><span class="o">=</span><span class="p">{</span><span class="s1">'speed'</span><span class="p">:</span> <span class="n">Parameter</span><span class="p">(</span><span class="nb">range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)},</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">routes</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>        <span class="n">Route</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'speed'</span><span class="p">,</span> <span class="n">destination</span><span class="o">=</span><span class="s1">'pitch'</span><span class="p">,</span> <span class="n">curve</span><span class="o">=</span><span class="s1">'exponential'</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="p">(</span><span class="mf">45.0</span><span class="p">,</span> <span class="mf">110.0</span><span class="p">)),</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>        <span class="n">Route</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'speed'</span><span class="p">,</span> <span class="n">destination</span><span class="o">=</span><span class="s1">'level'</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="p">(</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.85</span><span class="p">)),</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="p">],</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="p">)</span>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="n">motor</span> <span class="o">=</span> <span class="n">audio</span><span class="o">.</span><span class="n">sound</span><span class="p">(</span><span class="n">MOTOR</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">(</span><span class="n">owner</span><span class="o">=</span><span class="n">ride</span><span class="p">)</span>   <span class="c1"># a LiveSoundHandle</span>
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="n">motor</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">'speed'</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">)</span>                        <span class="c1"># each frame, or whenever it changes</span>
+</span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="n">motor</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>                                <span class="c1"># fades it out over 100 ms</span>
+</span></code></pre></div>
+<ul>
+<li><strong>Parameters</strong> clamp to their range (each clamp counted, <code>handle.clamp_count</code>) and glide to a
+  new value: one-pole over <code>smoothing_ms</code> (30 by default), or a straight line with
+  <code>glide='linear'</code>. Any number of <code>set</code> calls before a chunk count as the last one.</li>
+<li><strong>Routes</strong> (at most 8) map a parameter onto <code>pitch</code> (Hz), <code>level</code> (multiplied in),
+  <code>filter.cutoff</code>, <code>tremolo.rate</code>, <code>tremolo.depth</code> or <code>sources.&lt;name&gt;.level</code>, by a curve:
+  <code>linear</code>, <code>exponential</code>, <code>logarithmic</code>, <code>smoothstep</code> or <code>steps(n)</code>. Levels multiply; pitch,
+  cutoff and the tremolo take one route each. A route needs the filter or tremolo it moves.</li>
+<li><strong>Sources</strong> are sine, square, saw, triangle and white noise for now, each with its own level
+  and <code>semitones</code>/<code>detune_cents</code>. <code>chunk_seconds</code> (0.03-0.5, default 0.1) is its latency.</li>
+<li><strong><code>start(parameters=, volume=, owner=, persist=, pan=, bus=, priority=)</code></strong>: the owner (the
+  scene that starts it, by default; a transition keeps it playing through the ride) decides when
+  it pauses and ends, as for baked plays; <code>persist=True</code> outlives the owner. Pan, bus and priority
+  default to the sound file's; every sound pans by the constant-power law, so centred is 3 dB
+  down on each side. A full live pool (<code>--live-voice-pool</code>, 4) steals the lowest-priority voice
+  at or below the new one's, else refuses with <code>ValueError</code>.</li>
+<li><strong>The handle:</strong> <code>set</code>, <code>release()</code>, <code>stop(fade=)</code>, <code>cancel()</code> (at once, the chunk already
+  queued included), <code>set_volume(volume, fade=)</code>, <code>set_pan</code>, <code>pause()</code>/<code>resume()</code> (a pause holds
+  whatever the scene rules say), and <code>set_frequency</code>, <code>set_cutoff</code> (None removes the filter) and
+  <code>set_tremolo</code> (None removes it) for what no route moves. Like a <code>SoundHandle</code>, every method
+  answers False once the sound has ended; both kinds are a <code>PlayingSound</code>.</li>
+<li><code>play()</code> refuses a live sound and <code>start()</code> a baked one. A live sound compiles nothing, so it
+  costs nothing to declare in <code>SOUNDS</code>.</li>
+</ul>
+<p>In a sound file:</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">[instruments.motor]</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">live</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">tremolo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">rate_hz</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">8.0</span><span class="p">,</span><span class="w"> </span><span class="n">depth</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">0.4</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">[instruments.motor.sources.main]</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">wave</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"saw"</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="k">[instruments.motor.filter]</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="n">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"low_pass"</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="n">cutoff</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">600.0</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="k">[instruments.motor.parameters.speed]</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="n">range</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">]</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="n">default</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>
+</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="k">[[instruments.motor.routes]]</span>
+</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="n">from</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"speed"</span>
+</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="n">to</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"pitch"</span>
+</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="n">curve</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"exponential"</span>
+</span><span id="__span-5-20"><a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="n">output</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">45.0</span><span class="p">,</span><span class="w"> </span><span class="mf">110.0</span><span class="p">]</span>
+</span><span id="__span-5-21"><a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>
+</span><span id="__span-5-22"><a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="k">[sounds.motor]</span>
+</span><span id="__span-5-23"><a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a><span class="n">instrument</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"motor"</span>
+</span></code></pre></div>
+<p>Route outputs are numbers (hertz for pitch). Live voices, their parameters and routes:
+<code>audio/live_instrument.py</code>, <code>audio/live_controls.py</code>; their channel and pool: <code>audio/live.py</code>.</p>
 <h2 id="cache-modes">Cache modes<a class="headerlink" href="#cache-modes" title="Permanent link">#</a></h2>
 <p><code>--sound-cache</code> chooses how compiled sounds are kept (replay-local: a recording replays under any
 mode):</p>
@@ -3019,7 +3162,7 @@ mode):</p>
 </thead>
 <tbody>
 <tr>
-<td><code>ram</code> (default)</td>
+<td><code>ram</code></td>
 <td>Compiled sounds stay in memory. Above <code>--sound-cache-memory</code> (256 MB) the least recently played sounds that are not playing are dropped, and compiled again on their next request (counted).</td>
 </tr>
 <tr>
@@ -3027,8 +3170,8 @@ mode):</p>
 <td>Nothing is kept: every <code>play()</code> compiles in its frame. This is the switch that shows what compiling in gameplay costs. Getting a sound renders nothing, and a sound played 5 times compiles 5 times. What a game reads of a sound never depends on the cache (a replay may run under another mode): a synthesized sound's <code>length</code> is worked out without rendering, exactly as a compile would size it; whatever only a compile can tell (every <code>peak</code>, and a recorded file's <code>length</code> and rate) comes from one compile on its first read, counted like any compile, then kept. A play's compile gives them too, so a read after a play compiles nothing more.</td>
 </tr>
 <tr>
-<td><code>disk</code></td>
-<td>Arrives in M3; refused now (<code>OPTIONS_REFUSED</code>).</td>
+<td><code>disk</code> (default)</td>
+<td>As <code>ram</code>, and each compiled sound is also kept as a file in the game's own folder, <code>&lt;root&gt;/&lt;game package&gt;/sounds/&lt;render version&gt;/&lt;key[:2]&gt;/&lt;key&gt;.wav</code>, so a later launch reads it back instead of compiling (faster on every machine measured, a Raspberry Pi's SD card included: <code>scripts/benchmark_sound_cache.py</code>). A read writes nothing; each game's folder is limited to 64 MB, oldest written files pruned at startup. <code>GLITCHYGAMES_SOUND_CACHE_ROOT</code> names the root (unset: the platform's cache folder; empty: no disk layer, so <code>ram</code>; the test harness sets it empty). In the browser it runs as <code>ram</code>. Compiled sounds are also shared by every engine context in a process (an Arcade tile's restart compiles nothing).</td>
 </tr>
 </tbody>
 </table>
@@ -3112,8 +3255,8 @@ docstring of <code>src/glitchygames/audio/voices.py</code> are the contract):</p
   or past the declared count, fails alone (<code>InnerGameChannelsError</code>); one whose
   <code>--sound-channels</code> outnumber a heard set's channels replays silent and refuses to be heard.</li>
 <li><strong>A silent tile touches no channel.</strong> Its voice table makes no mixer call; while it builds,
-  steps or finishes every channel is reserved, so its plain <code>Sound.play()</code> (PaddleSlap's,
-  <code>SoundBank</code>'s) returns None and starts nothing, as on a busy mixer; its live voices play
+  steps or finishes every channel is reserved, so a plain <code>pygame.mixer.Sound.play()</code> (a game's
+  own) returns None and starts nothing, as on a busy mixer; its live voices play
   chunks at volume 0 on its own pool.</li>
 <li><strong>Switching.</strong> A heard tile's plain plays are heard, and followed: each step notes the
   unreserved channels it started a sound on. Switching it silent (or its finish) fades its
@@ -3177,15 +3320,15 @@ the sound never plays where the picture does not (<code>--headless</code>, tests
 ordinary <code>Instrument</code>, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.audio</span><span class="w"> </span><span class="kn">import</span> <span class="n">instruments</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">violin</span> <span class="o">=</span> <span class="n">instruments</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'violin'</span><span class="p">)</span>                       <span class="c1"># built once, then kept</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">tune</span> <span class="o">=</span> <span class="n">audio</span><span class="o">.</span><span class="n">sound</span><span class="p">(</span><span class="n">violin</span><span class="p">,</span> <span class="n">notes</span><span class="o">=</span><span class="s1">'G3:0.5 D4:0.5 A4:1'</span><span class="p">)</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">instruments</span><span class="o">.</span><span class="n">entry</span><span class="p">(</span><span class="s1">'alto saxophone'</span><span class="p">)</span><span class="o">.</span><span class="n">playing_range</span>        <span class="c1"># (Note('Db3'), Note('Ab5'))</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">instruments</span><span class="o">.</span><span class="n">names</span><span class="p">(</span><span class="n">family</span><span class="o">=</span><span class="n">instruments</span><span class="o">.</span><span class="n">Family</span><span class="o">.</span><span class="n">BRASS</span><span class="p">)</span>       <span class="c1"># every brass instrument</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="n">instruments</span><span class="o">.</span><span class="n">names</span><span class="p">(</span><span class="n">tag</span><span class="o">=</span><span class="n">instruments</span><span class="o">.</span><span class="n">Tag</span><span class="o">.</span><span class="n">MECHANICAL</span><span class="p">)</span>        <span class="c1"># every entry carrying a tag</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">instruments</span><span class="o">.</span><span class="n">names</span><span class="p">(</span><span class="n">tag</span><span class="o">=</span><span class="n">instruments</span><span class="o">.</span><span class="n">Tag</span><span class="o">.</span><span class="n">CHIP</span><span class="p">)</span>              <span class="c1"># every sound-chip voice</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">instruments</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'slapstick'</span><span class="p">)</span>                             <span class="c1"># an alias: the same instrument as 'whip'</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.audio</span><span class="w"> </span><span class="kn">import</span> <span class="n">instruments</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">violin</span> <span class="o">=</span> <span class="n">instruments</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'violin'</span><span class="p">)</span>                       <span class="c1"># built once, then kept</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">tune</span> <span class="o">=</span> <span class="n">audio</span><span class="o">.</span><span class="n">sound</span><span class="p">(</span><span class="n">violin</span><span class="p">,</span> <span class="n">notes</span><span class="o">=</span><span class="s1">'G3:0.5 D4:0.5 A4:1'</span><span class="p">)</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">instruments</span><span class="o">.</span><span class="n">entry</span><span class="p">(</span><span class="s1">'alto saxophone'</span><span class="p">)</span><span class="o">.</span><span class="n">playing_range</span>        <span class="c1"># (Note('Db3'), Note('Ab5'))</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">instruments</span><span class="o">.</span><span class="n">names</span><span class="p">(</span><span class="n">family</span><span class="o">=</span><span class="n">instruments</span><span class="o">.</span><span class="n">Family</span><span class="o">.</span><span class="n">BRASS</span><span class="p">)</span>       <span class="c1"># every brass instrument</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="n">instruments</span><span class="o">.</span><span class="n">names</span><span class="p">(</span><span class="n">tag</span><span class="o">=</span><span class="n">instruments</span><span class="o">.</span><span class="n">Tag</span><span class="o">.</span><span class="n">MECHANICAL</span><span class="p">)</span>        <span class="c1"># every entry carrying a tag</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">instruments</span><span class="o">.</span><span class="n">names</span><span class="p">(</span><span class="n">tag</span><span class="o">=</span><span class="n">instruments</span><span class="o">.</span><span class="n">Tag</span><span class="o">.</span><span class="n">CHIP</span><span class="p">)</span>              <span class="c1"># every sound-chip voice</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="n">instruments</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'slapstick'</span><span class="p">)</span>                             <span class="c1"># an alias: the same instrument as 'whip'</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -3394,6 +3537,31 @@ key never compiles anything.</p>
 <p><code>glitchygames.audio.render_to_file(sound, path, ...)</code> writes a sound to a <abbr title="Waveform Audio File Format">WAV</abbr> file with no audio
 device; <code>glitchygames sound-render SOURCE --sound-output PATH</code> does the same from the command
 line. A sound rendered alone is its compiled buffer, bit for bit.</p>
+<h2 id="outside-a-game">Outside a game<a class="headerlink" href="#outside-a-game" title="Permanent link">#</a></h2>
+<p>A tool, test bench or script can have an audio engine of its own, without a <code>GameEngine</code> or
+scene manager: reserve the mixer's channels, make a live pool on the live ones, make the engine,
+and call its <code>update</code> once a frame. That one call moves the baked voices by the frame's time
+(they end by played time, so without it a one-shot never ends) and applies the owner rules to
+the live voices.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pygame</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.audio</span><span class="w"> </span><span class="kn">import</span> <span class="n">AudioEngine</span><span class="p">,</span> <span class="n">Instrument</span><span class="p">,</span> <span class="n">LiveAudio</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.audio.voices</span><span class="w"> </span><span class="kn">import</span> <span class="n">reserve_channels</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="n">pygame</span><span class="o">.</span><span class="n">mixer</span><span class="o">.</span><span class="n">init</span><span class="p">()</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="n">partition</span> <span class="o">=</span> <span class="n">reserve_channels</span><span class="p">(</span><span class="n">live_pool</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">library_channels</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">legacy_channels</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="n">tool</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>  <span class="c1"># owns the tool's sounds, as a scene owns a game's</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="n">pool</span> <span class="o">=</span> <span class="n">LiveAudio</span><span class="p">(</span><span class="n">channel_indices</span><span class="o">=</span><span class="n">partition</span><span class="o">.</span><span class="n">live</span><span class="p">)</span>  <span class="c1"># one pool: the engine asks for it at each start</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="n">audio</span> <span class="o">=</span> <span class="n">AudioEngine</span><span class="p">(</span><span class="n">partition</span><span class="o">=</span><span class="n">partition</span><span class="p">,</span> <span class="n">scene_source</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">tool</span><span class="p">,</span> <span class="n">live_pool</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">pool</span><span class="p">)</span>
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="n">audio</span><span class="o">.</span><span class="n">sound</span><span class="p">(</span><span class="s1">'sounds/ui.toml#click'</span><span class="p">)</span><span class="o">.</span><span class="n">play</span><span class="p">()</span>
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="n">drone</span> <span class="o">=</span> <span class="n">audio</span><span class="o">.</span><span class="n">sound</span><span class="p">(</span><span class="n">Instrument</span><span class="p">(</span><span class="n">wave</span><span class="o">=</span><span class="s1">'sine'</span><span class="p">,</span> <span class="n">live</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">pitch</span><span class="o">=</span><span class="s1">'A2'</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>
+</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="k">while</span> <span class="n">running</span><span class="p">:</span>
+</span><span id="__span-7-16"><a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>    <span class="n">audio</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">60</span><span class="p">,</span> <span class="n">active_scene</span><span class="o">=</span><span class="n">tool</span><span class="p">,</span> <span class="n">previous_scene</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">active_transitions</span><span class="o">=</span><span class="p">())</span>
+</span></code></pre></div>
+<p>A sound handed out by a bare <code>SoundLibrary</code>, with no engine, plays nothing (a warning says so
+once per sound).</p>
 
 
 
@@ -3414,7 +3582,7 @@ line. A sound rendered alone is its compiled buffer, bit for bit.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 01:06:12 UTC">November 15, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:25:25 UTC">November 15, 2026</span>
   </span>
 
     
@@ -3517,7 +3685,7 @@ line. A sound rendered alone is its compiled buffer, bit for bit.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
       
