@@ -12,7 +12,13 @@ from dataclasses import KW_ONLY, dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final, override
 
-from glitchygames.audio.live_controls import MAXIMUM_ROUTES, SOURCE_LEVEL_DESTINATION
+from glitchygames.audio.live_controls import (
+    DEFAULT_CHUNK_SECONDS,
+    MAXIMUM_CHUNK_SECONDS,
+    MAXIMUM_ROUTES,
+    MINIMUM_CHUNK_SECONDS,
+    SOURCE_LEVEL_DESTINATION,
+)
 from glitchygames.audio.pitch import PitchLike, Tuning, resolve_pitch
 from glitchygames.audio.spec import (
     ENVELOPE_PRESETS,
@@ -200,6 +206,7 @@ class Instrument:
     """
 
     __slots__ = (
+        '_chunk_seconds',
         '_drive',
         '_envelope',
         '_filter',
@@ -231,6 +238,7 @@ class Instrument:
         tremolo: Tremolo | None = None,
         parameters: Mapping[str, Parameter] | None = None,
         routes: Sequence[Route] | None = None,
+        chunk_seconds: float | None = None,
     ) -> None:
         """Build an instrument.
 
@@ -251,6 +259,7 @@ class Instrument:
             parameters: A live sound's exposed parameters, by name (``audio/live_controls.py``).
             routes: How a live sound's parameters move it, at most ``MAXIMUM_ROUTES``; each
                 from one of ``parameters``, a ``sources.<name>.level`` to one of its sources.
+            chunk_seconds: A live sound's chunk length, its latency, 0.03-0.5 s; None is 0.1.
 
         Raises:
             ValueError: Unless exactly one of wave, noise and sources is given, on more than
@@ -293,6 +302,7 @@ class Instrument:
         self._normalize = normalize
         self._hard_edges = hard_edges
         self._tremolo = tremolo
+        self._chunk_seconds = chunk_seconds
         self._parameters: tuple[tuple[str, Parameter], ...] = tuple((parameters or {}).items())
         self._routes: tuple[Route, ...] = tuple(routes or ())
         self._check_controls()
@@ -310,6 +320,7 @@ class Instrument:
                     ('tremolo', self._tremolo),
                     ('parameters', self._parameters),
                     ('routes', self._routes),
+                    ('chunk_seconds', self._chunk_seconds),
                 )
                 if value
             ]
@@ -317,6 +328,14 @@ class Instrument:
                 message = f'{", ".join(given)} only on a live instrument (live=True)'
                 raise ValueError(message)
             return
+        if self._chunk_seconds is not None and not (
+            MINIMUM_CHUNK_SECONDS <= self._chunk_seconds <= MAXIMUM_CHUNK_SECONDS
+        ):
+            message = (
+                f'chunk_seconds must be between {MINIMUM_CHUNK_SECONDS} and '
+                f'{MAXIMUM_CHUNK_SECONDS}, got {self._chunk_seconds}'
+            )
+            raise ValueError(message)
         if len(self._routes) > MAXIMUM_ROUTES:
             message = f'an instrument has at most {MAXIMUM_ROUTES} routes, got {len(self._routes)}'
             raise ValueError(message)
@@ -401,6 +420,11 @@ class Instrument:
         return self._tremolo
 
     @property
+    def chunk_seconds(self) -> float:
+        """A live sound's chunk length in seconds, its latency (0.1 unless given)."""
+        return DEFAULT_CHUNK_SECONDS if self._chunk_seconds is None else self._chunk_seconds
+
+    @property
     def parameters(self) -> Mapping[str, Parameter]:
         """A live sound's exposed parameters, by name (read-only)."""
         return MappingProxyType(dict(self._parameters))
@@ -444,6 +468,7 @@ class Instrument:
             self._tremolo,
             self._parameters,
             self._routes,
+            self.chunk_seconds,
         )
 
     @override

@@ -101,7 +101,7 @@ import itertools
 import logging
 import math
 import operator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import pygame
 from pydantic import BaseModel, ConfigDict
@@ -1319,6 +1319,41 @@ class SoundHandle:
             Whether the voice was playing.
         """
         return self.table is not None and self.table.set_voice_pan(self, pan)
+
+
+@runtime_checkable
+class PlayingSound(Protocol):
+    """What both kinds of handle do: a baked play's ``SoundHandle`` and ``Sound.start()``'s.
+
+    Code that only stops, fades or pans a sound (a menu's "fade everything out") takes either.
+    A live sound's handle also sets its parameters, pauses and resumes
+    (``live_instrument.LiveSoundHandle``).
+    """
+
+    @property
+    def is_playing(self) -> bool:
+        """Whether it is playing."""
+        ...
+
+    def stop(self, *, fade: float = DEFAULT_STOP_FADE_SECONDS) -> bool:
+        """Fade it out over ``fade`` seconds."""
+        ...
+
+    def cancel(self) -> bool:
+        """End it at once (a de-click fade where one can be made)."""
+        ...
+
+    def release(self) -> bool:
+        """End it the way it ends by itself (a loop after its pass, a live sound's fade)."""
+        ...
+
+    def set_volume(self, volume: float, *, fade: float = 0.0) -> bool:
+        """Change its volume, at once or over ``fade`` seconds."""
+        ...
+
+    def set_pan(self, pan: float) -> bool:
+        """Change its pan, -1 (left) to 1 (right)."""
+        ...
 
 
 # A steal counts as recent for this many frames (the debug panel flashes the channel)

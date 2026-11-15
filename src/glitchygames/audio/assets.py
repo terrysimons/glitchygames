@@ -694,6 +694,7 @@ class InstrumentTable(_Table):
     drive: Annotated[float, Field(ge=0.0, le=DRIVE_HIGHEST)] = 0.0
     sources: dict[str, SourceTable] = Field(default_factory=dict, validate_default=True)
     live: bool = False
+    chunk_seconds: float | None = None
     tremolo: TremoloTable | None = None
     parameters: dict[str, ParameterTable] = Field(default_factory=dict)
     routes: list[RouteTable] = Field(default_factory=list)
@@ -1186,6 +1187,7 @@ def _build_instruments(
                 normalize=table.normalize,
                 hard_edges=table.hard_edges,
                 live=table.live,
+                chunk_seconds=table.chunk_seconds,
                 tremolo=table.tremolo.to_tremolo() if table.tremolo is not None else None,
                 parameters={
                     name: parameter.to_parameter() for name, parameter in table.parameters.items()

@@ -594,20 +594,26 @@ class TestStartingALiveSound:
 
         assert [call.kwargs['volume'] for call in create.call_args_list] == [1.0, 0.25]
 
-    def test_start_passes_persist_pan_priority_chunk_and_the_bus_gain_to_the_pool(
+    def test_start_passes_persist_pan_priority_the_bus_gain_and_the_instruments_chunk(
         self, pool, mocker
     ):
         create = mocker.spy(pool, 'create_instrument_voice')
         engine = self._engine(pool)
         engine.buses['music'].volume = 0.4
 
-        engine.sound(self.MOTOR).start(
-            persist=True, pan=0.25, bus='music', priority=70, chunk_seconds=0.05
+        quick = Instrument(
+            wave='saw',
+            live=True,
+            chunk_seconds=0.05,
+            parameters=dict(self.MOTOR.parameters),
+            routes=self.MOTOR.routes,
         )
+
+        engine.sound(quick).start(persist=True, pan=0.25, bus='music', priority=70)
 
         options = create.call_args.kwargs['options']
         assert (options.persist, options.pan, options.priority) == (True, 0.25, 70)
-        assert options.chunk_seconds == 0.05
+        assert options.chunk_seconds == 0.05  # the instrument's
         assert options.gain_source() == pytest.approx(0.4)
 
     def test_the_bus_and_priority_default_to_the_sound_files(self, pool, mocker):
@@ -634,12 +640,6 @@ class TestStartingALiveSound:
     def test_an_unknown_bus_is_refused(self, pool):
         with pytest.raises(KeyError, match='nowhere'):
             self._engine(pool).sound(self.MOTOR).start(bus='nowhere')
-
-    @pytest.mark.parametrize('seconds', [0.02, 0.6])
-    def test_a_chunk_outside_its_safe_range_is_refused(self, pool, seconds):
-        """Below 30 ms a chunk cannot cover a 60 fps frame and the device buffer."""
-        with pytest.raises(ValueError, match='chunk_seconds'):
-            self._engine(pool).sound(self.MOTOR).start(chunk_seconds=seconds)
 
     def test_an_engine_with_no_pool_starts_it_silently(self, caplog):
         from glitchygames.audio.engine import AudioEngine
@@ -734,3 +734,17 @@ class TestTheHandlesControls:
             assert not handle.resume()
             assert not handle.set_pan(0.0)
             assert not handle.is_paused
+
+
+def test_both_kinds_of_handle_are_a_playing_sound():
+    """Code that only stops or fades a sound takes either kind (a menu's "fade all out")."""
+    from glitchygames.audio.live_instrument import LiveSoundHandle
+    from glitchygames.audio.voices import PlayingSound, SoundHandle
+
+    baked: PlayingSound = SoundHandle(slot=-1, generation=-1)
+    live: PlayingSound = LiveSoundHandle(None)
+
+    for handle in (baked, live):
+        assert isinstance(handle, PlayingSound)
+        assert not handle.stop(fade=0.05)
+        assert not handle.is_playing

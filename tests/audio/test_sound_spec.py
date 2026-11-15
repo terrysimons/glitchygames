@@ -634,3 +634,27 @@ def test_a_route_whose_output_the_destination_cannot_take_is_refused(destination
 
     with pytest.raises(ValueError, match=rf'{re.escape(destination)}.*output'):
         _live_motor(filter=Filter('low_pass', 4000.0), routes=[route])
+
+
+def test_a_live_instruments_chunk_length_is_its_latency_and_defaults_to_100_ms():
+    """Part of how a live sound is designed, beside its filter and tremolo (step 7b)."""
+    assert _live_motor().chunk_seconds == 0.1
+    assert _live_motor(chunk_seconds=0.05).chunk_seconds == 0.05
+
+
+def test_a_chunk_length_is_part_of_an_instruments_identity():
+    """Two instruments differing only in chunk length are different sounds."""
+    assert _live_motor(chunk_seconds=0.05) != _live_motor()
+
+
+@pytest.mark.parametrize('seconds', [0.02, 0.6])
+def test_a_chunk_length_outside_its_safe_range_is_refused(seconds):
+    """Below 30 ms a chunk cannot cover a 60 fps frame and the device buffer."""
+    with pytest.raises(ValueError, match='chunk_seconds'):
+        _live_motor(chunk_seconds=seconds)
+
+
+def test_a_chunk_length_needs_a_live_instrument():
+    """A baked sound has no chunks."""
+    with pytest.raises(ValueError, match='chunk_seconds only on a live instrument'):
+        Instrument(wave='saw', chunk_seconds=0.05)

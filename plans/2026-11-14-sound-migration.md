@@ -139,8 +139,11 @@ cache in them (a PaddleSlap golden replayed under `--sound-cache disk` wrote no 
         square root of 2 to sound as before); pan, bus and priority default to the sound
         file's; the bus's `effective_gain` per chunk; a full pool steals the lowest-priority
         live voice of equal or lower priority (earliest made first), else refuses as before.
-     5. `start(chunk_seconds=0.1)`, 0.03-0.5 s (below 0.03 a chunk cannot cover a 60 fps frame
-        plus the device buffer).
+     5. A live sound's chunk length, 0.03-0.5 s (below 0.03 a chunk cannot cover a 60 fps frame
+        plus the device buffer): `Instrument(chunk_seconds=0.1)` and in sound files, not on
+        `start()` (the owner, 2026-11-15: latency is part of how a live sound is designed;
+        `start()` keeps flat keyword arguments like `play()`, with the same reasoned
+        suppression). Both handles are a `voices.PlayingSound`.
      6. `handle.set_frequency(hz)`, `set_cutoff(hz | None)`, `set_tremolo(Tremolo | None)`:
         base values with no declared range; a cutoff on an instrument without a filter adds a
         low-pass, None removes it; linear over one chunk for frequency (the old voice's), the

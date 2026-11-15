@@ -48,6 +48,7 @@ from glitchygames.audio.voices import (
     InnerGameChannelLayout,
     InnerGameChannelsError,
     MixerBusyError,
+    PlayingSound,
     SoundHandle,
     reserve_inner_game_channels,
 )
@@ -81,6 +82,7 @@ __all__ = [
     'OfflineEvent',
     'Parameter',
     'PitchTable',
+    'PlayingSound',
     'RenderReport',
     'Route',
     'Scale',

@@ -61,6 +61,11 @@ STEPS_CURVE: Final[re.Pattern[str]] = re.compile(r'steps\((?P<count>\d+)\)')
 MINIMUM_STEPS: Final[int] = 2
 LOGARITHMIC_SPREAD: Final[float] = 9.0
 MILLISECONDS_PER_SECOND: Final[float] = 1000.0
+# A live voice's chunk length, its latency (Instrument(chunk_seconds=)): below 30 ms one chunk
+# cannot cover a 60 fps frame plus the 11.6 ms device buffer, so it would underrun every frame
+DEFAULT_CHUNK_SECONDS: Final[float] = 0.1
+MINIMUM_CHUNK_SECONDS: Final[float] = 0.03
+MAXIMUM_CHUNK_SECONDS: Final[float] = 0.5
 
 
 class Parameter(BaseModel):

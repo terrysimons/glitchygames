@@ -37,6 +37,11 @@ import numpy as np
 import pygame
 from pydantic import BaseModel, ConfigDict, Field
 
+from glitchygames.audio.live_controls import (
+    DEFAULT_CHUNK_SECONDS,
+    MAXIMUM_CHUNK_SECONDS,
+    MINIMUM_CHUNK_SECONDS,
+)
 from glitchygames.audio.route import AUDIO_ROUTE_SLOT
 from glitchygames.audio.synth import (
     DEFAULT_FILTER_TAPS,
@@ -58,14 +63,10 @@ if TYPE_CHECKING:
 
 log: logging.Logger = logging.getLogger('game.audio.live')
 
-DEFAULT_CHUNK_DURATION = 0.1
+DEFAULT_CHUNK_DURATION = DEFAULT_CHUNK_SECONDS
 # The engine numpy stream a voice's noise comes from when none is given (glitchygames/randomness.py)
 LIVE_RANDOM_STREAM = 'audio.live'
 DEFAULT_FADE_OUT = 0.1
-# A start's chunk length (Sound.start(chunk_seconds=)): below 30 ms one chunk cannot cover a
-# 60 fps frame plus the 11.6 ms device buffer, so the voice would underrun every frame
-MINIMUM_CHUNK_SECONDS = 0.03
-MAXIMUM_CHUNK_SECONDS = 0.5
 # A live voice's stealing priority when none is given (the baked plays' default)
 DEFAULT_LIVE_PRIORITY = 50
 PAN_RANGE = (-1.0, 1.0)

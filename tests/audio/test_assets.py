@@ -971,6 +971,7 @@ def test_a_tone_that_is_not_a_table_is_refused(tmp_path):
 LIVE_MOTOR = """
 [instruments.motor]
 live = true
+chunk_seconds = 0.05
 tremolo = { rate_hz = 8.0, depth = 0.4 }
 
 [instruments.motor.sources.main]
@@ -1012,6 +1013,7 @@ def test_a_live_instrument_loads_with_its_tremolo_parameters_and_routes(tmp_path
     ]
 
     assert motor.live
+    assert motor.chunk_seconds == 0.05
     assert motor.tremolo == Tremolo(rate_hz=8.0, depth=0.4)
     assert dict(motor.parameters) == {
         'speed': Parameter(range=(0.0, 1.0), default=0.25, smoothing_ms=60.0, unit='fraction')
@@ -1066,6 +1068,7 @@ def test_a_live_instrument_loads_with_its_tremolo_parameters_and_routes(tmp_path
             'instruments.motor.routes[0]',
             'positive output ends',
         ),
+        (('chunk_seconds = 0.05', 'chunk_seconds = 0.01'), 'instruments.motor', 'chunk_seconds'),
         (('depth = 0.4', 'depth = 1.5'), 'instruments.motor.tremolo.depth', 'less than or equal'),
         (('rate_hz = 8.0', 'rate_hz = 0.0'), 'instruments.motor.tremolo.rate_hz', 'greater than'),
         (('live = true', 'live = false'), 'instruments.motor', 'only on a live instrument'),

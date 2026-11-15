@@ -341,6 +341,7 @@ Plus, for every kind: `normalize` (bool, default true).
 | `bits`, `sample_rate_reduction` | 1–16; Hz | none | M2 |
 | `parameters.<name>` | `{ range = [lo, hi], default, smoothing_ms = 30, unit = "" }` | none | M2 |
 | `routes` | array of `{ from, to, curve = "linear", output = [a, b] }`; `output` in numbers (Hz for `pitch`): note names are later work, since they would resolve without the game's tuning | none | M2 |
+| `chunk_seconds` | 0.03–0.5, live only: the voice's chunk length, its latency (below 30 ms a chunk cannot cover a 60 fps frame plus the device buffer) | 0.1 | M2 (plans/2026-11-14-sound-migration.md, step 7b) |
 | `tremolo` | `{ rate_hz, depth }` (an effect tone's form), live only; `tremolo.rate` and `tremolo.depth` are route destinations | none | M2 (plans/2026-11-14-sound-migration.md) |
 | `vibrato`, `lfos`, `glide`, `bend_range` | tables | none | M4 |
 | `algorithm`, `operators`, `feedback` | FM | none | M4 |

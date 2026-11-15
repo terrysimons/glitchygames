@@ -68,7 +68,6 @@ from glitchygames.audio.assets import (
 from glitchygames.audio.effects import Effect
 from glitchygames.audio.exceptions import AudioUnavailableError, SoundAssetError, SoundRenderError
 from glitchygames.audio.instrument import UNPITCHED_REFERENCE_HZ, Instrument, build_spec
-from glitchygames.audio.live import DEFAULT_CHUNK_DURATION
 from glitchygames.audio.pitch import resolve_pitch
 from glitchygames.audio.render import render_sound, rendered_frame_count
 from glitchygames.audio.spec import (
@@ -331,7 +330,6 @@ class LivePlayback(BaseModel):
     pan: float | None
     bus: str | None
     priority: int | None
-    chunk_seconds: float
 
 
 class LiveStarter(Protocol):
@@ -461,7 +459,6 @@ class Sound:
         pan: float | None = None,
         bus: str | None = None,
         priority: int | None = None,
-        chunk_seconds: float = DEFAULT_CHUNK_DURATION,
     ) -> LiveSoundHandle:
         """Start a live sound on the context's live pool (``live_instrument``).
 
@@ -476,7 +473,8 @@ class Sound:
                 3 dB down on each side); None is the sound file's.
             bus: The bus whose gain it follows; None is the sound file's.
             priority: 0-100, for stealing on a full live pool; None is the sound file's.
-            chunk_seconds: Seconds per chunk (its latency), 0.03 to 0.5.
+
+        Its chunk length, its latency, is the instrument's (``Instrument(chunk_seconds=)``).
 
         Returns:
             Its handle. A sound no audio engine handed out starts nothing: its handle answers
@@ -501,9 +499,7 @@ class Sound:
             parameters=parameters,
             volume=volume,
             owner=owner,
-            playback=LivePlayback(
-                persist=persist, pan=pan, bus=bus, priority=priority, chunk_seconds=chunk_seconds
-            ),
+            playback=LivePlayback(persist=persist, pan=pan, bus=bus, priority=priority),
         )
 
     def _warn_no_engine(self) -> None:

@@ -846,7 +846,7 @@ class AudioEngine:
         defaults = sound.playback_defaults
         bus = self.buses[defaults.bus if playback.bus is None else playback.bus]
         options = LiveVoiceOptions(
-            chunk_seconds=playback.chunk_seconds,
+            chunk_seconds=instrument.chunk_seconds,
             persist=playback.persist,
             priority=defaults.priority if playback.priority is None else playback.priority,
             pan=defaults.pan if playback.pan is None else playback.pan,
