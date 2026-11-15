@@ -9,8 +9,19 @@ layer this migration gives something to cache). Branch `chore/upgrade-and-sounds
 
 **Status (2026-11-15): steps 1-9 done**, 7b included, each a commit on the branch (step 9: the
 specs, `docs/architecture/sound.md`'s Effects and Live sounds sections, `gameplay_replay.md`, the
-games' pages). Left, in `plans/future-work.md`: measuring the first launch's cost and ten Arcade
-tiles' memory, and the rest of M2's live instruments.
+games' pages). Left, in `plans/future-work.md`: the rest of M2's live instruments.
+
+**Measured (2026-11-15, `scripts/measure_sound_start.py`, on this Mac and the three Pis).**
+- Ten Arcade tiles: Mr. Muncher's 2.71 MB of compiled sound is held once by the process; each
+  further tile adds about 16 KB (2.88 MB for ten), on every machine.
+- The start-up compile against the CRT power-on (72 frames, 12.5 ms of idle work each, 900 ms
+  in all): every game's total fits on every machine (the most, Clockwork Keep on the Pi 4's
+  first launch, 239 ms in 6 frames); later launches read the disk cache in one frame (at most
+  11 ms, Pi 4). But a slice compiles at least one whole sound, and on a first launch one sound
+  can outlast a frame: Clockwork Keep's victory jingle takes 117 ms on the Pi 4 (Mr. Muncher's
+  film snap 81 ms), so the power-on stalls once for about 7 frames there (about 2 on a Pi 5,
+  none visible on the Mac). Recorded, not fixed (the owner's call): the remedies are in
+  `plans/future-work.md`.
 
 ## Why
 

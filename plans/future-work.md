@@ -1211,9 +1211,18 @@ changes the outer game's key repeat (the plan's Review Focus 4).
       clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
 - ~~**Move the games onto the new sound library (sound engine M2's migration), in
   `chore/upgrade-and-sounds-on-first-use` with the upgrade and the disk cache**~~ **Done**
-  2026-11-15 (plans/2026-11-14-sound-migration.md, steps 1-9), except two measurements still
-  open: the first launch's cost (start-up compile against the CRT power-on) and the memory of
-  ten Arcade tiles each holding their game's set (the process-wide store now shares one copy).
+  2026-11-15 (plans/2026-11-14-sound-migration.md, steps 1-9, and its two measurements: ten
+  Arcade tiles hold one copy of a game's sounds, about 16 KB more per tile; every start-up
+  compile fits the CRT power-on).
+- **A first launch's long sound stalls the CRT power-on on a slow machine** (measured
+  2026-11-15, `scripts/measure_sound_start.py`): a start-up slice compiles at least one whole
+  sound, and Clockwork Keep's victory jingle takes 117 ms on a Raspberry Pi 4 (Mr. Muncher's
+  film snap 81 ms), so the power-on stalls once for about 7 frames there (about 2 on a Pi 5).
+  Once per machine: later launches read the disk cache. Remedies, in order: `sound-cache fill`
+  (the disk plan's subcommand, so an install fills the cache and even a first launch reads);
+  rendering a long effect tone by tone across slices and mixing at the end (keeps the
+  no-thread design; the longest tone bounds the stall). Not a background thread (the plan's
+  decision 6; the mixer's callback needs the GIL, BUGS.md #27).
   (the owner,
   2026-11-14: "Update the games to use it"; "I want to do the migration here in this branch. All
   together."; live instruments built as part of it; "make them all compile at the init of each
