@@ -1040,7 +1040,8 @@ def test_the_hook_runs_first_at_push_and_stops_the_rest():
     assert 'entry: uv run --locked --extra dev nox -s measure-on-raspberry-pi\n' in hook
     assert 'stages: [pre-push]' in hook
     assert 'fail_fast: true' in hook
-    assert 'always_run: true' in hook
+    # It runs for any push that changes more than Markdown (tests/test_ci_config.py)
+    assert 'always_run' not in hook
 
 
 @pytest.mark.parametrize(
