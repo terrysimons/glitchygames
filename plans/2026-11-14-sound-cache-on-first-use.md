@@ -26,11 +26,14 @@ time, so first use is the earliest point; a subcommand fills the cache ahead of 
 2. **`disk` is opt-in; `ram` stays the default** (the owner, 2026-11-14). `--sound-cache disk`
    stops being refused. Making it the default waits for M3's numbers or the owner's say-so.
 3. **The spec's layout and limits hold** (§6.4, owner decisions): `<cache>/sounds/
-   <render_version>/<key[:2]>/<key>.wav`, 16-bit PCM at the mixer rate, written aside then moved
-   (`output_files.write_aside_then_replace`); 64 MB, oldest-accessed pruned at startup; a read
+   <render_version>/<key[:2]>/<key>.wav`, 16-bit PCM at the mixer rate, written aside then moved;
+   64 MB, oldest-accessed pruned at startup; a read
    verifies the header (rate, channels, width, length) and a bad file is deleted and compiled
    again; in tests and in the browser `disk` falls back to `ram` with one log line (outside tests
-   `--headless` honours it).
+   `--headless` honours it). One change from the spec's text: a write goes to a temporary file of
+   its own (`<key>.wav.writing-*`, `tempfile.mkstemp` in the same folder), not
+   `output_files.write_aside_then_replace`, whose one fixed `.partial` name two processes writing
+   the same sound would share (one could move the other's half-written file into place).
 4. **A disk hit gives a replay exactly what a compile would.** A WAV holds int16 samples, not the
    float samples the memory cache keeps, and CLAUDE.md requires a sound's `peak`, `length` and
    `sample_rate` never to depend on the cache. So each file also carries the compile's exact
@@ -59,9 +62,8 @@ time, so first use is the earliest point; a subcommand fills the cache ahead of 
   `read(*, identity_key, sample_rate, frame_count) -> CachedSamples | None` (int16 samples and
   peak; None on a miss or a bad file, which it deletes), `write(*, identity_key, samples_int16,
   peak, sample_rate)`, `prune()` (oldest-accessed first, down to the limit) and `size_bytes()`.
-  `CachedSamples` is a frozen pydantic model only if its construction cost measures negligible on
-  a hit (measure first: it is built on every disk read); otherwise a `NamedTuple`, with the
-  measurement in its docstring.
+  `CachedSamples` is a frozen pydantic model: measured at 0.36 us to construct, 1.2% of a disk
+  read of a one-second sound (its docstring has the measurement).
 - `SoundLibrary(cache=CacheMode.DISK, disk=DiskSoundCache | None)`: memory first, then disk, then
   compile and write. `ENGINE_SOUND_CACHE` (the engine's own sounds, process-wide) reads and writes
   the same disk layer when the mode is `disk`.
