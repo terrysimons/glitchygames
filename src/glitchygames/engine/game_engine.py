@@ -1208,7 +1208,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             choices=[mode.value for mode in CacheMode],
             help=(
                 'how compiled sounds are kept: none (compiled again at every play), ram (in '
-                'memory, default) or disk (arrives in M3; refused until then)'
+                'memory, default) or disk (in memory and in the cache folder, so a later launch '
+                'compiles nothing: GLITCHYGAMES_SOUND_CACHE_ROOT names it, empty for none)'
             ),
             default=CacheMode.RAM.value,
         )
@@ -2659,7 +2660,6 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         """
         self._refuse_listing_input_devices_during_a_run(options=options)
         self._refuse_a_forced_power_on_during_a_run(options=options)
-        self._refuse_the_disk_sound_cache(options=options)
         replay_trace_path = options.get('replay_trace')
         if replay_trace_path is None:
             self._check_replay_options_without_a_recording(options=options)
@@ -2960,19 +2960,6 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         if pygame.mixer.get_init() is not None:
             self.channel_partition = partition
         return partition
-
-    def _refuse_the_disk_sound_cache(self: Self, *, options: dict[str, Any]) -> None:
-        """Exit with ExitCode.OPTIONS_REFUSED for ``--sound-cache disk``, which arrives in M3.
-
-        Args:
-            options: The parsed options.
-
-        """
-        from glitchygames.audio.library import DISK_CACHE_MESSAGE, CacheMode
-
-        if options.get('sound_cache') == CacheMode.DISK.value:
-            self.log.error('Cannot use --sound-cache disk: %s', DISK_CACHE_MESSAGE)
-            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
     def _refuse_listing_input_devices_during_a_run(self: Self, *, options: dict[str, Any]) -> None:
         """Exit with ExitCode.OPTIONS_REFUSED for --list-input-devices with a replay or recording.

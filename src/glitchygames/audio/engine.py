@@ -64,6 +64,13 @@ import pygame
 from glitchygames import clock
 from glitchygames.audio.accounting import AudioAccountant, AudioFrameAccount
 from glitchygames.audio.buses import BusTree
+from glitchygames.audio.disk_cache import (
+    DISK_CACHE_LIMIT_BYTES,
+    SOUND_CACHE_ROOT_VARIABLE,
+    DiskSoundCache,
+    sound_cache_root,
+    sounds_directory,
+)
 from glitchygames.audio.instrument import Instrument
 from glitchygames.audio.library import (
     DEFAULT_MEMORY_LIMIT_BYTES,
@@ -73,6 +80,7 @@ from glitchygames.audio.library import (
     SoundLibrary,
 )
 from glitchygames.audio.pitch import Tuning
+from glitchygames.audio.spec import AUDIO_RENDER_VERSION
 from glitchygames.audio.voices import (
     DEFAULT_STOP_FADE_SECONDS,
     LIBRARY_GROUP,
@@ -96,6 +104,30 @@ if TYPE_CHECKING:
     from glitchygames.scenes import Scene
 
 log: logging.Logger = logging.getLogger('game.audio.engine')
+
+
+def _disk_layer() -> DiskSoundCache | None:
+    """Make cache ``disk``'s layer, or say once why there is none (it then runs as ``ram``).
+
+    Returns:
+        The layer under ``sound_cache_root()``, or None in the browser (no lasting files) or with
+        ``GLITCHYGAMES_SOUND_CACHE_ROOT`` empty (the test harness's setting).
+    """
+    if sys.platform == 'emscripten':
+        log.info('--sound-cache disk runs as ram in the browser, which keeps no files')
+        return None
+    root = sound_cache_root()
+    if root is None:
+        log.info(
+            '--sound-cache disk runs as ram: %s is empty, so there is no disk layer',
+            SOUND_CACHE_ROOT_VARIABLE,
+        )
+        return None
+    return DiskSoundCache(
+        directory=sounds_directory(root=root, render_version=AUDIO_RENDER_VERSION),
+        limit_bytes=DISK_CACHE_LIMIT_BYTES,
+    )
+
 
 # Impl spec 7.1 and 10.2: the library's channels (--sound-channels) and the unreserved ones left
 # for Sound.play() callers (pygame's default count)
@@ -299,7 +331,9 @@ class AudioEngine:
 
         Args:
             partition: The mixer's channel partition (``reserve_channels``).
-            cache: The cache mode (``disk`` arrives in M3: ValueError).
+            cache: The cache mode. ``disk`` keeps sounds under ``sound_cache_root()``; with no
+                root (``GLITCHYGAMES_SOUND_CACHE_ROOT`` empty) or in the browser it runs as
+                ``ram``, says why once, and ``cache_mode`` reads ``ram``.
             memory_limit_bytes: The bytes compiled sounds may hold under ``ram``.
             scene_source: Gives the scene plays belong to and short names resolve in (the scene
                 in setup, else the active scene), or None.
@@ -311,6 +345,9 @@ class AudioEngine:
         self.waves: WaveRegistry = current_wave_registry()
         self.buses = BusTree()
         self.tuning = Tuning()
+        disk = _disk_layer() if cache is CacheMode.DISK else None
+        if cache is CacheMode.DISK and disk is None:
+            cache = CacheMode.RAM
         self.cache_mode = cache
         self.accountant = AudioAccountant()
         self.accountant.frame_number = frame_number
@@ -327,6 +364,7 @@ class AudioEngine:
             tuning_source=self._current_tuning,
             memory_limit_bytes=memory_limit_bytes,
             is_playing=self._voices.is_playing_sound,
+            disk=disk,
         )
         # Scene classes' (package directory, sound directory), looked up once each
         self._scene_paths: dict[type, tuple[Path | None, Path | None]] = {}

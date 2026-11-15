@@ -252,3 +252,33 @@ def test_the_size_of_an_absent_folder_is_zero(tmp_path: Path) -> None:
 def test_each_written_size_matches_its_layout(size: int, layout: str) -> None:
     """The sizes are literals (module state must be plain values); each equals its layout's."""
     assert size == struct.calcsize(layout)
+
+
+def test_an_unset_root_is_the_platform_cache_folder(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without GLITCHYGAMES_SOUND_CACHE_ROOT, sounds go in the platform's cache folder."""
+    from glitchygames.state.paths import get_cache_directory
+
+    monkeypatch.delenv(disk_cache.SOUND_CACHE_ROOT_VARIABLE, raising=False)
+
+    assert disk_cache.sound_cache_root() == get_cache_directory(disk_cache.CACHE_APP_NAME)
+
+
+def test_a_root_set_to_a_path_is_that_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A path in GLITCHYGAMES_SOUND_CACHE_ROOT is used as the cache root."""
+    monkeypatch.setenv(disk_cache.SOUND_CACHE_ROOT_VARIABLE, str(tmp_path))
+
+    assert disk_cache.sound_cache_root() == tmp_path
+
+
+def test_an_empty_root_means_no_disk_layer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty GLITCHYGAMES_SOUND_CACHE_ROOT turns the disk layer off (the test harness's)."""
+    monkeypatch.setenv(disk_cache.SOUND_CACHE_ROOT_VARIABLE, '')
+
+    assert disk_cache.sound_cache_root() is None
+
+
+def test_the_sounds_folder_is_versioned_by_the_render_version(tmp_path: Path) -> None:
+    """Sounds live in <root>/sounds/<render_version>/, so a render change reads no old file."""
+    assert disk_cache.sounds_directory(root=tmp_path, render_version=7) == tmp_path / 'sounds' / '7'

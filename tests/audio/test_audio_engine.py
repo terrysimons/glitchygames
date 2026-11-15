@@ -879,3 +879,52 @@ def test_the_fixture_directory_is_where_the_stand_in_scene_looks():
     package_root = Path(__file__).resolve().parent.parent
     assert SoundFixtureScene.SOUND_DIRECTORY is not None
     assert package_root / SoundFixtureScene.SOUND_DIRECTORY == FIXTURE_SOUNDS.resolve()
+
+
+class TestDiskCacheMode:
+    """``disk``: the root decides (plans/2026-11-14-sound-cache-on-first-use.md, decision 7)."""
+
+    NO_CHANNELS = ChannelPartition(live=(), library=(), legacy_count=0)
+
+    def test_with_a_root_sounds_are_kept_under_it(self, tmp_path, monkeypatch):
+        from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
+        from glitchygames.audio.library import CacheMode
+        from glitchygames.audio.spec import AUDIO_RENDER_VERSION
+
+        monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, str(tmp_path))
+        engine = AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK)
+
+        engine.sound(Instrument(wave='square'), pitch='C5')
+
+        assert engine.cache_mode is CacheMode.DISK
+        assert engine.sounds.statistics().disk_writes == 1
+        assert list((tmp_path / 'sounds' / str(AUDIO_RENDER_VERSION)).rglob('*.wav'))
+
+    def test_an_empty_root_runs_as_ram_and_says_so_once(self, monkeypatch, caplog):
+        from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
+        from glitchygames.audio.library import CacheMode
+
+        monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, '')
+        with caplog.at_level(logging.INFO, logger='game.audio'):
+            engine = AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK)
+            engine.sound(Instrument(wave='square'), pitch='C5')
+
+        assert engine.cache_mode is CacheMode.RAM
+        assert engine.sounds.statistics().disk_writes == 0
+        notes = [record for record in caplog.records if SOUND_CACHE_ROOT_VARIABLE in record.message]
+        assert len(notes) == 1
+
+    def test_in_the_browser_it_runs_as_ram_and_says_so_once(self, tmp_path, monkeypatch, caplog):
+        from glitchygames.audio import engine as engine_module
+        from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
+        from glitchygames.audio.library import CacheMode
+
+        monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, str(tmp_path))
+        monkeypatch.setattr(engine_module.sys, 'platform', 'emscripten')
+        with caplog.at_level(logging.INFO, logger='game.audio'):
+            engine = AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK)
+
+        assert engine.cache_mode is CacheMode.RAM
+        assert not list(tmp_path.rglob('*'))
+        notes = [record for record in caplog.records if 'browser' in record.message]
+        assert len(notes) == 1

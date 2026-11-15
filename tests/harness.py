@@ -17,6 +17,12 @@ from hypothesis import settings
 # has it, and only there: every client gets "not installed" unless a test names an install
 os.environ.setdefault('GLITCHYGAMES_AI_INSTALL_ROOT', '/nonexistent/glitchygames-ai-service')
 
+# No test writes to the user's sound cache folder: an empty root turns cache disk's disk layer off
+# (glitchygames/audio/disk_cache.py, rule 6), so disk runs as ram. Set, not defaulted, so a value
+# exported in a developer's shell never reaches the suite. A test of the disk layer asks for the
+# disk_sound_cache fixture (tests/disk_sound_cache.py), which points it at the test's own folder
+os.environ['GLITCHYGAMES_SOUND_CACHE_ROOT'] = ''
+
 # Importing tests.sdl_defaults defaults the SDL drivers to dummy (keeping any value the invoker
 # set); it must come before pygame is imported/initialized in any test worker
 from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip

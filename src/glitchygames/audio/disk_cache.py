@@ -19,8 +19,16 @@ plans/2026-11-14-sound-cache-on-first-use.md (built before M2, opt-in). The rule
 5. A hit marks the file used (its modification time), and ``prune`` removes the least recently
    used files until the folder is at most its limit, and every temporary file a killed writer
    left. Files are read whole, so none is ever held open.
+6. Where the cache lives is explicit (the plan's decision 7), never guessed from whether a test
+   is running: ``GLITCHYGAMES_SOUND_CACHE_ROOT`` unset means the platform's cache folder
+   (``state.paths.get_cache_directory``), a path means that folder, and an empty value means no
+   disk layer at all (``sound_cache_root`` returns None, and cache ``disk`` runs as ``ram``).
+   An environment variable rather than an option, because golden replays and bundled demos run
+   as child processes, which inherit it. The test harness sets it empty (tests/harness.py), so
+   no test writes to a user's cache folder; a test that wants the disk sets it to its own
+   folder. Sounds live under ``<root>/sounds/<render_version>/`` (``sounds_directory``).
 
-This module is a leaf: numpy, pydantic and the standard library.
+This module imports numpy, pydantic, the standard library and ``glitchygames.state.paths``.
 """
 
 from __future__ import annotations
@@ -36,6 +44,8 @@ from typing import Final
 import numpy as np
 import numpy.typing as npt
 from pydantic import BaseModel, ConfigDict
+
+from glitchygames.state.paths import get_cache_directory
 
 # RIFF layout (little-endian throughout, as WAV requires)
 RIFF_TAG: Final[bytes] = b'RIFF'
@@ -58,6 +68,39 @@ RIFF_HEADER_SIZE: Final[int] = 12
 SOUND_SUFFIX: Final[str] = '.wav'
 TEMPORARY_MARKER: Final[str] = '.writing-'
 KEY_PREFIX_LENGTH: Final[int] = 2
+# Rule 6: where the cache lives, and the app name its platform folder is named after (one cache
+# per machine, shared by every game: a sound's identity names everything that makes it)
+SOUND_CACHE_ROOT_VARIABLE: Final[str] = 'GLITCHYGAMES_SOUND_CACHE_ROOT'
+CACHE_APP_NAME: Final[str] = 'glitchygames'
+SOUNDS_FOLDER: Final[str] = 'sounds'
+# The disk layer's size limit, pruned to at startup (impl spec 6.4, the owner's 64 MB)
+DISK_CACHE_LIMIT_BYTES: Final[int] = 64 * 1024 * 1024
+
+
+def sound_cache_root() -> Path | None:
+    """Find the cache root (rule 6).
+
+    Returns:
+        The platform cache folder when ``GLITCHYGAMES_SOUND_CACHE_ROOT`` is unset, its path when
+        it is set, or None (no disk layer) when it is empty.
+    """
+    configured = os.environ.get(SOUND_CACHE_ROOT_VARIABLE)
+    if configured is None:
+        return get_cache_directory(CACHE_APP_NAME)
+    return Path(configured) if configured else None
+
+
+def sounds_directory(*, root: Path, render_version: int) -> Path:
+    """Name the folder a render version's sounds live in.
+
+    Args:
+        root: The cache root (``sound_cache_root``).
+        render_version: The audio render version.
+
+    Returns:
+        ``<root>/sounds/<render_version>``.
+    """
+    return root / SOUNDS_FOLDER / str(render_version)
 
 
 class CachedSamples(BaseModel):

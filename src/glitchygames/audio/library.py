@@ -98,7 +98,6 @@ GENERATED_NAME_DIGITS: Final[int] = 8
 IDENTITY_KEY_HEX_DIGITS: Final[int] = 32  # 128 bits, as spec.identity_key
 STEREO_CHANNELS: Final[int] = 2
 WAVE_SAMPLE_WIDTH_BYTES: Final[int] = 2  # 16-bit PCM
-DISK_CACHE_MESSAGE: Final[str] = 'the disk cache arrives in M3'
 # SoundLibrary's refusal of cache disk without a disk layer
 DISK_LAYER_REQUIRED_MESSAGE: Final[str] = 'cache disk needs a disk cache to keep sounds in'
 

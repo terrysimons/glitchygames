@@ -1174,6 +1174,31 @@ changes the outer game's key repeat (the plan's Review Focus 4).
       (a family or instrument at a time, not all 300 MB at once).
     - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
       clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
+- **Move the games onto the new sound library (sound engine M2's migration), in
+  `chore/upgrade-and-sounds-on-first-use` with the upgrade and the disk cache** (the owner,
+  2026-11-14: "Update the games to use it"; "I want to do the migration here in this branch. All
+  together."; live instruments built as part of it; "make them all compile at the init of each
+  game, so we cache from the start"). Found while building the disk cache: no golden or bundled demo makes
+  a sound through `scene_manager.audio` today, so the disk layer has nothing to cache in them
+  (a PaddleSlap golden under `--sound-cache disk` wrote no file; the `disk_sound_cache` fixture
+  failed the test). Spec: `docs/specs/2026-11-02-sound-engine-implementation-spec.md` §10.4.
+  - Clockwork Keep and Mr. Muncher: `SoundBank(ALL_RECIPES)` to `audio.sounds.add_recipes` and
+    `audio.sound(name)`; version 0 recipes compile through the same renderer, so a test proves
+    the samples bit-identical.
+  - Brave Adventurer: `GameSounds` and its five `_generate_*_sound()` functions re-authored as
+    `Instrument(...)` requests, within 1 LSB or by RMS spectrum within 0.5 dB, then the owner's
+    listening check.
+  - Live instruments (M2's first item: `Instrument(..., live=True)`, `start(parameters=...)`),
+    then Clockwork Keep's elevator motor and Mr. Muncher's projector on them; the Arcade's live
+    pools and heard-tile switching must hold (the inner-game proof).
+  - Every game compiles all its sounds when it starts, so the cache is warm from the first frame
+    (measure the first launch's cost; compiling during the CRT power-on would hide it; measure
+    the memory of ten Arcade tiles each holding their game's set).
+  - Then the clean-up: `SoundBank`, `live_audio`/`create_voice`, `GameSounds`, `load_sound` and
+    `add_recipes` (once the recipes are TOML) removed, with their tests.
+  - The proof the disk branch could not have: every golden and bundled demo replays under
+    `--sound-cache disk` cold and warm with the `disk_sound_cache` fixture (writes, then hits,
+    nothing compiled twice, digests equal).
 - ~~**CLAUDE.md carries its old long Architecture Overview again**~~ **Done** 2026-11-14
   (#211, `chore/claude-md-and-hook-speedups`): the block is gone (CLAUDE.md is 333fcc0d's again
   plus later edits), and `tests/test_claude_md.py` fails on a repeated heading or component name

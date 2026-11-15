@@ -139,12 +139,10 @@ class TestSoundOptions:
         assert options['crt_power_on_sound'] == 'off'
         assert options['sound_diagnostics'] is True
 
-    def test_disk_cache_option_is_refused_until_m3(self, mocker, caplog):
-        with pytest.raises(SystemExit) as exit_information:
-            build_engine(mocker, game=SoundingGame, extra_arguments=('--sound-cache', 'disk'))
+    def test_the_disk_cache_option_is_accepted(self, mocker):
+        engine = build_engine(mocker, game=SoundingGame, extra_arguments=('--sound-cache', 'disk'))
 
-        assert exit_information.value.code == ExitCode.OPTIONS_REFUSED
-        assert 'arrives in M3' in caplog.text
+        assert engine.options['sound_cache'] == 'disk'
 
     def test_the_channels_are_partitioned_from_the_options(self, mocker):
         engine = build_engine(
