@@ -122,9 +122,13 @@ reason = "music, effects, ui, ambience, dialogue"
 path = "sounds.coin.volume"
 reason = "less than or equal to 1"
 
-["routes_in_m1.toml"]
-path = "instruments.pickup.routes"
-reason = "routes arrives in M2"
+["routes_on_a_baked_instrument.toml"]
+path = "instruments.pickup"
+reason = "parameters, routes only on a live instrument (live=True)"
+
+["vibrato_in_m2.toml"]
+path = "instruments.pickup.vibrato"
+reason = "vibrato arrives in M4"
 
 ["wavetable_source_in_m1.toml"]
 path = "instruments.pickup.sources.tone.wavetable"

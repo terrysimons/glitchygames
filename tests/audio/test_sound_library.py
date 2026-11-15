@@ -649,3 +649,23 @@ def test_a_live_sounds_parameters_go_to_start_not_sound():
         library.sound(
             Instrument(wave='sine', live=True), scene_sound_directory=None, parameters={'x': 1.0}
         )
+
+
+def test_a_live_sound_from_a_sound_file_is_live_with_its_routes(tmp_path):
+    """A file's live instrument reaches start() the same as one built in code."""
+    sound_file = tmp_path / 'motor.toml'
+    sound_file.write_text(
+        '[glitchygames]\nkind = "sounds"\nversion = 1\n\n'
+        '[instruments.motor]\nlive = true\n\n'
+        '[instruments.motor.sources.main]\nwave = "saw"\n\n'
+        '[instruments.motor.parameters.speed]\nrange = [0.0, 1.0]\ndefault = 0.0\n\n'
+        '[[instruments.motor.routes]]\nfrom = "speed"\nto = "pitch"\noutput = [45.0, 110.0]\n\n'
+        '[sounds.motor]\ninstrument = "motor"\n'
+    )
+    library, _ = make_library()
+
+    sound = library.sound(f'{sound_file}#motor', scene_sound_directory=None)
+
+    assert sound.is_live
+    assert sound.live_instrument is not None
+    assert [route.destination for route in sound.live_instrument.routes] == ['pitch']

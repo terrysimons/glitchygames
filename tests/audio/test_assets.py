@@ -354,13 +354,14 @@ def test_a_typo_suggests_the_field():
 
 def test_a_later_milestone_field_says_when_it_arrives():
     """A later milestone field says when it arrives."""
-    with pytest.raises(SoundAssetError, match='routes arrives in M2'):
-        load_sound_file(MALFORMED / 'routes_in_m1.toml')
+    with pytest.raises(SoundAssetError, match='vibrato arrives in M4'):
+        load_sound_file(MALFORMED / 'vibrato_in_m2.toml')
 
 
 def test_every_later_milestone_field_names_its_milestone():
-    """Every later milestone field names its milestone."""
-    assert FIELDS_ARRIVING_LATER['routes'] == 'M2'
+    """Every later milestone field names its milestone; M2's live fields have landed."""
+    assert FIELDS_ARRIVING_LATER['bits'] == 'M2'
+    assert not {'live', 'parameters', 'routes'} & set(FIELDS_ARRIVING_LATER)
     assert FIELDS_ARRIVING_LATER['wavetable'] == 'M4'
     assert FIELDS_ARRIVING_LATER['reverb'] == 'M5'
 
@@ -965,3 +966,122 @@ def test_a_tone_that_is_not_a_table_is_refused(tmp_path):
 
     with pytest.raises(SoundAssetError, match=r'effects\.jump'):
         load_sound_file(_write(tmp_path, 'effects.toml', text))
+
+
+LIVE_MOTOR = """
+[instruments.motor]
+live = true
+tremolo = { rate_hz = 8.0, depth = 0.4 }
+
+[instruments.motor.sources.main]
+wave = "saw"
+
+[instruments.motor.filter]
+type = "low_pass"
+cutoff = 900.0
+
+[instruments.motor.parameters.speed]
+range = [0.0, 1.0]
+default = 0.25
+smoothing_ms = 60
+unit = "fraction"
+
+[[instruments.motor.routes]]
+from = "speed"
+to = "pitch"
+curve = "exponential"
+output = [45.0, 110.0]
+
+[[instruments.motor.routes]]
+from = "speed"
+to = "filter.cutoff"
+output = [300.0, 900.0]
+
+[sounds.motor]
+instrument = "motor"
+"""
+
+
+def test_a_live_instrument_loads_with_its_tremolo_parameters_and_routes(tmp_path):
+    """The spec's schema (implementation spec 6.1, feature spec 5.4): routes say from and to."""
+    from glitchygames.audio.effects import Tremolo
+    from glitchygames.audio.live_controls import Parameter, Route
+
+    motor = load_sound_file(_write(tmp_path, 'motor.toml', VALID_HEADER + LIVE_MOTOR)).instruments[
+        'motor'
+    ]
+
+    assert motor.live
+    assert motor.tremolo == Tremolo(rate_hz=8.0, depth=0.4)
+    assert dict(motor.parameters) == {
+        'speed': Parameter(range=(0.0, 1.0), default=0.25, smoothing_ms=60.0, unit='fraction')
+    }
+    assert motor.routes == (
+        Route(source='speed', destination='pitch', curve='exponential', output=(45.0, 110.0)),
+        Route(source='speed', destination='filter.cutoff', output=(300.0, 900.0)),
+    )
+
+
+@pytest.mark.parametrize(
+    ('change', 'path', 'reason'),
+    [
+        (
+            ('default = 0.25', 'default = 2.0'),
+            'instruments.motor.parameters.speed',
+            'outside the range',
+        ),
+        (
+            ('range = [0.0, 1.0]', 'range = [1.0, 0.0]'),
+            'instruments.motor.parameters.speed',
+            'low to high',
+        ),
+        (
+            ('smoothing_ms = 60', 'smoothing_ms = -1'),
+            'instruments.motor.parameters.speed.smoothing_ms',
+            'greater than or equal',
+        ),
+        (
+            ('to = "pitch"', 'to = "volume"'),
+            'instruments.motor.routes[0].to',
+            'unknown destination',
+        ),
+        (
+            ('curve = "exponential"', 'curve = "wobbly"'),
+            'instruments.motor.routes[0].curve',
+            'unknown curve',
+        ),
+        (
+            ('output = [45.0, 110.0]', 'output = ["A1", "E3"]'),
+            'instruments.motor.routes[0].output',
+            'numbers',
+        ),
+        (
+            ('from = "speed"\nto = "pitch"', 'from = "rpm"\nto = "pitch"'),
+            'instruments.motor',
+            'no parameter named',
+        ),
+        (('to = "filter.cutoff"', 'to = "pitch"'), 'instruments.motor', 'one route to pitch'),
+        (
+            ('output = [45.0, 110.0]', 'output = [0.0, 110.0]'),
+            'instruments.motor.routes[0]',
+            'positive output ends',
+        ),
+        (('depth = 0.4', 'depth = 1.5'), 'instruments.motor.tremolo.depth', 'less than or equal'),
+        (('rate_hz = 8.0', 'rate_hz = 0.0'), 'instruments.motor.tremolo.rate_hz', 'greater than'),
+        (('live = true', 'live = false'), 'instruments.motor', 'only on a live instrument'),
+    ],
+    ids=lambda value: value if isinstance(value, str) else None,
+)
+def test_a_live_instrument_that_cannot_work_is_refused_where_it_goes_wrong(
+    tmp_path, change, path, reason
+):
+    """Each problem names its place in the file and why."""
+    old, new = change
+    assert LIVE_MOTOR.count(old) == 1
+    text = VALID_HEADER + LIVE_MOTOR.replace(old, new)
+
+    with pytest.raises(SoundAssetError) as raised:
+        load_sound_file(_write(tmp_path, 'motor.toml', text))
+
+    assert path in str(raised.value)
+    assert reason in str(raised.value)

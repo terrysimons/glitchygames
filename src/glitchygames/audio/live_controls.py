@@ -108,25 +108,12 @@ class Route(BaseModel):
     @field_validator('destination')
     @classmethod
     def _a_known_destination(cls, value: str) -> str:
-        if value not in ROUTE_DESTINATIONS and SOURCE_LEVEL_DESTINATION.fullmatch(value) is None:
-            known = ', '.join((*ROUTE_DESTINATIONS, 'sources.<name>.level'))
-            message = f'unknown destination {value!r}; destinations are {known}'
-            raise ValueError(message)
-        return value
+        return checked_destination(value)
 
     @field_validator('curve')
     @classmethod
     def _a_known_curve(cls, value: str) -> str:
-        steps = STEPS_CURVE.fullmatch(value)
-        if steps is not None and int(steps.group('count')) >= MINIMUM_STEPS:
-            return value
-        if value not in CURVES:
-            message = (
-                f'unknown curve {value!r}; curves are {", ".join(CURVES)} and steps(n) for n '
-                f'of at least {MINIMUM_STEPS}'
-            )
-            raise ValueError(message)
-        return value
+        return checked_curve(value)
 
     @model_validator(mode='after')
     def _a_ratio_needs_positive_ends(self) -> Self:
@@ -134,6 +121,43 @@ class Route(BaseModel):
             message = f'an exponential curve needs positive output ends, got {self.output}'
             raise ValueError(message)
         return self
+
+
+def checked_destination(value: str) -> str:
+    """Check a route destination (rule 3); sound files check theirs with it too.
+
+    Returns:
+        The destination.
+
+    Raises:
+        ValueError: For one that is not a destination.
+    """
+    if value not in ROUTE_DESTINATIONS and SOURCE_LEVEL_DESTINATION.fullmatch(value) is None:
+        known = ', '.join((*ROUTE_DESTINATIONS, 'sources.<name>.level'))
+        message = f'unknown destination {value!r}; destinations are {known}'
+        raise ValueError(message)
+    return value
+
+
+def checked_curve(value: str) -> str:
+    """Check a route curve (rule 2); sound files check theirs with it too.
+
+    Returns:
+        The curve.
+
+    Raises:
+        ValueError: For one that is not a curve, or ``steps(n)`` with n below 2.
+    """
+    steps = STEPS_CURVE.fullmatch(value)
+    if steps is not None and int(steps.group('count')) >= MINIMUM_STEPS:
+        return value
+    if value not in CURVES:
+        message = (
+            f'unknown curve {value!r}; curves are {", ".join(CURVES)} and steps(n) for n '
+            f'of at least {MINIMUM_STEPS}'
+        )
+        raise ValueError(message)
+    return value
 
 
 def route_output(*, route: Route, parameter: Parameter, values: FloatArray) -> FloatArray:

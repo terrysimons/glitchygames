@@ -1245,7 +1245,10 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   blends, drawn and registered waves; it renders the plain oscillator, not the PolyBLEP
   tables a baked sound uses), LFSR noise and a noise seed, a source's own pitch, glide,
   envelope and filter, and drive; and it applies no envelope (a live sound sustains until
-  stopped, then fades).
+  stopped, then fades). Sound files (`src/glitchygames/audio/assets.py`) take a live
+  instrument's `live`, `tremolo`, `parameters` and `routes`, but not yet note names in a
+  route's `output` (they need the game's tuning at start, not the default at load) nor a
+  `[sounds.<name>]` entry's own starting `parameters` ("arrives in M2").
 - ~~**CLAUDE.md carries its old long Architecture Overview again**~~ **Done** 2026-11-14
   (#211, `chore/claude-md-and-hook-speedups`): the block is gone (CLAUDE.md is 333fcc0d's again
   plus later edits), and `tests/test_claude_md.py` fails on a repeated heading or component name

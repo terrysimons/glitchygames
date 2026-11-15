@@ -40,7 +40,7 @@ from pydantic import (
 )
 from pydantic_core import PydanticCustomError
 
-from glitchygames.audio.effects import Effect, Tone
+from glitchygames.audio.effects import Effect, Tone, Tremolo
 from glitchygames.audio.exceptions import EffectError, SoundAssetError
 from glitchygames.audio.instrument import (
     DRIVE_HIGHEST,
@@ -51,6 +51,13 @@ from glitchygames.audio.instrument import (
     Noise,
     PitchCurve,
     Source,
+)
+from glitchygames.audio.live_controls import (
+    DEFAULT_SMOOTHING_MS,
+    Parameter,
+    Route,
+    checked_curve,
+    checked_destination,
 )
 from glitchygames.audio.pitch import PitchLike, Tuning, resolve_pitch
 from glitchygames.audio.spec import (
@@ -110,11 +117,8 @@ FOLLOW_THE_NOTE: Final[str] = 'pitch'  # an LFSR rate that follows the note
 # refused with "<field> arrives in <milestone>" instead of a plain unknown-field error. A field
 # that a table does accept now (``bits`` of an LFSR, ``loop`` of a sound) never reaches this table.
 FIELDS_ARRIVING_LATER: Final[Mapping[str, str]] = MappingProxyType({
-    'live': 'M2',
     'bits': 'M2',
     'sample_rate_reduction': 'M2',
-    'parameters': 'M2',
-    'routes': 'M2',
     'vibrato': 'M4',
     'lfos': 'M4',
     'glide': 'M4',
@@ -134,6 +138,10 @@ FIELDS_ARRIVING_LATER: Final[Mapping[str, str]] = MappingProxyType({
     'root': 'M4',
     'loop': 'M4',
 })
+# A sound's own later fields: its starting live parameters (an instrument's exposed ones exist)
+SOUND_FIELDS_ARRIVING_LATER: Final[Mapping[str, str]] = MappingProxyType(
+    dict(FIELDS_ARRIVING_LATER) | {'parameters': 'M2'}
+)
 # A filter's own later fields (its ``envelope`` is not the instrument's, which exists now)
 FILTER_FIELDS_ARRIVING_LATER: Final[Mapping[str, str]] = MappingProxyType({
     'resonance': 'M2',
@@ -559,8 +567,120 @@ class SourceTable(_Table):
         return self
 
 
+def _first_reason(error: ValidationError) -> str:
+    """The first reason a model refused its values, as a table's own reason.
+
+    Returns:
+        The message, without pydantic's ``Value error,`` prefix.
+    """
+    return error.errors()[0]['msg'].removeprefix('Value error, ')
+
+
+class TremoloTable(_Table):
+    """A live instrument's ``tremolo = { rate_hz, depth }`` (an effect tone's own form)."""
+
+    rate_hz: Annotated[float, Field(gt=0.0)]
+    depth: Annotated[float, Field(ge=0.0, le=1.0)]
+
+    def to_tremolo(self) -> Tremolo:
+        """Convert to the instrument form.
+
+        Returns:
+            The tremolo.
+        """
+        return Tremolo(rate_hz=self.rate_hz, depth=self.depth)
+
+
+class ParameterTable(_Table):
+    """``[instruments.<name>.parameters.<parameter>]``.
+
+    Its fields are ``range``, ``default``, ``smoothing_ms`` and ``unit``.
+    """
+
+    range: tuple[float, float]
+    default: float
+    smoothing_ms: Annotated[float, Field(ge=0.0)] = DEFAULT_SMOOTHING_MS
+    unit: str = ''
+
+    @model_validator(mode='after')
+    def _a_usable_parameter(self) -> Self:
+        try:
+            self.to_parameter()
+        except ValidationError as error:
+            raise ValueError(_first_reason(error)) from None
+        return self
+
+    def to_parameter(self) -> Parameter:
+        """Convert to the instrument form (``live_controls.Parameter``, which validates).
+
+        Returns:
+            The parameter.
+        """
+        return Parameter(
+            range=self.range, default=self.default, smoothing_ms=self.smoothing_ms, unit=self.unit
+        )
+
+
+def _route_output(value: object) -> object:
+    """Refuse note names in a route's output: they would resolve without the game's tuning.
+
+    Returns:
+        The value, for the number check that follows.
+
+    Raises:
+        ValueError: For an output holding a string.
+    """
+    written: object = value  # checked under its own name, so the value's type stays object
+    if isinstance(written, list) and any(
+        isinstance(end, str) for end in cast('list[object]', written)
+    ):
+        message = 'route outputs are numbers (hertz for pitch); note names are later work'
+        raise ValueError(message)
+    return value
+
+
+class RouteTable(_Table):
+    """``[[instruments.<name>.routes]]``: ``from``, ``to``, ``curve`` and ``output``.
+
+    The spec's names; ``live_controls.Route`` calls them source and destination.
+    """
+
+    source: str = Field(alias='from')
+    destination: str = Field(alias='to')
+    curve: str = 'linear'
+    output: Annotated[tuple[float, float], BeforeValidator(_route_output)]
+
+    @field_validator('destination')
+    @classmethod
+    def _a_known_destination(cls, value: str) -> str:
+        return checked_destination(value)
+
+    @field_validator('curve')
+    @classmethod
+    def _a_known_curve(cls, value: str) -> str:
+        return checked_curve(value)
+
+    @model_validator(mode='after')
+    def _a_usable_route(self) -> Self:
+        try:
+            self.to_route()
+        except ValidationError as error:
+            raise ValueError(_first_reason(error)) from None
+        return self
+
+    def to_route(self) -> Route:
+        """Convert to the instrument form (``live_controls.Route``, which validates).
+
+        Returns:
+            The route.
+        """
+        return Route(
+            source=self.source, destination=self.destination, curve=self.curve, output=self.output
+        )
+
+
 class InstrumentTable(_Table):
-    """An ``[instruments.<name>]`` table (the M1 fields)."""
+    """An ``[instruments.<name>]`` table (M1's fields, and M2's live ones)."""
 
     profile: str = 'hybrid'
     envelope: Annotated[EnvelopeTable, BeforeValidator(_envelope_from_preset)] = Field(
@@ -573,6 +693,10 @@ class InstrumentTable(_Table):
     filter: FilterTable | None = None
     drive: Annotated[float, Field(ge=0.0, le=DRIVE_HIGHEST)] = 0.0
     sources: dict[str, SourceTable] = Field(default_factory=dict, validate_default=True)
+    live: bool = False
+    tremolo: TremoloTable | None = None
+    parameters: dict[str, ParameterTable] = Field(default_factory=dict)
+    routes: list[RouteTable] = Field(default_factory=list)
 
     @field_validator('profile')
     @classmethod
@@ -598,6 +722,8 @@ class InstrumentTable(_Table):
 
 class SoundTable(_Table):
     """A ``[sounds.<name>]`` table: an instrument or recorded file plus identity and playback."""
+
+    arriving_later: ClassVar[Mapping[str, str]] = SOUND_FIELDS_ARRIVING_LATER
 
     instrument: str | None = None
     file: str | None = None
@@ -1059,8 +1185,16 @@ def _build_instruments(
                 seed=table.seed,
                 normalize=table.normalize,
                 hard_edges=table.hard_edges,
+                live=table.live,
+                tremolo=table.tremolo.to_tremolo() if table.tremolo is not None else None,
+                parameters={
+                    name: parameter.to_parameter() for name, parameter in table.parameters.items()
+                },
+                routes=[route.to_route() for route in table.routes],
             )
-        except ValueError as error:  # pragma: no cover - the tables already enforce every rule
+        except ValueError as error:
+            # The rules across fields: controls only on a live instrument, routes from its
+            # parameters and to its sources, one route to pitch, ... (Instrument._check_controls)
             problems.append(_Problem(location, str(error)))
     return instruments
 

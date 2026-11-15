@@ -307,7 +307,7 @@ logged once.
 The models are pydantic v2 [Fact: an engine dependency] with `extra='forbid'`. Error messages
 render pydantic's `loc` tuple as a TOML path (`instruments.vehicle.routes[1].output`), with a "did
 you mean" from `difflib.get_close_matches`. A field that exists in the schema but belongs to a
-later milestone is rejected with "`routes` arrives in M2" until its milestone lands
+later milestone is rejected with "`vibrato` arrives in M4" until its milestone lands
 (AUD-ASSET-003). Defaults are listed; a field without one is required.
 
 **`[glitchygames]`**: `kind = "sounds"` (required), `version = 1` (required).
@@ -340,7 +340,8 @@ Plus, for every kind: `normalize` (bool, default true).
 | `drive` | 0–20 | 0 | M1 |
 | `bits`, `sample_rate_reduction` | 1–16; Hz | none | M2 |
 | `parameters.<name>` | `{ range = [lo, hi], default, smoothing_ms = 30, unit = "" }` | none | M2 |
-| `routes` | array of `{ from, to, curve = "linear", output = [a, b] }` | none | M2 |
+| `routes` | array of `{ from, to, curve = "linear", output = [a, b] }`; `output` in numbers (Hz for `pitch`): note names are later work, since they would resolve without the game's tuning | none | M2 |
+| `tremolo` | `{ rate_hz, depth }` (an effect tone's form), live only; `tremolo.rate` and `tremolo.depth` are route destinations | none | M2 (plans/2026-11-14-sound-migration.md) |
 | `vibrato`, `lfos`, `glide`, `bend_range` | tables | none | M4 |
 | `algorithm`, `operators`, `feedback` | FM | none | M4 |
 | `delay`, `wow_flutter` | tables | none | M4 |
