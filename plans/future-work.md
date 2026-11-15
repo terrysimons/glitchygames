@@ -1146,6 +1146,16 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   - Not done: folding `test-random` into the comparison (shuffling one dummy run). The comparison
     passes on failing tests (`_PYTEST_FINISHED_CODES = [0, 1]`), and order-dependent frames would
     read as "varies between runs" rather than fail; little to save (80 s).
+- **Time each pre-push hook before splitting `lint` into hooks of its own** (the owner asked,
+  2026-11-14, whether one hook per lint step would be faster). pre-commit runs hooks one after
+  another; it runs in parallel only inside a hook given file names, and every hook here has
+  `pass_filenames: false`, so separate hooks alone gain nothing. Each lint nox session also
+  installs from the lock file (`reuse_venv=False`): split, `lint`'s one install becomes eight.
+  What splitting would buy is skipping: a `files:` filter per hook (`lint-toml` on `.toml`
+  changes only, `lint-yaml` and `lint-ci-config` on YAML; the docs build reads docstrings, so it
+  needs any `src/` change). First time every hook of one full gate run (pre-commit prints no
+  times: wrap each session in `time`); the two suite runs, `test-random` and `compare-drivers`,
+  are the likely bulk of the gate's ten minutes and more, and would come first.
 
 ## Upstream issues to file
 
