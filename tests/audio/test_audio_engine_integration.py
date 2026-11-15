@@ -146,6 +146,24 @@ class TestSoundOptions:
 
         assert engine.options['sound_cache'] == 'disk'
 
+    def test_a_live_sound_starts_on_the_scene_managers_live_pool(self, mocker):
+        """The scene manager gives its audio engine its own live pool (``live_audio``)."""
+        engine = build_engine(mocker, game=SoundingGame)
+        manager = engine.scene_manager
+        pool = mocker.Mock(name='live_audio')
+        mocker.patch.object(
+            type(manager), 'live_audio', new_callable=mocker.PropertyMock, return_value=pool
+        )
+        audio = manager.audio_for(game_engine=engine)
+        instrument = Instrument(wave='sine', live=True)
+
+        audio.sound(instrument, pitch='A4').start(owner='scene')
+
+        pool.create_instrument_voice.assert_called_once_with(
+            owner='scene', instrument=instrument, frequency=440.0, volume=1.0, parameters=None
+        )
+        pool.create_instrument_voice.return_value.stream.start.assert_called_once_with()
+
     def test_a_games_sounds_go_in_its_own_cache_folder(self, mocker, tmp_path, monkeypatch):
         """The scene manager names the game's package as the audio engine's cache folder."""
         from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE

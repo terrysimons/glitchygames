@@ -66,7 +66,8 @@ from glitchygames.audio.assets import (
 )
 from glitchygames.audio.effects import Effect
 from glitchygames.audio.exceptions import AudioUnavailableError, SoundAssetError, SoundRenderError
-from glitchygames.audio.instrument import Instrument, build_spec
+from glitchygames.audio.instrument import UNPITCHED_REFERENCE_HZ, Instrument, build_spec
+from glitchygames.audio.pitch import resolve_pitch
 from glitchygames.audio.render import render_sound, rendered_frame_count
 from glitchygames.audio.spec import (
     AUDIO_RENDER_VERSION,
@@ -86,6 +87,7 @@ from glitchygames.audio.voices import SoundHandle
 if TYPE_CHECKING:
     from glitchygames.audio.accounting import AudioAccountant
     from glitchygames.audio.disk_cache import CachedSamples, DiskSoundCache
+    from glitchygames.audio.live_instrument import LiveSoundHandle
     from glitchygames.audio.pitch import PitchLike, Tuning
     from glitchygames.audio.waves import WaveRegistry
 
@@ -284,7 +286,7 @@ class SoundRequest:
         chord: Pitches played together, or None.
         length: Seconds, or None.
         transpose: Semitones.
-        parameters: Live parameters (M2), or None.
+        parameters: Parameters (a live sound refuses them: ``start`` takes its), or None.
     """
 
     source: str | Instrument | Effect
@@ -318,6 +320,23 @@ class SoundPlayer(Protocol):
         ...
 
 
+class LiveStarter(Protocol):
+    """Starts a live sound on a live pool (the audio engine's ``Sound.start``)."""
+
+    def __call__(  # ruff: ignore[too-many-arguments] - Sound.start's arguments and the sound's
+        self,
+        sound: Sound,
+        *,
+        instrument: Instrument,
+        frequency: float,
+        parameters: Mapping[str, float] | None,
+        volume: float | None,
+        owner: object | None,
+    ) -> LiveSoundHandle:
+        """Start ``sound``: ``instrument`` at ``frequency``."""
+        ...
+
+
 class Sound:
     """A sound the library compiled (or, under cache ``none``, will compile at each play).
 
@@ -331,7 +350,10 @@ class Sound:
 
     Attributes:
         name: The short name, the path stem, or a generated ``instrument-<digest>`` name.
-        is_live: Whether this is a live (M2) sound.
+        is_live: Whether this is a live sound: it has no baked audio and plays by ``start()``.
+        live_instrument: A live sound's instrument, or None.
+        live_frequency: The pitch in hertz a live sound starts at (440 when none was given;
+            a ``pitch`` route moves it), or None.
         is_engine_sound: Whether this is one of the engine's own sounds (``engine_sound``).
         identity_key: The cache key.
         playback_defaults: The sound file's playback defaults.
@@ -352,6 +374,8 @@ class Sound:
         spec: SoundSpec | None = None,
         effect: Effect | None = None,
         recorded_file: Path | None = None,
+        live_instrument: Instrument | None = None,
+        live_frequency: float | None = None,
     ) -> None:
         """Make an uncompiled sound.
 
@@ -363,6 +387,8 @@ class Sound:
             spec: The spec of a version 1 sound.
             effect: The version 0 recipe.
             recorded_file: A recorded sound's file.
+            live_instrument: A live sound's instrument.
+            live_frequency: The pitch in hertz a live sound starts at.
         """
         self.name = name
         self.identity_key = identity_key
@@ -373,6 +399,8 @@ class Sound:
         self.effect = effect
         self.recorded_file = recorded_file
         self.is_live = spec.live if spec is not None else False
+        self.live_instrument = live_instrument
+        self.live_frequency = live_frequency
         # The engine's own sound (engine_sound): compiled once per process, never evicted or
         # compiled again for a play, whatever the cache mode
         self.is_engine_sound = False
@@ -389,6 +417,7 @@ class Sound:
         self._mixer_bytes = 0
         # The audio engine that handed the sound out plays it (attach_player)
         self._player: SoundPlayer | None = None
+        self._live_starter: LiveStarter | None = None
         self._warned_no_player = False
 
     def attach_player(self, player: SoundPlayer) -> None:
@@ -398,6 +427,59 @@ class Sound:
             player: The engine's play function.
         """
         self._player = player
+
+    def attach_live_starter(self, starter: LiveStarter) -> None:
+        """Let ``start()`` go to an audio engine (it attaches itself when it hands the sound out).
+
+        Args:
+            starter: The engine's start function.
+        """
+        self._live_starter = starter
+
+    def start(
+        self,
+        *,
+        parameters: Mapping[str, float] | None = None,
+        volume: float | None = None,
+        owner: object | None = None,
+    ) -> LiveSoundHandle:
+        """Start a live sound on the context's live pool (``live_instrument``).
+
+        Args:
+            parameters: Starting values by name; the rest start at their defaults.
+            volume: 0-1; None is the sound file's volume.
+            owner: The scene or transition whose life it follows; None is the scene that
+                starts it (the scene in setup, else the active scene).
+
+        Returns:
+            Its handle. A sound no audio engine handed out starts nothing: its handle answers
+            False, and a warning is logged once per sound.
+
+        Raises:
+            SoundRenderError: For a sound that is not live (``play()`` plays those).
+        """
+        from glitchygames.audio.live_instrument import LiveSoundHandle
+
+        instrument, frequency = self.live_instrument, self.live_frequency
+        if instrument is None or frequency is None:
+            message = f'{self.name!r} is not a live sound: play() plays it'
+            raise SoundRenderError(message)
+        if self._live_starter is None:
+            self._warn_no_engine()
+            return LiveSoundHandle(None)
+        return self._live_starter(
+            self,
+            instrument=instrument,
+            frequency=frequency,
+            parameters=parameters,
+            volume=volume,
+            owner=owner,
+        )
+
+    def _warn_no_engine(self) -> None:
+        if not self._warned_no_player:
+            self._warned_no_player = True
+            log.warning('%s was not got from an audio engine: its plays are silent', self.name)
 
     def play(  # ruff: ignore[too-many-arguments] - impl spec 8's playback arguments
         self,
@@ -426,11 +508,15 @@ class Sound:
         Returns:
             The handle. A sound no audio engine handed out (a bare library's) has no voices: its
             handle answers False, and a warning is logged once per sound.
+
+        Raises:
+            SoundRenderError: For a live sound (``start()`` starts those).
         """
+        if self.is_live:
+            message = f'{self.name!r} is a live sound: start() starts it'
+            raise SoundRenderError(message)
         if self._player is None:
-            if not self._warned_no_player:
-                self._warned_no_player = True
-                log.warning('%s was not got from an audio engine: its plays are silent', self.name)
+            self._warn_no_engine()
             return SoundHandle(slot=-1, generation=-1)
         return self._player(
             self,
@@ -842,8 +928,8 @@ class SoundLibrary:
             chord: Pitches played together.
             length: Seconds per note or chord before release.
             transpose: Semitones to shift notes or a chord.
-            parameters: Live parameters; they identify the request but a baked sound ignores them
-                (live sounds arrive in M2).
+            parameters: They identify the request; a baked sound ignores them. A live sound's
+                are refused here: its starting values go to ``start(parameters=...)``.
 
         Returns:
             The sound. Under cache ``none`` it holds no samples and nothing was rendered or
@@ -934,8 +1020,11 @@ class SoundLibrary:
     def _ensure_compiled(self, sound: Sound, *, known: bool) -> None:
         """Count the request and, under ``ram``, compile the sound unless it is already.
 
-        Under ``none`` a new sound is described without rendering (``_describe``).
+        Under ``none`` a new sound is described without rendering (``_describe``). A live
+        sound has nothing to compile and is not counted.
         """
+        if sound.is_live:
+            return
         if self._cache is CacheMode.NONE:
             if known:
                 self._hits += 1
@@ -1125,6 +1214,10 @@ class SoundLibrary:
         if remembered is not None:
             return self._sounds[remembered], True
         sound = self._build(request, sample_rate=sample_rate, tuning=tuning)
+        if sound.is_live:
+            # No audio to keep, and its spec's key holds none of its live controls (tremolo,
+            # parameters, routes): two live instruments may share it
+            return sound, False
         existing = self._sounds.get(sound.identity_key)
         if existing is not None:
             self._memo[memo_key] = existing.identity_key
@@ -1221,7 +1314,7 @@ class SoundLibrary:
             The uncompiled sound.
 
         Raises:
-            SoundRenderError: For a live instrument, which has no baked audio in M1.
+            SoundRenderError: For a live instrument given notes, a chord or parameters.
         """
         pitch, notes, chord = request.pitch, request.notes, request.chord
         length, transpose = request.length, request.transpose
@@ -1253,8 +1346,31 @@ class SoundLibrary:
             name = f'{GENERATED_NAME_PREFIX}-{digest[:GENERATED_NAME_DIGITS]}'
         spec = spec_named(name)
         if spec.live:
-            message = f'{name!r} is a live sound; live sounds arrive in M2'
-            raise SoundRenderError(message)
+            if request.parameters:
+                message = (
+                    f'{name!r} is a live sound: give its parameters to start(parameters=...), '
+                    'not to sound()'
+                )
+                raise SoundRenderError(message)
+            if notes is not None or chord is not None:
+                message = (
+                    f'{name!r} is a live sound: it plays one pitch (notes and chords are later '
+                    'work)'
+                )
+                raise SoundRenderError(message)
+            return Sound(
+                name=name,
+                identity_key=identity_key(spec),
+                sample_rate=sample_rate,
+                playback_defaults=defaults,
+                spec=spec,
+                live_instrument=instrument,
+                live_frequency=(
+                    UNPITCHED_REFERENCE_HZ
+                    if pitch is None
+                    else float(resolve_pitch(pitch, tuning=tuning, sample_rate=sample_rate))
+                ),
+            )
         return Sound(
             name=name,
             identity_key=identity_key(spec),

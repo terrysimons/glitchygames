@@ -127,14 +127,77 @@ def test_notes_chords_length_and_transpose_are_part_of_the_identity():
     assert library.sound(PULSE_INSTRUMENT, scene_sound_directory=None, **requests[2]) is sounds[2]
 
 
-def test_a_live_instrument_is_refused_until_m2():
-    """A live sound has no baked audio in M1."""
+@pytest.mark.parametrize('mode', [CacheMode.RAM, CacheMode.NONE])
+def test_a_live_instrument_is_a_live_sound_that_compiles_nothing(mode):
+    """A live sound has no baked audio: it holds its instrument and the pitch it starts at."""
+    library, _ = make_library(mode)
+    instrument = Instrument(wave='sine', live=True)
+
+    sound = library.sound(instrument, scene_sound_directory=None, pitch='A5')
+
+    assert sound.is_live
+    assert sound.live_instrument is instrument
+    assert sound.live_frequency == pytest.approx(880.0)
+    assert not sound.is_compiled
+    assert (library.statistics().compiles, library.statistics().misses) == (0, 0)
+
+
+def test_a_live_sound_without_a_pitch_starts_at_the_reference_pitch():
+    """A noise, or a sound whose pitch route moves it, needs none: it starts at 440 Hz."""
     library, _ = make_library()
 
-    for mode in (CacheMode.RAM, CacheMode.NONE):
-        library, _ = make_library(mode)
-        with pytest.raises(SoundRenderError, match='live'):
-            library.sound(Instrument(wave='sine', live=True), scene_sound_directory=None)
+    sound = library.sound(Instrument(noise='white', live=True), scene_sound_directory=None)
+
+    assert sound.live_frequency == 440.0
+
+
+def test_two_live_instruments_differing_only_in_their_controls_are_two_sounds():
+    """A live sound is never kept by its spec's key, which holds none of its live controls."""
+    from glitchygames.audio.effects import Tremolo
+
+    library, _ = make_library()
+    slow = Instrument(wave='saw', live=True, tremolo=Tremolo(rate_hz=2.0, depth=0.3))
+    fast = Instrument(wave='saw', live=True, tremolo=Tremolo(rate_hz=9.0, depth=0.3))
+
+    sounds = [library.sound(instrument, scene_sound_directory=None) for instrument in (slow, fast)]
+
+    assert [sound.live_instrument for sound in sounds] == [slow, fast]
+
+
+@pytest.mark.parametrize(
+    'request_arguments', [{'notes': 'C4:0.25 E4:0.25'}, {'chord': ['C4', 'E4']}]
+)
+def test_a_live_sound_plays_one_pitch(request_arguments):
+    """Notes and chords on a live sound are later work (note_on/note_off)."""
+    library, _ = make_library()
+
+    with pytest.raises(SoundRenderError, match='one pitch'):
+        library.sound(
+            Instrument(wave='sine', live=True), scene_sound_directory=None, **request_arguments
+        )
+
+
+def test_a_live_sound_starts_and_a_baked_one_plays():
+    """play() bakes and start() is live: each refuses the other kind."""
+    library, _ = make_library()
+    live = library.sound(Instrument(wave='sine', live=True), scene_sound_directory=None)
+    baked = library.sound(Instrument(wave='sine'), scene_sound_directory=None, pitch='A4')
+
+    with pytest.raises(SoundRenderError, match=r'start\(\)'):
+        live.play()
+    with pytest.raises(SoundRenderError, match=r'play\(\)'):
+        baked.start()
+
+
+def test_a_live_sound_no_audio_engine_handed_out_starts_silently(caplog):
+    """As play(): its handle answers False, and a warning is logged once per sound."""
+    library, _ = make_library()
+    live = library.sound(Instrument(wave='sine', live=True), scene_sound_directory=None)
+
+    handles = [live.start(), live.start()]
+
+    assert not any(handle.set('anything', 1.0) or handle.is_playing for handle in handles)
+    assert caplog.text.count('not got from an audio engine') == 1
 
 
 def test_v0_recipes_compile_bit_identical_to_today():
@@ -576,3 +639,13 @@ def test_an_effect_in_an_effects_table_sounds_as_in_a_recipe_file(tmp_path):
     assert from_effects.samples_int16 is not None
     assert from_recipes.samples_int16 is not None
     assert from_effects.samples_int16.tobytes() == from_recipes.samples_int16.tobytes()
+
+
+def test_a_live_sounds_parameters_go_to_start_not_sound():
+    """sound(parameters=) would be ignored by a live sound: refused, naming start()."""
+    library, _ = make_library()
+
+    with pytest.raises(SoundRenderError, match=r'start\(parameters='):
+        library.sound(
+            Instrument(wave='sine', live=True), scene_sound_directory=None, parameters={'x': 1.0}
+        )

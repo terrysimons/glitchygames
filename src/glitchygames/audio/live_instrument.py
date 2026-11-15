@@ -45,12 +45,14 @@ import numpy as np
 
 from glitchygames.audio.live import (
     DEFAULT_CHUNK_DURATION,
+    DEFAULT_FADE_OUT,
     LIVE_RANDOM_STREAM,
     FilterState,
     LiveStream,
 )
 from glitchygames.audio.live_controls import route_output, smoothed
 from glitchygames.audio.synth import FloatArray, Waveform, oscillator, sample_count
+from glitchygames.audio.voices import DEFAULT_STOP_FADE_SECONDS
 from glitchygames.audio.waves import Wave
 from glitchygames.randomness import numpy_stream
 
@@ -312,3 +314,55 @@ class InstrumentVoice:
         phases = self._tremolo_phase + np.concatenate(([0.0], np.cumsum(steps[:-1])))
         self._tremolo_phase = float((self._tremolo_phase + steps.sum()) % 1.0)
         return 1.0 - depths * (0.5 - 0.5 * np.cos(2.0 * math.pi * phases))
+
+
+class LiveSoundHandle:
+    """A started live sound (``Sound.start()``): set its parameters, release or stop it.
+
+    Stale-safe: once the voice is stopping or stopped (or never had a pool), every call answers
+    False and changes nothing. A handle with no voice is what a live sound no audio engine
+    handed out, or an engine with no live pool, starts.
+    """
+
+    def __init__(self, voice: InstrumentVoice | None) -> None:
+        """Hold a started voice, or None for a silent handle."""
+        self._voice = voice
+
+    @property
+    def is_playing(self) -> bool:
+        """Whether the voice is playing (its release fade included, paused counts)."""
+        return self._voice is not None and self._voice.stream.is_playing
+
+    @property
+    def parameter_values(self) -> dict[str, float]:
+        """The latest value of each parameter, by name (empty for a silent handle)."""
+        return {} if self._voice is None else self._voice.parameter_values
+
+    @property
+    def clamp_count(self) -> int:
+        """How many values set were outside their parameter's range."""
+        return 0 if self._voice is None else self._voice.clamp_count
+
+    def set(self, name: str, value: float) -> bool:
+        """Set a parameter; the next chunk glides toward it (``InstrumentVoice.set``).
+
+        Returns:
+            True when taken; False once stopping or stopped, or for a silent handle.
+        """
+        return self._voice is not None and self._voice.set(name, value)
+
+    def release(self) -> bool:
+        """End the sound: it fades out over the live release (``live.DEFAULT_FADE_OUT``).
+
+        Returns:
+            Whether it began releasing.
+        """
+        return self._voice is not None and self._voice.stream.stop(fade_out=DEFAULT_FADE_OUT)
+
+    def stop(self, *, fade: float = DEFAULT_STOP_FADE_SECONDS) -> bool:
+        """End the sound sooner: a fade of ``fade`` seconds (the library's stop fade).
+
+        Returns:
+            Whether it began stopping.
+        """
+        return self._voice is not None and self._voice.stream.stop(fade_out=fade)

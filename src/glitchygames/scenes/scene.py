@@ -1413,6 +1413,8 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
                 cache=CacheMode(options.get('sound_cache', DEFAULT_SOUND_CACHE.value)),
                 # Each game keeps its own disk cache folder (the owner, 2026-11-15)
                 game_name=NO_GAME_CACHE_FOLDER if game is None else game_package(game=game),
+                # Live sounds start on this scene manager's own live pool (live_audio)
+                live_pool=lambda: self.live_audio,
                 memory_limit_bytes=int(
                     options.get('sound_cache_memory', DEFAULT_CACHE_MEMORY_MEGABYTES)
                 )

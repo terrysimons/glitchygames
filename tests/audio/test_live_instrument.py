@@ -453,3 +453,113 @@ class TestOnTheLivePool:
             LiveAudio(channel_indices=(0,)).create_instrument_voice(
                 owner='scene', instrument=Instrument(wave='sine'), frequency=220.0
             )
+
+
+class TestStartingALiveSound:
+    """Sound.start() -> LiveSoundHandle (set, release, stop, is_playing; owner=)."""
+
+    MOTOR = Instrument(
+        wave='saw',
+        live=True,
+        parameters={'speed': SPEED},
+        routes=[Route(source='speed', destination='pitch', output=(45.0, 110.0))],
+    )
+
+    @pytest.fixture(autouse=True)
+    def partitioned_mixer(self):
+        """A stereo mixer partitioned as an outer engine does; stopped after.
+
+        Yields:
+            The partition.
+        """
+        yield start_reserved_mixer()
+        pygame.mixer.stop()
+        stop_mixer()
+
+    @pytest.fixture
+    def pool(self, partitioned_mixer):
+        """The live pool the audio engine starts live sounds on.
+
+        Returns:
+            The pool.
+        """
+        return LiveAudio(channel_indices=partitioned_mixer.live)
+
+    def _engine(self, pool, *, scene='scene'):
+        from glitchygames.audio.engine import AudioEngine
+        from glitchygames.audio.voices import ChannelPartition
+
+        return AudioEngine(
+            partition=ChannelPartition(live=(), library=(), legacy_count=0),
+            scene_source=lambda: scene,
+            live_pool=lambda: pool,
+        )
+
+    def test_start_plays_on_the_pool_owned_by_the_scene(self, pool):
+        handle = self._engine(pool).sound(self.MOTOR, pitch='A1').start(parameters={'speed': 0.5})
+
+        assert handle.is_playing
+        assert pool.playing_voice_count == 1
+        assert handle.parameter_values == {'speed': 0.5}
+        pool.update(active_scene='another scene', previous_scene=None, active_transitions=())
+        assert not handle.is_playing
+
+    def test_set_moves_it_and_counts_clamps(self, pool):
+        handle = self._engine(pool).sound(self.MOTOR).start()
+
+        assert handle.set('speed', 2.0)
+
+        assert handle.parameter_values == {'speed': 1.0}
+        assert handle.clamp_count == 1
+
+    def test_release_fades_it_out_then_its_channel_returns(self, pool):
+        handle = self._engine(pool).sound(self.MOTOR).start()
+
+        assert handle.release()
+
+        assert handle.is_playing  # fading
+        assert not handle.set('speed', 1.0)
+        assert not handle.release()
+
+    def test_stop_ends_it_with_a_short_fade(self, pool):
+        handle = self._engine(pool).sound(self.MOTOR).start()
+
+        assert handle.stop(fade=0.005)
+        assert not handle.stop()
+
+    def test_a_transition_owned_voice_plays_through_the_ride_and_stops_with_it(self, pool):
+        """The plan's test for start(owner=transition) (the elevator motor)."""
+        ride = object()
+        handle = self._engine(pool).sound(self.MOTOR).start(owner=ride)
+
+        pool.update(active_scene='next floor', previous_scene=None, active_transitions=(ride,))
+        assert handle.is_playing
+        pool.update(active_scene='next floor', previous_scene=None, active_transitions=())
+        assert not handle.is_playing
+
+    def test_with_no_scene_and_no_owner_it_is_refused(self, pool):
+        """No owner rule would keep it: the pool would release it on the next update."""
+        with pytest.raises(ValueError, match='owner'):
+            self._engine(pool, scene=None).sound(self.MOTOR).start()
+
+    def test_the_volume_defaults_to_the_sound_files(self, pool, mocker):
+        create = mocker.spy(pool, 'create_instrument_voice')
+
+        self._engine(pool).sound(self.MOTOR).start()
+        self._engine(pool).sound(self.MOTOR).start(volume=0.25)
+
+        assert [call.kwargs['volume'] for call in create.call_args_list] == [1.0, 0.25]
+
+    def test_an_engine_with_no_pool_starts_it_silently(self, caplog):
+        from glitchygames.audio.engine import AudioEngine
+        from glitchygames.audio.voices import ChannelPartition
+
+        engine = AudioEngine(
+            partition=ChannelPartition(live=(), library=(), legacy_count=0),
+            scene_source=lambda: 'scene',
+        )
+
+        handles = [engine.sound(self.MOTOR).start() for _ in range(2)]
+
+        assert not any(handle.is_playing or handle.set('speed', 1.0) for handle in handles)
+        assert caplog.text.count('no live voice pool') == 1

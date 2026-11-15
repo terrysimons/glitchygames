@@ -219,19 +219,23 @@ class LiveStream:
         if self._channel.get_queue() is None:
             self._channel.queue(self._next_chunk())
 
-    def stop(self, *, fade_out: float = DEFAULT_FADE_OUT) -> None:
+    def stop(self, *, fade_out: float = DEFAULT_FADE_OUT) -> bool:
         """Fade to silence over fade_out seconds of rendered audio, then drain.
 
         LiveAudio.update() keeps rendering the fade and returns the channel to the pool once
         the voice has drained.
+
+        Returns:
+            Whether the fade began (False once stopping or stopped, or before start()).
         """
         if self._channel is None or self._state not in {VoiceState.PLAYING, VoiceState.PAUSED}:
-            return
+            return False
         if self._state is VoiceState.PAUSED:
             self._channel.unpause()
         self._fade_total_samples = max(1, sample_count(fade_out, self._sample_rate))
         self._fade_remaining_samples = self._fade_total_samples
         self._state = VoiceState.FADING
+        return True
 
     def stop_now(self) -> None:
         """Silence immediately: the first stop() starts the queued chunk, the second stops it."""
