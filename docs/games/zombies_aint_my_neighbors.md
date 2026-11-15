@@ -117,7 +117,7 @@ spawns, and destroying one shakes the world and rumbles the destroying player's 
 The laser pointer (feature plan 8, `plans/2026-11-15-zombies-aint-my-neighbors-8-laser-pointer.md`)
 is a lure. `K` or a pad's `Y` switches each kid between it and the Channel Changer. Held, it
 warms up for 0.4 s (the kid aims, the battery already drawing), then shines a red dot 160 px
-ahead of the kid's feet; zombies within 240 px of a dot chase it instead of kids or neighbors,
+ahead of the kid's feet, a beam fading in and out from the pointer to the dot; zombies within 240 px of a dot chase it instead of kids or neighbors,
 but still knock out whoever they walk into. The battery (`laser.py`) gives 3 s of shine,
 refills 0.3 s a second when not in use, and once flat stays dead until a third full. The
 heads-up display shows each player's weapon and battery. Each kid keeps its weapon into the

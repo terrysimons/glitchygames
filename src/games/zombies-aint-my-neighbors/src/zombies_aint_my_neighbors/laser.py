@@ -7,19 +7,24 @@ refilled to 1.0 s, so it can't flicker on and off at empty. The order within a f
 in use drains (and dies on reaching empty); a resting one refills (and wakes on reaching 1.0 s).
 The light itself waits ``WARM_UP_SECONDS`` of drawing before it shows (the kid counts it), so a
 tapped trigger spends charge and never lights (the owner, 2026-11-15).
+
+While the dot shines, a beam runs from the laser pointer's tip to it, fading in and out (the
+owner, 2026-11-15: "a beam shining to the laser point but the beam is fading in and out with
+alpha"). It is drawn in code each frame it shines, as the yard and the heads-up display are, its
+opacity a smooth pulse on the frames it has shone, so a replay repeats it.
 """
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final, Self, override
+from typing import Any, Final, Self, override
 
-from glitchygames.sprites import AnimatedSprite
+import pygame
+
+from glitchygames.sprites import AnimatedSprite, Sprite
 from glitchygames.world import CoordinateSpace
 from zombies_aint_my_neighbors.tolerances import TIME_TOLERANCE
-
-if TYPE_CHECKING:
-    import pygame
 
 # Feature plan 8
 FULL_SECONDS: Final = 3.0
@@ -32,6 +37,12 @@ WARM_UP_SECONDS: Final = 0.4
 DOT_DISTANCE: Final = 160.0
 DOT_SIZE: Final = 8
 DOT_FILE: Final = Path(__file__).resolve().parent / 'sprites' / 'laser_dot.toml'
+# The beam: its red, its width, and its opacity's pulse (low to high and back, twice a second)
+BEAM_COLOUR: Final = (255, 56, 56)
+BEAM_WIDTH: Final = 2
+BEAM_ALPHA_LOW: Final = 64
+BEAM_ALPHA_HIGH: Final = 192
+BEAM_PULSES_PER_SECOND: Final = 2.0
 
 
 class LaserBattery:
@@ -114,3 +125,74 @@ class LaserDot(AnimatedSprite):
     @override
     def update(self: Self, dt: float = 0.016) -> None:
         """Do nothing: it flickers in ``dt_tick`` only."""
+
+
+def beam_alpha(*, seconds: float) -> int:
+    """Return the beam's opacity after shining some seconds: a smooth pulse, low to high and back.
+
+    Returns:
+        0 to 255.
+
+    """
+    phase = 0.5 - 0.5 * math.cos(2 * math.pi * BEAM_PULSES_PER_SECOND * seconds)
+    return round(BEAM_ALPHA_LOW + (BEAM_ALPHA_HIGH - BEAM_ALPHA_LOW) * phase)
+
+
+class LaserBeam(Sprite):
+    """The beam from a laser pointer's tip to its dot, fading in and out; hidden when out."""
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
+
+    def __init__(self, *, groups: pygame.sprite.LayeredDirty[Any] | None) -> None:
+        """Make the beam, hidden.
+
+        Args:
+            groups: The sprite group to join (a group of its own when None).
+
+        """
+        super().__init__(x=0, y=0, width=1, height=1, name='Laser beam', groups=groups)
+        self.world_x = 0.0
+        self.world_y = 0.0
+        self.hidden = True
+        self.alpha = BEAM_ALPHA_LOW
+        # Seconds it has shone without a break (its pulse's clock)
+        self._seconds = 0.0
+
+    def shine(self, *, start: tuple[float, float], end: tuple[float, float], dt: float) -> None:
+        """Draw the beam from one point to another, at this frame's opacity.
+
+        Args:
+            start: The laser pointer's tip, in the world.
+            end: The dot's centre, in the world.
+            dt: The frame's time, in seconds.
+
+        """
+        self._seconds += dt
+        self.alpha = beam_alpha(seconds=self._seconds)
+        margin = BEAM_WIDTH
+        left = math.floor(min(start[0], end[0])) - margin
+        top = math.floor(min(start[1], end[1])) - margin
+        right = math.ceil(max(start[0], end[0])) + margin
+        bottom = math.ceil(max(start[1], end[1])) + margin
+        image = pygame.Surface((right - left, bottom - top), pygame.SRCALPHA)
+        pygame.draw.line(
+            image,
+            (*BEAM_COLOUR, self.alpha),
+            (start[0] - left, start[1] - top),
+            (end[0] - left, end[1] - top),
+            BEAM_WIDTH,
+        )
+        self.image = image
+        self.world_x = float(left)
+        self.world_y = float(top)
+        self.hidden = False
+        self.dirty = 1
+
+    def go_out(self) -> None:
+        """Hide the beam; its pulse starts again next time."""
+        self.hidden = True
+        self._seconds = 0.0
+
+    @override
+    def update(self: Self, dt: float = 0.016) -> None:
+        """Do nothing: its kid draws it in ``dt_tick`` (the pose rule)."""

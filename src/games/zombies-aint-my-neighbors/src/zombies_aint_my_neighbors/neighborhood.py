@@ -440,6 +440,8 @@ class NeighborhoodScene(RosterScene):
             self._order_by_feet(kid)
             # The laser's dot lies on the lawn: over the yard, under everything standing on it
             self.all_sprites.change_layer(kid.dot, YARD_LAYER + 1)
+            # Its beam over the dot, under everything standing in the yard
+            self.all_sprites.change_layer(kid.beam, YARD_LAYER + 2)
 
     def add_zombie(self, *, world_x: float, world_y: float, home: Tv | None = None) -> Zombie:
         """Put a Lawn Zombie in the yard.

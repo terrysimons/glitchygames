@@ -28,7 +28,14 @@ from zombies_aint_my_neighbors.kid import (
     KidState,
     MirrorCache,
 )
-from zombies_aint_my_neighbors.laser import DOT_DISTANCE, FULL_SECONDS, WARM_UP_SECONDS
+from zombies_aint_my_neighbors.laser import (
+    BEAM_ALPHA_HIGH,
+    BEAM_ALPHA_LOW,
+    BEAM_PULSES_PER_SECOND,
+    DOT_DISTANCE,
+    FULL_SECONDS,
+    WARM_UP_SECONDS,
+)
 
 # The walk's frame interval (BOM section 3), and a step just past it
 WALK_INTERVAL = 0.12
@@ -1038,3 +1045,94 @@ def test_switching_right_after_a_zap_leaves_no_shot_pose(cache):
 
     assert kid.current_animation == 'walk_left'
     assert kid.laser_pointer.hidden
+
+
+# The beam (the owner, 2026-11-15): "a beam shining to the laser point but the beam is fading in
+# and out with alpha"
+
+
+def lit_kid(cache: MirrorCache) -> Kid:
+    """Return Dex facing left with the laser just lit (its warm-up done).
+
+    Returns:
+        The kid.
+
+    """
+    kid = laser_kid(cache)
+    kid.walk(direction_x=-1.0, direction_y=0.0)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    kid.walk(direction_x=0.0, direction_y=0.0)
+    shine(kid, frames=WARM_UP_FRAMES)
+    return kid
+
+
+def test_the_beam_shows_only_once_the_dot_does(cache):
+    """Dark through the warm-up; shining with the dot."""
+    kid = laser_kid(cache)
+    shine(kid, frames=WARM_UP_FRAMES - 1)
+    assert kid.beam.hidden
+
+    shine(kid, frames=1)
+
+    assert not kid.beam.hidden
+
+
+def test_the_beam_runs_from_the_pointers_tip_to_the_dot(cache):
+    """Its box holds both ends."""
+    kid = lit_kid(cache)
+    tip_x, tip_y = kid.laser_pointer.muzzle()
+    dot_x, dot_y = kid.dot.centre()
+    width, height = kid.beam.image.get_size()
+
+    for x, y in ((tip_x, tip_y), (dot_x, dot_y)):
+        assert kid.beam.world_x <= x <= kid.beam.world_x + width
+        assert kid.beam.world_y <= y <= kid.beam.world_y + height
+
+
+def test_the_beam_fades_in_and_out(cache):
+    """Over a second of shine its opacity rises and falls within its range, twice."""
+    assert (BEAM_ALPHA_LOW, BEAM_ALPHA_HIGH, BEAM_PULSES_PER_SECOND) == (64, 192, 2.0)
+    kid = lit_kid(cache)
+    alphas = []
+    for _ in range(60):
+        shine(kid, frames=1)
+        alphas.append(kid.beam.alpha)
+
+    assert all(BEAM_ALPHA_LOW <= alpha <= BEAM_ALPHA_HIGH for alpha in alphas)
+    assert max(alphas) - min(alphas) > 100
+    rises = sum(1 for earlier, later in itertools.pairwise(alphas) if later > earlier)
+    assert 20 < rises < 40
+
+
+def test_two_kids_shining_alike_pulse_alike(cache):
+    """The pulse follows the frame clock, nothing else: replays repeat it."""
+    first, second = lit_kid(cache), lit_kid(MirrorCache())
+    shine(first, frames=17)
+    shine(second, frames=17)
+
+    assert first.beam.alpha == second.beam.alpha
+
+
+@pytest.mark.parametrize('stop', ['release', 'switch', 'knock-out'])
+def test_the_beam_goes_out_with_the_dot(cache, stop):
+    """Released, switched away from, or knocked out: the beam is hidden at once."""
+    kid = lit_kid(cache)
+    if stop == 'release':
+        shine(kid, frames=1, held=False)
+    elif stop == 'switch':
+        kid.switch_weapon()
+        shine(kid, frames=1)
+    else:
+        kid.knock_out()
+
+    assert kid.beam.hidden
+
+
+def test_killing_a_kid_takes_its_beam(cache):
+    """An unplugged pad's kid leaves with its beam."""
+    group = pygame.sprite.LayeredDirty()
+    kid = Kid(look_name='dex', world_x=0.0, world_y=0.0, mirror_cache=cache, groups=group)
+
+    kid.kill()
+
+    assert kid.beam not in group

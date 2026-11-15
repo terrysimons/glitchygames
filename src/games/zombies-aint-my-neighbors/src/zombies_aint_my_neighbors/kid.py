@@ -51,6 +51,7 @@ from zombies_aint_my_neighbors.laser import (
     DOT_DISTANCE,
     WARM_UP_SECONDS,
     LaserBattery,
+    LaserBeam,
     LaserDot,
 )
 from zombies_aint_my_neighbors.run_state import Weapon
@@ -285,6 +286,7 @@ class Kid(AnimatedSprite):
         self.laser_pointer = LaserPointer(mirror_cache=mirror_cache, groups=groups)
         self.battery = LaserBattery()
         self.dot = LaserDot(groups=groups)
+        self.beam = LaserBeam(groups=groups)
         # Whether the battery draws (the kid aims), whether the dot shines (after the warm-up),
         # and how long the battery has drawn without a break
         self.laser_aiming = False
@@ -362,6 +364,7 @@ class Kid(AnimatedSprite):
         self.laser_lit = False
         self._warm_seconds = 0.0
         self.dot.go_out()
+        self.beam.go_out()
 
     def pull_trigger(self, *, held: bool) -> bool:
         """Say whether fire is held this frame; fire when it may (call before ``dt_tick``).
@@ -527,6 +530,7 @@ class Kid(AnimatedSprite):
         """Shine the dot ahead of the kid's feet along its aim, inside the yard; or put it out."""
         if not self.laser_lit:
             self.dot.go_out()
+            self.beam.go_out()
             return
         aim_x, aim_y = self.aim()
         centre_x = self.world_x + KID_WIDTH / 2 + aim_x * DOT_DISTANCE
@@ -541,6 +545,7 @@ class Kid(AnimatedSprite):
             centre_y = min(max(centre_y, self.bounds.top + KID_HEIGHT), self.bounds.bottom)
         self.dot.show_at(centre=(centre_x, centre_y))
         self.dot.dt_tick(dt)
+        self.beam.shine(start=self.laser_pointer.muzzle(), end=(centre_x, centre_y), dt=dt)
 
     def _place_remote(self, *, mirrored: bool) -> None:
         """Put the held weapon on the hand point while a weapon animation plays; away otherwise."""
@@ -571,6 +576,7 @@ class Kid(AnimatedSprite):
         self.remote.kill()
         self.laser_pointer.kill()
         self.dot.kill()
+        self.beam.kill()
         super().kill()
 
     def _advance_knockout(self, dt: float) -> None:
