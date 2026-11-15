@@ -1178,7 +1178,7 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   `chore/upgrade-and-sounds-on-first-use` with the upgrade and the disk cache** (the owner,
   2026-11-14: "Update the games to use it"; "I want to do the migration here in this branch. All
   together."; live instruments built as part of it; "make them all compile at the init of each
-  game, so we cache from the start"). Found while building the disk cache: no golden or bundled demo makes
+  game, so we cache from the start"). Plan: `plans/2026-11-14-sound-migration.md`. Found while building the disk cache: no golden or bundled demo makes
   a sound through `scene_manager.audio` today, so the disk layer has nothing to cache in them
   (a PaddleSlap golden under `--sound-cache disk` wrote no file; the `disk_sound_cache` fixture
   failed the test). Spec: `docs/specs/2026-11-02-sound-engine-implementation-spec.md` §10.4.

@@ -1,0 +1,141 @@
+# The games on the new sound library: effects, live instruments, compiled at start
+
+Master: the sound engine specs, `docs/specs/2026-11-02-sound-engine-feature-spec.md` and
+`docs/specs/2026-11-02-sound-engine-implementation-spec.md` (§7.5 live voices, §8 the API, §10.4
+migration and clean-up, M2). Sibling: `plans/2026-11-14-sound-cache-on-first-use.md` (the disk
+layer this migration gives something to cache). Branch `chore/upgrade-and-sounds-on-first-use`
+(the owner: "I want to do the migration here in this branch. All together."). TODO:
+`plans/future-work.md`, "Move the games onto the new sound library".
+
+## Why
+
+Building the disk cache showed that no golden or bundled demo makes a sound through
+`scene_manager.audio`: the games still use the old toolkit, so the disk layer had nothing to
+cache in them (a PaddleSlap golden replayed under `--sound-cache disk` wrote no file, and the
+`disk_sound_cache` fixture failed the test). Moving the games onto the library is what makes
+"sounds made on first use" true for them.
+
+## What each game uses today (research, 2026-11-14)
+
+| Game | Today | After |
+| --- | --- | --- |
+| Clockwork Keep | `SoundBank(ALL_RECIPES)` per floor scene, `prerender()` in `setup()`, seven `sounds.play(name)` sites; the elevator motor, a `live_audio.create_voice` saw with low-pass and tremolo whose frequency and volume follow the ride, owned by the transition | Its recipes become effects, played with `audio.sound(name).play()`; the motor a live instrument with `speed` (and its tremolo), owned by the transition |
+| Mr. Muncher | `shared_sound_bank()` (`functools.cache`, process state row R14), nine play sites, crunch alternating; the projector, a live noise voice whose cutoff and tremolo rate change by state | Effects; the projector a live instrument whose cutoff and tremolo rate are parameters |
+| Brave Adventurer | `GameSounds`: five `_generate_*_sound()` functions on `synth` (sines and sweeps, envelopes, PEAK 24000/32767, `set_volume`) | Five effects, bit-identical to today's samples |
+| PaddleSlap | `game_objects.load_sound(SFX.BOUNCE/SLAP)`: two WAV files | `audio.sound('bounce')` / `audio.sound('slap')`: recorded files by short name |
+| Drawing Fire | no sound | nothing |
+
+## Decisions (the owner, 2026-11-14)
+
+1. **The migration is in this branch,** with the upgrade and the disk cache.
+2. **Two first-class kinds of sound, each for its own use:**
+   - **Effects**: synthetic sound effects, tones mixed straight (summed). A `Tone` is a
+     waveform, start and end frequency, duration, envelope, offset and optional filter, tremolo
+     and distortion; an `Effect` is its tones and a volume. Exact and cheap: blips, sweeps,
+     crunches, jingles.
+   - **Instruments**: the layered renderer, for music, notes and timbres, and live voices.
+   - One way to get and play either: `audio.sound(source)`, where the source is a short name, a
+     path (`file.toml#name`), an `Instrument` or an `Effect`; it returns the same `Sound`.
+   - Not "version 0" or "the old way": `SoundRecipe` becomes `Effect` (`Tone` keeps its name).
+     In sound files, effects are a table of their own in the current format (`[effects.jump]`
+     with `[[effects.jump.tones]]`); files that still say `[recipes.*]` load as effects. An
+     effect's `volume` is its default playback volume (today the library ignores it, which would
+     have made a crunch about 5.5 times louder). `add_recipes` becomes registering effects by
+     name. Spec §10.4's plan to convert recipes to instruments and delete them is dropped;
+     `sound-migrate` stays only as an optional effect-to-instrument tool.
+3. **The −3 dB centre pan stays.** The library's constant-power pan plays a centred sound at
+   0.707 per side, where the old `Sound.play` played both sides at the set volume, so migrated
+   sounds are 3 dB quieter. An engine-wide choice; not changed for the migration.
+4. **Live instruments are built (M2's first item),** with exposed parameters, routes, curves
+   and smoothing (spec §5.3-5.4 of the feature spec, §4.3 and §6.1 of the implementation spec),
+   plus a live **tremolo** (rate and depth, each a parameter; spec LFOs stay M4), because both
+   live sounds use one and the projector changes its rate. Parameters and routes are declared in
+   Python too: `Instrument(..., live=True, parameters={...}, routes=[...])`, mirroring the TOML
+   schema (the spec gives them only in TOML). Then `live_audio` and `create_voice` are removed
+   (§10.4); §7.5 and §8, which say they stay, are corrected.
+5. **`owner=` on `play()` and `start()`,** defaulting to today's rule (the scene in setup, else
+   the active scene), so a transition can own the motor and the arrival clank as it does now.
+6. **Every game compiles all its sounds when it starts, asynchronously during the CRT power-on**
+   ("start the compile before the CRT and let it run async then block on the CRT screen"):
+   - No thread: each CRT frame, after drawing, the engine compiles sounds until shortly before
+     the next frame is due (a time budget per frame), then lets the frame go on. When the
+     power-on ends, it compiles what is left on the settled screen, then builds the game. The
+     spec's "no new thread" (§4.1) still holds. The same per-tick slices fit `start_async`'s
+     awaited ticks (the browser).
+   - The CRT's own sounds compile first (it needs them at once).
+   - Where the power-on is skipped (the dummy driver, replays, recordings, audits, rebaselines,
+     `--crt-power-on off`), everything compiles before frame 0. A key that skips the power-on
+     goes straight to the wait.
+   - The start-up compiles count as setup compiles, never as a frame's audio work.
+   - A failed compile surfaces at the wait, into the normal crash boundary and exit codes.
+7. **`warm()` is replaced** by that start-up call: a game declares its sounds (a scene class's
+   sound list), the engine compiles them in the CRT's idle time and hands back playable
+   `Sound`s. `warm` (no callers, and not the spec's signature) goes.
+
+## Interfaces
+
+- `glitchygames.audio.Effect(tones: Sequence[Tone], volume: float, ...)` and `Tone(...)`
+  (today's `Tone` fields), frozen pydantic models; `audio.sound(Effect(...))`.
+- Sound files: `[effects.<name>]` (volume, peak) with `[[effects.<name>.tones]]`; `[recipes.*]`
+  still read as effects.
+- `Instrument(..., live=True, parameters={'speed': Parameter(range=(0, 1), default=0,
+  smoothing_ms=30)}, routes=[Route(source='speed', destination='pitch', curve='linear',
+  output=(45, 110)), ...], tremolo=Tremolo(rate_hz=..., depth=...))`; tremolo rate and depth
+  routable like any destination.
+- `Sound.start(*, parameters=None, volume=..., pan=..., bus=..., priority=..., owner=None)
+  -> LiveSoundHandle` (`set(name, value) -> bool`, `release()`, `stop()`); `Sound.play(...,
+  owner=None)`.
+- A scene declares the sounds its game needs at start (`Scene.SOUNDS`, a sequence of sources),
+  and the engine's start-up compile reads it. Names are proposals.
+
+## Order of work
+
+1. Effects: `Effect`/`Tone`, the `[effects.*]` table, effect volume as the playback default,
+   `add_recipes` reworded; `[recipes.*]` compatibility.
+2. Clockwork Keep's and Mr. Muncher's one-shot sounds as effects through `audio.sound`;
+   Brave Adventurer's five sounds as effects; PaddleSlap's two WAVs by short name.
+3. `owner=` on `play()`.
+4. The start-up compile: `Scene.SOUNDS`, the CRT-idle slices, the wait, the skipped-power-on
+   path; `warm` removed.
+5. Live instruments: parameters, routes, curves, smoothing, tremolo, `start()`/`set()`, on the
+   live pools (inner games included).
+6. The two live sounds on live instruments.
+7. Clean-up: `SoundBank`, `live_audio`/`create_voice`/`LiveAudio`'s public face, `GameSounds`,
+   `load_sound`/`SFX`, `shared_sound_bank` and its process-state rows, their tests; the
+   stand-in games' live voice moved to a live instrument.
+8. The proof: every golden and bundled demo under `--sound-cache disk`, cold and warm, with
+   `disk_sound_cache` (writes, then hits, nothing compiled twice, digests equal).
+9. Docs and spec: §4.1 (start-up slices), §7.5/§8/§10.4 (effects first-class, live instruments,
+   `live_audio` removed), `docs/architecture/sound.md`, the games' pages, CLAUDE.md's Sound
+   Synthesis lines; every new option and name documented.
+
+## Tests (behaviours)
+
+- Each migrated effect's samples are byte-identical to what today's code renders (Clockwork
+  Keep's and Mr. Muncher's recipes, Brave Adventurer's five generators), computed in the test
+  from the old code before it is removed.
+- An effect plays at its own volume; a `[recipes.*]` file and the same sounds as `[effects.*]`
+  give identical sounds.
+- Every golden replay and bundled demo still matches (their sprites are unchanged by sound).
+- The start-up compile: every declared sound is compiled before frame 0, on the power-on path
+  and on every skipped path; no CRT frame is later than its deadline by more than the compile
+  of one sound (measured, with a stand-in sound list); a key skip waits on the same screen; a
+  failing compile exits through the crash boundary with its code; start-up compiles are setup
+  compiles and appear in no frame's audio work; the browser's `start_async` path compiles in
+  its ticks.
+- `owner=`: a transition-owned sound keeps playing through the transition and stops with it.
+- Live instruments: AUD-GAME-001 to 006 (parameters by name, smoothing, clamping, curves, 1000
+  sets per frame coalesced, latency at most a chunk plus 12 ms); tremolo rate and depth change
+  live; a live voice on an inner game's live pool is silent while the tile is silent and heard
+  when switched heard (the inner-game proof keeps passing).
+- The motor follows the ride (frequency and volume from `speed`); the projector's cutoff and
+  tremolo rate follow its state.
+- The disk proof (step 8).
+
+## Risks
+
+- Live instruments are the largest piece and touch the Arcade's live pools; the inner-game proof
+  and `tests/engine/test_inner_game.py`'s live-pool tests guard them.
+- A sound that takes longer than a frame to compile delays one CRT frame; the test bounds it.
+- Ten Arcade tiles each compile their game's sound set into their own memory cache; measured
+  once built (the disk layer makes repeats cheap).

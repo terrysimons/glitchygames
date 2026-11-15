@@ -3,7 +3,8 @@
 Master: the sound engine specs, `docs/specs/2026-11-02-sound-engine-feature-spec.md` (§9, the
 cache) and `docs/specs/2026-11-02-sound-engine-implementation-spec.md` (§6.4, the disk layer;
 §11.0 and M3, the order of work). Branch `chore/upgrade-and-sounds-on-first-use`, after the
-dependency upgrade (its own commit, every gate green, ff920c60). TODO: `plans/future-work.md`,
+dependency upgrade (its own commit, every gate green, ff920c60). Sibling: `plans/2026-11-14-sound-migration.md` (the games
+moved onto the library, so the disk layer has their sounds to keep). TODO: `plans/future-work.md`,
 "Upgrade every locked dependency, then generate sounds on first use".
 
 ## Goal
