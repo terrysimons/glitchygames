@@ -6327,6 +6327,40 @@ This document tracks planned future features for the GlitchyGames project. Featu
   frame, with scripts/replay_schedule.py)
 - **Priority**: Low
 
+### 90. Sound Engine: Narration From Our Own Waves — TODO
+- **Description**: Spoken narration synthesized by the engine itself, from its own waves and
+  filters, the same on every platform and in replays, written in a sound file like any other
+  sound. Wanted by the owner (2026-11-14, for Zombies Ain't My Neighbors: "Narration would be
+  amazing actually using our in-built waves"; master plan
+  `plans/2026-11-14-zombies-aint-my-neighbors.md`, decision 14). Not started.
+- **Gaps today**:
+  - `src/glitchygames/audio/tts.py` voices only through macOS `say`, and writes an audio file at
+    run time. Nothing speaks on Linux, Windows, Raspberry Pi or in the browser, and the speech
+    is neither a sound-file sound nor part of what a replay records.
+  - The catalog's voices (`audio/instruments/voices.py`) sing five fixed vowels: their formants
+    are set for the middle of the range and do not move during a note. Speech needs formants
+    that glide from one sound to the next.
+- **Tasks**:
+  1. Moving formants: a formant filter whose frequencies, bandwidths and gains follow a curve
+     over a sound (also unblocks the catalog instruments waiting on "moving formants", #70).
+  2. Consonants: voiceless sounds (s, sh, f, h) from filtered noise, plosives (p, t, k, b, d,
+     g) as a short silence then a burst, nasals (m, n) and voiced fricatives (v, z) as a
+     voiced source mixed with noise.
+  3. A phoneme set and its sound table: formant targets, lengths and transitions for each
+     English phoneme.
+  4. Text to phonemes: English spelling rules plus an exceptions list, with phonemes also
+     writable directly for exact control.
+  5. Prosody: a pitch contour (falling for statements, rising for questions), stress and
+     speaking rate.
+  6. A sound-file form, such as `speech = "..."` or `phonemes = "..."` on a sound, compiled and
+     cached like any other sound so a game builds its lines in `setup()`.
+  7. Voices: a few presets (a deep B-movie announcer, a child, a robot), from source pitch and
+     formant scaling.
+  8. Retire or reroute `tts.py`'s macOS path once the synthesized voice works, so nothing
+     relies on a platform tool.
+- **Status**: TODO (filed 2026-11-14)
+- **Priority**: Medium
+
 ## Notes
 
 - All features are currently in planning phase
