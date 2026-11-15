@@ -282,7 +282,7 @@ def scene_class_of(game: type[Scene] | Scene) -> type[Scene]:
     # class. ty narrows the class branch to "type[Scene] | (Scene & type)" (a Scene that is also
     # a type, a metaclass instance no game is), where basedpyright sees type[Scene] and refuses a
     # cast as unnecessary: so ty alone is told
-    return game if isinstance(game, type) else type(game)  # ty: ignore[invalid-return-type]
+    return game if isinstance(game, type) else type(game)  # ty: ignore[invalid-explicit-return]
 
 
 def pygame_needs_fastevents() -> bool:
@@ -4371,7 +4371,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             # Support scenes processing pygame raw events, bypassing
             # the glitchygames.engine event processing altogether
             if hasattr(self._active_scene, 'process_event'):
-                self._active_scene.process_event(pygame_event)  # type: ignore[union-attr] # ty: ignore[call-non-callable]
+                self._active_scene.process_event(pygame_event)  # type: ignore[union-attr] # ty: ignore[not-callable]
                 continue
 
             event = events.HashableEvent.from_pygame(pygame_event)

@@ -50,11 +50,11 @@ class PortAudioMicrophone(sr.AudioSource):
         return self
 
     @override
-    def __exit__(  # ty: ignore[invalid-method-override]
+    def __exit__(
         self,
         exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: types.TracebackType | None,
+        exc_value: BaseException | None,
+        traceback: types.TracebackType | None,
     ) -> bool | None:
         """Exit the context manager, closing the inner microphone stream.
 
@@ -62,4 +62,4 @@ class PortAudioMicrophone(sr.AudioSource):
             bool | None: Whether to suppress the exception, if any.
 
         """
-        return self._inner.__exit__(exc_type, exc, tb)
+        return self._inner.__exit__(exc_type, exc_value, traceback)

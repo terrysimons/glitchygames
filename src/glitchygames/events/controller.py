@@ -50,7 +50,7 @@ def alias_controller_module() -> bool:
     controller_module = sdl_controller_module()
     if controller_module is None:
         return False
-    pygame.controller = controller_module  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
+    pygame.controller = controller_module  # type: ignore[attr-defined] # ty: ignore[missing-attribute]
     return True
 
 

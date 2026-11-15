@@ -1246,5 +1246,5 @@ def _get_color_map(self: BitmappySprite) -> dict[str, Any]:
 
 
 # Add methods to BitmappySprite class
-BitmappySprite._get_pixel_string = _get_pixel_string  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
-BitmappySprite._get_color_map = _get_color_map  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
+BitmappySprite._get_pixel_string = _get_pixel_string  # type: ignore[attr-defined] # ty: ignore[missing-attribute]
+BitmappySprite._get_color_map = _get_color_map  # type: ignore[attr-defined] # ty: ignore[missing-attribute]

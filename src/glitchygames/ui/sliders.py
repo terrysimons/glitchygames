@@ -278,7 +278,7 @@ class SliderSprite(BitmappySprite):
             ):
                 self._handle_text_character_input(event)
 
-        self.text_sprite.on_key_down_event = handle_text_input  # ty: ignore[invalid-assignment]
+        self.text_sprite.on_key_down_event = handle_text_input
 
         # Add mouse click handling to activate text editing
         def handle_text_click(event: HashableEvent) -> bool:

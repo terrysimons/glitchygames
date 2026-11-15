@@ -40,6 +40,7 @@ from bitmappy.toml_processing import (
     normalize_toml_data,
     parse_toml_robustly,
 )
+from glitchygames.sprites.animated import AnimatedSprite
 
 # ---------------------------------------------------------------------------
 # Alpha Detection & Conversion
@@ -996,7 +997,7 @@ class TestRenderStaticSpriteAscii:
         frame.get_pixel_data.return_value = [(255, 0, 0)]
         frame.get_size.return_value = (1, 1)
 
-        sprite = mocker.Mock()
+        sprite = mocker.Mock(spec=AnimatedSprite)
         sprite._animations = {'idle': [frame]}
 
         renderer = mocker.Mock()
@@ -1008,26 +1009,28 @@ class TestRenderStaticSpriteAscii:
 
     def test_handles_empty_animation_list(self, mocker):
         """Test that an empty animation frame list is handled gracefully."""
-        sprite = mocker.Mock()
+        sprite = mocker.Mock(spec=AnimatedSprite)
         sprite._animations = {'idle': []}
 
         renderer = mocker.Mock()
         _render_static_sprite_ascii(sprite, renderer)
         # Should not raise an error
 
-    def test_handles_attribute_error_gracefully(self, mocker):
-        """Test that AttributeError is caught gracefully."""
-        sprite = mocker.Mock(spec=[])  # No _animations attribute
-
+    def test_a_sprite_that_is_no_animated_sprite_renders_nothing(self, mocker, caplog):
+        """A sprite without animations (not an AnimatedSprite) is logged at debug and skipped."""
         renderer = mocker.Mock()
-        _render_static_sprite_ascii(sprite, renderer)
-        # Should not raise an error
+
+        with caplog.at_level(logging.DEBUG):
+            _render_static_sprite_ascii(mocker.Mock(spec=[]), renderer)
+
+        assert 'No ASCII for a single-frame sprite without animations: Mock' in caplog.text
+        renderer.assert_not_called()
 
     def test_frame_that_renders_to_nothing_logs_nothing(self, mocker, caplog):
         """A first frame with no pixel data renders no ASCII, so nothing is logged."""
         frame = mocker.Mock()
         frame.get_pixel_data.return_value = []
-        sprite = mocker.Mock()
+        sprite = mocker.Mock(spec=AnimatedSprite)
         sprite._animations = {'idle': [frame]}
 
         with caplog.at_level(logging.INFO, logger='game.tools.bitmappy'):
@@ -1040,7 +1043,7 @@ class TestRenderStaticSpriteAscii:
         frame = mocker.Mock()
         frame.get_pixel_data.return_value = [(255, 0, 0)]
         frame.get_size.return_value = (1, 1)
-        sprite = mocker.Mock()
+        sprite = mocker.Mock(spec=AnimatedSprite)
         sprite._animations = {'idle': [frame]}
         renderer = mocker.Mock()
         renderer.colorize_pixels.side_effect = ValueError('renderer bug')
@@ -1059,7 +1062,7 @@ class TestRenderAnimatedSpriteAscii:
         frame1 = mocker.Mock()
         frame2 = mocker.Mock()
 
-        sprite = mocker.Mock()
+        sprite = mocker.Mock(spec=AnimatedSprite)
         sprite._animations = {
             'idle': [frame1],
             'walk': [frame2],
@@ -1077,7 +1080,7 @@ class TestRenderAnimatedSpriteAscii:
 
     def test_skips_empty_frame_lists(self, mocker):
         """Test that empty animation frame lists are skipped."""
-        sprite = mocker.Mock()
+        sprite = mocker.Mock(spec=AnimatedSprite)
         sprite._animations = {'idle': []}
 
         renderer = mocker.Mock()
@@ -1089,20 +1092,22 @@ class TestRenderAnimatedSpriteAscii:
 
         _render_animated_sprite_ascii(sprite, renderer)
 
-    def test_handles_attribute_error_gracefully(self, mocker):
-        """Test that AttributeError on sprite is handled gracefully."""
-        sprite = mocker.Mock(spec=[])  # No _animations
-
+    def test_a_sprite_that_is_no_animated_sprite_renders_nothing(self, mocker, caplog):
+        """A sprite without animations (not an AnimatedSprite) is logged at debug and skipped."""
         renderer = mocker.Mock()
-        _render_animated_sprite_ascii(sprite, renderer)
-        # Should not raise
+
+        with caplog.at_level(logging.DEBUG):
+            _render_animated_sprite_ascii(mocker.Mock(spec=[]), renderer)
+
+        assert 'No ASCII for an animated sprite without animations: Mock' in caplog.text
+        renderer.assert_not_called()
 
     def test_animation_that_renders_to_nothing_logs_only_its_heading(self, mocker, caplog):
         """Frames with no pixels give no ASCII, so only the animation heading is logged."""
         frame = mocker.Mock()
         frame.get_pixel_data.return_value = []
         frame.get_size.return_value = (0, 0)
-        sprite = mocker.Mock()
+        sprite = mocker.Mock(spec=AnimatedSprite)
         sprite._animations = {'idle': [frame], 'walk': [frame]}
 
         with caplog.at_level(logging.INFO, logger='game.tools.bitmappy'):

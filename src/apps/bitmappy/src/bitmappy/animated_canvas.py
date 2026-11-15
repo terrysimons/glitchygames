@@ -415,7 +415,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             if hasattr(self.animated_sprite, 'get_pixel_data'):
                 pixels = cast(
                     'list[tuple[int, ...]]',
-                    self.animated_sprite.get_pixel_data(),  # type: ignore[union-attr] # ty: ignore[call-non-callable]
+                    self.animated_sprite.get_pixel_data(),  # type: ignore[union-attr] # ty: ignore[not-callable]
                 )
                 self.log.debug(
                     'Got pixels from animated_sprite.get_pixel_data(): %s pixels, first few: %s',
@@ -425,7 +425,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             elif hasattr(self.animated_sprite, 'pixels'):
                 pixels = cast(
                     'list[tuple[int, ...]]',
-                    self.animated_sprite.pixels.copy(),  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
+                    self.animated_sprite.pixels.copy(),  # type: ignore[union-attr] # ty: ignore[missing-attribute]
                 )
                 self.log.debug(
                     'Got pixels from animated_sprite.pixels: %s pixels, first few: %s',
@@ -1182,7 +1182,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         """Handle pixel update events."""
         if hasattr(trigger, 'pixel_number'):
             pixel_num: int = trigger.pixel_number  # type: ignore[union-attr] # ty: ignore[invalid-assignment]
-            new_color: tuple[int, ...] = trigger.pixel_color  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
+            new_color: tuple[int, ...] = trigger.pixel_color  # type: ignore[union-attr] # ty: ignore[missing-attribute]
 
             self.pixels[pixel_num] = new_color
             self.dirty = 1
@@ -1484,7 +1484,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             if hasattr(loaded_sprite, 'get_size'):
                 sprite_size = cast(
                     'tuple[int, int]',
-                    loaded_sprite.get_size(),  # type: ignore[union-attr] # ty: ignore[call-non-callable]
+                    loaded_sprite.get_size(),  # type: ignore[union-attr] # ty: ignore[not-callable]
                 )
                 sprite_width, sprite_height = sprite_size
                 self.log.debug('Static sprite dimensions: %sx%s', sprite_width, sprite_height)
@@ -1523,7 +1523,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         elif hasattr(self, 'on_sprite_loaded') and self.on_sprite_loaded:  # type: ignore[attr-defined]
             self.log.debug('Calling on_sprite_loaded callback')
             LOG.debug('DEBUG: Calling on_sprite_loaded callback')
-            self.on_sprite_loaded(loaded_sprite)  # type: ignore[attr-defined] # ty: ignore[call-non-callable]
+            self.on_sprite_loaded(loaded_sprite)  # type: ignore[attr-defined] # ty: ignore[not-callable]
         else:
             LOG.debug(
                 'DEBUG: No callback found - hasattr(parent_scene):'
