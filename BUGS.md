@@ -2,72 +2,9 @@
 
 This document tracks bugs reported during development. Bugs are listed in order of discovery and will be investigated and fixed as time allows.
 
+New bugs go in `bugs/`, one file each, named `YYYY-MM-DD-short-slug.md` (the date reported), with the fields used here. The file name is the bug's name: cite it as `bugs/2026-11-14-type-gate-never-reads-the-tests.md`. Branches that each add a bug add different files, so they never conflict over the next number or the same insertion point (the owner, 2026-11-14). The numbered entries below stay where they are until they are moved, and are still cited by number.
+
 ## Active Bugs
-
-### 283. Raspberry Pi Rows From Before numpy 2 Were Never Checked for the Corruption Bug
-- **Description**: numpy 1.26.4 on Python 3.14 on Linux ARM64 changed a local array in place once it reached 32,768 8-byte elements (`other = values + 1.0` changed `values`); #153 moved to numpy 2.5.4, which does not. The Raspberry Pi 4's replay rows measured before #153 ran on 1.26.4. Whether any of them measured a corrupted run (wrong numbers, or a replay that took another path) was never checked. Recordings that play the CRT power-on sound crashed outright (`audio/render.py`, `_table_samples`, `IndexError` on index 2048), so the danger is in rows whose runs did not crash
-- **Status**: Open (not investigated)
-- **Priority**: Low (affects only the Pi's history on the Performance page)
-- **Reporter**: Claude, from the numpy 2 work (#153)
-- **Date Reported**: 2026-11-14
-- **Details**: Ways to check: compare the Pi's last rows before #153 with its first after it, per recording, for frames whose content hash changed (`glitchygames report`), and look for the Pi's rows standing apart from the Mac's before #153 but not after. macOS was not affected on the same versions; Linux x86 was never tested
-- **Files**: `quality/replay-ledger/` (the Pi 4's rows before #153)
-
-### 282. Pre-Push Checks Fail in a Worktree Synced With Only the dev Extra
-- **Description**: In a new worktree synced with `uv sync --locked --extra dev`, the pre-push `static-analysis` and `test-random` hooks fail on missing modules (`ModuleNotFoundError: No module named 'mkdocs'`, `mkdocs_gen_files`, `cookiecutter`), in tests such as `tests/test_gen_ref_pages.py` and `tests/templates/test_template_errors.py`. `uv sync --locked --all-extras --all-packages` fixes it. Seen 2026-11-06 on the `fix/numpy-2` worktree, where the failure came at the end of a 20-minute push (the `feat/default-wayland` worktree was synced the same way)
-- **Status**: Open (not re-checked on the current `main`)
-- **Priority**: Low (a re-sync fixes it, but only after a long push fails)
-- **Reporter**: Claude, pushing from new worktrees
-- **Date Reported**: 2026-11-14
-- **Details**: Either the hooks should run in an environment that has every extra they need (as `docs-serve` does since #274: `uv run --isolated ... --all-extras`), or a check before the slow hooks should say which sync is missing
-- **Files**: `.pre-commit-config.yaml`, `noxfile.py`, `.envrc`
-
-### 281. The Performance Charts' "commit" Axis Title Overlaps the Commit Hashes
-- **Description**: On the Performance page's charts, the x axis title `commit` is drawn over the rotated short commit hashes under the axis (seen 2026-11-06 in "Processing time per frame", in a local build in Chrome at 1400 px wide). The layout's bottom margin is 48 px (`margin: { l: 56, r: 16, t: 40, b: 48 }`), which the hashes, rotated when there are many commits, fill
-- **Status**: Open
-- **Priority**: Low (cosmetic)
-- **Reporter**: Claude, checking the game list (#154) in a browser
-- **Date Reported**: 2026-11-14
-- **Files**: `src/glitchygames/replay/tools/performance_pages.py` (the chart layouts, `title: { text: 'commit' }`)
-
-### 280. Bitmappy's Collision Avoidance Logs Every Offset Again on Every Indicator Added
-- **Description**: `VisualCollisionManager._apply_collision_avoidance` logs one DEBUG line per controller in a collision group (`Applied film_strip offset (15, -15) to controller 42`, `collision.py:398`), and it runs again for the whole group every time an indicator is added. `test_bulk_assignment_and_indicators` (`src/apps/bitmappy/tests/test_bitmappy_benchmarks.py`, 1000 controllers) logs about 2.5 million lines. Under pyproject's `addopts` (`--log-cli-level=DEBUG`) and `pytest -n0`, that one test peaked at 3.26 GB and took 46 s on the Mac (229 MB and 2.8 s at `--log-cli-level=WARNING`), and on a Raspberry Pi 4 it passed the 1,600 MiB `GLITCHYGAMES_TEST_RSS_LIMIT_MB` by itself (+1,425 MiB in a fresh process)
-- **Status**: Open
-- **Priority**: Low (only DEBUG runs with many controllers; nox's sessions run at WARNING)
-- **Reporter**: Claude, running the suite on the Raspberry Pi 4 (2026-11-06)
-- **Date Reported**: 2026-11-14
-- **Details**: The logging grows with the square of the indicators at one position. Logging once per group change, or only the controllers whose offset changed, would keep the record without the volume
-- **Files**: `src/apps/bitmappy/src/bitmappy/indicators/collision.py`
-
-### 279. The Never-Ready Reproducer Test Fails in Every Checkout Under /private/tmp
-- **Description**: `tests/test_reproduce_orphaned_test_processes.py::test_a_run_that_never_reaches_the_moment_leaves_nothing_running` (from #192, BUGS.md #275) failed every time in a checkout under `/private/tmp` (a worktree in Claude's scratch directory, `/private/tmp/claude-501/...`), on plain main as well as on branches, and passes in the main checkout. Under the shuffled pre-push suite it was the one failure (`1 failed, 26350 passed`), so pushes had to be made from the main checkout.
-- **Status**: Open (cause not confirmed)
-- **Priority**: Low (only checkouts under the temporary directory; blocks a push from one)
-- **What the evidence shows**: the test patches `MOMENT_TIMEOUT_SECONDS` to 5.0 (line 131) and expects its inner pytest run to reach a test body that writes `stand-in-child.pid`; under `/private/tmp` the inner run never got there within the 5 seconds, so reading the file raised `FileNotFoundError` (the main checkout takes about 5.5 s for the whole test). Outside pytest the same never-ready trial, run through `scripts.reproduce_orphaned_test_processes` with the same 5-second patch, reached its test body in about 1.0-1.3 s in both places (`reached=True after 1.0 s` under `/private/tmp`, `0.9 s` in the main checkout). So the slowdown, or a block, appears only when the trial runs inside the outer pytest run in that location.
-- **Suspected, unverified**: something in the outer run that matches temporary-directory paths, such as the harness's process sweep (`tests/child_process_guard.py`) or a `tmp_path` rule, stops or delays the inner run there. Next checks: run the test with `-p no:xdist` and with the child-process guard disabled in a `/private/tmp` checkout; keep the inner run's temporary directory (patch the reproducer's `tempfile.TemporaryDirectory` to `delete=False`) and read its `run.log` to see how far it got.
-- **Test gap**: the test's 5-second wait assumes the inner run starts as fast everywhere as in the main checkout; nothing reports how far the inner run got when it times out.
-- **Reporter**: Claude, rebasing the instrument-catalog stack in a scratch worktree
-- **Date Reported**: 2026-11-13
-- **Files**: `tests/test_reproduce_orphaned_test_processes.py`, `scripts/reproduce_orphaned_test_processes.py`
-
-### 278. Dependabot Alert 196: the Locked tornado 6.6 Has an Open Redirect
-- **Description**: GitHub's Dependabot alert 196 (opened 2026-11-14, severity low): «Tornado: Open redirect via triple-slash redirect paths», for tornado `<= 6.6.0`, first fixed in 6.6.1. `uv.lock` holds tornado 6.6, pulled in only by `bokeh`, a runtime dependency of `glitchygames`.
-- **Status**: Open (not fixed; a branch of its own)
-- **Priority**: Low (no project code imports bokeh or tornado: `bokeh` is in deptry's `DEP002` list in `pyproject.toml`, declared but unused, and no code starts a bokeh or tornado server; the package still ships it to users)
-- **Fix to make**: `uv lock --upgrade-package tornado` (to 6.6.1 or later), regenerate the SBOM with `nox -s security-scan` and commit it with `uv.lock`, as CLAUDE.md requires. Separately: why `bokeh` is a runtime dependency nothing imports (`git log -S bokeh -- pyproject.toml`), and whether it should move to an extra or go
-- **Reporter**: Claude, from the push of `chore/instrument-audit-checks` (GitHub printed the alert)
-- **Date Reported**: 2026-11-14
-- **Files**: `uv.lock`, `pyproject.toml`, `docs/sbom.cyclonedx.json`
-
-### 277. The Type Gate Never Reads the Tests
-- **Description**: The `static-analysis` hook runs basedpyright and ty, but `[tool.ty.src]` in `pyproject.toml` leaves out `tests/`, so `uv run ty check` with no paths passes while ty, run on every tracked test file, reports 1126 diagnostics (2026-11-14: 784 `invalid-argument-type`, 241 `unresolved-attribute`, 63 `invalid-assignment`, 13 `unsupported-operator`, 5 `invalid-return-type`, 4 `unused-ignore-comment` and the rest scattered; `tests/audio/test_voices.py` has the most). Found when `tests/audio/test_instrument_catalog.py`'s 7 errors turned up only on a direct `ty check` of that file
-- **Status**: Open (the owner's decision: adding `tests/` to the gate is a type-checker config change, and the existing diagnostics must be fixed first)
-- **Priority**: Medium (a test's wrong type reaches main unseen; a test can pass by accident on a value it misreads)
-- **Test gap**: nothing checks that the type gate covers every tracked Python file
-- **Done so far**: `tests/audio/test_instrument_catalog.py`'s 7 errors were fixed on `chore/instrument-audit-checks` (0ae8c8f4): ty now reports none in that file
-- **Reporter**: Claude
-- **Date Reported**: 2026-11-14
-- **Files**: `pyproject.toml` (`[tool.ty.src]`), `tests/`; plans/future-features.md #89
 
 ### 276. The Digest-File Test's Watched Replay Diverged at Frame 0 Once
 - **Description**: The pre-push `compare-drivers` hook of #194's push (2026-11-13, load average about 55-60 from other sessions) failed one test on dummy-1: `tests/world/test_gameplay_replay.py::TestAuditReplayRuns::test_the_digest_file_lists_every_replayed_frame_then_no_divergence` exited `INTERNAL_ERROR` (70) instead of `SUCCESS` (the assert at line 5115; junit had no captured output). dummy-2 and cocoa passed it; it is not otherwise known to have failed.
