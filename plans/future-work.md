@@ -1146,6 +1146,19 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   - Not done: folding `test-random` into the comparison (shuffling one dummy run). The comparison
     passes on failing tests (`_PYTEST_FINISHED_CODES = [0, 1]`), and order-dependent frames would
     read as "varies between runs" rather than fail; little to save (80 s).
+- **Upgrade every locked dependency, in a branch of its own** (the owner, 2026-11-14: one
+  upgrade, not a tornado-only branch). `uv sync --upgrade --all-extras --all-groups
+  --all-packages`, then the gates in order (ruff, basedpyright and ty, the suite) and
+  `nox -s security-scan`, committing the regenerated `docs/sbom.cyclonedx.json` with `uv.lock`.
+  A trial run on 2026-11-14 (main at c3beb0a8, not kept) changed 31 packages, none added or
+  removed: tornado 6.6 -> 6.6.1 closes Dependabot alert 196
+  (bugs/2026-11-14-dependabot-alert-196-tornado-open-redirect.md); two major versions to check,
+  pymdown-extensions 12.3 -> 13.1 (the docs build) and python-dateutil 2.9.0.post0 -> 4.0.0; ruff
+  0.17.3 -> 0.17.5 and ty 0.0.95 -> 0.0.104 may report new findings.
+- ~~**CLAUDE.md carries its old long Architecture Overview again**~~ **Done** 2026-11-14
+  (#211, `chore/claude-md-and-hook-speedups`): the block is gone (CLAUDE.md is 333fcc0d's again
+  plus later edits), and `tests/test_claude_md.py` fails on a repeated heading or component name
+  or past 360 lines; both checks failed on the 1476-line file.
 - **Time each pre-push hook before splitting `lint` into hooks of its own** (the owner asked,
   2026-11-14, whether one hook per lint step would be faster). pre-commit runs hooks one after
   another; it runs in parallel only inside a hook given file names, and every hook here has

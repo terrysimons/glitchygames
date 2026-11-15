@@ -949,6 +949,7 @@ def test_the_pre_push_comparison_runs_on_every_core():
         ('.circleci/config.yml', True),
         ('.github/workflows/lint.yml', True),
         ('BUGS.md', True),
+        ('bugs/2026-11-14-type-gate-never-reads-the-tests.md', True),
         ('CLAUDE.md', True),
         ('src/glitchygames/scenes/__init__.py', False),
         ('tests/test_process.py', False),
@@ -960,7 +961,7 @@ def test_the_pre_push_comparison_runs_on_every_core():
         ('conftest.py', False),
     ],
 )
-def test_only_plans_docs_ledger_rows_ci_and_root_markdown_cannot_change_a_frame(
+def test_only_plans_docs_ledger_rows_ci_bug_files_and_root_markdown_cannot_change_a_frame(
     path, cannot_change_frames
 ):
     """An allowlist: a path not on it (a new directory included) is compared.
