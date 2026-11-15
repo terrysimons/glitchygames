@@ -1721,6 +1721,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # The mixer's channels: live voices, the sound library's, the legacy rest (set as the
         # event managers are made; None before)
         self.channel_partition: ChannelPartition | None = None
+        self._partition_a_host_now()
         self.drop_manager: DropEventManager
         self.controller_manager: ControllerEventManager | None = None
         self.touch_manager: TouchEventManager
@@ -2900,6 +2901,16 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 self.log.error('Cannot play the CRT power-on sequence with %s', flag)
                 exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
+    def _partition_a_host_now(self: Self) -> None:
+        """Partition the mixer at construction when the game is a host (it sets INNER_GAMES).
+
+        Its inner games' channels are declared with the partition in the same one growth, before
+        the CRT power-on or anything else plays (Arcade sub-plan 4, decision 4). Other games
+        partition on first use, as before.
+        """
+        if int(getattr(self.game, 'INNER_GAMES', 0)) > 0:
+            self.reserved_channel_partition()
+
     def reserved_channel_partition(self: Self) -> ChannelPartition:
         """Partition the mixer's channels once per run, and return the partition (impl 7.1).
 
@@ -2911,6 +2922,17 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         Only a partition made on a running mixer is kept (ruling R35): without a mixer the
         empty partition is returned, and a later call (once the mixer runs) reserves.
 
+        An inner context's engine (an Arcade tile) never partitions the mixer: its partition is
+        its own options' (the recording's) library slots, played on a heard set while it is
+        heard, and a live pool from the channels its host declared at startup
+        (``voices.inner_context_partition``; Arcade sub-plan 4, decisions 4 and 5), so the
+        outer's partition and reservation stay as they are. With none declared, or every live
+        pool held, it raises ``InnerGameChannelsError`` (the inner game fails alone).
+
+        A host's engine (its scene class sets ``INNER_GAMES``) declares its inner games' channels
+        with its own partition, in the same one growth, here at construction: before the CRT
+        power-on or anything else plays (Arcade sub-plan 4, decision 4).
+
         Returns:
             The partition (empty without a mixer).
 
@@ -2918,13 +2940,22 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         if self.channel_partition is not None:
             return self.channel_partition
         from glitchygames.audio.engine import DEFAULT_LIBRARY_CHANNELS, LEGACY_CHANNELS
-        from glitchygames.audio.voices import reserve_channels
+        from glitchygames.audio.voices import inner_context_partition, reserve_channels
 
-        partition = reserve_channels(
-            live_pool=int(self.options.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL)),
-            library_channels=int(self.options.get('sound_channels', DEFAULT_LIBRARY_CHANNELS)),
-            legacy_channels=LEGACY_CHANNELS,
-        )
+        live_pool = int(self.options.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL))
+        library_channels = int(self.options.get('sound_channels', DEFAULT_LIBRARY_CHANNELS))
+        if is_inner_context():
+            partition = inner_context_partition(
+                live_pool=live_pool, library_channels=library_channels
+            )
+        else:
+            partition = reserve_channels(
+                live_pool=live_pool,
+                library_channels=library_channels,
+                legacy_channels=LEGACY_CHANNELS,
+                # Looked up by name, as TARGET_FPS is: a game may be any scene class
+                inner_games=int(getattr(self.game, 'INNER_GAMES', 0)),
+            )
         self.live_voice_channels = partition.live
         if pygame.mixer.get_init() is not None:
             self.channel_partition = partition

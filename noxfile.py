@@ -1501,12 +1501,20 @@ _SOUND_OPTION = '--sound'
 # The pre-push hook's: skip the comparison when no pushed path can change a frame
 _SKIP_WHEN_FRAMES_CANNOT_CHANGE_OPTION = '--skip-when-frames-cannot-change'
 # The paths whose changes cannot change a frame a test presents: plans, docs, the replay ledger's
-# rows, CI configuration, and Markdown at the repository's root (BUGS.md, CLAUDE.md, ...). An
-# allowlist: any other path (the engine, games, apps, demos, tests, the scripts tests import,
-# uv.lock, pyproject.toml, the suite's configuration, a directory added later) is compared. The
+# rows, CI configuration, the bug files (bugs/), and Markdown at the repository's root (BUGS.md,
+# CLAUDE.md, ...). An allowlist: any other path (the engine, games, apps, demos, tests, the
+# scripts tests import, uv.lock, pyproject.toml, the suite's configuration, a directory added
+# later) is compared. The
 # comparison judges frames only (a failing test is test-random's to catch), so a docs file a test
 # checks may fail that test but never change a frame
-_PATH_PREFIXES_THAT_CANNOT_CHANGE_FRAMES = ('plans/', 'docs/', 'quality/', '.circleci/', '.github/')
+_PATH_PREFIXES_THAT_CANNOT_CHANGE_FRAMES = (
+    'plans/',
+    'docs/',
+    'quality/',
+    '.circleci/',
+    '.github/',
+    'bugs/',
+)
 # pre-commit's "from" for a branch new to the remote
 _NO_COMMIT_NAME_CHARACTERS = frozenset('0')
 

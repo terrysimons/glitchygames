@@ -43,6 +43,11 @@ frame, so the tail sounds while the game is built and fades from frame 0's updat
 ``silenced(channel)`` follows ``FrameSilencer``'s stops: the channels are quiet, but the voices go
 on by frame time, so a silenced frame changes nothing the game sees (impl spec 7.3). ``close()``
 fades every voice over 50 ms and waits at most 100 ms for the fades (impl spec 10.3).
+
+In a silent context (``glitchygames.audio.route``) the voice table touches no channel and the
+voices go on by frame time (``glitchygames.audio.voices``); ``fade_out_of_the_mixer()`` fades the
+heard voices over the scene clean-up's 50 ms as the context goes silent, and a silent engine's
+``close()`` never waits for the device.
 """
 
 from __future__ import annotations
@@ -70,13 +75,16 @@ from glitchygames.audio.library import (
 from glitchygames.audio.pitch import Tuning
 from glitchygames.audio.voices import (
     DEFAULT_STOP_FADE_SECONDS,
+    LIBRARY_GROUP,
     ChannelPartition,
     ChannelState,
     VoiceTable,
+    inner_context_partition,
     reserve_channels,
 )
 from glitchygames.audio.waves import current_wave_registry
 from glitchygames.engine_context import ContextSlot, current_context
+from glitchygames.render_target import is_inner_context
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Mapping, Sequence
@@ -247,11 +255,17 @@ def default_channel_partition() -> ChannelPartition:
     """Partition the mixer as a game engine would by default (4 live, 32 library, 8 legacy).
 
     For a scene manager without a game engine (tests, tools): ``reserve_channels`` only grows
-    the channel table, so an engine's earlier partition loses no channel.
+    the channel table, so an engine's earlier partition loses no channel. An inner context never
+    partitions: it gets its inner partition of the default sizes (``inner_context_partition``;
+    Arcade sub-plan 4, decisions 4 and 5).
 
     Returns:
         The partition.
     """
+    if is_inner_context():
+        return inner_context_partition(
+            live_pool=DEFAULT_LIVE_POOL, library_channels=DEFAULT_LIBRARY_CHANNELS
+        )
     return reserve_channels(
         live_pool=DEFAULT_LIVE_POOL,
         library_channels=DEFAULT_LIBRARY_CHANNELS,
@@ -675,9 +689,16 @@ class AudioEngine:
             channel_index: The mixer channel ``FrameSilencer`` stopped, or None after
                 ``pygame.mixer.stop()``.
         """
-        indices = self._partition.library if channel_index is None else (channel_index,)
-        for index in indices:
-            self._voices.silenced(index)
+        self._voices.silenced(channel_index)
+
+    def fade_out_of_the_mixer(self) -> None:
+        """Fade the context's heard voices over 50 ms: its route is about to turn silent.
+
+        ``glitchygames.audio.route.set_audible`` calls it while the context is still audible
+        (Arcade sub-plan 4, decision 3); the voices go on by frame time, unheard
+        (``VoiceTable.fade_out_of_the_mixer``).
+        """
+        self._voices.fade_out_of_the_mixer(fade_seconds=SCENE_CLEANUP_FADE_SECONDS)
 
     def close(self, *, wait_seconds: float = SHUTDOWN_WAIT_SECONDS) -> None:
         """Fade every voice over 50 ms, then wait for the fades at most ``wait_seconds``.
@@ -833,10 +854,21 @@ class AudioEngine:
     def _a_library_channel_sounds(self) -> bool:
         """Whether the device still plays (or fades) a library channel.
 
+        A silent context reads no channel (its sounds never reached one; another context's may
+        be playing there), so its close never waits.
+
         Returns:
-            True while one is busy.
+            True while one is busy; False in a silent context.
         """
-        return any(pygame.mixer.Channel(index).get_busy() for index in self._partition.library)
+        if not self._voices.reaches_the_mixer:
+            return False
+        # The snapshot names each library slot's mixer channel (an inner context's: in its heard
+        # set)
+        return any(
+            pygame.mixer.Channel(channel.index).get_busy()
+            for channel in self._voices.snapshot()
+            if channel.group == LIBRARY_GROUP
+        )
 
 
 def _contains(owners: Collection[object], owner: object) -> bool:

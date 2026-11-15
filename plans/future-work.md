@@ -266,9 +266,10 @@ arc was lost. What follows is left.
 - **Process-wide state sub-plan 2 left open** (Task 16, 2026-11-10; the audit in
   `plans/2026-10-25-engine-context.md`). S20: `_warned_hertz_values`
   (`src/glitchygames/audio/pitch.py:79`) is not yet per context, so a second context never warns
-  about a frequency the first did; it has no owning sub-plan yet. S3: `release_channels`
-  (`src/glitchygames/audio/voices.py:149`) clears the mixer's partition when any one context
-  shuts down (sub-plan 5's, sound). S8: `FontManager.__init__` sets pygame's one default font
+  about a frequency the first did; it has no owning sub-plan yet. (S3, `release_channels`
+  clearing the partition when any one context shut down, is resolved by Arcade sub-plan 4: an
+  inner context never partitions the mixer nor calls it; only the outer engine's teardown
+  does.) S8: `FontManager.__init__` sets pygame's one default font
   resolution from its context's `--font-dpi`, so the last `FontManager` made wins (sub-plan 7's,
   the inner engine, which keeps an inner context off the process services).
 
@@ -804,20 +805,6 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   adds ten per loop, each called once at `pygame.quit()`. Harmless today (the classmethod holds
   no engine), but the list only grows. Register once per process, or not at all in an inner
   context (the host's own engine registers it).
-- **For Arcade sub-plan 4 (sound): an inner recording re-sizes the outer game's channels.** A
-  recording made with non-default `--sound-channels` or `--live-voice-pool` replays with them,
-  and its engine's channel partition calls `pygame.mixer.set_reserved` on the shared mixer, so a
-  tile re-sizes the outer game's reservation; inner voices also play on the shared mixer's
-  channels. Sub-plan 4's audio route (the spike's channel block per context) owns both.
-- **For Arcade sub-plan 4 (sound): `InnerGame.finish` never discards the inner context's audio
-  engine.** It ends the frames, closes the recording and timer and settles the replay, but never
-  calls `discard_audio_engine` (`src/glitchygames/audio/engine.py`), so a tile's `persist=True`
-  or looping voices outlive it on the shared mixer, and its compiled sounds stay cached until
-  the context is collected. The engine's own teardown (`GameEngine._shut_down_the_run`) pairs
-  it with `release_channels` (`src/glitchygames/audio/voices.py`), which is process-wide and
-  would clear the outer game's channel partition too, so copying that teardown would be wrong;
-  `discard_audio_engine` alone also waits up to 100 ms for the fades, inside the host's frame.
-  Sub-plan 4 decides how an inner context's voices end.
 - **The hosted start skips `_begin_start` (and `_begin_run`).** An inner game's `start()`
   builds the game and returns (`render_target.hosted_start_requested()`), so the startup options
   block is never logged for it, and `--profile` (`_begin_start`) and `--list-input-devices`
@@ -825,9 +812,89 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   inner game (at INFO, under its context's name) if a tile's options are ever needed in a bug
   report; profiling one tile would be a host's job (sub-plan 6).
 - **The proof's runtime.** `tests/test_every_recording_replays_inside_an_inner_game.py` runs
-  sixteen pairs (two child replays and four inner replays each) and sixteen key-repeat replays:
-  about 25 s of wall time under `-n auto` on an Apple M4 Max (about 160 s of CPU), the longest
-  case 14 s (Drawing Fire beside Mr. Muncher). Watch it as recordings are added.
+  sixteen pairs (two child replays and, since Arcade sub-plan 4, six inner replays each: the
+  pair silent, the pair with one tile switched heard and back, and each alone) and sixteen
+  key-repeat replays: about 32-40 s of wall time under `-n 8` on an Apple M4 Max (about 180-200
+  s of CPU, 2026-11-13), the longest case 24.5 s (Drawing Fire beside Mr. Muncher). Watch it as
+  recordings are added.
+- **`--replay-digest` is allowed in an inner game on purpose** (a ruling during Task 3,
+  (from the sub-plan's run ledgers, archived outside the repository on 2026-11-14)): the proof test gives each `InnerGame` its own digest path. Nothing stops a host giving
+  two tiles the same path, and then both write one file. Refuse it, or give each tile its own
+  path, if a host ever passes it through.
+- **A watched inner replay would drop real key presses.** An inner context's replay never sets
+  `_has_blocked_real_input`, so every drain is treated as the first and real keys are dropped as
+  stale. It does not matter today: `InnerGame` replays only headless. Fix it before a watched
+  inner replay is ever allowed.
+- **`InnerGameOutcome.diverged` follows `ReplayReport.is_failure`, so two cases read as not
+  diverged**: a replay given another `--random-seed` (the reseeded summary), and a truncated
+  recording that matched up to its cut-off (alone it exits UNUSABLE_INPUT, but `diverged` is
+  False). Say so in `inner_game.py`'s docstring, or make `diverged` cover them.
+- **No guard stops a direct `pygame.event.set_allowed` or `set_blocked` in the engine.** Every
+  engine call that changes SDL's blocked types goes through `events.set_event_types_allowed`
+  (sub-plan 3's fix: an inner context never changes them), except `EventTypeBlock`. A future
+  direct call would bring the bug back quietly. Add a source-guard test like
+  `tests/test_engine_doors.py`'s.
+- Minor, from the same ledgers: refusal by prefix can over-refuse (a game's own flag that is a
+  strict prefix of a refused one, such as `--rec`, would be refused; no engine flag is one), and
+  an empty run is not handled specially (`step()` checks `should_run_frames()` only after each
+  frame, so a game already stopped after its build still runs one `run_frame_step`; replays
+  refuse empty recordings first).
+
+## Arcade (sub-plan 4 follow-ups, 2026-11-13; plans/2026-11-13-arcade-4-sound.md)
+
+- **The owner's listening check: clicks when the heard game changes.** Switching a heard tile
+  silent stops its plain `Sound.play()` sounds and mutes its live chunks at once
+  (`voices.stop_plain_plays_and_mute_the_live_pool`), and a finished tile's live pool is
+  stopped (`release_inner_context_channels`); a heard set still sounding when it is taken again
+  (heard games switched faster than the 50 ms fade) is stopped too (`take_heard_set`). Each is a
+  hard cut, which may click; only the voice table's voices fade (50 ms, stepped per mixer chunk,
+  as the impl spec's risks R4 and R5 say). A `Channel.fadeout(50)` for plain plays is possible
+  (only a channel the game itself already fades ignores it, its own fade then running on), but
+  it would keep the channel busy for about 50 ms after the switch, so the proof's invariant (no
+  unreserved channel plays while no tile is heard, `assert_no_tile_is_heard`) and a quick switch
+  back would both have to allow a channel still fading out, and SDL_mixer steps that fade once
+  per 11.6 ms chunk, so it is a few plateaus, not a ramp. Live chunks would need their fade
+  rendered in. Listen while switching quickly; the fallback is the owner's decision.
+- **`Scene.INNER_GAMES` declares only the default sizes** (two heard sets of 32 library
+  channels, 4 live channels per inner game). A host needing more (a tile recorded with
+  `--sound-channels` above 32 replays silent and refuses to be heard; one with
+  `--live-voice-pool` above 4 fails) calls `reserve_inner_game_channels(games=...,
+  heard_set_channels=..., live_channels_per_game=...)` after `GameEngine(...)` and before
+  `start()`. A class attribute for the sizes (or a model) would let a scene say it too.
+- **A host-context `FrameSilencer` would cut every inner game's sound.** In the default
+  context (not inner) `FrameSilencer.silence_frame` (`src/glitchygames/replay/silence.py`)
+  still calls `pygame.mixer.stop()`, which would stop the heard set, every tile's live pool and
+  the tiles' plain plays, not only the host's own sounds. Unreached today: the Arcade host
+  never rebuilds frames or plays an instant replay. Before a host does, give the default
+  context's silencer the inner one's rule (stop only its own channels: the outer partition's
+  live and library channels and the plain plays it started).
+- **The host must finish every inner game it drops** (`InnerGame.finish()`; rule 6 of
+  `src/glitchygames/inner_game.py`). Nothing gives a dropped game's live pool back (no
+  `__del__`), so an Arcade looping tiles that drops them unfinished exhausts its declaration;
+  the next build then fails naming the contexts still holding pools. A host-side registry (or a
+  weak-reference finaliser that only logs) could catch the mistake earlier.
+- **`pygame.mixer.music` is still one per process** (row S4 of
+  `plans/2026-10-25-engine-context.md`): a silent inner game's music would be heard, and its
+  `pause`/`unpause` reach the host's. No game uses music today; `FrameSilencer` in an inner
+  context already leaves it alone. Route music through the audio route when a game first
+  plays it.
+- **A heard tile's live voices are heard from their next chunk.** Going audible starts nothing
+  already under way (decision 3); a live voice queues its next chunk by real time (every 100 ms),
+  so a tile switched heard is silent for up to 200 ms of its projector. Re-render the queued
+  chunk at the switch if that gap is ever heard.
+- Minor, (from the sub-plan's run ledgers, archived outside the repository on 2026-11-14):
+  - `_partition_with_the_current_engine` (`audio/voices.py`) trusts the current context's engine:
+    a stale engine, constructed but never started, would lend its options. Engines clear the slot
+    at shutdown and the suite shows no leak, but a host must not leave a dead engine current.
+  - After `release_channels()` without a mixer restart, a re-declaration's `legacy_count` is the
+    mixer's whole remainder above the partition, so the mixer can grow by much more than needed
+    (only a process reusing a grown mixer, as tests do).
+  - `reserve_live_voice_pool` (the legacy wrapper) can raise `MixerBusyError` when called while
+    sound plays and it must grow (intended under BUGS.md #145; not in the docs).
+  - Nested inner games: an audible inner game stepping its own audible inner game would count
+    the grandchild's plays as both games' (`plain_plays_followed`). Nothing does this today.
+  - A review minor about real-time margins in the tests (M5) was parked without detail beyond
+    its name; the archived ledger holds the review.
 
 ## Games
 
@@ -1114,6 +1181,46 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   - Not done: folding `test-random` into the comparison (shuffling one dummy run). The comparison
     passes on failing tests (`_PYTEST_FINISHED_CODES = [0, 1]`), and order-dependent frames would
     read as "varies between runs" rather than fail; little to save (80 s).
+- **Upgrade every locked dependency, in a branch of its own** (the owner, 2026-11-14: one
+  upgrade, not a tornado-only branch). `uv sync --upgrade --all-extras --all-groups
+  --all-packages`, then the gates in order (ruff, basedpyright and ty, the suite) and
+  `nox -s security-scan`, committing the regenerated `docs/sbom.cyclonedx.json` with `uv.lock`.
+  A trial run on 2026-11-14 (main at c3beb0a8, not kept) changed 31 packages, none added or
+  removed: tornado 6.6 -> 6.6.1 closes Dependabot alert 196
+  (bugs/2026-11-14-dependabot-alert-196-tornado-open-redirect.md); two major versions to check,
+  pymdown-extensions 12.3 -> 13.1 (the docs build) and python-dateutil 2.9.0.post0 -> 4.0.0; ruff
+  0.17.3 -> 0.17.5 and ty 0.0.95 -> 0.0.104 may report new findings.
+- ~~**CLAUDE.md carries its old long Architecture Overview again**~~ **Done** 2026-11-14
+  (#211, `chore/claude-md-and-hook-speedups`): the block is gone (CLAUDE.md is 333fcc0d's again
+  plus later edits), and `tests/test_claude_md.py` fails on a repeated heading or component name
+  or past 360 lines; both checks failed on the 1476-line file.
+- **Generate sounds on first use, cached on disk, never stored in the repository** (the owner,
+  2026-11-14: "on first use", for the engine's sounds and for the instrument and demo WAVs too).
+  An installed wheel runs no code at install time, so first use is the earliest point.
+  - Runtime sounds: compiled samples are cached only in memory, per process
+    (`ENGINE_SOUND_CACHE`, `src/glitchygames/audio/library.py`), so every launch compiles them
+    again (the CRT power-on sound included). Add a disk cache in the user's cache folder
+    (`src/glitchygames/state/paths.py` finds the platform folders), keyed by the engine version
+    and the sound's identity, so a machine compiles each sound once. Replays must still get the
+    same samples (a cached sample equals a fresh compile; test it), and a corrupt or old-version
+    entry is compiled again and replaced, never trusted.
+  - Listening WAVs: the instrument demos (`scripts/make_instrument_demos.py`, 724 files, about
+    219 MB) and the pipe tunes (`scripts/make_pipes.py`, `scripts/pipe_tunes.py`, about 85 MB)
+    are written to the git-ignored `build/` by hand today, so an installed copy cannot make them.
+    Make them `glitchygames` subcommands that render into the same cache folder on first request
+    (a family or instrument at a time, not all 300 MB at once).
+  - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
+    clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
+- **Time each pre-push hook before splitting `lint` into hooks of its own** (the owner asked,
+  2026-11-14, whether one hook per lint step would be faster). pre-commit runs hooks one after
+  another; it runs in parallel only inside a hook given file names, and every hook here has
+  `pass_filenames: false`, so separate hooks alone gain nothing. Each lint nox session also
+  installs from the lock file (`reuse_venv=False`): split, `lint`'s one install becomes eight.
+  What splitting would buy is skipping: a `files:` filter per hook (`lint-toml` on `.toml`
+  changes only, `lint-yaml` and `lint-ci-config` on YAML; the docs build reads docstrings, so it
+  needs any `src/` change). First time every hook of one full gate run (pre-commit prints no
+  times: wrap each session in `time`); the two suite runs, `test-random` and `compare-drivers`,
+  are the likely bulk of the gate's ten minutes and more, and would come first.
 
 ## Upstream issues to file
 

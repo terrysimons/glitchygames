@@ -6248,8 +6248,11 @@ This document tracks planned future features for the GlitchyGames project. Featu
     folder, size, SHA-256, date last written and its row's source URLs, so an archived copy can
     be shown to be the page the audit read. The pages themselves exist only in the
     `glitchygames-sound-engine` worktree's `build/`
-  - [ ] Whether to archive those pages somewhere outside the repository before that worktree is
-    ever removed (`git worktree remove` deletes gitignored files without asking)
+  - [x] Whether to archive those pages somewhere outside the repository before that worktree is
+    ever removed (`git worktree remove` deletes gitignored files without asking): archived on the
+    owner's machine on 2026-11-14 (pages, ledgers and build scratch, checked against
+    `plans/data/instrument-audit/saved-pages.tsv`), then the worktree was removed. Never commit
+    or publish the archive: some pages hold a private person's contact data (#87)
   - [x] The run's ledgers (`.superpowers/sdd/*/progress.md` and the run ledger) were checked ruling
     by ruling against the committed files: 168 of 169 rows were already here (#76 to #89, the
     sheets' notes, the plans, the test comments, `plans/future-work.md`), and the two missing are
@@ -6283,7 +6286,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
     not include `tests/`, so the type gate never reads them. Run on every tracked test file, ty
     reports 1126 diagnostics (784 `invalid-argument-type`, 241 `unresolved-attribute`, 63
     `invalid-assignment`, the rest scattered; `tests/audio/test_voices.py` holds the most).
-    Adding `tests/` to the gate is a config change for the owner to decide
+    Adding `tests/` to the gate is a config change for the owner to decide (bugs/2026-11-14-type-gate-never-reads-the-tests.md)
   - [ ] The folded-in fixes of Task 6 (parked minors from the reviews): `tarogato`'s notes gained
     a clause saying batch 14 read the row as the modern instrument only to set its family, while
     this batch decides the name and the page gives it to both instruments; `curved soprano

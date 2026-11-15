@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING
 import pygame
 import pytest
 
+from glitchygames.audio import reserve_inner_game_channels
+from glitchygames.audio.engine import default_channel_partition
 from glitchygames.engine import GameEngine
 from glitchygames.engine_context import EngineContext
 from glitchygames.exit_codes import ExitCode
@@ -51,6 +53,19 @@ STAND_IN_PACKAGE = 'inner_engine_rally'
 TARGET_SIZE = tuple(int(side) for side in STAND_IN_GAME_RESOLUTION.split('x'))
 # SDL's driver variables, which an inner engine never changes (--headless would)
 SDL_DRIVER_VARIABLES = ('SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')
+# The inner engines a test builds at once at most
+DECLARED_INNER_GAMES = 2
+
+
+@pytest.fixture(autouse=True)
+def inner_game_channels() -> None:
+    """Partition the mixer as a host's engine does and declare its inner games' channels.
+
+    An inner engine takes its live pool from them (plans/2026-11-13-arcade-4-sound.md, decision
+    4); the harness gives the reservation back after each test (``release_channels``).
+    """
+    default_channel_partition()
+    reserve_inner_game_channels(games=DECLARED_INNER_GAMES)
 
 
 @pytest.fixture(scope='module')

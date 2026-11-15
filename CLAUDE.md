@@ -301,7 +301,8 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
 ## Code Style
 
 Python 3.14, ruff (100-character lines, import order), Google-style docstrings, basedpyright and
-ty. Data classes are pydantic models. Active bugs: BUGS.md.
+ty. Data classes are pydantic models. Bugs: one file each in `bugs/` (`YYYY-MM-DD-short-slug.md`);
+the older numbered entries are in BUGS.md.
 
 ## Docs
 
