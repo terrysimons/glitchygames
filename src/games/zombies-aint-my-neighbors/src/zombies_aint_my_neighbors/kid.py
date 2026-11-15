@@ -420,12 +420,12 @@ class Kid(AnimatedSprite):
     def _shooting_state(self) -> str | None:
         """Return the weapon animation's state this frame, or None when not shooting.
 
+        Called only for an active kid: ``animation_name`` poses every other state first.
+
         Returns:
             ``shoot``, ``walk-shoot`` or None.
 
         """
-        if self.state is not KidState.ACTIVE:
-            return None
         pose = 'walk-shoot' if self.moving else 'shoot'
         # The laser aiming, or the frame a shot fires (shown however long the frame: a hitch
         # longer than the pose would otherwise skip it, leaving the remote out of the hand)

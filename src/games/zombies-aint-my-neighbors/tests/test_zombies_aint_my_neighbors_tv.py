@@ -368,6 +368,26 @@ def test_a_zombie_leaving_frees_its_place_under_the_caps():
     assert tv.zombies == 0
 
 
+def test_a_tv_broken_mid_spawn_carries_its_spawn_on_from_the_same_frame():
+    """Cracked partway through a spawn, it plays the cracked spawn from where it had got to."""
+    tv = tv_with_seed(1)
+    zap_times(tv, HITS_PER_STAGE - 1)
+    frames_until_spawn_starts(tv)
+    for _ in range(FRAME_LIMIT):
+        tick(tv)
+        if tv.current_frame > 0:
+            break
+    reached = tv.current_frame
+    assert tv.current_animation == 'spawn'
+    assert reached > 0
+
+    tv.zap()
+    tick(tv)
+
+    assert tv.current_animation == 'cracked-spawn'
+    assert tv.current_frame == reached
+
+
 def test_a_tv_destroyed_mid_spawn_plays_the_spawn_out_then_smokes():
     """Its zombie comes out of a spawn you can see; the smoke follows when the spawn ends."""
     tv = tv_with_seed(1)

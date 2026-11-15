@@ -178,6 +178,19 @@ class Neighbor(AnimatedSprite):
         """Whether the neighbor is still there to save (or lose)."""
         return self.state is NeighborState.STANDING
 
+    @property
+    def playing_effect(self) -> NeighborEffect:
+        """The rescue or loss playing, once ``rescue`` or ``lose`` has started it.
+
+        Raises:
+            RuntimeError: While the neighbor still stands (no effect has started).
+
+        """
+        if self.effect is None:
+            message = f'{self.kind} still stands: no rescue or loss is playing'
+            raise RuntimeError(message)
+        return self.effect
+
     def notice(self, *, zombies: Sequence[Zombie]) -> None:
         """Panic when a living zombie is within the panic distance, frame to frame."""
         self.panicking = any(
@@ -228,9 +241,8 @@ class Neighbor(AnimatedSprite):
             dt: The frame's time, in seconds.
 
         """
-        if self.is_gone:
-            return
         if self.effect is not None:
+            # A gone neighbor's tick lands here too and ends again: the scene drops it anyway
             self._effect_seconds += dt
             seconds = SAVED_SECONDS if self.state is NeighborState.SAVED else LOST_SECONDS
             if self._effect_seconds >= seconds - TIME_TOLERANCE:

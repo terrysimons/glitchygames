@@ -76,9 +76,7 @@ def _draw_hedge_and_posts(canvas: Canvas) -> None:
 
 
 def _draw_glow(canvas: Canvas, *, strength: int) -> None:
-    """Fill the gateway with the safe room's glow: 0 none, 1 faint, 2 full, 3 bright."""
-    if strength == 0:
-        return
+    """Fill the gateway with the safe room's glow: 1 faint, 2 full, 3 bright."""
     ramps = {
         1: CLOTHES_DARK * 3,
         2: CLOTHES_SHADE + CLOTHES + CLOTHES_SHADE,

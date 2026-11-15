@@ -126,6 +126,19 @@ def test_a_struck_zap_is_gone_at_once():
     assert zap.hidden
 
 
+def test_a_gone_zap_ticks_no_more():
+    """Waiting for its pool, a zap stays where it is, hidden and gone."""
+    zap = make_zap(groups=pygame.sprite.LayeredDirty())
+    zap.strike()
+    place = (zap.world_x, zap.world_y)
+
+    tick(zap, frames=3)
+
+    assert zap.state is ZapState.GONE
+    assert zap.hidden
+    assert (zap.world_x, zap.world_y) == place
+
+
 def test_only_a_flying_zap_can_strike():
     """A fizzling zap passes through everything (after the frame its flight ends on)."""
     zap = make_zap()

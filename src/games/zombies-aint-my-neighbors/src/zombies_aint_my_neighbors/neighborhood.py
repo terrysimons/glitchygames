@@ -511,9 +511,8 @@ class NeighborhoodScene(RosterScene):
 
         Whoever caused it stands on it, feet near the neighbor's; this keeps them from hiding it.
         """
-        if neighbor.effect is not None:
-            feet_layer = round(neighbor.world_y + KID_HEIGHT)
-            self.all_sprites.change_layer(neighbor.effect, feet_layer + KID_HEIGHT)
+        feet_layer = round(neighbor.world_y + KID_HEIGHT)
+        self.all_sprites.change_layer(neighbor.playing_effect, feet_layer + KID_HEIGHT)
 
     def _order_kid(self, kid: Kid) -> None:
         """Draw a kid by its feet, its remote just in front of it (just behind when facing up)."""
@@ -655,10 +654,11 @@ class NeighborhoodScene(RosterScene):
             lit_dots = [kid.dot for kid in kids if kid.laser_lit]
             zombie.chase(kids=kids, neighbors=self.neighbors, dots=lit_dots, dt=dt)
             for slot_index, kid in self.kids.items():
-                if kid.is_touchable and touches(zombie=zombie, kid=kid):
-                    last_life = self.run.lives[slot_index] <= 1
-                    if kid.knock_out(last_life=last_life):
-                        self.run = self.run.lose_life(slot_index=slot_index)
+                # knock_out refuses a kid it can't touch (down, blinking or out)
+                if touches(zombie=zombie, kid=kid) and kid.knock_out(
+                    last_life=self.run.lives[slot_index] <= 1
+                ):
+                    self.run = self.run.lose_life(slot_index=slot_index)
                     zombie.grab()
             if not zombie.is_dying:
                 for neighbor in self.neighbors:
@@ -700,10 +700,11 @@ class NeighborhoodScene(RosterScene):
 
     def _zombie_zapped(self, zombie: Zombie) -> None:
         """Kill a zombie, freeing its TV's place under the caps at once."""
-        if zombie.zap():
-            home = self.zombie_homes.pop(zombie, None)
-            if home is not None:
-                home.zombie_left()
+        # Zaps strike living zombies only, so this zap kills it
+        zombie.zap()
+        home = self.zombie_homes.pop(zombie, None)
+        if home is not None:
+            home.zombie_left()
 
     def _tv_destroyed(self, *, slot_index: int) -> None:
         """Shake the world, and rumble the pad of the kid whose zap destroyed the TV."""

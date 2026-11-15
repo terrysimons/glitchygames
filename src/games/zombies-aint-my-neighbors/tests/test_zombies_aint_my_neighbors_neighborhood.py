@@ -356,6 +356,15 @@ def test_a_pads_start_pauses():
     assert isinstance(scene.next_scene, PauseScene)
 
 
+def test_a_pads_start_on_the_joystick_layer_pauses():
+    """On the joystick layer too: a button other than Y goes on to every screen's handling."""
+    scene = neighborhood(JoinRoster.empty().join(device=gamepad(5)))
+
+    support.joystick_start(scene, instance_id=5)
+
+    assert isinstance(scene.next_scene, PauseScene)
+
+
 def test_the_yard_is_lawn_not_black():
     """The yard shows its lawn (never the black of nothing drawn)."""
     scene = neighborhood()
@@ -798,6 +807,29 @@ def test_destroying_a_tv_shakes_the_world_and_rumbles_the_destroying_pad(mocker)
     assert shake.call_args.kwargs['targets'] == ShakeTarget.WORLD
     devices.get.assert_called_with(instance_id=1)
     pad.rumble.assert_called_once()
+
+
+def test_destroying_a_tv_from_a_pad_that_has_gone_rumbles_nothing(mocker):
+    """The pad whose zap destroyed the TV was unplugged that frame: the shake alone."""
+    scene = neighborhood(JoinRoster.empty().join(device=gamepad(1)))
+    shake = mocker.patch.object(scene, 'shake')
+    devices = mocker.Mock()
+    devices.get.return_value = None
+    mocker.patch.object(
+        NeighborhoodScene, 'input_devices', new_callable=mocker.PropertyMock, return_value=devices
+    )
+    dex, tv = kid_under_a_tv(scene)
+    tv.hits = 8
+    hold_fire(pads_firing=(1,))
+    run(scene, seconds=FRAME_SECONDS)
+    hold_fire()
+
+    run(scene, seconds=0.3)
+
+    assert tv.is_destroyed
+    assert dex.state is KidState.ACTIVE
+    shake.assert_called_once()
+    devices.get.assert_called_with(instance_id=1)
 
 
 def test_destroying_a_tv_from_the_keyboard_rumbles_nothing(mocker):

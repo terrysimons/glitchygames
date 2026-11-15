@@ -268,6 +268,15 @@ designs are not.
   (no sprite class stands on pygame's sprites but `RootSprite` and `GhostSprite`). The test gap:
   BUGS.md #225 met this error in 2026-10 but only hid the test windows, so no test moved a
   pointer over a sprite in a live scene.
+- [x] **The game's coverage back to 100%** (found 2026-11-15 by the full suite: 99.96%, a push
+  blocker): Features 6 to 8 were tested with `--no-cov`. Eight tests cover the reachable gaps
+  (game over before setup, set up twice and a stranger's start; START on the joystick layer; a TV
+  destroyed by a pad that has gone; a TV broken mid-spawn; a dying zombie's animation; a gone
+  zap); dead or duplicate code behind the unreachable ones was removed at the owner's word (no
+  pragmas): the door's glow of strength 0, the kid's and the neighbor's redundant guards, a
+  duplicate touchable check, an always-true zap check, and the game over's and the effect
+  order's None checks, now properties that fail loudly (`GameOverScene.screen_picture`,
+  `Neighbor.playing_effect`). The game's test routine now measures its coverage (memory).
 - [ ] **A game cannot declare an engine context slot yet** (found 2026-11-15, feature plan 9):
   `tests/test_engine_context_source_guards.py` requires an isolation check for every slot,
   members' included, in the engine's `ISOLATION_CHECKS`, but engine tests may never import a

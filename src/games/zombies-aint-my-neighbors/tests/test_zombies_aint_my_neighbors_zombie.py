@@ -225,6 +225,15 @@ def test_a_zapped_zombie_crumbles(cache):
     assert zombie.hitbox_flip_x is False
 
 
+def test_a_dying_zombies_animation_is_its_crumble(cache):
+    """Asked for its animation while it crumbles, a zombie names its crumble."""
+    zombie = zombie_at(cache, 100.0, 100.0)
+
+    zombie.zap()
+
+    assert zombie.animation_name() == 'crumble'
+
+
 def test_a_crumbling_zombie_takes_no_second_zap(cache):
     """A zap passing a dying zombie is not spent on it."""
     zombie = zombie_at(cache, 100.0, 100.0)

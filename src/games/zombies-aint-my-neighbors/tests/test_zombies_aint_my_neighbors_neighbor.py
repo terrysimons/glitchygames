@@ -182,3 +182,21 @@ def test_every_place_is_in_the_yard_clear_of_the_tvs_the_huddle_and_the_door():
         assert not frame.colliderect(huddle), (x, y)
         assert not frame.colliderect(door), (x, y)
         assert not any(frame.colliderect(tv) for tv in tvs), (x, y)
+
+
+def test_a_standing_neighbor_has_no_playing_effect(group):
+    """Asked for its effect before a rescue or loss, a neighbor says it still stands."""
+    neighbor = neighbor_at(group)
+
+    with pytest.raises(RuntimeError, match='still stands'):
+        _ = neighbor.playing_effect
+
+
+def test_a_rescued_neighbors_playing_effect_is_its_rescue(group):
+    """Once rescued, its playing effect is the rescue, where it stood."""
+    neighbor = neighbor_at(group)
+
+    neighbor.rescue()
+
+    assert neighbor.playing_effect is neighbor.effect
+    assert neighbor.playing_effect.current_animation == 'saved'

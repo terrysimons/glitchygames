@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 
 import pygame
+import pytest
 
 from zombies_aint_my_neighbors.game_over import (
     GAME_OVER_SECONDS,
@@ -97,3 +98,33 @@ def test_a_joined_players_start_returns_to_the_title_at_once():
     support.press_key(scene, pygame.K_RETURN)
 
     assert isinstance(scene.next_scene, TitleScene)
+
+
+@pytest.mark.parametrize('picture', ['game_over_text', 'screen_picture'])
+def test_the_pictures_cannot_be_read_before_setup(picture):
+    """The words and the switch-off exist once the scene is set up: sooner is a bug, said."""
+    scene = GameOverScene(options=dict(OPTIONS), roster=JoinRoster.empty().join(device=KEYBOARD))
+
+    with pytest.raises(RuntimeError, match='not set up'):
+        getattr(scene, picture)
+
+
+def test_setting_up_again_after_a_pause_keeps_one_set_of_pictures():
+    """Resuming from the pause screen sets the scene up again: nothing is drawn twice."""
+    scene = game_over()
+    pictures = scene.all_sprites.sprites()
+    words = scene.game_over_text
+
+    scene.setup()
+
+    assert scene.all_sprites.sprites() == pictures
+    assert scene.game_over_text is words
+
+
+def test_an_unjoined_pads_start_does_nothing():
+    """Only a joined player's start leaves early."""
+    scene = game_over()
+
+    support.controller_start(scene, instance_id=9)
+
+    assert scene.next_scene is None

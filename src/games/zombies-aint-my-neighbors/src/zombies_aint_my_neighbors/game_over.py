@@ -91,8 +91,21 @@ class GameOverScene(RosterScene):
         """
         super().__init__(options=options, groups=groups, roster=roster)
         self.background_color = DARK
-        self.screen_picture: text.TextPicture | None = None
+        self._screen_picture: text.TextPicture | None = None
         self._game_over_text: text.TextPicture | None = None
+
+    @property
+    def screen_picture(self) -> text.TextPicture:
+        """The switch-off picture (after ``setup``).
+
+        Raises:
+            RuntimeError: Before ``setup``.
+
+        """
+        if self._screen_picture is None:
+            message = 'the game over is not set up'
+            raise RuntimeError(message)
+        return self._screen_picture
 
     @property
     def game_over_text(self) -> text.TextPicture:
@@ -114,7 +127,7 @@ class GameOverScene(RosterScene):
         if self._game_over_text is not None:
             return
         size = (self.screen_width, self.screen_height)
-        self.screen_picture = text.TextPicture(
+        self._screen_picture = text.TextPicture(
             image=switch_off_picture(size=size, seconds=0.0),
             centre=(self.screen_width // 2, self.screen_height // 2),
             name='Switch-off',
@@ -142,14 +155,13 @@ class GameOverScene(RosterScene):
 
         """
         super().dt_tick(dt)
-        if self.screen_picture is not None:
-            self.screen_picture.show_image(
-                image=switch_off_picture(
-                    size=(self.screen_width, self.screen_height), seconds=self.game_time
-                )
+        # The scene manager sets a scene up before its first tick
+        self.screen_picture.show_image(
+            image=switch_off_picture(
+                size=(self.screen_width, self.screen_height), seconds=self.game_time
             )
-        if self._game_over_text is not None:
-            self._game_over_text.set_shown(shown=self.game_time >= SWITCH_OFF_SECONDS)
+        )
+        self.game_over_text.set_shown(shown=self.game_time >= SWITCH_OFF_SECONDS)
         if self.game_time >= GAME_OVER_SECONDS and self.next_scene is None:
             self._back_to_the_title()
 
