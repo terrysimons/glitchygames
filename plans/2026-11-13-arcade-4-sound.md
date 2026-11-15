@@ -180,4 +180,5 @@ outside an inner context only), `src/glitchygames/inner_game.py` (`finish`: the 
   tile's sounds stop.
 - [x] Docs; `uv run pytest`, `nox -s lint`, `nox -s static-analysis`; commit (`Audio: only the
   heard game is heard; the proof with switching`).
-- [ ] `nox -s compare-drivers -- --drivers native --fail-on-difference` (the controller runs it).
+- [x] `nox -s compare-drivers -- --drivers native --fail-on-difference` (the controller runs it;
+  every pre-push check, this one included, passed at 3c93c495 when PR #207 opened, 2026-11-14).
