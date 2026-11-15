@@ -5,7 +5,7 @@ bindings: its gameplay scene and ActionMaps (``GAMEPLAY_ACTION_MAPS``, built by 
 ``_create_action_map(s)``), the controls the engine's scenes and the games' handlers hard-code
 (``ENGINE_SCENE_CONTROLS``; Drawing Fire's from its players module, ``DRAWING_FIRE_CONTROLS``),
 and the controls a golden replay never exercises, each with its reason
-(``UNEXERCISED_CONTROLS``). These are per-game harness data, so this module imports the six
+(``UNEXERCISED_CONTROLS``). These are per-game harness data, so this module imports the eight
 games' scene classes and ``drawing_fire.players``: it is the one root test module allowed to
 (the Stage C borrow table's exemption; plans/2026-10-26-workspace-packages-3-demos.md). The
 tests that use the tables stay in tests/replay/test_golden_replays.py, which imports no game.
@@ -29,6 +29,10 @@ from glitchygames.input.action_map import SETTINGS_KEY
 from glitchygames.scenes.builtin_scenes.gamepad_choice import GamepadChoice, GamepadChoiceButtons
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from mr_muncher.game import MrMuncherScene
+from zombies_aint_my_neighbors.neighborhood import (
+    NeighborhoodScene as ZombiesAintMyNeighborsNeighborhoodScene,
+)
+from zombies_aint_my_neighbors.title import TitleScene as ZombiesAintMyNeighborsTitleScene
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -240,6 +244,22 @@ GAMEPLAY_ACTION_MAPS: dict[str, tuple[type, Callable[[str], dict[str, ActionMap]
         },
     ),
     'paddleslap': (paddleslap.Game, _paddleslap_action_maps),
+    'zombies_aint_my_neighbors': (
+        ZombiesAintMyNeighborsTitleScene,
+        lambda input_mode: {
+            '': ZombiesAintMyNeighborsTitleScene._create_action_map(
+                options={'input_mode': input_mode}
+            )
+        },
+    ),
+    'zombies_aint_my_neighbors_neighborhood': (
+        ZombiesAintMyNeighborsNeighborhoodScene,
+        lambda input_mode: {
+            '': ZombiesAintMyNeighborsNeighborhoodScene._create_action_map(
+                options={'input_mode': input_mode}
+            )
+        },
+    ),
 }
 
 # The pause screen every game uses (glitchygames/scenes/builtin_scenes/pause_scene.py): SPACE
@@ -340,6 +360,82 @@ ENGINE_SCENE_CONTROLS: dict[str, tuple[Control, ...]] = {
             scene=paddleslap.Game, action='quit', event_type=pygame.KEYUP, key=pygame.K_ESCAPE
         ),
     ),
+    # The title binds no quit of its own: the base Scene quits on the release of Q or ESC
+    'zombies_aint_my_neighbors': (
+        *PAUSE_SCENE_CONTROLS,
+        _key_control(
+            scene=ZombiesAintMyNeighborsTitleScene,
+            action='quit',
+            event_type=pygame.KEYUP,
+            key=pygame.K_q,
+        ),
+        _key_control(
+            scene=ZombiesAintMyNeighborsTitleScene,
+            action='quit',
+            event_type=pygame.KEYUP,
+            key=pygame.K_ESCAPE,
+        ),
+    ),
+    # The neighborhood reads walking from the frame's snapshot (polled input, no ActionMap): the
+    # keyboard's WASD and arrows by scancode, and a pad's left stick and d-pad; it binds no quit
+    # of its own (the base Scene quits on the release of Q or ESC)
+    'zombies_aint_my_neighbors_neighborhood': (
+        *PAUSE_SCENE_CONTROLS,
+        _key_control(
+            scene=ZombiesAintMyNeighborsNeighborhoodScene,
+            action='quit',
+            event_type=pygame.KEYUP,
+            key=pygame.K_q,
+        ),
+        _key_control(
+            scene=ZombiesAintMyNeighborsNeighborhoodScene,
+            action='quit',
+            event_type=pygame.KEYUP,
+            key=pygame.K_ESCAPE,
+        ),
+        *(
+            _scancode_control(
+                scene=ZombiesAintMyNeighborsNeighborhoodScene, action='walk', scancode=scancode
+            )
+            for scancode in (
+                pygame.KSCAN_W,
+                pygame.KSCAN_A,
+                pygame.KSCAN_S,
+                pygame.KSCAN_D,
+                pygame.KSCAN_UP,
+                pygame.KSCAN_LEFT,
+                pygame.KSCAN_DOWN,
+                pygame.KSCAN_RIGHT,
+            )
+        ),
+        *(
+            Control(
+                scene=ZombiesAintMyNeighborsNeighborhoodScene.__name__,
+                action='walk',
+                kind=InputKind.GAMEPAD,
+                event_name=pygame.event.event_name(pygame.CONTROLLERAXISMOTION),
+                attribute='axis',
+                value=axis,
+            )
+            for axis in (pygame.CONTROLLER_AXIS_LEFTX, pygame.CONTROLLER_AXIS_LEFTY)
+        ),
+        *(
+            Control(
+                scene=ZombiesAintMyNeighborsNeighborhoodScene.__name__,
+                action='walk',
+                kind=InputKind.GAMEPAD,
+                event_name=pygame.event.event_name(pygame.CONTROLLERBUTTONDOWN),
+                attribute='button',
+                value=button,
+            )
+            for button in (
+                pygame.CONTROLLER_BUTTON_DPAD_UP,
+                pygame.CONTROLLER_BUTTON_DPAD_DOWN,
+                pygame.CONTROLLER_BUTTON_DPAD_LEFT,
+                pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
+            )
+        ),
+    ),
 }
 
 NO_GAMEPAD_IN_THE_SESSION = (
@@ -395,6 +491,12 @@ UNEXERCISED_CONTROLS: dict[tuple[str, str, str, InputKind], str] = {
                 'paddleslap',
                 paddleslap.Game,
                 ('player1 up', 'player1 down', 'player2 up', 'player2 down'),
+            ),
+            ('zombies_aint_my_neighbors', ZombiesAintMyNeighborsTitleScene, ('start',)),
+            (
+                'zombies_aint_my_neighbors_neighborhood',
+                ZombiesAintMyNeighborsNeighborhoodScene,
+                ('start', 'walk'),
             ),
         )
         for action in actions

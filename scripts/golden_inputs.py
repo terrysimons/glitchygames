@@ -544,6 +544,56 @@ def drawing_fire_script() -> InputScript:
 # unchanged.
 
 
+def zombies_aint_my_neighbors_script() -> InputScript:
+    """Zombies Ain't My Neighbors: slot 1 blinks once, then the keyboard joins as P1.
+
+    Enter joins the keyboard after one full blink cycle (the title's BLINK_SECONDS shown, then
+    hidden), so the recording holds slot 1 blinking before it joins; the script's frames then
+    run on while the three free slots blink. Keyboard only: no golden session has a gamepad
+    (tests/replay/golden_replay_controls.py).
+
+    Returns:
+        The input script.
+
+    """
+    from zombies_aint_my_neighbors.title import BLINK_SECONDS
+
+    join_frame = round(2 * BLINK_SECONDS / FRAME_SECONDS)
+    script = InputScript()
+    script.tap(join_frame, pygame.K_RETURN, held_frames=2)
+    return script
+
+
+def zombies_aint_my_neighbors_neighborhood_script() -> InputScript:
+    """Zombies Ain't My Neighbors' neighborhood: keyboard P1 walks with every key it reads.
+
+    The neighborhood reads the keyboard as polled input (held scancodes), so each key is held for
+    a stretch: WASD round a square, the arrows round another, then W and D together for a
+    diagonal. The recording begins in the neighborhood with the keyboard as P1 (built from
+    options alone).
+
+    Returns:
+        The input script.
+
+    """
+    script = InputScript()
+    stretches = (
+        ((pygame.K_d,), 10, 50),
+        ((pygame.K_s,), 50, 90),
+        ((pygame.K_a,), 90, 130),
+        ((pygame.K_w,), 130, 170),
+        ((pygame.K_RIGHT,), 170, 200),
+        ((pygame.K_DOWN,), 200, 230),
+        ((pygame.K_LEFT,), 230, 260),
+        ((pygame.K_UP,), 260, 290),
+        ((pygame.K_w, pygame.K_d), 290, 320),
+    )
+    for keys, start, end in stretches:
+        script.at(start, *(press(key) for key in keys))
+        script.at(end, *(release(key) for key in keys))
+    return script
+
+
 def _pause_with(tail: InputScript, *, key: int, pause_frame: int, resume_frame: int) -> None:
     """Pause with a key, then resume from the engine's pause screen with SPACE.
 
@@ -629,6 +679,50 @@ def mr_muncher_controls() -> InputScript:
         tail.tap(tap_frame, key, held_frames=10)
     _pause_with(tail, key=pygame.K_p, pause_frame=65, resume_frame=95)
     tail.at(120, press(pygame.K_q))
+    return tail
+
+
+def zombies_aint_my_neighbors_controls() -> InputScript:
+    """Zombies Ain't My Neighbors' title: pause, begin, back out, quit with Q and ESC.
+
+    P pauses the title and SPACE resumes it; the joined keyboard's keypad Enter (start, as the
+    script's main Enter was) opens the feature card, and Backspace (the card's back) returns to
+    the title before the card's 2 s are up, so the recording ends on the title (the golden rule:
+    it ends in the game's scene). The title binds
+    no quit of its own: the engine's Scene quits on the release of Q or ESC, released together
+    as PaddleSlap's tail does.
+
+    Returns:
+        The controls tail (frames count from the tail's first frame).
+
+    """
+    tail = InputScript()
+    _pause_with(tail, key=pygame.K_p, pause_frame=5, resume_frame=35)
+    tail.tap(50, pygame.K_KP_ENTER, held_frames=2)
+    tail.tap(70, pygame.K_BACKSPACE, held_frames=2)
+    tail.at(90, press(pygame.K_q))
+    tail.at(92, press(pygame.K_ESCAPE))
+    tail.at(100, release(pygame.K_q), release(pygame.K_ESCAPE))
+    return tail
+
+
+def zombies_aint_my_neighbors_neighborhood_controls() -> InputScript:
+    """The neighborhood: pause with Enter, keypad Enter and P, quit with Q and ESC.
+
+    Each pause is resumed with SPACE. The neighborhood binds no quit of its own: the engine's
+    Scene quits on the release of Q or ESC, released together as PaddleSlap's tail does.
+
+    Returns:
+        The controls tail (frames count from the tail's first frame).
+
+    """
+    tail = InputScript()
+    _pause_with(tail, key=pygame.K_RETURN, pause_frame=5, resume_frame=35)
+    _pause_with(tail, key=pygame.K_KP_ENTER, pause_frame=50, resume_frame=80)
+    _pause_with(tail, key=pygame.K_p, pause_frame=95, resume_frame=125)
+    tail.at(140, press(pygame.K_q))
+    tail.at(142, press(pygame.K_ESCAPE))
+    tail.at(150, release(pygame.K_q), release(pygame.K_ESCAPE))
     return tail
 
 

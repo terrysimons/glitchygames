@@ -10,10 +10,10 @@ GlitchyGames is a Python 3.14 game engine on pygame-ce with an event-driven arch
 pixel-art editor (Bitmappy), example games, and exact gameplay recording and replay.
 
 - Engine: `src/glitchygames/`. Workspace members (plans/2026-10-24-workspace-packages.md): games
-  in `src/games/` (paddleslap, brave-adventurer, clockwork-keep, mr-muncher, drawing-fire), demos
-  in `src/demos/` (dt, joystick, sound-board, text-input), apps in `src/apps/` (bitmappy). Each is
-  its own package with its own code, tests and golden replay (recipe:
-  docs/architecture/game_packages.md).
+  in `src/games/` (paddleslap, brave-adventurer, clockwork-keep, mr-muncher, drawing-fire,
+  zombies-aint-my-neighbors), demos in `src/demos/` (dt, joystick, sound-board, text-input), apps
+  in `src/apps/` (bitmappy). Each is its own package with its own code, tests and golden replay
+  (recipe: docs/architecture/game_packages.md).
 - Nothing at the repository root is importable as the package: tests and tools import the
   installed engine. A script importing `scripts.*` runs as `uv run python -m scripts.<name>`.
 - Paths here are written from the repository root. Finished plans and resolved BUGS.md entries
@@ -65,6 +65,7 @@ Nox (`nox -l` lists all; each session's docstring explains it):
 
 ```bash
 uv run paddleslap            # also brave-adventurer, clockwork-keep, mr-muncher, drawing-fire,
+                             # zombies-aint-my-neighbors
 uv run bitmappy              # dt-demo, joystick-demo, sound-board-demo, text-input-demo
 uv run glitchygames --help   # every recording/replay/measurement tool, with its options
 uv run paddleslap --record-trace run.jsonl.gz

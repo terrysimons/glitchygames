@@ -132,6 +132,7 @@ games = [
   "clockwork-keep",
   "paddleslap",
   "drawing-fire",
+  "zombies-aint-my-neighbors",
 ]
 demos = ["dt-demo", "joystick-demo", "sound-board-demo", "text-input-demo"]
 apps = ["bitmappy"]
@@ -145,6 +146,7 @@ members = [
   "src/games/clockwork-keep",
   "src/games/paddleslap",
   "src/games/drawing-fire",
+  "src/games/zombies-aint-my-neighbors",
   "src/demos/dt-demo",
   "src/demos/joystick-demo",
   "src/demos/sound-board-demo",
@@ -159,6 +161,7 @@ brave-adventurer = { workspace = true }
 clockwork-keep = { workspace = true }
 paddleslap = { workspace = true }
 drawing-fire = { workspace = true }
+zombies-aint-my-neighbors = { workspace = true }
 dt-demo = { workspace = true }
 joystick-demo = { workspace = true }
 sound-board-demo = { workspace = true }
@@ -176,6 +179,7 @@ dev = [
   "clockwork-keep",
   "paddleslap",
   "drawing-fire",
+  "zombies-aint-my-neighbors",
   "dt-demo",
   "joystick-demo",
   "sound-board-demo",
@@ -196,7 +200,7 @@ packages = ["src/glitchygames"]
 # The engine's recording, replay and measurement tools read this project's layout from here
 # (glitchygames/replay/tools/settings.py; a project without this table gets the defaults there)
 [tool.glitchygames]
-# Every workspace member's console script: the five games, the four demos and Bitmappy
+# Every workspace member's console script: the six games, the four demos and Bitmappy
 games = [
   "bitmappy",
   "brave-adventurer",
@@ -208,6 +212,7 @@ games = [
   "paddleslap",
   "sound-board-demo",
   "text-input-demo",
+  "zombies-aint-my-neighbors",
 ]
 # Each member's golden replays, directly in its tests/fixtures/replays/ (src/<layer>/<member>/)
 golden-globs = ["src/*/*/tests/fixtures/replays/golden*.jsonl.gz"]
@@ -259,6 +264,7 @@ testpaths = [
   "src/games/clockwork-keep/tests",
   "src/games/paddleslap/tests",
   "src/games/drawing-fire/tests",
+  "src/games/zombies-aint-my-neighbors/tests",
   "src/demos/dt-demo/tests",
   "src/demos/joystick-demo/tests",
   "src/demos/sound-board-demo/tests",
@@ -290,7 +296,7 @@ norecursedirs = [
   ".hypothesis",
   "__pycache__",
 ]
-addopts = "--import-mode=importlib -p no:randomly -n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=dt_demo --cov=joystick_demo --cov=sound_board_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+addopts = "--import-mode=importlib -p no:randomly -n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=zombies_aint_my_neighbors --cov=dt_demo --cov=joystick_demo --cov=sound_board_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
@@ -311,6 +317,7 @@ source = [
   "clockwork_keep",
   "paddleslap",
   "drawing_fire",
+  "zombies_aint_my_neighbors",
   "dt_demo",
   "joystick_demo",
   "sound_board_demo",
@@ -363,6 +370,10 @@ drawing_fire = [
   "src/games/drawing-fire/src/drawing_fire",
   "*/site-packages/drawing_fire",
 ]
+zombies_aint_my_neighbors = [
+  "src/games/zombies-aint-my-neighbors/src/zombies_aint_my_neighbors",
+  "*/site-packages/zombies_aint_my_neighbors",
+]
 dt_demo = ["src/demos/dt-demo/src/dt_demo", "*/site-packages/dt_demo"]
 joystick_demo = [
   "src/demos/joystick-demo/src/joystick_demo",
@@ -414,6 +425,7 @@ src = [
   "src/games/clockwork-keep/src",
   "src/games/paddleslap/src",
   "src/games/drawing-fire/src",
+  "src/games/zombies-aint-my-neighbors/src",
   "src/demos/dt-demo/src",
   "src/demos/joystick-demo/src",
   "src/demos/sound-board-demo/src",
@@ -428,6 +440,7 @@ include = [
   "src/games/clockwork-keep/**/*.py",
   "src/games/paddleslap/**/*.py",
   "src/games/drawing-fire/**/*.py",
+  "src/games/zombies-aint-my-neighbors/**/*.py",
   "src/demos/dt-demo/**/*.py",
   "src/demos/joystick-demo/**/*.py",
   "src/demos/sound-board-demo/**/*.py",
@@ -446,6 +459,7 @@ namespace-packages = [
   "src/games/clockwork-keep/tests",
   "src/games/paddleslap/tests",
   "src/games/drawing-fire/tests",
+  "src/games/zombies-aint-my-neighbors/tests",
   "src/demos/dt-demo/tests",
   "src/demos/joystick-demo/tests",
   "src/demos/sound-board-demo/tests",
@@ -683,6 +697,7 @@ known-first-party = [
   "clockwork_keep",
   "paddleslap",
   "drawing_fire",
+  "zombies_aint_my_neighbors",
   "dt_demo",
   "joystick_demo",
   "sound_board_demo",
@@ -704,6 +719,7 @@ root = [
   "src/games/clockwork-keep/src",
   "src/games/paddleslap/src",
   "src/games/drawing-fire/src",
+  "src/games/zombies-aint-my-neighbors/src",
   "src/demos/dt-demo/src",
   "src/demos/joystick-demo/src",
   "src/demos/sound-board-demo/src",
@@ -720,6 +736,7 @@ include = [
   "src/games/clockwork-keep",
   "src/games/paddleslap",
   "src/games/drawing-fire",
+  "src/games/zombies-aint-my-neighbors",
   "src/demos/dt-demo",
   "src/demos/joystick-demo",
   "src/demos/sound-board-demo",
@@ -796,6 +813,7 @@ known_first_party = ["glitchygames"]
 "clockwork-keep" = ["clockwork_keep"]
 "paddleslap" = ["paddleslap"]
 "drawing-fire" = ["drawing_fire"]
+"zombies-aint-my-neighbors" = ["zombies_aint_my_neighbors"]
 "dt-demo" = ["dt_demo"]
 "joystick-demo" = ["joystick_demo"]
 "sound-board-demo" = ["sound_board_demo"]

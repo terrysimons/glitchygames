@@ -30,6 +30,7 @@ SCANCODE_BY_CODE = {
     'KeyW': pygame.KSCAN_W,
     'KeyS': pygame.KSCAN_S,
     'KeyP': pygame.KSCAN_P,
+    'Enter': pygame.KSCAN_RETURN,
     'ShiftLeft': pygame.KSCAN_LSHIFT,
 }
 

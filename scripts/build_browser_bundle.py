@@ -287,6 +287,7 @@ TOUCH_KEYS: dict[str, tuple[str, int, str]] = {
     'KeyW': ('w', 87, 'W'),
     'KeyS': ('s', 83, 'S'),
     'KeyP': ('p', 80, 'P'),
+    'Enter': ('Enter', 13, 'Enter'),
     'ShiftLeft': ('Shift', 16, 'Shift'),
 }
 
@@ -360,6 +361,12 @@ TOUCH_LAYOUTS: dict[str, TouchLayout] = {
         center=((TouchButton('Pause', 'KeyP'),),),
         right=((TouchButton('Start', 'Space'),),),
     ),
+    # Start (Enter) joins a player and begins; P pauses (Space and Esc belong to the pause screen)
+    'zombies-aint-my-neighbors': TouchLayout(
+        left=(),
+        center=((TouchButton('Pause', 'KeyP'),),),
+        right=((TouchButton('Start', 'Enter'),),),
+    ),
 }
 
 
@@ -432,6 +439,12 @@ GAMES: dict[str, GameSpecification] = {
         scene_class='DrawingFireScene',
         title='Drawing Fire',
         member_packages=('drawing_fire',),
+    ),
+    'zombies-aint-my-neighbors': GameSpecification(
+        module='zombies_aint_my_neighbors.title',
+        scene_class='TitleScene',
+        title="Zombies Ain't My Neighbors",
+        member_packages=('zombies_aint_my_neighbors',),
     ),
     # The pixel-art editor: its AI sprite generation is off in browser builds (the
     # bitmappy.constants.AI_FEATURES_ENABLED feature flag)
