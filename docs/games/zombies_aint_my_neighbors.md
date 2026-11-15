@@ -15,7 +15,12 @@ seconds (3 per set, 10 in all); a zombie that touches a kid knocks it out, and t
 up and blinks, untouchable, for two seconds. The kids fight back with the Channel Changer, a TV
 remote that fires zaps of static four times a second: one zap crumbles a zombie, and three zaps
 break a TV into its next stage (cracked, smashed and sparking, destroyed and smoking), each
-stage spawning half as often, until a destroyed one spawns nothing. The design, its decisions and
+stage spawning half as often, until a destroyed one spawns nothing. Neighbors wait round the
+yard to be rescued: a kid's touch rescues one and a zombie's loses one. Each kid has 3 lives.
+When every neighbor is rescued or lost and at least one was rescued, a gate opens in the top
+hedge; a kid through it clears the stage, and the next stage brings back only the neighbors
+rescued. Every life lost, or a stage with nobody rescued, and the TV switches off: game over.
+The design, its decisions and
 the engine wishlist are in the master plan, `plans/2026-11-14-zombies-aint-my-neighbors.md`.
 
 Its package: `src/games/zombies-aint-my-neighbors/`, a workspace member
@@ -38,7 +43,7 @@ The game adds no options of its own; the engine's are in
 | --- | --- | --- |
 | Join (a device that holds no slot) | `Enter` or keypad `Enter` | `START` |
 | Begin (a joined device), and skip the feature card | `Enter` or keypad `Enter` | `START` |
-| Back from the feature card to the title | `Backspace` | `BACK` |
+| Back from the feature card to the title (between stages the run is kept: the next start returns to the same stage) | `Backspace` | `BACK` |
 | Walk (the neighborhood) | `WASD` or the arrows (by position) | left stick or d-pad |
 | Fire the Channel Changer (the neighborhood; hold to keep firing) | `J` or right `Shift` (by position) | `A` (button 0 in `--input-mode joystick`) |
 | Pause (every screen) | `P` position; `Enter` in the neighborhood | `START` in the neighborhood |
@@ -106,6 +111,19 @@ is drawn on the frame's hand point only while shooting, behind the kid when it f
 its hitbox meets and passes through kids. A zapped zombie flashes, crumbles and fades, freeing its
 TV's place under the caps at once. A TV takes 3 zaps a stage; each stage doubles its wait between
 spawns, and destroying one shakes the world and rumbles the destroying player's pad.
+
+The run (`run_state.RunState`: the stage, its neighbors and each player's lives) passes from
+scene to scene in its JSON form, as the roster does, so a replay rebuilds any stage. Neighbors
+(`neighbor.py`) stand at places drawn from the named stream
+`zombies_aint_my_neighbors.neighbor-places`, panic when a zombie is within 96 px, and play the
+`saved` or `lost` effect when rescued or lost; zombies chase the nearest kid or neighbor. A
+knockout on a player's last life leaves the kid lying, fading for 1 s, then gone for the stage
+(the camera and the group's span then leave it out). The exit door (`exit_door.py`) opens when
+no neighbor is left and one was rescued; a kid through it clears the stage, the kids cheer for
+1.5 s, and the feature card shows STAGE n before the next. The game over (`game_over.py`) is
+the picture collapsing to a line, then a dot, then GAME OVER, and the title after 4 s or a start.
+The heads-up display (`hud.py`) shows each player's lives along the top and the stage and the
+neighbors rescued along the bottom.
 
 Zombies and zaps come from pools the scene builds before play (`pool.py`), so no sprite file
 loads mid-game: the engine keeps no cache of loaded sprite files, and a zombie's took 27 to 41 ms

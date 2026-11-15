@@ -274,19 +274,24 @@ def test_the_crumble_lasts_its_five_frames_then_the_slippers_fade(cache):
 
 
 def test_a_faded_zombie_is_gone(cache):
-    """After its crumble and fade (1.0 s), it leaves its group."""
+    """After its crumble and fade (1.0 s) it is gone: hidden, but still in its group.
+
+    The scene's pool reuses it, and a sprite removed from every group must not be held
+    (tests/replay/test_removed_sprites_are_freed.py), so it is hidden, never removed.
+    """
     group = pygame.sprite.LayeredDirty()
     zombie = Zombie(world_x=0.0, world_y=0.0, mirror_cache=cache, groups=group)
     zombie.zap()
     total = round((CRUMBLE_SECONDS + FADE_SECONDS) / SIXTIETH)
     for _ in range(total - 1):
         zombie.dt_tick(SIXTIETH)
-    assert zombie.alive()
+    assert not zombie.hidden
 
     zombie.dt_tick(SIXTIETH)
 
-    assert not zombie.alive()
     assert zombie.is_gone
+    assert zombie.hidden
+    assert zombie.alive()
 
 
 def test_a_faded_zombie_comes_back_fresh(cache):
@@ -301,9 +306,28 @@ def test_a_faded_zombie_comes_back_fresh(cache):
     zombie.spawn_at(world_x=50.0, world_y=60.0)
     zombie.dt_tick(SIXTIETH)
 
+    assert not zombie.hidden
+
     assert (zombie.world_x, zombie.world_y) == (50.0, 60.0)
     assert not zombie.is_dying
     assert not zombie.is_gone
     assert zombie.facing is ZombieFacing.DOWN
     assert zombie.current_animation == 'walk_down'
     assert zombie.image is zombie.drawn_frame_surface()
+
+
+def test_a_zombie_chases_the_nearest_of_kids_and_standing_neighbors(cache):
+    """Feature plan 7: neighbors are prey too; a saved or lost one is not."""
+    from zombies_aint_my_neighbors.neighbor import Neighbor
+    from zombies_aint_my_neighbors.run_state import NeighborKind
+
+    kid = kid_at(cache, 400.0, 100.0)
+    neighbor = Neighbor(kind=NeighborKind.PIZZA_TEEN, world_x=100.0, world_y=160.0, groups=None)
+    zombie = zombie_at(cache, 100.0, 100.0)
+
+    zombie.chase(kids=[kid], neighbors=[neighbor], dt=0.5)
+    assert zombie.facing is ZombieFacing.DOWN
+
+    neighbor.rescue()
+    zombie.chase(kids=[kid], neighbors=[neighbor], dt=0.5)
+    assert zombie.facing is ZombieFacing.RIGHT

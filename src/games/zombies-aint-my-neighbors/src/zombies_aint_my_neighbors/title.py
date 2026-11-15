@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Final, override
 from zombies_aint_my_neighbors import text
 from zombies_aint_my_neighbors.roster import MAXIMUM_PLAYERS, PLAYER_COLOURS, DeviceKind
 from zombies_aint_my_neighbors.roster_scene import RosterScene
+from zombies_aint_my_neighbors.run_state import RunState, as_run
 
 if TYPE_CHECKING:
     import argparse
@@ -68,6 +69,7 @@ class TitleScene(RosterScene):
         options: dict[str, Any] | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
         roster: JoinRoster | dict[str, Any] | None = None,
+        run: RunState | dict[str, Any] | None = None,
     ) -> None:
         """Make the title screen.
 
@@ -76,13 +78,29 @@ class TitleScene(RosterScene):
             groups: The sprite groups to draw into (a new LayeredDirty when None).
             roster: The players already joined: a roster, its JSON form (as a replay passes
                 it back), or None for nobody.
+            run: A run to go back to (Back on a later stage's card; feature plan 7): a run,
+                its JSON form, or None, when the next start begins a new run.
 
         """
         super().__init__(options=options, groups=groups, roster=roster)
+        self.run = None if run is None else as_run(run)
         self.slot_pictures: tuple[text.TextPicture, ...] = ()
         # Per slot: the unjoined image, and the joined image for each kind of device
         self._unjoined_images: tuple[pygame.Surface, ...] = ()
         self._joined_images: tuple[dict[DeviceKind, pygame.Surface], ...] = ()
+
+    @override
+    def replay_arguments(self) -> dict[str, Any]:
+        """Rebuild this title as it began: the roster, and the run it keeps, if any.
+
+        Returns:
+            Both, as JSON reads them back (no run key when it keeps none).
+
+        """
+        arguments = super().replay_arguments()
+        if self.run is not None:
+            arguments['run'] = self.run.model_dump(mode='json')
+        return arguments
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
@@ -174,7 +192,9 @@ class TitleScene(RosterScene):
             # Imported here: the feature card builds a title in turn
             from zombies_aint_my_neighbors.feature_card import FeatureCardScene
 
-            self.next_scene = FeatureCardScene(options=self.options, roster=self.roster)
+            self.next_scene = FeatureCardScene(
+                options=self.options, roster=self.roster, run=self.run
+            )
             return
         self.roster = self.roster.join(device=device)
 

@@ -17,6 +17,7 @@ from tests.input.stand_in_devices import STAND_IN_PAD
 from zombies_aint_my_neighbors.feature_card import CARD_SECONDS, FeatureCardScene
 from zombies_aint_my_neighbors.neighborhood import NeighborhoodScene
 from zombies_aint_my_neighbors.roster import PLAYER_COLOURS, JoinRoster
+from zombies_aint_my_neighbors.run_state import NeighborKind, RunState
 from zombies_aint_my_neighbors.title import TitleScene
 
 support = importlib.import_module('src.games.zombies-aint-my-neighbors.tests.screen_support')
@@ -282,3 +283,83 @@ def test_the_card_returns_to_the_title_when_its_last_pad_left_during_a_pause():
 
         assert support.joined_devices(card) == [None, None, None, None]
         assert isinstance(card.next_scene, TitleScene)
+
+
+# The card between stages (feature plan 7)
+
+
+def test_the_first_card_is_the_feature_presentation_and_starts_a_new_run():
+    """From the title, no run yet: FEATURE PRESENTATION, then stage 1."""
+    card = card_for(JoinRoster.empty().join(device=KEYBOARD))
+    support.tick_to(card, seconds=CARD_SECONDS + 0.05)
+
+    assert card.card_text == 'FEATURE PRESENTATION'
+    assert isinstance(card.next_scene, NeighborhoodScene)
+    assert card.next_scene.run == RunState.new_run()
+
+
+def test_a_later_stages_card_names_the_stage_and_carries_the_run():
+    """After a stage clear: STAGE 2, then the neighborhood with that run."""
+    run = RunState.new_run().next_stage(rescued=(NeighborKind.PIZZA_TEEN,))
+    card = FeatureCardScene(
+        options=dict(OPTIONS), roster=JoinRoster.empty().join(device=KEYBOARD), run=run
+    )
+    card.setup()
+    support.tick_to(card, seconds=CARD_SECONDS + 0.05)
+
+    assert card.card_text == 'STAGE 2'
+    assert isinstance(card.next_scene, NeighborhoodScene)
+    assert card.next_scene.run == run
+
+
+def test_replay_arguments_carry_the_run_through_json():
+    """A replay starting on a stage's card gets its run back."""
+    run = RunState.new_run().next_stage(rescued=(NeighborKind.LAWN_CHAIR_READER,))
+    card = FeatureCardScene(options=dict(OPTIONS), roster=JoinRoster.empty(), run=run)
+
+    arguments = json.loads(json.dumps(card.replay_arguments()))
+
+    assert FeatureCardScene(options=dict(OPTIONS), **arguments).run == run
+
+
+def test_back_on_a_later_stages_card_keeps_the_run():
+    """Back between stages keeps the run; the title's next start brings back the same card.
+
+    The owner, 2026-11-15: a new run there would dodge the shrinking pool.
+    """
+    roster = JoinRoster.empty().join(device=KEYBOARD)
+    run = RunState.new_run().lose_life(slot_index=0).next_stage(rescued=(NeighborKind.PIZZA_TEEN,))
+    card = FeatureCardScene(options=dict(OPTIONS), roster=roster, run=run)
+    card.setup()
+
+    support.press_key(card, pygame.K_BACKSPACE)
+
+    title = card.next_scene
+    assert isinstance(title, TitleScene)
+    assert title.run == run
+    title.setup()
+    support.press_key(title, pygame.K_RETURN)
+    assert isinstance(title.next_scene, FeatureCardScene)
+    assert title.next_scene.run == run
+
+
+def test_back_on_the_first_card_leaves_the_title_to_start_afresh():
+    """Before stage 1 nothing is lost: the title holds no run, and its card starts a new one."""
+    card = card_for(JoinRoster.empty().join(device=KEYBOARD))
+
+    support.press_key(card, pygame.K_BACKSPACE)
+
+    title = card.next_scene
+    assert isinstance(title, TitleScene)
+    assert title.run is None
+    assert 'run' not in title.replay_arguments()
+
+
+def test_a_titles_kept_run_survives_its_replay_arguments():
+    """A replay starting on that title gets the run back through JSON."""
+    run = RunState.new_run().next_stage(rescued=(NeighborKind.LAWN_CHAIR_READER,))
+    title = TitleScene(options=dict(OPTIONS), roster=JoinRoster.empty(), run=run)
+
+    arguments = json.loads(json.dumps(title.replay_arguments()))
+
+    assert TitleScene(options=dict(OPTIONS), **arguments).run == run

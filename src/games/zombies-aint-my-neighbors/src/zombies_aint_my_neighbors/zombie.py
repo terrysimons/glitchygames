@@ -10,7 +10,9 @@ forgiveness margin (the engine's ``get_collision_rect_with_margin``).
 Feature plan 6 (plans/2026-11-15-zombies-aint-my-neighbors-6-channel-changer.md): one zap
 (``zap``) kills it. It flashes white for 0.05 s, plays ``crumble`` (5 frames, 0.5 s) where it
 fell, touching and chasing no one, then its last frame (the slippers) fades out over 0.5 s and
-it leaves its groups (``is_gone``).
+it is gone (``is_gone``): hidden, but kept in its groups for the scene's pool to reuse
+(``spawn_at``), since a sprite removed from every group must not be held
+(tests/replay/test_removed_sprites_are_freed.py).
 
 Like the kid, it chooses and advances its animation in ``dt_tick`` (the pose rule, CLAUDE.md
 World Space), and ``update`` does nothing.
@@ -34,6 +36,7 @@ if TYPE_CHECKING:
     import pygame
 
     from zombies_aint_my_neighbors.kid import Kid, MirrorCache
+    from zombies_aint_my_neighbors.neighbor import Neighbor
 
 # Feature plan 5: a third of a kid's walk (the BOM's "slower than a kid")
 ZOMBIE_SPEED: Final = 40.0
@@ -146,6 +149,12 @@ class Zombie(AnimatedSprite):
         self.dying_seconds: float | None = None
         self.flash_seconds = 0.0
         self.is_gone = False
+        self.hidden = False
+
+    def put_away(self) -> None:
+        """Be gone: hidden, kept in its groups for a pool to reuse."""
+        self.is_gone = True
+        self.hidden = True
 
     @property
     def is_dying(self) -> bool:
@@ -177,23 +186,28 @@ class Zombie(AnimatedSprite):
         self.grab_seconds = GRAB_SECONDS
         self.moving = False
 
-    def chase(self, *, kids: Sequence[Kid], dt: float) -> None:
-        """Shamble toward the nearest kid who is not knocked out, or stand when there is none.
+    def chase(self, *, kids: Sequence[Kid], dt: float, neighbors: Sequence[Neighbor] = ()) -> None:
+        """Shamble toward the nearest standing kid or neighbor, or stand when there is none.
 
         Args:
-            kids: Every kid in the yard.
+            kids: Every kid in the yard (only those not knocked out are chased).
             dt: The frame's time, in seconds.
+            neighbors: Every neighbor in the yard (only those still standing are chased;
+                feature plan 7).
 
         """
         if self.is_grabbing or self.is_dying:
             return
-        standing = [kid for kid in kids if kid.state is KidState.ACTIVE]
+        standing: list[Kid | Neighbor] = [kid for kid in kids if kid.state is KidState.ACTIVE]
+        standing += [neighbor for neighbor in neighbors if neighbor.is_standing]
         if not standing:
             self.moving = False
             return
         target = min(
             standing,
-            key=lambda kid: math.hypot(kid.world_x - self.world_x, kid.world_y - self.world_y),
+            key=lambda target: math.hypot(
+                target.world_x - self.world_x, target.world_y - self.world_y
+            ),
         )
         offset_x = target.world_x - self.world_x
         offset_y = target.world_y - self.world_y
@@ -254,8 +268,7 @@ class Zombie(AnimatedSprite):
         self.dying_seconds += dt
         self.flash_seconds = max(0.0, self.flash_seconds - dt)
         if self.dying_seconds >= CRUMBLE_SECONDS + FADE_SECONDS - TIME_TOLERANCE:
-            self.is_gone = True
-            self.kill()
+            self.put_away()
             return
         if self._started_animation != 'crumble':
             self.play('crumble')

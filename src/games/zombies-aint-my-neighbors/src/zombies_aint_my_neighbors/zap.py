@@ -3,13 +3,17 @@
 Feature plan 6 (plans/2026-11-15-zombies-aint-my-neighbors-6-channel-changer.md), Task 6. A zap
 leaves the remote's LED and flies its kid's aim at 320 px/s for at most 0.6 s (192 px), then
 fizzles where it is (2 frames, 0.12 s) and is gone; a zap whose centre would leave the yard
-fizzles at the edge. While flying it can strike, and on the frame its flight ends too, since its
-last step may be the one that meets a target: the scene asks ``first_struck`` which zombie or
-TV its hitbox meets (the nearest, when several) and calls ``strike``, and the zap is gone at
-once. Kids and other zaps are never offered to it, so it passes through them.
+fizzles at the edge. A zap that has gone is hidden and kept in its groups for the scene's pool
+to reuse (``launch``): a sprite removed from every group must not be held
+(tests/replay/test_removed_sprites_are_freed.py). While flying it can strike, and on the frame
+its flight ends too, since its last step may be the one that meets a target: the scene asks
+``first_struck`` which zombie or TV its hitbox meets (the nearest, when several) and calls
+``strike``, and the zap is gone at once. Kids and other zaps are never offered to it, so it
+passes through them.
 
-At 60 frames a second a zap moves about 5 px a frame, well under the 20 px of the narrowest
-hitbox it can strike, so testing after each move never steps over a target.
+The neighborhood caps a frame at 0.05 s (``MAX_FRAME_SECONDS``), so a zap moves at most 16 px
+a frame (about 5 at 60 frames a second), under its own hitbox and the narrowest target's
+together (28 px): testing after each move never steps over a target.
 
 Like the kids, it moves and poses in ``dt_tick`` (the pose rule, CLAUDE.md World Space), and
 ``update`` does nothing.
@@ -93,7 +97,13 @@ class Zap(AnimatedSprite):
         # strike what that last step met)
         self._state_seconds = 0.0
         self._flight_ended_this_frame = False
+        self.hidden = False
         self.play('fly')
+
+    def put_away(self) -> None:
+        """Be gone: hidden, kept in its groups for a pool to reuse."""
+        self.state = ZapState.GONE
+        self.hidden = True
 
     @property
     def is_live(self) -> bool:
@@ -113,8 +123,7 @@ class Zap(AnimatedSprite):
 
     def strike(self) -> None:
         """Take the hit: the zap is gone at once."""
-        self.state = ZapState.GONE
-        self.kill()
+        self.put_away()
 
     def _fizzle(self) -> None:
         """Stop where it is and break up."""
@@ -153,8 +162,7 @@ class Zap(AnimatedSprite):
         elif self.state is ZapState.FIZZLING:
             self._state_seconds += dt
             if self._state_seconds >= FIZZLE_SECONDS - TIME_TOLERANCE:
-                self.state = ZapState.GONE
-                self.kill()
+                self.put_away()
                 return
         AnimatedSprite.update(self, dt)
 

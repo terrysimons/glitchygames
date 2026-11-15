@@ -87,17 +87,22 @@ def test_a_zap_fizzles_at_its_range_on_its_exact_frame():
 
 
 def test_a_fizzled_zap_is_gone_after_its_two_frames():
-    """The fizzle lasts 0.12 s (8 sixtieths reach it: 7.2 rounded up), then the zap is gone."""
+    """The fizzle lasts 0.12 s (8 sixtieths reach it: 7.2 rounded up), then the zap is gone.
+
+    Gone is hidden, still in its group: the scene's pool reuses it, and a removed sprite must not
+    be held (tests/replay/test_removed_sprites_are_freed.py).
+    """
     group = pygame.sprite.LayeredDirty()
     zap = make_zap(groups=group)
     tick(zap, frames=36)
 
     tick(zap, frames=math.ceil(FIZZLE_SECONDS / SIXTIETH_OF_A_SECOND) - 1)
-    assert zap.alive()
+    assert not zap.hidden
     tick(zap, frames=1)
 
-    assert not zap.alive()
     assert zap.state is ZapState.GONE
+    assert zap.hidden
+    assert zap.alive()
 
 
 def test_a_zap_fizzles_at_the_yards_edge():
@@ -111,14 +116,14 @@ def test_a_zap_fizzles_at_the_yards_edge():
 
 
 def test_a_struck_zap_is_gone_at_once():
-    """It hits and vanishes: no fizzle."""
+    """It hits and vanishes (hidden, kept for its pool): no fizzle."""
     group = pygame.sprite.LayeredDirty()
     zap = make_zap(groups=group)
 
     zap.strike()
 
     assert zap.state is ZapState.GONE
-    assert not zap.alive()
+    assert zap.hidden
 
 
 def test_only_a_flying_zap_can_strike():
@@ -203,6 +208,7 @@ def test_a_spent_zap_launched_again_flies_fresh():
     tick(zap, frames=15)
 
     assert zap.state is ZapState.FLYING
+    assert not zap.hidden
     assert zap.current_animation == 'fly'
     assert zap.centre() == pytest.approx((100.0, 200.0 - 80.0))
 

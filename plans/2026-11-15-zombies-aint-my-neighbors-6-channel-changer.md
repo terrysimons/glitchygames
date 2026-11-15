@@ -87,7 +87,7 @@ member-scanning tests (process-state guard and the like) run on push.
 | A hit's flash lasts 0.05 s (white on the 2 frames before it runs out at 60 fps), where the plan said "one frame (0.05 s)" | At 60 fps those disagree; every other timing in the game is in seconds | A flash a frame longer than meant |
 | The wait running when a TV breaks doubles too, not only the waits drawn after | "The rate halves at each stage" takes effect at once; still one draw per wait, so replays repeat it | A TV that spawns a little later than a stricter reading |
 | `tests/replay/golden_replay_controls.py` is unchanged | The neighborhood's polled keys (WASD, the arrows) are covered by the golden's main script, not its controls tail; fire is polled too, so `J` and right `Shift` are in the main script | Two entries in a shared file |
-| The golden runs 720 script frames (872 with its tail; 46 KB), not 660 | So it holds a zapped zombie (frame 509), a destroyed TV (frame 658: the world shakes) and zaps passing through it | A larger fixture |
+| The golden runs 720 script frames (872 with its tail; 46 KB), not 660 | So it holds a zapped zombie (frame 509; 524 since feature plan 7 added neighbors), a destroyed TV (frame 658: the world shakes) and zaps passing through it | A larger fixture |
 
 ## Found while building
 

@@ -21,8 +21,20 @@ world and rumbles the pad of the kid whose zap destroyed it. Each frame runs the
 the TVs, the zombies, then the zaps.
 
 Zombies and zaps come from pools built with the scene (``pool.py``; master plan decision 11), so
-no sprite file loads mid-game: a zombie's load took 27 to 41 ms. Idle ones are out of every
-group; a spawn or a shot takes one and puts it in the yard, and one that has gone is given back.
+no sprite file loads mid-game: a zombie's load took 27 to 41 ms. Idle ones wait hidden in the
+scene's group (never removed: a removed sprite must not be held, tests/replay/
+test_removed_sprites_are_freed.py); a spawn or a shot takes one and shows it, and one that has
+gone hides and is given back.
+
+Feature plan 7 (plans/2026-11-15-zombies-aint-my-neighbors-7-neighbors-and-lives.md): the run
+(``run_state.RunState``: the stage, its neighbors, each player's lives) arrives with the scene.
+Its neighbors stand at places drawn from ``zombies_aint_my_neighbors.neighbor-places``; a kid's
+touch saves one, a zombie's loses one (kids are checked first, so a tie is a save), and zombies
+chase the nearest kid or neighbor. A knockout costs a life; on the last, the kid is out for the
+stage (the camera and the group's span leave it out). When every neighbor has gone and at least
+one was saved, the exit door opens; a kid through it clears the stage, everyone still in cheers
+for ``CHEER_SECONDS`` while the yard stands still, and the card brings the next stage with only
+the neighbors saved. Nobody saved, or every player out, is the game over.
 
 Built from options alone, as a recording's first scene is, the keyboard plays P1.
 """
@@ -40,16 +52,30 @@ from glitchygames.input.state import current_input
 from glitchygames.randomness import random_stream
 from zombies_aint_my_neighbors.art.palettes import KIDS
 from zombies_aint_my_neighbors.controls import DEFAULT_DEADZONE, player_direction, player_firing
-from zombies_aint_my_neighbors.kid import FIRE_SECONDS, KID_HEIGHT, KID_WIDTH, Kid, MirrorCache
+from zombies_aint_my_neighbors.exit_door import DOOR_SIZE, ExitDoor
+from zombies_aint_my_neighbors.game_over import GameOverScene
+from zombies_aint_my_neighbors.hud import Hud
+from zombies_aint_my_neighbors.kid import (
+    FIRE_SECONDS,
+    KID_HEIGHT,
+    KID_WIDTH,
+    TIME_TOLERANCE,
+    Kid,
+    KidState,
+    MirrorCache,
+)
+from zombies_aint_my_neighbors.neighbor import Neighbor, neighbor_places, touching
 from zombies_aint_my_neighbors.pool import SpritePool
 from zombies_aint_my_neighbors.roster import JoinRoster
 from zombies_aint_my_neighbors.roster_scene import KEYBOARD_IDENTITY, RosterScene
+from zombies_aint_my_neighbors.run_state import NeighborKind, RunState, as_run
 from zombies_aint_my_neighbors.tv import TV_SIZE, ZOMBIES_IN_ALL, Tv, TvHit, may_spawn
 from zombies_aint_my_neighbors.zap import (
     FIZZLE_SECONDS,
     ZAP_RANGE_SECONDS,
     ZAP_SIZE,
     Zap,
+    ZapState,
     first_struck,
 )
 from zombies_aint_my_neighbors.zombie import Zombie, touches
@@ -101,6 +127,11 @@ MAXIMUM_PLAYERS: Final = 4
 ZOMBIE_POOL_SIZE: Final = ZOMBIES_IN_ALL + 6
 ZAPS_IN_THE_AIR_PER_KID: Final = math.ceil((ZAP_RANGE_SECONDS + FIZZLE_SECONDS) / FIRE_SECONDS)
 ZAP_POOL_SIZE: Final = MAXIMUM_PLAYERS * ZAPS_IN_THE_AIR_PER_KID
+# Feature plan 7: the stream the neighbors' places come from, the exit door in the top hedge's
+# middle, and how long the kids cheer a cleared stage
+NEIGHBOR_PLACES_STREAM: Final = 'zombies_aint_my_neighbors.neighbor-places'
+EXIT_DOOR_PLACE: Final = (YARD_WIDTH / 2 - DOOR_SIZE / 2, 0.0)
+CHEER_SECONDS: Final = 1.5
 
 
 def draw_yard(surface: pygame.Surface, offset_x: float, offset_y: float) -> None:
@@ -172,6 +203,7 @@ class NeighborhoodScene(RosterScene):
         options: dict[str, Any] | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
         roster: JoinRoster | dict[str, Any] | None = None,
+        run: RunState | dict[str, Any] | None = None,
     ) -> None:
         """Make the neighborhood for the joined players (the keyboard as P1 when none are given).
 
@@ -180,6 +212,7 @@ class NeighborhoodScene(RosterScene):
             groups: The sprite groups to draw into (a new LayeredDirty when None).
             roster: The players: a roster, its JSON form (as a replay passes it back), or None
                 for the keyboard alone.
+            run: The run this stage plays: a run, its JSON form, or None for a new run.
 
         """
         if roster is None:
@@ -222,27 +255,81 @@ class NeighborhoodScene(RosterScene):
         # Built now, before play: every zombie and zap the yard will need
         self.zombie_pool = SpritePool(make=self._make_zombie, size=ZOMBIE_POOL_SIZE)
         self.zap_pool = SpritePool(make=self._make_zap, size=ZAP_POOL_SIZE)
+        # The run: as the stage began (for a replay) and as it is now (lives change)
+        self.run = as_run(run)
+        self._starting_run = self.run
+        places = neighbor_places(
+            stream=random_stream(NEIGHBOR_PLACES_STREAM), count=len(self.run.neighbors)
+        )
+        self.neighbors = [
+            Neighbor(kind=kind, world_x=float(x), world_y=float(y), groups=self.all_sprites)
+            for kind, (x, y) in zip(self.run.neighbors, places, strict=True)
+        ]
+        for neighbor in self.neighbors:
+            neighbor.dt_tick(0.0)
+            self._order_by_feet(neighbor)
+        # The neighbors rescued this stage, in the order rescued
+        self.rescued: list[NeighborKind] = []
+        door_x, door_y = EXIT_DOOR_PLACE
+        self.exit_door = ExitDoor(world_x=door_x, world_y=door_y, groups=self.all_sprites)
+        self.exit_door.dt_tick(0.0)
+        self._order_by_feet(self.exit_door, height=DOOR_SIZE)
+        # Whether a kid has left through the door, and how long the kids have cheered
+        self.stage_cleared = False
+        self._cheer_seconds = 0.0
+        self.hud = Hud(
+            screen_width=self.screen_width,
+            screen_height=self.screen_height,
+            groups=self.all_sprites,
+        )
+        self._show_hud()
+
+    def _show_hud(self) -> None:
+        """Show the lives, the stage and the neighbors rescued."""
+        self.hud.show(
+            run=self.run,
+            joined_slots={player.slot_index for player in self.roster.joined_players},
+            rescued=len(self.rescued),
+            total=len(self._starting_run.neighbors),
+        )
+
+    @override
+    def replay_arguments(self) -> dict[str, Any]:
+        """Rebuild this stage as it began: the roster and the run.
+
+        Returns:
+            Both, as JSON reads them back.
+
+        """
+        return {**super().replay_arguments(), 'run': self._starting_run.model_dump(mode='json')}
 
     def _make_zombie(self) -> Zombie:
-        """Make a zombie for the pool, out of every group.
+        """Make a zombie for the pool, waiting hidden in the scene's group.
 
         Returns:
             The zombie.
 
         """
-        zombie = Zombie(world_x=0.0, world_y=0.0, mirror_cache=self.mirror_cache, groups=None)
-        zombie.kill()
+        zombie = Zombie(
+            world_x=0.0, world_y=0.0, mirror_cache=self.mirror_cache, groups=self.all_sprites
+        )
+        zombie.put_away()
         return zombie
 
     def _make_zap(self) -> Zap:
-        """Make a zap for the pool, out of every group.
+        """Make a zap for the pool, waiting hidden in the scene's group.
 
         Returns:
             The zap.
 
         """
-        zap = Zap(centre=(0.0, 0.0), direction=(1.0, 0.0), bounds=self.yard_bounds, groups=None)
-        zap.kill()
+        zap = Zap(
+            centre=(0.0, 0.0),
+            direction=(1.0, 0.0),
+            bounds=self.yard_bounds,
+            groups=self.all_sprites,
+        )
+        zap.put_away()
         return zap
 
     @override
@@ -289,7 +376,6 @@ class NeighborhoodScene(RosterScene):
         """
         zombie = self.zombie_pool.take()
         zombie.spawn_at(world_x=world_x, world_y=world_y)
-        self.all_sprites.add(zombie)
         zombie.dt_tick(0.0)
         self._order_by_feet(zombie)
         self.zombies.append(zombie)
@@ -310,15 +396,25 @@ class NeighborhoodScene(RosterScene):
         """
         zap = self.zap_pool.take()
         zap.launch(centre=kid.muzzle(), direction=kid.aim())
-        self.all_sprites.add(zap)
         self.zaps.append(zap)
         self.zap_owners[zap] = slot_index
         self._order_by_feet(zap, height=ZAP_SIZE)
         return zap
 
-    def _order_by_feet(self, sprite: Kid | Zombie | Tv | Zap, *, height: int = KID_HEIGHT) -> None:
+    def _order_by_feet(
+        self, sprite: Kid | Zombie | Tv | Zap | Neighbor | ExitDoor, *, height: int = KID_HEIGHT
+    ) -> None:
         """Draw a sprite in order of its feet: lower on the screen is in front."""
         self.all_sprites.change_layer(sprite, round(sprite.world_y + height))
+
+    def _order_effect(self, neighbor: Neighbor) -> None:
+        """Draw a neighbor's rescue or loss a frame's height in front of where it stood.
+
+        Whoever caused it stands on it, feet near the neighbor's; this keeps them from hiding it.
+        """
+        if neighbor.effect is not None:
+            feet_layer = round(neighbor.world_y + KID_HEIGHT)
+            self.all_sprites.change_layer(neighbor.effect, feet_layer + KID_HEIGHT)
 
     def _order_kid(self, kid: Kid) -> None:
         """Draw a kid by its feet, its remote just in front of it (just behind when facing up)."""
@@ -335,6 +431,9 @@ class NeighborhoodScene(RosterScene):
 
         """
         super().dt_tick(dt)
+        if self.stage_cleared:
+            self._cheer(dt)
+            return
         snapshot = current_input()
         for player in self.roster.joined_players:
             # Every joined slot has its kid (add_missing_kids; an unplugged slot's kid goes too)
@@ -356,9 +455,69 @@ class NeighborhoodScene(RosterScene):
             self._order_kid(kid)
             if fired:
                 self.add_zap(kid=kid, slot_index=player.slot_index)
+        self._save_neighbors()
         self._run_tvs(dt)
         self._run_zombies(dt)
         self._run_zaps(dt)
+        self._run_neighbors(dt)
+        self._end_the_stage_when_done()
+        self._show_hud()
+
+    def _save_neighbors(self) -> None:
+        """Each standing kid saves each standing neighbor it touches (before zombies move)."""
+        for kid in self.kids.values():
+            if kid.state is not KidState.ACTIVE:
+                continue
+            for neighbor in self.neighbors:
+                if neighbor.is_standing and touching(kid, neighbor) and neighbor.rescue():
+                    self.rescued.append(neighbor.kind)
+                    self._order_effect(neighbor)
+
+    def _run_neighbors(self, dt: float) -> None:
+        """Let each neighbor see the zombies, pose it, and let go of those whose effect ended."""
+        for neighbor in self.neighbors:
+            neighbor.notice(zombies=self.zombies)
+            neighbor.dt_tick(dt)
+        self.neighbors = [neighbor for neighbor in self.neighbors if not neighbor.is_gone]
+        self.exit_door.dt_tick(dt)
+
+    def _end_the_stage_when_done(self) -> None:
+        """Open the door, clear the stage, or end the game, as the yard now stands."""
+        if self.next_scene is not None:
+            return
+        joined = [self.kids[player.slot_index] for player in self.roster.joined_players]
+        if joined and all(kid.state is KidState.OUT for kid in joined):
+            self.next_scene = GameOverScene(options=self.options, roster=self.roster)
+            return
+        if self.neighbors:
+            return
+        if not self.rescued:
+            self.next_scene = GameOverScene(options=self.options, roster=self.roster)
+            return
+        self.exit_door.open()
+        if self.exit_door.is_passable and any(
+            kid.state is KidState.ACTIVE and touching(kid, self.exit_door)
+            for kid in self.kids.values()
+        ):
+            self.stage_cleared = True
+            for kid in self.kids.values():
+                kid.cheer()
+
+    def _cheer(self, dt: float) -> None:
+        """The yard stands still while the kids cheer; then the card brings the next stage."""
+        for kid in self.kids.values():
+            kid.dt_tick(dt)
+        self.exit_door.dt_tick(dt)
+        self._cheer_seconds += dt
+        if self._cheer_seconds >= CHEER_SECONDS - TIME_TOLERANCE and self.next_scene is None:
+            # Imported here: the card leads to the neighborhood
+            from zombies_aint_my_neighbors.feature_card import FeatureCardScene
+
+            self.next_scene = FeatureCardScene(
+                options=self.options,
+                roster=self.roster,
+                run=self.run.next_stage(rescued=tuple(self.rescued)),
+            )
 
     def _run_tvs(self, dt: float) -> None:
         """Tick each TV under the caps, and put out each zombie whose pop has ended."""
@@ -376,11 +535,18 @@ class NeighborhoodScene(RosterScene):
         """Move each zombie, knock out each touchable kid it touches, and pose it."""
         kids = list(self.kids.values())
         for zombie in self.zombies:
-            zombie.chase(kids=kids, dt=dt)
-            for kid in kids:
+            zombie.chase(kids=kids, neighbors=self.neighbors, dt=dt)
+            for slot_index, kid in self.kids.items():
                 if kid.is_touchable and touches(zombie=zombie, kid=kid):
-                    kid.knock_out()
+                    last_life = self.run.lives[slot_index] <= 1
+                    if kid.knock_out(last_life=last_life):
+                        self.run = self.run.lose_life(slot_index=slot_index)
                     zombie.grab()
+            if not zombie.is_dying:
+                for neighbor in self.neighbors:
+                    if neighbor.is_standing and touching(zombie, neighbor) and neighbor.lose():
+                        zombie.grab()
+                        self._order_effect(neighbor)
             zombie.dt_tick(dt)
             # A zombie whose fade ended this frame has left its groups: no layer to change
             if not zombie.is_gone:
@@ -393,8 +559,8 @@ class NeighborhoodScene(RosterScene):
         """Fly each zap; each strikes the first living zombie or standing TV it meets."""
         for zap in self.zaps:
             zap.dt_tick(dt)
-            if not zap.alive():
-                # Fizzled out this frame: it has left its groups
+            if zap.state is ZapState.GONE:
+                # Fizzled out this frame: hidden, waiting for its pool
                 continue
             self._order_by_feet(zap, height=ZAP_SIZE)
             targets: list[Zombie | Tv] = [
@@ -409,7 +575,7 @@ class NeighborhoodScene(RosterScene):
                 self._zombie_zapped(struck)
             elif struck.zap() is TvHit.DESTROYED:
                 self._tv_destroyed(slot_index=self.zap_owners[zap])
-        for zap in [zap for zap in self.zaps if not zap.alive()]:
+        for zap in [zap for zap in self.zaps if zap.state is ZapState.GONE]:
             self.zaps.remove(zap)
             del self.zap_owners[zap]
             self.zap_pool.give_back(zap)
@@ -442,7 +608,12 @@ class NeighborhoodScene(RosterScene):
         """Move a kid toward a place, as far as the yard and the group's screen span allow."""
         limit_width = self.screen_width - 2 * SCREEN_MARGIN
         limit_height = self.screen_height - 2 * SCREEN_MARGIN
-        others = [other for other in self.kids.values() if other is not kid]
+        # A kid gone for the stage (faded out) no longer holds the group together
+        others = [
+            other
+            for other in self.kids.values()
+            if other is not kid and other.state is not KidState.OUT
+        ]
         low_x, high_x = 0.0, float(YARD_WIDTH - KID_WIDTH)
         low_y, high_y = 0.0, float(YARD_HEIGHT - KID_HEIGHT)
         if others:
@@ -464,7 +635,11 @@ class NeighborhoodScene(RosterScene):
         """
         if not self.kids:
             return (YARD_WIDTH / 2, YARD_HEIGHT / 2)
-        kids = self.kids.values()
+        # The kids not yet gone for the stage (a fading kid still shows); when every one is
+        # gone, all of them (the camera stays put)
+        kids = [kid for kid in self.kids.values() if kid.state is not KidState.OUT] or list(
+            self.kids.values()
+        )
         left = min(kid.world_x for kid in kids)
         right = max(kid.world_x + KID_WIDTH for kid in kids)
         top = min(kid.world_y for kid in kids)

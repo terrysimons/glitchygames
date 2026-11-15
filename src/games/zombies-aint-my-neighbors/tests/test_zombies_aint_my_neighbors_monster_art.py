@@ -1,6 +1,7 @@
 """The cast's and props' sprite files, checked against the character and props BOMs.
 
-The Lawn Zombie, the TV, the Channel Changer and the zap.
+The Lawn Zombie, the TV, the Channel Changer, the zap, the two neighbors of the first stage and
+the saved and lost effects (character BOM section 6).
 
 The expected names, frames, timings, loops and transitions are copied from the BOMs (character
 BOM section 5.1, less ``rise``: decision 6; props BOM, the TV with its damage stages, the
@@ -19,7 +20,16 @@ import pytest
 
 from glitchygames.sprites import SpriteFactory
 from glitchygames.testing import sprite_files
-from zombies_aint_my_neighbors.art import build, rig, tv_rig, weapon_rig, zombie_rig
+from zombies_aint_my_neighbors.art import (
+    build,
+    door_rig,
+    neighbor_rig,
+    rig,
+    tv_rig,
+    weapon_rig,
+    zombie_rig,
+)
+from zombies_aint_my_neighbors.art.palettes import CLOTHES_RAMP
 
 SPRITES_DIRECTORY = Path(build.__file__).resolve().parents[1] / 'sprites'
 FACINGS = ('down', 'up', 'left')
@@ -63,6 +73,18 @@ BOM_CHANNEL_CHANGER_HITBOX = {'offset_x': 0, 'offset_y': 0, 'width': 12, 'height
 BOM_ZAP = {'fly': (3, 0.06, True), 'fizzle': (2, 0.06, False)}
 BOM_ZAP_HITBOX = {'offset_x': 2, 'offset_y': 2, 'width': 8, 'height': 8}
 
+# Character BOM section 6: each neighbor's idle and panic, the hitbox they share, and the
+# effects (placed by the game: their hitbox is the whole frame, never collided)
+BOM_NEIGHBOR = {'idle': (2, 0.5, True), 'panic': (2, 0.12, True)}
+BOM_NEIGHBOR_HITBOX = {'offset_x': 4, 'offset_y': 8, 'width': 24, 'height': 40}
+BOM_SAVED = {'saved': (5, 0.06, False)}
+BOM_LOST = {'lost': (5, 0.08, False)}
+WHOLE_KID_FRAME = {'offset_x': 0, 'offset_y': 0, 'width': 32, 'height': 48}
+# Props BOM, the exit door
+BOM_DOOR = {'closed': (1, 0.08, True), 'opening': (3, 0.08, False), 'open': (2, 0.2, True)}
+BOM_DOOR_TRANSITIONS = frozenset({('opening', 'open', 'animation_complete')})
+BOM_DOOR_HITBOX = {'offset_x': 8, 'offset_y': 16, 'width': 32, 'height': 32}
+
 # (file, its BOM animations, transitions, hitbox, size, palette)
 SPRITES = {
     'lawn_zombie': (
@@ -81,18 +103,45 @@ SPRITES = {
         weapon_rig.WEAPON_PALETTE,
     ),
     'zap': (BOM_ZAP, frozenset(), BOM_ZAP_HITBOX, (12, 12), weapon_rig.WEAPON_PALETTE),
+    'pizza_teen': (
+        BOM_NEIGHBOR,
+        frozenset(),
+        BOM_NEIGHBOR_HITBOX,
+        (32, 48),
+        neighbor_rig.PIZZA_TEEN_PALETTE,
+    ),
+    'lawn_chair_reader': (
+        BOM_NEIGHBOR,
+        frozenset(),
+        BOM_NEIGHBOR_HITBOX,
+        (32, 48),
+        neighbor_rig.LAWN_CHAIR_READER_PALETTE,
+    ),
+    'saved': (BOM_SAVED, frozenset(), WHOLE_KID_FRAME, (32, 48), neighbor_rig.EFFECT_PALETTE),
+    'lost': (BOM_LOST, frozenset(), WHOLE_KID_FRAME, (32, 48), neighbor_rig.EFFECT_PALETTE),
+    'exit_door': (BOM_DOOR, BOM_DOOR_TRANSITIONS, BOM_DOOR_HITBOX, (48, 48), door_rig.DOOR_PALETTE),
 }
 FRAMES = {
     'lawn_zombie': zombie_rig.zombie_frames,
     'tv': tv_rig.tv_frames,
     'channel_changer': weapon_rig.channel_changer_frames,
     'zap': weapon_rig.zap_frames,
+    'pizza_teen': lambda: neighbor_rig.neighbor_frames(name='pizza_teen'),
+    'lawn_chair_reader': lambda: neighbor_rig.neighbor_frames(name='lawn_chair_reader'),
+    'saved': neighbor_rig.saved_frames,
+    'lost': neighbor_rig.lost_frames,
+    'exit_door': door_rig.door_frames,
 }
 TEXTS = {
     'lawn_zombie': build.zombie_sprite_text,
     'tv': build.tv_sprite_text,
     'channel_changer': build.channel_changer_sprite_text,
     'zap': build.zap_sprite_text,
+    'pizza_teen': lambda: build.neighbor_sprite_text(name='pizza_teen'),
+    'lawn_chair_reader': lambda: build.neighbor_sprite_text(name='lawn_chair_reader'),
+    'saved': build.saved_sprite_text,
+    'lost': build.lost_sprite_text,
+    'exit_door': build.door_sprite_text,
 }
 
 
@@ -129,6 +178,54 @@ def test_the_tv_bom_totals_24_frames():
 def test_the_weapon_boms_total_8_frames():
     """Props BOM: the Channel Changer's 3 and the zap's 5."""
     assert sum(frames for frames, _i, _l in (*BOM_CHANNEL_CHANGER.values(), *BOM_ZAP.values())) == 8
+
+
+def test_the_neighbor_boms_total_18_frames():
+    """Character BOM section 6, first stage: 4 a neighbor, 5 for each effect."""
+    total = sum(
+        frames
+        for animations in (BOM_NEIGHBOR, BOM_NEIGHBOR, BOM_SAVED, BOM_LOST)
+        for frames, _interval, _loop in animations.values()
+    )
+
+    assert total == 18
+
+
+@pytest.mark.parametrize('name', ['pizza_teen', 'lawn_chair_reader'])
+def test_a_neighbors_panic_looks_different_from_its_idle(name):
+    """Players must see at a glance who is in danger."""
+    frames = neighbor_rig.neighbor_frames(name=name)
+
+    assert frames['idle'][0] != frames['panic'][0]
+
+
+@pytest.mark.parametrize('name', ['pizza_teen', 'lawn_chair_reader'])
+def test_a_neighbor_has_one_facing(name):
+    """Neighbors never move, so they face the viewer only (character BOM section 6)."""
+    assert set(neighbor_rig.neighbor_frames(name=name)) == {'idle', 'panic'}
+
+
+def test_the_saved_figure_leaves_from_the_feet_up():
+    """Each frame of saved draws fewer cells in the bottom half than the one before."""
+    frames = neighbor_rig.saved_frames()['saved']
+    lower = [sum(row.count('.') for row in grid[24:]) for grid in frames]
+
+    assert all(later >= earlier for earlier, later in itertools.pairwise(lower))
+
+
+def test_the_door_bom_totals_6_frames():
+    """Props BOM: 1 + 3 + 2."""
+    assert sum(frames for frames, _interval, _loop in BOM_DOOR.values()) == 6
+
+
+def test_the_open_door_glows_where_the_closed_one_is_shut():
+    """Open, the gateway shows the glow's blues; closed, none."""
+    frames = door_rig.door_frames()
+    # The glow is drawn in the clothes ramp's characters
+    blues = set(CLOTHES_RAMP)
+
+    assert not blues & set(''.join(frames['closed'][0]))
+    assert blues & set(''.join(frames['open'][0]))
 
 
 def test_the_intact_tv_is_drawn_as_before():

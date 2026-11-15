@@ -19,6 +19,10 @@ plays ``shoot_<f>`` (its two frames); moving, ``walk-shoot_<f>`` plays while fir
 last shot is under 0.25 s old. The poses use the nearest straight facing (the side one at
 exactly 45 degrees); the shot flies the eight-way facing (``aim``). The remote is drawn on the
 frame's hand point only while a weapon animation plays, behind the kid when it faces up.
+
+Feature plan 7 (plans/2026-11-15-zombies-aint-my-neighbors-7-neighbors-and-lives.md): lives. A
+knockout on the player's last life (``knock_out(last_life=True)``) never gets back up: the kid
+lies on its last knockout frame, fades out over 1 s, and is out (hidden) for the stage.
 """
 
 from __future__ import annotations
@@ -34,6 +38,7 @@ from glitchygames.sprites import AnimatedSprite
 from glitchygames.world import CoordinateSpace
 from zombies_aint_my_neighbors.art.hand_points import KID_HAND_POINTS
 from zombies_aint_my_neighbors.channel_changer import ChannelChanger
+from zombies_aint_my_neighbors.hit_effects import faded
 
 # The kids' sprite files (package data), written by zombies_aint_my_neighbors.art.build
 SPRITES_DIRECTORY: Final = Path(__file__).resolve().parent / 'sprites'
@@ -44,6 +49,9 @@ LYING_SECONDS: Final = 1.0
 RESPAWN_SECONDS: Final = 0.4
 UNTOUCHABLE_SECONDS: Final = 2.0
 BLINK_SECONDS: Final = 0.1
+# Feature plan 7: a kid out of lives fades out over this long, lying on its last knockout frame
+OUT_FADE_SECONDS: Final = 1.0
+OPAQUE: Final = 255
 # Frame times add up in floats (30 sixtieths make 0.49999...): a step ends this close to its time
 TIME_TOLERANCE: Final = 1e-9
 # Shooting (feature plan 6): seconds between held shots (4 a second), and how long a standing
@@ -115,6 +123,11 @@ class KidState(StrEnum):
     KNOCKED_OUT = 'knocked-out'
     LYING = 'lying'
     RESPAWNING = 'respawning'
+    # Out of lives (feature plan 7): fading on the ground, then out for the stage
+    FADING = 'fading'
+    OUT = 'out'
+    # Stage clear (feature plan 7): fists up, facing down, safe and still
+    CHEERING = 'cheering'
 
 
 # Each knockout state, how long it lasts, and what follows it
@@ -254,6 +267,8 @@ class Kid(AnimatedSprite):
         self._shot_age = math.inf
         self._fired_this_frame = False
         self.remote = ChannelChanger(mirror_cache=mirror_cache, groups=groups)
+        # Whether the current knockout took the last life
+        self._last_life = False
 
     @property
     def can_move(self) -> bool:
@@ -265,8 +280,26 @@ class Kid(AnimatedSprite):
         """Whether a monster can knock the kid out now."""
         return self.state is KidState.ACTIVE and self.untouchable_seconds <= TIME_TOLERANCE
 
-    def knock_out(self) -> bool:
+    @property
+    def is_out(self) -> bool:
+        """Whether the kid is out of lives (fading on the ground, or gone for the stage)."""
+        return self.state in {KidState.FADING, KidState.OUT}
+
+    def cheer(self) -> None:
+        """Cheer the stage clear (``cheer``, facing down): still, safe, not firing; not when out."""
+        if self.is_out or self.state is not KidState.ACTIVE:
+            return
+        self.state = KidState.CHEERING
+        self.moving = False
+        self.untouchable_seconds = 0.0
+        self.facing = KidFacing.DOWN
+
+    def knock_out(self, *, last_life: bool = False) -> bool:
         """Knock the kid out, if it can be: it falls, lies still, loads back in, then blinks.
+
+        Args:
+            last_life: Whether this knockout took the player's last life: then the kid falls,
+                fades out and is out for the stage.
 
         Returns:
             True when the kid was knocked out; False when it already was, or is untouchable.
@@ -277,6 +310,7 @@ class Kid(AnimatedSprite):
         self.state = KidState.KNOCKED_OUT
         self._state_seconds = 0.0
         self.moving = False
+        self._last_life = last_life
         return True
 
     def pull_trigger(self, *, held: bool) -> bool:
@@ -371,8 +405,10 @@ class Kid(AnimatedSprite):
             The namespace (right plays left's).
 
         """
-        if self.state in {KidState.KNOCKED_OUT, KidState.LYING}:
+        if self.state in {KidState.KNOCKED_OUT, KidState.LYING, KidState.FADING, KidState.OUT}:
             return 'knocked-out'
+        if self.state is KidState.CHEERING:
+            return 'cheer'
         if self.state is KidState.RESPAWNING:
             return 'respawn'
         shooting = self._shooting_state()
@@ -409,6 +445,10 @@ class Kid(AnimatedSprite):
         )
         facing_right = self.state is KidState.ACTIVE and posed_facing in _MIRRORED_FROM
         self.mirror_cache.show_frame(sprite=self, sprite_name=self.look_name, mirrored=facing_right)
+        if self.state is KidState.FADING:
+            left = 1.0 - self._state_seconds / OUT_FADE_SECONDS
+            self.image = faded(self.drawn_frame_surface(), alpha=round(OPAQUE * left))
+            self.dirty = 1
         self._blink()
         self._place_remote(mirrored=facing_right)
 
@@ -437,10 +477,19 @@ class Kid(AnimatedSprite):
 
     def _advance_knockout(self, dt: float) -> None:
         """Move through the knockout's steps, and count down the untouchable time."""
+        if self.state is KidState.OUT:
+            return
+        if self.state is KidState.FADING:
+            self._state_seconds += dt
+            if self._state_seconds >= OUT_FADE_SECONDS - TIME_TOLERANCE:
+                self.state = KidState.OUT
+            return
         step = _KNOCKOUT_STEPS.get(self.state)
         if step is not None:
             self._state_seconds += dt
             seconds, following = step
+            if self.state is KidState.KNOCKED_OUT and self._last_life:
+                following = KidState.FADING
             if self._state_seconds >= seconds - TIME_TOLERANCE:
                 self.state = following
                 self._state_seconds = 0.0
@@ -451,8 +500,13 @@ class Kid(AnimatedSprite):
         self.untouchable_seconds = max(0.0, self.untouchable_seconds - dt)
 
     def _blink(self) -> None:
-        """Blink while untouchable: hidden and shown by turns (world sprites hide by ``hidden``)."""
-        if self.untouchable_seconds > TIME_TOLERANCE:
+        """Blink while untouchable: hidden and shown by turns (world sprites hide by ``hidden``).
+
+        A kid out of lives is hidden for good.
+        """
+        if self.state is KidState.OUT:
+            self.hidden = True
+        elif self.untouchable_seconds > TIME_TOLERANCE:
             blinks = int((UNTOUCHABLE_SECONDS - self.untouchable_seconds) / BLINK_SECONDS)
             self.hidden = blinks % 2 == 1
         else:

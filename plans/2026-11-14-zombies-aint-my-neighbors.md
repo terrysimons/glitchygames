@@ -254,6 +254,14 @@ designs are not.
 
 ## Game TODOs
 
+- [ ] **Hide the 0.32 s hitch when a stage is built** (found 2026-11-15, feature plan 7): the
+  card builds the next neighborhood on one frame. Build it while the card shows (over several
+  frames), so the hand-over to the stage is smooth.
+- [ ] **A laser pointer weapon (the owner, 2026-11-15):** "when you shine the laser pointer
+  somewhere, the zombies chase the laser pointer, but its batteries run out quickly." A lure
+  weapon beside the Channel Changer: a dot that zombies chase instead of kids and neighbors,
+  on a battery that drains fast. Needs its own feature plan (weapon switching and the battery
+  come with it). Asked while Feature 7 was being built; taken up after it.
 - [ ] **Test controller rumble in the browser build** once the game works locally (the owner,
   2026-11-14). The engine's rumble (`input/rumble.py`) goes through SDL, and nobody has checked
   whether SDL under Pyodide can rumble a pad. If it can't, record that here and in Engine
@@ -304,6 +312,9 @@ Each feature gets its own plan in `plans/`, linked here and linking back to this
 6. [The Channel Changer](2026-11-15-zombies-aint-my-neighbors-6-channel-changer.md): BUILT,
    uncommitted, awaiting the owner's review. The first weapon, a TV remote with unlimited zaps (owner,
    2026-11-15); zombies crumble in one zap; TVs crack, smash and die in 3 zaps a stage.
+7. [Neighbors, lives and stages](2026-11-15-zombies-aint-my-neighbors-7-neighbors-and-lives.md):
+   BUILT, uncommitted, awaiting the owner's review. Neighbors to save, 3 lives each, an exit door at a
+   stage's end, the next stage with only the neighbors saved (owner, 2026-11-15), and game over.
 
 ## Sources
 

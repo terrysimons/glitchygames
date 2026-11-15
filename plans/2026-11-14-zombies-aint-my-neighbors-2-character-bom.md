@@ -391,6 +391,25 @@ zombie's slippers fading.
 **Before any art**: compare the cast against reference art of the 1993 game (audit 2 could not
 clear the Kiddie Pool Creature and the Lawn-Chair Reader from memory), and record the result here.
 
+**The Lawn-Chair Reader, checked 2026-11-15 (Claude, feature plan 7).** The check came late: her
+art was drafted before it, and a side agent caught the miss. The 1993 game's victims, from its
+SNES data tables (Data Crystal: BBQ Guy, Baby, Trampoline Girl, Army Guy, Dog, Dr Bug, Teacher,
+Explorer, Pool Guy, Cheerleader, Tourists) and from descriptions ("a guy barbecuing", "a guy
+floating in an inner tube", "girl on a trampoline", tourist couples), include no one seated in a
+lawn chair, no newspaper reader, and no older woman in a sun hat. The nearest are the Pool Guy, a
+man lounging in an inner tube in a pool, and the BBQ Guy, a backyard dad. Ours is an older woman
+in a lavender cardigan and a wide straw sun hat, reading a newspaper in a striped lawn chair on
+the lawn. That's a different person, prop, setting and activity, so she is cleared. Our `lost`
+effect (a fade to TV static) also differs from the original's (a victim turns into a ghost).
+**Not verified:** the original's sprite art itself. The sprite archive
+(spriters-resource.com, "Victims (Extra)"), the fan wiki and the guide sites refused automated
+fetches, so the check rests on the victim list and descriptions. The Teacher's look isn't
+described in any source found. The owner may want to glance at that sprite sheet. The
+**Kiddie Pool Creature** is still unchecked: it is not drawn yet, so check it before its art.
+Sources: https://datacrystal.tcrf.net/wiki/Zombies_Ate_My_Neighbors_(SNES)/Tables,
+https://www.nintendoclassics.net/2023/11/zombies-ate-my-neighbors-30th.html,
+https://gamefaqs.gamespot.com/snes/563219-zombies-ate-my-neighbors/reviews/52086.
+
 ## 10. The audit (run on every draft before any art)
 
 Each line passes or fails; a failure is fixed in this document before drawing starts.

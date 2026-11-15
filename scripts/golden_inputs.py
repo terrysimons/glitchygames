@@ -564,42 +564,104 @@ def zombies_aint_my_neighbors_script() -> InputScript:
     return script
 
 
-def zombies_aint_my_neighbors_neighborhood_script() -> InputScript:
-    """Zombies Ain't My Neighbors' neighborhood: keyboard P1 walks and fires with every key read.
+# The keys the neighborhood golden holds, by name (``NEIGHBORHOOD_KEYS``)
+type HeldStretch = tuple[tuple[str, ...], int, int]
+NEIGHBORHOOD_KEYS: dict[str, int] = {
+    'W': pygame.K_w,
+    'A': pygame.K_a,
+    'S': pygame.K_s,
+    'D': pygame.K_d,
+    'UP': pygame.K_UP,
+    'DOWN': pygame.K_DOWN,
+    'LEFT': pygame.K_LEFT,
+    'RIGHT': pygame.K_RIGHT,
+    'J': pygame.K_j,
+    'RSHIFT': pygame.K_RSHIFT,
+}
+# The neighborhood golden's opening: (keys held, first frame, frame after the last). WASD round a
+# square, the arrows round another, W and D together for a diagonal; then the Channel Changer
+# (feature plan 6): up-left firing J, to the top-left TV, Right Shift until it is destroyed
+# (frame 658), then up to rescue the Lawn-Chair Reader (frame 744, feature plan 7)
+NEIGHBORHOOD_OPENING: tuple[HeldStretch, ...] = (
+    (('D',), 10, 50),
+    (('S',), 50, 90),
+    (('A',), 90, 130),
+    (('W',), 130, 170),
+    (('RIGHT',), 170, 200),
+    (('DOWN',), 200, 230),
+    (('LEFT',), 230, 260),
+    (('UP',), 260, 290),
+    (('W', 'D'), 290, 320),
+    (('A', 'W', 'J'), 320, 410),
+    (('A',), 410, 470),
+    (('W',), 470, 497),
+    (('A',), 497, 499),
+    (('RSHIFT',), 499, 700),
+    (('W',), 700, 760),
+)
+# The rest of the stage, cleared: planned by scripts/plan_neighborhood_route.py (Dex walks to
+# the nearest standing neighbor holding J, then out through the gate). Re-plan and paste its
+# output here whenever gameplay changes; the game's test of the golden fails when the golden no
+# longer reaches stage 2, or this route no longer matches the plan
+# (cleared at frame 1580, the STAGE 2 card at 1670, 3 rescued: recorded with --frames 1970)
+NEIGHBORHOOD_STAGE_CLEAR_ROUTE: tuple[HeldStretch, ...] = (
+    (('A', 'S', 'J'), 760, 768),
+    (('A', 'J'), 768, 957),
+    (('A', 'S', 'J'), 957, 964),
+    (('S', 'J'), 964, 1120),
+    (('D', 'S', 'J'), 1120, 1140),
+    (('D', 'J'), 1140, 1264),
+    (('D', 'W', 'J'), 1264, 1400),
+    (('J',), 1400, 1423),
+    (('D', 'W', 'J'), 1423, 1537),
+    (('W', 'J'), 1537, 1581),
+)
 
-    The neighborhood reads the keyboard as polled input (held scancodes), so each key is held for
-    a stretch: WASD round a square, the arrows round another, then W and D together for a
-    diagonal. Then the Channel Changer (feature plan 6): Dex walks up-left firing with J (zaps
-    flying the diagonal), walks to the top-left TV, zapping its first zombie on the way, and
-    holds Right Shift at the TV until it is destroyed (frame 658: the world shakes), firing on
-    through it after. Run at 720 frames under the goldens' seed. The recording begins in the
-    neighborhood with the keyboard as P1 (built from options alone).
+
+def held_keys_script(stretches: tuple[HeldStretch, ...]) -> InputScript:
+    """Return a script holding keys by stretches.
+
+    Each frame presses only the keys that become held and releases only those let go, so a key
+    held across stretches stays down.
+
+    Args:
+        stretches: (key names, first frame, frame after the last), in frame order.
 
     Returns:
         The input script.
 
     """
     script = InputScript()
-    stretches = (
-        ((pygame.K_d,), 10, 50),
-        ((pygame.K_s,), 50, 90),
-        ((pygame.K_a,), 90, 130),
-        ((pygame.K_w,), 130, 170),
-        ((pygame.K_RIGHT,), 170, 200),
-        ((pygame.K_DOWN,), 200, 230),
-        ((pygame.K_LEFT,), 230, 260),
-        ((pygame.K_UP,), 260, 290),
-        ((pygame.K_w, pygame.K_d), 290, 320),
-        ((pygame.K_a, pygame.K_w, pygame.K_j), 320, 410),
-        ((pygame.K_a,), 410, 470),
-        ((pygame.K_w,), 470, 497),
-        ((pygame.K_a,), 497, 499),
-        ((pygame.K_RSHIFT,), 499, 700),
-    )
-    for keys, start, end in stretches:
-        script.at(start, *(press(key) for key in keys))
-        script.at(end, *(release(key) for key in keys))
+    held: set[str] = set()
+    boundaries = sorted({frame for _keys, start, end in stretches for frame in (start, end)})
+    for frame in boundaries:
+        held_now: tuple[str, ...] = next(
+            (keys for keys, start, end in stretches if start <= frame < end), ()
+        )
+        wanted = set(held_now)
+        events = [release(NEIGHBORHOOD_KEYS[key]) for key in sorted(held - wanted)]
+        events += [press(NEIGHBORHOOD_KEYS[key]) for key in sorted(wanted - held)]
+        if events:
+            script.at(frame, *events)
+        held = wanted
     return script
+
+
+def zombies_aint_my_neighbors_neighborhood_script() -> InputScript:
+    """Zombies Ain't My Neighbors' neighborhood: every key it reads, a stage cleared, stage 2.
+
+    The neighborhood reads the keyboard as polled input (held scancodes), so each key is held for
+    a stretch (``NEIGHBORHOOD_OPENING``): walking every way, the Channel Changer destroying a
+    TV, a rescue. Then the rest of the stage (``NEIGHBORHOOD_STAGE_CLEAR_ROUTE``, planned by
+    scripts/plan_neighborhood_route.py): neighbor to neighbor, out through the gate, the cheer,
+    the STAGE 2 card and stage 2. The recording begins in the neighborhood with the keyboard as
+    P1 (built from options alone), under the goldens' seed.
+
+    Returns:
+        The input script.
+
+    """
+    return held_keys_script(NEIGHBORHOOD_OPENING + NEIGHBORHOOD_STAGE_CLEAR_ROUTE)
 
 
 def _pause_with(tail: InputScript, *, key: int, pause_frame: int, resume_frame: int) -> None:

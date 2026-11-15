@@ -6,6 +6,7 @@ mirroring rules are the character BOM's section 1.
 
 from __future__ import annotations
 
+import itertools
 import math
 
 import pygame
@@ -18,6 +19,7 @@ from zombies_aint_my_neighbors.kid import (
     FIRE_SECONDS,
     KNOCKOUT_SECONDS,
     LYING_SECONDS,
+    OUT_FADE_SECONDS,
     RESPAWN_SECONDS,
     SHOOT_POSE_SECONDS,
     UNTOUCHABLE_SECONDS,
@@ -681,3 +683,65 @@ def test_a_long_release_does_not_bank_shots(kid):
         kid.dt_tick(SIXTIETH_OF_A_SECOND)
 
     assert frames_firing(kid, frames=30) == [0, 15]
+
+
+# Lives (feature plan 7): a knockout on the last life keeps the kid down; it fades out over 1 s
+# and is out for the stage
+
+
+def test_a_knockout_on_the_last_life_never_gets_back_up(kid):
+    """It falls, lies on its last knockout frame and fades, then is out: hidden, still, safe."""
+    kid.knock_out(last_life=True)
+    frames = round((KNOCKOUT_SECONDS + OUT_FADE_SECONDS) / SIXTIETH_OF_A_SECOND)
+    alphas = []
+    for frame in range(frames):
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+        if frame >= round(KNOCKOUT_SECONDS / SIXTIETH_OF_A_SECOND):
+            assert kid.current_animation == 'knocked-out'
+            assert kid.current_frame == KNOCKOUT_LAST_FRAME
+            alphas.append(kid.image.get_alpha())
+
+    assert all(later < earlier for earlier, later in itertools.pairwise(alphas[:-1]))
+    assert kid.is_out
+    assert kid.hidden
+    for _ in range(300):
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    assert kid.is_out
+    assert not kid.can_move
+    assert not kid.is_touchable
+    assert not kid.pull_trigger(held=True)
+    assert kid.remote.hidden
+
+
+def test_a_knockout_with_lives_left_gets_back_up_as_before(kid):
+    """Not the last life: the knockout, lying, respawn and blink of feature plan 5."""
+    kid.knock_out(last_life=False)
+    total = round((KNOCKOUT_SECONDS + LYING_SECONDS + RESPAWN_SECONDS) / SIXTIETH_OF_A_SECOND)
+    for _ in range(total):
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert kid.state is KidState.ACTIVE
+    assert not kid.is_out
+
+
+def test_a_cheering_kid_cheers_facing_down_and_is_safe_and_still(kid):
+    """Stage clear: the kid plays cheer, can't move or fire, and no monster can knock it out."""
+    kid.walk(direction_x=1.0, direction_y=0.0)
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    kid.cheer()
+    kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    assert kid.current_animation == 'cheer'
+    assert kid.hitbox_flip_x is False
+    assert not kid.can_move
+    assert not kid.is_touchable
+    assert not kid.pull_trigger(held=True)
+
+
+def test_a_kid_out_of_lives_does_not_cheer(kid):
+    """It stays out: the cheer is for the kids still in."""
+    kid.knock_out(last_life=True)
+    kid.cheer()
+
+    assert kid.state is KidState.KNOCKED_OUT

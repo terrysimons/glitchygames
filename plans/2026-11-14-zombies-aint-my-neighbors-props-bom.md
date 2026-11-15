@@ -1,7 +1,7 @@
 # Zombies Ain't My Neighbors: The Props BOM
 
 **Status (2026-11-15):** the TV (feature plan 5), its damage stages, the Channel Changer and its
-zap (feature plan 6). The rest of the props (weapons and
+zap (feature plan 6), and the exit door (feature plan 7). The rest of the props (weapons and
 their streams, pickups, the decoy, doors and keys, hedges, fences and walls with their damage,
 the exit, radar icons, title cards) are listed for it in the character BOM, section 9, and are
 added here as the features that need them arrive.
@@ -78,7 +78,24 @@ zombie or a TV), not solid. One facing (a ring looks the same every way).
 
 **5 frames.**
 
-Total so far: 7 + 17 + 3 + 5 = **32 frames**.
+## The exit door (feature plan 7)
+
+A garden gate set into the top hedge's middle, where the kids leave a cleared stage. Closed it is
+a white picket gate on two posts; opening, it swings in; open, the gap glows the VR safe room's
+blue (the same blue as `saved`), pulsing. 48x48, anchor `bottom`, palette: the outline, the
+gate's white wood (3 tones), the posts' darker wood (2), the hedge's greens (2), the glow's blues
+(3) and white. Hitbox `offset_x=8, offset_y=16, width=32, height=32`: a kid's touching it while
+open clears the stage; not solid. One facing.
+
+| Animation | Frames | Interval | Loop | Then | Frame notes |
+|---|---|---|---|---|---|
+| `closed` | 1 | 0.08 | yes | — | The gate shut, hedge either side |
+| `opening` | 3 | 0.08 | no | `open` (a transition) | The gate swings in a third, two thirds, all the way; the glow grows behind it |
+| `open` | 2 | 0.2 | yes | — | The glow's pulse: brighter, dimmer |
+
+**6 frames.**
+
+Total so far: 7 + 17 + 3 + 5 + 6 = **38 frames**.
 
 ## Audit
 
@@ -110,3 +127,11 @@ The damage stages, the Channel Changer and the zap (Claude, 2026-11-15, before t
   side view keeps the LED at the front end, and the zap is round.
 - **A9:** the names follow the rule (`<state>`, `<state>_<facing>`, multi-word states hyphenated).
 - **A10:** 17 + 3 + 5 = 25, as feature plan 6 says; 32 in all with the intact TV's 7.
+
+The exit door (Claude, 2026-11-15, before its art): every state feature plan 7 gives it has an
+animation (closed, opening, open) (A1); one facing, stated (A2); the non-looping `opening` names
+its Then (A3); size, palette, anchor and hitbox given, and whether it collides (8 + 32 = 40 ≤ 48,
+16 + 32 = 48 ≤ 48) (A4); the opening is an effect at 0.08 s, the pulse a slow glow at 0.2 s,
+slower than an effect because it is a resting loop (A5); symmetric (A8); names follow the rule
+(A9); 1 + 3 + 2 = 6 (A10). No original design copied (A7): the original's exits are doors; ours
+is a garden gate glowing as the VR safe room does.

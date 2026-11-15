@@ -11,7 +11,16 @@ import argparse
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from zombies_aint_my_neighbors.art import palettes, poses, rig, tv_rig, weapon_rig, zombie_rig
+from zombies_aint_my_neighbors.art import (
+    door_rig,
+    neighbor_rig,
+    palettes,
+    poses,
+    rig,
+    tv_rig,
+    weapon_rig,
+    zombie_rig,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -31,6 +40,18 @@ TV_HITBOX: Final = {'offset_x': 4, 'offset_y': 12, 'width': 40, 'height': 32}
 # The props BOM's Channel Changer (its whole canvas: never collided, it is in a hand) and zap
 CHANNEL_CHANGER_HITBOX: Final = {'offset_x': 0, 'offset_y': 0, 'width': 12, 'height': 12}
 ZAP_HITBOX: Final = {'offset_x': 2, 'offset_y': 2, 'width': 8, 'height': 8}
+# Character BOM section 6: the neighbors' hitbox; the effects' is their whole frame (never collided)
+NEIGHBOR_HITBOX: Final = {'offset_x': 4, 'offset_y': 8, 'width': 24, 'height': 40}
+EFFECT_HITBOX: Final = {'offset_x': 0, 'offset_y': 0, 'width': 32, 'height': 48}
+NEIGHBOR_DESCRIPTIONS: Final = {
+    'pizza_teen': 'The Pizza Delivery Teen, a neighbor to save (character BOM section 6)',
+    'lawn_chair_reader': 'The Lawn-Chair Reader, a neighbor to save (character BOM section 6)',
+}
+_NEIGHBOR_HEADER: Final = (
+    "Written by zombies_aint_my_neighbors.art.build from the neighbors' rig: edit the rig",
+    'and rebuild, never this file',
+    '(plans/2026-11-15-zombies-aint-my-neighbors-7-neighbors-and-lives.md)',
+)
 _BUILT_HEADER: Final = 'rebuild, never this file'
 
 
@@ -237,6 +258,91 @@ def zap_sprite_text() -> str:
     )
 
 
+def neighbor_sprite_text(*, name: str) -> str:
+    """Return a neighbor's sprite file, as TOML.
+
+    Args:
+        name: ``pizza_teen`` or ``lawn_chair_reader``.
+
+    Returns:
+        The file's text.
+
+    """
+    return character_sprite_text(
+        header=_NEIGHBOR_HEADER,
+        name=name,
+        description=NEIGHBOR_DESCRIPTIONS[name],
+        tags=('character', 'neighbor'),
+        hitbox=NEIGHBOR_HITBOX,
+        palette=neighbor_rig.NEIGHBOR_LOOKS[name],
+        frames=neighbor_rig.neighbor_frames(name=name),
+        specs=neighbor_rig.NEIGHBOR_ANIMATIONS,
+    )
+
+
+def saved_sprite_text() -> str:
+    """Return the saved effect's sprite file, as TOML.
+
+    Returns:
+        The file's text.
+
+    """
+    return character_sprite_text(
+        header=_NEIGHBOR_HEADER,
+        name='saved',
+        description='A neighbor saved: streaming up into the VR safe room (character BOM)',
+        tags=('effect',),
+        hitbox=EFFECT_HITBOX,
+        palette=neighbor_rig.EFFECT_PALETTE,
+        frames=neighbor_rig.saved_frames(),
+        specs=neighbor_rig.SAVED_ANIMATIONS,
+    )
+
+
+def lost_sprite_text() -> str:
+    """Return the lost effect's sprite file, as TOML.
+
+    Returns:
+        The file's text.
+
+    """
+    return character_sprite_text(
+        header=_NEIGHBOR_HEADER,
+        name='lost',
+        description='A neighbor lost: flickering out as TV static (character BOM)',
+        tags=('effect',),
+        hitbox=EFFECT_HITBOX,
+        palette=neighbor_rig.EFFECT_PALETTE,
+        frames=neighbor_rig.lost_frames(),
+        specs=neighbor_rig.LOST_ANIMATIONS,
+    )
+
+
+DOOR_HITBOX: Final = {'offset_x': 8, 'offset_y': 16, 'width': 32, 'height': 32}
+
+
+def door_sprite_text() -> str:
+    """Return the exit door's sprite file, as TOML.
+
+    Returns:
+        The file's text.
+
+    """
+    return character_sprite_text(
+        header=(
+            "Written by zombies_aint_my_neighbors.art.build from the door's rig: edit the rig",
+            f'and {_BUILT_HEADER} (plans/2026-11-14-zombies-aint-my-neighbors-props-bom.md)',
+        ),
+        name='exit_door',
+        description='The exit door: a garden gate in the hedge, open when a stage is cleared',
+        tags=('prop', 'door'),
+        hitbox=DOOR_HITBOX,
+        palette=door_rig.DOOR_PALETTE,
+        frames=door_rig.door_frames(),
+        specs=door_rig.DOOR_ANIMATIONS,
+    )
+
+
 def build(*, directory: Path, kids: Sequence[KidLook] = KIDS_TO_BUILD) -> list[Path]:
     """Write each kid's sprite file, the Lawn Zombie's, the TV's and the weapons' into a directory.
 
@@ -251,6 +357,11 @@ def build(*, directory: Path, kids: Sequence[KidLook] = KIDS_TO_BUILD) -> list[P
         'tv.toml': tv_sprite_text(),
         'channel_changer.toml': channel_changer_sprite_text(),
         'zap.toml': zap_sprite_text(),
+        'pizza_teen.toml': neighbor_sprite_text(name='pizza_teen'),
+        'lawn_chair_reader.toml': neighbor_sprite_text(name='lawn_chair_reader'),
+        'saved.toml': saved_sprite_text(),
+        'lost.toml': lost_sprite_text(),
+        'exit_door.toml': door_sprite_text(),
     }
     written: list[Path] = []
     for file_name, text in texts.items():

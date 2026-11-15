@@ -4,6 +4,9 @@ It shows each joined player's label in their colour for ``CARD_SECONDS``, then t
 begins; a joined player's start skips straight to it. Back (Backspace, or a pad's BACK) returns
 to the title with everyone still joined, so more players can join. An unplugged pad drops its
 player, and with nobody left the card goes back to the title (feature plans 1 and 4).
+
+Between stages (feature plan 7) it carries the run (``run_state.RunState``) to the next
+neighborhood and names the stage: FEATURE PRESENTATION before stage 1, STAGE n after.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from zombies_aint_my_neighbors import text
 from zombies_aint_my_neighbors.neighborhood import NeighborhoodScene
 from zombies_aint_my_neighbors.roster import MAXIMUM_PLAYERS, PLAYER_COLOURS
 from zombies_aint_my_neighbors.roster_scene import RosterScene
+from zombies_aint_my_neighbors.run_state import RunState, as_run
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -48,6 +52,7 @@ class FeatureCardScene(RosterScene):
         options: dict[str, Any] | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
         roster: JoinRoster | dict[str, Any] | None = None,
+        run: RunState | dict[str, Any] | None = None,
     ) -> None:
         """Make the card.
 
@@ -56,9 +61,11 @@ class FeatureCardScene(RosterScene):
             groups: The sprite groups to draw into (a new LayeredDirty when None).
             roster: The players joined: a roster, its JSON form (as a replay passes it back),
                 or None for nobody.
+            run: The run the next stage plays: a run, its JSON form, or None for a new run.
 
         """
         super().__init__(options=options, groups=groups, roster=roster)
+        self.run = as_run(run)
         self.player_pictures: tuple[text.TextPicture, ...] = ()
 
     @override
@@ -126,12 +133,12 @@ class FeatureCardScene(RosterScene):
             return
         screen_width, screen_height = self.screen_width, self.screen_height
         card_font = text.fitted_title_font(
-            texts=(CARD_TEXT,),
+            texts=(self.card_text,),
             width=int(screen_width * TEXT_WIDTH_FRACTION),
             largest=CARD_LARGEST_FONT_SIZE,
         )
         text.TextPicture(
-            image=text.render_text(font=card_font, text=CARD_TEXT, colour=CARD_COLOUR),
+            image=text.render_text(font=card_font, text=self.card_text, colour=CARD_COLOUR),
             centre=(screen_width // 2, screen_height // 3),
             name='Feature card',
             groups=self.all_sprites,
@@ -185,16 +192,34 @@ class FeatureCardScene(RosterScene):
         if not self.roster.joined_players:
             self._back_to_the_title()
 
+    @property
+    def card_text(self) -> str:
+        """The card's line: FEATURE PRESENTATION before stage 1, STAGE n before a later one."""
+        return CARD_TEXT if self.run.stage == 1 else f'STAGE {self.run.stage}'
+
+    @override
+    def replay_arguments(self) -> dict[str, Any]:
+        """Rebuild this card as it began: its roster and its run.
+
+        Returns:
+            Both, as JSON reads them back.
+
+        """
+        return {**super().replay_arguments(), 'run': self.run.model_dump(mode='json')}
+
     def _begin_the_neighborhood(self) -> None:
-        """Begin the neighborhood with whoever is joined."""
-        self.next_scene = NeighborhoodScene(options=self.options, roster=self.roster)
+        """Begin the neighborhood with whoever is joined, for the card's run."""
+        self.next_scene = NeighborhoodScene(options=self.options, roster=self.roster, run=self.run)
 
     def _back_to_the_title(self) -> None:
         """Go back to the title, keeping whoever is joined."""
         # Imported here: the title builds a feature card in turn
         from zombies_aint_my_neighbors.title import TitleScene
 
-        self.next_scene = TitleScene(options=self.options, roster=self.roster)
+        # Between stages the title keeps the run, so Back can't dodge the shrinking pool (the
+        # owner, 2026-11-15); before stage 1 it holds none, and its next start begins afresh
+        kept_run = self.run if self.run.stage > 1 else None
+        self.next_scene = TitleScene(options=self.options, roster=self.roster, run=kept_run)
 
     def _pose_players(self) -> None:
         """Show each joined player's label and hide the free slots'."""
