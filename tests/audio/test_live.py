@@ -311,6 +311,18 @@ class TestLiveVoiceStopping:
         voice.resume()
         channel.unpause.assert_called_once()
 
+    def test_owner_and_is_finished_are_the_voices_streams(self, channel, rendered_chunks):
+        """The pool applies its rules to the stream; the voice's own names read the same."""
+        voice = _voice(channel)
+        voice.owner = 'transition'
+        voice.start()
+        assert (voice.owner, voice.stream.owner) == ('transition', 'transition')
+        assert not voice.is_finished
+
+        voice.stop_now()
+
+        assert voice.is_finished
+
     def test_silent_voice_without_channel(self, rendered_chunks):
         voice = _voice(None)
         voice.start()
@@ -330,6 +342,7 @@ class TestLiveAudio:
             'pygame.mixer.Channel',
             side_effect=lambda index: mocker.Mock(
                 name=f'channel{index}',
+                id=index,  # pygame.mixer.Channel.id: the pool keeps channels by it
                 get_queue=mocker.Mock(return_value=None),
                 get_busy=mocker.Mock(return_value=True),
             ),
@@ -338,6 +351,17 @@ class TestLiveAudio:
 
     def _create(self, audio, owner):
         return audio.create_voice(owner=owner, waveform=Waveform.SINE, frequency=100.0)
+
+    def test_a_refused_instrument_voice_gives_its_channel_back(self, audio):
+        from glitchygames.audio.instrument import Instrument
+
+        with pytest.raises(ValueError, match='live=True'):
+            audio.create_instrument_voice(
+                owner='scene', instrument=Instrument(wave='sine'), frequency=100.0
+            )
+
+        first, second = self._create(audio, 'scene'), self._create(audio, 'scene')
+        assert {first.stream.channel.id, second.stream.channel.id} == {0, 1}
 
     def test_pool_exhaustion_raises_at_limit_plus_one(self, audio):
         self._create(audio, 'scene')

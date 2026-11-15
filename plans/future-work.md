@@ -1240,7 +1240,12 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   `note_on`/`note_off` and the retrigger rules, bit and rate reduction, `at_frame` and
   `unschedule`, the Audio panel's live-voices section (AUD-DIAG-003), `--live-chunk-ms`, the
   loudness budget and device-loss handling. Spec: the feature spec's 5.3-5.4 and 6, the
-  implementation spec's M2.
+  implementation spec's M2. A live voice (`src/glitchygames/audio/live_instrument.py`, rule 3)
+  also refuses, for now: waves other than sine, square, saw and triangle (pulse, mixes,
+  blends, drawn and registered waves; it renders the plain oscillator, not the PolyBLEP
+  tables a baked sound uses), LFSR noise and a noise seed, a source's own pitch, glide,
+  envelope and filter, and drive; and it applies no envelope (a live sound sustains until
+  stopped, then fades).
 - ~~**CLAUDE.md carries its old long Architecture Overview again**~~ **Done** 2026-11-14
   (#211, `chore/claude-md-and-hook-speedups`): the block is gone (CLAUDE.md is 333fcc0d's again
   plus later edits), and `tests/test_claude_md.py` fails on a repeated heading or component name

@@ -577,3 +577,60 @@ def test_at_most_eight_routes():
 
     with pytest.raises(ValueError, match='at most 8 routes'):
         _live_motor(routes=many)
+
+
+@pytest.mark.parametrize('destination', ['pitch', 'filter.cutoff', 'tremolo.rate', 'tremolo.depth'])
+def test_a_second_route_to_a_destination_that_does_not_multiply_is_refused(destination):
+    """Pitch, cutoff and tremolo take one route each; there is no rule to combine two."""
+    outputs = {
+        'pitch': (45.0, 110.0),
+        'filter.cutoff': (300.0, 3000.0),
+        'tremolo.rate': (2.0, 9.0),
+        'tremolo.depth': (0.1, 0.5),
+    }
+    route = Route(source='speed', destination=destination, output=outputs[destination])
+
+    with pytest.raises(ValueError, match=rf'one route to {re.escape(destination)}'):
+        _live_motor(filter=Filter('low_pass', 4000.0), routes=[route, route])
+
+
+def test_several_routes_to_level_or_a_source_level_multiply_and_are_accepted():
+    """Levels multiply, so any number of routes to one combines."""
+    level = Route(source='speed', destination='level', output=(0.2, 1.0))
+    source_level = Route(source='speed', destination='sources.main.level', output=(0.2, 1.0))
+
+    assert len(_live_motor(routes=[level, level, source_level, source_level]).routes) == 4
+
+
+@pytest.mark.parametrize(
+    ('destination', 'missing'),
+    [('filter.cutoff', 'filter'), ('tremolo.rate', 'tremolo'), ('tremolo.depth', 'tremolo')],
+)
+def test_a_route_to_a_filter_or_tremolo_the_instrument_lacks_is_refused(destination, missing):
+    """A route moves a setting the instrument has; it never invents one."""
+    route = Route(source='speed', destination=destination, output=(0.1, 0.5))
+
+    with pytest.raises(ValueError, match=rf'{re.escape(destination)} needs a {missing}'):
+        _live_motor(tremolo=None, routes=[route])
+
+
+@pytest.mark.parametrize(
+    ('destination', 'output'),
+    [
+        ('level', (0.0, 1.5)),
+        ('sources.main.level', (-0.1, 1.0)),
+        ('tremolo.depth', (0.0, 1.2)),
+        ('tremolo.rate', (0.0, 9.0)),
+        ('pitch', (0.0, 110.0)),
+        ('filter.cutoff', (-5.0, 3000.0)),
+    ],
+)
+def test_a_route_whose_output_the_destination_cannot_take_is_refused(destination, output):
+    """Levels and depth stay in 0-1; rates, pitches and cutoffs stay above zero.
+
+    Every curve stays between its output's ends, so the ends decide.
+    """
+    route = Route(source='speed', destination=destination, output=output)
+
+    with pytest.raises(ValueError, match=rf'{re.escape(destination)}.*output'):
+        _live_motor(filter=Filter('low_pass', 4000.0), routes=[route])

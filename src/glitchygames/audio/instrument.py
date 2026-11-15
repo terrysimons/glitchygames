@@ -47,6 +47,15 @@ DRIVE_HIGHEST: Final[float] = 20.0
 LFSR_WIDTHS: Final[tuple[int, ...]] = (15, 7)
 PROFILES: Final[tuple[str, ...]] = ('hybrid', 'chip', 'wavetable', 'fm', 'sampler')
 DEFAULT_SOURCE_NAME: Final[str] = 'main'
+# Route destinations one route at most may move (no rule combines two); levels multiply
+SINGLE_ROUTE: Final[frozenset[str]] = frozenset({
+    'pitch',
+    'filter.cutoff',
+    'tremolo.rate',
+    'tremolo.depth',
+})
+# Route destinations whose output is a fraction, 0-1 (the rest are above 0: Hz)
+FRACTION_DESTINATIONS: Final[frozenset[str]] = frozenset({'level', 'tremolo.depth'})
 
 
 @dataclass(frozen=True, slots=True)
@@ -324,6 +333,42 @@ class Instrument:
                     f"'{source_level.group('name')}'"
                 )
                 raise ValueError(message)
+            self._check_route_fits(route)
+        single = [route.destination for route in self._routes if route.destination in SINGLE_ROUTE]
+        for destination in set(single):
+            if single.count(destination) > 1:
+                count = single.count(destination)
+                message = f'an instrument takes one route to {destination}, got {count}'
+                raise ValueError(message)
+
+    def _check_route_fits(self, route: Route) -> None:
+        """Refuse a route to a setting this instrument lacks, or with an output it cannot take.
+
+        Every curve stays between its output's ends (``live_controls`` rule 2), so the ends
+        decide: levels and tremolo depth within 0-1; pitch, cutoff and tremolo rate above 0.
+
+        Raises:
+            ValueError: Naming the route and what does not fit.
+        """
+        needs = {
+            'filter.cutoff': ('filter', self._filter),
+            'tremolo.rate': ('tremolo', self._tremolo),
+            'tremolo.depth': ('tremolo', self._tremolo),
+        }
+        if route.destination in needs and needs[route.destination][1] is None:
+            message = f'a route to {route.destination} needs a {needs[route.destination][0]}'
+            raise ValueError(message)
+        low, high = min(route.output), max(route.output)
+        fraction = route.destination in FRACTION_DESTINATIONS or (
+            SOURCE_LEVEL_DESTINATION.fullmatch(route.destination) is not None
+        )
+        fits = (low >= 0.0 and high <= 1.0) if fraction else low > 0.0
+        if not fits:
+            allowed = 'within 0-1' if fraction else 'above 0'
+            message = (
+                f'a route to {route.destination} needs an output {allowed}, got {route.output}'
+            )
+            raise ValueError(message)
 
     @property
     def sources(self) -> tuple[tuple[str, Source], ...]:
