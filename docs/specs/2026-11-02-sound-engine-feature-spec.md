@@ -1,8 +1,10 @@
 # GlitchyGames Sound Engine — Feature Specification
 
 - **Date:** 2026-11-02 (revision 2: the one-call `audio.sound(...)` API)
-- **Status:** DRAFT for the owner's review. M1 is built on this branch (2026-11-02; user docs:
-  `docs/architecture/sound.md`); M2 onwards is not.
+- **Status:** DRAFT for the owner's review. M1 is built (2026-11-02; user docs:
+  `docs/architecture/sound.md`). M2's live instruments and the migration of all five games, with
+  the old sound paths removed, are built (2026-11-15, plans/2026-11-14-sound-migration.md); the
+  rest of M2 and M3 onwards are not (plans/future-work.md).
 - **Companion:** `docs/specs/2026-11-02-sound-engine-implementation-spec.md` (how each requirement
   is met, the traceability table, the decision and risk registers, the measurements).
 - **Source brief:** `~/Documents/ChatGPT/GlitchyGames/glitchygames-sound-engine-development-brief.md`
@@ -63,6 +65,10 @@ Example sounds the engine is designed for:
   file without opening an audio device.
 
 ### 1.1 What exists today [Fact]
+
+The codebase on the spec's date (2026-11-02), what the engine was built on. The migration since
+(plans/2026-11-14-sound-migration.md) moved every game onto the library and removed `SoundBank`,
+`LiveVoice` and `load_sound`; recipes are effects (`effects.py`).
 
 The engine already has a solid base, and this spec builds on it **[Owner: "we can absolutely build
 on existing infra"]**:
@@ -686,9 +692,9 @@ resonance.
 - **Live voices** render in Python and keep the reserved live pool [Fact: `--live-voice-pool`,
   default 4]. M3 raises the pool to 8 if its frame-time measurements allow (implementation
   spec §11).
-- **Older code** that calls `Sound.play()` directly (`SoundBank`, `load_sound`) keeps its own
-  unreserved channels (pygame's default 8), so it never takes a library channel and the library
-  never cuts it off.
+- **Older code** that calls `Sound.play()` directly (a game's own `pygame.mixer.Sound`; the
+  engine's `SoundBank` and `load_sound` were removed in M2) keeps its own unreserved channels
+  (pygame's default 8), so it never takes a library channel and the library never cuts it off.
 - **Category reservations:** each bus may reserve a minimum number of mixer channels (`ui`: 2,
   `music`: 2 by default), so a storm of effects can never silence a menu click.
 
@@ -1355,7 +1361,7 @@ traceability table (§14 there).
 | AUD-FUNC-004 | Short names and paths both resolve per §3.2; duplicates raise | P0 | M1 | Tests for each row of the §3.2 table; a duplicate name raises `SoundAssetError` naming both files |
 | AUD-FUNC-005 | Handles support `release`, `stop(fade)` and `cancel` (and `unschedule` in M2) with the §3 semantics; stale handles return `False` | P0 | M1 | A test per row of the lifecycle table, including a handle used after its channel was reused |
 | AUD-FUNC-006 | Unavailable audio: `sound()` still compiles, `play()` is a logged-once no-op | P0 | M1 | With the mixer uninitialized, a full workflow run raises nothing and logs one warning |
-| AUD-FUNC-007 | Existing `SoundBank`, `SoundRecipe`, synth functions, `LiveVoice` and `load_sound` keep working beside the library | P0 | M1 | Existing tests pass unchanged; a scene using both `SoundBank.play` and `audio.play` hears both (no channel taken from the other) |
+| AUD-FUNC-007 | Existing `SoundBank`, `SoundRecipe`, synth functions, `LiveVoice` and `load_sound` keep working beside the library | P0 | M1 | Existing tests pass unchanged; a scene using both `SoundBank.play` and `audio.play` hears both (no channel taken from the other). **Superseded in M2** (2026-11-15): with every game migrated, `SoundBank`, `LiveVoice` and `load_sound` were removed (the owner: removal, not deprecation); `SoundRecipe` lives on as `Effect`, and the synth functions stay |
 | AUD-FUNC-008 | Offline render of any sound (and parameter timeline) to WAV with no device | P0 | M1 | Runs with no mixer initialized; the output matches the compiled buffer bit for bit |
 | AUD-FUNC-009 | Streamed music files play through one stream player | P2 | M5 | A 3-minute OGG plays and loops; memory stays under 10 MB above baseline |
 | AUD-FUNC-010 | Every existing game migrated with its sounds unchanged | P1 | M2 | Recipe sounds: bit-identical buffers between `SoundRecipe.render` and `audio.sound`. Re-authored sounds (Brave Adventurer): max difference ≤ 1 LSB at 16 bit, or for noise, RMS spectrum within 0.5 dB plus a listening check |
@@ -1437,7 +1443,7 @@ traceability table (§14 there).
 | AUD-MIX-005 | Loudness budget per bus | P2 | M2 | A storm of 20 explosions: the summed estimated peak is ≤ the budget after protection |
 | AUD-MIX-006 | Ducking | P2 | M5 | The music bus is measured at −9 dB within the attack time when dialogue plays |
 | AUD-MIX-007 | 2D positional plays | P2 | M4 | Pan and gain follow position per the stated law |
-| AUD-MIX-008 | Legacy `Sound.play()` callers keep their own channels | P0 | M1 | 40 library plays and 8 `SoundBank` plays at once: neither cuts the other |
+| AUD-MIX-008 | Legacy `Sound.play()` callers keep their own channels | P0 | M1 | 40 library plays and 8 `SoundBank` plays at once: neither cuts the other (since M2, a game's own `pygame.mixer.Sound.play()` stands for `SoundBank`'s) |
 
 ### Retro profiles (AUD-RETRO)
 

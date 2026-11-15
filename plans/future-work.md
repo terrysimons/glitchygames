@@ -1209,8 +1209,12 @@ changes the outer game's key repeat (the plan's Review Focus 4).
       (a family or instrument at a time, not all 300 MB at once).
     - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
       clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
-- **Move the games onto the new sound library (sound engine M2's migration), in
-  `chore/upgrade-and-sounds-on-first-use` with the upgrade and the disk cache** (the owner,
+- ~~**Move the games onto the new sound library (sound engine M2's migration), in
+  `chore/upgrade-and-sounds-on-first-use` with the upgrade and the disk cache**~~ **Done**
+  2026-11-15 (plans/2026-11-14-sound-migration.md, steps 1-9), except two measurements still
+  open: the first launch's cost (start-up compile against the CRT power-on) and the memory of
+  ten Arcade tiles each holding their game's set (the process-wide store now shares one copy).
+  (the owner,
   2026-11-14: "Update the games to use it"; "I want to do the migration here in this branch. All
   together."; live instruments built as part of it; "make them all compile at the init of each
   game, so we cache from the start"). Plan: `plans/2026-11-14-sound-migration.md`. Found while building the disk cache: no golden or bundled demo makes

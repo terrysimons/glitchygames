@@ -365,6 +365,18 @@ and `KEYUP` unblocked, so such a post arrives there and matches its recording: a
 game that posts keys can match watched and diverge headless (and under `--audit`). Recorded window references in
 events are served as `None`, as live events of the display window carry.
 
+### Sounds in a replay
+
+Audio is played during a replay but never compared, and nothing a game reads of a sound (its
+`length`, `peak` and `sample_rate`) depends on how sounds are kept. So `--sound-cache` is
+replay-local: a recording replays under `none`, `ram` or `disk` (the default) with the same
+frames, whatever mode it was recorded under. Every golden and bundled demo is replayed under
+`disk` twice in the test suite, cold then warm, with equal frame digests
+(`tests/audio/test_audio_engine_goldens.py`). A replay run in a child process (the tools, the
+golden tests) finds the disk cache where `GLITCHYGAMES_SOUND_CACHE_ROOT` says, from the
+environment it inherits; the test harness sets it empty, so no test writes to a player's cache
+folder (`docs/architecture/sound.md`, Cache modes).
+
 ### Watching a replay
 
 A replay without `--headless` is watched: a read-only game inside a game

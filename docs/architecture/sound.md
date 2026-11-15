@@ -54,7 +54,8 @@ class Game(Scene):
   wave registry.
 
 Declare every sound the game plays on the scene class it hands `GameEngine`, as `SOUNDS`
-(effects, or a sound file's `path#name` entries): the engine compiles them when the game starts,
+(effects, a sound file's `path#name` entries, live instruments and unpitched ones; a pitched
+sound needs a sound file's entry, which holds its pitch): the engine compiles them when the game starts,
 in the CRT power-on's spare time, a slice a frame, and finishes them before the game is built (at
 once where the power-on is skipped). The game's own requests then find each one compiled. A game
 that declares none makes no audio engine for them. A sound first asked for during gameplay still
@@ -95,6 +96,126 @@ volume = 0.6
 
 Version 0 recipe files (`[recipes.*]`) still load and sound exactly as before;
 `glitchygames sound-migrate FILE` converts one to version 1.
+
+## Effects
+
+An effect is a synthetic sound effect: tones mixed straight, exact and cheap (blips, sweeps,
+crunches, jingles). It is one of the two kinds of sound; instruments are the other, the layered
+renderer for music and live sounds. Both play through `audio.sound(...)`.
+
+```python
+from glitchygames.audio import Effect, Envelope, Tone, Waveform
+
+JUMP = Effect(
+    name='jump',
+    volume=0.35,
+    tones=(
+        Tone(waveform=Waveform.SQUARE, start_frequency=330.0, end_frequency=660.0, duration=0.1,
+             envelope=Envelope(attack=0.005, decay=0.03, sustain_level=0.6, release=0.05)),
+    ),
+)
+audio.sound(JUMP).play()   # plays at its own volume unless play(volume=...) says otherwise
+```
+
+In a sound file, an effect is an `[effects.<name>]` table, the same fields as data:
+
+```toml
+[effects.jump]
+volume = 0.35
+
+[[effects.jump.tones]]
+waveform = "square"
+start_frequency = 330.0
+end_frequency = 660.0
+duration = 0.1
+envelope = { attack = 0.005, decay = 0.03, sustain_level = 0.6, release = 0.05 }
+```
+
+`audio.sounds.add_effects([...])` registers effects by name, looked up before the sound directory.
+Each tone is oscillator, distortion, filters, tremolo, envelope, volume; the tones are mixed at
+their offsets and normalized to `peak`, or left exactly as summed with `normalize=False`.
+
+## Live sounds
+
+A live sound is rendered while it plays, chunk by chunk, so the game can move it: an engine
+whose pitch follows its speed, a projector whose flutter follows the action. It is an
+`Instrument(live=True)` with **parameters** the game sets and **routes** that map each onto what
+the sound does:
+
+```python
+from glitchygames.audio import Instrument, Parameter, Route, Tremolo
+from glitchygames.audio.instrument import Filter
+
+MOTOR = Instrument(
+    wave='saw',
+    live=True,
+    filter=Filter('low_pass', 600.0),
+    tremolo=Tremolo(rate_hz=8.0, depth=0.4),
+    parameters={'speed': Parameter(range=(0.0, 1.0), default=0.0)},
+    routes=[
+        Route(source='speed', destination='pitch', curve='exponential', output=(45.0, 110.0)),
+        Route(source='speed', destination='level', output=(0.2, 0.85)),
+    ],
+)
+
+motor = audio.sound(MOTOR).start(owner=ride)   # a LiveSoundHandle
+motor.set('speed', 0.7)                        # each frame, or whenever it changes
+motor.release()                                # fades it out over 100 ms
+```
+
+- **Parameters** clamp to their range (each clamp counted, `handle.clamp_count`) and glide to a
+  new value: one-pole over `smoothing_ms` (30 by default), or a straight line with
+  `glide='linear'`. Any number of `set` calls before a chunk count as the last one.
+- **Routes** (at most 8) map a parameter onto `pitch` (Hz), `level` (multiplied in),
+  `filter.cutoff`, `tremolo.rate`, `tremolo.depth` or `sources.<name>.level`, by a curve:
+  `linear`, `exponential`, `logarithmic`, `smoothstep` or `steps(n)`. Levels multiply; pitch,
+  cutoff and the tremolo take one route each. A route needs the filter or tremolo it moves.
+- **Sources** are sine, square, saw, triangle and white noise for now, each with its own level
+  and `semitones`/`detune_cents`. `chunk_seconds` (0.03-0.5, default 0.1) is its latency.
+- **`start(parameters=, volume=, owner=, persist=, pan=, bus=, priority=)`**: the owner (the
+  scene that starts it, by default; a transition keeps it playing through the ride) decides when
+  it pauses and ends, as for baked plays; `persist=True` outlives the owner. Pan, bus and priority
+  default to the sound file's; every sound pans by the constant-power law, so centred is 3 dB
+  down on each side. A full live pool (`--live-voice-pool`, 4) steals the lowest-priority voice
+  at or below the new one's, else refuses with `ValueError`.
+- **The handle:** `set`, `release()`, `stop(fade=)`, `cancel()` (at once, the chunk already
+  queued included), `set_volume(volume, fade=)`, `set_pan`, `pause()`/`resume()` (a pause holds
+  whatever the scene rules say), and `set_frequency`, `set_cutoff` (None removes the filter) and
+  `set_tremolo` (None removes it) for what no route moves. Like a `SoundHandle`, every method
+  answers False once the sound has ended; both kinds are a `PlayingSound`.
+- `play()` refuses a live sound and `start()` a baked one. A live sound compiles nothing, so it
+  costs nothing to declare in `SOUNDS`.
+
+In a sound file:
+
+```toml
+[instruments.motor]
+live = true
+tremolo = { rate_hz = 8.0, depth = 0.4 }
+
+[instruments.motor.sources.main]
+wave = "saw"
+
+[instruments.motor.filter]
+type = "low_pass"
+cutoff = 600.0
+
+[instruments.motor.parameters.speed]
+range = [0.0, 1.0]
+default = 0.0
+
+[[instruments.motor.routes]]
+from = "speed"
+to = "pitch"
+curve = "exponential"
+output = [45.0, 110.0]
+
+[sounds.motor]
+instrument = "motor"
+```
+
+Route outputs are numbers (hertz for pitch). Live voices, their parameters and routes:
+`audio/live_instrument.py`, `audio/live_controls.py`; their channel and pool: `audio/live.py`.
 
 ## Cache modes
 

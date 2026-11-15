@@ -7,6 +7,11 @@ layer this migration gives something to cache). Branch `chore/upgrade-and-sounds
 (the owner: "I want to do the migration here in this branch. All together."). TODO:
 `plans/future-work.md`, "Move the games onto the new sound library".
 
+**Status (2026-11-15): steps 1-9 done**, 7b included, each a commit on the branch (step 9: the
+specs, `docs/architecture/sound.md`'s Effects and Live sounds sections, `gameplay_replay.md`, the
+games' pages). Left, in `plans/future-work.md`: measuring the first launch's cost and ten Arcade
+tiles' memory, and the rest of M2's live instruments.
+
 ## Why
 
 Building the disk cache showed that no golden or bundled demo makes a sound through

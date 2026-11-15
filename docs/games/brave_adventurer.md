@@ -785,7 +785,7 @@ names; and its one browser page, the title screen, ships all four archives, the 
 | `src/games/brave-adventurer/src/brave_adventurer_core/terrain.py` | `GroundSegment`, `StoneWall` |
 | `src/games/brave-adventurer/src/brave_adventurer_core/levels.py` | `ScreenData`, `LEVEL_1` (20 screens), `LevelManager` (the shared builder, with the enemy and collectible hooks) |
 | `src/games/brave-adventurer/src/brave_adventurer_core/drawing.py` | The terrain drawing and the four parallax layers |
-| `src/games/brave-adventurer/src/brave_adventurer_core/sounds.py` | The synthesized effects and `GameSounds` |
+| `src/games/brave-adventurer/src/brave_adventurer_core/sounds.py` | The five effects (`EFFECTS`) and `BraveAdventurerSounds`, the game's compiled set |
 | `src/games/brave-adventurer/src/brave_adventurer_core/scene.py` | `BraveAdventurerSceneBase`: camera, parallax, level, controls, `dt_tick` order, terrain and enemy collision, death and respawn, high scores, input handlers, `render()`, pits, HUD; the hooks each game fills |
 | `src/games/brave-adventurer/src/brave_adventurer/__init__.py` | Exports `main` (the launcher's `--game classic`) |
 | `src/games/brave-adventurer/src/brave_adventurer/game.py` | `BraveAdventurerScene`: the shared scene's hooks (its sprites, save name, hitbox foot line) and the voice assistant; `main()` |

@@ -736,7 +736,7 @@ by the autopilot, a demo could be recorded with
 | Pause screen | The engine's `PauseScene`, which also shows the paused game in the debug overlay (`debug_subject`) |
 | Transitions | `FadeTransition` to the game-over screen |
 | Screen shake and rumble | `CAUGHT_SHAKE`: a 0.4 s `NOISE` shake of strength 6 on `ShakeTarget.SCREEN`, with gamepad rumble (low 0.8, high 0.4), when a muncher catches the player |
-| Live audio and synth | The projector voice and the recipe bank (see [Sound](#sound)) |
+| Sound | The effects, and the projector, a live instrument (see [Sound](#sound)) |
 | World space | The actors are world sprites, and the engine positions their rects |
 | Opacity | `make_opaque` on the maze backgrounds (see [above](#make_opaque-on-the-backgrounds)) |
 
@@ -791,7 +791,7 @@ a test is about which sound plays.
 | `TestMuncherStates` | Waiting, bobbing, walking out, eyes going home and back out, scatter and chase targets, never turning back, mode reversal, seeded frightened turns, dead ends |
 | `TestMuncherSpeeds` | Every speed, only Chomper hurrying |
 | `TestPlayerPictures`, `TestMuncherPictures`, `TestPictures`, `TestScenery` | The pictures by their pixels, fitted fonts, sprockets, pictures and panels |
-| `TestSounds` | Every recipe renders, two crunches |
+| `TestSounds` | Every effect renders, two crunches |
 | `TestAutopilot` | Corridor distances, the decision point, each goal, avoiding danger, traps, seeking capture once |
 
 `src/games/mr-muncher/tests/test_mr_muncher.py` covers the scene: layout (`TestLayout`), the countdown and
