@@ -36,9 +36,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 import pygame
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.audio.effects import Tremolo
 from glitchygames.audio.exceptions import AudioUnavailableError
-from glitchygames.audio.synth import Waveform
 from glitchygames.color import BLACK
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
@@ -80,13 +78,13 @@ from mr_muncher.scenery import (
     fitted_font,
     render_text,
 )
-from mr_muncher.sounds import CRUNCH_EFFECTS, EFFECTS
+from mr_muncher.sounds import CRUNCH_EFFECTS, EFFECTS, PROJECTOR
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
     from glitchygames.audio.library import Sound
-    from glitchygames.audio.live import LiveVoice
+    from glitchygames.audio.live_instrument import LiveSoundHandle
     from glitchygames.camera import Camera2D
     from glitchygames.events.base import (
         ControllerAxisEvent,
@@ -150,15 +148,14 @@ CAUGHT_SHAKE = Shake(
     rumble=RumbleSettings(low_frequency=0.8, high_frequency=0.4, scale_with_strength=False),
 )
 
-# The projector behind play: filtered noise that flutters like a film projector's shutter. It
-# runs faster and brighter as sprockets run out, wobbles slow and low while the munchers are
-# frightened, and races while eyes are going home.
+# The projector behind play (its sound is sounds.PROJECTOR): it runs faster and brighter as
+# sprockets run out, wobbles slow and low while the munchers are frightened, and races while
+# eyes are going home. Every value here is inside the instrument's parameter ranges.
 PROJECTOR_VOLUME = 0.05
 PROJECTOR_CUTOFF_HZ = 500.0
 PROJECTOR_CUTOFF_CLIMB_HZ = 700.0  # Added at the last sprocket
 PROJECTOR_FLUTTER_HZ = 20.0
 PROJECTOR_FLUTTER_CLIMB_HZ = 10.0  # Added at the last sprocket
-PROJECTOR_FLUTTER_DEPTH = 0.8
 FRIGHTENED_PROJECTOR_CUTOFF_HZ = 300.0
 FRIGHTENED_PROJECTOR_FLUTTER_HZ = 8.0
 EYES_PROJECTOR_CUTOFF_HZ = 2000.0
@@ -290,7 +287,7 @@ class MrMuncherScene(Scene):
     NAME = 'Mr. Muncher'
     VERSION = '2.0'
     # Every sound the game plays, compiled when it starts (Scene.SOUNDS)
-    SOUNDS = EFFECTS
+    SOUNDS = (*EFFECTS, PROJECTOR)
     # After a hitch (a window drag, focus loss) logic advances at most this much in one frame
     MAX_FRAME_SECONDS: ClassVar[float | None] = 0.05
 
@@ -358,7 +355,8 @@ class MrMuncherScene(Scene):
         # its sound options
         audio = self.scene_manager.audio
         self.sounds: dict[str, Sound] = {effect.name: audio.sound(effect) for effect in EFFECTS}
-        self.projector: LiveVoice | None = None
+        self.projector_sound = audio.sound(PROJECTOR)  # live: compiles nothing
+        self.projector: LiveSoundHandle | None = None
         # The projector's settings last given (cutoff, flutter rate), to change them only then
         self.projector_settings: tuple[float, float] | None = None
         self.actions = self._create_action_map(options=self.options)
@@ -1035,15 +1033,7 @@ class MrMuncherScene(Scene):
     def _start_projector(self: Self) -> None:
         """Start the projector's flutter behind play (none when no live voice or audio is free)."""
         try:
-            projector = self.scene_manager.live_audio.create_voice(
-                owner=self,
-                waveform=Waveform.NOISE,
-                frequency=1.0,
-                volume=PROJECTOR_VOLUME,
-                low_pass_cutoff=PROJECTOR_CUTOFF_HZ,
-                tremolo=Tremolo(rate_hz=PROJECTOR_FLUTTER_HZ, depth=PROJECTOR_FLUTTER_DEPTH),
-            )
-            projector.start()
+            projector = self.projector_sound.start(owner=self, volume=PROJECTOR_VOLUME)
         except ValueError, AudioUnavailableError:
             log.warning('No live voice or audio available; Mr. Muncher plays without its projector')
             return
@@ -1053,7 +1043,7 @@ class MrMuncherScene(Scene):
     def _stop_projector(self: Self) -> None:
         """Stop the projector (if it is running)."""
         if self.projector is not None:
-            self.projector.stop()
+            self.projector.release()
             self.projector = None
 
     def _projector_sound(self: Self) -> tuple[float, float]:
@@ -1080,8 +1070,8 @@ class MrMuncherScene(Scene):
         cutoff, flutter = self._projector_sound()
         if (cutoff, flutter) != self.projector_settings:
             self.projector_settings = (cutoff, flutter)
-            self.projector.low_pass_cutoff = cutoff
-            self.projector.tremolo = Tremolo(rate_hz=flutter, depth=PROJECTOR_FLUTTER_DEPTH)
+            self.projector.set('cutoff', cutoff)
+            self.projector.set('flutter', flutter)
 
     # --- Pictures (the pose of every sprite, drawn in dt_tick: the pose rule) ---
 

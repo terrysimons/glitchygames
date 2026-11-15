@@ -1100,6 +1100,12 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
     'src/games/brave-adventurer/src/brave_adventurer_core/drawing.py': {
         '_vertical_gradient_cache': DRAWING_CACHE,
     },
+    'src/games/clockwork-keep/src/clockwork_keep/sounds.py': {
+        'ELEVATOR_MOTOR': (
+            "R14: the game's live elevator motor, an Instrument (immutable, hashed by value), "
+            'never written.'
+        ),
+    },
     'src/games/clockwork-keep/src/clockwork_keep/levels.py': {
         'FLOOR_BOILER_ROOM': "R14: the game's floor table (a FloorData), never written.",
         'FLOOR_GEAR_WORKS': "R14: the game's floor table (a FloorData), never written.",
@@ -1129,6 +1135,10 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         'CRUNCH_TWO': "R14: one of the game's sound effects, never written.",
         'CRUNCH_EFFECTS': "R14: a tuple of the game's sound effects, never written.",
         'EFFECTS': "R14: a tuple of the game's sound effects, never written.",
+        'PROJECTOR': (
+            "R14: the game's live projector, an Instrument (immutable, hashed by value), never "
+            'written.'
+        ),
     },
 }
 # Each listing's reason begins with its audit row's name and a colon

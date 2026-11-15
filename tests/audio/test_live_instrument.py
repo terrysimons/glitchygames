@@ -527,6 +527,18 @@ class TestStartingALiveSound:
         assert handle.stop(fade=0.005)
         assert not handle.stop()
 
+    def test_cancel_ends_it_at_once_queued_chunk_and_all(self, pool, partitioned_mixer):
+        """A fade renders into the next chunk, behind the queued one; cancel cuts both now."""
+        handle = self._engine(pool).sound(self.MOTOR).start()
+        pool.update(active_scene='scene', previous_scene=None, active_transitions=())
+
+        assert handle.cancel()
+
+        assert not handle.is_playing
+        assert not pygame.mixer.Channel(partitioned_mixer.live[0]).get_busy()
+        assert not handle.cancel()
+        assert not handle.set('speed', 1.0)
+
     def test_a_transition_owned_voice_plays_through_the_ride_and_stops_with_it(self, pool):
         """The plan's test for start(owner=transition) (the elevator motor)."""
         ride = object()
@@ -562,4 +574,5 @@ class TestStartingALiveSound:
         handles = [engine.sound(self.MOTOR).start() for _ in range(2)]
 
         assert not any(handle.is_playing or handle.set('speed', 1.0) for handle in handles)
+        assert not any(handle.cancel() for handle in handles)
         assert caplog.text.count('no live voice pool') == 1

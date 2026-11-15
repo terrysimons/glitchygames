@@ -515,15 +515,16 @@ sequenceDiagram
     Old->>Old: _check_elevator (next dt_tick):<br/>on an elevator, not the last floor
     Old->>New: ClockworkKeepScene(floor_index=N+1,<br/>player_score, player_lives, options)
     Old->>ET: ElevatorTransition(duration=4.0,<br/>easing='ease_in_sine', player_surface=...)
-    Old->>SM: create_voice(owner=transition), motor.start()
+    Old->>SM: audio.sound(ELEVATOR_MOTOR).start(owner=transition)
     Old->>SM: transition_to(New, ET)<br/>with a cue at progress 1.0
     loop every frame of the ride
         ET->>Old: on_update: _update_elevator_motor(transition)
         Old->>SM: rumble.set_sustained(low, high)<br/>scaled by car speed
-        Note over Old: motor pitch 45 to 110 Hz, volume 0.15 to 0.6
+        Old->>SM: motor.set('speed', car speed 0-1)
+        Note over Old: its routes: pitch 45 to 110 Hz, level 0.15 to 0.6
     end
     ET->>Old: cue 1.0: _elevator_arrived()
-    Old->>SM: motor.stop_now(), rumble.clear_sustained()
+    Old->>SM: motor.cancel(), rumble.clear_sustained()
     Old->>SM: play 'elevator_clank',<br/>SCREEN shakes: bounce + rattle
     SM->>New: the ride ends, Floor N+1 is active
 ```
@@ -599,9 +600,12 @@ context and caches it (on disk too, under `--sound-cache disk`), so no sound com
 | `elevator_clank` | The elevator arrives (cue at progress 1.0) |
 | `victory` | The Clock Face is won (`_win`): the clock tower's chime, struck bells (each a fundamental, its octave and a 2.76x overtone) climbing C5, E5, G5, then C6 ringing over a deep C3 |
 
-The elevator's motor is not a recipe but a live voice: a low-passed sawtooth with tremolo, made
-with `scene_manager.live_audio.create_voice(owner=transition)` and retuned every frame of the
-ride (`ELEVATOR_MOTOR_*` constants). Without an audio device a play is a silent no-op.
+The elevator's motor is not an effect but a live instrument, `sounds.ELEVATOR_MOTOR`: a
+low-passed saw with a tremolo chug, whose `speed` parameter routes to its pitch (45 to 110 Hz) and
+level (0.15 to 0.6). The ride starts it with `start(owner=transition)`, so it plays on behind the
+next floor until the ride ends, sets `speed` every frame, and cuts it with `cancel()` as the car
+lands (a fade would sound after the clank). Without a free live voice or an audio device the ride
+is silent.
 
 ## State, score, lives and saves
 
@@ -631,7 +635,7 @@ real high scores.
 | Tweens | The respawn fade out and in (`self.tweens.tween(...)`) |
 | Transitions | `ElevatorTransition` (with `on_update` and `add_cue`), `FadeTransition` to game over |
 | Shake and rumble | Two SCREEN shakes on arrival, `ELEVATOR_STOP_BOUNCE` (BOUNCE, vertical) and `ELEVATOR_STOP_RATTLE` (NOISE), each with `RumbleSettings(scale_with_strength=False)`; sustained rumble during the ride |
-| Sound synthesis | Six recipes and one live voice |
+| Sound synthesis | Seven effects and one live instrument |
 | Saves | `open_saves`, `SaveManager.load` / `save` |
 | Built-in scenes | `PauseScene` and `GameOverScene` |
 | Debug overlay | No `debug_draw` of its own: the hitbox panel shows the `player` and `cogs` layers (platforms, unlayered, as full rects), the physics panel the Tinker's body, the camera panel the bounds |

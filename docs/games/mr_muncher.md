@@ -671,9 +671,10 @@ volume.
 | `action` | ACTION! (a clack and a major chord) |
 | `the_end` | THE END |
 
-Behind play runs the **projector**, a live voice (`scene_manager.live_audio.create_voice(...)`)
-of low-pass filtered noise with a tremolo, so it flutters like a projector's shutter.
-`_update_projector` changes its cutoff and flutter rate only when they change: brighter and
+Behind play runs the **projector**, a live instrument (`sounds.PROJECTOR`, started with
+`start(owner=self, volume=0.05)`) of low-pass filtered noise with a tremolo, so it flutters like a
+projector's shutter. Its `cutoff` and `flutter` parameters route one to one to the filter and the
+tremolo rate. `_update_projector` sets them only when they change: brighter and
 faster as the sprockets run out (500 to 1200 Hz, 20 to 30 Hz), slow and low while the munchers
 are frightened (300 Hz, 8 Hz), and racing while eyes are going home (2000 Hz, 40 Hz). It starts
 at ACTION!, stops when the player is caught, when the reel is cleared, and in `cleanup()`. If no

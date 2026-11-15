@@ -5,6 +5,8 @@ tuned by ear; edit them freely.
 """
 
 from glitchygames.audio.effects import Effect, Tone, Tremolo
+from glitchygames.audio.instrument import Filter, Instrument
+from glitchygames.audio.live_controls import Parameter, Route
 from glitchygames.audio.synth import Envelope, Waveform
 
 JUMP = Effect(
@@ -188,3 +190,18 @@ VICTORY = Effect(
 
 # Every effect the game plays, requested from the sound library when a floor is built
 EFFECTS = (JUMP, LAND, COG_PICKUP, DEATH, GAME_OVER, ELEVATOR_CLANK, VICTORY)
+
+# The elevator motor: a deep, chugging saw whose pitch and level follow the car's speed (the
+# ride sets ``speed``, 0 at rest to 1 at the easing's peak slope, every frame). Live: started
+# by the ride, which owns it, and cut as the car lands.
+ELEVATOR_MOTOR = Instrument(
+    wave='saw',
+    live=True,
+    filter=Filter('low_pass', 600.0),  # keeps the saw deep
+    tremolo=Tremolo(rate_hz=8.0, depth=0.4),  # the motor's chug
+    parameters={'speed': Parameter(range=(0.0, 1.0), default=0.0)},
+    routes=[
+        Route(source='speed', destination='pitch', output=(45.0, 110.0)),  # Hz, rest to full
+        Route(source='speed', destination='level', output=(0.15, 0.6)),
+    ],
+)

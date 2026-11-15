@@ -713,13 +713,16 @@ class TestProjector:
     def test_it_speeds_up_as_sprockets_go(self, projector_scene):
         projector_scene._update_projector()
         cutoff, flutter = projector_scene.projector_settings
-        assert projector_scene.projector.low_pass_cutoff == cutoff
+        assert projector_scene.projector.parameter_values == {'cutoff': cutoff, 'flutter': flutter}
         _eat_all_but(projector_scene, (1, 1))
         projector_scene._update_projector()
         later_cutoff, later_flutter = projector_scene.projector_settings
         assert later_cutoff > cutoff
         assert later_flutter > flutter
-        assert projector_scene.projector.tremolo.rate_hz == later_flutter
+        assert projector_scene.projector.parameter_values == {
+            'cutoff': later_cutoff,
+            'flutter': later_flutter,
+        }
 
     def test_it_wobbles_while_munchers_are_frightened_and_races_for_eyes(self, projector_scene):
         projector_scene._start_fright()
@@ -734,6 +737,8 @@ class TestProjector:
             mr_muncher_game.EYES_PROJECTOR_CUTOFF_HZ,
             mr_muncher_game.EYES_PROJECTOR_FLUTTER_HZ,
         )
+        # Every setting the game gives is inside its parameter's range: none is clamped
+        assert projector_scene.projector.clamp_count == 0
 
     def test_a_catch_stops_the_projector(self, projector_scene):
         projector_scene._catch_player()
@@ -916,3 +921,22 @@ def test_building_a_level_compiles_nothing_the_game_did_not_declare(save_directo
     MrMuncherScene(options={'input_mode': 'joystick'})
 
     assert audio.sounds.statistics().compiles == declared
+
+
+def test_the_projector_is_a_live_instrument_the_game_declares():
+    """Noise, low-passed and fluttering; cutoff and flutter move them one to one."""
+    from glitchygames.audio.live_controls import Route
+    from mr_muncher import sounds as mr_muncher_sounds
+
+    projector = mr_muncher_sounds.PROJECTOR
+
+    assert projector.live
+    assert projector in MrMuncherScene.SOUNDS
+    assert projector.routes == (
+        Route(source='cutoff', destination='filter.cutoff', output=(300.0, 2000.0)),
+        Route(source='flutter', destination='tremolo.rate', output=(8.0, 40.0)),
+    )
+    assert {name: parameter.range for name, parameter in projector.parameters.items()} == {
+        'cutoff': (300.0, 2000.0),
+        'flutter': (8.0, 40.0),
+    }

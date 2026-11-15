@@ -359,6 +359,21 @@ class LiveSoundHandle:
         """
         return self._voice is not None and self._voice.stream.stop(fade_out=DEFAULT_FADE_OUT)
 
+    def cancel(self) -> bool:
+        """End the sound at once, the chunk already queued included (``LiveStream.stop_now``).
+
+        ``release`` and ``stop`` render their fade into the next chunk, which plays after the
+        one already queued (up to a chunk later); cancel is for a sound that must end on the
+        frame it is called (the elevator motor as the car lands).
+
+        Returns:
+            Whether it was still sounding (False once finished, or for a silent handle).
+        """
+        if self._voice is None or self._voice.stream.is_finished:
+            return False
+        self._voice.stream.stop_now()
+        return True
+
     def stop(self, *, fade: float = DEFAULT_STOP_FADE_SECONDS) -> bool:
         """End the sound sooner: a fade of ``fade`` seconds (the library's stop fade).
 
