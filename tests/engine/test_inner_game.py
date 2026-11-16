@@ -25,9 +25,10 @@ import pytest
 from glitchygames import events
 from glitchygames.audio import voices
 from glitchygames.audio.engine import AUDIO_ENGINE_SLOT
-from glitchygames.audio.live import LiveAudio, LiveVoice, VoiceState
+from glitchygames.audio.instrument import Instrument
+from glitchygames.audio.live import LiveAudio
+from glitchygames.audio.live_instrument import LiveSoundHandle
 from glitchygames.audio.route import is_audible
-from glitchygames.audio.synth import Waveform
 from glitchygames.audio.voices import (
     INNER_CHANNELS_SLOT,
     ChannelPartition,
@@ -1611,15 +1612,15 @@ class TestInnerChannels:
         live_voice_recording: Path,
         outer_partition: ChannelPartition,
     ):
-        """Review Focus 3: both create_voice calls succeed; distinct channels, both playing.
+        """Review Focus 3: both live voices start; distinct channels, both playing.
 
         The silent tile's chunks play at volume 0 on its live pool; the outer's is heard. The
         finished tile's voice is stopped and its channel idle.
         """
-        outer_voice = LiveAudio(channel_indices=outer_partition.live).create_voice(
-            owner='outer scene', waveform=Waveform.SINE, frequency=440.0
+        outer_voice = LiveAudio(channel_indices=outer_partition.live).create_instrument_voice(
+            owner='outer scene', instrument=Instrument(wave='sine', live=True), frequency=440.0
         )
-        outer_voice.start()
+        outer_voice.stream.start()
 
         inner_game = replay_stand_in(game=live_voice_stand_in, path=live_voice_recording)
         for _step in range(LIVE_VOICE_FRAME + 1):
@@ -1633,14 +1634,15 @@ class TestInnerChannels:
         tile_sound = pygame.mixer.Channel(partition.live[0]).get_sound()
         inner_game.finish()
         busy_after_the_finish = busy_channel_ids()
-        outer_voice.stop_now()
+        outer_voice.stream.stop_now()
 
-        assert isinstance(tile_voice, LiveVoice)
+        assert isinstance(tile_voice, LiveSoundHandle)
         assert busy_while_both_play == [outer_partition.live[0], partition.live[0]]
         assert tile_sound is not None
         assert tile_sound.get_volume() == 0.0
         assert busy_after_the_finish == [outer_partition.live[0]]
-        assert tile_voice.state is VoiceState.STOPPED
+        assert not tile_voice.is_playing
+        assert not tile_voice.cancel()  # finished: the tile's finish stopped it
 
 
 # A host engine's command line: small, quiet, unpaced (it runs one frame, then quits)

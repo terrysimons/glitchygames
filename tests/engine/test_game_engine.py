@@ -3005,7 +3005,8 @@ class TestGameEngineTimerCalibration:
         # The methods start() calls on the current context's performance manager
         for method_name in ('set_trim_percent', 'set_histogram_mode'):
             mocker.patch.object(AdaptiveClamping, method_name, autospec=True)
-        engine.game = mocker.Mock()
+        # A Scene subclass's SOUNDS is empty by default (no start-up compile)
+        engine.game = mocker.Mock(SOUNDS=())
         engine.options = {
             'profile': False,
             'timer_backend': 'auto',
@@ -3044,7 +3045,7 @@ class TestGameEngineTimerBackendError:
         )
 
         # Mock scene manager and game for start()
-        mock_game_class = mocker.Mock()
+        mock_game_class = mocker.Mock(SOUNDS=())
         mock_game_instance = mocker.Mock()
         mock_game_class.return_value = mock_game_instance
         engine.game = mock_game_class
@@ -3308,7 +3309,8 @@ class TestFpsHistogramArgument:
         set_histogram_mode = mocker.patch.object(
             AdaptiveClamping, 'set_histogram_mode', autospec=True
         )
-        engine.game = mocker.Mock()
+        # A Scene subclass's SOUNDS is empty by default (no start-up compile)
+        engine.game = mocker.Mock(SOUNDS=())
         engine.options = {
             'profile': False,
             'timer_backend': 'fast',
@@ -3336,7 +3338,8 @@ class TestFpsHistogramArgument:
             performance_manager, '_histogram_mode', performance_manager._histogram_mode
         )
         histogram_mode_before = performance_manager._histogram_mode
-        engine.game = mocker.Mock()
+        # A Scene subclass's SOUNDS is empty by default (no start-up compile)
+        engine.game = mocker.Mock(SOUNDS=())
         engine.options = {
             'profile': False,
             'timer_backend': 'fast',
@@ -3367,7 +3370,8 @@ class TestFpsHistogramArgument:
         set_histogram_mode = mocker.patch.object(
             AdaptiveClamping, 'set_histogram_mode', autospec=True
         )
-        engine.game = mocker.Mock()
+        # A Scene subclass's SOUNDS is empty by default (no start-up compile)
+        engine.game = mocker.Mock(SOUNDS=())
         engine.options = {
             'profile': False,
             'timer_backend': 'fast',

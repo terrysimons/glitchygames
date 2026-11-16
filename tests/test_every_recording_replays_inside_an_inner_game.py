@@ -28,10 +28,11 @@ same answers heard or silent. Whenever no tile is heard nothing a tile played ma
 (``assert_no_tile_is_heard``): no unreserved channel plays (a silent tile's plain plays reach
 none, and a switched-away tile's were stopped) and every chunk on a tile's live pool is at
 volume 0. At the switch away, what the tile had sounding is checked off the mixer at once
-(``Tile.switch_away``). A tile whose game plays plain sounds (``PLAYS_PLAIN_SOUNDS``) must have
-been heard while heard, and no other may have played one, so the switched run proves something.
-Review Focus 4's "the newly heard game's next sound is heard" is shown here for plain plays only
-(the goldens' heard sounds are plain); the voice table's and live voices' are covered by unit
+(``Tile.switch_away``). A tile whose game plays sounds (``PLAYS_SOUNDS``) must have been heard
+while heard, and no other may have played one, so the switched run proves something. A heard
+sound is a plain play of the tile's, or a voice on the heard set it holds (the games' sounds
+moved onto the sound library: plans/2026-11-14-sound-migration.md), so Review Focus 4's "the
+newly heard game's next sound is heard" is shown here for both; live voices' are covered by unit
 tests (tests/audio/test_channel_partition.py, tests/audio/test_live.py and
 tests/engine/test_inner_game.py).
 
@@ -71,7 +72,9 @@ from glitchygames import events
 from glitchygames.audio import reserve_inner_game_channels
 from glitchygames.audio.engine import DEFAULT_LIBRARY_CHANNELS, DEFAULT_LIVE_POOL, LEGACY_CHANNELS
 from glitchygames.audio.voices import (
+    DEFAULT_HEARD_SET_CHANNELS,
     INNER_CHANNELS_SLOT,
+    heard_set_start,
     plain_play_channel_indices,
     reserve_channels,
     unreserved_channel_indices,
@@ -130,9 +133,9 @@ DECLARED_TILES = 3
 # frames to two thirds (of the frames its reference replayed)
 HEARD_FROM_FRACTION = 1 / 3
 HEARD_UNTIL_FRACTION = 2 / 3
-# The console scripts whose recordings play plain Sound.play() sounds in their heard frames
-# (SoundBank or Sound.play: the others play none), so a heard run that heard nothing fails
-PLAYS_PLAIN_SOUNDS = frozenset({'paddleslap', 'brave-adventurer', 'clockwork-keep', 'mr-muncher'})
+# The console scripts whose recordings play sounds in their heard frames (plain plays, or voices
+# on a heard set: the others play none), so a heard run that heard nothing fails
+PLAYS_SOUNDS = frozenset({'paddleslap', 'brave-adventurer', 'clockwork-keep', 'mr-muncher'})
 
 
 @pytest.fixture(autouse=True)
@@ -440,11 +443,12 @@ class Tile:
         self.digest_path = work_directory / f'{name}.digest'
         self.pixel_hashes: list[str] = []
         self.heard = heard
-        # The heard frames whose step left a plain play of the tile sounding. Its live chunks
-        # are not counted: one switched audible is heard from its next chunk, which comes by real
-        # time (glitchygames/audio/live.py), so whether an unpaced tile's heard frames reach it
+        # The heard frames whose step left a sound of the tile's playing: a plain play, or a voice
+        # on its heard set (heard_channels). Its live chunks are not counted: one switched
+        # audible is heard from its next chunk, which comes by real time
+        # (glitchygames/audio/live.py), so whether an unpaced tile's heard frames reach it
         # depends on the machine
-        self.frames_with_a_plain_play_sounding = 0
+        self.frames_with_a_heard_sound = 0
         # What the tile had sounding when it was switched away from: plain plays, live chunks
         self.plain_plays_stopped_at_the_switch = 0
         self.live_chunks_muted_at_the_switch = 0
@@ -481,6 +485,26 @@ class Tile:
                 chunk for chunk in (channel.get_sound(), channel.get_queue()) if chunk is not None
             )
         return chunks
+
+    def heard_channels(self) -> tuple[int, ...]:
+        """Return the channels sounding one of the tile's sounds: plain plays, and its heard set.
+
+        Returns:
+            Their indices.
+
+        """
+        with self.inner_game.context.active():
+            start = heard_set_start()
+        heard_set = (
+            ()
+            if start is None
+            else tuple(
+                index
+                for index in range(start, start + DEFAULT_HEARD_SET_CHANNELS)
+                if pygame.mixer.Channel(index).get_busy()
+            )
+        )
+        return (*self.plain_play_channels(), *heard_set)
 
     def plain_play_channels(self) -> tuple[int, ...]:
         """Return the unreserved channels playing a plain play the tile started (followed).
@@ -533,8 +557,8 @@ class Tile:
             if self.inner_game.outcome.frames_run > frames_before:
                 pixels = pygame.image.tobytes(self.inner_game.surface, 'RGB')
                 self.pixel_hashes.append(hashlib.sha256(pixels).hexdigest())
-            if self.inner_game.audible and self.plain_play_channels():
-                self.frames_with_a_plain_play_sounding += 1
+            if self.inner_game.audible and self.heard_channels():
+                self.frames_with_a_heard_sound += 1
 
     def matched_digests(self) -> list[str]:
         """Check the inner game ended matched; return the digests it wrote.
@@ -699,9 +723,9 @@ def test_a_recording_replays_inside_a_tile_beside_another_as_it_does_alone(
     assert heard_tile.switched_away, f'{heard_tile.label} was never switched away from'
     # A game that plays sound was heard while heard: the switched run proves something
     tile_script = tile[0]
-    assert (heard_tile.frames_with_a_plain_play_sounding > 0) == (
-        tile_script in PLAYS_PLAIN_SOUNDS
-    ), f'{heard_tile.label}: {heard_tile.frames_with_a_plain_play_sounding} heard frames sounding'
+    assert (heard_tile.frames_with_a_heard_sound > 0) == (tile_script in PLAYS_SOUNDS), (
+        f'{heard_tile.label}: {heard_tile.frames_with_a_heard_sound} heard frames sounding'
+    )
 
 
 def key_repeat_parameters() -> list[object]:

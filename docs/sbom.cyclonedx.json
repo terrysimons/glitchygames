@@ -83,7 +83,7 @@
       "version": "0.17.5"
     },
     {
-      "cpe": "cpe:2.3:a:python-annotated-doc:python-annotated-doc:0.0.5:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-annotated-doc:python-annotated-doc:0.0.6:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -109,136 +109,136 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-annotated-doc:python_annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-annotated-doc:python_annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_annotated_doc:python-annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_annotated_doc:python-annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_annotated_doc:python_annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_annotated_doc:python_annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-annotated:python-annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-annotated:python-annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-annotated:python_annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-annotated:python_annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_annotated:python-annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_annotated:python-annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_annotated:python_annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_annotated:python_annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:annotated-doc:python-annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:annotated-doc:python-annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:annotated-doc:python_annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:annotated-doc:python_annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:annotated_doc:python-annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:annotated_doc:python-annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:annotated_doc:python_annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:annotated_doc:python_annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-annotated-doc:annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-annotated-doc:annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-annotated-doc:annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-annotated-doc:annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_annotated_doc:annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_annotated_doc:annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_annotated_doc:annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_annotated_doc:annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:annotated:python-annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:annotated:python-annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:annotated:python_annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:annotated:python_annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-annotated:annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-annotated:annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-annotated:annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-annotated:annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_annotated:annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_annotated:annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_annotated:annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_annotated:annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:annotated-doc:annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:annotated-doc:annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:annotated-doc:annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:annotated-doc:annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:annotated_doc:annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:annotated_doc:annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:annotated_doc:annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:annotated_doc:annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:annotated:annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:annotated:annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:annotated:annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:annotated:annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:annotated-doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:annotated-doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:annotated_doc:0.0.5:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:annotated_doc:0.0.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/annotated-doc@0.0.5",
+      "purl": "pkg:pypi/annotated-doc@0.0.6",
       "type": "library",
-      "version": "0.0.5"
+      "version": "0.0.6"
     },
     {
       "cpe": "cpe:2.3:a:python-annotated-types:python-annotated-types:0.8.0:*:*:*:*:*:*:*",
@@ -1031,7 +1031,7 @@
       "version": "2.18.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-backrefs:python-backrefs:8.1:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-backrefs:python-backrefs:8.3:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -1057,56 +1057,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-backrefs:python_backrefs:8.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-backrefs:python_backrefs:8.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_backrefs:python-backrefs:8.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_backrefs:python-backrefs:8.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_backrefs:python_backrefs:8.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_backrefs:python_backrefs:8.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:backrefs:python-backrefs:8.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:backrefs:python-backrefs:8.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:backrefs:python_backrefs:8.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:backrefs:python_backrefs:8.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-backrefs:backrefs:8.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-backrefs:backrefs:8.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_backrefs:backrefs:8.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_backrefs:backrefs:8.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-backrefs:8.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-backrefs:8.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_backrefs:8.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_backrefs:8.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:backrefs:backrefs:8.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:backrefs:backrefs:8.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:backrefs:8.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:backrefs:8.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/backrefs@8.1",
+      "purl": "pkg:pypi/backrefs@8.3",
       "type": "library",
-      "version": "8.1"
+      "version": "8.3"
     },
     {
       "cpe": "cpe:2.3:a:python-bandit:python-bandit:1.9.4:*:*:*:*:*:*:*",
@@ -1420,7 +1420,7 @@
       "version": "1.0.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-bokeh:python-bokeh:3.10.1:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-bokeh:python-bokeh:3.10.2:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "BSD-3-Clause"
@@ -1446,56 +1446,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-bokeh:python_bokeh:3.10.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-bokeh:python_bokeh:3.10.2:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_bokeh:python-bokeh:3.10.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_bokeh:python-bokeh:3.10.2:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_bokeh:python_bokeh:3.10.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_bokeh:python_bokeh:3.10.2:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-bokeh:3.10.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-bokeh:3.10.2:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_bokeh:3.10.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_bokeh:3.10.2:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:bokeh:python-bokeh:3.10.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:bokeh:python-bokeh:3.10.2:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:bokeh:python_bokeh:3.10.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:bokeh:python_bokeh:3.10.2:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-bokeh:bokeh:3.10.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-bokeh:bokeh:3.10.2:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_bokeh:bokeh:3.10.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_bokeh:bokeh:3.10.2:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:bokeh:3.10.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:bokeh:3.10.2:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:bokeh:bokeh:3.10.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:bokeh:bokeh:3.10.2:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/bokeh@3.10.1",
+      "purl": "pkg:pypi/bokeh@3.10.2",
       "type": "library",
-      "version": "3.10.1"
+      "version": "3.10.2"
     },
     {
       "cpe": "cpe:2.3:a:python-brave-adventurer:python-brave-adventurer:1.0.0:*:*:*:*:*:*:*",
@@ -2005,7 +2005,7 @@
       "version": "3.5.2"
     },
     {
-      "cpe": "cpe:2.3:a:python-click:python-click:8.5.0:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-click:python-click:8.5.1:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "BSD-3-Clause"
@@ -2031,56 +2031,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-click:python_click:8.5.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-click:python_click:8.5.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_click:python-click:8.5.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_click:python-click:8.5.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_click:python_click:8.5.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_click:python_click:8.5.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-click:8.5.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-click:8.5.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_click:8.5.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_click:8.5.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:click:python-click:8.5.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:click:python-click:8.5.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:click:python_click:8.5.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:click:python_click:8.5.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-click:click:8.5.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-click:click:8.5.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_click:click:8.5.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_click:click:8.5.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:click:8.5.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:click:8.5.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:click:click:8.5.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:click:click:8.5.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/click@8.5.0",
+      "purl": "pkg:pypi/click@8.5.1",
       "type": "library",
-      "version": "8.5.0"
+      "version": "8.5.1"
     },
     {
       "cpe": "cpe:2.3:a:python-clockwork-keep:python-clockwork-keep:1.0.0:*:*:*:*:*:*:*",
@@ -2472,7 +2472,7 @@
       "version": "2.7.1"
     },
     {
-      "cpe": "cpe:2.3:a:python-coverage:python-coverage:7.17.0:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-coverage:python-coverage:7.17.3:*:*:*:*:*:*:*",
       "licenses": [
         {
           "license": {
@@ -2500,56 +2500,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-coverage:python_coverage:7.17.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-coverage:python_coverage:7.17.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_coverage:python-coverage:7.17.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_coverage:python-coverage:7.17.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_coverage:python_coverage:7.17.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_coverage:python_coverage:7.17.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:coverage:python-coverage:7.17.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:coverage:python-coverage:7.17.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:coverage:python_coverage:7.17.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:coverage:python_coverage:7.17.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-coverage:coverage:7.17.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-coverage:coverage:7.17.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_coverage:coverage:7.17.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_coverage:coverage:7.17.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-coverage:7.17.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-coverage:7.17.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_coverage:7.17.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_coverage:7.17.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:coverage:coverage:7.17.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:coverage:coverage:7.17.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:coverage:7.17.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:coverage:7.17.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/coverage@7.17.0",
+      "purl": "pkg:pypi/coverage@7.17.3",
       "type": "library",
-      "version": "7.17.0"
+      "version": "7.17.3"
     },
     {
       "cpe": "cpe:2.3:a:python-dependency-groups:python-dependency-groups:1.3.2:*:*:*:*:*:*:*",
@@ -3252,7 +3252,7 @@
       "version": "2.1.2"
     },
     {
-      "cpe": "cpe:2.3:a:python-fastapi:python-fastapi:0.162.0:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-fastapi:python-fastapi:0.163.0:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -3278,56 +3278,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-fastapi:python_fastapi:0.162.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-fastapi:python_fastapi:0.163.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_fastapi:python-fastapi:0.162.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_fastapi:python-fastapi:0.163.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_fastapi:python_fastapi:0.162.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_fastapi:python_fastapi:0.163.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:fastapi:python-fastapi:0.162.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:fastapi:python-fastapi:0.163.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:fastapi:python_fastapi:0.162.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:fastapi:python_fastapi:0.163.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-fastapi:fastapi:0.162.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-fastapi:fastapi:0.163.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_fastapi:fastapi:0.162.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_fastapi:fastapi:0.163.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-fastapi:0.162.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-fastapi:0.163.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_fastapi:0.162.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_fastapi:0.163.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:fastapi:fastapi:0.162.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:fastapi:fastapi:0.163.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:fastapi:0.162.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:fastapi:0.163.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/fastapi@0.162.0",
+      "purl": "pkg:pypi/fastapi@0.163.0",
       "type": "library",
-      "version": "0.162.0"
+      "version": "0.163.0"
     },
     {
       "cpe": "cpe:2.3:a:python-fastjsonschema:python-fastjsonschema:2.22.3:*:*:*:*:*:*:*",
@@ -3410,7 +3410,7 @@
       "version": "2.22.3"
     },
     {
-      "cpe": "cpe:2.3:a:python-filelock:python-filelock:4.2.6:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-filelock:python-filelock:4.2.10:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -3436,56 +3436,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-filelock:python_filelock:4.2.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-filelock:python_filelock:4.2.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_filelock:python-filelock:4.2.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_filelock:python-filelock:4.2.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_filelock:python_filelock:4.2.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_filelock:python_filelock:4.2.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:filelock:python-filelock:4.2.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:filelock:python-filelock:4.2.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:filelock:python_filelock:4.2.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:filelock:python_filelock:4.2.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-filelock:filelock:4.2.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-filelock:filelock:4.2.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_filelock:filelock:4.2.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_filelock:filelock:4.2.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-filelock:4.2.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-filelock:4.2.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_filelock:4.2.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_filelock:4.2.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:filelock:filelock:4.2.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:filelock:filelock:4.2.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:filelock:4.2.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:filelock:4.2.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/filelock@4.2.6",
+      "purl": "pkg:pypi/filelock@4.2.10",
       "type": "library",
-      "version": "4.2.6"
+      "version": "4.2.10"
     },
     {
       "cpe": "cpe:2.3:a:python-future:python-future:1.0.0:*:*:*:*:*:*:*",
@@ -4596,7 +4596,7 @@
       "version": "1.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-humanize:python-humanize:4.16.0:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-humanize:python-humanize:4.17.0:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -4622,59 +4622,59 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-humanize:python_humanize:4.16.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-humanize:python_humanize:4.17.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_humanize:python-humanize:4.16.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_humanize:python-humanize:4.17.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_humanize:python_humanize:4.16.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_humanize:python_humanize:4.17.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:humanize:python-humanize:4.16.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:humanize:python-humanize:4.17.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:humanize:python_humanize:4.16.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:humanize:python_humanize:4.17.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-humanize:humanize:4.16.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-humanize:humanize:4.17.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_humanize:humanize:4.16.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_humanize:humanize:4.17.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-humanize:4.16.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-humanize:4.17.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_humanize:4.16.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_humanize:4.17.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:humanize:humanize:4.16.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:humanize:humanize:4.17.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:humanize:4.16.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:humanize:4.17.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/humanize@4.16.0",
+      "purl": "pkg:pypi/humanize@4.17.0",
       "type": "library",
-      "version": "4.16.0"
+      "version": "4.17.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-hypothesis:python-hypothesis:6.170.14:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-hypothesis:python-hypothesis:6.170.15:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MPL-2.0"
@@ -4700,56 +4700,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-hypothesis:python_hypothesis:6.170.14:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-hypothesis:python_hypothesis:6.170.15:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_hypothesis:python-hypothesis:6.170.14:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_hypothesis:python-hypothesis:6.170.15:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_hypothesis:python_hypothesis:6.170.14:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_hypothesis:python_hypothesis:6.170.15:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:hypothesis:python-hypothesis:6.170.14:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:hypothesis:python-hypothesis:6.170.15:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:hypothesis:python_hypothesis:6.170.14:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:hypothesis:python_hypothesis:6.170.15:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-hypothesis:hypothesis:6.170.14:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-hypothesis:hypothesis:6.170.15:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_hypothesis:hypothesis:6.170.14:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_hypothesis:hypothesis:6.170.15:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-hypothesis:6.170.14:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-hypothesis:6.170.15:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_hypothesis:6.170.14:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_hypothesis:6.170.15:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:hypothesis:hypothesis:6.170.14:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:hypothesis:hypothesis:6.170.15:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:hypothesis:6.170.14:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:hypothesis:6.170.15:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/hypothesis@6.170.14",
+      "purl": "pkg:pypi/hypothesis@6.170.15",
       "type": "library",
-      "version": "6.170.14"
+      "version": "6.170.15"
     },
     {
       "cpe": "cpe:2.3:a:python-identify:python-identify:2.6.20:*:*:*:*:*:*:*",
@@ -5727,7 +5727,7 @@
       "version": "0.6.4"
     },
     {
-      "cpe": "cpe:2.3:a:python-markdown:python-markdown:3.11.2:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-markdown:python-markdown:3.11.3:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "BSD-3-Clause"
@@ -5753,56 +5753,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-markdown:python_markdown:3.11.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-markdown:python_markdown:3.11.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown:python-markdown:3.11.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown:python-markdown:3.11.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown:python_markdown:3.11.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown:python_markdown:3.11.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown:python-markdown:3.11.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown:python-markdown:3.11.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown:python_markdown:3.11.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown:python_markdown:3.11.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-markdown:markdown:3.11.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-markdown:markdown:3.11.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown:markdown:3.11.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown:markdown:3.11.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-markdown:3.11.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-markdown:3.11.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_markdown:3.11.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_markdown:3.11.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown:markdown:3.11.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown:markdown:3.11.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:markdown:3.11.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:markdown:3.11.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/markdown@3.11.2",
+      "purl": "pkg:pypi/markdown@3.11.3",
       "type": "library",
-      "version": "3.11.2"
+      "version": "3.11.3"
     },
     {
       "cpe": "cpe:2.3:a:python-markdown-callouts:python-markdown-callouts:0.4.0:*:*:*:*:*:*:*",
@@ -5963,7 +5963,7 @@
       "version": "0.4.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-markdown-it-py:python-markdown-it-py:4.2.0:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-markdown-it-py:python-markdown-it-py:4.3.0:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -5989,200 +5989,200 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-markdown-it-py:python_markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-markdown-it-py:python_markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown_it_py:python-markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown_it_py:python-markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown_it_py:python_markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown_it_py:python_markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-markdown-it:python-markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-markdown-it:python-markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-markdown-it:python_markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-markdown-it:python_markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown_it:python-markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown_it:python-markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown_it:python_markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown_it:python_markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-markdown:python-markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-markdown:python-markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-markdown:python_markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-markdown:python_markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown:python-markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown:python-markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown:python_markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown:python_markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown-it-py:python-markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown-it-py:python-markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown-it-py:python_markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown-it-py:python_markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown_it_py:python-markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown_it_py:python-markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown_it_py:python_markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown_it_py:python_markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-markdown-it-py:markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-markdown-it-py:markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-markdown-it-py:markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-markdown-it-py:markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown_it_py:markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown_it_py:markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown_it_py:markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown_it_py:markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown-it:python-markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown-it:python-markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown-it:python_markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown-it:python_markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown_it:python-markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown_it:python-markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown_it:python_markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown_it:python_markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-markdown-it:markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-markdown-it:markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-markdown-it:markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-markdown-it:markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown_it:markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown_it:markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown_it:markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown_it:markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown:python-markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown:python-markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown:python_markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown:python_markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-markdown:markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-markdown:markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-markdown:markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-markdown:markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown:markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown:markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_markdown:markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_markdown:markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown-it-py:markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown-it-py:markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown-it-py:markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown-it-py:markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown_it_py:markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown_it_py:markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown_it_py:markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown_it_py:markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown-it:markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown-it:markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown-it:markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown-it:markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown_it:markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown_it:markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown_it:markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown_it:markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown:markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown:markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:markdown:markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:markdown:markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:markdown-it-py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:markdown-it-py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:markdown_it_py:4.2.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:markdown_it_py:4.3.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/markdown-it-py@4.2.0",
+      "purl": "pkg:pypi/markdown-it-py@4.3.0",
       "type": "library",
-      "version": "4.2.0"
+      "version": "4.3.0"
     },
     {
       "cpe": "cpe:2.3:a:python-markupsafe:python-markupsafe:3.0.4:*:*:*:*:*:*:*",
@@ -6421,12 +6421,10 @@
       "version": "1.3.4"
     },
     {
-      "cpe": "cpe:2.3:a:python-miniaudio:python-miniaudio:1.71:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-miniaudio:python-miniaudio:1.73:*:*:*:*:*:*:*",
       "licenses": [
         {
-          "license": {
-            "name": "MIT"
-          }
+          "expression": "MIT"
         }
       ],
       "name": "miniaudio",
@@ -6449,56 +6447,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-miniaudio:python_miniaudio:1.71:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-miniaudio:python_miniaudio:1.73:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_miniaudio:python-miniaudio:1.71:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_miniaudio:python-miniaudio:1.73:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_miniaudio:python_miniaudio:1.71:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_miniaudio:python_miniaudio:1.73:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:miniaudio:python-miniaudio:1.71:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:miniaudio:python-miniaudio:1.73:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:miniaudio:python_miniaudio:1.71:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:miniaudio:python_miniaudio:1.73:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-miniaudio:miniaudio:1.71:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-miniaudio:miniaudio:1.73:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_miniaudio:miniaudio:1.71:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_miniaudio:miniaudio:1.73:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-miniaudio:1.71:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-miniaudio:1.73:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_miniaudio:1.71:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_miniaudio:1.73:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:miniaudio:miniaudio:1.71:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:miniaudio:miniaudio:1.73:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:miniaudio:1.71:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:miniaudio:1.73:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/miniaudio@1.71",
+      "purl": "pkg:pypi/miniaudio@1.73",
       "type": "library",
-      "version": "1.71"
+      "version": "1.73"
     },
     {
       "cpe": "cpe:2.3:a:python-mkdocs:python-mkdocs:1.6.1:*:*:*:*:*:*:*",
@@ -8043,7 +8041,7 @@
       "version": "1.5.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-mkdocs-material:python-mkdocs-material:9.8.0:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-mkdocs-material:python-mkdocs-material:9.8.1:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -8069,136 +8067,136 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-mkdocs-material:python_mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-mkdocs-material:python_mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocs_material:python-mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocs_material:python-mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocs_material:python_mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocs_material:python_mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocs-material:python-mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocs-material:python-mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocs-material:python_mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocs-material:python_mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocs_material:python-mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocs_material:python-mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocs_material:python_mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocs_material:python_mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-mkdocs-material:mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-mkdocs-material:mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-mkdocs-material:mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-mkdocs-material:mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocs_material:mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocs_material:mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocs_material:mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocs_material:mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-mkdocs:python-mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-mkdocs:python-mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-mkdocs:python_mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-mkdocs:python_mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocs:python-mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocs:python-mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocs:python_mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocs:python_mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocs-material:mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocs-material:mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocs-material:mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocs-material:mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocs_material:mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocs_material:mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocs_material:mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocs_material:mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocs:python-mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocs:python-mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocs:python_mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocs:python_mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-mkdocs:mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-mkdocs:mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-mkdocs:mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-mkdocs:mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocs:mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocs:mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocs:mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocs:mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocs:mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocs:mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocs:mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocs:mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:mkdocs-material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:mkdocs-material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:mkdocs_material:9.8.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:mkdocs_material:9.8.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/mkdocs-material@9.8.0",
+      "purl": "pkg:pypi/mkdocs-material@9.8.1",
       "type": "library",
-      "version": "9.8.0"
+      "version": "9.8.1"
     },
     {
       "cpe": "cpe:2.3:a:python-mkdocs-material-extensions:python-mkdocs-material-extensions:1.3.1:*:*:*:*:*:*:*",
@@ -8881,7 +8879,7 @@
       "version": "0.3.9"
     },
     {
-      "cpe": "cpe:2.3:a:python-mkdocstrings-python:python-mkdocstrings-python:2.0.10:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-mkdocstrings-python:python-mkdocstrings-python:2.0.11:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "ISC"
@@ -8907,136 +8905,136 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-mkdocstrings-python:python_mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-mkdocstrings-python:python_mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocstrings_python:python-mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocstrings_python:python-mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocstrings_python:python_mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocstrings_python:python_mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocstrings-python:python-mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocstrings-python:python-mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocstrings-python:python_mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocstrings-python:python_mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocstrings_python:python-mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocstrings_python:python-mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocstrings_python:python_mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocstrings_python:python_mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-mkdocstrings-python:mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-mkdocstrings-python:mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-mkdocstrings-python:mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-mkdocstrings-python:mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-mkdocstrings:python-mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-mkdocstrings:python-mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-mkdocstrings:python_mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-mkdocstrings:python_mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocstrings:python-mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocstrings:python-mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocstrings:python_mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocstrings:python_mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocstrings_python:mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocstrings_python:mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocstrings_python:mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocstrings_python:mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocstrings-python:mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocstrings-python:mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocstrings-python:mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocstrings-python:mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocstrings:python-mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocstrings:python-mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocstrings:python_mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocstrings:python_mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocstrings_python:mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocstrings_python:mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocstrings_python:mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocstrings_python:mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-mkdocstrings:mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-mkdocstrings:mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-mkdocstrings:mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-mkdocstrings:mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocstrings:mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocstrings:mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_mkdocstrings:mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_mkdocstrings:mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocstrings:mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocstrings:mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:mkdocstrings:mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:mkdocstrings:mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:mkdocstrings-python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:mkdocstrings-python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:mkdocstrings_python:2.0.10:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:mkdocstrings_python:2.0.11:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/mkdocstrings-python@2.0.10",
+      "purl": "pkg:pypi/mkdocstrings-python@2.0.11",
       "type": "library",
-      "version": "2.0.10"
+      "version": "2.0.11"
     },
     {
       "cpe": "cpe:2.3:a:python-mr-muncher:python-mr-muncher:1.0.0:*:*:*:*:*:*:*",
@@ -10431,7 +10429,7 @@
       "version": "13.0.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-platformdirs:python-platformdirs:4.14.3:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-platformdirs:python-platformdirs:4.14.5:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -10457,56 +10455,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-platformdirs:python_platformdirs:4.14.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-platformdirs:python_platformdirs:4.14.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_platformdirs:python-platformdirs:4.14.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_platformdirs:python-platformdirs:4.14.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_platformdirs:python_platformdirs:4.14.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_platformdirs:python_platformdirs:4.14.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:platformdirs:python-platformdirs:4.14.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:platformdirs:python-platformdirs:4.14.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:platformdirs:python_platformdirs:4.14.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:platformdirs:python_platformdirs:4.14.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-platformdirs:platformdirs:4.14.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-platformdirs:platformdirs:4.14.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_platformdirs:platformdirs:4.14.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_platformdirs:platformdirs:4.14.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-platformdirs:4.14.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-platformdirs:4.14.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_platformdirs:4.14.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_platformdirs:4.14.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:platformdirs:platformdirs:4.14.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:platformdirs:platformdirs:4.14.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:platformdirs:4.14.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:platformdirs:4.14.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/platformdirs@4.14.3",
+      "purl": "pkg:pypi/platformdirs@4.14.5",
       "type": "library",
-      "version": "4.14.3"
+      "version": "4.14.5"
     },
     {
       "cpe": "cpe:2.3:a:python-plotly:python-plotly:5.24.1:*:*:*:*:*:*:*",
@@ -11221,7 +11219,7 @@
       "version": "3.12"
     },
     {
-      "cpe": "cpe:2.3:a:python-pydantic:python-pydantic:2.14.2:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-pydantic:python-pydantic:2.14.3:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -11247,59 +11245,59 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pydantic:python_pydantic:2.14.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pydantic:python_pydantic:2.14.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pydantic:python-pydantic:2.14.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pydantic:python-pydantic:2.14.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pydantic:python_pydantic:2.14.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pydantic:python_pydantic:2.14.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic:python-pydantic:2.14.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic:python-pydantic:2.14.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic:python_pydantic:2.14.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic:python_pydantic:2.14.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pydantic:pydantic:2.14.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pydantic:pydantic:2.14.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pydantic:pydantic:2.14.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pydantic:pydantic:2.14.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-pydantic:2.14.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-pydantic:2.14.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_pydantic:2.14.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_pydantic:2.14.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic:pydantic:2.14.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic:pydantic:2.14.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:pydantic:2.14.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:pydantic:2.14.3:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/pydantic@2.14.2",
+      "purl": "pkg:pypi/pydantic@2.14.3",
       "type": "library",
-      "version": "2.14.2"
+      "version": "2.14.3"
     },
     {
-      "cpe": "cpe:2.3:a:python-pydantic-core:python-pydantic-core:2.50.2:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-pydantic-core:python-pydantic-core:2.50.4:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -11325,136 +11323,136 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pydantic-core:python_pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pydantic-core:python_pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pydantic_core:python-pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pydantic_core:python-pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pydantic_core:python_pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pydantic_core:python_pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pydantic:python-pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pydantic:python-pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pydantic:python_pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pydantic:python_pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pydantic:python-pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pydantic:python-pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pydantic:python_pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pydantic:python_pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic-core:python-pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic-core:python-pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic-core:python_pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic-core:python_pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic_core:python-pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic_core:python-pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic_core:python_pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic_core:python_pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pydantic-core:pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pydantic-core:pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pydantic-core:pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pydantic-core:pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pydantic_core:pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pydantic_core:pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pydantic_core:pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pydantic_core:pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic:python-pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic:python-pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic:python_pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic:python_pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pydantic:pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pydantic:pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pydantic:pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pydantic:pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pydantic:pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pydantic:pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pydantic:pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pydantic:pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic-core:pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic-core:pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic-core:pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic-core:pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic_core:pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic_core:pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic_core:pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic_core:pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic:pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic:pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pydantic:pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pydantic:pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:pydantic-core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:pydantic-core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:pydantic_core:2.50.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:pydantic_core:2.50.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/pydantic-core@2.50.2",
+      "purl": "pkg:pypi/pydantic-core@2.50.4",
       "type": "library",
-      "version": "2.50.2"
+      "version": "2.50.4"
     },
     {
       "cpe": "cpe:2.3:a:python-pygame-ce:python-pygame-ce:2.5.8:*:*:*:*:*:*:*",
@@ -11775,7 +11773,7 @@
       "version": "6.22.3"
     },
     {
-      "cpe": "cpe:2.3:a:python-pyinstaller-hooks-contrib:python-pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-pyinstaller-hooks-contrib:python-pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "GPL-2.0-or-later AND Apache-2.0"
@@ -11801,203 +11799,203 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pyinstaller-hooks-contrib:python_pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pyinstaller-hooks-contrib:python_pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pyinstaller_hooks_contrib:python-pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pyinstaller_hooks_contrib:python-pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pyinstaller_hooks_contrib:python_pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pyinstaller_hooks_contrib:python_pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller-hooks-contrib:python-pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller-hooks-contrib:python-pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller-hooks-contrib:python_pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller-hooks-contrib:python_pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller_hooks_contrib:python-pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller_hooks_contrib:python-pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller_hooks_contrib:python_pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller_hooks_contrib:python_pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pyinstaller-hooks-contrib:pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pyinstaller-hooks-contrib:pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pyinstaller-hooks-contrib:pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pyinstaller-hooks-contrib:pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pyinstaller_hooks_contrib:pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pyinstaller_hooks_contrib:pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pyinstaller_hooks_contrib:pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pyinstaller_hooks_contrib:pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pyinstaller-hooks:python-pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pyinstaller-hooks:python-pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pyinstaller-hooks:python_pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pyinstaller-hooks:python_pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pyinstaller_hooks:python-pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pyinstaller_hooks:python-pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pyinstaller_hooks:python_pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pyinstaller_hooks:python_pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller-hooks-contrib:pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller-hooks-contrib:pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller-hooks-contrib:pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller-hooks-contrib:pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller_hooks_contrib:pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller_hooks_contrib:pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller_hooks_contrib:pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller_hooks_contrib:pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pyinstaller:python-pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pyinstaller:python-pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pyinstaller:python_pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pyinstaller:python_pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pyinstaller:python-pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pyinstaller:python-pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pyinstaller:python_pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pyinstaller:python_pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller-hooks:python-pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller-hooks:python-pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller-hooks:python_pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller-hooks:python_pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller_hooks:python-pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller_hooks:python-pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller_hooks:python_pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller_hooks:python_pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pyinstaller-hooks:pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pyinstaller-hooks:pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pyinstaller-hooks:pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pyinstaller-hooks:pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pyinstaller_hooks:pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pyinstaller_hooks:pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pyinstaller_hooks:pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pyinstaller_hooks:pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller:python-pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller:python-pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller:python_pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller:python_pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pyinstaller:pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pyinstaller:pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pyinstaller:pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pyinstaller:pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pyinstaller:pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pyinstaller:pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pyinstaller:pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pyinstaller:pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller-hooks:pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller-hooks:pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller-hooks:pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller-hooks:pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller_hooks:pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller_hooks:pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller_hooks:pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller_hooks:pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller:pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller:pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pyinstaller:pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pyinstaller:pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:pyinstaller-hooks-contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:pyinstaller-hooks-contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:pyinstaller_hooks_contrib:2026.9:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:pyinstaller_hooks_contrib:2026.10:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/pyinstaller-hooks-contrib@2026.9",
+      "purl": "pkg:pypi/pyinstaller-hooks-contrib@2026.10",
       "type": "library",
-      "version": "2026.9"
+      "version": "2026.10"
     },
     {
-      "cpe": "cpe:2.3:a:facelessuser:pymdown_extensions:12.3:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:facelessuser:pymdown_extensions:13.1:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -12026,9 +12024,9 @@
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/pymdown-extensions@12.3",
+      "purl": "pkg:pypi/pymdown-extensions@13.1",
       "type": "library",
-      "version": "12.3"
+      "version": "13.1"
     },
     {
       "cpe": "cpe:2.3:a:python-pyperclip:python-pyperclip:1.11.0:*:*:*:*:*:*:*",
@@ -12665,7 +12663,7 @@
       "version": "3.17.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-pytest-randomly:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-pytest-randomly:python-pytest-randomly:5.1.0:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -12691,136 +12689,136 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pytest-randomly:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pytest-randomly:python_pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pytest_randomly:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pytest_randomly:python-pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pytest_randomly:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pytest_randomly:python_pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pytest-randomly:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pytest-randomly:python-pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pytest-randomly:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pytest-randomly:python_pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pytest_randomly:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pytest_randomly:python-pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pytest_randomly:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pytest_randomly:python_pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pytest-randomly:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pytest-randomly:pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pytest-randomly:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pytest-randomly:pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pytest_randomly:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pytest_randomly:pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pytest_randomly:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pytest_randomly:pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pytest:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pytest:python-pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pytest:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pytest:python_pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pytest:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pytest:python-pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pytest:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pytest:python_pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pytest-randomly:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pytest-randomly:pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pytest-randomly:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pytest-randomly:pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pytest_randomly:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pytest_randomly:pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pytest_randomly:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pytest_randomly:pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pytest:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pytest:python-pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pytest:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pytest:python_pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pytest:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pytest:pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-pytest:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-pytest:pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pytest:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pytest:pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_pytest:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_pytest:pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pytest:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pytest:pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:pytest:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:pytest:pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:pytest-randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:pytest_randomly:5.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/pytest-randomly@5.0.0",
+      "purl": "pkg:pypi/pytest-randomly@5.1.0",
       "type": "library",
-      "version": "5.0.0"
+      "version": "5.1.0"
     },
     {
       "cpe": "cpe:2.3:a:python-pytest-xdist:python-pytest-xdist:3.8.0:*:*:*:*:*:*:*",
@@ -12981,7 +12979,7 @@
       "version": "3.8.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-dateutil:python-dateutil:2.9.0.post0:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-dateutil:python-dateutil:4.0.0:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "Apache-2.0 OR BSD-3-Clause"
@@ -13007,35 +13005,35 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-dateutil:python_dateutil:2.9.0.post0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-dateutil:python_dateutil:4.0.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_dateutil:python-dateutil:2.9.0.post0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_dateutil:python-dateutil:4.0.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_dateutil:python_dateutil:2.9.0.post0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_dateutil:python_dateutil:4.0.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-dateutil:2.9.0.post0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-dateutil:4.0.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_dateutil:2.9.0.post0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_dateutil:4.0.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/python-dateutil@2.9.0.post0",
+      "purl": "pkg:pypi/python-dateutil@4.0.0",
       "type": "library",
-      "version": "2.9.0.post0"
+      "version": "4.0.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-discovery:python-discovery:1.9.0:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-discovery:python-discovery:1.9.5:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -13061,32 +13059,32 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-discovery:python_discovery:1.9.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-discovery:python_discovery:1.9.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_discovery:python-discovery:1.9.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_discovery:python-discovery:1.9.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_discovery:python_discovery:1.9.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_discovery:python_discovery:1.9.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-discovery:1.9.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-discovery:1.9.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_discovery:1.9.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_discovery:1.9.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/python-discovery@1.9.0",
+      "purl": "pkg:pypi/python-discovery@1.9.5",
       "type": "library",
-      "version": "1.9.0"
+      "version": "1.9.5"
     },
     {
       "cpe": "cpe:2.3:a:python-slugify:python-slugify:9.1.3:*:*:*:*:*:*:*",
@@ -14195,7 +14193,7 @@
       "version": "2026.9.1"
     },
     {
-      "cpe": "cpe:2.3:a:python-ruff:python-ruff:0.17.3:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-ruff:python-ruff:0.17.5:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -14221,56 +14219,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-ruff:python_ruff:0.17.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-ruff:python_ruff:0.17.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ruff:python-ruff:0.17.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_ruff:python-ruff:0.17.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ruff:python_ruff:0.17.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_ruff:python_ruff:0.17.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-ruff:0.17.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-ruff:0.17.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_ruff:0.17.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_ruff:0.17.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-ruff:ruff:0.17.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-ruff:ruff:0.17.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ruff:ruff:0.17.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_ruff:ruff:0.17.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ruff:python-ruff:0.17.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ruff:python-ruff:0.17.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ruff:python_ruff:0.17.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ruff:python_ruff:0.17.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:ruff:0.17.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:ruff:0.17.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ruff:ruff:0.17.3:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ruff:ruff:0.17.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/ruff@0.17.3",
+      "purl": "pkg:pypi/ruff@0.17.5",
       "type": "library",
-      "version": "0.17.3"
+      "version": "0.17.5"
     },
     {
       "cpe": "cpe:2.3:a:python:setuptools:84.2.1:*:*:*:*:*:*:*",
@@ -15196,7 +15194,7 @@
       "version": "1.10.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-stevedore:python-stevedore:5.9.1:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-stevedore:python-stevedore:5.10.0:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -15222,56 +15220,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-stevedore:python_stevedore:5.9.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-stevedore:python_stevedore:5.10.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_stevedore:python-stevedore:5.9.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_stevedore:python-stevedore:5.10.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_stevedore:python_stevedore:5.9.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_stevedore:python_stevedore:5.10.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-stevedore:stevedore:5.9.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-stevedore:stevedore:5.10.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_stevedore:stevedore:5.9.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_stevedore:stevedore:5.10.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:stevedore:python-stevedore:5.9.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:stevedore:python-stevedore:5.10.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:stevedore:python_stevedore:5.9.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:stevedore:python_stevedore:5.10.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-stevedore:5.9.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-stevedore:5.10.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_stevedore:5.9.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_stevedore:5.10.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:stevedore:stevedore:5.9.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:stevedore:stevedore:5.10.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:stevedore:5.9.1:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:stevedore:5.10.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/stevedore@5.9.1",
+      "purl": "pkg:pypi/stevedore@5.10.0",
       "type": "library",
-      "version": "5.9.1"
+      "version": "5.10.0"
     },
     {
       "cpe": "cpe:2.3:a:python-super-collections:python-super-collections:0.6.2:*:*:*:*:*:*:*",
@@ -15592,12 +15590,10 @@
       "version": "0.9.3"
     },
     {
-      "cpe": "cpe:2.3:a:python-tenacity:python-tenacity:9.1.4:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-tenacity:python-tenacity:9.2.1:*:*:*:*:*:*:*",
       "licenses": [
         {
-          "license": {
-            "name": "Apache 2.0"
-          }
+          "expression": "Apache-2.0"
         }
       ],
       "name": "tenacity",
@@ -15620,56 +15616,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-tenacity:python_tenacity:9.1.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-tenacity:python_tenacity:9.2.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_tenacity:python-tenacity:9.1.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_tenacity:python-tenacity:9.2.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_tenacity:python_tenacity:9.1.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_tenacity:python_tenacity:9.2.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-tenacity:tenacity:9.1.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-tenacity:tenacity:9.2.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_tenacity:tenacity:9.1.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_tenacity:tenacity:9.2.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:tenacity:python-tenacity:9.1.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:tenacity:python-tenacity:9.2.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:tenacity:python_tenacity:9.1.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:tenacity:python_tenacity:9.2.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-tenacity:9.1.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-tenacity:9.2.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_tenacity:9.1.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_tenacity:9.2.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:tenacity:tenacity:9.1.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:tenacity:tenacity:9.2.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:tenacity:9.1.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:tenacity:9.2.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/tenacity@9.1.4",
+      "purl": "pkg:pypi/tenacity@9.2.1",
       "type": "library",
-      "version": "9.1.4"
+      "version": "9.2.1"
     },
     {
       "cpe": "cpe:2.3:a:python-termcolor:python-termcolor:3.3.0:*:*:*:*:*:*:*",
@@ -16365,7 +16361,7 @@
       "version": "1.2.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-tornado:python-tornado:6.6:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-tornado:python-tornado:6.6.1:*:*:*:*:*:*:*",
       "licenses": [
         {
           "license": {
@@ -16393,56 +16389,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-tornado:python_tornado:6.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-tornado:python_tornado:6.6.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_tornado:python-tornado:6.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_tornado:python-tornado:6.6.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_tornado:python_tornado:6.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_tornado:python_tornado:6.6.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-tornado:tornado:6.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-tornado:tornado:6.6.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_tornado:tornado:6.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_tornado:tornado:6.6.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:tornado:python-tornado:6.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:tornado:python-tornado:6.6.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:tornado:python_tornado:6.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:tornado:python_tornado:6.6.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-tornado:6.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-tornado:6.6.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_tornado:6.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_tornado:6.6.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:tornado:tornado:6.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:tornado:tornado:6.6.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:tornado:6.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:tornado:6.6.1:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/tornado@6.6",
+      "purl": "pkg:pypi/tornado@6.6.1",
       "type": "library",
-      "version": "6.6"
+      "version": "6.6.1"
     },
     {
       "cpe": "cpe:2.3:a:python-traitlets:python-traitlets:5.16.1:*:*:*:*:*:*:*",
@@ -16603,7 +16599,7 @@
       "version": "0.10.5"
     },
     {
-      "cpe": "cpe:2.3:a:python-ty:python-ty:0.0.95:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-ty:python-ty:0.0.104:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -16629,56 +16625,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-ty:python_ty:0.0.95:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-ty:python_ty:0.0.104:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ty:python-ty:0.0.95:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_ty:python-ty:0.0.104:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ty:python_ty:0.0.95:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_ty:python_ty:0.0.104:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-ty:0.0.95:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-ty:0.0.104:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_ty:0.0.95:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_ty:0.0.104:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-ty:ty:0.0.95:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-ty:ty:0.0.104:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ty:ty:0.0.95:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_ty:ty:0.0.104:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ty:python-ty:0.0.95:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ty:python-ty:0.0.104:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ty:python_ty:0.0.95:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ty:python_ty:0.0.104:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:ty:0.0.95:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:ty:0.0.104:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ty:ty:0.0.95:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ty:ty:0.0.104:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/ty@0.0.95",
+      "purl": "pkg:pypi/ty@0.0.104",
       "type": "library",
-      "version": "0.0.95"
+      "version": "0.0.104"
     },
     {
       "cpe": "cpe:2.3:a:python-typing-extensions:python-typing-extensions:4.16.0:*:*:*:*:*:*:*",
@@ -16839,7 +16835,7 @@
       "version": "4.16.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-typing-inspection:python-typing-inspection:0.4.4:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-typing-inspection:python-typing-inspection:0.4.5:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -16865,136 +16861,136 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-typing-inspection:python_typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-typing-inspection:python_typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_typing_inspection:python-typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_typing_inspection:python-typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_typing_inspection:python_typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_typing_inspection:python_typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-typing-inspection:typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-typing-inspection:typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-typing-inspection:typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-typing-inspection:typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_typing_inspection:typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_typing_inspection:typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_typing_inspection:typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_typing_inspection:typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:typing-inspection:python-typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:typing-inspection:python-typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:typing-inspection:python_typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:typing-inspection:python_typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:typing_inspection:python-typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:typing_inspection:python-typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:typing_inspection:python_typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:typing_inspection:python_typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-typing:python-typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-typing:python-typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-typing:python_typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-typing:python_typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_typing:python-typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_typing:python-typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_typing:python_typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_typing:python_typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:typing-inspection:typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:typing-inspection:typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:typing-inspection:typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:typing-inspection:typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:typing_inspection:typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:typing_inspection:typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:typing_inspection:typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:typing_inspection:typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-typing:typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-typing:typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-typing:typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-typing:typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_typing:typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_typing:typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_typing:typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_typing:typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:typing:python-typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:typing:python-typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:typing:python_typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:typing:python_typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:typing:typing-inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:typing:typing-inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:typing:typing_inspection:0.4.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:typing:typing_inspection:0.4.5:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/typing-inspection@0.4.4",
+      "purl": "pkg:pypi/typing-inspection@0.4.5",
       "type": "library",
-      "version": "0.4.4"
+      "version": "0.4.5"
     },
     {
       "cpe": "cpe:2.3:a:python-tzdata:python-tzdata:2026.6:*:*:*:*:*:*:*",
@@ -17111,7 +17107,7 @@
       "version": "2.8.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-uv:python-uv:0.13.6:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-uv:python-uv:0.13.8:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT OR Apache-2.0"
@@ -17137,56 +17133,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-uv:python_uv:0.13.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-uv:python_uv:0.13.8:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_uv:python-uv:0.13.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_uv:python-uv:0.13.8:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_uv:python_uv:0.13.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_uv:python_uv:0.13.8:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-uv:0.13.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-uv:0.13.8:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_uv:0.13.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_uv:0.13.8:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-uv:uv:0.13.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-uv:uv:0.13.8:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_uv:uv:0.13.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_uv:uv:0.13.8:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:uv:python-uv:0.13.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:uv:python-uv:0.13.8:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:uv:python_uv:0.13.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:uv:python_uv:0.13.8:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:uv:0.13.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:uv:0.13.8:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:uv:uv:0.13.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:uv:uv:0.13.8:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/uv@0.13.6",
+      "purl": "pkg:pypi/uv@0.13.8",
       "type": "library",
-      "version": "0.13.6"
+      "version": "0.13.8"
     },
     {
       "cpe": "cpe:2.3:a:python-uvicorn:python-uvicorn:0.54.0:*:*:*:*:*:*:*",
@@ -17267,7 +17263,7 @@
       "version": "0.54.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-virtualenv:python-virtualenv:21.15.2:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-virtualenv:python-virtualenv:21.15.6:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "MIT"
@@ -17293,56 +17289,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-virtualenv:python_virtualenv:21.15.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-virtualenv:python_virtualenv:21.15.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_virtualenv:python-virtualenv:21.15.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_virtualenv:python-virtualenv:21.15.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_virtualenv:python_virtualenv:21.15.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_virtualenv:python_virtualenv:21.15.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-virtualenv:virtualenv:21.15.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-virtualenv:virtualenv:21.15.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_virtualenv:virtualenv:21.15.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_virtualenv:virtualenv:21.15.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:virtualenv:python-virtualenv:21.15.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:virtualenv:python-virtualenv:21.15.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:virtualenv:python_virtualenv:21.15.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:virtualenv:python_virtualenv:21.15.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-virtualenv:21.15.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-virtualenv:21.15.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_virtualenv:21.15.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_virtualenv:21.15.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:virtualenv:virtualenv:21.15.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:virtualenv:virtualenv:21.15.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:virtualenv:21.15.2:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:virtualenv:21.15.6:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/virtualenv@21.15.2",
+      "purl": "pkg:pypi/virtualenv@21.15.6",
       "type": "library",
-      "version": "21.15.2"
+      "version": "21.15.6"
     },
     {
       "cpe": "cpe:2.3:a:python-vulture:python-vulture:2.16:*:*:*:*:*:*:*",
@@ -17425,7 +17421,7 @@
       "version": "2.16"
     },
     {
-      "cpe": "cpe:2.3:a:python-watchdog:python-watchdog:7.0.0:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-watchdog:python-watchdog:7.1.0:*:*:*:*:*:*:*",
       "licenses": [
         {
           "license": {
@@ -17453,56 +17449,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-watchdog:python_watchdog:7.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-watchdog:python_watchdog:7.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_watchdog:python-watchdog:7.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_watchdog:python-watchdog:7.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_watchdog:python_watchdog:7.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_watchdog:python_watchdog:7.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-watchdog:watchdog:7.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-watchdog:watchdog:7.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_watchdog:watchdog:7.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_watchdog:watchdog:7.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:watchdog:python-watchdog:7.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:watchdog:python-watchdog:7.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:watchdog:python_watchdog:7.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:watchdog:python_watchdog:7.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-watchdog:7.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-watchdog:7.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_watchdog:7.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_watchdog:7.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:watchdog:watchdog:7.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:watchdog:watchdog:7.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:watchdog:7.0.0:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:watchdog:7.1.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/watchdog@7.0.0",
+      "purl": "pkg:pypi/watchdog@7.1.0",
       "type": "library",
-      "version": "7.0.0"
+      "version": "7.1.0"
     },
     {
       "cpe": "cpe:2.3:a:python-websockets:python-websockets:17.4:*:*:*:*:*:*:*",
@@ -17831,27 +17827,28 @@
         "pkg:pypi/macholib@1.16.4",
         "pkg:pypi/packaging@26.3",
         "pkg:pypi/pefile@2024.8.26",
-        "pkg:pypi/pyinstaller-hooks-contrib@2026.9",
+        "pkg:pypi/pyinstaller-hooks-contrib@2026.10",
         "pkg:pypi/pywin32-ctypes@0.2.3",
         "pkg:pypi/setuptools@84.2.1"
       ]
     },
     {
       "dependsOn": [
-        "pkg:pypi/annotated-doc@0.0.5",
+        "pkg:pypi/annotated-doc@0.0.6",
+        "pkg:pypi/anyio@4.16.0",
         "pkg:pypi/opentelemetry-api@1.45.2",
-        "pkg:pypi/pydantic@2.14.2",
+        "pkg:pypi/pydantic@2.14.3",
         "pkg:pypi/starlette@1.10.0",
         "pkg:pypi/typing-extensions@4.16.0",
-        "pkg:pypi/typing-inspection@0.4.4"
+        "pkg:pypi/typing-inspection@0.4.5"
       ]
     },
     {
       "dependsOn": [
         "pkg:pypi/annotated-types@0.8.0",
-        "pkg:pypi/pydantic-core@2.50.2",
+        "pkg:pypi/pydantic-core@2.50.4",
         "pkg:pypi/typing-extensions@4.16.0",
-        "pkg:pypi/typing-inspection@0.4.4"
+        "pkg:pypi/typing-inspection@0.4.5"
       ]
     },
     {
@@ -17874,29 +17871,29 @@
         "pkg:pypi/bandit@1.9.4",
         "pkg:pypi/basedpyright@1.40.2",
         "pkg:pypi/bitmappy@1.0.0",
-        "pkg:pypi/bokeh@3.10.1",
+        "pkg:pypi/bokeh@3.10.2",
         "pkg:pypi/brave-adventurer@1.0.0",
         "pkg:pypi/clockwork-keep@1.0.0",
         "pkg:pypi/cookiecutter@2.7.1",
         "pkg:pypi/deptry@0.25.1",
         "pkg:pypi/drawing-fire@1.0.0",
         "pkg:pypi/dt-demo@1.0.0",
-        "pkg:pypi/fastapi@0.162.0",
-        "pkg:pypi/filelock@4.2.6",
+        "pkg:pypi/fastapi@0.163.0",
+        "pkg:pypi/filelock@4.2.10",
         "pkg:pypi/hidapi@0.15.0",
         "pkg:pypi/httpx2@2.16.0",
-        "pkg:pypi/hypothesis@6.170.14",
+        "pkg:pypi/hypothesis@6.170.15",
         "pkg:pypi/joystick-demo@1.0.0",
-        "pkg:pypi/miniaudio@1.71",
+        "pkg:pypi/miniaudio@1.73",
         "pkg:pypi/mkdocs-autorefs@1.4.5",
         "pkg:pypi/mkdocs-gen-files@0.6.1",
         "pkg:pypi/mkdocs-git-revision-date-localized-plugin@1.7.0",
         "pkg:pypi/mkdocs-literate-nav@0.6.3",
         "pkg:pypi/mkdocs-macros-plugin@1.5.0",
-        "pkg:pypi/mkdocs-material@9.8.0",
+        "pkg:pypi/mkdocs-material@9.8.1",
         "pkg:pypi/mkdocs-section-index@0.3.12",
         "pkg:pypi/mkdocs@1.6.1",
-        "pkg:pypi/mkdocstrings-python@2.0.10",
+        "pkg:pypi/mkdocstrings-python@2.0.11",
         "pkg:pypi/mkdocstrings@1.0.8",
         "pkg:pypi/mr-muncher@1.0.0",
         "pkg:pypi/nox@2026.7.11",
@@ -17905,25 +17902,25 @@
         "pkg:pypi/paddleslap@1.0.0",
         "pkg:pypi/pillow@13.0.0",
         "pkg:pypi/pre-commit@4.7.0",
-        "pkg:pypi/pydantic@2.14.2",
+        "pkg:pypi/pydantic@2.14.3",
         "pkg:pypi/pygame-ce@2.5.8",
         "pkg:pypi/pyinstaller@6.22.3",
-        "pkg:pypi/pymdown-extensions@12.3",
+        "pkg:pypi/pymdown-extensions@13.1",
         "pkg:pypi/pyperclip@1.11.0",
         "pkg:pypi/pytest-benchmark@5.3.1",
         "pkg:pypi/pytest-cov@7.1.0",
         "pkg:pypi/pytest-mock@3.17.0",
-        "pkg:pypi/pytest-randomly@5.0.0",
+        "pkg:pypi/pytest-randomly@5.1.0",
         "pkg:pypi/pytest-xdist@3.8.0",
         "pkg:pypi/pytest@9.1.1",
         "pkg:pypi/radon@5.1.0",
-        "pkg:pypi/ruff@0.17.3",
+        "pkg:pypi/ruff@0.17.5",
         "pkg:pypi/sound-board-demo@1.0.0",
         "pkg:pypi/speechrecognition@3.17.0",
         "pkg:pypi/taplo@0.9.3",
         "pkg:pypi/text-input-demo@1.0.0",
         "pkg:pypi/tomli-w@1.2.0",
-        "pkg:pypi/ty@0.0.95",
+        "pkg:pypi/ty@0.0.104",
         "pkg:pypi/uvicorn@0.54.0",
         "pkg:pypi/vulture@2.16",
         "pkg:pypi/websockets@17.4",
@@ -17937,17 +17934,17 @@
         "pkg:pypi/attrs@26.1.0",
         "pkg:pypi/colorlog@4.8.0",
         "pkg:pypi/dependency-groups@1.3.2",
-        "pkg:pypi/humanize@4.16.0",
+        "pkg:pypi/humanize@4.17.0",
         "pkg:pypi/packaging@26.3",
-        "pkg:pypi/uv@0.13.6",
-        "pkg:pypi/virtualenv@21.15.2"
+        "pkg:pypi/uv@0.13.8",
+        "pkg:pypi/virtualenv@21.15.6"
       ]
     },
     {
       "dependsOn": [
         "pkg:pypi/arrow@1.4.0",
         "pkg:pypi/binaryornot@0.6.0",
-        "pkg:pypi/click@8.5.0",
+        "pkg:pypi/click@8.5.1",
         "pkg:pypi/jinja2@3.1.6",
         "pkg:pypi/python-slugify@9.1.3",
         "pkg:pypi/pyyaml@6.0.3",
@@ -17985,15 +17982,15 @@
     {
       "dependsOn": [
         "pkg:pypi/babel@2.18.0",
-        "pkg:pypi/backrefs@8.1",
+        "pkg:pypi/backrefs@8.3",
         "pkg:pypi/colorama@0.4.6",
         "pkg:pypi/jinja2@3.1.6",
-        "pkg:pypi/markdown@3.11.2",
+        "pkg:pypi/markdown@3.11.3",
         "pkg:pypi/mkdocs-material-extensions@1.3.1",
         "pkg:pypi/mkdocs@1.6.1",
         "pkg:pypi/paginate@0.5.7",
         "pkg:pypi/pygments@2.21.0",
-        "pkg:pypi/pymdown-extensions@12.3",
+        "pkg:pypi/pymdown-extensions@13.1",
         "pkg:pypi/requests@2.34.2"
       ]
     },
@@ -18025,16 +18022,16 @@
         "pkg:pypi/identify@2.6.20",
         "pkg:pypi/nodeenv@1.12.0",
         "pkg:pypi/pyyaml@6.0.3",
-        "pkg:pypi/virtualenv@21.15.2"
+        "pkg:pypi/virtualenv@21.15.6"
       ]
     },
     {
       "dependsOn": [
-        "pkg:pypi/click@8.5.0",
+        "pkg:pypi/click@8.5.1",
         "pkg:pypi/colorama@0.4.6",
         "pkg:pypi/ghp-import@2.1.0",
         "pkg:pypi/jinja2@3.1.6",
-        "pkg:pypi/markdown@3.11.2",
+        "pkg:pypi/markdown@3.11.3",
         "pkg:pypi/markupsafe@3.0.4",
         "pkg:pypi/mergedeep@1.3.4",
         "pkg:pypi/mkdocs-get-deps@0.2.2",
@@ -18042,28 +18039,28 @@
         "pkg:pypi/pathspec@1.1.1",
         "pkg:pypi/pyyaml-env-tag@1.1",
         "pkg:pypi/pyyaml@6.0.3",
-        "pkg:pypi/watchdog@7.0.0"
+        "pkg:pypi/watchdog@7.1.0"
       ]
     },
     {
       "dependsOn": [
-        "pkg:pypi/click@8.5.0",
+        "pkg:pypi/click@8.5.1",
         "pkg:pypi/colorama@0.4.6",
         "pkg:pypi/ghp-import@2.1.0",
         "pkg:pypi/jinja2@3.1.6",
-        "pkg:pypi/markdown@3.11.2",
+        "pkg:pypi/markdown@3.11.3",
         "pkg:pypi/markupsafe@3.0.4",
         "pkg:pypi/packaging@26.3",
         "pkg:pypi/pathspec@1.1.1",
-        "pkg:pypi/platformdirs@4.14.3",
+        "pkg:pypi/platformdirs@4.14.5",
         "pkg:pypi/pyyaml-env-tag@1.1",
         "pkg:pypi/pyyaml@6.0.3",
-        "pkg:pypi/watchdog@7.0.0"
+        "pkg:pypi/watchdog@7.1.0"
       ]
     },
     {
       "dependsOn": [
-        "pkg:pypi/click@8.5.0",
+        "pkg:pypi/click@8.5.1",
         "pkg:pypi/colorama@0.4.6",
         "pkg:pypi/packaging@26.3",
         "pkg:pypi/requirements-parser@0.13.1",
@@ -18072,7 +18069,7 @@
     },
     {
       "dependsOn": [
-        "pkg:pypi/click@8.5.0",
+        "pkg:pypi/click@8.5.1",
         "pkg:pypi/colorlog@4.8.0",
         "pkg:pypi/gitpython@3.2.1",
         "pkg:pypi/nbformat@5.11.1",
@@ -18084,7 +18081,7 @@
     },
     {
       "dependsOn": [
-        "pkg:pypi/click@8.5.0",
+        "pkg:pypi/click@8.5.1",
         "pkg:pypi/h11@0.16.0"
       ]
     },
@@ -18114,12 +18111,12 @@
         "pkg:pypi/colorama@0.4.6",
         "pkg:pypi/pyyaml@6.0.3",
         "pkg:pypi/rich@15.0.0",
-        "pkg:pypi/stevedore@5.9.1"
+        "pkg:pypi/stevedore@5.10.0"
       ]
     },
     {
       "dependsOn": [
-        "pkg:pypi/coverage@7.17.0",
+        "pkg:pypi/coverage@7.17.3",
         "pkg:pypi/pluggy@1.7.0",
         "pkg:pypi/pytest@9.1.1"
       ]
@@ -18127,10 +18124,10 @@
     {
       "dependsOn": [
         "pkg:pypi/distlib@0.4.4",
-        "pkg:pypi/filelock@4.2.6",
+        "pkg:pypi/filelock@4.2.10",
         "pkg:pypi/packaging@26.3",
-        "pkg:pypi/platformdirs@4.14.3",
-        "pkg:pypi/python-discovery@1.9.0"
+        "pkg:pypi/platformdirs@4.14.5",
+        "pkg:pypi/python-discovery@1.9.5"
       ]
     },
     {
@@ -18149,7 +18146,7 @@
     },
     {
       "dependsOn": [
-        "pkg:pypi/filelock@4.2.6"
+        "pkg:pypi/filelock@4.2.10"
       ]
     },
     {
@@ -18161,15 +18158,15 @@
       "dependsOn": [
         "pkg:pypi/glitchygames@1.0.0",
         "pkg:pypi/numpy@2.5.4",
-        "pkg:pypi/pydantic@2.14.2",
+        "pkg:pypi/pydantic@2.14.3",
         "pkg:pypi/pygame-ce@2.5.8",
-        "pkg:pypi/tenacity@9.1.4"
+        "pkg:pypi/tenacity@9.2.1"
       ]
     },
     {
       "dependsOn": [
         "pkg:pypi/glitchygames@1.0.0",
-        "pkg:pypi/pydantic@2.14.2",
+        "pkg:pypi/pydantic@2.14.3",
         "pkg:pypi/pygame-ce@2.5.8"
       ]
     },
@@ -18204,7 +18201,7 @@
         "pkg:pypi/mkdocs@1.6.1",
         "pkg:pypi/packaging@26.3",
         "pkg:pypi/pathspec@1.1.1",
-        "pkg:pypi/python-dateutil@2.9.0.post0",
+        "pkg:pypi/python-dateutil@4.0.0",
         "pkg:pypi/pyyaml@6.0.3",
         "pkg:pypi/requests@2.34.2",
         "pkg:pypi/super-collections@0.6.2",
@@ -18229,13 +18226,13 @@
     {
       "dependsOn": [
         "pkg:pypi/jinja2@3.1.6",
-        "pkg:pypi/markdown@3.11.2",
+        "pkg:pypi/markdown@3.11.3",
         "pkg:pypi/markupsafe@3.0.4",
         "pkg:pypi/mkdocs-autorefs@1.4.5",
         "pkg:pypi/mkdocs@1.6.1",
         "pkg:pypi/mkdocstrings-crystal@0.3.9",
-        "pkg:pypi/mkdocstrings-python@2.0.10",
-        "pkg:pypi/pymdown-extensions@12.3"
+        "pkg:pypi/mkdocstrings-python@2.0.11",
+        "pkg:pypi/pymdown-extensions@13.1"
       ]
     },
     {
@@ -18246,31 +18243,31 @@
         "pkg:pypi/packaging@26.3",
         "pkg:pypi/pillow@13.0.0",
         "pkg:pypi/pyyaml@6.0.3",
-        "pkg:pypi/tornado@6.6",
+        "pkg:pypi/tornado@6.6.1",
         "pkg:pypi/xyzservices@2026.9.1"
       ]
     },
     {
       "dependsOn": [
-        "pkg:pypi/markdown-it-py@4.2.0",
+        "pkg:pypi/markdown-it-py@4.3.0",
         "pkg:pypi/pygments@2.21.0"
       ]
     },
     {
       "dependsOn": [
-        "pkg:pypi/markdown@3.11.2"
+        "pkg:pypi/markdown@3.11.3"
       ]
     },
     {
       "dependsOn": [
-        "pkg:pypi/markdown@3.11.2",
+        "pkg:pypi/markdown@3.11.3",
         "pkg:pypi/markupsafe@3.0.4",
         "pkg:pypi/mkdocs@1.6.1"
       ]
     },
     {
       "dependsOn": [
-        "pkg:pypi/markdown@3.11.2",
+        "pkg:pypi/markdown@3.11.3",
         "pkg:pypi/pyyaml@6.0.3"
       ]
     },
@@ -18287,7 +18284,7 @@
     {
       "dependsOn": [
         "pkg:pypi/mergedeep@1.3.4",
-        "pkg:pypi/platformdirs@4.14.3",
+        "pkg:pypi/platformdirs@4.14.5",
         "pkg:pypi/pyyaml@6.0.3"
       ]
     },
@@ -18310,7 +18307,7 @@
     {
       "dependsOn": [
         "pkg:pypi/packaging@26.3",
-        "pkg:pypi/tenacity@9.1.4"
+        "pkg:pypi/tenacity@9.2.1"
       ]
     },
     {
@@ -18321,7 +18318,7 @@
     },
     {
       "dependsOn": [
-        "pkg:pypi/platformdirs@4.14.3",
+        "pkg:pypi/platformdirs@4.14.5",
         "pkg:pypi/traitlets@5.16.1"
       ]
     },
@@ -18343,12 +18340,12 @@
     },
     {
       "dependsOn": [
-        "pkg:pypi/python-dateutil@2.9.0.post0"
+        "pkg:pypi/python-dateutil@4.0.0"
       ]
     },
     {
       "dependsOn": [
-        "pkg:pypi/python-dateutil@2.9.0.post0",
+        "pkg:pypi/python-dateutil@4.0.0",
         "pkg:pypi/tzdata@2026.6"
       ]
     },
@@ -18385,6 +18382,11 @@
     {
       "dependsOn": [
         "pkg:pypi/typing-extensions@4.16.0"
+      ]
+    },
+    {
+      "dependsOn": [
+        "pkg:pypi/tzdata@2026.6"
       ]
     }
   ],

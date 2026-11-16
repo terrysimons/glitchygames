@@ -25,8 +25,8 @@ so the engine's tests import no workspace member and run no member's code:
     PaddleSlap's ball does) and keeps what it returned (the channel, or None when none was
     free) as ``chime_channel``; only such a stand-in's source holds the chime's lines;
   - **a live voice**, only in ``write_live_voice_stand_in_game``'s: on its
-    ``live_voice_on_frame`` its scene creates and starts a live synth voice
-    (``scene_manager.live_audio``, as Mr. Muncher's projector does) and keeps it as
+    ``live_voice_on_frame`` its scene starts a live instrument (``audio.sound(Instrument(...,
+    live=True)).start()``, as Mr. Muncher's projector does) and keeps its handle as
     ``live_voice``;
   - **its layer**, only when ``layer`` is given: its package registers itself in
     ``glitchygames.logical_names.MEMBER_LAYERS`` when imported, so its logical names are
@@ -329,13 +329,13 @@ def stand_in_game_source(
         sound_attributes += '        self.live_voice = None\n'
         sound_lines += (
             '        if self.frames == LIVE_VOICE_ON_FRAME:\n'
-            '            self.live_voice = self.scene_manager.live_audio.create_voice(\n'
-            '                owner=self, waveform=Waveform.SINE, frequency=220.0\n'
-            '            )\n'
-            '            self.live_voice.start()\n'
+            '            live_sine = Instrument(wave="sine", live=True)\n'
+            '            self.live_voice = self.scene_manager.audio.sound(\n'
+            '                live_sine, pitch=220.0\n'
+            '            ).start(owner=self)\n'
         )
     live_voice_import = (
-        '' if live_voice_on_frame is None else 'from glitchygames.audio.synth import Waveform\n'
+        '' if live_voice_on_frame is None else 'from glitchygames.audio import Instrument\n'
     )
     layer_registration = (
         ''

@@ -15,6 +15,8 @@ suite needs are declared here; the shared test harness (tests/harness.py) is one
 # the test, instead of the kernel's signal 9 (BUGS.md #235); unset, it does nothing
 # tests.collection_logger_levels stops a run whose collected imports set a project logger's level
 # or disabled logging (BUGS.md #235, #236)
+# tests.disk_sound_cache gives a test the sound cache's disk layer (the harness turns it off) and
+# fails one that never used it
 pytest_plugins = [
     'tests.harness',
     'pytester',
@@ -22,4 +24,5 @@ pytest_plugins = [
     'glitchygames.testing.frame_fingerprints',
     'tests.memory_guard',
     'tests.collection_logger_levels',
+    'tests.disk_sound_cache',
 ]

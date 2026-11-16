@@ -57,10 +57,9 @@ def needs_alpha_channel(pixels: Sequence[tuple[int, ...]]) -> bool:
             _r, _g, _b, a = pixel
             if a != MAX_COLOR_CHANNEL_VALUE:
                 return True
-        elif len(pixel) == RGB_COMPONENT_COUNT:
-            # RGB format - check if it's the transparent color (255, 0, 255)
-            if pixel == MAGENTA_TRANSPARENCY_KEY:
-                return True
+        elif len(pixel) == RGB_COMPONENT_COUNT and pixel == MAGENTA_TRANSPARENCY_KEY:
+            # RGB format: the transparent color (255, 0, 255)
+            return True
     return False
 
 

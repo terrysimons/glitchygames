@@ -98,7 +98,7 @@ def _composite_frames_with_alpha(  # pyright: ignore[reportUnusedFunction]
             if blended is not None:
                 composite[i] = blended
 
-    return composite  # ty: ignore[invalid-return-type]
+    return composite  # ty: ignore[invalid-explicit-return]
 
 
 def _create_composite_frame_from_pixels(  # type: ignore[reportUnusedFunction]

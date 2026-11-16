@@ -1,0 +1,15 @@
+# PaddleSlap's two recorded sounds, played through the engine's sound library
+# (plans/2026-11-14-sound-migration.md). Each plays at 0.25, the volume load_sound gave them.
+[glitchygames]
+kind = "sounds"
+version = 1
+
+# A ball off the top or bottom wall
+[sounds.bounce]
+file = "sfx_bounce.wav"
+volume = 0.25
+
+# A ball off a paddle
+[sounds.slap]
+file = "sfx_slap.wav"
+volume = 0.25

@@ -25,7 +25,7 @@ parameters:
   # trusts a compromised CA (GHSA-hq85-5cpj-mr62)
   UV_VERSION:
     type: string
-    default: "0.13.6"
+    default: "0.13.8"
   # syft and grype (nox -s security-scan: the SBOM, its CVE scan and license check), system
   # binaries rather than Python packages, so uv.lock cannot pin them. SYFT_VERSION is the syft that
   # wrote docs/sbom.cyclonedx.json (its metadata.tools, which tests/test_ci_config.py checks): a

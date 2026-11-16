@@ -80,7 +80,7 @@ Its recordings name it `games.mr_muncher.game:MrMuncherScene`, its golden replay
 | `src/games/mr-muncher/src/mr_muncher/game.py` | `MrMuncherScene` (one reel: phases, scoring, input, saves, sound, drawing), `Phase`, `GameProgress`, `MrMuncherGameOverScene`, `main` |
 | `src/games/mr-muncher/src/mr_muncher/drawing.py` | Every picture, drawn with pygame primitives and cached with `functools.cache`: maze, bucket, munchers, eyes, sprockets, snacks, bonus reel, film-strip panels |
 | `src/games/mr-muncher/src/mr_muncher/scenery.py` | The sprites that never move (`Sprocket`, `Picture`, `SidePanel`) and the text helpers (`bundled_font`, `fitted_font`, `render_text`) |
-| `src/games/mr-muncher/src/mr_muncher/sounds.py` | The sound effects and jingles as synth `SoundRecipe`s |
+| `src/games/mr-muncher/src/mr_muncher/sounds.py` | The sound effects and jingles as synthesized effects (`Effect`s) |
 | `src/games/mr-muncher/src/mr_muncher/autopilot.py` | `Autopilot`, a bot that plays the game. The golden replay's script and the tests use it |
 | `src/games/mr-muncher/tests/test_mr_muncher.py` | The scene: game flow, scoring, input, saves, screens, whole games |
 | `src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py` | The parts: maze, levels, actors, pictures, scenery, sounds, autopilot |
@@ -651,12 +651,14 @@ wanted size down to 8) at which each panel's longest text fits.
 
 ## Sound
 
-`sounds.py` defines every sound as a synth `SoundRecipe` (`src/glitchygames/audio/recipes.py`).
-`shared_sound_bank()` builds one `SoundBank(ALL_RECIPES)` for the whole process
-(`functools.cache`), and `setup()` calls `sounds.prerender()`, so no sound is rendered in the
-middle of a frame.
+`sounds.py` defines every sound as a synthesized effect (`Effect`,
+`src/glitchygames/audio/effects.py`), `EFFECTS`. Each level asks the engine's sound library for
+all of them when it is built (`self.sounds`, by name; `play_sound(name)` plays one): the library
+compiles each once per engine context and caches it (on disk too, under `--sound-cache disk`), so
+every level shares them and no sound compiles in the middle of a frame. Each plays at its own
+volume.
 
-| Recipe | When it plays |
+| Effect | When it plays |
 |---|---|
 | `crunch_one`, `crunch_two` | A sprocket or snack is eaten (alternating, so a run of them never repeats exactly) |
 | `sugar_rush` | A snack starts a fright (two clapperboard clacks and a rising shimmer) |
@@ -669,9 +671,11 @@ middle of a frame.
 | `action` | ACTION! (a clack and a major chord) |
 | `the_end` | THE END |
 
-Behind play runs the **projector**, a live voice (`scene_manager.live_audio.create_voice(...)`)
-of low-pass filtered noise with a tremolo, so it flutters like a projector's shutter.
-`_update_projector` changes its cutoff and flutter rate only when they change: brighter and
+Behind play runs the **projector**, a live instrument (`sounds.PROJECTOR`, started with
+`start(owner=self, volume=PROJECTOR_VOLUME)`, 0.05 as heard: raised by √2 for the centred pan's
+3 dB) of low-pass filtered noise with a tremolo, so it flutters like a
+projector's shutter. Its `cutoff` and `flutter` parameters route one to one to the filter and the
+tremolo rate. `_update_projector` sets them only when they change: brighter and
 faster as the sprockets run out (500 to 1200 Hz, 20 to 30 Hz), slow and low while the munchers
 are frightened (300 Hz, 8 Hz), and racing while eyes are going home (2000 Hz, 40 Hz). It starts
 at ACTION!, stops when the player is caught, when the reel is cleared, and in `cleanup()`. If no
@@ -732,7 +736,7 @@ by the autopilot, a demo could be recorded with
 | Pause screen | The engine's `PauseScene`, which also shows the paused game in the debug overlay (`debug_subject`) |
 | Transitions | `FadeTransition` to the game-over screen |
 | Screen shake and rumble | `CAUGHT_SHAKE`: a 0.4 s `NOISE` shake of strength 6 on `ShakeTarget.SCREEN`, with gamepad rumble (low 0.8, high 0.4), when a muncher catches the player |
-| Live audio and synth | The projector voice and the recipe bank (see [Sound](#sound)) |
+| Sound | The effects, and the projector, a live instrument (see [Sound](#sound)) |
 | World space | The actors are world sprites, and the engine positions their rects |
 | Opacity | `make_opaque` on the maze backgrounds (see [above](#make_opaque-on-the-backgrounds)) |
 
@@ -787,7 +791,7 @@ a test is about which sound plays.
 | `TestMuncherStates` | Waiting, bobbing, walking out, eyes going home and back out, scatter and chase targets, never turning back, mode reversal, seeded frightened turns, dead ends |
 | `TestMuncherSpeeds` | Every speed, only Chomper hurrying |
 | `TestPlayerPictures`, `TestMuncherPictures`, `TestPictures`, `TestScenery` | The pictures by their pixels, fitted fonts, sprockets, pictures and panels |
-| `TestSounds` | Every recipe renders, two crunches |
+| `TestSounds` | Every effect renders, two crunches |
 | `TestAutopilot` | Corridor distances, the decision point, each goal, avoiding danger, traps, seeking capture once |
 
 `src/games/mr-muncher/tests/test_mr_muncher.py` covers the scene: layout (`TestLayout`), the countdown and

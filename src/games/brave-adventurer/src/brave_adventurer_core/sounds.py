@@ -1,204 +1,130 @@
-"""Synthesized sound effects for Brave Adventurer.
+"""Brave Adventurer's sound effects: five effects, played through the engine's sound library.
 
-All sounds are generated from waveform math at startup, at the mixer's
-sample rate, by the engine synthesizer (glitchygames.audio.synth).
-No external audio files are needed.
+Each is an ``Effect`` (glitchygames.audio.effects: tones mixed straight), so the library compiles
+it once, caches it (on disk too, under ``--sound-cache disk``) and plays it on its own channels.
+They were ``_generate_*_sound()`` functions on the synth toolkit; as effects their 16-bit samples
+are byte-identical to what those made (tests/core/test_brave_adventurer_sounds.py), with
+``normalize=False`` because the old functions scaled by ``PEAK`` and never rescaled the result,
+and each plays at the volume the old function set. No external audio files are needed.
 """
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
-from glitchygames.audio.exceptions import AudioUnavailableError
-from glitchygames.audio.synth import (
-    Envelope,
-    FloatArray,
-    Waveform,
-    apply_envelope,
-    concatenate,
-    frequency_curve,
-    oscillator,
-    to_sound,
-)
+from pydantic import BaseModel, ConfigDict
+
+from glitchygames.audio.effects import Effect, Tone
+from glitchygames.audio.library import Sound  # ruff: ignore[typing-only-first-party-import] - pydantic checks BraveAdventurerSounds' fields at runtime
+from glitchygames.audio.synth import Envelope, Waveform
 
 if TYPE_CHECKING:
-    import pygame
-
-log = logging.getLogger('game')
+    from glitchygames.audio.engine import AudioEngine
 
 # Peak level as a fraction of full scale (the original 24000 of 32767, kept as written)
-PEAK = 24000 / 32767
+PEAK: Final[float] = 24000 / 32767
 
 
-# ---------------------------------------------------------------------------
-# Waveform primitives
-# ---------------------------------------------------------------------------
-
-
-def _sine(frequency: float, duration: float) -> FloatArray:
-    return oscillator(Waveform.SINE, frequency, duration)[0] * PEAK
-
-
-def _sweep(start_frequency: float, end_frequency: float, duration: float) -> FloatArray:
-    frequencies = frequency_curve(start_frequency, end_frequency, duration)
-    return oscillator(Waveform.SINE, frequencies, duration)[0] * PEAK
-
-
-def _fade(samples: FloatArray, *, attack: float, release: float) -> FloatArray:
+def _fade(*, attack: float, release: float) -> Envelope:
     """The original attack/fade-out envelope: ramp in, full level, ramp out at the end.
 
     Returns:
-        The shaped samples.
-
+        The envelope.
     """
-    return apply_envelope(
-        samples, Envelope(attack=attack, decay=0.0, sustain_level=1.0, release=release)
+    return Envelope(attack=attack, decay=0.0, sustain_level=1.0, release=release)
+
+
+def _sine(  # ruff: ignore[too-many-arguments] - one tone's settings, each named at every call
+    frequency: float,
+    *,
+    duration: float,
+    attack: float,
+    release: float,
+    end_frequency: float | None = None,
+    offset: float = 0.0,
+) -> Tone:
+    """A sine tone at PEAK (a sweep when an end frequency is given), faded in and out.
+
+    Returns:
+        The tone.
+    """
+    return Tone(
+        waveform=Waveform.SINE,
+        start_frequency=frequency,
+        end_frequency=end_frequency,
+        duration=duration,
+        envelope=_fade(attack=attack, release=release),
+        volume=PEAK,
+        offset=offset,
     )
 
 
-# ---------------------------------------------------------------------------
-# Sound effect generators
-# ---------------------------------------------------------------------------
+# A quick rising sine sweep, fast attack and decay
+JUMP: Final[Effect] = Effect(
+    name='jump',
+    tones=(_sine(220, end_frequency=660, duration=0.12, attack=0.005, release=0.08),),
+    volume=0.35,
+    normalize=False,
+)
+# A very short low thud
+LAND: Final[Effect] = Effect(
+    name='land',
+    tones=(_sine(80, duration=0.06, attack=0.002, release=0.05),),
+    volume=0.25,
+    normalize=False,
+)
+# Three quick ascending notes, C5, E5 and G5 (523, 659 and 784 Hz: a major triad)
+COLLECT: Final[Effect] = Effect(
+    name='collect',
+    tones=tuple(
+        _sine(frequency, duration=0.06, attack=0.003, release=0.04, offset=index * 0.06)
+        for index, frequency in enumerate((523, 659, 784))
+    ),
+    volume=0.3,
+    normalize=False,
+)
+# A sine sweep dropping from high to low
+DEATH: Final[Effect] = Effect(
+    name='death',
+    tones=(_sine(500, end_frequency=80, duration=0.3, attack=0.005, release=0.2),),
+    volume=0.4,
+    normalize=False,
+)
+# Three slow descending notes, E4, C4 and A3 (330, 262 and 220 Hz), the last held longer
+GAME_OVER: Final[Effect] = Effect(
+    name='game_over',
+    tones=(
+        _sine(330, duration=0.25, attack=0.01, release=0.15),
+        _sine(262, duration=0.25, attack=0.01, release=0.15, offset=0.25),
+        _sine(220, duration=0.375, attack=0.01, release=0.25, offset=0.5),
+    ),
+    volume=0.4,
+    normalize=False,
+)
+EFFECTS: Final[dict[str, Effect]] = {
+    effect.name: effect for effect in (JUMP, LAND, COLLECT, DEATH, GAME_OVER)
+}
 
 
-def _generate_jump_sound() -> pygame.mixer.Sound:
-    """Generate a short rising tone for jumping.
+class BraveAdventurerSounds(BaseModel):
+    """The game's five sounds, ready to play (each a ``Sound`` from the scene's audio engine)."""
 
-    A quick sine sweep from low to high pitch with fast attack and decay.
+    model_config = ConfigDict(frozen=True, extra='forbid', arbitrary_types_allowed=True)
 
-    Returns:
-        A pygame Sound object with the jump effect.
-
-    """
-    shaped = _fade(_sweep(220, 660, 0.12), attack=0.005, release=0.08)
-    return to_sound(shaped, volume=0.35)
-
-
-def _generate_land_sound() -> pygame.mixer.Sound:
-    """Generate a brief low thud for landing.
-
-    A very short burst of low-frequency tone with rapid decay.
-
-    Returns:
-        A pygame Sound object with the landing effect.
-
-    """
-    shaped = _fade(_sine(80, 0.06), attack=0.002, release=0.05)
-    return to_sound(shaped, volume=0.25)
+    jump: Sound
+    land: Sound
+    collect: Sound
+    death: Sound
+    game_over: Sound
 
 
-def _generate_collect_sound() -> pygame.mixer.Sound:
-    """Generate a cheerful ascending arpeggio for collecting a scarab.
+def request_sounds(*, audio: AudioEngine) -> BraveAdventurerSounds:
+    """Ask the audio engine for each effect (compiled on its first request, cached after).
 
-    Three quick ascending notes (C5, E5, G5) played in rapid succession.
-
-    Returns:
-        A pygame Sound object with the collect effect.
-
-    """
-    note_duration = 0.06
-    # C5=523, E5=659, G5=784 Hz (major triad)
-    notes = [
-        _fade(_sine(frequency, note_duration), attack=0.003, release=0.04)
-        for frequency in (523, 659, 784)
-    ]
-    return to_sound(concatenate(*notes), volume=0.3)
-
-
-def _generate_death_sound() -> pygame.mixer.Sound:
-    """Generate a descending tone for player death.
-
-    A sine sweep dropping from high to low pitch.
-
-    Returns:
-        A pygame Sound object with the death effect.
-
-    """
-    shaped = _fade(_sweep(500, 80, 0.3), attack=0.005, release=0.2)
-    return to_sound(shaped, volume=0.4)
-
-
-def _generate_game_over_sound() -> pygame.mixer.Sound:
-    """Generate a slow descending tone sequence for game over.
-
-    Three descending notes with longer sustain, creating a somber effect.
+    Args:
+        audio: The scene's audio engine (``scene_manager.audio``).
 
     Returns:
-        A pygame Sound object with the game over effect.
-
+        The five sounds.
     """
-    note_duration = 0.25
-    # Descending minor: E4=330, C4=262, A3=220
-    note_e = _fade(_sine(330, note_duration), attack=0.01, release=0.15)
-    note_c = _fade(_sine(262, note_duration), attack=0.01, release=0.15)
-    note_a = _fade(_sine(220, note_duration * 1.5), attack=0.01, release=0.25)
-    return to_sound(concatenate(note_e, note_c, note_a), volume=0.4)
-
-
-# ---------------------------------------------------------------------------
-# Public sound effect holder
-# ---------------------------------------------------------------------------
-
-
-class GameSounds:
-    """Lazily-initialized container for all game sound effects.
-
-    Call initialize() after pygame.mixer is ready. All sounds are
-    generated from waveform math - no external files needed.
-    """
-
-    def __init__(self) -> None:
-        """Initialize with placeholder None values."""
-        self.jump: pygame.mixer.Sound | None = None
-        self.land: pygame.mixer.Sound | None = None
-        self.collect: pygame.mixer.Sound | None = None
-        self.death: pygame.mixer.Sound | None = None
-        self.game_over: pygame.mixer.Sound | None = None
-        self._initialized: bool = False
-
-    def initialize(self) -> None:
-        """Generate all sound effects. Call after pygame.mixer.init()."""
-        if self._initialized:
-            return
-
-        try:
-            sounds = (
-                _generate_jump_sound(),
-                _generate_land_sound(),
-                _generate_collect_sound(),
-                _generate_death_sound(),
-                _generate_game_over_sound(),
-            )
-        except AudioUnavailableError:
-            # No sound is set: the game plays silent rather than with some of its sounds
-            log.warning('Audio unavailable, Brave Adventurer plays without sound')
-            return
-        self.jump, self.land, self.collect, self.death, self.game_over = sounds
-        self._initialized = True
-        log.info('Brave Adventurer sounds generated successfully')
-
-    def play_jump(self) -> None:
-        """Play the jump sound effect."""
-        if self.jump is not None:
-            self.jump.play()
-
-    def play_land(self) -> None:
-        """Play the landing sound effect."""
-        if self.land is not None:
-            self.land.play()
-
-    def play_collect(self) -> None:
-        """Play the collectible pickup sound effect."""
-        if self.collect is not None:
-            self.collect.play()
-
-    def play_death(self) -> None:
-        """Play the player death sound effect."""
-        if self.death is not None:
-            self.death.play()
-
-    def play_game_over(self) -> None:
-        """Play the game over sound effect."""
-        if self.game_over is not None:
-            self.game_over.play()
+    return BraveAdventurerSounds(**{name: audio.sound(effect) for name, effect in EFFECTS.items()})

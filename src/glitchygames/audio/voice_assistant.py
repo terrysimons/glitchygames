@@ -260,7 +260,7 @@ class VoiceAssistant:
         try:
             # Use Google's free speech recognition
             # Could swap to Whisper, etc.
-            return recognizer.recognize_google(audio)  # type: ignore[no-any-return] # ty: ignore[unresolved-attribute]
+            return recognizer.recognize_google(audio)  # type: ignore[no-any-return] # ty: ignore[missing-attribute]
         except sr.UnknownValueError:
             log.warning('Speech not understood')
             return None

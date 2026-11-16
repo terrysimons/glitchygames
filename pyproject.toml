@@ -36,6 +36,8 @@ dependencies = [
   "apng",
   "pillow",
   "hidapi>=0.15.0",
+  # The sound cache's cross-process write lock (glitchygames/audio/disk_cache.py)
+  "filelock",
 ]
 
 [project.urls]

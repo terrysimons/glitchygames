@@ -217,7 +217,7 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             height=strip_height,
         )
         film_strip.set_animated_sprite(single_anim_sprite)
-        film_strip.strip_index = strip_index  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]  # Track which strip this is
+        film_strip.strip_index = strip_index  # type: ignore[attr-defined] # ty: ignore[missing-attribute]  # Track which strip this is
 
         # CRITICAL FIX: Ensure all frames in the single animation sprite have proper image data
         # This fixes the issue where film strips show empty gray squares

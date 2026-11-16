@@ -8,9 +8,9 @@ import pygame
 import pytest
 
 from glitchygames.audio.engine import default_channel_partition
-from glitchygames.audio.live import LiveAudio, reserve_live_voice_pool
+from glitchygames.audio.instrument import Instrument
+from glitchygames.audio.live import LiveAudio
 from glitchygames.audio.route import set_audible
-from glitchygames.audio.synth import Waveform
 from glitchygames.audio.voices import (
     INNER_CHANNELS_SLOT,
     ChannelPartition,
@@ -134,23 +134,6 @@ def test_a_second_smaller_partition_never_shrinks_the_mixer(mocker):
     set_num_channels.assert_not_called()
     assert pygame.mixer.get_num_channels() == 44
     assert partition == ChannelPartition(live=(0, 1), library=(2, 3, 4, 5), legacy_count=38)
-
-
-def test_the_live_pool_wrapper_after_a_partition_keeps_the_library_reserved(mocker):
-    """reserve_live_voice_pool after reserve_channels neither grows nor lowers the reservation."""
-    start_reserved_mixer()
-    set_num_channels = mocker.spy(pygame.mixer, 'set_num_channels')
-    legacy_sound = pygame.mixer.Sound(buffer=bytes(44100 * 4))
-
-    live_channels = reserve_live_voice_pool(4)
-    channels = [legacy_sound.play() for _ in range(8)]
-    ninth = legacy_sound.play()
-
-    assert live_channels == (0, 1, 2, 3)
-    set_num_channels.assert_not_called()
-    assert pygame.mixer.get_num_channels() == 44
-    assert sorted(channel.id for channel in channels) == list(range(36, 44))
-    assert ninth is None
 
 
 def test_a_restarted_mixer_is_partitioned_again():
@@ -689,19 +672,6 @@ class TestTheDeclaration:
         with pytest.raises(ValueError, match='inner_games'):
             reserve_channels(live_pool=4, library_channels=32, legacy_channels=8, inner_games=-1)
 
-    def test_the_live_pool_wrapper_is_refused_after_a_declaration_and_in_an_inner_context(self):
-        """reserve_live_voice_pool would count the inner games' channels as legacy: refused."""
-        declared_mixer()
-
-        with pytest.raises(InnerGameChannelsError, match='reserve_live_voice_pool'):
-            reserve_live_voice_pool(4)
-        release_channels()
-        inner = EngineContext(name='tile')
-        with inner.active():
-            set_render_target(surface=pygame.Surface((8, 8)))
-            with pytest.raises(InnerGameChannelsError, match='reserve_live_voice_pool'):
-                reserve_live_voice_pool(4)
-
     def test_releasing_the_channels_forgets_the_declaration(self):
         """Shutdown's release: an inner game built afterwards fails (nothing declared)."""
         declared_mixer()
@@ -924,10 +894,10 @@ class TestInnerPartitions:
         with context.active():
             set_audible(audible=False)
             partition = inner_context_partition(live_pool=2, library_channels=6)
-            voice = LiveAudio(channel_indices=partition.live).create_voice(
-                owner=GAME_SCENE, waveform=Waveform.SINE, frequency=220.0
+            voice = LiveAudio(channel_indices=partition.live).create_instrument_voice(
+                owner=GAME_SCENE, instrument=Instrument(wave='sine', live=True), frequency=220.0
             )
-            voice.start()
+            voice.stream.start()
 
         assert top_channel.get_busy()
         assert top_channel.get_sound() is plain_sound

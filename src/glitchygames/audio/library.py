@@ -12,7 +12,7 @@ cache, which is replay-local, so a replay under another mode reads the same, bit
 ``ram`` the request's compile sets them, and ``release()`` (the memory limit's eviction) keeps
 them. Under ``none`` (Rulings R49 and R50) nothing renders or decodes at request:
 - a spec's and a version 0 recipe's ``length`` is derived the way the compile sizes its samples
-  (``render.rendered_frame_count``, ``SoundRecipe.frame_count``), and their ``sample_rate`` is
+  (``render.rendered_frame_count``, ``Effect.frame_count``), and their ``sample_rate`` is
   the rate they compile at;
 - a recorded file's ``length`` and ``sample_rate`` are known only by decoding it (a mixer
   converts it as it loads; a truncated WAV decodes fewer frames than its header claims), so
@@ -41,6 +41,7 @@ import hashlib
 import json
 import logging
 import sysconfig
+import threading
 import wave
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -51,8 +52,8 @@ from typing import TYPE_CHECKING, Any, Final, Protocol, cast
 import numpy as np
 import numpy.typing as npt
 import pygame
+from pydantic import BaseModel, ConfigDict
 
-from glitchygames import clock
 from glitchygames.audio.assets import (
     INSTRUMENT_SEPARATOR,
     RECORDED_SOUND_SUFFIXES,
@@ -64,8 +65,10 @@ from glitchygames.audio.assets import (
     load_sound_file,
     require_recorded_file,
 )
+from glitchygames.audio.effects import Effect
 from glitchygames.audio.exceptions import AudioUnavailableError, SoundAssetError, SoundRenderError
-from glitchygames.audio.instrument import Instrument, build_spec
+from glitchygames.audio.instrument import UNPITCHED_REFERENCE_HZ, Instrument, build_spec
+from glitchygames.audio.pitch import resolve_pitch
 from glitchygames.audio.render import render_sound, rendered_frame_count
 from glitchygames.audio.spec import (
     AUDIO_RENDER_VERSION,
@@ -84,8 +87,9 @@ from glitchygames.audio.voices import SoundHandle
 
 if TYPE_CHECKING:
     from glitchygames.audio.accounting import AudioAccountant
+    from glitchygames.audio.disk_cache import CachedSamples, DiskSoundCache
+    from glitchygames.audio.live_instrument import LiveSoundHandle
     from glitchygames.audio.pitch import PitchLike, Tuning
-    from glitchygames.audio.recipes import SoundRecipe
     from glitchygames.audio.waves import WaveRegistry
 
 log: logging.Logger = logging.getLogger('game.audio.library')
@@ -97,7 +101,8 @@ GENERATED_NAME_DIGITS: Final[int] = 8
 IDENTITY_KEY_HEX_DIGITS: Final[int] = 32  # 128 bits, as spec.identity_key
 STEREO_CHANNELS: Final[int] = 2
 WAVE_SAMPLE_WIDTH_BYTES: Final[int] = 2  # 16-bit PCM
-DISK_CACHE_MESSAGE: Final[str] = 'the disk cache arrives in M3'
+# SoundLibrary's refusal of cache disk without a disk layer
+DISK_LAYER_REQUIRED_MESSAGE: Final[str] = 'cache disk needs a disk cache to keep sounds in'
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,30 +110,42 @@ class CompiledSamples:
     """A compiled sound's samples and what a game may read of them, shared read-only.
 
     Attributes:
-        samples_float: Mono float64 samples (read-only).
+        samples_float: Mono float64 samples (read-only), or None for samples read from the disk
+            layer, which keeps only int16 samples.
         samples_int16: The same as signed 16-bit PCM (read-only).
         peak: The loudest magnitude before clipping.
         sample_rate: The rate of the samples.
     """
 
-    samples_float: FloatArray
+    samples_float: FloatArray | None
     samples_int16: Int16Array
     peak: float
     sample_rate: int
 
 
-class EngineSoundCache:
-    """The engine's own sounds' compiled samples, one cache per process, by identity key.
+class SharedSoundCache:
+    """The process's compiled samples by identity key, shared by every engine context.
 
-    Only the engine's sounds (the CRT power-on's, ``SoundLibrary.engine_sound``) are kept here;
-    a game's sounds stay in its context's library. Nothing here is ever evicted: the engine's
-    sounds are few and short (the CRT's five or six, about 0.5 MB at 44.1 kHz). ``clear`` exists
-    for the test harness, which starts every test with an empty cache.
+    The engine's own sounds (the CRT power-on's, ``SoundLibrary.engine_sound``) are pinned: never
+    evicted (few and short, about 0.5 MB). A game's sounds are shared the same way, so a second
+    engine context (an Arcade tile, or one restarted) compiles nothing the process compiled
+    already; past ``limit_bytes`` the least recently used of them go (a library holding one keeps
+    it until its own memory limit drops it). Each library still has its own ``Sound`` over the
+    shared, read-only arrays.
+
+    Reads (``compiled``) take no lock: an entry never changes once kept. ``lock_for`` is the
+    per-key lock a library holds around "look, else compile, then keep", so a sound asked for at
+    once by several callers is compiled once (plans/2026-11-14-sound-migration.md). ``clear``
+    exists for the test harness, which starts every test with an empty cache.
     """
 
     def __init__(self) -> None:
         """Start empty."""
-        self._compiled: dict[str, CompiledSamples] = {}
+        self._compiled: OrderedDict[str, CompiledSamples] = OrderedDict()
+        self._pinned: set[str] = set()
+        self._locks: dict[str, threading.Lock] = {}
+        self._locks_guard = threading.Lock()
+        self.limit_bytes = DEFAULT_MEMORY_LIMIT_BYTES
 
     def __len__(self) -> int:
         """The number of sounds kept.
@@ -138,8 +155,20 @@ class EngineSoundCache:
         """
         return len(self._compiled)
 
+    def lock_for(self, identity_key: str) -> threading.Lock:
+        """The lock held while a sound is looked up, compiled and kept.
+
+        Args:
+            identity_key: The sound's identity key.
+
+        Returns:
+            Its lock, the same one for every caller.
+        """
+        with self._locks_guard:
+            return self._locks.setdefault(identity_key, threading.Lock())
+
     def compiled(self, identity_key: str) -> CompiledSamples | None:
-        """The compiled samples of a sound, if this process compiled it already.
+        """The compiled samples of a sound, if this process compiled it already (now most recent).
 
         Args:
             identity_key: The sound's identity key.
@@ -147,21 +176,25 @@ class EngineSoundCache:
         Returns:
             The samples, or None.
         """
-        return self._compiled.get(identity_key)
+        compiled = self._compiled.get(identity_key)
+        if compiled is not None:
+            self._compiled.move_to_end(identity_key)
+        return compiled
 
-    def keep(self, sound: Sound) -> CompiledSamples:
+    def keep(self, sound: Sound, *, pinned: bool = False) -> CompiledSamples:
         """Keep a freshly compiled sound's samples, made read-only, for every later request.
 
         Args:
             sound: The compiled sound.
+            pinned: Never evict it (the engine's own sounds).
 
         Returns:
             The samples kept.
         """
-        assert sound.samples_float is not None
         assert sound.samples_int16 is not None
         # Shared by every context's Sound: nothing may write them in place
-        sound.samples_float.flags.writeable = False
+        if sound.samples_float is not None:
+            sound.samples_float.flags.writeable = False
         sound.samples_int16.flags.writeable = False
         compiled = CompiledSamples(
             samples_float=sound.samples_float,
@@ -170,15 +203,40 @@ class EngineSoundCache:
             sample_rate=sound.sample_rate,
         )
         self._compiled[sound.identity_key] = compiled
+        if pinned:
+            self._pinned.add(sound.identity_key)
+        self._evict_past_the_limit(keep=sound.identity_key)
         return compiled
 
     def clear(self) -> None:
         """Forget every sound (the test harness's reset; the next request compiles)."""
         self._compiled.clear()
+        self._pinned.clear()
+
+    def _evict_past_the_limit(self, *, keep: str) -> None:
+        """Drop the least recently used unpinned sounds until the game sounds fit the limit."""
+        evictable = [key for key in self._compiled if key not in self._pinned]
+        held = sum(_compiled_bytes(self._compiled[key]) for key in evictable)
+        for key in evictable:
+            if held <= self.limit_bytes:
+                return
+            if key == keep:
+                continue
+            held -= _compiled_bytes(self._compiled.pop(key))
 
 
-# The process's one cache of the engine's own compiled sounds (see the module docstring)
-ENGINE_SOUND_CACHE: Final[EngineSoundCache] = EngineSoundCache()
+def _compiled_bytes(compiled: CompiledSamples) -> int:
+    """The bytes a kept sound's arrays hold.
+
+    Returns:
+        The byte count.
+    """
+    float_bytes = 0 if compiled.samples_float is None else compiled.samples_float.nbytes
+    return compiled.samples_int16.nbytes + float_bytes
+
+
+# The process's one cache of compiled sounds, the engine's own pinned (SharedSoundCache)
+ENGINE_SOUND_CACHE: Final[SharedSoundCache] = SharedSoundCache()
 
 
 class CacheMode(enum.StrEnum):
@@ -199,17 +257,26 @@ class CacheStatistics:
         compiles: Compiles and decodes run, including every play under cache ``none``.
         bytes_held: The int16 bytes of the compiled sounds held in memory (the game's: the
             engine's own sounds, shared by the process, are left out).
+        disk_hits: Sounds read from the disk layer instead of compiled (cache ``disk``).
+        disk_misses: Sounds the disk layer did not hold (or held damaged), so compiled.
+        disk_writes: Compiled sounds written to the disk layer.
+        shared_hits: Sounds this library did not hold that the process had compiled already
+            (another engine context's, or before this library's memory limit dropped them).
     """
 
     hits: int
     misses: int
     compiles: int
     bytes_held: int
+    disk_hits: int = 0
+    disk_misses: int = 0
+    disk_writes: int = 0
+    shared_hits: int = 0
 
 
 @dataclass(frozen=True, slots=True)
 class SoundRequest:
-    """One set of ``sound()`` arguments, for ``SoundLibrary.warm``.
+    """One set of ``sound()`` arguments, as the library resolves them.
 
     Attributes:
         source: A short name, a path, or an ``Instrument``.
@@ -220,10 +287,10 @@ class SoundRequest:
         chord: Pitches played together, or None.
         length: Seconds, or None.
         transpose: Semitones.
-        parameters: Live parameters (M2), or None.
+        parameters: Parameters (a live sound refuses them: ``start`` takes its), or None.
     """
 
-    source: str | Instrument
+    source: str | Instrument | Effect
     scene_sound_directory: Path | None
     package_root: Path | None = None
     pitch: PitchLike | None = None
@@ -254,10 +321,39 @@ class SoundPlayer(Protocol):
         ...
 
 
+class LivePlayback(BaseModel):
+    """``Sound.start()``'s playback arguments, as given (None: the sound file's)."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    persist: bool
+    pan: float | None
+    bus: str | None
+    priority: int | None
+
+
+class LiveStarter(Protocol):
+    """Starts a live sound on a live pool (the audio engine's ``Sound.start``)."""
+
+    def __call__(  # ruff: ignore[too-many-arguments] - Sound.start's arguments and the sound's
+        self,
+        sound: Sound,
+        *,
+        instrument: Instrument,
+        frequency: float,
+        parameters: Mapping[str, float] | None,
+        volume: float | None,
+        owner: object | None,
+        playback: LivePlayback,
+    ) -> LiveSoundHandle:
+        """Start ``sound``: ``instrument`` at ``frequency``."""
+        ...
+
+
 class Sound:
     """A sound the library compiled (or, under cache ``none``, will compile at each play).
 
-    Exactly one of ``spec`` (a version 1 sound or an instrument), ``legacy_recipe`` (version 0) and
+    Exactly one of ``spec`` (a version 1 sound or an instrument), ``effect`` (version 0) and
     ``recorded_file`` says how it is compiled. ``length``, ``peak`` and ``sample_rate`` are what a
     game may read of it, the same under either cache (see the module docstring): a sound got from
     the library gives all three (under ``none`` the ones not derived come from one compile on
@@ -267,12 +363,15 @@ class Sound:
 
     Attributes:
         name: The short name, the path stem, or a generated ``instrument-<digest>`` name.
-        is_live: Whether this is a live (M2) sound.
+        is_live: Whether this is a live sound: it has no baked audio and plays by ``start()``.
+        live_instrument: A live sound's instrument, or None.
+        live_frequency: The pitch in hertz a live sound starts at (440 when none was given;
+            a ``pitch`` route moves it), or None.
         is_engine_sound: Whether this is one of the engine's own sounds (``engine_sound``).
         identity_key: The cache key.
         playback_defaults: The sound file's playback defaults.
         spec: The spec of a version 1 sound, or None.
-        legacy_recipe: The version 0 recipe, or None.
+        effect: The version 0 recipe, or None.
         recorded_file: The WAV/OGG path of a recorded sound, or None.
         samples_float: Mono float64 samples, or None until compiled.
         samples_int16: The same as signed 16-bit PCM, or None until compiled.
@@ -286,8 +385,10 @@ class Sound:
         sample_rate: int,
         playback_defaults: PlaybackDefaults,
         spec: SoundSpec | None = None,
-        legacy_recipe: SoundRecipe | None = None,
+        effect: Effect | None = None,
         recorded_file: Path | None = None,
+        live_instrument: Instrument | None = None,
+        live_frequency: float | None = None,
     ) -> None:
         """Make an uncompiled sound.
 
@@ -297,8 +398,10 @@ class Sound:
             sample_rate: The rate to compile at.
             playback_defaults: The default playback settings.
             spec: The spec of a version 1 sound.
-            legacy_recipe: The version 0 recipe.
+            effect: The version 0 recipe.
             recorded_file: A recorded sound's file.
+            live_instrument: A live sound's instrument.
+            live_frequency: The pitch in hertz a live sound starts at.
         """
         self.name = name
         self.identity_key = identity_key
@@ -306,9 +409,11 @@ class Sound:
         self._sample_rate = sample_rate
         self.playback_defaults = playback_defaults
         self.spec = spec
-        self.legacy_recipe = legacy_recipe
+        self.effect = effect
         self.recorded_file = recorded_file
         self.is_live = spec.live if spec is not None else False
+        self.live_instrument = live_instrument
+        self.live_frequency = live_frequency
         # The engine's own sound (engine_sound): compiled once per process, never evicted or
         # compiled again for a play, whatever the cache mode
         self.is_engine_sound = False
@@ -325,6 +430,7 @@ class Sound:
         self._mixer_bytes = 0
         # The audio engine that handed the sound out plays it (attach_player)
         self._player: SoundPlayer | None = None
+        self._live_starter: LiveStarter | None = None
         self._warned_no_player = False
 
     def attach_player(self, player: SoundPlayer) -> None:
@@ -334,6 +440,72 @@ class Sound:
             player: The engine's play function.
         """
         self._player = player
+
+    def attach_live_starter(self, starter: LiveStarter) -> None:
+        """Let ``start()`` go to an audio engine (it attaches itself when it hands the sound out).
+
+        Args:
+            starter: The engine's start function.
+        """
+        self._live_starter = starter
+
+    def start(  # ruff: ignore[too-many-arguments] - impl spec 8's playback arguments, as play()'s
+        self,
+        *,
+        parameters: Mapping[str, float] | None = None,
+        volume: float | None = None,
+        owner: object | None = None,
+        persist: bool = False,
+        pan: float | None = None,
+        bus: str | None = None,
+        priority: int | None = None,
+    ) -> LiveSoundHandle:
+        """Start a live sound on the context's live pool (``live_instrument``).
+
+        Args:
+            parameters: Starting values by name; the rest start at their defaults.
+            volume: 0-1; None is the sound file's volume.
+            owner: The scene or transition whose life it follows; None is the scene that
+                starts it (the scene in setup, else the active scene).
+            persist: Outlive its owner, as a baked play's ``persist``; it ends through its
+                handle (the pause rules still hold).
+            pan: -1 (left) to 1 (right), by the constant-power law every sound pans by (centre
+                3 dB down on each side); None is the sound file's.
+            bus: The bus whose gain it follows; None is the sound file's.
+            priority: 0-100, for stealing on a full live pool; None is the sound file's.
+
+        Its chunk length, its latency, is the instrument's (``Instrument(chunk_seconds=)``).
+
+        Returns:
+            Its handle. A sound no audio engine handed out starts nothing: its handle answers
+            False, and a warning is logged once per sound.
+
+        Raises:
+            SoundRenderError: For a sound that is not live (``play()`` plays those).
+        """
+        from glitchygames.audio.live_instrument import LiveSoundHandle
+
+        instrument, frequency = self.live_instrument, self.live_frequency
+        if instrument is None or frequency is None:
+            message = f'{self.name!r} is not a live sound: play() plays it'
+            raise SoundRenderError(message)
+        if self._live_starter is None:
+            self._warn_no_engine()
+            return LiveSoundHandle(None)
+        return self._live_starter(
+            self,
+            instrument=instrument,
+            frequency=frequency,
+            parameters=parameters,
+            volume=volume,
+            owner=owner,
+            playback=LivePlayback(persist=persist, pan=pan, bus=bus, priority=priority),
+        )
+
+    def _warn_no_engine(self) -> None:
+        if not self._warned_no_player:
+            self._warned_no_player = True
+            log.warning('%s was not got from an audio engine: its plays are silent', self.name)
 
     def play(  # ruff: ignore[too-many-arguments] - impl spec 8's playback arguments
         self,
@@ -362,11 +534,15 @@ class Sound:
         Returns:
             The handle. A sound no audio engine handed out (a bare library's) has no voices: its
             handle answers False, and a warning is logged once per sound.
+
+        Raises:
+            SoundRenderError: For a live sound (``start()`` starts those).
         """
+        if self.is_live:
+            message = f'{self.name!r} is a live sound: start() starts it'
+            raise SoundRenderError(message)
         if self._player is None:
-            if not self._warned_no_player:
-                self._warned_no_player = True
-                log.warning('%s was not got from an audio engine: its plays are silent', self.name)
+            self._warn_no_engine()
             return SoundHandle(slot=-1, generation=-1)
         return self._player(
             self,
@@ -481,14 +657,14 @@ class Sound:
             sample_rate=rate,
             playback_defaults=self.playback_defaults,
             spec=spec,
-            legacy_recipe=self.legacy_recipe,
+            effect=self.effect,
             recorded_file=self.recorded_file,
         )
 
     def install(
         self,
         *,
-        samples_float: FloatArray,
+        samples_float: FloatArray | None,
         samples_int16: Int16Array,
         peak: float,
         sample_rate: int,
@@ -497,7 +673,8 @@ class Sound:
         """Hold the compiled samples.
 
         Args:
-            samples_float: Mono float64 samples.
+            samples_float: Mono float64 samples, or None when only int16 samples were kept (a
+                disk hit); a caller that needs float samples then compiles a copy.
             samples_int16: The same as signed 16-bit PCM.
             peak: The loudest magnitude before clipping.
             sample_rate: The rate of the samples.
@@ -560,6 +737,32 @@ class Sound:
         self._mixer_settings = settings
         self._mixer_bytes = int(frames.nbytes)
         return self._mixer_sound
+
+
+def _effect_entry(effect: Effect) -> SoundEntry:
+    """Make an effect's entry: its name, the effect, and its own volume as the play's default.
+
+    Returns:
+        The entry.
+    """
+    return SoundEntry(
+        name=effect.name, effect=effect, playback_defaults=PlaybackDefaults(volume=effect.volume)
+    )
+
+
+def _compiled_frame_count(sound: Sound) -> int:
+    """The frames a sound's compile makes, known without compiling (a spec's or a recipe's).
+
+    The same counts ``SoundLibrary._describe`` derives a cache ``none`` sound's length from, so
+    a disk file of any other length is refused as not this sound's.
+
+    Returns:
+        The frame count.
+    """
+    if sound.spec is not None:
+        return rendered_frame_count(sound.spec)
+    assert sound.effect is not None
+    return sound.effect.frame_count(sample_rate=sound.sample_rate)
 
 
 def _nothing_plays(_sound: Sound) -> bool:
@@ -632,6 +835,7 @@ class SoundLibrary:
         tuning_source: Callable[[], Tuning],
         memory_limit_bytes: int = DEFAULT_MEMORY_LIMIT_BYTES,
         is_playing: Callable[[Sound], bool] = _nothing_plays,
+        disk: DiskSoundCache | None = None,
     ) -> None:
         """Make a library.
 
@@ -645,19 +849,25 @@ class SoundLibrary:
                 pygame sound) before the least recently played idle sounds go.
             is_playing: Says whether a sound is playing, so eviction spares it; the mixer
                 supplies it. The default says nothing is playing.
+            disk: The disk layer, required with cache ``disk`` (memory first, then disk, then
+                a compile written to disk; ``audio/disk_cache.py``). It is pruned to its limit
+                here, once (impl spec 6.4).
 
         Raises:
-            ValueError: For cache ``disk``, which arrives in M3.
+            ValueError: For cache ``disk`` without a disk layer.
         """
-        if cache is CacheMode.DISK:
-            raise ValueError(DISK_CACHE_MESSAGE)
+        if cache is CacheMode.DISK and disk is None:
+            raise ValueError(DISK_LAYER_REQUIRED_MESSAGE)
         self._cache = cache
+        self._disk = disk if cache is CacheMode.DISK else None
+        if self._disk is not None:
+            self._disk.prune()
         self._accountant = accountant
         self._waves = waves
         self._tuning_source = tuning_source
         self._memory_limit_bytes = memory_limit_bytes
         self._is_playing = is_playing
-        self._recipes: dict[str, SoundRecipe] = {}
+        self._effects: dict[str, Effect] = {}
         self._indexes: dict[tuple[Path, Path | None], ShortNameIndex] = {}
         # request -> identity key, so a repeated request is a dictionary hit (impl spec 6.2).
         # A sound file edited after its first request is not re-read: hot reload is M4.
@@ -670,15 +880,23 @@ class SoundLibrary:
         self._hits = 0
         self._misses = 0
         self._compiles = 0
+        self._disk_hits = 0
+        self._disk_misses = 0
+        self._disk_writes = 0
+        self._shared_hits = 0
+        # The process store's limit follows the libraries' (one --sound-cache-memory a process)
+        ENGINE_SOUND_CACHE.limit_bytes = memory_limit_bytes
 
-    def add_recipes(self, recipes: Iterable[SoundRecipe]) -> None:
-        """Add version 0 recipes by name; they are looked up before the sound directory.
+    def add_effects(self, effects: Iterable[Effect]) -> None:
+        """Register effects by name; they are looked up before the sound directory.
+
+        Each plays at its own volume by default, as an ``[effects.*]`` table's does.
 
         Args:
-            recipes: The recipes.
+            effects: The effects.
         """
-        for recipe in recipes:
-            self._recipes[recipe.name] = recipe
+        for effect in effects:
+            self._effects[effect.name] = effect
 
     def names(self) -> tuple[str, ...]:
         """The names of the added recipes and of every sound requested so far.
@@ -686,7 +904,7 @@ class SoundLibrary:
         Returns:
             The names, sorted.
         """
-        known = set(self._recipes)
+        known = set(self._effects)
         known.update(sound.name for sound in self._sounds.values())
         return tuple(sorted(known))
 
@@ -701,11 +919,15 @@ class SoundLibrary:
             misses=self._misses,
             compiles=self._compiles,
             bytes_held=self._bytes_held(),
+            disk_hits=self._disk_hits,
+            disk_misses=self._disk_misses,
+            disk_writes=self._disk_writes,
+            shared_hits=self._shared_hits,
         )
 
     def sound(  # ruff: ignore[too-many-arguments] - impl spec 8
         self,
-        source: str | Instrument,
+        source: str | Instrument | Effect,
         *,
         scene_sound_directory: Path | None,
         package_root: Path | None = None,
@@ -732,8 +954,8 @@ class SoundLibrary:
             chord: Pitches played together.
             length: Seconds per note or chord before release.
             transpose: Semitones to shift notes or a chord.
-            parameters: Live parameters; they identify the request but a baked sound ignores them
-                (live sounds arrive in M2).
+            parameters: They identify the request; a baked sound ignores them. A live sound's
+                are refused here: its starting values go to ``start(parameters=...)``.
 
         Returns:
             The sound. Under cache ``none`` it holds no samples and nothing was rendered or
@@ -778,7 +1000,7 @@ class SoundLibrary:
             return fresh
         if not sound.is_compiled:
             self._misses += 1
-            self._compile(sound)
+            self._compile_shared(sound)
             self._hold(sound)
         else:
             self._play_order.move_to_end(sound.identity_key)
@@ -814,55 +1036,21 @@ class SoundLibrary:
         )
         sound = self._build(request, sample_rate=sample_rate, tuning=tuning)
         sound.is_engine_sound = True
-        compiled = ENGINE_SOUND_CACHE.compiled(sound.identity_key)
-        if compiled is None:
-            self._misses += 1
-            self._compile(sound)
-            ENGINE_SOUND_CACHE.keep(sound)
-        else:
+        if self._compile_shared(sound, pinned=True):
             self._hits += 1
-            sound.install(
-                samples_float=compiled.samples_float,
-                samples_int16=compiled.samples_int16,
-                peak=compiled.peak,
-                sample_rate=compiled.sample_rate,
-            )
+        else:
+            self._misses += 1
         self._engine_sounds[request_key] = sound
         return sound
-
-    def warm(self, requests: Sequence[SoundRequest], *, budget_ms: float | None = None) -> float:
-        """Compile as many of the requests as fit in a time budget (for a loading scene).
-
-        At least one request compiles per call. It uses the same compile path as ``sound()``.
-
-        Args:
-            requests: The ``sound()`` argument sets to have compiled.
-            budget_ms: The milliseconds to spend this call, or None for no limit.
-
-        Returns:
-            Progress from 0 to 1: the share of requests that are compiled.
-        """
-        if not requests:
-            return 1.0
-        started = clock.raw_counter_ns()
-        compiled_this_call = 0
-        done = 0
-        for request in requests:
-            sound, known = self._lookup(request)
-            if self._cache is CacheMode.RAM and not sound.is_compiled:
-                elapsed_ms = (clock.raw_counter_ns() - started) / 1_000_000
-                if budget_ms is not None and compiled_this_call > 0 and elapsed_ms >= budget_ms:
-                    continue
-                compiled_this_call += 1
-            self._ensure_compiled(sound, known=known)
-            done += 1
-        return done / len(requests)
 
     def _ensure_compiled(self, sound: Sound, *, known: bool) -> None:
         """Count the request and, under ``ram``, compile the sound unless it is already.
 
-        Under ``none`` a new sound is described without rendering (``_describe``).
+        Under ``none`` a new sound is described without rendering (``_describe``). A live
+        sound has nothing to compile and is not counted.
         """
+        if sound.is_live:
+            return
         if self._cache is CacheMode.NONE:
             if known:
                 self._hits += 1
@@ -874,7 +1062,7 @@ class SoundLibrary:
             self._hits += 1
             return
         self._misses += 1
-        self._compile(sound)
+        self._compile_shared(sound)
         self._hold(sound)
 
     def _describe(self, sound: Sound) -> None:
@@ -883,15 +1071,15 @@ class SoundLibrary:
         ``length`` is the compile's frame count over the rate it compiles at, the same division
         ``Sound.install`` makes, so it is ``ram``'s bit for bit: a spec's from
         ``rendered_frame_count`` (the renderer's own buffer size), a version 0 recipe's from
-        ``SoundRecipe.frame_count`` (``mix``'s own). A recorded file's length and rate are known
+        ``Effect.frame_count`` (``mix``'s own). A recorded file's length and rate are known
         only by decoding it, and every peak only by compiling: those come from
         ``_compiled_copy`` on their first read.
         """
         compile_rate = sound.sample_rate  # known for every sound until it is described
         if sound.spec is not None:
             length = rendered_frame_count(sound.spec) / compile_rate
-        elif sound.legacy_recipe is not None:
-            length = sound.legacy_recipe.frame_count(sample_rate=compile_rate) / compile_rate
+        elif sound.effect is not None:
+            length = sound.effect.frame_count(sample_rate=compile_rate) / compile_rate
         else:
             length = None
         sound.describe_lazily(
@@ -934,6 +1122,87 @@ class SoundLibrary:
         """
         return sum(held.retained_bytes for held in self._play_order.values())
 
+    def _compile_shared(self, sound: Sound, *, pinned: bool = False) -> bool:
+        """Install a sound's samples: the process store's, else the disk layer's, else compiled.
+
+        Under the sound's lock in the process store (``SharedSoundCache.lock_for``), so a sound
+        asked for at once is compiled once. Under cache ``disk`` (not for a recorded file, which
+        is already a file), a miss takes the disk layer's cross-process write lock and reads
+        again before it compiles, so a sound another process just wrote is read, not compiled
+        again; without the lock in time it compiles without writing. What was installed is kept
+        in the process store (``pinned`` for the engine's own sounds). A disk hit has int16
+        samples and the exact peak only (a caller that needs float samples compiles a copy:
+        ``offline._samples_at``). Disk reads are timed as ``cache_read`` work; only a compile
+        counts as one.
+
+        Returns:
+            True when the process store had it (no read, no compile).
+        """
+        store = ENGINE_SOUND_CACHE
+        with store.lock_for(sound.identity_key):
+            shared = store.compiled(sound.identity_key)
+            if shared is not None:
+                self._shared_hits += 0 if pinned else 1
+                sound.install(
+                    samples_float=shared.samples_float,
+                    samples_int16=shared.samples_int16,
+                    peak=shared.peak,
+                    sample_rate=shared.sample_rate,
+                )
+                return True
+            disk = self._disk if sound.recorded_file is None else None
+            if disk is None:
+                self._compile(sound)
+            else:
+                self._read_or_compile_and_write(sound, disk=disk)
+            store.keep(sound, pinned=pinned)
+            return False
+
+    def _read_or_compile_and_write(self, sound: Sound, *, disk: DiskSoundCache) -> None:
+        """Install a sound from the disk layer, else compile it and write it there (locked)."""
+        cached = self._read_from_disk(sound, disk=disk)
+        if cached is None:
+            with disk.write_lock(identity_key=sound.identity_key) as locked:
+                # Another process may have written it while this one waited for the lock
+                cached = self._read_from_disk(sound, disk=disk) if locked else None
+                if cached is None:
+                    self._disk_misses += 1
+                    self._compile(sound)
+                    if locked:
+                        self._write_to_disk(sound, disk=disk)
+                    return
+        self._disk_hits += 1
+        sound.install(
+            samples_float=None,
+            samples_int16=cached.samples_int16,
+            peak=cached.peak,
+            sample_rate=sound.sample_rate,
+        )
+
+    def _read_from_disk(self, sound: Sound, *, disk: DiskSoundCache) -> CachedSamples | None:
+        """Read a sound's file, timed as cache_read work.
+
+        Returns:
+            Its samples and peak, or None.
+        """
+        with self._accountant.measure('cache_read', sound.name):
+            return disk.read(
+                identity_key=sound.identity_key,
+                sample_rate=sound.sample_rate,
+                frame_count=_compiled_frame_count(sound),
+            )
+
+    def _write_to_disk(self, sound: Sound, *, disk: DiskSoundCache) -> None:
+        """Write a compiled sound's file (a write the system refuses is logged, not raised)."""
+        assert sound.samples_int16 is not None
+        if disk.write(
+            identity_key=sound.identity_key,
+            samples_int16=sound.samples_int16,
+            peak=sound.peak,
+            sample_rate=sound.sample_rate,
+        ):
+            self._disk_writes += 1
+
     def _compile(self, sound: Sound) -> None:
         """Compile a sound into itself, timed and counted."""
         kind = 'decode' if sound.recorded_file is not None else 'compile'
@@ -950,11 +1219,12 @@ class SoundLibrary:
         sample_rate = mixer_sample_rate()
         tuning = self._tuning_source()
         source = request.source
-        source_key: object = (
-            ('instrument', source)
-            if isinstance(source, Instrument)
-            else ('name', source, request.scene_sound_directory, request.package_root)
-        )
+        if isinstance(source, Instrument):
+            source_key: object = ('instrument', source)
+        elif isinstance(source, Effect):
+            source_key = ('effect', source)
+        else:
+            source_key = ('name', source, request.scene_sound_directory, request.package_root)
         memo_key = (
             source_key,
             _freeze(request.pitch),
@@ -970,6 +1240,10 @@ class SoundLibrary:
         if remembered is not None:
             return self._sounds[remembered], True
         sound = self._build(request, sample_rate=sample_rate, tuning=tuning)
+        if sound.is_live:
+            # No audio to keep, and its spec's key holds none of its live controls (tremolo,
+            # parameters, routes): two live instruments may share it
+            return sound, False
         existing = self._sounds.get(sound.identity_key)
         if existing is not None:
             self._memo[memo_key] = existing.identity_key
@@ -997,18 +1271,22 @@ class SoundLibrary:
                 sample_rate=sample_rate,
                 tuning=tuning,
             )
-        entry = self._resolve_entry(request)
-        if (entry.legacy_recipe is not None or entry.file is not None) and _names_identity(request):
+        entry = (
+            _effect_entry(request.source)
+            if isinstance(request.source, Effect)
+            else self._resolve_entry(request)
+        )
+        if (entry.effect is not None or entry.file is not None) and _names_identity(request):
+            kind = 'an effect' if entry.effect is not None else 'a recorded sound'
             message = (
-                f'{entry.name!r} is a recorded or version 0 sound: it takes no pitch, notes, '
-                f'chord, length or transpose'
+                f'{entry.name!r} is {kind}: it takes no pitch, notes, chord, length or transpose'
             )
             raise ValueError(message)
-        if entry.legacy_recipe is not None:
+        if entry.effect is not None:
             return Sound(
                 name=entry.name,
                 identity_key=_digest({
-                    'legacy_recipe': entry.legacy_recipe.to_dict(),
+                    'effect': entry.effect.to_dict(),
                     'name': entry.name,
                     'sample_rate': sample_rate,
                     'render_version': AUDIO_RENDER_VERSION,
@@ -1017,7 +1295,7 @@ class SoundLibrary:
                 }),
                 sample_rate=sample_rate,
                 playback_defaults=entry.playback_defaults,
-                legacy_recipe=entry.legacy_recipe,
+                effect=entry.effect,
             )
         if entry.file is not None:
             path = require_recorded_file(entry)
@@ -1062,7 +1340,7 @@ class SoundLibrary:
             The uncompiled sound.
 
         Raises:
-            SoundRenderError: For a live instrument, which has no baked audio in M1.
+            SoundRenderError: For a live instrument given notes, a chord or parameters.
         """
         pitch, notes, chord = request.pitch, request.notes, request.chord
         length, transpose = request.length, request.transpose
@@ -1094,8 +1372,31 @@ class SoundLibrary:
             name = f'{GENERATED_NAME_PREFIX}-{digest[:GENERATED_NAME_DIGITS]}'
         spec = spec_named(name)
         if spec.live:
-            message = f'{name!r} is a live sound; live sounds arrive in M2'
-            raise SoundRenderError(message)
+            if request.parameters:
+                message = (
+                    f'{name!r} is a live sound: give its parameters to start(parameters=...), '
+                    'not to sound()'
+                )
+                raise SoundRenderError(message)
+            if notes is not None or chord is not None:
+                message = (
+                    f'{name!r} is a live sound: it plays one pitch (notes and chords are later '
+                    'work)'
+                )
+                raise SoundRenderError(message)
+            return Sound(
+                name=name,
+                identity_key=identity_key(spec),
+                sample_rate=sample_rate,
+                playback_defaults=defaults,
+                spec=spec,
+                live_instrument=instrument,
+                live_frequency=(
+                    UNPITCHED_REFERENCE_HZ
+                    if pitch is None
+                    else float(resolve_pitch(pitch, tuning=tuning, sample_rate=sample_rate))
+                ),
+            )
         return Sound(
             name=name,
             identity_key=identity_key(spec),
@@ -1112,7 +1413,7 @@ class SoundLibrary:
 
         Raises:
             KeyError: For a short name with no sound directory. (Other failures come from the
-                helpers: ``SoundAssetError`` for a name in both ``add_recipes`` and the
+                helpers: ``SoundAssetError`` for a name in both ``add_effects`` and the
                 directory or a bad path, ``KeyError`` for an unknown name.)
         """
         source = request.source
@@ -1121,9 +1422,9 @@ class SoundLibrary:
         package_root = request.package_root
         if is_path_reference(source):
             return self._path_entry(source, package_root=package_root)
-        if source in self._recipes:
+        if source in self._effects:
             self._refuse_name_in_both(source, directory=directory, package_root=package_root)
-            return SoundEntry(name=source, legacy_recipe=self._recipes[source])
+            return _effect_entry(self._effects[source])
         if directory is None:
             message = f'no sound named {source!r}: the scene has no sound directory'
             raise KeyError(message)
@@ -1141,7 +1442,7 @@ class SoundLibrary:
         """Refuse a recipe name the sound directory also defines (Ruling R2).
 
         Raises:
-            SoundAssetError: Naming add_recipes and the directory's file.
+            SoundAssetError: Naming add_effects and the directory's file.
         """
         if directory is None:
             return
@@ -1150,7 +1451,7 @@ class SoundLibrary:
         except KeyError:
             return
         message = (
-            f'the sound name {name!r} is defined in add_recipes and in {location.path}; rename one'
+            f'the sound name {name!r} is defined in add_effects and in {location.path}; rename one'
         )
         raise SoundAssetError(message)
 
@@ -1247,9 +1548,9 @@ def compile_sound(sound: Sound) -> None:
             sample_rate=sound.sample_rate,
         )
     else:
-        assert sound.legacy_recipe is not None
+        assert sound.effect is not None
         # Version 0 recipes compile through today's renderer, unchanged (impl spec 10.4)
-        samples = sound.legacy_recipe.render(sample_rate=sound.sample_rate)
+        samples = sound.effect.render(sample_rate=sound.sample_rate)
         sound.install(
             samples_float=samples,
             samples_int16=to_pcm16(samples),

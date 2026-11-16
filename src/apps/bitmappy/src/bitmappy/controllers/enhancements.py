@@ -409,9 +409,8 @@ class BitmappyMultiControllerEnhancements:
                 amount = cast('int', kwargs.get('amount', 1))
                 if not self.enhanced_navigation(controller_id, direction, amount):
                     success = False
-            elif action == 'activate':
-                if not self.enhanced_controller_activation(controller_id):
-                    success = False
+            elif action == 'activate' and not self.enhanced_controller_activation(controller_id):
+                success = False
 
         return success
 

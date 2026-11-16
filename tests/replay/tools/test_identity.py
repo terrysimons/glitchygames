@@ -17,6 +17,7 @@ from glitchygames.replay.tools.identity import (
     GameIdentity,
     console_script_identity,
     game_identity,
+    game_package,
 )
 from glitchygames.scenes import Scene
 from tests.stand_in_games import (
@@ -54,6 +55,16 @@ def test_a_game_knows_its_package_and_console_script(tmp_path, monkeypatch):
     assert identity.distribution == game.distribution
     # A scene object is identified by its class
     assert game_identity(game=object.__new__(scene_class)) == identity
+
+
+def test_a_games_package_is_its_scenes_top_level_package_found_without_any_lookup(mocker):
+    """The cheap part of the identity, for the sound cache's per-game folder: no metadata scan."""
+    scan = mocker.patch.object(importlib.metadata, 'packages_distributions')
+    scene_class = scene_class_in(module='stand_in_rally.levels.first')
+
+    assert game_package(game=scene_class) == 'stand_in_rally'
+    assert game_package(game=object.__new__(scene_class)) == 'stand_in_rally'
+    scan.assert_not_called()
 
 
 def test_a_game_with_no_console_script_still_has_an_identity(tmp_path, monkeypatch):

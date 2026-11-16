@@ -392,7 +392,7 @@ class TestLandingSound:
             brave_scene.dt_tick(FRAME_SECONDS)
 
         assert brave_scene.player.on_ground
-        assert brave_scene.sounds.play_land.call_count == 1
+        assert brave_scene.sounds.land.play.call_count == 1
 
     def test_standing_still_never_plays_land(self, brave_scene):
         self._settle_on_the_ground(brave_scene)
@@ -401,4 +401,4 @@ class TestLandingSound:
         for _ in range(60):
             brave_scene.dt_tick(FRAME_SECONDS)
 
-        brave_scene.sounds.play_land.assert_not_called()
+        brave_scene.sounds.land.play.assert_not_called()

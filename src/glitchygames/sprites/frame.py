@@ -290,7 +290,7 @@ class SpriteFrame:
                 # Surface.get_at always returns an RGBA Color
                 color = self._image.get_at((x, y))
                 extracted_pixels.append((color.r, color.g, color.b, color.a))
-        return extracted_pixels  # ty: ignore[invalid-return-type]
+        return extracted_pixels  # ty: ignore[invalid-explicit-return]
 
     def set_pixel_data(self, pixels: Sequence[tuple[int, ...]]) -> None:
         """Set pixel data from a sequence of RGB or RGBA tuples.

@@ -11,5 +11,5 @@ wave = "pulse_25"
 [sounds.coin]
 instrument = "pickup"
 pitch = "C5"
-[effects.echo]
+[reverbs.echo]
 delay = 0.1

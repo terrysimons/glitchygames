@@ -41,6 +41,7 @@ from paddleslap import (
     PADDLESLAP_SERVE,
     PADDLESLAP_SPAWN_SERVE,
     PADDLESLAP_SPEED_UP,
+    SOUNDS_FILE,
     Game,
     PaddleSlapGameOverScene,
 )
@@ -85,6 +86,33 @@ PADDLESLAP_TEST_OPTIONS: dict[str, object] = {
     'log_level': 'info',
     'no_unhandled_events': False,
 }
+
+
+class TestPaddleslapSounds:
+    """PaddleSlap's two sounds come from the engine's sound library."""
+
+    def setup_method(self):
+        """Use the shared test options."""
+        self.mock_options: dict[str, object] = dict(PADDLESLAP_TEST_OPTIONS)
+
+    def test_the_game_plays_its_two_recorded_sounds_from_the_library(self):
+        """Bounce and slap are the library's recorded files from the game's package, at 0.25.
+
+        The paddles slap and every ball (a spawned one too) bounces with them.
+        """
+        game = Game(options=self.mock_options)
+        audio = game.scene_manager.audio
+
+        for name in ('bounce', 'slap'):
+            sound = game.sounds[name]
+            assert sound is audio.sound(f'{SOUNDS_FILE}#{name}')
+            assert sound.recorded_file is not None
+            assert sound.recorded_file.parent == SOUNDS_FILE.parent
+            assert sound.playback_defaults.volume == 0.25
+        assert game.player1.snd is game.sounds['slap']
+        assert game.player2.snd is game.sounds['slap']
+        game._spawn_new_ball()
+        assert all(ball.snd is game.sounds['bounce'] for ball in game.balls)
 
 
 class TestPaddleslapExample:
@@ -1208,3 +1236,17 @@ def test_main_runs_the_game_through_the_engine(mocker, capsys):
 
     assert exit_info.value.code == ExitCode.SUCCESS
     assert 'Replay matched' in capsys.readouterr().out
+
+
+def test_building_the_game_compiles_nothing_it_did_not_declare():
+    """Every sound the game asks for is in Game.SOUNDS, compiled (decoded) when it starts."""
+    from glitchygames.audio.startup import StartupSounds
+    from glitchygames.scenes import SceneManager
+
+    audio = SceneManager().audio
+    StartupSounds(audio=audio, sources=Game.SOUNDS).finish()
+    declared = audio.sounds.statistics().compiles
+
+    Game(options=dict(PADDLESLAP_TEST_OPTIONS))
+
+    assert audio.sounds.statistics().compiles == declared
