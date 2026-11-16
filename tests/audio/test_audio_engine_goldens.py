@@ -70,6 +70,9 @@ SOUND_FOLDERS = {
     ('dt-demo', 'timing.jsonl.gz'): None,
     ('joystick-demo', 'pad.jsonl.gz'): None,
     ('text-input-demo', 'typing.jsonl.gz'): None,
+    # No sound yet (each feature plan so far leaves it out)
+    ('zombies-aint-my-neighbors', 'golden.jsonl.gz'): None,
+    ('zombies-aint-my-neighbors', 'golden-neighborhood.jsonl.gz'): None,
 }
 
 
