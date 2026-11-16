@@ -277,6 +277,14 @@ designs are not.
   duplicate touchable check, an always-true zap check, and the game over's and the effect
   order's None checks, now properties that fail loudly (`GameOverScene.screen_picture`,
   `Neighbor.playing_effect`). The game's test routine now measures its coverage (memory).
+- [ ] **Sound and music** (the owner, 2026-11-15: "We do need sounds in the game though, we
+  just haven't gotten there yet"): effects for the game's actions (zaps, TV spawns and hits,
+  rescues and losses, knockouts, the laser, the gate, the stage clear, the game over) and a
+  B-movie score as layered loops, all engine-native (decisions 3 and 11: sound files version 1,
+  the instrument catalog, compiled in `setup()`); every game moved onto the sound library with
+  live instruments in #213, so build on that. Needs its own feature plan. When the goldens
+  first play a library sound, `tests/audio/test_audio_engine_goldens.py` fails by design: set
+  this game's two `SOUND_FOLDERS` entries from None to `zombies_aint_my_neighbors`.
 - [ ] **A game cannot declare an engine context slot yet** (found 2026-11-15, feature plan 9):
   `tests/test_engine_context_source_guards.py` requires an isolation check for every slot,
   members' included, in the engine's `ISOLATION_CHECKS`, but engine tests may never import a

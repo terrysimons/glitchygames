@@ -70,7 +70,8 @@ SOUND_FOLDERS = {
     ('dt-demo', 'timing.jsonl.gz'): None,
     ('joystick-demo', 'pad.jsonl.gz'): None,
     ('text-input-demo', 'typing.jsonl.gz'): None,
-    # No sound yet (each feature plan so far leaves it out)
+    # No sound yet: it is coming (the game's master plan, Game TODO "Sound and music"), and its
+    # first library sound fails the disk proof until these say 'zombies_aint_my_neighbors'
     ('zombies-aint-my-neighbors', 'golden.jsonl.gz'): None,
     ('zombies-aint-my-neighbors', 'golden-neighborhood.jsonl.gz'): None,
 }
