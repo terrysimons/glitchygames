@@ -75,6 +75,30 @@ time, so first use is the earliest point; a subcommand fills the cache ahead of 
      folder was written or read, so a test that claims to test the disk proves it touched it.
    - `CacheStatistics` gains `disk_hits`, `disk_misses` and `disk_writes` (also shown in the Audio
      panel and by `sound-cache size`).
+8. **Steps 3-4 revised: the cache's operations are an engine API; the commands are thin** (the
+   owner, 2026-11-15, branch `feat/sound-cache-subcommands`, after the migration made `disk` the
+   default with a folder per game, and with GG Sound Studio, the spec's M6 sound editor, in
+   view). The Studio's cache panel, the command line and the tests all need the same answers, so
+   the logic lives once, in `glitchygames.audio.cache_inventory`, returning frozen pydantic
+   models, and nothing copies it:
+   - `inventory(root)`: every game's folders, by render version, with their sound count and
+     bytes, a version other than the current one marked stale; the listening folder too.
+   - `clear(root, ...)`: one game's folder, every game's, only the stale render versions, or the
+     listening WAVs; it reports what it removed.
+   - `verify(root)`: reads every file back and reports the damaged ones (a game already copes
+     with one, deleting and recompiling it, but silently).
+   - `fill(game)`: compiles a game's declared sounds (`Scene.SOUNDS`) into its folder, so even a
+     first launch reads them (the remedy for a slow machine's first-launch stall, measured on a
+     Raspberry Pi 4).
+   - **Stale render versions are removed at a game's start**, beside pruning: a found gap,
+     since pruning looks only at the current version's folder, so after a render version bump
+     every older folder stayed on disk for good.
+   - The commands, each a registry `Tool` (so both `glitchygames <name>` and a game flag on
+     that game's own folder): `sound-cache-fill`, `sound-cache-clear`, `sound-cache-size`,
+     `sound-cache-list`, `sound-cache-verify`, then `listening-instruments` and
+     `listening-pipes`. **Flat names** (the owner): every tool is one name used both ways, a
+     flag takes no sub-actions, and `--sound-cache` is already the mode option; the grammar
+     matters least, since the Studio calls the API, not the command line.
 
 ## Interfaces
 
@@ -137,9 +161,10 @@ time, so first use is the earliest point; a subcommand fills the cache ahead of 
 1. `get_cache_directory` and `DiskSoundCache`, with their tests.
 2. The library and `ENGINE_SOUND_CACHE` on the disk layer; `--sound-cache disk` accepted; the
    replay proof under a cold and a warm cache.
-3. The listening code moved into the engine, reproduced sample for sample, then the scripts
-   removed.
-4. The subcommands.
+3. (Revised, decision 8.) The cache API in order: `inventory` and the stale-version cleanup;
+   `clear` and `verify`; `fill`. Then the commands over it.
+4. The listening code moved into the engine, reproduced sample for sample, then the scripts
+   removed; its two commands.
 5. Docs (the owner, 2026-11-14: every new environment variable and option is documented):
    - `GLITCHYGAMES_SOUND_CACHE_ROOT`: its three states, why an environment variable, and that
      the test harness sets it empty, in `docs/architecture/sound.md` (the cache section), in

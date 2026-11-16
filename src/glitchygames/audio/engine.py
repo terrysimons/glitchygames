@@ -64,6 +64,7 @@ import pygame
 from glitchygames import clock
 from glitchygames.audio.accounting import AudioAccountant, AudioFrameAccount
 from glitchygames.audio.buses import BusTree
+from glitchygames.audio.cache_inventory import clear as clear_cache
 from glitchygames.audio.disk_cache import (
     DISK_CACHE_LIMIT_BYTES,
     SOUND_CACHE_ROOT_VARIABLE,
@@ -130,6 +131,15 @@ def _disk_layer(*, game_name: str) -> DiskSoundCache | None:
             SOUND_CACHE_ROOT_VARIABLE,
         )
         return None
+    # Pruning looks only at the current version's folder: sweep this game's older ones
+    swept = clear_cache(root=root, game=game_name, stale_only=True)
+    if swept.removed_sounds:
+        log.info(
+            'Removed %d sounds of older render versions from the %s sound cache (%d bytes)',
+            swept.removed_sounds,
+            game_name,
+            swept.freed_bytes,
+        )
     return DiskSoundCache(
         directory=sounds_directory(root=root, game=game_name, render_version=AUDIO_RENDER_VERSION),
         limit_bytes=DISK_CACHE_LIMIT_BYTES,
