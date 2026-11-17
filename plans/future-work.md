@@ -1476,9 +1476,27 @@ Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversatio
   name, and "24-bit RGB" is already the full-color color space), and a strict "32-bit" (their
   largest indexed mode, 256, is 16-bit+'s count; 16-bit+'s description says it is also those
   consoles' 256-color sprites).
-- **Color spaces: a bit depth ("N-bit RGB") or a named fixed palette.** Off means any 24-bit
-  color, as today. The NES's needs the named kind: its 54 colors were a hand-picked list, not a
+- **Color spaces: a bit depth ("N-bit RGB") or a named fixed palette.** Off means 32-bit RGBA
+  (below), as today. The NES's needs the named kind: its 54 colors were a hand-picked list, not a
   grid of levels (`color/resources/nes.palette` holds 55).
+- **Alpha** (the owner agreed both rules, 2026-11-16):
+  1. Each distinct color with its alpha is one entry of a profile's budget, as the file already
+     stores it: a half-transparent red and a solid red are two of 8-bit+'s 64. The magenta key
+     counts too, as the consoles counted their transparent slot (8-bit is exactly 4 entries).
+  2. Only 32-bit RGBA has partial alpha; every other color space is on/off (the magenta key), as
+     the consoles were until the N64: the NES, Game Boy and Genesis had one transparent slot, the
+     SNES blended whole layers ("color math"), the PlayStation and Saturn whole sprites by a few
+     fixed modes.
+
+  | Color space | Colors | Alpha | Use |
+  |---|---|---|---|
+  | 32-bit RGBA | any | any (0 to 255) | the default, no `color_space` key |
+  | 24-bit RGB | any | on/off | full color the console way: solid or invisible |
+
+  32-bit RGBA is the owner's ("we should consider adding 32bit RGBA in that case, yes?"). The
+  default must allow partial alpha: of 104 sprite files, Bitmappy's `toadstool.toml` has 14
+  colors at alpha 137 or 128 (counted 2026-11-16). "32-bit" belongs here, with "RGBA" spelled out,
+  rather than in a profile's name.
   - 9-bit RGB: the Genesis's 512 (3 bits a channel, 8 levels). Its levels weren't evenly spaced
     (a non-linear output stage), so snap to a published measured table, credited, not to even
     steps. Its shadow and highlight mode (half a step darker or brighter, about 1,500 colors on
@@ -1501,14 +1519,15 @@ Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversatio
 
   | Written | Colors per sprite | Chosen from | Matches |
   |---|---|---|---|
-  | `8-bit+` | 64 | any (24-bit RGB) | |
+  | `8-bit+` | 64 | any (32-bit RGBA) | |
   | `8-bit+ · NES palette` | 64 | the NES's 54 | the NES, every color for every sprite |
   | `8-bit+ · 9-bit RGB` | 64 | 512 | the Genesis's whole 64-entry palette |
-  | `16-bit+` | 256 | any (24-bit RGB) | |
+  | `16-bit+` | 256 | any (32-bit RGBA) | |
   | `16-bit+ · 15-bit RGB` | 256 | 32,768 | the SNES's whole palette RAM |
-  | `High Color` | 32,768 | any (24-bit RGB) | |
+  | `High Color` | 32,768 | any (32-bit RGBA) | |
   | `High Color · 15-bit RGB` | 32,768 | 32,768 | the PlayStation's and Saturn's sprites |
-  | `True Color` | no budget | any (24-bit RGB) | today's default |
+  | `True Color` | no budget | any color, any alpha (32-bit RGBA) | today's default |
+  | `True Color · 24-bit RGB` | no budget | any color, alpha on/off | |
 
   8-bit+'s description says it is also the Genesis's whole palette, so Genesis-minded artists
   aren't steered to 16-bit+. In a sprite file, two plain keys, neither parsed out of the other:
