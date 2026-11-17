@@ -114,10 +114,11 @@ all:
             raspberry_pi_os_supported_releases: ["13"]
             raspberry_pi_os_marker_file: /etc/rpi-issue
             raspberry_pi_firmware_config: /boot/firmware/config.txt
-            # Beyond every Pi's packages: what hidapi's source build needs (its wheels are for
-            # Python 3.14: a uv that picked 3.15 built it and failed, 2026-11-16). Its hid
-            # extension finds libusb through pkg-config (the owner: "add libusb-dev to the deps on
-            # the ansible deploy for raspberry pi os"); its hidraw extension includes libudev.h
+            # Beyond every Pi's packages: what hidapi's source build needs. Its Linux ARM wheels
+            # are for Python 3.14 only, so on 3.15 uv builds it from source, which works once
+            # these are installed (the owner, on Python 3.15.2, 2026-11-16). Its hid extension
+            # finds libusb through pkg-config (the owner: "add libusb-dev to the deps on the
+            # ansible deploy for raspberry pi os"); its hidraw extension includes libudev.h
             raspberry_pi_os_packages:
               - libusb-1.0-0-dev
               - libudev-dev

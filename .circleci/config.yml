@@ -12,6 +12,13 @@ parameters:
   PYTHON_LATEST_VERSION:
     type: string
     default: "3.14.8"
+  # The development version: every job that tests runs the suite on PYTHON_LATEST_VERSION and
+  # then on this, one after the other (noxfile.TEST_PYTHONS; tests/test_ci_config.py checks every
+  # one is installed and run on every OS). 3.14 stays the oldest supported: the browser builds'
+  # Pyodide runs it
+  PYTHON_NEXT_VERSION:
+    type: string
+    default: "3.15.2"
   XCODE_LATEST_VERSION:
     type: string
     default: "27.1.0"
@@ -108,9 +115,9 @@ commands:
 
             uv --version
 
-            # Use the requested interpreter (download if needed on this executor); the nox
-            # sessions install the project from uv.lock themselves
-            uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
+            # Every interpreter the test sessions run on (download if needed on this executor);
+            # the nox sessions install the project from uv.lock themselves
+            uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>" "<< pipeline.parameters.PYTHON_NEXT_VERSION >>"
 
             # nox at the pinned version, a uv tool (its own venv; the executable in ~/.local/bin),
             # run directly by every later step. Under `uvx` the uvx process stayed alive as nox's
@@ -168,6 +175,11 @@ commands:
             nox -s timer-report
 
   nox-test:
+    parameters:
+      # One Python's test session (noxfile.TEST_PYTHONS), named at every use, never a default:
+      # test-3.14 (the browser builds' Python) or test-3.15
+      session:
+        type: string
     steps:
       # Tests run (and report) even when an earlier lint or format step failed, so a lint
       # failure never hides the test results. Headless: the test session defaults SDL's video
@@ -179,17 +191,17 @@ commands:
           when: always
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            nox -s test
+            nox -s << parameters.session >>
       - store_test_results:
           path: test-results
           when: always
       - store_artifacts:
           path: test-results
-          destination: test-results
+          destination: test-results-<< parameters.session >>
           when: always
       - store_artifacts:
           path: htmlcov
-          destination: coverage-html
+          destination: coverage-html-<< parameters.session >>
           when: always
 
   # syft and grype at their pinned versions, each release tarball checked against its pinned
@@ -274,6 +286,59 @@ commands:
             - C:\Users\circleci\AppData\Local\uv\cache
             - C:\Users\circleci\AppData\Local\uv\python
 
+  # As install-deps-posix
+  install-deps-windows:
+    steps:
+      - run:
+          name: "Install uv and Python"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+
+            # Install uv: the installer for one uv version
+            # (https://docs.astral.sh/uv/getting-started/installation/)
+            irm https://astral.sh/uv/<< pipeline.parameters.UV_VERSION >>/install.ps1 | iex
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+
+            uv --version
+
+            # Every interpreter the test sessions run on; the nox sessions install the project
+            # from uv.lock themselves
+            uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>" "<< pipeline.parameters.PYTHON_NEXT_VERSION >>"
+
+            # nox at the pinned version, a uv tool run directly, as in install-deps-posix
+            uv tool install "nox[uv]==<< pipeline.parameters.NOX_VERSION >>"
+            nox --version
+
+  # As nox-test
+  nox-test-windows:
+    parameters:
+      # As nox-test's: named at every use
+      session:
+        type: string
+    steps:
+      # Tests run (and report) even when an earlier step failed, as in nox-test
+      - run:
+          name: "Tests (pytest + coverage)"
+          no_output_timeout: 120m
+          when: always
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            nox -s << parameters.session >>
+      - store_test_results:
+          path: test-results
+          when: always
+      - store_artifacts:
+          path: test-results
+          destination: test-results-<< parameters.session >>
+          when: always
+      - store_artifacts:
+          path: htmlcov
+          destination: coverage-html-<< parameters.session >>
+          when: always
+
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
@@ -316,7 +381,10 @@ jobs:
       # benchmarks give the same answer on every OS and run on macOS (the fastest runner; the
       # committed SBOM is macOS's, so its drift check runs there)
       - nox-timer-report
-      - nox-test
+      - nox-test:
+          session: test-3.14
+      - nox-test:
+          session: test-3.15
       - nox-build
       - save-uv-cache-posix
 
@@ -342,7 +410,13 @@ jobs:
       - nox-static-analysis
       - nox-lint-docs
       - nox-timer-report
-      - nox-test
+      # Both Pythons in this one job, one after the other, as on every OS (the owner, 2026-11-16:
+      # "For the mac, can we just run both in the same job so we can reduce the # of mac jobs?"
+      # and "We can do Linux and windows that way, too")
+      - nox-test:
+          session: test-3.14
+      - nox-test:
+          session: test-3.15
       - install-supply-chain-tools-macos
       - nox-security-scan
       - nox-performance-test
@@ -361,25 +435,7 @@ jobs:
       - checkout
 
       - restore-uv-cache-windows
-      - run:
-          name: "Install uv and Python"
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-
-            # Install uv: the installer for one uv version
-            # (https://docs.astral.sh/uv/getting-started/installation/)
-            irm https://astral.sh/uv/<< pipeline.parameters.UV_VERSION >>/install.ps1 | iex
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-
-            uv --version
-
-            # The nox sessions install the project from uv.lock themselves
-            uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
-
-            # nox at the pinned version, a uv tool run directly, as in install-deps-posix
-            uv tool install "nox[uv]==<< pipeline.parameters.NOX_VERSION >>"
-            nox --version
+      - install-deps-windows
       # Only what differs by platform, as on Linux; the rest runs on macOS
       # Diagnostic only, as in nox-timer-report
       - run:
@@ -390,27 +446,10 @@ jobs:
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
             nox -s timer-report
-      # Tests run (and report) even when an earlier step failed, as in nox-test
-      - run:
-          name: "Tests (pytest + coverage)"
-          no_output_timeout: 120m
-          when: always
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            nox -s test
-      - store_test_results:
-          path: test-results
-          when: always
-      - store_artifacts:
-          path: test-results
-          destination: test-results
-          when: always
-      - store_artifacts:
-          path: htmlcov
-          destination: coverage-html
-          when: always
+      - nox-test-windows:
+          session: test-3.14
+      - nox-test-windows:
+          session: test-3.15
       - run:
           name: "Build binary and wheel"
           shell: powershell.exe
@@ -449,7 +488,10 @@ jobs:
           no_output_timeout: 30m
       - nox-timer-report:
           no_output_timeout: 30m
-      - nox-test
+      - nox-test:
+          session: test-3.14
+      - nox-test:
+          session: test-3.15
       # After the tests: whether this run was slowed by heat or undervoltage. /dev/vcio is
       # readable by the video group (a udev rule on the host), which the runner's user is in
       - run:

@@ -729,9 +729,18 @@ def _usable_cpu_count() -> int:
     return max(1, min(cpus, int(quota) // int(period)))
 
 
-@nox.session(python=['3.14'], reuse_venv=False)
+# The Pythons the suite runs on: 3.14, the oldest supported (the browser builds' Pyodide runs it),
+# and 3.15, the development version (the owner, 2026-11-16: "Add 3.15 support to nox ... Run
+# both"). Each is its own session, test-3.14 and test-3.15; nox -s test runs both, one after the
+# other (two at once would share htmlcov/, test-results/ and the coverage data, and each already
+# uses every core). CircleCI runs each in its own job, side by side
+# (tests/test_ci_config.py checks every one is installed and run there)
+TEST_PYTHONS = ('3.14', '3.15')
+
+
+@nox.session(python=list(TEST_PYTHONS), reuse_venv=False)
 def test(session: nox.Session) -> None:
-    """Run tests."""
+    """Run the tests on one Python of TEST_PYTHONS (nox -s test runs them all)."""
     # The installed copy is built (not editable), so it has no git checkout: the stamp gives it
     # HEAD's commit, which the replay-metrics tests' child rebaselines record and compare. It is
     # written into the installed copy, never the checkout, so a build running alongside neither
@@ -776,6 +785,18 @@ def test(session: nox.Session) -> None:
 RANDOM_ORDER_PYTEST_ARGUMENTS = ('-p', 'randomly', '--randomly-dont-reset-seed')
 # The seeds pytest-randomly takes (it seeds numpy's generator, whose seeds are 32-bit)
 RANDOM_ORDER_SEED_LIMIT = 2**32
+# Each shuffled run's environment, completed by its Python: a throwaway one from uv.lock with
+# everything the project's .venv has, which it never touches
+SHUFFLED_RUN_ENVIRONMENT = (
+    'uv',
+    'run',
+    '--isolated',
+    '--frozen',
+    '--all-extras',
+    '--all-groups',
+    '--all-packages',
+    '--python',
+)
 
 
 @nox.session(venv_backend='none', name='test-random', default=False)
@@ -785,9 +806,12 @@ def test_random(session: nox.Session) -> None:
     Each run shuffles the tests with a new seed (``-- SEED`` reuses one), so a test that passes
     only after, or only before, another fails in some run long before CI's fixed order meets it
     (BUGS.md: a named custom event type took FPSEVENT's id only after a pygame.quit()). It runs
-    in the project's environment (``uv run``, as a developer's ``uv run pytest``) on every core,
-    under the dummy drivers only and without coverage (CI enforces coverage), so it costs a push
-    a few minutes, not a full CI run. A failure names its seed and the command that replays
+    once on each Python of TEST_PYTHONS, explicitly: 3.14 (the browser builds') and then 3.15,
+    with the same seed (the owner, 2026-11-16: "We should test both"). Each run has a throwaway
+    environment from uv.lock (``uv run --isolated --python``), never the project's .venv: a .venv
+    synced on 3.15 would otherwise leave 3.14 untested at every push. On every core, under the
+    dummy drivers only and without coverage (CI enforces coverage), so it costs a push a few
+    minutes a Python, not a full CI run. A failure names its seed and the command that replays
     that order in one process (``-n 0``: across workers the seed fixes the order but not which
     worker runs which test).
     """
@@ -795,39 +819,39 @@ def test_random(session: nox.Session) -> None:
         seed = int(session.posargs[0])
     else:
         seed = secrets.randbelow(RANDOM_ORDER_SEED_LIMIT)
-    try:
-        session.run(
-            'uv',
-            'run',
-            '--frozen',
-            'pytest',
-            *RANDOM_ORDER_PYTEST_ARGUMENTS,
-            f'--randomly-seed={seed}',
-            '-n',
-            'auto',
-            '--no-cov',
-            '--log-cli-level=WARNING',
-            '--junitxml=test-results/junit-random.xml',
-            env={'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'},
-            external=True,
-        )
-    except CommandFailed:
-        replay = shlex.join([
-            'uv',
-            'run',
-            'pytest',
-            *RANDOM_ORDER_PYTEST_ARGUMENTS,
-            f'--randomly-seed={seed}',
-            '-n',
-            '0',
-            '--no-cov',
-        ])
-        session.error(
-            f'A shuffled run failed (seed {seed}): an order-dependent test, or a plain failure. '
-            f'Replay this order in one process: SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy '
-            f'{replay}  (or the same run: nox -s test-random -- {seed}). '
-            f'SKIP=test-random git push skips the check; file what it found in BUGS.md'
-        )
+    for python in TEST_PYTHONS:
+        environment = (*SHUFFLED_RUN_ENVIRONMENT, python)
+        try:
+            session.run(
+                *environment,
+                'pytest',
+                *RANDOM_ORDER_PYTEST_ARGUMENTS,
+                f'--randomly-seed={seed}',
+                '-n',
+                'auto',
+                '--no-cov',
+                '--log-cli-level=WARNING',
+                f'--junitxml=test-results/junit-random-{python}.xml',
+                env={'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'},
+                external=True,
+            )
+        except CommandFailed:
+            replay = shlex.join([
+                *environment,
+                'pytest',
+                *RANDOM_ORDER_PYTEST_ARGUMENTS,
+                f'--randomly-seed={seed}',
+                '-n',
+                '0',
+                '--no-cov',
+            ])
+            session.error(
+                f'A shuffled run failed on Python {python} (seed {seed}): an order-dependent '
+                f'test, or a plain failure. Replay this order in one process: '
+                f'SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy {replay}  (or the same runs: '
+                f'nox -s test-random -- {seed}). SKIP=test-random git push skips the check; file '
+                f'what it found in BUGS.md'
+            )
 
 
 # The Linux X11 test image and the X server it draws on (XQuartz's display :0, over TCP)
@@ -1255,12 +1279,18 @@ def _host_checkout(session: nox.Session) -> _HostCheckout:
 
 
 def _linux_ci_script(
-    *, python_version: str, uv_version: str, nox_version: str, checkout: _HostCheckout
+    *,
+    python_version: str,
+    next_python_version: str,
+    uv_version: str,
+    nox_version: str,
+    checkout: _HostCheckout,
 ) -> str:
     """Return the container's shell script: the Linux job's steps, then the results copied out.
 
     Args:
         python_version: ``PYTHON_LATEST_VERSION``.
+        next_python_version: ``PYTHON_NEXT_VERSION``.
         uv_version: ``UV_VERSION``.
         nox_version: ``NOX_VERSION``.
         checkout: This checkout's facts (``_host_checkout``).
@@ -1320,17 +1350,26 @@ def _linux_ci_script(
         f'curl -LsSf https://astral.sh/uv/{uv_version}/install.sh | sh',
         'export PATH="$HOME/.local/bin:$PATH"',
         'uv --version',
-        f'uv python install "{python_version}"',
+        f'uv python install "{python_version}" "{next_python_version}"',
         # install-deps-posix installs nox as a uv tool, run directly (no uvx parent process)
         f'uv tool install "nox[uv]=={nox_version}"',
         # nox-test, then the job's store_test_results (to this checkout's test-results/linux-ci),
         # writable by the host's user whatever its id (a Linux host's is not the container's)
         'status=0',
-        'nox -s test || status=$?',
-        (
-            'if [ -d test-results ]; then cp -r test-results/. /results/; '
-            'else echo "test-linux-ci: the session wrote no test-results/"; fi'
-        ),
+        # Each Python's session, one after the other, as the job's nox-test steps; each one's
+        # results kept under its session's name before the next run writes test-results/ again
+        *[
+            line
+            for python in TEST_PYTHONS
+            for line in (
+                f'nox -s test-{python} || status=1',
+                (
+                    f'if [ -d test-results ]; then mkdir -p /results/test-{python} && '
+                    f'cp -r test-results/. /results/test-{python}/; '
+                    f'else echo "test-linux-ci: test-{python} wrote no test-results/"; fi'
+                ),
+            )
+        ],
         'chmod -R a+rwX /results',
         # The container's peak memory (cgroup v2), all of it: uv's installs, the test run and the
         # page cache, which the kernel reclaims before it kills anything (so it can read 2 GB on
@@ -1357,8 +1396,9 @@ def test_linux_ci(session: nox.Session) -> None:
     directory, mounted read-only at its own path, so it runs from a worktree too. Its HEAD is this
     checkout's, on its branch, and its remote branches are this checkout's, as fresh as its last
     fetch (CircleCI fetches its own). Then it installs fontconfig, uv and Python at the job's
-    versions, then nox as a uv tool, and runs ``nox -s test``, as the job does. The test results
-    come back to test-results/linux-ci/ (junit.xml). The uv cache is kept in a Docker volume
+    versions, then nox as a uv tool, and runs ``nox -s test-3.14`` then ``nox -s test-3.15``, as
+    the job does. Each one's test results come back to test-results/linux-ci/test-<python>/
+    (junit.xml). The uv cache is kept in a Docker volume
     between runs.
     The image is amd64, as CircleCI's machines are (the same wheels; emulated on Apple silicon, so
     slower than CI). Made on macOS; on a Linux host the results are made writable for any user.
@@ -1372,6 +1412,9 @@ def test_linux_ci(session: nox.Session) -> None:
     script = _linux_ci_script(
         python_version=_circleci_parameter(
             configuration=configuration, name='PYTHON_LATEST_VERSION'
+        ),
+        next_python_version=_circleci_parameter(
+            configuration=configuration, name='PYTHON_NEXT_VERSION'
         ),
         uv_version=_circleci_parameter(configuration=configuration, name='UV_VERSION'),
         nox_version=_circleci_parameter(configuration=configuration, name='NOX_VERSION'),

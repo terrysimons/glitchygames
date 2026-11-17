@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import itertools
 import json
 import re
 import shlex
@@ -282,26 +281,25 @@ def test_circleci_runs_an_installed_nox_never_through_uvx():
     """
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     install = 'uv tool install "nox[uv]==<< pipeline.parameters.NOX_VERSION >>"'
-    jobs = configuration[configuration.index('\njobs:\n') : configuration.index('\nworkflows:\n')]
-    windows_job = jobs[
-        jobs.index('\n  build-and-test-windows:\n') : jobs.index(
-            '\n  build-and-test-raspberry-pi-4-4gb-ubuntu:'
-        )
-    ]
     install_deps_posix = configuration[
         configuration.index('\n  install-deps-posix:\n') : configuration.index('\n  nox-format:\n')
+    ]
+    install_deps_windows = configuration[
+        configuration.index('\n  install-deps-windows:\n') : configuration.index(
+            '\n  nox-test-windows:\n'
+        )
     ]
 
     assert re.search(r'^\s+uvx ', configuration, flags=re.MULTILINE) is None
     assert configuration.count(install) == 2
     assert install in install_deps_posix
-    assert windows_job.index(install) < windows_job.index('nox -s ')
-    job_starts = [match.start() for match in re.finditer(r'^  [a-z-]+:$', jobs, re.MULTILINE)]
-    for start, end in itertools.pairwise([*job_starts, len(jobs)]):
-        job = jobs[start:end]
+    assert install in install_deps_windows
+    for name, job in circleci_job_texts().items():
         first_nox = re.search(r'^\s+(- nox-|nox -s )', job, flags=re.MULTILINE)
-        if first_nox is not None and not job.startswith('  build-and-test-windows:'):
-            assert '      - install-deps-posix' in job[: first_nox.start()], job.split(':')[0]
+        if first_nox is not None:
+            before = job[: first_nox.start()]
+            installs = ('      - install-deps-posix', '      - install-deps-windows')
+            assert any(install_step in before for install_step in installs), name
     # The tool is never restored from a cache: the uv caches name uv's Python, not all its data
     assert '- ~/.local/share/uv\n' not in configuration
 
@@ -793,6 +791,44 @@ def test_the_test_session_fails_when_it_cannot_find_its_installed_engine():
         noxfile.test(session)
 
 
+def test_circleci_runs_every_test_python_on_every_os():
+    """Each Python of noxfile.TEST_PYTHONS is installed by CircleCI and run on every OS.
+
+    Linux, macOS and Windows each run test-3.14 and test-3.15, every test step naming its
+    session, never a default (the owner: "Be explicit about the 3.14 testing, too").
+    """
+    import noxfile
+
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    installed = {
+        pipeline_parameter_default(name=name).rsplit('.', 1)[0]
+        for name in ('PYTHON_LATEST_VERSION', 'PYTHON_NEXT_VERSION')
+    }
+    assert installed == set(noxfile.TEST_PYTHONS)
+    assert noxfile.test.python == list(noxfile.TEST_PYTHONS)
+    assert re.search(r'^\s+- nox-test(-windows)?$', configuration, flags=re.MULTILINE) is None
+    assert 'default: test-3' not in configuration
+
+    jobs = circleci_job_texts()
+    operating_systems = {
+        'linux': '      - image: cimg/python:',
+        'macos': '    macos:\n',
+        'windows': '      name: win/default\n',
+    }
+    for operating_system, marker in operating_systems.items():
+        sessions = {
+            session
+            for name in workflow_jobs()
+            if marker in jobs[name]
+            for session in re.findall(
+                r'^      - nox-test(?:-windows)?:\n          session: (\S+)$',
+                jobs[name],
+                flags=re.MULTILINE,
+            )
+        }
+        assert sessions == {f'test-{python}' for python in noxfile.TEST_PYTHONS}, operating_system
+
+
 def test_random_order_is_off_unless_asked_for():
     """pytest-randomly is blocked in addopts: CI and every ordinary run keep the files' order."""
     pyproject = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
@@ -802,6 +838,20 @@ def test_random_order_is_off_unless_asked_for():
     assert addopts[addopts.index('-p') + 1] == 'no:randomly'
 
 
+# How each shuffled run gets its Python: a throwaway environment from uv.lock, never the
+# project's .venv, so the push tests every Python whichever one the .venv was synced on
+SHUFFLED_RUN_ENVIRONMENT = (
+    'uv',
+    'run',
+    '--isolated',
+    '--frozen',
+    '--all-extras',
+    '--all-groups',
+    '--all-packages',
+    '--python',
+)
+
+
 def test_the_shuffled_run_reorders_only_on_the_dummy_drivers():
     """Nox -s test-random -- SEED: pytest-randomly back on, that seed, no reseeding, no coverage."""
     import noxfile
@@ -809,12 +859,38 @@ def test_the_shuffled_run_reorders_only_on_the_dummy_drivers():
     session = RecordingSession(posargs=['12345'])
     noxfile.test_random(session)
 
-    (command,) = session.commands
-    assert command[:4] == ('uv', 'run', '--frozen', 'pytest')
-    assert command[4:7] == ('-p', 'randomly', '--randomly-dont-reset-seed')
-    assert '--randomly-seed=12345' in command
-    assert '--no-cov' in command
-    assert session.environments[command] == {'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'}
+    for command in session.commands:
+        python_at = len(SHUFFLED_RUN_ENVIRONMENT)
+        assert command[:python_at] == SHUFFLED_RUN_ENVIRONMENT
+        assert command[python_at + 1 : python_at + 5] == (
+            'pytest',
+            '-p',
+            'randomly',
+            '--randomly-dont-reset-seed',
+        )
+        assert '--randomly-seed=12345' in command
+        assert '--no-cov' in command
+        assert session.environments[command] == {
+            'SDL_VIDEODRIVER': 'dummy',
+            'SDL_AUDIODRIVER': 'dummy',
+        }
+
+
+def test_the_shuffled_run_tests_every_python_with_one_seed():
+    """Each Python the suite supports, in order, with the same seed on each.
+
+    The owner: "We should test both". Each run has its own environment, so a .venv synced on 3.15
+    still tests 3.14 at every push.
+    """
+    import noxfile
+
+    session = RecordingSession(posargs=['12345'])
+    noxfile.test_random(session)
+
+    python_at = len(SHUFFLED_RUN_ENVIRONMENT)
+    assert [command[python_at] for command in session.commands] == list(noxfile.TEST_PYTHONS)
+    assert noxfile.TEST_PYTHONS == ('3.14', '3.15')
+    assert all('--randomly-seed=12345' in command for command in session.commands)
 
 
 def test_a_shuffled_run_picks_a_new_seed_each_time():
@@ -825,11 +901,14 @@ def test_a_shuffled_run_picks_a_new_seed_each_time():
     for _ in range(3):
         session = RecordingSession(posargs=[])
         noxfile.test_random(session)
-        (command,) = session.commands
-        (seed_argument,) = [
-            argument for argument in command if argument.startswith('--randomly-seed=')
-        ]
-        seeds.add(int(seed_argument.removeprefix('--randomly-seed=')))
+        run_seeds = {
+            argument.removeprefix('--randomly-seed=')
+            for command in session.commands
+            for argument in command
+            if argument.startswith('--randomly-seed=')
+        }
+        (seed,) = run_seeds
+        seeds.add(int(seed))
 
     assert all(0 <= seed < noxfile.RANDOM_ORDER_SEED_LIMIT for seed in seeds)
     assert len(seeds) > 1
@@ -848,6 +927,8 @@ def test_a_failed_shuffled_run_names_its_seed_and_how_to_replay_it(mocker):
 
     message = str(failure.value)
     assert 'seed 777' in message
+    assert 'Python 3.14' in message
+    assert '--python 3.14 pytest' in message
     assert '--randomly-seed=777 -n 0' in message
     assert 'nox -s test-random -- 777' in message
 
@@ -1312,6 +1393,36 @@ def test_the_wheel_build_builds_every_workspace_package(mocker):
     )
 
 
+def circleci_job_texts() -> dict[str, str]:
+    """Return each CircleCI job's text by its name, from its name line to the next job's.
+
+    Returns:
+        The jobs, in the file's order.
+
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    jobs = configuration[configuration.index('\njobs:\n') : configuration.index('\nworkflows:\n')]
+    starts = list(re.finditer(r'^  (?P<name>[a-z0-9-]+):(?: &\S+)?$', jobs, flags=re.MULTILINE))
+    return {
+        start['name']: jobs[start.start() : end]
+        for start, end in zip(
+            starts, [*(match.start() for match in starts[1:]), len(jobs)], strict=True
+        )
+    }
+
+
+def workflow_jobs() -> list[str]:
+    """Return the jobs the build-and-test workflow runs (commented-out ones left out).
+
+    Returns:
+        Their names, in order.
+
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    workflow = configuration[configuration.index('\n  build-and-test:\n    jobs:\n') :]
+    return re.findall(r'^      - (?P<name>[a-z0-9-]+):?$', workflow, flags=re.MULTILINE)
+
+
 def raspberry_pi_job() -> str:
     """Return the Raspberry Pi 4 job's text in the CircleCI configuration.
 
@@ -1352,7 +1463,7 @@ def test_the_raspberry_pi_job_runs_the_tests_serially_on_its_runner():
 
     assert '    machine: true\n    resource_class: terrysimons/raspberry-pi-4-4gb-ubuntu\n' in job
     assert '      PYTEST_WORKERS: "0"\n' in job
-    assert job.index('      - install-deps-posix') < job.index('      - nox-test\n')
+    assert job.index('      - install-deps-posix') < job.index('      - nox-test:\n')
 
 
 def test_the_raspberry_pi_job_allows_30_minutes_of_silence_per_step():
@@ -1390,7 +1501,8 @@ def test_the_raspberry_pi_job_reports_throttling_even_when_the_tests_fail():
     job = raspberry_pi_job()
     throttling = job[job.index('name: "Throttling and temperature') :]
 
-    assert job.index('      - nox-test\n') < job.index('name: "Throttling and temperature')
+    # After the last Python's run, so heat from either run is reported
+    assert job.rindex('      - nox-test:\n') < job.index('name: "Throttling and temperature')
     assert 'when: always\n' in throttling
     assert 'vcgencmd get_throttled\n' in throttling
 
@@ -1438,18 +1550,19 @@ def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():
     jobs have the memory, and the plugin needs Linux's ``/proc/self/statm`` anyway. The Linux
     job's resource class and worker count stay as they were.
     """
-    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
-    linux_job = configuration[
-        configuration.index('\n  build-and-test-linux:\n') : configuration.index(
-            '\n  build-and-test-macos:\n'
-        )
-    ]
+    linux_jobs = {
+        name: job
+        for name, job in circleci_job_texts().items()
+        if '      - image: cimg/python:' in job
+    }
 
-    assert configuration.count('GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"') == 2
+    # Every job on the Linux image, so a new one can't miss them
+    assert set(linux_jobs) == {'build-and-test-linux'}
     assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"\n' in raspberry_pi_job()
-    assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"\n' in linux_job
-    assert '    resource_class: small\n' in linux_job
-    assert '      PYTEST_WORKERS: "0"\n' in linux_job
+    for name, job in linux_jobs.items():
+        assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"\n' in job, name
+        assert '    resource_class: small\n' in job, name
+        assert '      PYTEST_WORKERS: "0"\n' in job, name
 
 
 class LoggingRecordingSession(RecordingSession):
@@ -1541,10 +1654,14 @@ def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monke
     uv_version = pipeline_parameter_default(name='UV_VERSION')
     nox_version = pipeline_parameter_default(name='NOX_VERSION')
     assert f'https://astral.sh/uv/{uv_version}/install.sh' in script
-    assert f'uv python install "{python_version}"' in script
-    assert script.index(f'uv tool install "nox[uv]=={nox_version}"') < script.index(
-        'nox -s test || status=$?'
-    )
+    next_python_version = pipeline_parameter_default(name='PYTHON_NEXT_VERSION')
+    assert f'uv python install "{python_version}" "{next_python_version}"' in script
+    nox_installed = script.index(f'uv tool install "nox[uv]=={nox_version}"')
+    runs = [script.index(f'nox -s test-{python} || status=1') for python in noxfile.TEST_PYTHONS]
+    assert nox_installed < runs[0]
+    assert runs == sorted(runs)
+    for python in noxfile.TEST_PYTHONS:
+        assert f'cp -r test-results/. /results/test-{python}/' in script
     assert 'uvx' not in script
     assert (tmp_path / 'linux-ci').is_dir()
 

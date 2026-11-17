@@ -10,6 +10,7 @@ for a driver difference.
 from __future__ import annotations
 
 import os
+import re
 import signal
 import sys
 import textwrap
@@ -518,10 +519,16 @@ class TestStoppingTheNativeRun:
                     left_behind.kill()
                 left_behind.wait()
 
-        named = f'{sys.executable} -c import time; time.sleep(60) {game}'
-        assert lines == [
-            f'left running by the dummy-2 run (now killed): pid {left_behind.pid}: {named}'
-        ]
+        # The command as ps shows it: a framework build (Homebrew's Python) shows the
+        # interpreter inside Python.app, not sys.executable, so any Python is accepted there
+        assert len(lines) == 1
+        named = re.fullmatch(
+            rf'left running by the dummy-2 run \(now killed\): pid {left_behind.pid}: '
+            rf'(?P<interpreter>.+) -c import time; time\.sleep\(60\) {re.escape(str(game))}',
+            lines[0],
+        )
+        assert named is not None, lines[0]
+        assert Path(named['interpreter']).name.lower().startswith('python'), lines[0]
         assert left_behind.returncode == -signal.SIGKILL
         assert not (tmp_path / 'native-temporary').exists()
         assert comparison.sweep_native_run() == []

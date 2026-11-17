@@ -1,6 +1,6 @@
 # GlitchyGames Engine
 
-A Python 3.14 game engine built on Pygame with an event-driven architecture. Includes Bitmappy, a full-featured pixel art editor with animation support, AI sprite generation, and voice recognition.
+A Python 3.14+ game engine built on Pygame with an event-driven architecture. Includes Bitmappy, a full-featured pixel art editor with animation support, AI sprite generation, and voice recognition.
 
 ## Getting Started
 
@@ -369,7 +369,7 @@ nox -s lint
 # Format code
 nox -s format
 
-# Run tests with coverage reports (HTML, XML, JSON, LCOV)
+# Run tests with coverage reports (HTML, XML, JSON, LCOV), on Python 3.14 then 3.15
 nox -s test
 
 # Type checkers (basedpyright + ty)

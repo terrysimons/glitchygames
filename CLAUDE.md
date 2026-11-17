@@ -6,7 +6,7 @@ named below (many say "whose docstring is the contract": read it before changing
 
 ## Project Overview
 
-GlitchyGames is a Python 3.14 game engine on pygame-ce with an event-driven architecture, a
+GlitchyGames is a Python 3.14+ game engine on pygame-ce with an event-driven architecture, a
 pixel-art editor (Bitmappy), example games, and exact gameplay recording and replay.
 
 - Engine: `src/glitchygames/`. Workspace members (plans/2026-10-24-workspace-packages.md): games
@@ -27,7 +27,13 @@ pixel-art editor (Bitmappy), example games, and exact gameplay recording and rep
 uv sync --all-extras --all-groups --all-packages   # everything development uses
 direnv allow        # optional: .envrc syncs on entry; on macOS installs PulseAudio, syft, grype
 uv sync --upgrade --all-extras --all-groups --all-packages   # deliberate upgrade; review uv.lock
+uv python pin 3.15.2   # optional: develop on 3.15 (.python-version is ignored: this checkout only)
 ```
+
+Two Pythons are supported and tested: 3.14, the oldest (the browser builds' Pyodide runs it, so
+`requires-python`, ruff's and the type checkers' targets stay there), and 3.15, the development
+version. `nox -s test` and the pre-push shuffled run test both, each in its own environment, and
+so does every CircleCI job (`noxfile.TEST_PYTHONS`, `PYTHON_NEXT_VERSION`).
 
 The packages are not on PyPI yet: outside the repository, `uv build --all-packages` and install
 from `dist/` (extras: `games`, `apps`, `templates` for cookiecutter).
@@ -46,8 +52,9 @@ basedpyright                # pyrightconfig.json
 ```
 
 Nox (`nox -l` lists all; each session's docstring explains it):
-- `format`, `lint` (aggregates), `static-analysis` (basedpyright + ty), `test`, `test-random`
-  (shuffled order, the pre-push hook; `-- SEED` repeats one), `performance-test`
+- `format`, `lint` (aggregates), `static-analysis` (basedpyright + ty), `test` (`test-3.14`
+  then `test-3.15`; `-s test-3.15` runs one), `test-random` (shuffled order on both Pythons, the
+  pre-push hook; `-- SEED` repeats one), `performance-test`
 - `compare-drivers` (N-way driver matrix, 4 workers per run, `-- --workers auto` for every
   core; pre-push runs `-- --drivers native --fail-on-difference --workers auto
   --skip-when-frames-cannot-change`, skipped when every pushed path is docs, plans or CI config;
@@ -311,9 +318,10 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
 
 ## Code Style
 
-Python 3.14, ruff (100-character lines, import order), Google-style docstrings, basedpyright and
-ty. Data classes are pydantic models. Bugs: one file each in `bugs/` (`YYYY-MM-DD-short-slug.md`);
-the older numbered entries are in BUGS.md.
+Python 3.14 and 3.15 (code must run on 3.14: lint and type checks target it), ruff (100-character
+lines, import order), Google-style docstrings, basedpyright and ty. Data classes are pydantic
+models. Bugs: one file each in `bugs/` (`YYYY-MM-DD-short-slug.md`); the older numbered entries are
+in BUGS.md.
 
 ## Docs
 
