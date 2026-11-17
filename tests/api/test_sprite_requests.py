@@ -19,7 +19,7 @@ from glitchygames.api.sprite_requests import (
 )
 from glitchygames.services import RendererService, SpriteGenerationService
 from glitchygames.services.config import ServiceConfig
-from glitchygames.services.renderer_service import RenderResult
+from glitchygames.services.renderer_service import RenderedFrame, RenderResult
 from tests.services.stand_in_ai_client import FakeAIClient
 
 STATIC_SPRITE = """[sprite]
@@ -223,6 +223,37 @@ def test_a_sprite_file_of_the_wrong_shape_is_unsuccessful(toml_content):
 
     assert response.success is False
     assert response.error
+
+
+def test_a_frame_the_renderer_cannot_time_is_unsuccessful(mocker):
+    """A frame whose duration the renderer reports as not known (None) is refused, not raised.
+
+    The sprite file schema refuses a ``frame_interval`` that is not a number before anything
+    renders, so None is the one untimed frame left to refuse here.
+    """
+    renderer_service = RendererService()
+    mocker.patch.object(
+        renderer_service,
+        'render_from_toml',
+        return_value=RenderResult(
+            success=True,
+            width=8,
+            height=8,
+            rendered_frames=[
+                RenderedFrame(
+                    animation_index=0, frame_index=0, png_base64='', duration_seconds=None
+                )
+            ],
+        ),
+    )
+
+    response = extract_toml_frames_response(
+        toml_content=ONE_FRAME_ANIMATION, renderer_service=renderer_service
+    )
+
+    assert response.success is False
+    assert response.error is not None
+    assert 'frame 0 of animation 0' in response.error
 
 
 def test_toml_that_is_not_a_sprite_is_unsuccessful():
