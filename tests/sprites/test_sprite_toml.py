@@ -449,7 +449,7 @@ def test_empty_pixels_and_empty_colors_are_written_and_parse_back():
     written = parse_sprite_toml(text=write_sprite_toml(data=document), source_name='test')
     assert written['sprite']['name'] == 'x'
     assert not written['sprite']['pixels']
-    assert 'colors' not in written
+    assert written['colors'] == {}
 
 
 @pytest.mark.parametrize('pixels', ['', 'a', 'ab\ncd', 'ab\ncd\n', '\nab', '\\\n"""'])
@@ -477,3 +477,176 @@ def test_animations_without_a_namespace_give_frames_named_default():
     text = f'[sprite]\nname = "x"\n[[animation]]\n{frame}[[animation]]\n{frame}'
     names = [document['sprite']['name'] for document in split_documents(text)]
     assert names == ['x-default-0', 'x-default-0']
+
+
+# Valid TOML of every shape the writer must either write back equal or refuse with ValueError
+SHAPE_DOCUMENT_TEXTS = {
+    'animation is an integer': 'animation = 3\n',
+    'animation is a table': '[animation]\nnamespace = "a"\n',
+    'animation holds an integer': 'animation = [3]\n',
+    'frames are a table': '[[animation]]\n[animation.frame]\npixels = "a"\n',
+    'colors is an integer': 'colors = 3\n',
+    'a color is an integer': '[colors]\na = 3\n',
+    'sprite is an integer': 'sprite = 3\n',
+    'sprite pixels is an integer': '[sprite]\npixels = 3\n',
+    'transition is an integer': 'transition = 3\n',
+    'transition is a table': '[transition]\nfrom = "a"\n',
+    'a boolean color value': '[colors.a]\nred = true\n',
+    'a string color value': '[colors.a]\nred = "255"\n',
+    'a float color value': '[colors.a]\nred = 1.5\n',
+    'a string hitbox value': '[sprite.hitbox]\nwidth = "8"\n',
+    'tags is a string': '[sprite]\ntags = "item"\n',
+    'tags holds an integer': '[sprite]\ntags = ["a", 1]\n',
+    'frame pixels is an array': '[[animation]]\n[[animation.frame]]\npixels = ["ab", "cd"]\n',
+    'an integer name': '[sprite]\nname = 5\n',
+    'an integer description': '[sprite]\ndescription = 5\n',
+    'an integer frame anchor': '[sprite]\nframe_anchor = 5\n',
+    'a date name': '[sprite]\nname = 2026-11-17\n',
+    'a string frame index': '[[animation]]\n[[animation.frame]]\nframe_index = "1"\n',
+    'a string loop': '[[animation]]\nloop = "yes"\n',
+    'a date in a games own table': '[swatches]\nmade = 2026-11-17\n',
+    'a datetime in a transition': '[[transition]]\nat = 2026-11-17T10:30:00Z\n',
+    'times and datetimes in a games own table': (
+        'a = 10:30:00\nb = 2026-11-17T10:30:00.5\nc = 2026-11-17T10:30:00+02:00\n'
+        '[game]\nwhen = [2026-11-17, 10:30:00]\n'
+    ),
+    'empty containers': (
+        'animation = []\ntransition = []\ncolors = {}\nsprite = {}\nother = {}\nlist = []\n'
+    ),
+    'an animation with an empty frame list': '[[animation]]\nframe = []\n',
+    'a sprite with the Part 2 keys': (
+        '[sprite]\nname = "x"\nprofile = "8-bit+"\ncolor_space = "9-bit RGB"\n'
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    'text', list(SHAPE_DOCUMENT_TEXTS.values()), ids=list(SHAPE_DOCUMENT_TEXTS)
+)
+def test_a_parsed_document_is_written_back_equal_or_refused_with_a_value_error(text):
+    """The invariant: write_sprite_toml raises ValueError or returns text parsing back equal."""
+    document = parse_sprite_toml(text=text, source_name='test')
+    try:
+        written = write_sprite_toml(data=document)
+    except ValueError:
+        return
+    assert parse_sprite_toml(text=written, source_name='test') == document
+
+
+@pytest.mark.parametrize(
+    ('text', 'path'),
+    [
+        ('animation = 3\n', 'animation'),
+        ('[animation]\nnamespace = "a"\n', 'animation'),
+        ('animation = [3]\n', r'animation\[0\]'),
+        ('[[animation]]\n[animation.frame]\npixels = "a"\n', r'animation\[0\]\.frame'),
+        ('colors = 3\n', 'colors'),
+        ('[colors]\na = 3\n', r'colors\.a'),
+        ('sprite = 3\n', 'sprite'),
+        ('[sprite]\npixels = 3\n', r'sprite\.pixels'),
+        ('transition = 3\n', 'transition'),
+        ('[colors.a]\nred = true\n', r'colors\.a\.red'),
+        ('[colors.a]\nred = "255"\n', r'colors\.a\.red'),
+        ('[sprite.hitbox]\nwidth = "8"\n', r'sprite\.hitbox\.width'),
+        ('[sprite]\nhitbox = 3\n', r'sprite\.hitbox'),
+        ('[sprite]\ntags = "item"\n', r'sprite\.tags'),
+        ('[sprite]\ntags = ["a", 1]\n', r'sprite\.tags\[1\]'),
+        (
+            '[[animation]]\n[[animation.frame]]\npixels = ["ab"]\n',
+            r'animation\[0\]\.frame\[0\]\.pixels',
+        ),
+        ('[sprite]\nname = 5\n', r'sprite\.name'),
+        ('[sprite]\ndescription = 5\n', r'sprite\.description'),
+        ('[sprite]\nframe_anchor = 5\n', r'sprite\.frame_anchor'),
+        ('[[animation]]\nloop = "yes"\n', r'animation\[0\]\.loop'),
+    ],
+)
+def test_a_value_of_the_wrong_type_is_refused_naming_its_path(text, path):
+    """Valid TOML of the wrong type or shape raises ValueError naming where, never TypeError."""
+    document = parse_sprite_toml(text=text, source_name='test')
+    with pytest.raises(ValueError, match=f'Cannot write the sprite document.*{path}'):
+        write_sprite_toml(data=document)
+
+
+def test_every_wrong_type_is_named_in_one_refusal():
+    """Wrong types are reported together with the unknown keys, as one error."""
+    document = {
+        'sprite': {'name': 5, 'extra': 1},
+        'colors': {'a': {'red': True}, 'b': 3},
+    }
+    with pytest.raises(ValueError, match=r'sprite\.extra.*sprite\.name.*colors\.a\.red.*colors\.b'):
+        write_sprite_toml(data=document)
+
+
+def test_dates_and_times_are_written_as_toml_literals_and_parse_back_equal():
+    """A date, datetime or time anywhere in a games own tables survives as the same value."""
+    text = SHAPE_DOCUMENT_TEXTS['times and datetimes in a games own table']
+    text += '[[transition]]\nat = 2026-11-17T10:30:00Z\n'
+    document = parse_sprite_toml(text=text, source_name='test')
+    written = write_sprite_toml(data=document)
+    assert parse_sprite_toml(text=written, source_name='test') == document
+    assert 'datetime.' not in written
+
+
+def test_a_document_with_the_part_two_keys_round_trips():
+    """Profile and color_space are known [sprite] keys, strings."""
+    document = parse_sprite_toml(
+        text=SHAPE_DOCUMENT_TEXTS['a sprite with the Part 2 keys'], source_name='test'
+    )
+    written = write_sprite_toml(data=document)
+    assert parse_sprite_toml(text=written, source_name='test') == document
+    assert 'profile = "8-bit+"' in written
+
+
+def test_a_part_two_key_of_the_wrong_type_is_refused():
+    """Profile is a string like the other [sprite] text keys."""
+    with pytest.raises(ValueError, match=r'sprite\.profile'):
+        write_sprite_toml(data={'sprite': {'profile': 3}})
+
+
+@pytest.mark.parametrize(
+    'text',
+    [
+        'animation = 3\n',
+        '[animation]\nnamespace = "a"\n',
+        'colors = 3\n',
+        '[colors]\na = 3\n',
+        '[sprite]\npixels = 3\n',
+        '[[animation]]\nframe = 3\n',
+        '[sprite]\nname = 5\n',
+    ],
+)
+def test_text_of_the_wrong_shape_is_refused_by_split_with_a_value_error(text):
+    """split_sprite_text refuses what the writer refuses, with ValueError, not AttributeError."""
+    with pytest.raises(ValueError, match='Cannot split the sprite text'):
+        split_sprite_text(text=text)
+
+
+def test_split_refuses_text_that_is_not_toml_naming_sprite_text():
+    """Split takes no source name, so the error names the generic sprite text."""
+    with pytest.raises(ValueError, match='sprite text is not valid TOML'):
+        split_sprite_text(text='[sprite\nname = ')
+
+
+def test_frames_are_numbered_in_the_loaders_frame_index_order():
+    """Frame index 1 written before frame index 0 is frame 1: the names match the loader's."""
+    text = (
+        '[sprite]\nname = "k-w"\n[[animation]]\nnamespace = "k"\n'
+        '[[animation.frame]]\nframe_index = 1\npixels = "b"\n'
+        '[[animation.frame]]\nframe_index = 0\npixels = "a"\n'
+    )
+    document = parse_sprite_toml(text=text, source_name='test')
+    loader_order = [
+        frame['pixels']
+        for frame in sprite_toml.frame_tables_in_load_order(document['animation'][0]['frame'])
+    ]
+    split = {each['sprite']['name']: each['sprite']['pixels'] for each in split_documents(text)}
+    assert loader_order == ['a', 'b']
+    assert split == {f'k-w-k-{index}': pixels for index, pixels in enumerate(loader_order)}
+
+
+def test_frame_tables_in_load_order_is_the_one_the_engine_uses():
+    """The engine's animated module keeps the name importable and it is the same function."""
+    from glitchygames.sprites import animated
+
+    assert animated.frame_tables_in_load_order is sprite_toml.frame_tables_in_load_order

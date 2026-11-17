@@ -8,6 +8,7 @@ layout the engine writes: a round trip keeps the same parsed sprite, not the sam
 
 from __future__ import annotations
 
+import datetime as dt
 import math
 import tomllib
 from typing import TYPE_CHECKING, Any, cast
@@ -25,11 +26,50 @@ TAGS_KEY = 'tags'
 # Inside these tables the writer refuses any other key rather than dropping it. A top-level table
 # the engine does not own (a game's own, such as Drawing Fire's [swatches]) is written back as is.
 DOCUMENT_KEYS = frozenset({'sprite', 'colors', 'animation', 'transition'})
-SPRITE_KEYS = frozenset({'name', 'description', TAGS_KEY, 'frame_anchor', 'pixels', 'hitbox'})
+# profile and color_space are Part 2's keys (plans/2026-11-17-sprite-color-profiles.md): known here
+# so a file carrying them is written back, not refused
+SPRITE_KEYS = frozenset({
+    'name',
+    'description',
+    TAGS_KEY,
+    'frame_anchor',
+    'profile',
+    'color_space',
+    'pixels',
+    'hitbox',
+})
+# The [sprite] keys whose value is a single-line string, in the order they are written
+SPRITE_LINE_STRING_KEYS = ('name', 'frame_anchor', 'profile', 'color_space')
 HITBOX_KEYS = ('offset_x', 'offset_y', 'width', 'height')
 ANIMATION_KEYS = frozenset({'namespace', 'frame_interval', 'loop', 'frame'})
 FRAME_KEYS = frozenset({'namespace', 'frame_index', 'frame_interval', 'pixels', 'hitbox'})
 COLOR_KEYS = frozenset({'red', 'green', 'blue', 'alpha'})
+# What each key of the engine's tables must hold (a bool is never an integer or a number here):
+# 'string', 'integer', 'number' or 'boolean'. Keys not listed (tags, hitbox, frame) are checked
+# on their own.
+SPRITE_VALUE_KINDS = {
+    'name': 'string',
+    'description': 'string',
+    'frame_anchor': 'string',
+    'profile': 'string',
+    'color_space': 'string',
+    'pixels': 'string',
+}
+HITBOX_VALUE_KINDS: Mapping[str, str] = dict.fromkeys(HITBOX_KEYS, 'integer')
+COLOR_VALUE_KINDS: Mapping[str, str] = dict.fromkeys(('red', 'green', 'blue', 'alpha'), 'integer')
+ANIMATION_VALUE_KINDS = {'namespace': 'string', 'frame_interval': 'number', 'loop': 'boolean'}
+FRAME_VALUE_KINDS = {
+    'namespace': 'string',
+    'frame_index': 'integer',
+    'frame_interval': 'number',
+    'pixels': 'string',
+}
+KIND_DESCRIPTIONS = {
+    'string': 'a string',
+    'integer': 'an integer',
+    'number': 'a number',
+    'boolean': 'true or false',
+}
 
 # Characters TOML basic strings must escape with a short escape sequence
 # (https://toml.io/en/v1.0.0#string)
@@ -149,13 +189,13 @@ def toml_key(key: str) -> str:
 
 
 def toml_scalar(value: object) -> str:
-    """Format a string, boolean, integer or float as a TOML value.
+    """Format a string, boolean, integer, float, date, datetime or time as a TOML value.
 
     Returns:
         str: The value as written in a TOML file.
 
     Raises:
-        TypeError: For any other type (TOML tables, arrays and dates are not supported here).
+        TypeError: For any other type (TOML tables and arrays are not supported here).
 
     """
     if isinstance(value, bool):
@@ -164,14 +204,51 @@ def toml_scalar(value: object) -> str:
         return toml_basic_string(value)
     if isinstance(value, int):
         return str(value)
+    if isinstance(value, dt.date | dt.time):
+        # A TOML date, datetime or time literal is its ISO 8601 form (https://toml.io/en/v1.0.0)
+        return value.isoformat()
     if isinstance(value, float):
-        if math.isnan(value):
-            return 'nan'
-        if math.isinf(value):
-            return 'inf' if value > 0 else '-inf'
-        return repr(value)
+        return _toml_float(value)
     msg = f'Cannot write {type(value).__name__} value {value!r} as a TOML scalar'
     raise TypeError(msg)
+
+
+def frame_tables_in_load_order(frame_tables: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return an animation's ``[[animation.frame]]`` tables in the order the loader uses.
+
+    A table's ``frame_index`` key places it; a table without one counts as its position in the
+    file. Ties keep the file's order (the sort is stable), so a file whose indexes match its
+    order (what save() writes) loads in file order (BUGS.md #232). The engine's loader and
+    ``split_sprite_text`` both order frames with this one function.
+
+    Args:
+        frame_tables: The animation's frame tables, in file order.
+
+    Returns:
+        The frame tables, sorted.
+
+    """
+    positioned_tables = sorted(
+        enumerate(frame_tables),
+        key=lambda position_and_table: position_and_table[1].get(
+            'frame_index', position_and_table[0]
+        ),
+    )
+    return [frame_table for _position, frame_table in positioned_tables]
+
+
+def _toml_float(value: float) -> str:
+    """Format a float as a TOML float, with TOML's spellings of nan and infinity.
+
+    Returns:
+        str: The float as written in a TOML file.
+
+    """
+    if math.isnan(value):
+        return 'nan'
+    if math.isinf(value):
+        return 'inf' if value > 0 else '-inf'
+    return repr(value)
 
 
 def parse_sprite_toml(*, text: str, source_name: str) -> dict[str, Any]:
@@ -207,24 +284,43 @@ def write_sprite_toml(*, data: Mapping[str, Any]) -> str:
     (it would be dropped) is refused with a ValueError naming each by its path
     (``sprite.unknown_key``, ``animation[0].frame[1].extra``).
 
+    Every document ``parse_sprite_toml`` accepts is either written so that it parses back equal,
+    or refused. Values of the engine's own tables must have the types the loader expects (strings
+    for ``name``, ``description``, ``frame_anchor``, ``profile``, ``color_space`` and ``pixels``,
+    an array of strings for ``tags``, integers for colors and hitboxes, and so on), and
+    ``[[animation]]`` and ``[[transition]]`` must be arrays of tables. Dates, datetimes and times
+    anywhere are written as TOML literals.
+
     Args:
         data: The sprite document (as ``parse_sprite_toml`` returns).
 
     Returns:
         The TOML text.
 
+    Raises:
+        ValueError: If the engine's own tables hold an unknown key, a value of the wrong type or
+            the wrong shape; one error names every problem by its path
+            (``sprite.name``, ``colors.a.red``, ``animation[0].frame[1].pixels``). A value no
+            parse returns (an object) in a game's own table raises TypeError instead.
+
     """
-    _check_document(data=data)
+    problems = _document_problems(data=data, check_unknown_keys=True)
+    if problems:
+        msg = 'Cannot write the sprite document: ' + '; '.join(problems)
+        raise ValueError(msg)
     # A value of the document's root must come before any table header, or it joins that table
     lines: list[str] = [
         f'{toml_key(key)} = {_inline_value(value)}\n'
         for key, value in data.items()
         if key not in DOCUMENT_KEYS and not isinstance(value, dict)
     ]
+    # An empty array of tables has no header to write, so it is a value of the root
+    lines.extend(f'{key} = []\n' for key in ('animation', 'transition') if data.get(key) == [])
     if 'sprite' in data:
         lines.append(_sprite_section(sprite=data['sprite']))
     lines.extend(_animation_section(animation=animation) for animation in data.get('animation', []))
-    lines.append(_colors_section(colors=data.get('colors', {})))
+    if 'colors' in data:
+        lines.append(_colors_section(colors=data['colors']))
     for transition in data.get('transition', []):
         lines.extend((
             '\n[[transition]]\n',
@@ -251,6 +347,10 @@ def split_sprite_text(*, text: str) -> list[str]:
     frame 0, even without pixels. A frame without ``pixels`` (the loader defaults them to '')
     becomes a sprite with empty pixels, and an animation with no frames gives none.
 
+    Frames are numbered in the order the loader plays them (``frame_tables_in_load_order``:
+    by ``frame_index``, a frame without one at its file position), not in file order. A per-frame
+    ``frame_interval`` is not carried into the split frames: a static sprite has no timing.
+
     Names follow from that rule, so two animations with the same namespace (or both omitting it)
     give frames with the same name: the names are not made unique.
 
@@ -264,9 +364,18 @@ def split_sprite_text(*, text: str) -> list[str]:
     Returns:
         One TOML text per frame, in animation and frame order.
 
+    Raises:
+        ValueError: If the text is not valid TOML (naming "sprite text"), or its engine tables
+            hold a value of the wrong type or shape (as ``write_sprite_toml`` refuses; unknown
+            keys are ignored, as the loader ignores them), naming each by its path.
+
     """
     # parse_sprite_toml raises ValueError for text that is not valid TOML
     document = parse_sprite_toml(text=text, source_name='sprite text')
+    problems = _document_problems(data=document, check_unknown_keys=False)
+    if problems:
+        msg = 'Cannot split the sprite text: ' + '; '.join(problems)
+        raise ValueError(msg)
     sprite: Mapping[str, Any] = document.get('sprite', {})
     sprite_name = sprite.get('name', 'animated_sprite')
     colors: Mapping[str, Any] = document.get('colors', {})
@@ -275,30 +384,52 @@ def split_sprite_text(*, text: str) -> list[str]:
         frames = [
             (animation.get('namespace', 'default'), frame_number, frame)
             for animation in animations
-            for frame_number, frame in enumerate(animation.get('frame', []))
+            for frame_number, frame in enumerate(
+                frame_tables_in_load_order(animation.get('frame', []))
+            )
         ]
     else:
         frames = [('default', 0, sprite)]
-    texts: list[str] = []
-    for animation_name, frame_number, frame in frames:
-        frame_name = f'{sprite_name}-{animation_name}-{frame_number}'
-        frame_sprite: dict[str, Any] = {'name': frame_name}
-        frame_sprite.update({
-            key: sprite[key] for key in ('description', TAGS_KEY, 'frame_anchor') if key in sprite
-        })
-        # The loader defaults a frame's missing pixels to '': an empty frame is still a frame
-        pixels = frame.get('pixels', '')
-        frame_sprite['pixels'] = pixels
-        hitbox = frame.get('hitbox', sprite.get('hitbox'))
-        if hitbox is not None:
-            frame_sprite['hitbox'] = hitbox
-        glyphs_used = set(pixels)
-        frame_document: dict[str, Any] = {
-            'sprite': frame_sprite,
-            'colors': {glyph: color for glyph, color in colors.items() if glyph in glyphs_used},
-        }
-        texts.append(write_sprite_toml(data=frame_document))
-    return texts
+    return [
+        _frame_text(
+            sprite=sprite,
+            colors=colors,
+            frame_name=f'{sprite_name}-{animation_name}-{frame_number}',
+            frame=frame,
+        )
+        for animation_name, frame_number, frame in frames
+    ]
+
+
+def _frame_text(
+    *,
+    sprite: Mapping[str, Any],
+    colors: Mapping[str, Any],
+    frame_name: str,
+    frame: Mapping[str, Any],
+) -> str:
+    """Write one frame as a single-image sprite text (see split_sprite_text).
+
+    Returns:
+        The TOML text.
+
+    """
+    frame_sprite: dict[str, Any] = {'name': frame_name}
+    frame_sprite.update({
+        key: sprite[key] for key in ('description', TAGS_KEY, 'frame_anchor') if key in sprite
+    })
+    # The loader defaults a frame's missing pixels to '': an empty frame is still a frame
+    pixels = frame.get('pixels', '')
+    frame_sprite['pixels'] = pixels
+    hitbox = frame.get('hitbox', sprite.get('hitbox'))
+    if hitbox is not None:
+        frame_sprite['hitbox'] = hitbox
+    glyphs_used = set(pixels)
+    frame_document: dict[str, Any] = {'sprite': frame_sprite}
+    frame_colors = {glyph: color for glyph, color in colors.items() if glyph in glyphs_used}
+    if frame_colors:
+        frame_document['colors'] = frame_colors
+    return write_sprite_toml(data=frame_document)
 
 
 def _sprite_section(*, sprite: Mapping[str, Any]) -> str:
@@ -316,8 +447,11 @@ def _sprite_section(*, sprite: Mapping[str, Any]) -> str:
     if TAGS_KEY in sprite:
         # toml_tags_line writes no line for no tags, which would lose an empty list
         lines.append(toml_tags_line(sprite[TAGS_KEY]) or f'{TAGS_KEY} = []\n')
-    if 'frame_anchor' in sprite:
-        lines.append(f'frame_anchor = {toml_basic_string(sprite["frame_anchor"])}\n')
+    lines.extend(
+        f'{key} = {toml_basic_string(sprite[key])}\n'
+        for key in SPRITE_LINE_STRING_KEYS[1:]
+        if key in sprite
+    )
     if 'pixels' in sprite:
         lines.append(f'pixels = {toml_pixel_block(sprite["pixels"])}\n')
     lines.append('\n')
@@ -326,53 +460,169 @@ def _sprite_section(*, sprite: Mapping[str, Any]) -> str:
     return ''.join(lines)
 
 
-def _check_document(*, data: Mapping[str, Any]) -> None:
-    """Refuse a document with a key in the engine's own tables the writer would drop.
+def _document_problems(*, data: Mapping[str, Any], check_unknown_keys: bool) -> list[str]:
+    """Find what the writer could not write back equal in the engine's own tables.
 
-    Raises:
-        ValueError: Naming every unknown key by its path.
+    Args:
+        data: The sprite document.
+        check_unknown_keys: Whether a key the writer does not know is a problem (the writer would
+            drop it; a split ignores it).
+
+    Returns:
+        A problem for each key of the wrong type or shape, by path; empty when all is well.
 
     """
     problems: list[str] = []
-    sprite: Mapping[str, Any] | None = data.get('sprite')
-    if sprite is not None:
-        _check_table(table=sprite, path='sprite', known_keys=SPRITE_KEYS, problems=problems)
-        _check_hitbox(hitbox=sprite.get('hitbox'), path='sprite.hitbox', problems=problems)
-    for character, color in data.get('colors', {}).items():
-        _check_table(
-            table=color, path=f'colors.{character}', known_keys=COLOR_KEYS, problems=problems
+    known = check_unknown_keys
+    if 'sprite' in data:
+        sprite = _table_or_problem(value=data['sprite'], path='sprite', problems=problems)
+        if sprite is not None:
+            _check_table(
+                table=sprite,
+                path='sprite',
+                known_keys=SPRITE_KEYS if known else None,
+                value_kinds=SPRITE_VALUE_KINDS,
+                problems=problems,
+            )
+            _check_tags(sprite=sprite, problems=problems)
+            _check_hitbox(
+                hitbox=sprite.get('hitbox'), path='sprite.hitbox', known=known, problems=problems
+            )
+    if 'colors' in data:
+        colors = _table_or_problem(value=data['colors'], path='colors', problems=problems)
+        for character, color_value in (colors or {}).items():
+            color_path = f'colors.{character}'
+            color = _table_or_problem(value=color_value, path=color_path, problems=problems)
+            if color is not None:
+                _check_table(
+                    table=color,
+                    path=color_path,
+                    known_keys=COLOR_KEYS if known else None,
+                    value_kinds=COLOR_VALUE_KINDS,
+                    problems=problems,
+                )
+    _check_animations(data=data, known=known, problems=problems)
+    # A transition's keys are the game's own: only its shape is checked
+    _tables_of_array(value=data.get('transition', []), path='transition', problems=problems)
+    return problems
+
+
+def _table_or_problem(*, value: object, path: str, problems: list[str]) -> Mapping[str, Any] | None:
+    """Return the value when it is a table, else add a problem and return None."""
+    if isinstance(value, dict):
+        return cast('Mapping[str, Any]', value)
+    problems.append(f'{path} must be a table, not {type(value).__name__}')
+    return None
+
+
+def _tables_of_array(
+    *, value: object, path: str, problems: list[str]
+) -> list[tuple[int, Mapping[str, Any]]]:
+    """Return an array of tables as (index, table) pairs, adding a problem for anything else."""
+    if not isinstance(value, list):
+        problems.append(
+            f'{path} must be an array of tables ([[{path}]]), not {type(value).__name__}'
         )
-    for animation_index, animation in enumerate(data.get('animation', [])):
+        return []
+    tables: list[tuple[int, Mapping[str, Any]]] = []
+    for index, item in enumerate(cast('list[object]', value)):
+        table = _table_or_problem(value=item, path=f'{path}[{index}]', problems=problems)
+        if table is not None:
+            tables.append((index, table))
+    return tables
+
+
+def _check_animations(*, data: Mapping[str, Any], known: bool, problems: list[str]) -> None:
+    """Check the ``[[animation]]`` tables and their ``[[animation.frame]]`` tables."""
+    for animation_index, animation in _tables_of_array(
+        value=data.get('animation', []), path='animation', problems=problems
+    ):
         animation_path = f'animation[{animation_index}]'
         _check_table(
-            table=animation, path=animation_path, known_keys=ANIMATION_KEYS, problems=problems
+            table=animation,
+            path=animation_path,
+            known_keys=ANIMATION_KEYS if known else None,
+            value_kinds=ANIMATION_VALUE_KINDS,
+            problems=problems,
         )
-        for frame_index, frame in enumerate(animation.get('frame', [])):
+        for frame_index, frame in _tables_of_array(
+            value=animation.get('frame', []), path=f'{animation_path}.frame', problems=problems
+        ):
             frame_path = f'{animation_path}.frame[{frame_index}]'
-            _check_table(table=frame, path=frame_path, known_keys=FRAME_KEYS, problems=problems)
-            _check_hitbox(
-                hitbox=frame.get('hitbox'), path=f'{frame_path}.hitbox', problems=problems
+            _check_table(
+                table=frame,
+                path=frame_path,
+                known_keys=FRAME_KEYS if known else None,
+                value_kinds=FRAME_VALUE_KINDS,
+                problems=problems,
             )
-    if problems:
-        msg = 'Cannot write the sprite document: ' + '; '.join(problems)
-        raise ValueError(msg)
+            _check_hitbox(
+                hitbox=frame.get('hitbox'),
+                path=f'{frame_path}.hitbox',
+                known=known,
+                problems=problems,
+            )
+
+
+def _has_kind(*, value: object, kind: str) -> bool:
+    """Return whether a value is of a kind named in KIND_DESCRIPTIONS (a bool is no number)."""
+    if kind == 'string':
+        return isinstance(value, str)
+    if kind == 'boolean':
+        return isinstance(value, bool)
+    if isinstance(value, bool):
+        return False
+    if kind == 'integer':
+        return isinstance(value, int)
+    return isinstance(value, int | float)
 
 
 def _check_table(
     *,
     table: Mapping[str, Any],
     path: str,
-    known_keys: frozenset[str],
+    known_keys: frozenset[str] | None,
+    value_kinds: Mapping[str, str],
     problems: list[str],
 ) -> None:
-    """Add a problem for each key in the table that the writer does not know."""
-    problems.extend(f'unknown key {path}.{key}' for key in table if key not in known_keys)
+    """Add a problem for each unknown key (when known_keys is given) and each wrong type."""
+    if known_keys is not None:
+        problems.extend(f'unknown key {path}.{key}' for key in table if key not in known_keys)
+    for key, kind in value_kinds.items():
+        if key in table and not _has_kind(value=table[key], kind=kind):
+            problems.append(
+                f'{path}.{key} must be {KIND_DESCRIPTIONS[kind]}, not {type(table[key]).__name__}'
+            )
 
 
-def _check_hitbox(*, hitbox: Mapping[str, Any] | None, path: str, problems: list[str]) -> None:
+def _check_tags(*, sprite: Mapping[str, Any], problems: list[str]) -> None:
+    """Check that the sprite's tags, when it has them, are an array of strings."""
+    if TAGS_KEY not in sprite:
+        return
+    tags = sprite[TAGS_KEY]
+    if not isinstance(tags, list):
+        problems.append(f'sprite.{TAGS_KEY} must be an array of strings, not {type(tags).__name__}')
+        return
+    problems.extend(
+        f'sprite.{TAGS_KEY}[{index}] must be a string, not {type(tag).__name__}'
+        for index, tag in enumerate(cast('list[object]', tags))
+        if not isinstance(tag, str)
+    )
+
+
+def _check_hitbox(*, hitbox: object, path: str, known: bool, problems: list[str]) -> None:
     """Check a hitbox table, when there is one."""
-    if hitbox is not None:
-        _check_table(table=hitbox, path=path, known_keys=frozenset(HITBOX_KEYS), problems=problems)
+    if hitbox is None:
+        return
+    table = _table_or_problem(value=hitbox, path=path, problems=problems)
+    if table is not None:
+        _check_table(
+            table=table,
+            path=path,
+            known_keys=frozenset(HITBOX_KEYS) if known else None,
+            value_kinds=HITBOX_VALUE_KINDS,
+            problems=problems,
+        )
 
 
 def _animation_section(*, animation: Mapping[str, Any]) -> str:
@@ -388,6 +638,9 @@ def _animation_section(*, animation: Mapping[str, Any]) -> str:
         for key in ('namespace', 'frame_interval', 'loop')
         if key in animation
     )
+    # An empty array of frames has no header to write, so it is a value of the animation
+    if animation.get('frame') == []:
+        lines.append('frame = []\n')
     lines.append('\n')
     for frame in animation.get('frame', []):
         lines.append('[[animation.frame]]\n')
@@ -411,7 +664,7 @@ def _frame_value(*, key: str, value: object) -> str:
         The TOML text of the value.
 
     """
-    return toml_pixel_block(str(value)) if key == 'pixels' else _inline_value(value)
+    return toml_pixel_block(cast('str', value)) if key == 'pixels' else _inline_value(value)
 
 
 def _hitbox_section(*, section_header: str, hitbox: Mapping[str, int]) -> str:
@@ -435,8 +688,6 @@ def _colors_section(*, colors: Mapping[str, Mapping[str, int]]) -> str:
         The TOML text.
 
     """
-    if not colors:
-        return ''
     lines = ['[colors]\n']
     for character, color in colors.items():
         # Quoted and escaped, so a backslash or quote glyph is a valid key

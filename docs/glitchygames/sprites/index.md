@@ -85,6 +85,7 @@ text `AnimatedSprite.save` writes to its file.
         - sprite_from_text
         - sprite_to_text
         - sprite_text_from_frames
+        - surface_rgba_pixels
         - SpriteColorLimitError
 
 ::: glitchygames.sprites.sprite_toml
@@ -96,6 +97,7 @@ text `AnimatedSprite.save` writes to its file.
         - parse_sprite_toml
         - write_sprite_toml
         - split_sprite_text
+        - frame_tables_in_load_order
 
 ::: glitchygames.sprites.sprite
     options:

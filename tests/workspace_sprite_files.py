@@ -4,9 +4,9 @@ The sprite files are every TOML sprite (a file with a ``sprite`` table) in any m
 packages, read from the source tree by path: nothing here imports a member. It reads the workspace
 (scripts/workspace_packages.py), so it lives in tests/ like tests/workspace_sources.py, not in
 glitchygames.testing, which the engine ships and which reaches nothing outside the engine. The
-checks themselves are glitchygames.testing.sprite_files; tests/test_workspace_sprite_files.py and
-tests/sprites/test_sprite_toml.py and tests/sprites/test_sprite_text.py parametrize them over
-these lists. Bitmappy's sprite library is a member's, so it is among them.
+checks themselves are glitchygames.testing.sprite_files; only tests/test_workspace_sprite_files.py
+parametrizes them over these lists (engine tests stay off the workspace: the engine test files
+use the engine's own sprites). Bitmappy's sprite library is a member's, so it is among them.
 """
 
 from __future__ import annotations

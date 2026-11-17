@@ -61,27 +61,8 @@ toml_scalar = sprite_toml.toml_scalar
 toml_tags_line = sprite_toml.toml_tags_line
 
 
-def frame_tables_in_load_order(frame_tables: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Return an animation's ``[[animation.frame]]`` tables in the order the loader uses.
-
-    A table's ``frame_index`` key places it; a table without one counts as its position in the
-    file. Ties keep the file's order (the sort is stable), so a file whose indexes match its
-    order (what save() writes) loads in file order (BUGS.md #232).
-
-    Args:
-        frame_tables: The animation's frame tables, in file order.
-
-    Returns:
-        The frame tables, sorted.
-
-    """
-    positioned_tables = sorted(
-        enumerate(frame_tables),
-        key=lambda position_and_table: position_and_table[1].get(
-            'frame_index', position_and_table[0]
-        ),
-    )
-    return [frame_table for _position, frame_table in positioned_tables]
+# The frame order lives in sprite_toml, shared with split_sprite_text; still importable from here
+frame_tables_in_load_order = sprite_toml.frame_tables_in_load_order
 
 
 class FrameAnchor(Enum):
