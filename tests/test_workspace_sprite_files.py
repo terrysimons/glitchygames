@@ -108,6 +108,12 @@ def test_a_new_members_sprite_is_found_and_a_toml_without_a_sprite_is_not(tmp_pa
 
 
 @pytest.mark.parametrize('sprite_file', MEMBER_SPRITE_FILES, ids=sprite_file_id)
+def test_values_match_the_schema(sprite_file):
+    """Every value in a member's sprite has the loaders' type and range."""
+    sprite_files.check_values_match_the_schema(sprite_file=sprite_file)
+
+
+@pytest.mark.parametrize('sprite_file', MEMBER_SPRITE_FILES, ids=sprite_file_id)
 def test_rows_have_equal_lengths(sprite_file):
     """Every pixel row of a member's sprite is the same width."""
     sprite_files.check_rows_have_equal_lengths(sprite_file=sprite_file)

@@ -6,7 +6,7 @@ namespace = "idle"
 frame_interval = 0.5
 loop = true
 
-[[animation.frames]]
+[[animation.frame]]
 frame_index = 0
 pixels = """
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -43,7 +43,7 @@ pixels = """
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 """
 
-[[animation.frames]]
+[[animation.frame]]
 frame_index = 1
 pixels = """
 ################################

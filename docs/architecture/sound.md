@@ -228,6 +228,29 @@ mode):
 | `none` | Nothing is kept: every `play()` compiles in its frame. This is the switch that shows what compiling in gameplay costs. Getting a sound renders nothing, and a sound played 5 times compiles 5 times. What a game reads of a sound never depends on the cache (a replay may run under another mode): a synthesized sound's `length` is worked out without rendering, exactly as a compile would size it; whatever only a compile can tell (every `peak`, and a recorded file's `length` and rate) comes from one compile on its first read, counted like any compile, then kept. A play's compile gives them too, so a read after a play compiles nothing more. |
 | `disk` (default) | As `ram`, and each compiled sound is also kept as a file in the game's own folder, `<root>/<game package>/sounds/<render version>/<key[:2]>/<key>.wav`, so a later launch reads it back instead of compiling (faster on every machine measured, a Raspberry Pi's SD card included: `scripts/benchmark_sound_cache.py`). A read writes nothing; each game's folder is limited to 64 MB, oldest written files pruned at startup. `GLITCHYGAMES_SOUND_CACHE_ROOT` names the root (unset: the platform's cache folder; empty: no disk layer, so `ram`; the test harness sets it empty). In the browser it runs as `ram`. Compiled sounds are also shared by every engine context in a process (an Arcade tile's restart compiles nothing). |
 
+A game's start also removes its own folders for older render versions: only an older engine
+wrote them. A newer version's folder is kept, since another engine on the machine (a branch with
+a bumped render version) may share the root.
+
+### Managing the disk cache
+
+Five tools work on the cache, each a flag on every game (acting on that game's own folder) and a
+`glitchygames` subcommand. With no game named, the subcommand works on the whole root; with
+`--game GAME` (given once per game) it starts each game with the flag. All five refuse (exit 64)
+when `GLITCHYGAMES_SOUND_CACHE_ROOT` is empty, since there is then no disk cache.
+
+| Command | What it does |
+| --- | --- |
+| `glitchygames sound-cache-list` | One line per game and render version (sounds, size, whether stale), a line per listening folder, then the total. |
+| `glitchygames sound-cache-size` | The whole cache in one line, stale versions counted apart, the listening files after. |
+| `glitchygames sound-cache-verify` | Reads every file back and lists each damaged one and why; removes nothing (a game's read already replaces a damaged file, silently). Exits 65 when a file is damaged. |
+| `glitchygames sound-cache-clear [--stale-only] [--listening]` | Removes cache folders, and never anything else under the root (it may be a folder of the player's). `--stale-only` removes only older render versions. `--listening` removes the listening WAVs (below) instead of the games' sounds; nothing else ever removes them. |
+| `glitchygames sound-cache-fill` | Compiles each game's declared sounds (`SOUNDS`) and the CRT power-on's into its folder, so even a first launch reads them all. With no `--game` it fills the project's `[tool.glitchygames] games`. Live sounds and recorded files are never cached. Running it twice writes nothing more. |
+
+The logic is one engine API, `glitchygames.audio.cache_inventory` (`inventory`, `clear`,
+`verify`, `fill`, returning frozen models), which the tools, the tests and the sound editor all
+call.
+
 ## Voices, channels and buses
 
 The mixer's channels are partitioned once at startup: the live voice pool (`--live-voice-pool`,
@@ -495,13 +518,20 @@ instruments.get('slapstick')                             # an alias: the same in
   footage, a 16' an octave lower, a 4' an octave higher). Paired strings double every note, though a twelve-string
   guitar's or a bouzouki's octave pairs are only on its lower courses, and a church bell leaves
   out its weak quint, as an instrument has at most four sources.
-- `uv run python -m scripts.make_instrument_demos [DIRECTORY] [--only TEXT]` renders every
-  instrument climbing its range (or four hits) to `build/instruments/<family>/<name>.wav`.
-- `uv run python scripts/make_pipes.py [DIRECTORY]` renders a Highland bagpipe and uilleann
-  pipes (chanter, drones and regulators) and *Sí Bheag, Sí Mhór* to `build/pipes/`;
-  `uv run python -m scripts.pipe_tunes scripts/pipe_tunes_abc [DIRECTORY]` plays the 20
-  public-domain tunes in `scripts/pipe_tunes_abc/` (ABC notation, sources in its
-  `index.json`) on them, to `build/pipes/tunes/`.
+- `uv run glitchygames listening-instruments [--family FAMILY] [--only TEXT]` renders every
+  instrument climbing its range (or four hits) to `instruments/<family>/<name>.wav` in the
+  listening folder, with `instruments/index.txt` (every instrument, its family and range).
+- `uv run glitchygames listening-pipes [--only TEXT]` renders a Highland bagpipe and uilleann
+  pipes (chanter, drones and regulators) and *Sí Bheag, Sí Mhór* to `pipes/`, and plays the 20
+  public-domain tunes in `src/glitchygames/audio/listening/tunes/` (ABC notation, sources in its
+  `index.json`) on them, to `pipes/tunes/`.
+- The listening folder is `<cache root>/listening/<render version>/`, beside the games' sound
+  folders (about 300 MB in all, so no size limit applies and nothing prunes it). Each tool
+  renders only the files missing and prints every file's path (written or already there) on
+  standard output, the summary on standard error. `glitchygames sound-cache-list` and
+  `sound-cache-size` show it apart from the games', and only `glitchygames sound-cache-clear
+  --listening` removes it. The code is `glitchygames.audio.listening` (`renders.render_instruments`
+  and `render_pipes`).
 
 ## The Sound Board
 

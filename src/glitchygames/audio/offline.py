@@ -195,14 +195,14 @@ def render_to_file(  # ruff: ignore[too-many-arguments] - impl spec 8's signatur
         tail_seconds=tail_seconds,
     )
     mix = mix[:end]
-    _write_wave(destination, mix, sample_rate=rate, sample_format=sample_format)
+    write_wave_file(destination, mix, sample_rate=rate, sample_format=sample_format)
     stem_paths: list[Path] = []
     if stems:
         for bus in sorted({entry.bus for entry in placed}):
             stem_path = destination.with_name(f'{destination.stem}.{bus}{destination.suffix}')
             on_the_bus = [entry for entry in placed if entry.bus == bus]
             stem = _mixed(on_the_bus, total=total, stereo=True)[:end]
-            _write_wave(stem_path, stem, sample_rate=rate, sample_format=sample_format)
+            write_wave_file(stem_path, stem, sample_rate=rate, sample_format=sample_format)
             stem_paths.append(stem_path)
     return RenderReport(
         path=destination,
@@ -380,10 +380,21 @@ def _render_end(
     return end
 
 
-def _write_wave(
+def write_wave_file(
     destination: Path, frames: FloatArray, *, sample_rate: int, sample_format: str
 ) -> None:
-    """Write mono or stereo float frames as a WAV file, aside first, then moved into place."""
+    """Write mono or stereo float frames as a WAV file, aside first, then moved into place.
+
+    The engine's one WAV writer: offline renders and the listening WAVs
+    (glitchygames/audio/listening) both write through it. ``int16`` clips to [-1, 1] before
+    scaling (``synth.to_pcm16``).
+
+    Args:
+        destination: The file.
+        frames: Mono samples, or stereo frames (one column per channel).
+        sample_rate: Frames per second.
+        sample_format: ``'int16'`` (PCM) or ``'float32'`` (IEEE float, overs kept).
+    """
     channels = 1 if frames.ndim == 1 else frames.shape[1]
     if sample_format == 'int16':
         # WAV data is little-endian by definition
