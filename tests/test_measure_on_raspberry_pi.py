@@ -32,7 +32,7 @@ from scripts.measure_on_raspberry_pi import RaspberryPi
 from glitchygames.code_tree import CodeTreePaths, commit_code_tree
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.tools.settings import load_project_settings
-from tests.ansible_inventory import natural_key, raspberry_pi_hosts
+from tests.ansible_inventory import raspberry_pi_hosts
 from tests.test_code_tree import git, write
 
 # The hook and its Pis are POSIX (flock): a platform without fcntl (Windows) skips this module
@@ -974,9 +974,9 @@ def test_the_hook_measures_on_every_pi_in_the_inventory():
     """The hook's Pis are the inventory's raspberry_pis, by name, address and login."""
     hosts = raspberry_pi_hosts()
 
-    # In the inventory's order, which is the hosts' natural order (4gb, 8gb, 16gb)
+    # In the inventory's order: group by group, each group's Pis in natural order (4gb, 8gb,
+    # 16gb; tests/test_ansible_raspberry_pis.py checks each group's)
     assert [each.name for each in measure_on_raspberry_pi.RASPBERRY_PIS] == list(hosts)
-    assert list(hosts) == sorted(hosts, key=natural_key)
     for each in measure_on_raspberry_pi.RASPBERRY_PIS:
         variables = hosts[each.name]
         login = f'{variables["ansible_user"]}@{variables["ansible_host"]}'

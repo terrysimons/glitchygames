@@ -37,6 +37,8 @@ all:
             raspberry_pi_os_supported_releases: ["26.04", "26.10"]
             # Ubuntu's firmware config (the boot partition is mounted at /boot/firmware)
             raspberry_pi_firmware_config: /boot/firmware/config.txt
+            # Nothing beyond every Pi's packages (ansible/raspberry_pi_runner.yml)
+            raspberry_pi_os_packages: []
           hosts:
             raspberry-pi-4-4gb-ubuntu:
               ansible_host: 172.23.23.155
@@ -101,8 +103,8 @@ all:
                 levels: []
               # It boots from an NVMe SSD in a case that is itself a heat sink (read 2026-11-14)
               raspberry_pi_cooling: Active cooling; the NVMe case is a large heat sink
-        # Raspberry Pi OS 64-bit, Trixie (the owner, 2026-11-14). No Pi runs it yet; one added
-        # here names the same host variables as an Ubuntu Pi
+        # Raspberry Pi OS 64-bit, Trixie (the owner, 2026-11-14). Its Pis name the same host
+        # variables as an Ubuntu Pi
         raspberry_pis_raspberry_pi_os:
           vars:
             raspberry_pi_os: raspberry_pi_os
@@ -112,6 +114,46 @@ all:
             raspberry_pi_os_supported_releases: ["13"]
             raspberry_pi_os_marker_file: /etc/rpi-issue
             raspberry_pi_firmware_config: /boot/firmware/config.txt
+            # Beyond every Pi's packages: what hidapi's source build needs (its wheels are for
+            # Python 3.14: a uv that picked 3.15 built it and failed, 2026-11-16). Its hid
+            # extension finds libusb through pkg-config (the owner: "add libusb-dev to the deps on
+            # the ansible deploy for raspberry pi os"); its hidraw extension includes libudev.h
+            raspberry_pi_os_packages:
+              - libusb-1.0-0-dev
+              - libudev-dev
+          hosts:
+            # The first Raspberry Pi OS Pi (2026-11-16): the 16 GB Pi 5 in the NVMe heat-sink
+            # case, set up as the Ubuntu 16 GB Pi is (the owner: "the same sorts of corallary
+            # settings that the Ubuntu system had"; plans/2026-11-04-raspberry-pi-ci-runner.md)
+            raspberry-pi-5-16gb-raspberry-pi-os:
+              # Its address is a DHCP lease (wlan0, read 2026-11-16), so it is reached by its
+              # mDNS name, which the hostname below keeps
+              ansible_host: glitchygames-pi5-16gb-raspberrypios.local
+              # Its hostname as it came: the playbook names each host, and any other name would
+              # change the mDNS name it is reached by
+              raspberry_pi_hostname: glitchygames-pi5-16gb-raspberrypios
+              # .circleci/config.yml's build-and-test-raspberry-pi-5-16gb-raspberry-pi-os names
+              # this (tests/test_ci_config.py)
+              raspberry_pi_resource_class: terrysimons/raspberry-pi-5-16gb-raspberry-pi-os
+              raspberry_pi_description: Raspberry Pi 5 (16 GB, overclocked to 3.0 GHz) on Raspberry Pi OS with a real display
+              raspberry_pi_os_release: "13"
+              raspberry_pi_board: pi5
+              # The Ubuntu 16 GB Pi's overclock (stock until now: read 2026-11-16). Values found
+              # stable on that Pi's chip: prove them on this one under load after the first boot
+              raspberry_pi_overclock_enabled: true
+              raspberry_pi_overclock_settings:
+                arm_freq: 3000
+                gpu_freq: 1100
+                over_voltage: 6
+              # Its Active Cooler (a PWM fan, read 2026-11-16) on the firmware's default curve
+              raspberry_pi_fan:
+                kind: active-cooler
+                levels: []
+              # It boots from an NVMe SSD in a case that is itself a heat sink (read 2026-11-16)
+              raspberry_pi_cooling: Active cooling; the NVMe case is a large heat sink
+              # Raspberry Pi OS's firmware boots it with cgroup_disable=memory, so its runner's
+              # MemoryMax is not enforced; its boot arguments are left alone for now (a to-do:
+              # plans/future-work.md, "The Raspberry Pi OS Pi's memory cgroup")
     macos:
       vars:
         # llama.cpp's Metal options:

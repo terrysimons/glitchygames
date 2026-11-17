@@ -45,97 +45,33 @@
     mode: "0644"
   notify: Update the desktop defaults
 
-# The runner's display mode (raspberry_pi_display_mode: 1920x1080 at 120 Hz), applied with GNOME's
-# own tool, gdctl (GNOME reverts what isn't set through its tools: the owner, 2026-11-14). GNOME 50
-# saves a display change only when someone clicks Keep in its confirmation dialog and reverts it
-# after 20 seconds otherwise; nothing a script can call confirms it (mutter's
-# meta-monitor-manager.c; the Pis' journals, 2026-11-14). So the mode is applied temporarily, which
-# asks nothing, by apply_display_mode (the planner reads mutter's state, gdctl sets the mode): at
-# every login through the runner's autostart entry, and on every deploy, which then proves it held
-# past the 20 s. Without a session yet (before the auto-login's first boot) the deploy changes
-# nothing, and the login does it
-- name: Create the directory for the Pi's own scripts
-  ansible.builtin.file:
-    path: /usr/local/lib/glitchygames
-    state: directory
-    mode: "0755"
-
-- name: Install the display mode planner
-  ansible.builtin.copy:
-    src: plan_display_mode.py
-    dest: /usr/local/lib/glitchygames/plan_display_mode.py
-    mode: "0755"
-
-- name: Install the display mode wrapper
-  ansible.builtin.copy:
-    src: apply_display_mode
-    dest: /usr/local/lib/glitchygames/apply_display_mode
-    mode: "0755"
-
 # The first build's script, which applied the mode itself (2026-11-14); the planner replaced it
 - name: Remove the replaced display script
   ansible.builtin.file:
     path: /usr/local/lib/glitchygames/set_display_mode.py
     state: absent
 
-- name: Create the runner's autostart directory
-  ansible.builtin.file:
-    path: "{{ raspberry_pi_runner_home }}/.config/autostart"
-    state: directory
-    owner: "{{ ci_user }}"
-    group: "{{ ci_user }}"
-    mode: "0755"
-
-- name: Apply the display mode at each login
-  ansible.builtin.copy:
-    dest: "{{ raspberry_pi_runner_home }}/.config/autostart/glitchygames-display-mode.desktop"
-    owner: "{{ ci_user }}"
-    group: "{{ ci_user }}"
-    mode: "0644"
-    content: |
-      [Desktop Entry]
-      Type=Application
-      Name=GlitchyGames display mode
-      Comment=Sets this session's display mode with gdctl at login (ansible/raspberry_pi_runner.yml)
-      Exec=/usr/local/lib/glitchygames/apply_display_mode {{ raspberry_pi_display_mode.width }} {{ raspberry_pi_display_mode.height }} {{ raspberry_pi_display_mode.refresh_rates | join(',') }}
-      NoDisplay=true
-      X-GNOME-Autostart-enabled=true
-
-- name: Set the runner's display mode
-  become: true
-  become_user: "{{ ci_user }}"
-  environment:
-    XDG_RUNTIME_DIR: /run/user/{{ raspberry_pi_runner_user.uid }}
-    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/{{ raspberry_pi_runner_user.uid }}/bus
-  block:
-    # Exits 1 (failing the run) when the monitor can't show the size
-    - name: Apply the display mode as a login does
-      ansible.builtin.command:
-        argv:
-          - /usr/local/lib/glitchygames/apply_display_mode
-          - "{{ raspberry_pi_display_mode.width }}"
-          - "{{ raspberry_pi_display_mode.height }}"
-          - "{{ raspberry_pi_display_mode.refresh_rates | join(',') }}"
-      register: raspberry_pi_display_applied
-      changed_when: raspberry_pi_display_applied.stdout.startswith('apply ')
-
-    - name: Wait past GNOME's 20-second revert
-      ansible.builtin.pause:
-        seconds: 25
-      when: raspberry_pi_display_applied.changed and not ansible_check_mode
-
-    - name: Check the mode held
-      ansible.builtin.command:
-        argv:
-          - /usr/bin/python3
-          - /usr/local/lib/glitchygames/plan_display_mode.py
-          - --width
-          - "{{ raspberry_pi_display_mode.width }}"
-          - --height
-          - "{{ raspberry_pi_display_mode.height }}"
-          - --refresh-rates
-          - "{{ raspberry_pi_display_mode.refresh_rates | join(',') }}"
-      register: raspberry_pi_display_check
-      changed_when: false
-      failed_when: (raspberry_pi_display_check.stdout | from_json).action != 'none'
-      when: raspberry_pi_display_applied.changed and not ansible_check_mode
+# GNOME's own tool, gdctl, sets the mode (GNOME reverts what isn't set through its tools: the owner,
+# 2026-11-14). GNOME 50 saves a display change only when someone clicks Keep in its confirmation
+# dialog and reverts it after 20 seconds otherwise; nothing a script can call confirms it (mutter's
+# meta-monitor-manager.c; the Pis' journals, 2026-11-14). So apply_display_mode applies it
+# temporarily, which asks nothing, and a deploy waits past the 20 s before checking it held
+- name: Set up the runner's display mode
+  ansible.builtin.include_tasks: display_mode.yml
+  vars:
+    raspberry_pi_display_wrapper: apply_display_mode
+    raspberry_pi_display_tool: gdctl
+    raspberry_pi_display_session_environment:
+      XDG_RUNTIME_DIR: /run/user/{{ raspberry_pi_runner_user.uid }}
+      DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/{{ raspberry_pi_runner_user.uid }}/bus
+    raspberry_pi_display_settle_seconds: 25
+    # The planner reads mutter's state itself, over the session's D-Bus
+    raspberry_pi_display_check_argv:
+      - /usr/bin/python3
+      - /usr/local/lib/glitchygames/plan_display_mode.py
+      - --width
+      - "{{ raspberry_pi_display_mode.width }}"
+      - --height
+      - "{{ raspberry_pi_display_mode.height }}"
+      - --refresh-rates
+      - "{{ raspberry_pi_display_mode.refresh_rates | join(',') }}"

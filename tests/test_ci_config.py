@@ -235,6 +235,7 @@ def test_each_raspberry_pis_job_uses_the_resource_class_ansible_registers():
         'raspberry-pi-4-4gb-ubuntu',
         'raspberry-pi-5-8gb-ubuntu',
         'raspberry-pi-5-16gb-ubuntu',
+        'raspberry-pi-5-16gb-raspberry-pi-os',
     ]
     for host, variables in hosts.items():
         assert (
@@ -243,7 +244,14 @@ def test_each_raspberry_pis_job_uses_the_resource_class_ansible_registers():
         )
 
 
-@pytest.mark.parametrize('host', ['raspberry-pi-5-8gb-ubuntu', 'raspberry-pi-5-16gb-ubuntu'])
+@pytest.mark.parametrize(
+    'host',
+    [
+        'raspberry-pi-5-8gb-ubuntu',
+        'raspberry-pi-5-16gb-ubuntu',
+        'raspberry-pi-5-16gb-raspberry-pi-os',
+    ],
+)
 def test_each_raspberry_pi_5_job_is_the_raspberry_pi_4_job_on_its_own_runner(host):
     """Only the runner differs, so the Pis' results compare the hardware, not the settings."""
     jobs = circleci_jobs()
@@ -1320,7 +1328,13 @@ def raspberry_pi_job() -> str:
 
 
 @pytest.mark.parametrize(
-    'host', ['raspberry-pi-4-4gb-ubuntu', 'raspberry-pi-5-8gb-ubuntu', 'raspberry-pi-5-16gb-ubuntu']
+    'host',
+    [
+        'raspberry-pi-4-4gb-ubuntu',
+        'raspberry-pi-5-8gb-ubuntu',
+        'raspberry-pi-5-16gb-ubuntu',
+        'raspberry-pi-5-16gb-raspberry-pi-os',
+    ],
 )
 def test_no_workflow_runs_a_raspberry_pis_job(host):
     """The Pis measure replays when the owner pushes, and take no CI jobs."""

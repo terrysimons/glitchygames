@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plan a GNOME session's display mode from mutter's own state, changing nothing.
+"""Plan a GNOME or labwc session's display mode from the compositor's own state, changing nothing.
 
 Run as the session's user, in its session bus (ansible/roles/raspberry_pi_desktop, Ubuntu). It
 asks mutter (org.gnome.Mutter.DisplayConfig, GetCurrentState) for the monitor and its modes,
@@ -16,6 +16,11 @@ meta-monitor-manager.c; the Pis' journals, 2026-11-14). So the mode is applied t
 which needs no confirmation, at every login (an autostart entry) and on every deploy.
 
 Interface: https://gitlab.gnome.org/GNOME/mutter/-/blob/main/data/dbus-interfaces/org.gnome.Mutter.DisplayConfig.xml
+
+Raspberry Pi OS runs labwc (wlroots), which has no mutter: with ``--wlr-randr-json -`` the planner
+reads ``wlr-randr --json`` from its input instead (``apply_labwc_display_mode`` pipes it in) and
+turns it into mutter's shape (``state_from_wlr_randr``), so one ``plan`` serves both desktops.
+labwc keeps a mode once set, so there it needs no confirming either.
 Tests: tests/test_ansible_raspberry_pis.py (on the Pis' own GetCurrentState, 2026-11-14).
 """
 
@@ -25,6 +30,8 @@ import argparse
 import json
 import operator
 import sys
+from pathlib import Path
+from typing import Any
 
 # A wanted rate matches a mode within this many hertz (mutter lists 120.03968811 as 120.040)
 REFRESH_TOLERANCE = 0.01
@@ -131,6 +138,71 @@ def plan(*, state: State, width: int, height: int, refresh_rates: list[float]) -
     }
 
 
+def wlr_randr_mode_id(mode: dict[str, Any]) -> str:
+    """Return a wlr-randr mode as its ``--mode`` takes it: ``<width>x<height>@<refresh>Hz``.
+
+    Six decimals: wlr-randr reports rates to the millihertz, so the name keeps the rate exact.
+
+    Returns:
+        The mode's name.
+
+    """
+    return f'{mode["width"]}x{mode["height"]}@{mode["refresh"]:.6f}Hz'
+
+
+def state_from_wlr_randr(outputs: list[dict[str, Any]]) -> State:
+    """Return labwc's outputs (``wlr-randr --json``) in the shape mutter's GetCurrentState has.
+
+    Each enabled output is a monitor (a disabled one shows nothing) and a logical monitor at its
+    scale; each mode is named as wlr-randr's ``--mode`` takes it, offers scale 1 (wlroots sets
+    any scale), and carries mutter's ``is-current`` and ``is-preferred``.
+
+    Args:
+        outputs: wlr-randr's outputs, each with ``name``, ``make``, ``model``, ``serial``,
+            ``enabled``, ``position``, ``scale`` and ``modes`` (``width``, ``height``,
+            ``refresh``, ``preferred``, ``current``).
+
+    Returns:
+        The state: (serial 0, monitors, logical monitors, no properties).
+
+    """
+    monitors: list[Monitor] = []
+    logical_monitors: list[LogicalMonitor] = []
+    for output in outputs:
+        if not output['enabled']:
+            continue
+        spec: MonitorSpec = (
+            str(output['name']),
+            str(output.get('make') or ''),
+            str(output.get('model') or ''),
+            str(output.get('serial') or ''),
+        )
+        modes: list[Mode] = [
+            (
+                wlr_randr_mode_id(mode),
+                int(mode['width']),
+                int(mode['height']),
+                float(mode['refresh']),
+                SCALE,
+                [SCALE],
+                {'is-current': bool(mode['current']), 'is-preferred': bool(mode['preferred'])},
+            )
+            for mode in output['modes']
+        ]
+        monitors.append((spec, modes, {}))
+        position = output['position']
+        logical_monitors.append((
+            int(position['x']),
+            int(position['y']),
+            float(output['scale']),
+            0,
+            not logical_monitors,
+            [spec],
+            {},
+        ))
+    return (0, monitors, logical_monitors, {})
+
+
 def plan_words(plan_result: dict[str, object]) -> str:
     """Return a plan as one line the shell can split: action, connector, mode.
 
@@ -166,8 +238,26 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - runs in a 
     parser.add_argument(
         '--format', choices=('json', 'words'), default='json', help='how the plan is printed'
     )
+    parser.add_argument(
+        '--wlr-randr-json',
+        metavar='FILE',
+        help="labwc's outputs, as wlr-randr --json prints them ('-': standard input), not mutter's",
+    )
     arguments = parser.parse_args(argv)
     refresh_rates = [float(rate) for rate in arguments.refresh_rates.split(',')]
+
+    if arguments.wlr_randr_json is not None:
+        text = (
+            sys.stdin.read()
+            if arguments.wlr_randr_json == '-'
+            else Path(arguments.wlr_randr_json).read_text(encoding='utf-8')
+        )
+        state = state_from_wlr_randr(json.loads(text))
+        result = plan(
+            state=state, width=arguments.width, height=arguments.height, refresh_rates=refresh_rates
+        )
+        write_plan(result, plan_format=arguments.format)
+        return 1 if result['action'] == 'fail' else 0
 
     # The Pi's python3-gi, imported only when run there: planning needs none
     from gi.repository import Gio, GLib

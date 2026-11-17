@@ -181,12 +181,17 @@ def raspberry_pi(*, name: str, address: str) -> RaspberryPi:
     )
 
 
-# ansible/inventory.yml's raspberry_pis, host by host and in its order, which is the hosts'
-# natural order: 4gb, 8gb, 16gb (tests/test_measure_on_raspberry_pi.py)
+# ansible/inventory.yml's raspberry_pis, host by host and in its order: group by group, each
+# group's Pis in natural order (4gb, 8gb, 16gb; tests/test_measure_on_raspberry_pi.py)
 RASPBERRY_PIS = (
     raspberry_pi(name='raspberry-pi-4-4gb-ubuntu', address='172.23.23.155'),
     raspberry_pi(name='raspberry-pi-5-8gb-ubuntu', address='172.23.23.140'),
     raspberry_pi(name='raspberry-pi-5-16gb-ubuntu', address='172.23.23.161'),
+    # Reached by its mDNS name: its address is a DHCP lease (the inventory's ansible_host)
+    raspberry_pi(
+        name='raspberry-pi-5-16gb-raspberry-pi-os',
+        address='glitchygames-pi5-16gb-raspberrypios.local',
+    ),
 )
 
 

@@ -3,7 +3,7 @@
 # them (https://github.com/RPi-Distro/raspi-config, branch trixie: do_autologin and do_blanking),
 # but by editing the files directly: raspi-config's do_blanking tells labwc from X11 by a running
 # labwc session (pgrep labwc), so run before the desktop is up it would write X11's file instead.
-# Not yet run on a Pi: no Raspberry Pi OS Pi is in the inventory (2026-11-14).
+# The first Raspberry Pi OS Pi: raspberry-pi-5-16gb-raspberry-pi-os (2026-11-16).
 
 # The display is the job's: its session starts at boot, and the owner switches users to play
 - name: Log the runner's user in at boot
@@ -24,3 +24,25 @@
     - /etc/xdg/labwc/autostart
     - /etc/xdg/labwc-greeter/autostart
     - "{{ raspberry_pi_runner_home }}/.config/labwc/autostart"
+
+# labwc's wlr-randr sets the mode, which labwc keeps: nothing to wait out. The monitor's preferred
+# mode is 3840x2160 at 60 Hz, so without this the runner's session starts in 4K (read 2026-11-16).
+# The owner's own session gets 1080p from kanshi (~/.config/kanshi/config, from Raspberry Pi OS's
+# Screen Configuration); the runner's user has none, so its kanshi sets nothing over this
+- name: Set up the runner's display mode
+  ansible.builtin.include_tasks: display_mode.yml
+  vars:
+    raspberry_pi_display_wrapper: apply_labwc_display_mode
+    raspberry_pi_display_tool: wlr-randr
+    raspberry_pi_display_session_environment:
+      XDG_RUNTIME_DIR: /run/user/{{ raspberry_pi_runner_user.uid }}
+      WAYLAND_DISPLAY: wayland-0
+    raspberry_pi_display_settle_seconds: 0
+    # The planner reads wlr-randr's report on its input (it runs nothing itself)
+    raspberry_pi_display_check_argv:
+      - /bin/sh
+      - -c
+      - >-
+        wlr-randr --json | /usr/bin/python3 /usr/local/lib/glitchygames/plan_display_mode.py
+        --width {{ raspberry_pi_display_mode.width }} --height {{ raspberry_pi_display_mode.height }}
+        --refresh-rates {{ raspberry_pi_display_mode.refresh_rates | join(',') }} --wlr-randr-json -

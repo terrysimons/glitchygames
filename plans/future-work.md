@@ -1408,6 +1408,19 @@ Loading and memory:
 - **USB 3 SSD** against the SD card, for start-up and asset loading (the runner plan's storage decision).
 - **Background services and `vm.swappiness`** (60 now): fewer services, less swapping onto the card.
 
+## The Raspberry Pi OS Pi's memory cgroup (the owner, 2026-11-16)
+
+- [ ] **Decide whether to enable the memory cgroup on Raspberry Pi OS.** Its firmware boots the
+  kernel with `cgroup_disable=memory` (in its own boot arguments, ahead of `cmdline.txt`'s: read
+  2026-11-16 on `raspberry-pi-5-16gb-raspberry-pi-os`), so the runner's `MemoryMax=2G` and
+  `MemorySwapMax=0` are written and not enforced there; the Ubuntu Pis enforce them. Left alone
+  for now (the owner: "Leave boot arguments alone but make a todo"). It matters only once a Pi's
+  CircleCI job is switched on: no workflow runs one, and the push-time measuring logs in over SSH,
+  outside the runner's service. To enable it, append `cgroup_memory=1 cgroup_enable=memory` to
+  `/boot/firmware/cmdline.txt` (https://docs.k3s.io/installation/requirements, Raspberry Pi), a
+  reboot applying it, and have a play check every Pi's `/sys/fs/cgroup/cgroup.controllers` holds
+  `memory`. Details: plans/2026-11-04-raspberry-pi-ci-runner.md, "The first Raspberry Pi OS Pi".
+
 ## Code quality
 
 - **Lint caps shape the replay classes.** `GameEngine.__init__` and `ReplaySources.__init__`

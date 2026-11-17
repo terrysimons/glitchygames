@@ -340,3 +340,54 @@ speed tests." They need different runs:
    already merges, so a runner holds no key that can write to `main`. Alternative: a follow-up commit
    on `main`, which the code-tree rule accepts as its code tree is unchanged, but needs that key.
 3. **Does `terry` still use the Pi's desktop?** Recommended: yes, between jobs, with a runner pause.
+
+## The first Raspberry Pi OS Pi (2026-11-16)
+
+The owner's 16 GB Pi 5 in the NVMe heat-sink case, on Raspberry Pi OS (Debian 13 Trixie, the
+2026-10-06 image), brought up to the Ubuntu 16 GB Pi's settings: "This is the 16GB with the fancy
+case, so we need to turn on throttling. All of the same sorts of corallary settings that the
+Ubuntu system had" (throttling: the overclock, "The overclock yess"), and "All of the Raspberry Pi
+OS specific stuff still needs to be wired up". On this branch ("This branch").
+
+### What the audit found (read from both 16 GB Pis, changing nothing)
+
+| | Ubuntu 16 GB | Raspberry Pi OS 16 GB |
+|---|---|---|
+| Kernel, page size | 7.0.0 raspi, 4 KB | 6.18.60 rpi-2712, 16 KB |
+| Memory cgroup | on | off: the firmware's own boot arguments carry `cgroup_disable=memory` |
+| Desktop | GNOME (gdm, gdctl) | labwc under lightdm (wlr-randr, kanshi) |
+| Clock | 3000 MHz, GPU 1100, over_voltage 6 | stock |
+| Boot drive | NVMe, Samsung 970 PRO 1 TB | NVMe, WD SN550 250 GB |
+| Network | Wi-Fi, fixed address | Wi-Fi, DHCP (dynamic) |
+
+### Decisions
+
+| Decision | Value | Why |
+|---|---|---|
+| The host | `raspberry-pi-5-16gb-raspberry-pi-os`, reached at `glitchygames-pi5-16gb-raspberrypios.local`, hostname kept as `glitchygames-pi5-16gb-raspberrypios` | Its address is a DHCP lease; the playbook names the host, so another name would rename it and its `.local` name mid-run |
+| Its settings | The Ubuntu 16 GB Pi's: `arm_freq` 3000, `gpu_freq` 1100, `over_voltage` 6, the Active Cooler on the firmware's default curve | The owner's parity; the same values on a different chip are to be proven by a load test after the first boot at 3 GHz |
+| The memory cgroup | Left alone: the boot arguments are not touched (the owner, 2026-11-16: "Leave boot arguments alone but make a todo"), so this Pi's runner `MemoryMax=2G` is written and not enforced. A to-do in plans/future-work.md ("The Raspberry Pi OS Pi's memory cgroup") | It matters only once a Pi's CircleCI job runs, and none does. If enabled later: append `cgroup_memory=1 cgroup_enable=memory` to `/boot/firmware/cmdline.txt` (https://docs.k3s.io/installation/requirements); not by removing `cgroup_disable=memory`, which cmdline.txt doesn't have: the firmware puts it in the boot arguments ahead of cmdline.txt's (read 2026-11-16: `/proc/device-tree/chosen/bootargs`) |
+| The display mode | One shared set of display tasks for both OSes: the same planner (`plan_display_mode.py`) reads mutter's state on GNOME and `wlr-randr --json` on labwc (an adapter to the same shape), and a login entry in `~/.config/autostart` applies it (lxsession-xdg-autostart runs those under labwc, as GNOME does) | The monitor's preferred mode is 3840x2160 at 60 Hz, so the runner's session would start in 4K. Not the user's `~/.config/labwc/autostart`: labwc reads it instead of the system one, which starts the panel and kanshi |
+| Natural order | Within each OS group | The inventory lists hosts group by group; no name keeps all four in one natural order |
+| CI and measuring | Its `build-and-test-` job (off, as the others) and its place in the push-time measuring | Parity |
+
+### Built (2026-11-16, uncommitted), and what only the Pi can prove
+
+The inventory host, its CI job (off) and its place in the push-time measuring; one display path for
+both desktops (`display_mode.yml`: the planner reads `wlr-randr --json` through an adapter, and
+`apply_labwc_display_mode` sets the mode with wlr-randr), tested on the Pi's own captured
+`wlr-randr --json` (`tests/fixtures/wlr-randr/`). The boot arguments are left alone (above).
+
+To bring it up (the owner's run: it needs sudo and a reboot):
+
+1. As the playbook's header says (the circleci CLI logged in, `unset CIRCLE_TOKEN`, and
+   `read -rs CIRCLECI_API_TOKEN && export CIRCLECI_API_TOKEN`), then
+   `uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/raspberry_pi_runner.yml --limit raspberry-pi-5-16gb-raspberry-pi-os --ask-become-pass`
+   (Ansible is no dependency of the project: `uv run ansible-playbook` finds none).
+2. Reboot it: the overclock and the runner's auto-login apply at boot.
+3. Run the playbook again: it checks the firmware runs 3000 MHz, GPU 1100 and over_voltage 6, and
+   applies and checks 1080p at 120 Hz in the runner's session.
+
+Then, by hand: a few minutes of full load at 3 GHz with `vcgencmd get_throttled` and
+`measure_temp` (the overclock was proven on the Ubuntu Pi's chip, not this one); and `uv --version`
+plus `uv run python -c 'import numpy'` as the runner's user (16 KB pages: never exercised before).

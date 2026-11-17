@@ -1,0 +1,87 @@
+---
+# The runner's display mode (raspberry_pi_display_mode: 1920x1080 at 120 Hz, scale 1), the same on
+# every Pi whatever its desktop. Each OS's desktop tasks include this file with how their desktop
+# sets a mode (plans/2026-11-04-raspberry-pi-ci-runner.md):
+#   raspberry_pi_display_wrapper: the wrapper that plans and sets it (one planner for both,
+#     plan_display_mode.py; GNOME's apply_display_mode sets with gdctl, labwc's
+#     apply_labwc_display_mode with wlr-randr)
+#   raspberry_pi_display_tool: that wrapper's tool, named in the login entry
+#   raspberry_pi_display_session_environment: how a command reaches the runner's session
+#   raspberry_pi_display_settle_seconds: how long the desktop may take to revert a mode (GNOME 50
+#     reverts an unconfirmed change after 20 s; labwc keeps one), waited before the check
+#   raspberry_pi_display_check_argv: a fresh plan, which must say nothing is left to apply
+# The mode is applied at every login, through the runner's autostart entry, and on every deploy,
+# which then proves it held. Without the runner's session yet (before the auto-login's first
+# boot) the deploy changes nothing, and the login does it.
+- name: Create the directory for the Pi's own scripts
+  ansible.builtin.file:
+    path: /usr/local/lib/glitchygames
+    state: directory
+    mode: "0755"
+
+- name: Install the display mode planner
+  ansible.builtin.copy:
+    src: plan_display_mode.py
+    dest: /usr/local/lib/glitchygames/plan_display_mode.py
+    mode: "0755"
+
+- name: Install the display mode wrapper
+  ansible.builtin.copy:
+    src: "{{ raspberry_pi_display_wrapper }}"
+    dest: /usr/local/lib/glitchygames/{{ raspberry_pi_display_wrapper }}
+    mode: "0755"
+
+# GNOME reads ~/.config/autostart, and so does labwc's lxsession-xdg-autostart (the last line of
+# /etc/xdg/labwc/autostart). Not ~/.config/labwc/autostart: labwc reads that instead of the
+# system's, which starts the panel and kanshi
+- name: Create the runner's autostart directory
+  ansible.builtin.file:
+    path: "{{ raspberry_pi_runner_home }}/.config/autostart"
+    state: directory
+    owner: "{{ ci_user }}"
+    group: "{{ ci_user }}"
+    mode: "0755"
+
+- name: Apply the display mode at each login
+  ansible.builtin.copy:
+    dest: "{{ raspberry_pi_runner_home }}/.config/autostart/glitchygames-display-mode.desktop"
+    owner: "{{ ci_user }}"
+    group: "{{ ci_user }}"
+    mode: "0644"
+    content: |
+      [Desktop Entry]
+      Type=Application
+      Name=GlitchyGames display mode
+      Comment=Sets this session's display mode with {{ raspberry_pi_display_tool }} at login (ansible/raspberry_pi_runner.yml)
+      Exec=/usr/local/lib/glitchygames/{{ raspberry_pi_display_wrapper }} {{ raspberry_pi_display_mode.width }} {{ raspberry_pi_display_mode.height }} {{ raspberry_pi_display_mode.refresh_rates | join(',') }}
+      NoDisplay=true
+      X-GNOME-Autostart-enabled=true
+
+- name: Set the runner's display mode
+  become: true
+  become_user: "{{ ci_user }}"
+  environment: "{{ raspberry_pi_display_session_environment }}"
+  block:
+    # Exits 1 (failing the run) when the monitor can't show the size
+    - name: Apply the display mode as a login does
+      ansible.builtin.command:
+        argv:
+          - /usr/local/lib/glitchygames/{{ raspberry_pi_display_wrapper }}
+          - "{{ raspberry_pi_display_mode.width }}"
+          - "{{ raspberry_pi_display_mode.height }}"
+          - "{{ raspberry_pi_display_mode.refresh_rates | join(',') }}"
+      register: raspberry_pi_display_applied
+      changed_when: raspberry_pi_display_applied.stdout.startswith('apply ')
+
+    - name: Wait past the desktop's revert
+      ansible.builtin.pause:
+        seconds: "{{ raspberry_pi_display_settle_seconds }}"
+      when: raspberry_pi_display_applied.changed and not ansible_check_mode and raspberry_pi_display_settle_seconds | int > 0
+
+    - name: Check the mode held
+      ansible.builtin.command:
+        argv: "{{ raspberry_pi_display_check_argv }}"
+      register: raspberry_pi_display_check
+      changed_when: false
+      failed_when: (raspberry_pi_display_check.stdout | from_json).action != 'none'
+      when: raspberry_pi_display_applied.changed and not ansible_check_mode

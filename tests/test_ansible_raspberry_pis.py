@@ -29,6 +29,7 @@ from typing import Any
 import jinja2
 import pytest
 import yaml
+from pydantic import BaseModel, ConfigDict
 
 from glitchygames.process import OutputCapture, run_command
 from tests.ansible_inventory import inventory_group, natural_key, raspberry_pi_hosts
@@ -41,6 +42,8 @@ RASPBERRY_PI_OS_GROUP = 'raspberry_pis_raspberry_pi_os'
 PI4 = 'raspberry-pi-4-4gb-ubuntu'
 PI5_16GB = 'raspberry-pi-5-16gb-ubuntu'
 PI5_8GB = 'raspberry-pi-5-8gb-ubuntu'
+# The first Raspberry Pi OS Pi (2026-11-16): the 16 GB Pi 5 in the NVMe heat-sink case
+PI5_16GB_RASPBERRY_PI_OS = 'raspberry-pi-5-16gb-raspberry-pi-os'
 BLOCK_TASK = 'Write the firmware settings in their board section'
 CHANGED = 'raspberry_pi_hand_typed_removed.changed or raspberry_pi_firmware_block.changed'
 # Ansible templates with trim_blocks on, so a {% %} line leaves no line of its own, and no
@@ -310,7 +313,7 @@ def test_the_pis_are_grouped_by_os():
     assert set(group['children']) == {UBUNTU_GROUP, RASPBERRY_PI_OS_GROUP}
     assert 'hosts' not in group
     assert list(group['children'][UBUNTU_GROUP]['hosts']) == [PI4, PI5_8GB, PI5_16GB]
-    assert not group['children'][RASPBERRY_PI_OS_GROUP].get('hosts')
+    assert list(group['children'][RASPBERRY_PI_OS_GROUP]['hosts']) == [PI5_16GB_RASPBERRY_PI_OS]
 
 
 def test_the_natural_order_puts_8gb_before_16gb():
@@ -321,11 +324,26 @@ def test_the_natural_order_puts_8gb_before_16gb():
     assert sorted(names, key=natural_key) == [PI4, PI5_8GB, PI5_16GB]
 
 
-def test_the_inventory_lists_the_pis_in_natural_order():
-    """Ansible runs hosts in inventory order, so the inventory lists them 4gb, 8gb, 16gb."""
-    hosts = list(raspberry_pi_hosts())
+@pytest.mark.parametrize('group_name', [UBUNTU_GROUP, RASPBERRY_PI_OS_GROUP])
+def test_the_inventory_lists_each_os_groups_pis_in_natural_order(group_name):
+    """Ansible runs hosts in inventory order, so each OS group lists its Pis 4gb, 8gb, 16gb.
+
+    Each group, not all the Pis at once: the inventory lists them group by group, and no name
+    puts a Raspberry Pi OS 16 GB Pi both after the Ubuntu Pis and before their 16 GB one.
+    """
+    hosts = list(inventory_group('raspberry_pis')['children'][group_name]['hosts'])
 
     assert hosts == sorted(hosts, key=natural_key)
+
+
+def test_all_the_pis_are_listed_group_by_group():
+    """raspberry_pis' hosts are its groups' hosts, the Ubuntu Pis first, in each group's order."""
+    group = inventory_group('raspberry_pis')['children']
+
+    assert list(raspberry_pi_hosts()) == [
+        *group[UBUNTU_GROUP]['hosts'],
+        *group[RASPBERRY_PI_OS_GROUP]['hosts'],
+    ]
 
 
 def test_every_play_runs_its_hosts_in_inventory_order():
@@ -368,10 +386,11 @@ def test_each_os_group_says_what_it_is(group_name, expected):
 
 
 @pytest.mark.parametrize(
-    ('host', 'release'), [(PI4, '26.10'), (PI5_16GB, '26.04'), (PI5_8GB, '26.10')]
+    ('host', 'release'),
+    [(PI4, '26.10'), (PI5_16GB, '26.04'), (PI5_8GB, '26.10'), (PI5_16GB_RASPBERRY_PI_OS, '13')],
 )
 def test_each_pi_names_its_release(host, release):
-    """The release each Pi runs (read 2026-11-08 and 2026-11-14), one its group supports."""
+    """The release each Pi runs (read 2026-11-08 to 2026-11-16), one its group supports."""
     variables = raspberry_pi_hosts()[host]
 
     assert variables['raspberry_pi_os_release'] == release
@@ -560,6 +579,15 @@ def test_the_runner_play_takes_the_desktop_role():
         ),
         # Stock at 2400 MHz, the Active Cooler on the default curve
         (PI5_8GB, 'pi5', False, {}, {'kind': 'active-cooler', 'levels': []}),
+        # The Ubuntu 16 GB Pi's overclock and cooling, in the same kind of case (the owner,
+        # 2026-11-16: "the same sorts of corallary settings that the Ubuntu system had")
+        (
+            PI5_16GB_RASPBERRY_PI_OS,
+            'pi5',
+            True,
+            {'arm_freq': 3000, 'gpu_freq': 1100, 'over_voltage': 6},
+            {'kind': 'active-cooler', 'levels': []},
+        ),
     ],
 )
 def test_each_pi_declares_its_board_clock_and_fan(host, board, enabled, settings, fan):
@@ -1144,6 +1172,108 @@ def test_rates_are_tried_in_the_order_listed(board, expected):
     assert mode[0] == expected
 
 
+# --- labwc's displays (Raspberry Pi OS), read from wlr-randr --json into mutter's shape ------
+
+WLR_RANDR_FIXTURES = PROJECT_ROOT / 'tests' / 'fixtures' / 'wlr-randr'
+
+
+def wlr_randr_outputs(*, current: tuple[int, int, float] | None = None) -> list[dict[str, Any]]:
+    """Return the Raspberry Pi OS Pi's wlr-randr --json (its owner's session, 2026-11-16).
+
+    Args:
+        current: The mode (width, height, refresh) to make current instead of the captured one
+            (1920x1080 at 120 Hz, which the owner's kanshi set).
+
+    Returns:
+        The outputs.
+
+    """
+    path = WLR_RANDR_FIXTURES / 'raspberry-pi-5-16gb-raspberry-pi-os.json'
+    outputs = json.loads(path.read_text(encoding='utf-8'))
+    if current is not None:
+        for output in outputs:
+            for mode in output['modes']:
+                mode['current'] = (mode['width'], mode['height'], mode['refresh']) == current
+    return outputs
+
+
+# The monitor's preferred mode, which a session without the owner's kanshi profile starts in
+PREFERRED_4K = (3840, 2160, 60.0)
+
+
+def test_a_labwc_session_in_4k_is_planned_to_1080p_at_120_hz():
+    """The runner's session starts in the monitor's preferred 4K: the plan is 1080p at 120 Hz.
+
+    Named as wlr-randr's --mode takes it.
+    """
+    script = load_set_display_mode()
+    state = script.state_from_wlr_randr(wlr_randr_outputs(current=PREFERRED_4K))
+
+    plan = script.plan(state=state, **WANTED_MODE)
+
+    assert plan == {
+        'action': 'apply',
+        'connector': 'HDMI-A-1',
+        'mode': '1920x1080@120.000000Hz',
+        'reason': (
+            'HDMI-A-1: 3840x2160@60.000000Hz at scale 1.0 to 1920x1080@120.000000Hz at scale 1.0'
+        ),
+    }
+
+
+def test_a_labwc_session_already_in_the_mode_is_left_alone():
+    """As captured (the owner's kanshi set 1080p at 120 Hz), nothing is applied."""
+    script = load_set_display_mode()
+    state = script.state_from_wlr_randr(wlr_randr_outputs())
+
+    assert script.plan(state=state, **WANTED_MODE)['action'] == 'none'
+
+
+def test_a_wlr_randr_mode_names_its_rate_as_reported():
+    """Six decimals: wlr-randr reports rates to the millihertz.
+
+    So a 120.040001 Hz mode keeps its own name and is never confused with the 120.000 one.
+    """
+    script = load_set_display_mode()
+
+    assert script.wlr_randr_mode_id({'width': 1920, 'height': 1080, 'refresh': 120.040001}) == (
+        '1920x1080@120.040001Hz'
+    )
+
+
+def test_a_disabled_output_is_not_a_monitor():
+    """wlr-randr lists outputs that are off; only the ones showing anything are planned."""
+    script = load_set_display_mode()
+    outputs = wlr_randr_outputs(current=PREFERRED_4K)
+    outputs.append({**outputs[0], 'name': 'HDMI-A-2', 'enabled': False})
+
+    plan = script.plan(state=script.state_from_wlr_randr(outputs), **WANTED_MODE)
+
+    assert (plan['action'], plan['connector']) == ('apply', 'HDMI-A-1')
+
+
+def test_two_labwc_outputs_are_left_as_they_are():
+    """As on GNOME: two monitors showing are the owner's arrangement, not the runner's."""
+    script = load_set_display_mode()
+    outputs = wlr_randr_outputs()
+    outputs.append({**outputs[0], 'name': 'HDMI-A-2'})
+
+    assert script.plan(state=script.state_from_wlr_randr(outputs), **WANTED_MODE)['action'] == (
+        'skip'
+    )
+
+
+def test_a_labwc_output_at_another_scale_is_set_back_to_1():
+    """1080p at a scale other than 1 is not the mode the runner measures in."""
+    script = load_set_display_mode()
+    outputs = wlr_randr_outputs()
+    outputs[0]['scale'] = 1.5
+
+    assert script.plan(state=script.state_from_wlr_randr(outputs), **WANTED_MODE)['action'] == (
+        'apply'
+    )
+
+
 def test_with_no_wanted_rate_offered_the_highest_at_that_size_is_chosen():
     """Asking for 144 Hz, which no board offers, still gets 1080p at its best rate."""
     script = load_set_display_mode()
@@ -1244,13 +1374,110 @@ def test_the_planner_only_reads():
 
 
 def display_block() -> dict[str, Any]:
-    """Return the Ubuntu desktop's block that sets the runner's display mode.
+    """Return the shared display tasks' block that sets the runner's display mode.
 
     Returns:
         The block.
 
     """
-    return task(role_tasks('raspberry_pi_desktop', 'ubuntu.yml'), "Set the runner's display mode")
+    return task(
+        role_tasks('raspberry_pi_desktop', 'display_mode.yml'), "Set the runner's display mode"
+    )
+
+
+def display_settings(os_name: str) -> dict[str, Any]:
+    """Return what one OS's desktop tasks hand the shared display tasks.
+
+    Returns:
+        The variables its include passes.
+
+    """
+    include = task(
+        role_tasks('raspberry_pi_desktop', f'{os_name}.yml'), "Set up the runner's display mode"
+    )
+    assert include['ansible.builtin.include_tasks'] == 'display_mode.yml'
+    return include['vars']
+
+
+def rendered_display(value: Any, *, os_name: str, host: str) -> Any:
+    """Render a shared display task's value as a Pi of an OS sees it.
+
+    Returns:
+        The value, its templates filled with the host's and the OS's variables.
+
+    """
+    variables = {
+        **raspberry_pi_hosts()[host],
+        **display_settings(os_name),
+        'raspberry_pi_runner_user': {'uid': 1001},
+        'raspberry_pi_runner_home': '/home/circleci',
+    }
+    if isinstance(value, str):
+        rendered = render(value, **variables)
+        # A value that is one template of a list or dict (an argv, an environment) is that list
+        # or dict, whose own templates Ansible fills too; anything else stays text
+        if value.startswith('{{') and value.endswith('}}') and rendered[:1] in {'[', '{'}:
+            return rendered_display(ast.literal_eval(rendered), os_name=os_name, host=host)
+        return rendered
+    if isinstance(value, list):
+        return [rendered_display(each, os_name=os_name, host=host) for each in value]
+    if isinstance(value, dict):
+        return {
+            key: rendered_display(each, os_name=os_name, host=host) for key, each in value.items()
+        }
+    return value
+
+
+class OsDisplay(BaseModel):
+    """What one OS's desktop gives the shared display tasks, as its Pi sees it rendered."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    host: str
+    wrapper: str
+    environment: dict[str, str]
+    settle_seconds: int
+    check_argv: list[str]
+
+
+# Each OS's way of setting the mode (plans/2026-11-04-raspberry-pi-ci-runner.md): GNOME's gdctl,
+# reverted after 20 s unless confirmed, so waited out; labwc's wlr-randr, kept once set
+OS_DISPLAY = {
+    'ubuntu': OsDisplay(
+        host=PI4,
+        wrapper='apply_display_mode',
+        environment={
+            'XDG_RUNTIME_DIR': '/run/user/1001',
+            'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1001/bus',
+        },
+        settle_seconds=25,
+        check_argv=[
+            '/usr/bin/python3',
+            '/usr/local/lib/glitchygames/plan_display_mode.py',
+            '--width',
+            '1920',
+            '--height',
+            '1080',
+            '--refresh-rates',
+            '120.0',
+        ],
+    ),
+    'raspberry_pi_os': OsDisplay(
+        host=PI5_16GB_RASPBERRY_PI_OS,
+        wrapper='apply_labwc_display_mode',
+        environment={'XDG_RUNTIME_DIR': '/run/user/1001', 'WAYLAND_DISPLAY': 'wayland-0'},
+        settle_seconds=0,
+        check_argv=[
+            '/bin/sh',
+            '-c',
+            (
+                'wlr-randr --json | /usr/bin/python3'
+                ' /usr/local/lib/glitchygames/plan_display_mode.py'
+                ' --width 1920 --height 1080 --refresh-rates 120.0 --wlr-randr-json -'
+            ),
+        ],
+    ),
+}
 
 
 APPLY_DISPLAY_MODE_PATH = ROLES / 'raspberry_pi_desktop' / 'files' / 'apply_display_mode'
@@ -1341,6 +1568,101 @@ def test_the_wrapper_leaves_a_settled_or_skipped_display_alone(tmp_path, plan_li
     assert (status, output.splitlines(), arguments) == (0, [plan_line], None)
 
 
+APPLY_LABWC_DISPLAY_MODE_PATH = (
+    ROLES / 'raspberry_pi_desktop' / 'files' / 'apply_labwc_display_mode'
+)
+
+
+def run_apply_labwc_display_mode(
+    tmp_path: Path, *, outputs: list[dict[str, Any]] | None
+) -> tuple[int, str, list[str] | None]:
+    """Run the real labwc wrapper beside the real planner, with a stand-in wlr-randr on PATH.
+
+    The stand-in prints the outputs given for ``--json`` (or, given None, fails as wlr-randr
+    does with no Wayland session) and writes any other call's arguments to a file: that is the
+    mode being set.
+
+    Returns:
+        (the wrapper's exit status, its output, the setting call's arguments or None).
+
+    """
+    library = tmp_path / 'library'
+    tools = tmp_path / 'tools'
+    library.mkdir()
+    tools.mkdir()
+    for source in (APPLY_LABWC_DISPLAY_MODE_PATH, PLAN_DISPLAY_MODE_PATH):
+        copy = library / source.name
+        copy.write_text(source.read_text(encoding='utf-8'), encoding='utf-8')
+        copy.chmod(0o755)
+    reported = tmp_path / 'outputs.json'
+    calls = tmp_path / 'wlr-randr-arguments'
+    if outputs is None:
+        json_reply = 'echo "failed to connect to display" >&2; exit 1'
+    else:
+        reported.write_text(json.dumps(outputs), encoding='utf-8')
+        json_reply = f'cat {reported}; exit 0'
+    wlr_randr = tools / 'wlr-randr'
+    wlr_randr.write_text(
+        f'#!/bin/sh\nif [ "$1" = --json ]; then {json_reply}; fi\nprintf "%s\\n" "$@" > {calls}\n',
+        encoding='utf-8',
+    )
+    wlr_randr.chmod(0o755)
+    result = run_command(
+        command=[str(library / APPLY_LABWC_DISPLAY_MODE_PATH.name), '1920', '1080', '120.0'],
+        environment={'PATH': f'{tools}:{os.environ["PATH"]}'},
+        timeout_seconds=30,
+        capture_output=OutputCapture.APART,
+    )
+    arguments = calls.read_text(encoding='utf-8').splitlines() if calls.exists() else None
+    return result.returncode, result.stdout, arguments
+
+
+def test_the_labwc_wrapper_sets_the_4k_session_to_1080p_at_120_hz_scale_1(tmp_path):
+    """From the Pi's own wlr-randr report to the exact call that sets 1080p at 120 Hz, scale 1."""
+    status, output, arguments = run_apply_labwc_display_mode(
+        tmp_path, outputs=wlr_randr_outputs(current=PREFERRED_4K)
+    )
+
+    assert status == 0
+    assert output.splitlines() == ['apply HDMI-A-1 1920x1080@120.000000Hz']
+    assert arguments == ['--output', 'HDMI-A-1', '--mode', '1920x1080@120.000000Hz', '--scale', '1']
+
+
+def test_the_labwc_wrapper_leaves_a_settled_display_alone(tmp_path):
+    """Already 1080p at 120 Hz: nothing is set, and it succeeds."""
+    status, output, arguments = run_apply_labwc_display_mode(tmp_path, outputs=wlr_randr_outputs())
+
+    assert (status, output.splitlines(), arguments) == (
+        0,
+        ['none HDMI-A-1 1920x1080@120.000000Hz'],
+        None,
+    )
+
+
+def test_the_labwc_wrapper_skips_when_no_labwc_session_runs(tmp_path):
+    """Before the runner's session exists (a first deploy, before the reboot), nothing is set.
+
+    Nothing to plan, and the deploy goes on, as GNOME's does without a session.
+    """
+    status, output, arguments = run_apply_labwc_display_mode(tmp_path, outputs=None)
+
+    assert (status, output.splitlines(), arguments) == (0, ['skip - -'], None)
+
+
+def test_the_labwc_wrapper_fails_when_the_monitor_has_no_1080p(tmp_path):
+    """A monitor that can't show the size fails the deploy, and nothing is set."""
+    outputs = wlr_randr_outputs(current=PREFERRED_4K)
+    outputs[0]['modes'] = [
+        mode for mode in outputs[0]['modes'] if (mode['width'], mode['height']) != (1920, 1080)
+    ]
+
+    status, output, arguments = run_apply_labwc_display_mode(tmp_path, outputs=outputs)
+
+    assert status == 1
+    assert output.splitlines() == ['fail HDMI-A-1 -']
+    assert arguments is None
+
+
 def test_the_wrapper_fails_when_the_plan_fails(tmp_path):
     """A planner that can't plan fails the wrapper, and gdctl never runs."""
     status, _output, arguments = run_apply_display_mode(
@@ -1365,37 +1687,56 @@ def test_nothing_in_the_desktop_role_asks_for_a_persistent_change():
     assert not any('--persistent' in text for text in texts)
 
 
-def test_the_display_is_set_as_the_ci_user_in_its_session():
-    """Every step runs as the CI user, in its session's D-Bus."""
+@pytest.mark.parametrize('os_name', list(OS_DISPLAY))
+def test_the_display_is_set_as_the_ci_user_in_its_session(os_name):
+    """Every step runs as the CI user, in its session: GNOME's D-Bus, or labwc's Wayland socket."""
     block = display_block()
+    expected = OS_DISPLAY[os_name]
 
     assert block['become'] is True
     assert block['become_user'] == '{{ ci_user }}'
-    assert block['environment'] == {
-        'XDG_RUNTIME_DIR': '/run/user/{{ raspberry_pi_runner_user.uid }}',
-        'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/{{ raspberry_pi_runner_user.uid }}/bus',
-    }
+    assert (
+        rendered_display(block['environment'], os_name=os_name, host=expected.host)
+        == expected.environment
+    )
 
 
-def test_the_planner_and_wrapper_are_installed_side_by_side():
-    """Both in /usr/local/lib/glitchygames, where the wrapper looks for the planner."""
-    tasks = role_tasks('raspberry_pi_desktop', 'ubuntu.yml')
+@pytest.mark.parametrize('os_name', list(OS_DISPLAY))
+def test_the_planner_and_wrapper_are_installed_side_by_side(os_name):
+    """Both in /usr/local/lib/glitchygames, where the wrapper looks for the planner.
+
+    One planner for both desktops, each desktop's own wrapper.
+    """
+    tasks = role_tasks('raspberry_pi_desktop', 'display_mode.yml')
+    expected = OS_DISPLAY[os_name]
+    wrapper = rendered_display(
+        task(tasks, 'Install the display mode wrapper')['ansible.builtin.copy'],
+        os_name=os_name,
+        host=expected.host,
+    )
 
     assert task(tasks, 'Install the display mode planner')['ansible.builtin.copy'] == {
         'src': 'plan_display_mode.py',
         'dest': '/usr/local/lib/glitchygames/plan_display_mode.py',
         'mode': '0755',
     }
-    assert task(tasks, 'Install the display mode wrapper')['ansible.builtin.copy'] == {
-        'src': 'apply_display_mode',
-        'dest': '/usr/local/lib/glitchygames/apply_display_mode',
+    assert wrapper == {
+        'src': expected.wrapper,
+        'dest': f'/usr/local/lib/glitchygames/{expected.wrapper}',
         'mode': '0755',
     }
+    assert (ROLES / 'raspberry_pi_desktop' / 'files' / expected.wrapper).is_file()
 
 
-def test_each_login_applies_the_mode_through_gnomes_autostart():
-    """The CI user's autostart entry runs the wrapper with the inventory's mode at each login."""
-    tasks = role_tasks('raspberry_pi_desktop', 'ubuntu.yml')
+@pytest.mark.parametrize('os_name', list(OS_DISPLAY))
+def test_each_login_applies_the_mode_through_the_desktops_autostart(os_name):
+    """The CI user's autostart entry runs its desktop's wrapper with the inventory's mode.
+
+    At each login: GNOME reads ~/.config/autostart, and so does labwc's lxsession-xdg-autostart
+    (not ~/.config/labwc/autostart, which labwc reads instead of the system's).
+    """
+    tasks = role_tasks('raspberry_pi_desktop', 'display_mode.yml')
+    expected = OS_DISPLAY[os_name]
     directory = task(tasks, "Create the runner's autostart directory")['ansible.builtin.file']
     entry = task(tasks, 'Apply the display mode at each login')['ansible.builtin.copy']
 
@@ -1414,33 +1755,44 @@ def test_each_login_applies_the_mode_through_gnomes_autostart():
         '{{ ci_user }}',
         '0644',
     )
-    lines = render(entry['content'], **raspberry_pi_hosts()[PI4]).splitlines()
+    lines = rendered_display(entry['content'], os_name=os_name, host=expected.host).splitlines()
     assert '[Desktop Entry]' in lines
     assert 'Type=Application' in lines
-    assert 'Exec=/usr/local/lib/glitchygames/apply_display_mode 1920 1080 120.0' in lines
+    assert f'Exec=/usr/local/lib/glitchygames/{expected.wrapper} 1920 1080 120.0' in lines
 
 
-def test_a_deploy_applies_the_mode_as_a_login_would_then_proves_it_held():
-    """The same wrapper, then a wait past GNOME's 20 s revert and a fresh plan that must be none."""
+@pytest.mark.parametrize('os_name', list(OS_DISPLAY))
+def test_a_deploy_applies_the_mode_as_a_login_would_then_proves_it_held(os_name):
+    """The same wrapper, then a wait past any revert and a fresh plan that must be none.
+
+    GNOME reverts an unconfirmed mode after 20 s; labwc keeps one.
+    """
     steps = display_block()['block']
+    expected = OS_DISPLAY[os_name]
     applying = task(steps, 'Apply the display mode as a login does')
-    wait = task(steps, "Wait past GNOME's 20-second revert")
+    wait = task(steps, "Wait past the desktop's revert")
     check = task(steps, 'Check the mode held')
     applied_for_real = 'raspberry_pi_display_applied.changed and not ansible_check_mode'
 
     assert [step['name'] for step in steps] == [
         'Apply the display mode as a login does',
-        "Wait past GNOME's 20-second revert",
+        "Wait past the desktop's revert",
         'Check the mode held',
     ]
-    assert applying['ansible.builtin.command']['argv'] == APPLY_DISPLAY_MODE_ARGV
+    assert rendered_display(
+        applying['ansible.builtin.command']['argv'], os_name=os_name, host=expected.host
+    ) == [f'/usr/local/lib/glitchygames/{expected.wrapper}', '1920', '1080', '120.0']
     assert applying['changed_when'] == "raspberry_pi_display_applied.stdout.startswith('apply ')"
-    assert wait['ansible.builtin.pause'] == {'seconds': 25}
-    assert wait['when'] == applied_for_real
-    assert check['ansible.builtin.command']['argv'][:2] == [
-        '/usr/bin/python3',
-        '/usr/local/lib/glitchygames/plan_display_mode.py',
-    ]
+    assert rendered_display(wait['ansible.builtin.pause'], os_name=os_name, host=expected.host) == {
+        'seconds': str(expected.settle_seconds)
+    }
+    assert wait['when'] == f'{applied_for_real} and raspberry_pi_display_settle_seconds | int > 0'
+    assert (
+        rendered_display(
+            check['ansible.builtin.command']['argv'], os_name=os_name, host=expected.host
+        )
+        == expected.check_argv
+    )
     assert check['failed_when'] == (
         "(raspberry_pi_display_check.stdout | from_json).action != 'none'"
     )
@@ -1556,6 +1908,8 @@ REQUIREMENTS_PLATFORM_OF_HOST = {PI4: 'raspberry-pi-4', PI5_16GB: 'raspberry-pi-
         (PI5_8GB, 'Active cooling; the official cooled case'),
         # The Active Cooler, booting from an NVMe SSD in a case that is itself a heat sink
         (PI5_16GB, 'Active cooling; the NVMe case is a large heat sink'),
+        # The same kind of case and fan (read 2026-11-16)
+        (PI5_16GB_RASPBERRY_PI_OS, 'Active cooling; the NVMe case is a large heat sink'),
     ],
 )
 def test_each_pi_says_how_it_is_cooled(host, cooling):
@@ -1594,3 +1948,57 @@ def test_every_raspberry_pi_on_the_requirements_page_is_mapped_to_a_host():
     }
 
     assert pis_on_the_page == set(REQUIREMENTS_PLATFORM_OF_HOST.values())
+
+
+def test_the_raspberry_pi_os_pi_is_reached_by_its_lasting_name_and_keeps_it():
+    """Its address is a DHCP lease, so it is reached by its mDNS name, which stays its own.
+
+    The playbook names each host, so its hostname is the one it has: any other would change the
+    mDNS name it is reached by.
+    """
+    variables = raspberry_pi_hosts()[PI5_16GB_RASPBERRY_PI_OS]
+
+    assert variables['ansible_host'] == 'glitchygames-pi5-16gb-raspberrypios.local'
+    assert variables['raspberry_pi_hostname'] == 'glitchygames-pi5-16gb-raspberrypios'
+    assert variables['raspberry_pi_resource_class'] == (
+        'terrysimons/raspberry-pi-5-16gb-raspberry-pi-os'
+    )
+
+
+# --- What each OS installs beyond every Pi's packages -------------------------------------
+
+
+@pytest.mark.parametrize(
+    ('group_name', 'packages'),
+    [
+        (UBUNTU_GROUP, []),
+        # hidapi's source build: its hid extension wants libusb (the owner, 2026-11-16: "add
+        # libusb-dev to the deps on the ansible deploy for raspberry pi os"), its hidraw extension
+        # libudev.h (the Pi's next failure, 2026-11-16). Its wheels are for Python 3.14, so a uv
+        # that picked another Python builds it
+        (RASPBERRY_PI_OS_GROUP, ['libusb-1.0-0-dev', 'libudev-dev']),
+    ],
+)
+def test_each_os_group_names_its_own_packages(group_name, packages):
+    """Each OS group says what its Pis install besides every Pi's packages."""
+    variables = inventory_group('raspberry_pis')['children'][group_name]['vars']
+
+    assert variables['raspberry_pi_os_packages'] == packages
+
+
+def test_the_runner_play_installs_the_os_groups_packages_after_every_pis():
+    """Installed with apt right after every Pi's packages, and only when the group names some."""
+    tasks = plays()[0]['tasks']
+    names = [each.get('name') for each in tasks]
+    install = task(tasks, "Install what this Pi's OS needs besides")
+
+    assert install['ansible.builtin.apt'] == {
+        'name': '{{ raspberry_pi_os_packages }}',
+        'state': 'present',
+        'update_cache': True,
+        'cache_valid_time': 3600,
+    }
+    assert install['when'] == 'raspberry_pi_os_packages | length > 0'
+    assert names.index("Install what this Pi's OS needs besides") == (
+        names.index('Install what the checkout, the tests and the source builds need') + 1
+    )
