@@ -5,6 +5,10 @@ to its last, with garbage collected at both ends; its "peak rise" is the most it
 start while its tests ran (read after every test, without collecting). Both are this process
 only: children a test starts are not counted (tests/memory_guard.py reads the container's).
 
+Loaded only on request, in a serial run:
+``GLITCHYGAMES_MEMORY_BY_FILE=rows.json pytest -p tests.memory_by_file -n 0``
+(docs/architecture/playback/testing.md, "Memory by test file").
+
 Off unless ``GLITCHYGAMES_MEMORY_BY_FILE`` names the JSON file to write; the rows are rewritten
 after every file, so a run stopped part way (the memory guard, a kill) still leaves its rows.
 Resident memory comes from ``/proc/self/statm`` on Linux and ``task_info`` on macOS; elsewhere the

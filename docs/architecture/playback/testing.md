@@ -166,3 +166,19 @@ test, instead of the kernel killing the job silently (`tests/memory_guard.py`;
   memory, and does nothing on macOS or Windows.
 - It matters for playback because the golden replays and the tools' tests start child processes,
   and the container's figure counts them.
+
+## Memory by test file
+
+**Intent:** when the guard stops a run, find which test files make the test process grow
+(`tests/memory_by_file.py`; `tests/test_memory_by_file.py`).
+
+- It is a plugin loaded on request, never by default:
+  `GLITCHYGAMES_MEMORY_BY_FILE=rows.json pytest -p tests.memory_by_file -n 0`.
+- Per file it writes `kept` (resident memory at the file's end less at its start, with garbage
+  collected at both ends), `peak_rise` (the most above that start after any of its tests) and
+  `after`, all in MiB. The rows are rewritten after every file, so a run the guard stops keeps
+  the files it finished.
+- It reads `/proc/self/statm` on Linux and `task_info` on macOS; elsewhere it says so once and
+  does nothing. It counts this process only, not the children a test starts.
+- macOS keeps freed memory differently from glibc: use its figures to rank files, and
+  `nox -s test-linux-ci` for the numbers CI sees.
