@@ -1447,8 +1447,8 @@ Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversatio
   more than a 32x48 sprite has pixels, so no limit at all; and the NES was 2 bits per pixel, its
   "8-bit" the processor's word). Rejected: a "16-bit+ 64" profile for the Genesis (the owner:
   "Isn't 64 colors per sprite just 8-bit+?"; the count is the same, only the colors differ).
-- **Strict profiles, below today's format** (the owner agreed to a 4-color profile, 2026-11-16;
-  its name and the 16-color one are my proposal, to confirm). No "+" is the console's real budget
+- **Strict profiles, below today's format** (the owner agreed to a 4-color profile, then to its
+  name and the 16-color one, 2026-11-16: "All of it, love it"). No "+" is the console's real budget
   for one sprite, "+" its largest color table, each per sprite, as above:
 
   | Profile | Colors per sprite | Bits per pixel | The real budget of |
@@ -1509,11 +1509,12 @@ Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversatio
     (the Game Boy Pocket's look); a tint is a named palette of particular colors, like the NES's,
     never a third setting: a Game Boy green from the commonly cited emulator values (`#0f380f` dark
     to `#9bbc0f` light; credit the source used), an amber terminal, a green phosphor.
-  - Candidates, discussed and not decided: 6-bit RGB (64: the Master System, the PC's EGA), 12-bit
-    RGB (4,096: the Amiga, Game Gear, Neo Geo), and named palettes for the C64's 16, the CGA's
-    4-color sets, the ZX Spectrum's 15 and the web-safe 216. Community palettes (DawnBringer's
-    DB16 and DB32, Endesga 32 and 64, Sweetie 16, PICO-8's 16; collected on Lospec) only after
-    each author's license is checked, recorded and credited in its palette file.
+  - Also agreed (the owner, 2026-11-16: "All of it, love it"): 6-bit RGB (64: the Master System,
+    the PC's EGA), 12-bit RGB (4,096: the Amiga, Game Gear, Neo Geo), and named palettes for the
+    C64's 16, the CGA's 4-color sets, the ZX Spectrum's 15 and the web-safe 216. Community
+    palettes too (DawnBringer's DB16 and DB32, Endesga 32 and 64, Sweetie 16, PICO-8's 16;
+    collected on Lospec), each only after its author's license is checked, recorded and credited
+    in its palette file.
 - **The notation.** For people (menus, descriptions, docs): `profile · color space`, the color
   space left out when it's full color.
 
