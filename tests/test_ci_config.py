@@ -829,6 +829,48 @@ def test_circleci_runs_every_test_python_on_every_os():
         assert sessions == {f'test-{python}' for python in noxfile.TEST_PYTHONS}, operating_system
 
 
+# Windows' path limit: 260 characters with the terminating null, so 259 usable (MAX_PATH)
+WINDOWS_MAX_PATH = 259
+# The longest path a source build met under uv's default cache (CircleCI job 3628, 2026-11-17):
+# hidapi 0.15.0 built for Python 3.15, which has no Windows wheel for it, failed with LNK1104 on
+# build/temp.win-amd64-cpython-315/Release/<the cache's own path>/hid.cp315-win_amd64.exp, 260
+# characters. setuptools repeats the absolute source path inside its build folder, so the cache's
+# path counts twice
+UV_DEFAULT_WINDOWS_CACHE = r'C:\Users\circleci\AppData\Local\uv\cache'
+WINDOWS_SHORT_UV_CACHE = r'C:\uv-cache'
+
+
+def test_windows_builds_from_source_within_the_path_limit():
+    """The Windows job's uv cache is short, cached under that path, and long paths are on.
+
+    The owner chose both (2026-11-17): the short cache brings the build's paths under the limit,
+    and long paths are belt and braces (MSVC's linker may not honour them).
+    """
+    jobs = circleci_job_texts()
+    windows_job = jobs['build-and-test-windows']
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    save_windows = configuration[
+        configuration.index('\n  save-uv-cache-windows:\n') : configuration.index(
+            '\n  install-deps-windows:\n'
+        )
+    ]
+    install_windows = configuration[
+        configuration.index('\n  install-deps-windows:\n') : configuration.index(
+            '\n  nox-test-windows:\n'
+        )
+    ]
+
+    assert f"      UV_CACHE_DIR: '{WINDOWS_SHORT_UV_CACHE}'\n" in windows_job
+    assert f'            - {WINDOWS_SHORT_UV_CACHE}\n' in save_windows
+    assert UV_DEFAULT_WINDOWS_CACHE not in configuration
+    assert install_windows.index('LongPathsEnabled') < install_windows.index('uv python install')
+    # The failing path, with the short cache in place of the default one, fits
+    failing_path_under_short_cache = 260 - 2 * (
+        len(UV_DEFAULT_WINDOWS_CACHE) - len(WINDOWS_SHORT_UV_CACHE)
+    )
+    assert failing_path_under_short_cache <= WINDOWS_MAX_PATH
+
+
 def test_random_order_is_off_unless_asked_for():
     """pytest-randomly is blocked in addopts: CI and every ordinary run keep the files' order."""
     pyproject = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))

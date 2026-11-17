@@ -261,13 +261,13 @@ commands:
           path: dist
           destination: dist
 
-  # As restore-uv-cache-posix / save-uv-cache-posix
+  # As restore-uv-cache-posix / save-uv-cache-posix; the cache is the job's short UV_CACHE_DIR
   restore-uv-cache-windows:
     steps:
       - restore_cache:
           keys:
-            - uv-cache-v2-windows-{{ checksum "uv.lock" }}
-            - uv-cache-v2-windows-
+            - uv-cache-v3-windows-{{ checksum "uv.lock" }}
+            - uv-cache-v3-windows-
 
   save-uv-cache-windows:
     steps:
@@ -280,10 +280,11 @@ commands:
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
             uv cache prune --ci
       - save_cache:
-          key: uv-cache-v2-windows-{{ checksum "uv.lock" }}
+          key: uv-cache-v3-windows-{{ checksum "uv.lock" }}
           when: always
           paths:
-            - C:\Users\circleci\AppData\Local\uv\cache
+            # The job's UV_CACHE_DIR (build-and-test-windows), not uv's default under AppData
+            - C:\uv-cache
             - C:\Users\circleci\AppData\Local\uv\python
 
   # As install-deps-posix
@@ -301,6 +302,15 @@ commands:
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
 
             uv --version
+
+            # Long paths on, before anything builds from source: belt and braces beside the
+            # job's short UV_CACHE_DIR, as MSVC's linker may not honour it (the owner,
+            # 2026-11-17). A package with no wheel for a Python (hidapi on 3.15) is compiled
+            # inside uv's cache, and setuptools repeats the source's absolute path in its build
+            # folder: under the default cache a linker output reached 260 characters, one past
+            # Windows' limit (CircleCI job 3628: LNK1104)
+            New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' `
+              -Name 'LongPathsEnabled' -Value 1 -PropertyType DWORD -Force | Out-Null
 
             # Every interpreter the test sessions run on; the nox sessions install the project
             # from uv.lock themselves
@@ -430,6 +440,9 @@ jobs:
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
+      # uv's cache at a short path, so a source build's paths stay under Windows' 259
+      # characters: the cache's path appears twice in them (see install-deps-windows)
+      UV_CACHE_DIR: 'C:\uv-cache'
 
     steps:
       - checkout
