@@ -15,8 +15,18 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-# The [sprite] key holding a sprite's tags (the engine's glitchygames.sprites.tags.TAGS_KEY)
+# The [sprite] key holding a sprite's tags (the engine's glitchygames.sprites.tags.TAGS_KEY;
+# a test keeps the two equal, as this module may import only the standard library)
 TAGS_KEY = 'tags'
+
+# The keys the engine's loader reads (AnimatedSprite._load_toml and its static loader), by table.
+# The writer refuses any other key rather than dropping it, so a round trip keeps the sprite.
+DOCUMENT_KEYS = frozenset({'sprite', 'colors', 'animation', 'transition'})
+SPRITE_KEYS = frozenset({'name', 'description', TAGS_KEY, 'frame_anchor', 'pixels', 'hitbox'})
+HITBOX_KEYS = ('offset_x', 'offset_y', 'width', 'height')
+ANIMATION_KEYS = frozenset({'namespace', 'frame_interval', 'loop', 'frame'})
+FRAME_KEYS = frozenset({'namespace', 'frame_index', 'frame_interval', 'pixels', 'hitbox'})
+COLOR_KEYS = frozenset({'red', 'green', 'blue', 'alpha'})
 
 # Characters TOML basic strings must escape with a short escape sequence
 # (https://toml.io/en/v1.0.0#string)
@@ -187,7 +197,9 @@ def write_sprite_toml(*, data: Mapping[str, Any]) -> str:
 
     A document whose ``[sprite]`` table has ``pixels`` is written in the static layout. Any other
     is written as ``[sprite]``, then each ``[[animation]]`` with its ``[[animation.frame]]``
-    tables, then ``[colors]`` in the document's order, then each ``[[transition]]``.
+    tables, then ``[colors]`` in the document's order, then each ``[[transition]]``. A document
+    with a key the writer does not know (it would be dropped) or without one it needs is refused
+    with a ValueError naming each by its path (``sprite.name``, ``animation[0].frame``).
 
     Args:
         data: The sprite document (as ``parse_sprite_toml`` returns).
@@ -196,6 +208,7 @@ def write_sprite_toml(*, data: Mapping[str, Any]) -> str:
         The TOML text.
 
     """
+    _check_document(data=data)
     sprite = data['sprite']
     lines: list[str] = ['[sprite]\n', f'name = {toml_basic_string(sprite["name"])}\n']
     if sprite.get('description'):
@@ -217,6 +230,91 @@ def write_sprite_toml(*, data: Mapping[str, Any]) -> str:
             *(f'{toml_key(key)} = {toml_scalar(value)}\n' for key, value in transition.items()),
         ))
     return ''.join(lines)
+
+
+def _check_document(*, data: Mapping[str, Any]) -> None:
+    """Refuse a document the writer cannot write without dropping or inventing keys.
+
+    Raises:
+        ValueError: Naming every unknown and every missing key by its path.
+
+    """
+    problems: list[str] = []
+    _check_table(
+        table=data,
+        path='',
+        known_keys=DOCUMENT_KEYS,
+        required_keys=('sprite',),
+        problems=problems,
+    )
+    sprite: Mapping[str, Any] | None = data.get('sprite')
+    if sprite is not None:
+        _check_table(
+            table=sprite,
+            path='sprite',
+            known_keys=SPRITE_KEYS,
+            required_keys=('name',),
+            problems=problems,
+        )
+        _check_hitbox(hitbox=sprite.get('hitbox'), path='sprite.hitbox', problems=problems)
+    for character, color in data.get('colors', {}).items():
+        _check_table(
+            table=color,
+            path=f'colors.{character}',
+            known_keys=COLOR_KEYS,
+            required_keys=('red', 'green', 'blue'),
+            problems=problems,
+        )
+    for animation_index, animation in enumerate(data.get('animation', [])):
+        animation_path = f'animation[{animation_index}]'
+        _check_table(
+            table=animation,
+            path=animation_path,
+            known_keys=ANIMATION_KEYS,
+            required_keys=('namespace', 'frame_interval', 'loop', 'frame'),
+            problems=problems,
+        )
+        for frame_index, frame in enumerate(animation.get('frame', [])):
+            frame_path = f'{animation_path}.frame[{frame_index}]'
+            _check_table(
+                table=frame,
+                path=frame_path,
+                known_keys=FRAME_KEYS,
+                required_keys=('frame_index', 'pixels'),
+                problems=problems,
+            )
+            _check_hitbox(
+                hitbox=frame.get('hitbox'), path=f'{frame_path}.hitbox', problems=problems
+            )
+    if problems:
+        msg = 'Cannot write the sprite document: ' + '; '.join(problems)
+        raise ValueError(msg)
+
+
+def _check_table(
+    *,
+    table: Mapping[str, Any],
+    path: str,
+    known_keys: frozenset[str],
+    required_keys: tuple[str, ...],
+    problems: list[str],
+) -> None:
+    """Add a problem for each unknown key in the table and each required key it lacks."""
+    prefix = f'{path}.' if path else ''
+    problems.extend(f'unknown key {prefix}{key}' for key in table if key not in known_keys)
+    problems.extend(f'missing key {prefix}{key}' for key in required_keys if key not in table)
+
+
+def _check_hitbox(*, hitbox: Mapping[str, Any] | None, path: str, problems: list[str]) -> None:
+    """Check a hitbox table, when there is one."""
+    if hitbox is not None:
+        _check_table(
+            table=hitbox,
+            path=path,
+            known_keys=frozenset(HITBOX_KEYS),
+            required_keys=HITBOX_KEYS,
+            problems=problems,
+        )
 
 
 def _animation_section(*, animation: Mapping[str, Any]) -> str:
