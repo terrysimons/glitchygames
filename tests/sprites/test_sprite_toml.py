@@ -450,7 +450,7 @@ def test_a_sprite_without_pixels_or_animations_splits_into_one_empty_sprite():
     """Like an animated frame without pixels, a static sprite without them is one empty frame."""
     (only,) = split_documents('[sprite]\nname = "empty"\n')
     assert only['sprite']['name'] == 'empty-default-0'
-    assert not only['sprite']['pixels'].strip()
+    assert not only['sprite']['pixels']
     assert 'colors' not in only
 
 
@@ -464,7 +464,7 @@ def test_a_frame_without_pixels_becomes_an_empty_sprite():
     text = '[sprite]\nname = "x"\n[[animation]]\nnamespace = "walk"\n[[animation.frame]]\n'
     (only,) = split_documents(text)
     assert only['sprite']['name'] == 'x-walk-0'
-    assert not only['sprite']['pixels'].strip()
+    assert not only['sprite']['pixels']
     assert 'colors' not in only
 
 
@@ -473,8 +473,18 @@ def test_empty_pixels_and_empty_colors_are_written_and_parse_back():
     document = {'sprite': {'name': 'x', 'pixels': ''}, 'colors': {}}
     written = parse_sprite_toml(text=write_sprite_toml(data=document), source_name='test')
     assert written['sprite']['name'] == 'x'
-    assert not written['sprite']['pixels'].strip()
+    assert not written['sprite']['pixels']
     assert 'colors' not in written
+
+
+@pytest.mark.parametrize('pixels', ['', 'a', 'ab\ncd', 'ab\ncd\n', '\nab', '\\\n"""'])
+def test_pixels_round_trip_exactly_with_or_without_a_final_newline(pixels):
+    """The text is written as given: no final newline is added to it, none is dropped."""
+    static = {'sprite': {'name': 'x', 'pixels': pixels}}
+    animated = {'animation': [{'frame': [{'pixels': pixels}]}]}
+    for document in (static, animated):
+        written = parse_sprite_toml(text=write_sprite_toml(data=document), source_name='test')
+        assert written == document
 
 
 def test_animations_with_the_same_namespace_give_frames_with_the_same_name():

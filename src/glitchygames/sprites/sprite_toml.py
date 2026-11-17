@@ -79,17 +79,18 @@ def toml_pixel_block(pixel_text: str) -> str:
     Each row is escaped as toml_basic_string escapes (a backslash, a quote and control
     characters), so any glyph survives: unescaped, a row ending in a backslash glyph joins the
     next row (TOML's line-ending backslash), and three quote glyphs end the string. The line
-    breaks between rows stay real so the rows stay readable. A trailing line break of the input
-    is dropped: the closing quotes' line ends the last row.
+    breaks between rows stay real so the rows stay readable. The text is written exactly as
+    given: TOML drops the newline right after the opening quotes, so the string parses back
+    equal, with a final line break only if the text had one ('' and 'a' stay '' and 'a').
 
     Returns:
         str: The rows wrapped in triple quotes, the opening quotes on their own line.
 
     """
-    rows = pixel_text.removesuffix('\n').split('\n')
+    rows = pixel_text.split('\n')
     # toml_basic_string quotes a row; the quotes are dropped, the escapes kept
     escaped_rows = [toml_basic_string(row)[1:-1] for row in rows]
-    return '"""\n' + '\n'.join(escaped_rows) + '\n"""'
+    return '"""\n' + '\n'.join(escaped_rows) + '"""'
 
 
 def toml_tags_line(tags: list[str]) -> str:

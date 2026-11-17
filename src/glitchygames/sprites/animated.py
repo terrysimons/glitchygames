@@ -1843,7 +1843,9 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             sprite_section[TAGS_KEY] = list(self.tags)
         if self.frame_anchor is not FrameAnchor.NONE:
             sprite_section['frame_anchor'] = self.frame_anchor.value
-        sprite_section['pixels'] = '\n'.join(pixel_rows)
+        # Every row ends in a line break, as a loaded sprite's pixels do (toml_pixel_block writes
+        # the text as given)
+        sprite_section['pixels'] = '\n'.join(pixel_rows) + '\n'
         hitbox_data = self._get_effective_static_hitbox(frame)
         if hitbox_data is not None:
             sprite_section['hitbox'] = hitbox_data
@@ -2198,7 +2200,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         pixel_chars = AnimatedSprite._convert_pixels_to_toml_chars(pixels, width, height, color_map)
         frame_data: dict[str, Any] = {
             'frame_index': frame_index,
-            'pixels': '\n'.join(pixel_chars),
+            # Every row ends in a line break, as a loaded sprite's pixels do
+            'pixels': '\n'.join(pixel_chars) + '\n',
         }
 
         # Write a per-frame hitbox only when the frame has an explicit one (never the
