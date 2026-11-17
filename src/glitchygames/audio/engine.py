@@ -111,11 +111,13 @@ if TYPE_CHECKING:
 log: logging.Logger = logging.getLogger('game.audio.engine')
 
 
-def _disk_layer(*, game_name: str) -> DiskSoundCache | None:
+def _disk_layer(*, game_name: str, root: Path | None) -> DiskSoundCache | None:
     """Make cache ``disk``'s layer, or say once why there is none (it then runs as ``ram``).
 
     Args:
         game_name: The game's folder under the cache root (``sounds_directory``).
+        root: The cache root given (``cache_inventory.fill``, GG Sound Studio), or None for
+            ``sound_cache_root()``'s.
 
     Returns:
         The layer under ``sound_cache_root()``, or None in the browser (no lasting files) or with
@@ -124,7 +126,7 @@ def _disk_layer(*, game_name: str) -> DiskSoundCache | None:
     if sys.platform == 'emscripten':
         log.info('--sound-cache disk runs as ram in the browser, which keeps no files')
         return None
-    root = sound_cache_root()
+    root = sound_cache_root() if root is None else root
     if root is None:
         log.info(
             '--sound-cache disk runs as ram: %s is empty, so there is no disk layer',
@@ -346,6 +348,7 @@ class AudioEngine:
         cache: CacheMode = CacheMode.RAM,
         memory_limit_bytes: int = DEFAULT_MEMORY_LIMIT_BYTES,
         game_name: str = NO_GAME_CACHE_FOLDER,
+        disk_root: Path | None = None,
         live_pool: Callable[[], LiveAudio] | None = None,
         scene_source: Callable[[], object | None] = _no_scene,
         frame_number: int | None = None,
@@ -363,6 +366,9 @@ class AudioEngine:
             memory_limit_bytes: The bytes compiled sounds may hold under ``ram``.
             game_name: The game's folder under the disk cache root (its package name), so each
                 game keeps, limits and prunes only its own sounds.
+            disk_root: The disk cache root to use, or None for ``GLITCHYGAMES_SOUND_CACHE_ROOT``'s
+                (``disk_cache.sound_cache_root``): ``cache_inventory.fill`` and GG Sound Studio
+                name theirs.
             live_pool: Gives the context's live voice pool ``Sound.start()`` starts live sounds
                 on (the scene manager's ``live_audio``), or None: live sounds are then silent.
             scene_source: Gives the scene plays belong to and short names resolve in (the scene
@@ -375,7 +381,7 @@ class AudioEngine:
         self.waves: WaveRegistry = current_wave_registry()
         self.buses = BusTree()
         self.tuning = Tuning()
-        disk = _disk_layer(game_name=game_name) if cache is CacheMode.DISK else None
+        disk = _disk_layer(game_name=game_name, root=disk_root) if cache is CacheMode.DISK else None
         if cache is CacheMode.DISK and disk is None:
             cache = CacheMode.RAM
         self.cache_mode = cache

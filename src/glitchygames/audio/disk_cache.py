@@ -317,28 +317,83 @@ def _wav_bytes(*, samples_int16: npt.NDArray[np.int16], peak: float, sample_rate
     return RIFF_TAG + struct.pack('<I', len(WAVE_TAG) + len(body)) + WAVE_TAG + body
 
 
+def file_problem(data: bytes) -> str | None:
+    """Say why a file is not a well-formed cache file, if it is not (rule 3, without the sound).
+
+    What a file can be checked for without knowing its sound: the RIFF and WAVE tags, chunks
+    that fit the file, 16-bit mono PCM, the peak chunk, whole samples. A read also checks the
+    rate and the frame count its sound asks for (``_parse``); ``cache_inventory.verify`` reports
+    this for every file.
+
+    Args:
+        data: The file's bytes.
+
+    Returns:
+        Why it is not one, or None for a well-formed file.
+    """
+    problem, _chunks_found = _checked_chunks(data=data)
+    return problem
+
+
+def _checked_chunks(*, data: bytes) -> tuple[str | None, dict[bytes, bytes]]:
+    """Split a cache file into its chunks, checking what can be checked without its sound.
+
+    Returns:
+        Why the file is not well formed (None when it is), and its chunks by tag (empty when
+        they could not be read).
+    """
+    if len(data) < RIFF_HEADER_SIZE or data[:4] != RIFF_TAG or data[8:12] != WAVE_TAG:
+        return 'not a WAV file (no RIFF and WAVE header)', {}
+    chunks = _chunks(data=data)
+    if chunks is None:
+        return 'a chunk runs past the end of the file (cut short)', {}
+    return _chunk_problem(chunks=chunks), chunks
+
+
+def _chunk_problem(*, chunks: dict[bytes, bytes]) -> str | None:
+    """Say what is wrong with a cache file's chunks, the first problem found.
+
+    Returns:
+        The problem, or None.
+    """
+    format_chunk = chunks.get(FORMAT_TAG, b'')
+    if len(format_chunk) < FORMAT_SIZE:
+        return 'no format chunk'
+    audio_format, channels, _rate, _byte_rate, _block_align, bits = struct.unpack(
+        FORMAT_LAYOUT, format_chunk[:FORMAT_SIZE]
+    )
+    frames = chunks.get(DATA_TAG)
+    problems = (
+        (
+            (audio_format, channels, bits) != (PCM_FORMAT, CHANNELS, BITS_PER_SAMPLE),
+            f'not 16-bit mono PCM (format {audio_format}, {channels} channels, {bits} bits)',
+        ),
+        (len(chunks.get(PEAK_TAG, b'')) != PEAK_SIZE, 'no peak chunk (gGpk)'),
+        (frames is None, 'no data chunk'),
+        (
+            frames is not None and len(frames) % BYTES_PER_FRAME != 0,
+            'its data is not whole 16-bit samples',
+        ),
+    )
+    return next((message for failed, message in problems if failed), None)
+
+
 def _parse(*, data: bytes, sample_rate: int, frame_count: int) -> CachedSamples | None:
     """Read a sound's file, refusing anything rule 3 does not allow.
 
     Returns:
         Its samples and peak, or None.
     """
-    is_wave = len(data) >= RIFF_HEADER_SIZE and data[:4] == RIFF_TAG and data[8:12] == WAVE_TAG
-    chunks = _chunks(data=data) if is_wave else None
-    if chunks is None:
+    problem, chunks = _checked_chunks(data=data)
+    if problem is not None:
         return None
-    format_chunk = chunks.get(FORMAT_TAG, b'')
-    peak_chunk = chunks.get(PEAK_TAG, b'')
-    frames = chunks.get(DATA_TAG)
-    if frames is None or len(format_chunk) < FORMAT_SIZE or len(peak_chunk) != PEAK_SIZE:
-        return None
-    audio_format, channels, rate, _byte_rate, _block_align, bits = struct.unpack(
-        FORMAT_LAYOUT, format_chunk[:FORMAT_SIZE]
+    _format, _channels, rate, _byte_rate, _block_align, _bits = struct.unpack(
+        FORMAT_LAYOUT, chunks[FORMAT_TAG][:FORMAT_SIZE]
     )
-    expected = (PCM_FORMAT, CHANNELS, BITS_PER_SAMPLE, sample_rate, frame_count * BYTES_PER_FRAME)
-    if (audio_format, channels, bits, rate, len(frames)) != expected:
+    frames = chunks[DATA_TAG]
+    if (rate, len(frames)) != (sample_rate, frame_count * BYTES_PER_FRAME):
         return None
-    (peak,) = struct.unpack(PEAK_LAYOUT, peak_chunk)
+    (peak,) = struct.unpack(PEAK_LAYOUT, chunks[PEAK_TAG])
     return CachedSamples(
         samples_int16=np.frombuffer(frames, dtype='<i2').astype(np.int16), peak=peak
     )
