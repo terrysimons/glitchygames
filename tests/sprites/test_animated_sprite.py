@@ -3946,14 +3946,14 @@ class TestAnimatedSpriteAnimationEditing:
         assert sprite.animation_order == ['rest', 'strike']
 
     def test_metadata_copied_from_a_sprite_never_loaded_has_no_glyph_choices(self):
-        """A source with no file gives the copy an empty color order and no alpha glyphs."""
+        """A source with no file gives the copy an empty color order and no remembered colors."""
         source = AnimatedSprite()
         copy = AnimatedSprite()
 
         copy.copy_sprite_metadata_from(source)
 
         assert copy._color_order == []
-        assert copy._colors_with_per_pixel_alpha == {}
+        assert copy._color_map == {}
 
     def test_switching_to_an_empty_animation_keeps_the_current_image(self):
         """An animation with no frames has nothing to show, so the image stays as it was."""

@@ -35,6 +35,7 @@ from glitchygames.sprites import AnimatedSprite
 from glitchygames.sprites.animated import frame_tables_in_load_order
 from glitchygames.sprites.pixel_utils import normalize_pixel_rows, palette_key_problems
 from glitchygames.sprites.sprite_text import sprite_from_text, sprite_to_text
+from glitchygames.sprites.sprite_toml import parse_sprite_toml
 from glitchygames.sprites.tags import TAGS_KEY, sprite_tags_problems
 
 if TYPE_CHECKING:
@@ -418,6 +419,68 @@ def check_save_writes_the_sprites_text(*, sprite_file: Path, directory: Path) ->
     expected_text = sprite_to_text(sprite=sprite)
     if saved_text != expected_text:
         message = f'{sprite_file}: save wrote text that differs from sprite_to_text'
+        raise AssertionError(message)
+
+
+def _without_opaque_alpha(*, document: SpriteData) -> SpriteData:
+    """Drop an explicit ``alpha = 255`` from every ``[colors]`` entry (BUGS.md #200 item 4).
+
+    Returns:
+        SpriteData: The document, its opaque colors without the redundant alpha key.
+
+    """
+    if 'colors' not in document:
+        return document
+    colors = {
+        glyph: {
+            key: value
+            for key, value in entry.items()
+            if not (key == 'alpha' and value == OPAQUE_ALPHA)
+        }
+        for glyph, entry in document['colors'].items()
+    }
+    return {**document, 'colors': colors}
+
+
+def check_save_keeps_the_parsed_document(*, sprite_file: Path) -> None:
+    """Check that saving a loaded sprite gives back the document its file parses to.
+
+    Loads the file's text (``sprite_from_text``), writes it (``sprite_to_text``) and parses both
+    texts with ``parse_sprite_toml``: the documents must be equal. So a save keeps every
+    ``[colors]`` entry, used or not, and every frame's rows glyph for glyph, even where two
+    glyphs share a color.
+
+    One difference is allowed: an explicit ``alpha = 255`` in the source counts as no alpha, so
+    it is removed from the source's entries before comparing. An opaque color has one shape
+    (BUGS.md #200 item 4): it loads as plain RGB and a save writes alpha only for 0-254, so an
+    explicit 255 carries no information (toadstool's unused ``"█"`` has one).
+
+    Args:
+        sprite_file: The sprite file to check.
+
+    Raises:
+        AssertionError: The documents differ; the message names the file and every
+            top-level table that differs.
+
+    """
+    text = sprite_file.read_bytes().decode('utf-8')
+    source_name = str(sprite_file)
+    original_document = _without_opaque_alpha(
+        document=parse_sprite_toml(text=text, source_name=source_name)
+    )
+    saved_document = parse_sprite_toml(
+        text=sprite_to_text(sprite=sprite_from_text(text=text, source_name=source_name)),
+        source_name=source_name,
+    )
+    if saved_document != original_document:
+        differing_tables = sorted(
+            key
+            for key in original_document.keys() | saved_document.keys()
+            if original_document.get(key) != saved_document.get(key)
+        )
+        message = (
+            f'{sprite_file}: a save changes the parsed document ({", ".join(differing_tables)})'
+        )
         raise AssertionError(message)
 
 

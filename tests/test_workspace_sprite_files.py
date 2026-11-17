@@ -194,3 +194,10 @@ def test_a_shipped_multi_animation_sprite_splits_into_loadable_frames_with_equal
 def test_save_writes_the_sprites_text(sprite_file, tmp_path):
     """Saving a loaded sprite writes exactly the text sprite_to_text gives for it."""
     sprite_files.check_save_writes_the_sprites_text(sprite_file=sprite_file, directory=tmp_path)
+
+
+@pytest.mark.usefixtures('display')
+@pytest.mark.parametrize('sprite_file', MEMBER_SPRITE_FILES, ids=sprite_file_id)
+def test_save_keeps_the_parsed_document(sprite_file):
+    """Saving a loaded sprite gives back the document its file parses to, palette and all."""
+    sprite_files.check_save_keeps_the_parsed_document(sprite_file=sprite_file)

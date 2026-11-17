@@ -165,6 +165,11 @@ class SpriteFrame:
         self._rect = pygame.Rect((0, 0), surface.get_size())
         self.duration = duration
         self.pixels: list[tuple[int, ...]] = []
+        # The pixel rows this frame was loaded from, glyph for glyph, or None for a frame built
+        # in code or whose rows the load had to repair. A save writes them back while the
+        # frame's pixels still match them (AnimatedSprite._rows_kept_from_load), so two glyphs
+        # sharing a color both survive
+        self.loaded_pixel_rows: tuple[str, ...] | None = None
         self._hitbox: pygame.Rect | None = hitbox
         # (surface measured, its visible-pixel bounds); see opaque_bounds()
         self._opaque_bounds_cache: tuple[pygame.Surface, pygame.Rect] | None = None

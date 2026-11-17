@@ -9,6 +9,7 @@ from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites import AnimatedSprite, SpriteFactory
 from glitchygames.sprites.constants import SPRITE_GLYPHS
+from glitchygames.sprites.frame import SpriteFrame
 from glitchygames.sprites.sprite_text import (
     SpriteColorLimitError,
     sprite_from_text,
@@ -16,7 +17,7 @@ from glitchygames.sprites.sprite_text import (
     sprite_to_text,
     surface_rgba_pixels,
 )
-from glitchygames.sprites.sprite_toml import parse_sprite_toml
+from glitchygames.sprites.sprite_toml import parse_sprite_toml, write_sprite_toml
 from glitchygames.testing.sprite_files import check_text_and_file_loads_agree
 
 # A static sprite whose second row is shorter than its first: the loader repairs it and says so
@@ -70,6 +71,150 @@ red = 255
 green = 255
 blue = 255
 """
+
+# Two glyphs, b and B, share one color (as slime-jump's do); c is a second color
+TWO_GLYPHS_ONE_COLOR_TEXT = """\
+[sprite]
+name = "twins"
+pixels = \"\"\"
+bBc
+\"\"\"
+
+[colors.b]
+red = 80
+green = 220
+blue = 120
+
+[colors.B]
+red = 80
+green = 220
+blue = 120
+
+[colors.c]
+red = 0
+green = 0
+blue = 255
+"""
+
+# A palette entry no pixel uses: x, translucent, between the two used colors
+UNUSED_COLOR_TEXT = """\
+[sprite]
+name = "spare"
+
+[[animation]]
+namespace = "spare"
+frame_interval = 0.5
+loop = true
+
+[[animation.frame]]
+namespace = "spare"
+frame_index = 0
+pixels = \"\"\"
+#o
+\"\"\"
+
+[[animation.frame]]
+namespace = "spare"
+frame_index = 1
+pixels = \"\"\"
+o#
+\"\"\"
+
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+
+[colors.x]
+red = 10
+green = 20
+blue = 30
+alpha = 100
+
+[colors.o]
+red = 255
+green = 128
+blue = 0
+"""
+
+# Frame tables without frame_index, as Papyrus's cobra writes them: the loader plays them in
+# file order
+NO_FRAME_INDEX_TEXT = """\
+[sprite]
+name = "coil"
+
+[[animation]]
+namespace = "idle"
+frame_interval = 0.5
+loop = true
+
+[[animation.frame]]
+namespace = "idle"
+pixels = \"\"\"
+#.
+\"\"\"
+
+[[animation.frame]]
+namespace = "idle"
+pixels = \"\"\"
+.#
+\"\"\"
+
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+
+[colors."."]
+red = 255
+green = 255
+blue = 255
+"""
+
+# A game's own top-level table, as Drawing Fire's soldier carries its livery swatches
+SWATCHES_TEXT = """\
+[sprite]
+name = "trooper"
+pixels = \"\"\"
+hH
+\"\"\"
+
+[colors.h]
+red = 200
+green = 30
+blue = 30
+
+[colors.H]
+red = 120
+green = 10
+blue = 10
+
+[swatches.livery.helmet]
+role = "primary"
+colors = ["h", "H"]
+"""
+
+# The palette gives the transparency key's usual glyph to an ordinary color
+KEY_GLYPH_TAKEN_TEXT = """\
+[sprite]
+name = "taken"
+pixels = \"\"\"
+\u2588#
+\"\"\"
+
+[colors."\u2588"]
+red = 200
+green = 0
+blue = 0
+
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+"""
+
+GREEN = (0, 255, 0)
+SHARED_COLOR = (80, 220, 120)
 
 # Pixels in [sprite] and an [[animation]] in one document: a file like this is refused
 MIXED_TEXT = (
@@ -516,3 +661,211 @@ def test_an_opaque_magenta_pixel_becomes_transparent_as_the_format_cannot_hold_i
     # The frame's pixels hold the key's RGB, the same as a transparent pixel's
     assert only_animation_frames(sprite)[0].get_pixel_data() == [(255, 0, 255), (255, 0, 0)]
     assert drawn_over(sprite=sprite, background_color=(10, 20, 30)) == [(10, 20, 30), (255, 0, 0)]
+
+
+def saved_document(*, sprite):
+    """Write a sprite and parse the text, as a reader of the saved file sees it.
+
+    Returns:
+        The parsed document of the sprite's text.
+
+    """
+    return parse_sprite_toml(text=sprite_to_text(sprite=sprite), source_name='saved')
+
+
+def test_two_glyphs_sharing_a_color_both_survive_a_save():
+    """An unchanged frame keeps its loaded rows glyph for glyph, so b and B both stay."""
+    sprite = sprite_from_text(text=TWO_GLYPHS_ONE_COLOR_TEXT, source_name='twins')
+
+    assert saved_document(sprite=sprite) == parse_sprite_toml(
+        text=TWO_GLYPHS_ONE_COLOR_TEXT, source_name='twins'
+    )
+
+
+def test_an_unused_color_survives_a_save():
+    """Every [colors] entry is written, used or not, in the file's order, alpha and all."""
+    sprite = sprite_from_text(text=UNUSED_COLOR_TEXT, source_name='spare')
+
+    document = saved_document(sprite=sprite)
+
+    assert document == parse_sprite_toml(text=UNUSED_COLOR_TEXT, source_name='spare')
+    assert list(document['colors']) == ['#', 'x', 'o']
+
+
+def test_an_edited_pixel_takes_the_first_glyph_of_its_color():
+    """An edited frame writes each pixel with the first remembered glyph of its color.
+
+    Every remembered entry is still written, B among them, though no pixel uses it any more.
+    """
+    sprite = sprite_from_text(text=TWO_GLYPHS_ONE_COLOR_TEXT, source_name='twins')
+    (frame,) = only_animation_frames(sprite)
+    frame.set_pixel_data([SHARED_COLOR, SHARED_COLOR, SHARED_COLOR])
+
+    document = saved_document(sprite=sprite)
+
+    assert document['sprite']['pixels'] == 'bbb\n'
+    assert (
+        document['colors']
+        == parse_sprite_toml(text=TWO_GLYPHS_ONE_COLOR_TEXT, source_name='twins')['colors']
+    )
+
+
+def test_an_edited_pixel_of_a_new_color_gets_a_new_glyph():
+    """A color the palette doesn't have gets a glyph of its own, after the remembered ones."""
+    sprite = sprite_from_text(text=TWO_GLYPHS_ONE_COLOR_TEXT, source_name='twins')
+    (frame,) = only_animation_frames(sprite)
+    frame.set_pixel_data([SHARED_COLOR, GREEN, (0, 0, 255)])
+
+    document = saved_document(sprite=sprite)
+
+    *remembered_glyphs, new_glyph = document['colors']
+    assert remembered_glyphs == ['b', 'B', 'c']
+    assert new_glyph in SPRITE_GLYPHS
+    assert document['colors'][new_glyph] == {'red': 0, 'green': 255, 'blue': 0}
+    assert document['sprite']['pixels'] == f'b{new_glyph}c\n'
+
+
+def test_only_the_edited_frame_of_an_animation_changes_its_glyphs():
+    """An unchanged frame keeps its rows beside an edited one in the same sprite."""
+    sprite = sprite_from_text(text=TWO_GLYPHS_ONE_COLOR_TEXT, source_name='twins')
+    edited_frame = SpriteFrame(pygame.Surface((3, 1)))
+    edited_frame.set_pixel_data([SHARED_COLOR, SHARED_COLOR, SHARED_COLOR])
+    sprite.add_frame(sprite.animation_order[0], edited_frame)
+
+    document = saved_document(sprite=sprite)
+
+    (animation,) = document['animation']
+    assert [frame['pixels'] for frame in animation['frame']] == ['bBc\n', 'bbb\n']
+
+
+def test_a_repaired_frame_is_written_by_its_colors():
+    """A frame whose rows the load repaired is written from its pixels, never the bad rows."""
+    sprite = sprite_from_text(text=SHORT_ROW_TEXT, source_name='dex')
+
+    document = saved_document(sprite=sprite)
+
+    assert '\x00' not in document['sprite']['pixels']
+    assert (
+        sprite_from_text(text=sprite_to_text(sprite=sprite), source_name='saved').pixel_row_repairs
+        == []
+    )
+
+
+def test_an_animation_loaded_without_frame_index_is_saved_without_it():
+    """Frames that named no frame_index are written without one, so the document is the same."""
+    sprite = sprite_from_text(text=NO_FRAME_INDEX_TEXT, source_name='coil')
+
+    assert saved_document(sprite=sprite) == parse_sprite_toml(
+        text=NO_FRAME_INDEX_TEXT, source_name='coil'
+    )
+
+
+def test_a_renamed_animation_keeps_its_frames_without_frame_index():
+    """A rename carries the animation's lack of frame_index, as it carries its loop flag."""
+    sprite = sprite_from_text(text=NO_FRAME_INDEX_TEXT, source_name='coil')
+    sprite.rename_animation(old_name='idle', new_name='rest')
+
+    (animation,) = saved_document(sprite=sprite)['animation']
+
+    assert animation['namespace'] == 'rest'
+    assert all('frame_index' not in frame for frame in animation['frame'])
+
+
+def test_reordered_frames_without_frame_index_load_in_their_new_order():
+    """Frames are written in list order, so a reorder survives without an index to say so."""
+    sprite = sprite_from_text(text=NO_FRAME_INDEX_TEXT, source_name='coil')
+    first, second = sprite.animations['idle']
+    sprite.animations['idle'][:] = [second, first]
+
+    reloaded = sprite_from_text(text=sprite_to_text(sprite=sprite), source_name='saved')
+
+    assert [frame.get_pixel_data() for frame in reloaded.animations['idle']] == [
+        second.get_pixel_data(),
+        first.get_pixel_data(),
+    ]
+
+
+def test_an_animation_added_in_code_is_saved_with_frame_index():
+    """Only a loaded animation that had no frame_index omits it; one built in code has it."""
+    sprite = sprite_from_text(text=NO_FRAME_INDEX_TEXT, source_name='coil')
+    frame = SpriteFrame(pygame.Surface((2, 1)))
+    frame.set_pixel_data([(0, 0, 0), (0, 0, 0)])
+    sprite.add_animation('blink', [frame])
+
+    idle, blink = saved_document(sprite=sprite)['animation']
+
+    assert all('frame_index' not in each for each in idle['frame'])
+    assert [each['frame_index'] for each in blink['frame']] == [0]
+
+
+def test_a_games_own_table_survives_a_save():
+    """A top-level table the engine doesn't own ([swatches]) is written back unchanged."""
+    sprite = sprite_from_text(text=SWATCHES_TEXT, source_name='trooper')
+
+    assert saved_document(sprite=sprite) == parse_sprite_toml(
+        text=SWATCHES_TEXT, source_name='trooper'
+    )
+
+
+def test_a_games_own_table_is_copied_with_the_sprite_metadata():
+    """Bitmappy saves a one-frame sprite through a copy: the game's tables go with it."""
+    source = sprite_from_text(text=SWATCHES_TEXT, source_name='trooper')
+    copy = AnimatedSprite()
+    copy.add_animation('trooper', list(source.animations['trooper']))
+
+    copy.copy_sprite_metadata_from(source)
+
+    assert saved_document(sprite=copy)['swatches'] == {
+        'livery': {'helmet': {'role': 'primary', 'colors': ['h', 'H']}}
+    }
+
+
+def test_transparent_pixels_never_take_a_glyph_the_palette_gives_another_color():
+    """With the key's usual glyph taken by red, a transparent pixel gets a glyph of its own.
+
+    Every pixel's color survives the save and reload: red stays red, the key stays the key.
+    """
+    red = (200, 0, 0)
+    sprite = sprite_from_text(text=KEY_GLYPH_TAKEN_TEXT, source_name='taken')
+    (frame,) = only_animation_frames(sprite)
+    frame.set_pixel_data([red, (255, 0, 255)])
+
+    reloaded = sprite_from_text(text=sprite_to_text(sprite=sprite), source_name='saved')
+
+    (reloaded_frame,) = only_animation_frames(reloaded)
+    assert [pixel[:3] for pixel in reloaded_frame.get_pixel_data()] == [red, (255, 0, 255)]
+
+
+def test_transparent_pixels_with_every_glyph_taken_are_refused():
+    """With the key's glyph and every glyph of the set given to colors, the key has none left."""
+    colors = {'█': {'red': 200, 'green': 0, 'blue': 0}}
+    colors.update({glyph: {'red': 0, 'green': 0, 'blue': 0} for glyph in SPRITE_GLYPHS})
+    text = write_sprite_toml(data={'sprite': {'name': 'full', 'pixels': '█\n'}, 'colors': colors})
+    sprite = sprite_from_text(text=text, source_name='full')
+    (frame,) = only_animation_frames(sprite)
+    frame.set_pixel_data([(255, 0, 255)])
+
+    with pytest.raises(ValueError, match='Too many colors'):
+        sprite_to_text(sprite=sprite)
+
+
+def test_a_resized_frame_is_written_by_its_colors_at_its_new_size():
+    """A frame resized to another shape writes its new rows, even when its pixels line up.
+
+    Two pixels side by side become two stacked: the colors in order are the same, so only the
+    frame's size tells the loaded rows no longer fit.
+    """
+    text = (
+        '[sprite]\nname = "turn"\npixels = """\n#.\n"""\n\n'
+        '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n\n'
+        '[colors."."]\nred = 255\ngreen = 0\nblue = 255\n'
+    )
+    sprite = sprite_from_text(text=text, source_name='turn')
+    (frame,) = only_animation_frames(sprite)
+    frame.image = pygame.Surface((1, 2))
+    frame.set_pixel_data([(0, 0, 0), (255, 0, 255)])
+
+    reloaded = sprite_from_text(text=sprite_to_text(sprite=sprite), source_name='saved')
+
+    (reloaded_frame,) = only_animation_frames(reloaded)
+    assert reloaded_frame.get_size() == (1, 2)

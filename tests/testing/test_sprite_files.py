@@ -384,6 +384,42 @@ class TestSaveWritesTheSpritesText:
             )
 
 
+class TestSaveKeepsTheParsedDocument:
+    """check_save_keeps_the_parsed_document."""
+
+    def test_the_real_save_passes(self, tmp_path):
+        """A loaded sprite saves back to the document its file parses to."""
+        sprite_file = write_sprite(directory=tmp_path, name='walker.toml', text=ANIMATED_SPRITE)
+        sprite_files.check_save_keeps_the_parsed_document(sprite_file=sprite_file)
+
+    def test_an_explicit_opaque_alpha_counts_as_no_alpha(self, tmp_path):
+        """A save drops alpha = 255 (BUGS.md #200 item 4): the check allows that one difference."""
+        text = STATIC_SPRITE.replace('blue = 90\n', 'blue = 90\nalpha = 255\n')
+        sprite_file = write_sprite(directory=tmp_path, name='rock.toml', text=text)
+        sprite_files.check_save_keeps_the_parsed_document(sprite_file=sprite_file)
+
+    def test_a_document_without_colors_is_compared_as_it_is(self, tmp_path, mocker):
+        """A document with no [colors] table has no alpha to set aside."""
+        text = '[sprite]\nname = "none"\n'
+        sprite_file = write_sprite(directory=tmp_path, name='none.toml', text=text)
+        mocker.patch.object(sprite_files, 'sprite_from_text')
+        mocker.patch.object(sprite_files, 'sprite_to_text', return_value=text)
+        sprite_files.check_save_keeps_the_parsed_document(sprite_file=sprite_file)
+
+    def test_a_dropped_color_fails_naming_the_table(self, tmp_path, mocker):
+        """A save that changes the document fails, naming the file and the table that differs."""
+        sprite_file = write_sprite(directory=tmp_path, name='rock.toml', text=STATIC_SPRITE)
+        mocker.patch.object(
+            sprite_files,
+            'sprite_to_text',
+            return_value=STATIC_SPRITE.replace('[colors."#"]', '[colors."x"]'),
+        )
+        with pytest.raises(
+            AssertionError, match=r'rock\.toml: a save changes the parsed document \(colors\)'
+        ):
+            sprite_files.check_save_keeps_the_parsed_document(sprite_file=sprite_file)
+
+
 class TestTransitions:
     """check_transitions_survive_a_save_round_trip."""
 
