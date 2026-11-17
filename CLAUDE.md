@@ -246,7 +246,10 @@ present. Check rendering on the real driver with `SDL_VIDEODRIVER=cocoa uv run p
 - Hierarchy (`sprites/`): `RootSprite` → `Sprite` → `BitmappySprite`, `AnimatedSprite`. Load
   sprites with `SpriteFactory.load_sprite(filename=...)`, not `BitmappySprite` directly.
 - Sprite files are TOML only (character-to-colour map, optional per-colour alpha, magenta
-  255,0,255 as the transparency key, `[[animation]]` sections); see ANIMATION_README.md.
+  255,0,255 as the transparency key, `[[animation]]` sections); see ANIMATION_README.md. Every
+  value is checked by type and range at load (`sprites/sprite_file_schema.py`, pydantic, strict;
+  unknown keys in known sections refused), and every shipped sprite is checked against it
+  (`glitchygames.testing.sprite_files.check_values_match_the_schema`).
 - Hitboxes (`collision/`) default to the image's visible pixels; TOML hitboxes win. A TOML
   `AnimatedSprite`'s frames keep magenta opaque, so give it a `[sprite.hitbox]`. Use
   `common_hitbox_x_range()` for standing support and `frame_anchor` for frames of different shapes.

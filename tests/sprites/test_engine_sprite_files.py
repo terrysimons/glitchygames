@@ -68,6 +68,12 @@ def real_display():
 
 
 @pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=_sprite_file_test_id)
+def test_bundled_sprite_values_match_the_schema(sprite_file):
+    """Every value in a bundled sprite has the loaders' type and range."""
+    sprite_files.check_values_match_the_schema(sprite_file=sprite_file)
+
+
+@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=_sprite_file_test_id)
 def test_bundled_sprite_rows_have_equal_lengths(sprite_file):
     """Every pixel row in a bundled sprite is the same width."""
     sprite_files.check_rows_have_equal_lengths(sprite_file=sprite_file)

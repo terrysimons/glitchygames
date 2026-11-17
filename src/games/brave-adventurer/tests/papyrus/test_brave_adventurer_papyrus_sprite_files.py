@@ -53,6 +53,12 @@ def test_every_papyrus_sprite_is_checked():
 
 
 @pytest.mark.parametrize('sprite_file', PAPYRUS_SPRITE_FILES, ids=sprite_file_id)
+def test_values_match_the_schema(sprite_file):
+    """Every value in a Papyrus sprite has the loaders' type and range."""
+    sprite_files.check_values_match_the_schema(sprite_file=sprite_file)
+
+
+@pytest.mark.parametrize('sprite_file', PAPYRUS_SPRITE_FILES, ids=sprite_file_id)
 def test_rows_have_equal_lengths(sprite_file):
     """Every pixel row of a Papyrus sprite is the same width."""
     sprite_files.check_rows_have_equal_lengths(sprite_file=sprite_file)
