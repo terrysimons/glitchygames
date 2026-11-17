@@ -1423,6 +1423,10 @@ Loading and memory:
 
 ## Sprite color profiles and a glyph generator (the owner, 2026-11-16)
 
+Being built: the approved master plan is `plans/2026-11-17-sprite-color-profiles.md`, on
+`feature/sprite-color-profiles` (what ships first, the converter and the AI's tools, and in what
+order). This entry keeps the full tables it refers to.
+
 Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversation:
 
 - **Two separate settings: a profile (how many colors one sprite may use) and a color space
@@ -1640,6 +1644,10 @@ discussing it found and decided:
   still serve their recorded `dt`; the cost is twice the game work and no smoothing of uneven
   frames. The measurements decide whether that alone fixes the hitching before the fixed
   simulation is paid for.
+- **The pacer's wait also serves the AI** (2026-11-17): `--ai-stepping idle` services the AI's
+  network during that wait instead of only at the frame's fixed point. Designed, with valid uses
+  for `frame` and `idle`, in `plans/2026-11-17-sprite-color-profiles.md`, "Follow-ups"; built with
+  this pacer work.
 
 ## Code quality
 
