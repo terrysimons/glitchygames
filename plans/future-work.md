@@ -1218,9 +1218,10 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   2026-11-15, `scripts/measure_sound_start.py`): a start-up slice compiles at least one whole
   sound, and Clockwork Keep's victory jingle takes 117 ms on a Raspberry Pi 4 (Mr. Muncher's
   film snap 81 ms), so the power-on stalls once for about 7 frames there (about 2 on a Pi 5).
-  Once per machine: later launches read the disk cache. Remedies, in order: `sound-cache fill`
-  (the disk plan's subcommand, so an install fills the cache and even a first launch reads);
-  rendering a long effect tone by tone across slices and mixing at the end (keeps the
+  Once per machine: later launches read the disk cache. Remedies, in order: `sound-cache-fill`
+  (built 2026-11-16: `glitchygames sound-cache-fill`, or a game's `--sound-cache-fill`, so even a
+  first launch reads; nothing runs it yet: an installer, a packaged build's first run or the
+  sound editor would); rendering a long effect tone by tone across slices and mixing at the end (keeps the
   no-thread design; the longest tone bounds the stall). Not a background thread (the plan's
   decision 6; the mixer's callback needs the GIL, BUGS.md #27).
   (the owner,

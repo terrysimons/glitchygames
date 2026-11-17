@@ -36,8 +36,15 @@ import wave
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pytest
 
+from glitchygames.audio.disk_cache import (
+    SOUND_CACHE_ROOT_VARIABLE,
+    DiskSoundCache,
+    sounds_directory,
+)
+from glitchygames.audio.spec import AUDIO_RENDER_VERSION
 from glitchygames.exit_codes import ExitCode
 from glitchygames.logical_names import LAYERS, MEMBER_LAYERS
 from glitchygames.process import OutputCapture, run_command
@@ -691,6 +698,9 @@ class Scenario:
         prepare: Files written before it runs (not counted as its own).
         command_starts: The GAME forms the command starts the game in, saying so ("running
             GAME (form)"); a form not listed is read in place, the game never started.
+        unnamed_game_starts: Whether the command given no game starts the project's (False: it
+            works without one, as the sound-cache-* tools do on the whole cache root).
+        environment: Variables added to the children's environment, per project.
 
     """
 
@@ -703,6 +713,8 @@ class Scenario:
     check: Callable[[World, Run], None]
     prepare: Callable[[World], None] = lambda _world: None
     command_starts: frozenset[str] = frozenset(GAME_FORMS)
+    unnamed_game_starts: bool = True
+    environment: Callable[[World], dict[str, str]] = lambda _world: {}
 
 
 def no_values(_world: World) -> list[str]:
@@ -993,6 +1005,112 @@ def check_sound_migrate(world: World, run: Run) -> None:
     assert '1 sounds' in run.output, run.output
 
 
+# The sound-cache-* tools' cache root: beside the project, so what they write or remove is checked
+# there and never counted as written in the project
+SOUND_CACHE_FOLDER = 'sound-cache'
+# What a fill writes for the stand-in, which declares no sounds: the CRT power-on's (both
+# backgrounds')
+POWER_ON_SOUNDS = 6
+
+
+def sound_cache_root(world: World) -> Path:
+    """The cache root the sound-cache-* tools' children use.
+
+    Returns:
+        The root.
+    """
+    return world.project.parent / SOUND_CACHE_FOLDER
+
+
+def sound_cache_environment(world: World) -> dict[str, str]:
+    """The children's cache root (the harness empties it: no disk cache).
+
+    Returns:
+        The variable.
+    """
+    return {SOUND_CACHE_ROOT_VARIABLE: str(sound_cache_root(world))}
+
+
+def stand_in_sounds(world: World, *, render_version: int = AUDIO_RENDER_VERSION) -> list[Path]:
+    """The stand-in's cache files, for one render version.
+
+    Returns:
+        Their paths, in order.
+    """
+    folder = sounds_directory(
+        root=sound_cache_root(world), game=PACKAGE, render_version=render_version
+    )
+    return sorted(folder.rglob('*.wav'))
+
+
+def cache_two_sounds(world: World, *, render_version: int = AUDIO_RENDER_VERSION) -> None:
+    """The stand-in's folder holds two sounds, written as a game writes them."""
+    cache = DiskSoundCache(
+        directory=sounds_directory(
+            root=sound_cache_root(world), game=PACKAGE, render_version=render_version
+        ),
+        limit_bytes=64 * 1024 * 1024,
+    )
+    for index in range(2):
+        cache.write(
+            identity_key=f'{index:02x}' + 'a' * 30,
+            samples_int16=np.zeros(100, dtype=np.int16),
+            peak=0.5,
+            sample_rate=SOUND_RATE,
+        )
+
+
+def cache_a_damaged_sound(world: World) -> None:
+    """The stand-in's folder holds two sounds, one of them damaged."""
+    cache_two_sounds(world)
+    stand_in_sounds(world)[0].write_bytes(b'not a sound')
+
+
+def cache_a_stale_version(world: World) -> None:
+    """The stand-in's folder holds two current sounds and two of an older render version."""
+    cache_two_sounds(world)
+    cache_two_sounds(world, render_version=AUDIO_RENDER_VERSION - 1)
+
+
+def check_sound_cache_list(world: World, run: Run) -> None:
+    """The stand-in's folder is listed with its two sounds, then the total."""
+    assert run.status == ExitCode.SUCCESS, run.output + run.errors
+    assert f'{PACKAGE} render {AUDIO_RENDER_VERSION}: 2 sounds' in run.output, run.output
+    assert 'total: 1 folders' in run.output, run.output
+
+
+def check_sound_cache_size(world: World, run: Run) -> None:
+    """Two sounds, none stale."""
+    assert run.status == ExitCode.SUCCESS, run.output + run.errors
+    # A game started with the flag prints pygame's banner first
+    assert any(line.startswith('2 sounds, ') for line in run.output.splitlines()), run.output
+    assert '(0.0 KB stale)' in run.output, run.output
+
+
+def check_sound_cache_verify(world: World, run: Run) -> None:
+    """The damaged file is named, kept, and the exit code says so (through a child too)."""
+    assert run.status == ExitCode.UNUSABLE_INPUT, run.output + run.errors
+    damaged = stand_in_sounds(world)[0]
+    assert f'{damaged}: not a WAV file' in run.output, run.output
+    assert 'checked 2 sounds: 1 damaged' in run.output, run.output
+    assert damaged.exists()
+
+
+def check_sound_cache_clear(world: World, run: Run) -> None:
+    """With --stale-only, the older version goes and the current one stays."""
+    assert run.status == ExitCode.SUCCESS, run.output + run.errors
+    assert 'removed 2 sounds' in run.output, run.output
+    assert stand_in_sounds(world, render_version=AUDIO_RENDER_VERSION - 1) == []
+    assert len(stand_in_sounds(world)) == 2
+
+
+def check_sound_cache_fill(world: World, run: Run) -> None:
+    """The stand-in's folder holds the power-on's sounds, compiled ahead of its first launch."""
+    assert run.status == ExitCode.SUCCESS, run.output + run.errors
+    assert len(stand_in_sounds(world)) == POWER_ON_SOUNDS
+    assert f'{PACKAGE}: {POWER_ON_SOUNDS} sounds written' in run.output, run.output
+
+
 SCENARIOS = (
     Scenario(
         name='record-trace',
@@ -1141,6 +1259,65 @@ SCENARIOS = (
         check=check_sound_migrate,
         prepare=write_the_recipe_file,
     ),
+    Scenario(
+        name='sound-cache-list',
+        tool='sound-cache-list',
+        values=no_values,
+        options=(),
+        game_on_the_command='option',
+        expected_written=nothing_written,
+        check=check_sound_cache_list,
+        prepare=cache_two_sounds,
+        unnamed_game_starts=False,
+        environment=sound_cache_environment,
+    ),
+    Scenario(
+        name='sound-cache-size',
+        tool='sound-cache-size',
+        values=no_values,
+        options=(),
+        game_on_the_command='option',
+        expected_written=nothing_written,
+        check=check_sound_cache_size,
+        prepare=cache_two_sounds,
+        unnamed_game_starts=False,
+        environment=sound_cache_environment,
+    ),
+    Scenario(
+        name='sound-cache-verify',
+        tool='sound-cache-verify',
+        values=no_values,
+        options=(),
+        game_on_the_command='option',
+        expected_written=nothing_written,
+        check=check_sound_cache_verify,
+        prepare=cache_a_damaged_sound,
+        unnamed_game_starts=False,
+        environment=sound_cache_environment,
+    ),
+    Scenario(
+        name='sound-cache-clear',
+        tool='sound-cache-clear',
+        values=no_values,
+        options=('--stale-only',),
+        game_on_the_command='option',
+        expected_written=nothing_written,
+        check=check_sound_cache_clear,
+        prepare=cache_a_stale_version,
+        unnamed_game_starts=False,
+        environment=sound_cache_environment,
+    ),
+    Scenario(
+        name='sound-cache-fill',
+        tool='sound-cache-fill',
+        values=no_values,
+        options=(),
+        game_on_the_command='option',
+        expected_written=nothing_written,
+        check=check_sound_cache_fill,
+        unnamed_game_starts=True,
+        environment=sound_cache_environment,
+    ),
 )
 
 
@@ -1240,7 +1417,7 @@ def run_case(*, case: Case, world: World) -> Run:
     before = project_files(project=world.project)
     completed = run_child(
         command=command_line(case=case, world=world),
-        environment=world.environment,
+        environment={**world.environment, **case.scenario.environment(world)},
         project=world.project,
     )
     return Run(
@@ -1276,7 +1453,8 @@ def test_every_tool_runs_an_unseen_game(case, templates, tmp_path):
         # The game a command finds itself is the project's, or the recording's: its console script
         form = CONSOLE_SCRIPT_FORM if case.form == UNNAMED_GAME else case.form
         form_line = f'running {GAME_FORMS[form]} ({FORM_DESCRIPTIONS[form]})'
-        if form in case.scenario.command_starts:
+        starts = case.form != UNNAMED_GAME or case.scenario.unnamed_game_starts
+        if starts and form in case.scenario.command_starts:
             assert form_line in run.errors, run.errors
         else:
             assert 'running' not in run.errors, run.errors

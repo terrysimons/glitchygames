@@ -106,13 +106,18 @@ the contract; `plans/2026-11-12-arcade-3-inner-game.md`):
    `InnerGame.replay(command=..., path=..., name=..., size=..., arguments=())` makes a fresh
    context with a render target of `size` and its private queue enabled, and calls the
    installed command's own entry point with `sys.argv` swapped to `--replay-trace PATH
-   --headless ...` for that call only. `step()` runs one unpaced frame; `finish()` ends the run
+   --headless`, then the outer game's command line (up to a bare `--`), then `arguments`, for
+   that call only: so `uv run arcade --sound-cache ram` runs its tiles on `ram`, and a host's own
+   arguments win (argparse keeps the last value). A recording still overrides every option but
+   its run-local ones. `step()` runs one unpaced frame; `finish()` ends the run
    and settles the replay's result into `outcome` (`InnerGameOutcome`: `RUNNING`, `ENDED` or
    `FAILED`, the frames run, the replay's report, the error), without quitting pygame or
-   exiting. Only recordings run inner: live play, every tool flag, `--rebaseline`, `--audit`,
+   exiting. Only recordings run inner so far (a live game is the Arcade's sub-plan 7): live play,
+   every tool flag, `--rebaseline`, `--audit`,
    `--compare-trace`, the frame stream, a watched replay's restart options, `--profile`,
    `--list-input-devices`, `--help` and `--version` (with argparse's prefixes and short-flag
-   clusters) raise `InnerGameRefusedError` before anything is built.
+   clusters, an exact engine flag being itself) raise `InnerGameRefusedError` before anything is
+   built, whether the host or the outer game's command line gave them.
 7. **A failure belongs to the inner game**: an `Exception` or `SystemExit` while building,
    stepping or finishing makes its outcome `FAILED`; the host and every other inner game go on,
    and the default context is current again after every call. `KeyboardInterrupt` and

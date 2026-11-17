@@ -50,6 +50,7 @@ from glitchygames.inner_game import (
     InnerGameOutcome,
     InnerGameRefusedError,
     InnerGameState,
+    inherited_arguments,
     is_refused_argument,
     is_refused_short_flag_cluster,
 )
@@ -1127,6 +1128,23 @@ class TestRefusals:
         assert stand_in.package not in sys.modules
         assert current_context() is default_context()
 
+    @pytest.mark.parametrize('arguments', [('--sound-cache', 'ram'), ('--sound-cache=ram',)])
+    def test_an_engine_flag_that_begins_a_refused_flag_is_itself(
+        self, stand_in: StandInGame, recording: Path, arguments: tuple[str, ...]
+    ):
+        """Argparse takes an exact flag before any abbreviation: --sound-cache is the cache mode.
+
+        It begins --sound-cache-list and the other sound-cache tools' flags, all refused; an
+        abbreviation only they share is still one of them, so it is refused.
+        """
+        inner_game = replay_stand_in(game=stand_in, path=recording, arguments=arguments)
+
+        play_to_the_end(inner_game)
+
+        assert inner_game.outcome.state is InnerGameState.ENDED, inner_game.outcome
+        assert is_refused_argument(argument='--sound-cache-l')
+        assert is_refused_argument(argument='--sound-cache-fi')
+
     def test_a_cluster_whose_value_holds_a_refused_letter_is_the_games(
         self, stand_in: StandInGame, recording: Path
     ):
@@ -1727,3 +1745,75 @@ def outer_heard_set_start(*, set_number: int) -> int:
 
     """
     return LIVE_POOL + LIBRARY_CHANNELS + set_number * LIBRARY_CHANNELS
+
+
+def build_a_host(*, mocker: MockerFixture, arguments: tuple[str, ...]) -> GoldenTraceEngine:
+    """An outer game's engine, built (never started) from a command line: the current engine.
+
+    Returns:
+        The engine.
+    """
+    host_game = type('OptionsHost', (Scene,), {'NAME': 'OptionsHost'})
+    mocker.patch.object(sys, 'argv', ['options-host', *arguments])
+    return GoldenTraceEngine(game=host_game)
+
+
+def inner_options(inner_game: InnerGame) -> dict[str, object]:
+    """The inner game's engine's options, read in its own context.
+
+    Returns:
+        The options.
+    """
+    engine = inner_game.context.value(slot=CURRENT_ENGINE_SLOT).engine
+    assert engine is not None
+    return engine.options
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestTheOuterGamesOptions:
+    """Rule 1: an inner game is given the outer game's command line, then the host's arguments."""
+
+    def test_an_inner_game_runs_with_the_outer_games_options(
+        self, stand_in: StandInGame, recording: Path, mocker: MockerFixture
+    ):
+        """An Arcade run with --sound-cache none runs its tiles so (no recording overrides it)."""
+        build_a_host(mocker=mocker, arguments=('--sound-cache', 'none', *QUIET))
+
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        options = inner_options(inner_game)
+        play_to_the_end(inner_game)
+
+        assert inner_game.outcome.state is InnerGameState.ENDED, inner_game.outcome
+        assert options['sound_cache'] == 'none'
+
+    def test_the_hosts_own_arguments_win_over_the_outer_games(
+        self, stand_in: StandInGame, recording: Path, mocker: MockerFixture
+    ):
+        """They come last, and argparse keeps the last value given."""
+        build_a_host(mocker=mocker, arguments=('--log-level', 'warning'))
+
+        inner_game = replay_stand_in(game=stand_in, path=recording, arguments=QUIET)
+        options = inner_options(inner_game)
+        play_to_the_end(inner_game)
+
+        assert options['log_level'] == 'error'
+
+    def test_an_outer_game_run_with_a_refused_flag_cannot_host_one(
+        self, stand_in: StandInGame, recording: Path, mocker: MockerFixture
+    ):
+        """The refusal is the same as for the host's own arguments: nothing is built."""
+        build_a_host(mocker=mocker, arguments=('--profile', *QUIET))
+
+        with pytest.raises(InnerGameRefusedError, match='--profile cannot run inside'):
+            replay_stand_in(game=stand_in, path=recording)
+
+        assert stand_in.package not in sys.modules
+
+
+def test_the_outer_games_positionals_are_never_passed_on():
+    """After the outer game's bare ``--`` come its own positionals, never options."""
+    assert inherited_arguments(command_arguments=('--sound-cache', 'none', '--', '--audit')) == (
+        '--sound-cache',
+        'none',
+    )
+    assert inherited_arguments(command_arguments=()) == ()

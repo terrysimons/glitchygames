@@ -263,6 +263,19 @@ def test_verifying_reports_a_file_that_cannot_be_read(tmp_path, mocker):
     ]
 
 
+def test_verifying_one_game_checks_only_its_folders(tmp_path):
+    """``game=`` reads that game's files, every render version of them, and no other game's."""
+    _write_sounds(tmp_path, game='clockwork_keep', version=CURRENT, count=2)
+    _write_sounds(tmp_path, game='clockwork_keep', version=CURRENT - 1, count=1)
+    _write_sounds(tmp_path, game='paddleslap', version=CURRENT, count=3)
+    (other,) = (tmp_path / 'paddleslap').rglob('00*.wav')
+    other.write_bytes(b'not a sound')
+
+    report = verify(root=tmp_path, game='clockwork_keep')
+
+    assert (report.checked, report.damaged) == (3, ())
+
+
 FIXTURE_SOUNDS = Path(__file__).parent / 'fixtures' / 'sounds'
 
 

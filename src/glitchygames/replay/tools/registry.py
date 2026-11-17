@@ -62,6 +62,18 @@ from glitchygames.replay.tools.report import (
     report_command,
     report_on_the_game,
 )
+from glitchygames.replay.tools.sound_cache_tools import (
+    sound_cache_clear_command,
+    sound_cache_clear_on_the_game,
+    sound_cache_fill_command,
+    sound_cache_fill_on_the_game,
+    sound_cache_list_command,
+    sound_cache_list_on_the_game,
+    sound_cache_size_command,
+    sound_cache_size_on_the_game,
+    sound_cache_verify_command,
+    sound_cache_verify_on_the_game,
+)
 from glitchygames.replay.tools.sound_tools import (
     MIGRATED_SUFFIX,
     sound_migrate_command,
@@ -1063,6 +1075,27 @@ GAMES_OPTION = ToolOption(
         f"game each recording's header names): {GAME_FORMS_TEXT}"
     ),
 )
+# The sound-cache-* commands' games (glitchygames/replay/tools/sound_cache_tools.py): each one
+# named works on its own cache folder, run as a child
+SOUND_CACHE_GAMES_OPTION = ToolOption(
+    flag='--game',
+    kind='games',
+    metavar='GAME',
+    help=(
+        'a game whose own sound cache folder to work on, given once per game (default: the '
+        "whole cache root; for sound-cache-fill, the project's [tool.glitchygames] games): "
+        f'{GAME_FORMS_TEXT}'
+    ),
+)
+STALE_ONLY_OPTION = ToolOption(
+    flag='--stale-only',
+    kind='flag',
+    help=(
+        "with --sound-cache-clear: remove only render versions older than this engine's (a "
+        'newer one may belong to another engine sharing the folder)'
+    ),
+    default=False,
+)
 
 # report's options (glitchygames/replay/tools/report.py), as scripts/recording_report.py's parser
 # described them: the same types (any number, any integer) and defaults
@@ -1352,5 +1385,91 @@ TOOLS: tuple[Tool, ...] = (
         value_metavar='FILE',
         value_help='the version 0 recipe file ([recipes.<name>] tables)',
         project_root_use='unused',
+    ),
+    Tool(
+        name='sound-cache-list',
+        help=(
+            "list the sound cache's folders, one line each (game, render version, sounds, size, "
+            'whether stale), then the total; on a game, its own folders; the cache root is '
+            "GLITCHYGAMES_SOUND_CACHE_ROOT's (unset: the platform cache folder); exits "
+            f'{ExitCode.SUCCESS:d}, {ExitCode.OPTIONS_REFUSED:d} when that is empty (no disk '
+            'cache); runs no game (default: off)'
+        ),
+        options=(),
+        runs_game=False,
+        game_handler=sound_cache_list_on_the_game,
+        command_handler=sound_cache_list_command,
+        value_kind='flag',
+        command_arguments=(SOUND_CACHE_GAMES_OPTION,),
+        # --project-root is only where a named game runs: no settings are read
+        project_root_use='working-directory',
+    ),
+    Tool(
+        name='sound-cache-size',
+        help=(
+            'say in one line how much the sound cache holds, stale render versions counted apart; '
+            'on a game, its own folders; exits '
+            f'{ExitCode.SUCCESS:d}, {ExitCode.OPTIONS_REFUSED:d} with no disk cache; runs no game '
+            '(default: off)'
+        ),
+        options=(),
+        runs_game=False,
+        game_handler=sound_cache_size_on_the_game,
+        command_handler=sound_cache_size_command,
+        value_kind='flag',
+        command_arguments=(SOUND_CACHE_GAMES_OPTION,),
+        # --project-root is only where a named game runs: no settings are read
+        project_root_use='working-directory',
+    ),
+    Tool(
+        name='sound-cache-verify',
+        help=(
+            'read every sound cache file back and list each damaged one and why, removing nothing; '
+            f'on a game, its own folders; exits {ExitCode.SUCCESS:d}, '
+            f'{ExitCode.UNUSABLE_INPUT:d} when a file is damaged, {ExitCode.OPTIONS_REFUSED:d} '
+            'with no disk cache; runs no game (default: off)'
+        ),
+        options=(),
+        runs_game=False,
+        game_handler=sound_cache_verify_on_the_game,
+        command_handler=sound_cache_verify_command,
+        value_kind='flag',
+        command_arguments=(SOUND_CACHE_GAMES_OPTION,),
+        # --project-root is only where a named game runs: no settings are read
+        project_root_use='working-directory',
+    ),
+    Tool(
+        name='sound-cache-clear',
+        help=(
+            "remove the sound cache's folders (every game's, or with --game each game's own; "
+            '--stale-only: only older render versions), never anything else under the root; '
+            f'exits {ExitCode.SUCCESS:d}, {ExitCode.OPTIONS_REFUSED:d} with no disk cache; runs no '
+            'game (default: off)'
+        ),
+        options=(STALE_ONLY_OPTION,),
+        runs_game=False,
+        game_handler=sound_cache_clear_on_the_game,
+        command_handler=sound_cache_clear_command,
+        value_kind='flag',
+        command_arguments=(SOUND_CACHE_GAMES_OPTION,),
+        # --project-root is only where a named game runs: no settings are read
+        project_root_use='working-directory',
+    ),
+    Tool(
+        name='sound-cache-fill',
+        help=(
+            "compile a game's declared sounds and the CRT power-on's into its sound cache folder "
+            'ahead of time, so even its first launch reads them all (the command: each --game, '
+            "else the project's [tool.glitchygames] games); exits "
+            f'{ExitCode.SUCCESS:d}, {ExitCode.OPTIONS_REFUSED:d} with no disk cache; runs no game '
+            '(default: off)'
+        ),
+        options=(),
+        runs_game=False,
+        game_handler=sound_cache_fill_on_the_game,
+        command_handler=sound_cache_fill_command,
+        value_kind='flag',
+        command_arguments=(SOUND_CACHE_GAMES_OPTION,),
+        project_root_use='project',
     ),
 )

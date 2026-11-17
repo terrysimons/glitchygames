@@ -19,6 +19,7 @@ import pytest
 
 from glitchygames import __main__ as glitchygames_main
 from glitchygames.argument_types import non_negative_int, non_negative_percent
+from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
 from glitchygames.engine import GameEngine
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import OutputCapture, run_command
@@ -264,6 +265,11 @@ def test_each_subcommands_project_root_help_says_what_its_tool_does_with_it():
         'performance-pages': 'project',
         'sound-render': 'unused',
         'sound-migrate': 'unused',
+        'sound-cache-list': 'working-directory',
+        'sound-cache-size': 'working-directory',
+        'sound-cache-verify': 'working-directory',
+        'sound-cache-clear': 'working-directory',
+        'sound-cache-fill': 'project',
     }
 
 
@@ -281,6 +287,9 @@ def test_a_tool_that_reads_the_settings_finds_the_project_above_the_current_dire
     subdirectory = tmp_path / 'tests' / 'deeper'
     subdirectory.mkdir(parents=True)
     monkeypatch.chdir(subdirectory)
+    # sound-cache-fill refuses without a disk cache before it reads anything (the harness's root
+    # is empty): give it one, so it reaches the settings
+    monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, str(tmp_path / 'sound-cache'))
     settings_tools = [tool for tool in TOOLS if tool.project_root_use == 'project']
 
     statuses = {

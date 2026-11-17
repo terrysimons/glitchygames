@@ -225,11 +225,12 @@ def clear(*, root: Path | str, game: str | None = None, stale_only: bool = False
     )
 
 
-def verify(*, root: Path | str) -> VerifyReport:
+def verify(*, root: Path | str, game: str | None = None) -> VerifyReport:
     """Read every cache folder's sound files back and report the damaged ones (rule 5).
 
     Args:
         root: The cache root, a path or its text.
+        game: Only this game's folders; None for every game's.
 
     Returns:
         What was checked and found.
@@ -237,6 +238,8 @@ def verify(*, root: Path | str) -> VerifyReport:
     checked = 0
     damaged: list[DamagedFile] = []
     for folder in inventory(root=root).folders:
+        if game is not None and folder.game != game:
+            continue
         for path in sorted(folder.path.rglob(f'*{SOUND_SUFFIX}')):
             checked += 1
             try:
