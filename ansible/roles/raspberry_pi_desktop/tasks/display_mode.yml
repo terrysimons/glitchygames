@@ -53,9 +53,15 @@
       Type=Application
       Name=GlitchyGames display mode
       Comment=Sets this session's display mode with {{ raspberry_pi_display_tool }} at login (ansible/raspberry_pi_runner.yml)
-      Exec=/usr/local/lib/glitchygames/{{ raspberry_pi_display_wrapper }} {{ raspberry_pi_display_mode.width }} {{ raspberry_pi_display_mode.height }} {{ raspberry_pi_display_mode.refresh_rates | join(',') }}
+      Exec={{ raspberry_pi_display_exec }}
       NoDisplay=true
       X-GNOME-Autostart-enabled=true
+  vars:
+    # The wrapper and the inventory's mode, folded onto one line (an Exec line can't wrap)
+    raspberry_pi_display_exec: >-
+      /usr/local/lib/glitchygames/{{ raspberry_pi_display_wrapper }}
+      {{ raspberry_pi_display_mode.width }} {{ raspberry_pi_display_mode.height }}
+      {{ raspberry_pi_display_mode.refresh_rates | join(',') }}
 
 - name: Set the runner's display mode
   become: true

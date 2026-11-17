@@ -1738,7 +1738,8 @@ def test_each_login_applies_the_mode_through_the_desktops_autostart(os_name):
     tasks = role_tasks('raspberry_pi_desktop', 'display_mode.yml')
     expected = OS_DISPLAY[os_name]
     directory = task(tasks, "Create the runner's autostart directory")['ansible.builtin.file']
-    entry = task(tasks, 'Apply the display mode at each login')['ansible.builtin.copy']
+    entry_task = task(tasks, 'Apply the display mode at each login')
+    entry = entry_task['ansible.builtin.copy']
 
     assert directory == {
         'path': '{{ raspberry_pi_runner_home }}/.config/autostart',
@@ -1755,7 +1756,11 @@ def test_each_login_applies_the_mode_through_the_desktops_autostart(os_name):
         '{{ ci_user }}',
         '0644',
     )
-    lines = rendered_display(entry['content'], os_name=os_name, host=expected.host).splitlines()
+    # The task's own variable, as Ansible fills it in before the content
+    content = entry['content'].replace(
+        '{{ raspberry_pi_display_exec }}', entry_task['vars']['raspberry_pi_display_exec']
+    )
+    lines = rendered_display(content, os_name=os_name, host=expected.host).splitlines()
     assert '[Desktop Entry]' in lines
     assert 'Type=Application' in lines
     assert f'Exec=/usr/local/lib/glitchygames/{expected.wrapper} 1920 1080 120.0' in lines
