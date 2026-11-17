@@ -450,7 +450,7 @@ def test_a_sprite_without_pixels_or_animations_splits_into_one_empty_sprite():
     """Like an animated frame without pixels, a static sprite without them is one empty frame."""
     (only,) = split_documents('[sprite]\nname = "empty"\n')
     assert only['sprite']['name'] == 'empty-default-0'
-    assert only['sprite']['pixels'].strip() == ''
+    assert not only['sprite']['pixels'].strip()
     assert 'colors' not in only
 
 
@@ -464,7 +464,7 @@ def test_a_frame_without_pixels_becomes_an_empty_sprite():
     text = '[sprite]\nname = "x"\n[[animation]]\nnamespace = "walk"\n[[animation.frame]]\n'
     (only,) = split_documents(text)
     assert only['sprite']['name'] == 'x-walk-0'
-    assert only['sprite']['pixels'].strip() == ''
+    assert not only['sprite']['pixels'].strip()
     assert 'colors' not in only
 
 
@@ -473,7 +473,7 @@ def test_empty_pixels_and_empty_colors_are_written_and_parse_back():
     document = {'sprite': {'name': 'x', 'pixels': ''}, 'colors': {}}
     written = parse_sprite_toml(text=write_sprite_toml(data=document), source_name='test')
     assert written['sprite']['name'] == 'x'
-    assert written['sprite']['pixels'].strip() == ''
+    assert not written['sprite']['pixels'].strip()
     assert 'colors' not in written
 
 

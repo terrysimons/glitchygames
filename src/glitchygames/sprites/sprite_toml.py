@@ -263,10 +263,8 @@ def split_sprite_text(*, text: str) -> list[str]:
     Returns:
         One TOML text per frame, in animation and frame order.
 
-    Raises:
-        ValueError: If the text is not valid TOML.
-
     """
+    # parse_sprite_toml raises ValueError for text that is not valid TOML
     document = parse_sprite_toml(text=text, source_name='sprite text')
     sprite: Mapping[str, Any] = document.get('sprite', {})
     sprite_name = sprite.get('name', 'animated_sprite')
