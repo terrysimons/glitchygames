@@ -316,6 +316,67 @@ The helpers build `pygame.Surface`s with `SRCALPHA` in the test file.
 
 ---
 
+---
+
+### Task 6: saving keeps the loaded palette
+
+Added after the final review (the owner, 2026-11-17: "Keep the palette"). Measured then: loading a
+sprite and saving it again dropped unused palette entries in 16 of the 92 member sprite files
+(toadstool's unused `█`, laser_dot's 11, saved's 9) and merged duplicate colors (slime-jump's B and
+D, b and d, which share a color but not a glyph). The drawn pixels were identical, but the spec says
+a round trip keeps the same parsed data, and Part 2's converter reasons over palettes.
+
+**Files:**
+- Modify: `src/glitchygames/sprites/animated.py` (what the sprite remembers on load; how
+  `to_text` builds `[colors]` and the pixel rows)
+- Modify: `src/glitchygames/testing/sprite_files.py`, `tests/test_workspace_sprite_files.py`
+- Test: `tests/sprites/test_sprite_text.py`, Bitmappy's save tests
+
+**Interfaces:**
+- Consumes: Task 4's `sprite_to_text` / `AnimatedSprite.to_text`.
+- Produces: `check_save_keeps_the_parsed_document(*, sprite_file: Path) -> None` in
+  `glitchygames.testing.sprite_files`.
+
+**The rules:**
+- A loaded sprite remembers its `[colors]` table: every glyph, its color and alpha, in file order.
+  Saving writes every remembered entry, used or not.
+- A frame whose pixels haven't changed since it was loaded keeps its loaded rows exactly, glyph for
+  glyph, so two glyphs sharing a color both survive.
+- A frame whose pixels changed (an edit, as in Bitmappy) writes each pixel with the first
+  remembered glyph of its color; a color the palette doesn't have gets a new glyph, as today.
+- A sprite built in code (no loaded palette) is written as today.
+
+- [ ] **Step 1: Write the failing tests**
+
+```python
+@pytest.mark.parametrize('sprite_file', MEMBER_SPRITE_FILES, ids=sprite_file_id)
+def test_save_keeps_the_parsed_document(sprite_file):
+    check_save_keeps_the_parsed_document(sprite_file=sprite_file)
+    # parse_sprite_toml(sprite_to_text(load(file))) == parse_sprite_toml(file's text)
+
+def test_two_glyphs_sharing_a_color_both_survive_a_save():
+    text = sprite_to_text(sprite=sprite_from_text(text=TWO_GLYPHS_ONE_COLOR_TEXT, source_name='t'))
+    assert parse_sprite_toml(text=text, source_name='t') == parse_sprite_toml(text=TWO_GLYPHS_ONE_COLOR_TEXT, source_name='t')
+
+def test_an_unused_color_survives_a_save(): ...  # same shape, a [colors] entry no pixel uses
+
+def test_an_edited_pixel_takes_the_first_glyph_of_its_color(): ...  # edit a pixel to an existing color
+def test_an_edited_pixel_of_a_new_color_gets_a_new_glyph(): ...
+```
+
+The parametrized check goes in `tests/test_workspace_sprite_files.py` (a repository test), the
+rest in `tests/sprites/test_sprite_text.py` on hand-written fixtures.
+
+- [ ] **Step 2: Run them and watch them fail** (16 member files and slime-jump fail today)
+
+- [ ] **Step 3: Implement the rules above** in `animated.py`; Bitmappy's saves go through the same
+  `to_text`, so its tests run too.
+
+- [ ] **Step 4: Run** `uv run pytest --dummy-only --no-cov tests/sprites tests/test_workspace_sprite_files.py tests/test_suite_collection.py src/games src/demos src/apps -q`, then
+  `uv run nox -s test-3.14` (the whole suite, non-editable, 100% coverage) — Expected: PASS
+
+- [ ] **Step 5: Commit**
+
 ## Done when
 
 - Every task's tests pass; the gates pass in order; the whole suite passes on 3.14 and 3.15
