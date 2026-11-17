@@ -631,15 +631,15 @@ the code it exits with as `Exiting with OPTIONS_REFUSED (64)`, at INFO (shown wi
 | 1 | `REPLAY_DIVERGED` | A replay's frames differ from the recording |
 | 2 | `ARGUMENT_PARSER_ERROR` | A usage error from argparse; the engine never exits with it itself |
 | 3 | `AUDIT_NONDETERMINISTIC` | `--audit`'s two runs differ from each other or from the recording |
-| 4 | `GENERATION_REJECTED` | The API server rejected the sprite client's generation request |
-| 5 | `EXTRACTION_REJECTED` | The API server rejected the sprite client's frame extraction |
+| 4 | `GENERATION_REJECTED` | The sprite client's generation failed (the AI's answer was not a valid sprite, or nothing could be rendered) |
+| 5 | `EXTRACTION_REJECTED` | The sprite client's frame extraction failed (the file is not an APNG or a sprite) |
 | 6 | `AUDIO_DROPOUT_RISK` | `scripts/audio_glitch_probe.py` found a risk of audio dropouts |
 | 7 | `REBASELINE_INPUT_LOST` | `--rebaseline` wrote NEW, but the run never received some of OLD's input (it ended early, or did not pump a recorded batch) |
 | 8 | `PROCESSING_SLOWER` | A replay matched, but its processing time exceeded the recording's by more than `--max-processing-slowdown` |
 | 64 | `OPTIONS_REFUSED` | The engine refuses the options given (a combination it will not run) |
-| 65 | `UNUSABLE_INPUT` | The recording or input data is unusable (another game's recording, an unsupported format version, a corrupt or unreadable file, a bad server response) |
+| 65 | `UNUSABLE_INPUT` | The recording or input data is unusable (another game's recording, an unsupported format version, a corrupt or unreadable file, a malformed response) |
 | 66 | `MISSING_INPUT` | The input file does not exist |
-| 69 | `SERVICE_UNAVAILABLE` | A required service (the API server) cannot be reached |
+| 69 | `SERVICE_UNAVAILABLE` | A required service (the local AI service) is not installed, cannot be reached, or answered an error |
 | 70 | `INTERNAL_ERROR` | An uncaught exception during a run or its teardown (logged with its traceback, after the teardown), or an audit that could not run |
 | 73 | `CANNOT_WRITE_OUTPUT` | An output file or directory cannot be created or written (a rebaseline's new recording could not be moved into place) |
 | 129 | `HANGUP` | Stopped by SIGHUP (Unix only) |
