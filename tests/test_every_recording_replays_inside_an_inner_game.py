@@ -28,8 +28,8 @@ same answers heard or silent. Whenever no tile is heard nothing a tile played ma
 (``assert_no_tile_is_heard``): no unreserved channel plays (a silent tile's plain plays reach
 none, and a switched-away tile's were stopped) and every chunk on a tile's live pool is at
 volume 0. At the switch away, what the tile had sounding is checked off the mixer at once
-(``Tile.switch_away``). A tile whose game plays sounds (``PLAYS_SOUNDS``) must have been heard
-while heard, and no other may have played one, so the switched run proves something. A heard
+(``Tile.switch_away``). A tile whose recording plays sounds (``PLAYS_SOUNDS``) must have been
+heard while heard, and no other may have played one, so the switched run proves something. A heard
 sound is a plain play of the tile's, or a voice on the heard set it holds (the games' sounds
 moved onto the sound library: plans/2026-11-14-sound-migration.md), so Review Focus 4's "the
 newly heard game's next sound is heard" is shown here for both; live voices' are covered by unit
@@ -133,9 +133,22 @@ DECLARED_TILES = 3
 # frames to two thirds (of the frames its reference replayed)
 HEARD_FROM_FRACTION = 1 / 3
 HEARD_UNTIL_FRACTION = 2 / 3
-# The console scripts whose recordings play sounds in their heard frames (plain plays, or voices
-# on a heard set: the others play none), so a heard run that heard nothing fails
-PLAYS_SOUNDS = frozenset({'paddleslap', 'brave-adventurer', 'clockwork-keep', 'mr-muncher'})
+# The recordings that play sounds in their heard frames (plain plays, or voices on a heard set:
+# the others play none), so a heard run that heard nothing fails. By recording, not game: one game
+# may record both (Zombies Ain't My Neighbors' neighborhood plays sounds, its title none)
+PLAYS_SOUNDS = frozenset({
+    ('brave-adventurer', 'classic.jsonl.gz'),
+    ('brave-adventurer', 'golden-classic.jsonl.gz'),
+    ('brave-adventurer', 'golden-papyrus.jsonl.gz'),
+    ('brave-adventurer', 'papyrus.jsonl.gz'),
+    ('clockwork-keep', 'climb.jsonl.gz'),
+    ('clockwork-keep', 'golden.jsonl.gz'),
+    ('mr-muncher', 'chase.jsonl.gz'),
+    ('mr-muncher', 'golden.jsonl.gz'),
+    ('paddleslap', 'golden.jsonl.gz'),
+    ('paddleslap', 'rally.jsonl.gz'),
+    ('zombies-aint-my-neighbors', 'golden-neighborhood.jsonl.gz'),
+})
 
 
 @pytest.fixture(autouse=True)
@@ -721,9 +734,10 @@ def test_a_recording_replays_inside_a_tile_beside_another_as_it_does_alone(
             )
     heard_tile = switched['tile']
     assert heard_tile.switched_away, f'{heard_tile.label} was never switched away from'
-    # A game that plays sound was heard while heard: the switched run proves something
-    tile_script = tile[0]
-    assert (heard_tile.frames_with_a_heard_sound > 0) == (tile_script in PLAYS_SOUNDS), (
+    # A recording that plays sound was heard while heard: the switched run proves something
+    tile_script, tile_recording = tile
+    plays_sounds = (tile_script, tile_recording.name) in PLAYS_SOUNDS
+    assert (heard_tile.frames_with_a_heard_sound > 0) == plays_sounds, (
         f'{heard_tile.label}: {heard_tile.frames_with_a_heard_sound} heard frames sounding'
     )
 
@@ -809,3 +823,8 @@ def test_a_partner_is_the_next_recording_not_known_to_diverge():
         assert not diverges_inside_a_tile(console_script=partner_script, recording=partner)
         if not diverges_inside_a_tile(console_script=next_script, recording=next_recording):
             assert (partner_script, partner) == (next_script, next_recording)
+
+
+def test_every_recording_said_to_play_sounds_exists():
+    """``PLAYS_SOUNDS`` names only recordings that exist: a renamed one cannot slip out of it."""
+    assert {(console_script, path.name) for console_script, path in RECORDINGS} >= PLAYS_SOUNDS

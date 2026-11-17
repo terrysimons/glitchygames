@@ -2,7 +2,8 @@
 
 **Status (2026-11-15):** APPROVED, then REVISED: the approved design reused sprites across stages;
 building found that breaks partway playback (below), and the owner chose option 2 ("Option 2"):
-the kit holds the next stage's fresh sprites, built ahead, each used once. BUILT, uncommitted.
+the kit holds the next stage's fresh sprites, built ahead, each used once. BUILT, committed
+(82074978).
 
 **Master plan:** [2026-11-14-zombies-aint-my-neighbors.md](2026-11-14-zombies-aint-my-neighbors.md)
 (decision 11: heavy work before play; the Game TODO "hide the 0.32 s hitch when a stage is built").

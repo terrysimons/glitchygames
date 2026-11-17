@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import math
 import operator
+import weakref
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Final, Self, override
 
@@ -154,6 +155,16 @@ class Zombie(AnimatedSprite):
         self.flash_seconds = 0.0
         self.is_gone = False
         self.hidden = False
+        # What it chases (feature plan 10): a kid, a neighbor or a laser dot, held weakly so a
+        # zombie keeps nothing alive (a crumbling, grabbing or pooled one stops looking, and its
+        # old target may leave the yard); and whether it changed this frame (its first counts)
+        self._target: weakref.ReferenceType[Kid | Neighbor | LaserDot] | None = None
+        self.new_target = False
+
+    @property
+    def target(self) -> Kid | Neighbor | LaserDot | None:
+        """What it chases: a kid, a neighbor or a laser dot; None for nothing, or when gone."""
+        return None if self._target is None else self._target()
 
     def put_away(self) -> None:
         """Be gone: hidden, kept in its groups for a pool to reuse."""
@@ -209,12 +220,17 @@ class Zombie(AnimatedSprite):
                 ``LURE_DISTANCE`` of the zombie's feet draws it instead, until its feet are on it.
 
         """
+        self.new_target = False
         if self.is_grabbing or self.is_dying:
             return
-        goal = self._lure(dots=dots) or self._nearest_prey(kids=kids, neighbors=neighbors)
-        if goal is None:
+        chosen = self._lure(dots=dots) or self._nearest_prey(kids=kids, neighbors=neighbors)
+        target = None if chosen is None else chosen[1]
+        self.new_target = target is not None and target is not self.target
+        self._target = None if target is None else weakref.ref(target)
+        if chosen is None:
             self.moving = False
             return
+        goal, _target = chosen
         offset_x = goal[0] - self.world_x
         offset_y = goal[1] - self.world_y
         distance = math.hypot(offset_x, offset_y)
@@ -227,11 +243,11 @@ class Zombie(AnimatedSprite):
         self.world_y += offset_y / distance * step
         self.moving = True
 
-    def _lure(self, *, dots: Sequence[LaserDot]) -> tuple[float, float] | None:
-        """Return where the zombie stands on the nearest lit dot in reach, if any.
+    def _lure(self, *, dots: Sequence[LaserDot]) -> tuple[tuple[float, float], LaserDot] | None:
+        """Return where the zombie stands on the nearest lit dot in reach, and the dot, if any.
 
         Returns:
-            The frame's top-left that puts its feet on the dot, or None.
+            The frame's top-left that puts its feet on the dot, and the dot; or None.
 
         """
         feet_x, feet_y = self.world_x + FRAME_WIDTH / 2, self.world_y + FRAME_HEIGHT
@@ -245,15 +261,15 @@ class Zombie(AnimatedSprite):
             return None
         _distance, dot = min(in_reach, key=operator.itemgetter(0))
         centre_x, centre_y = dot.centre()
-        return (centre_x - FRAME_WIDTH / 2, centre_y - FRAME_HEIGHT)
+        return ((centre_x - FRAME_WIDTH / 2, centre_y - FRAME_HEIGHT), dot)
 
     def _nearest_prey(
         self, *, kids: Sequence[Kid], neighbors: Sequence[Neighbor]
-    ) -> tuple[float, float] | None:
-        """Return the frame's top-left of the nearest standing kid or neighbor, if any.
+    ) -> tuple[tuple[float, float], Kid | Neighbor] | None:
+        """Return the frame's top-left of the nearest standing kid or neighbor, and it, if any.
 
         Returns:
-            Its top-left (frames line up there), or None with none standing.
+            Its top-left (frames line up there) and it, or None with none standing.
 
         """
         standing: list[Kid | Neighbor] = [kid for kid in kids if kid.state is KidState.ACTIVE]
@@ -266,7 +282,7 @@ class Zombie(AnimatedSprite):
                 target.world_x - self.world_x, target.world_y - self.world_y
             ),
         )
-        return (target.world_x, target.world_y)
+        return ((target.world_x, target.world_y), target)
 
     def animation_name(self) -> str:
         """Return the animation for the zombie's state: grab or walk, in its drawn facing.

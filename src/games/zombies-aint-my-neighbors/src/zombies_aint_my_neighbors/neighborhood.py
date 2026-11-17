@@ -55,6 +55,7 @@ from zombies_aint_my_neighbors.art.palettes import KIDS
 from zombies_aint_my_neighbors.controls import DEFAULT_DEADZONE, player_direction, player_firing
 from zombies_aint_my_neighbors.exit_door import DOOR_SIZE, ExitDoor
 from zombies_aint_my_neighbors.game_over import GameOverScene
+from zombies_aint_my_neighbors.groans import GROAN_STREAM, GroanTimer
 from zombies_aint_my_neighbors.hud import Hud
 from zombies_aint_my_neighbors.kid import (
     FIRE_SECONDS,
@@ -73,6 +74,13 @@ from zombies_aint_my_neighbors.roster_scene import (
     gamepad_identity,
 )
 from zombies_aint_my_neighbors.run_state import NeighborKind, RunState, as_run
+from zombies_aint_my_neighbors.sounds import (
+    GROANS,
+    LASER_RISE,
+    LASER_SHINE,
+    ZAP,
+    sound_reference,
+)
 from zombies_aint_my_neighbors.sprite_kit import Part, PartKind, SpriteKit
 from zombies_aint_my_neighbors.tv import TV_SIZE, ZOMBIES_IN_ALL, Tv, TvHit, may_spawn
 from zombies_aint_my_neighbors.zap import (
@@ -88,6 +96,7 @@ from zombies_aint_my_neighbors.zombie import Zombie, touches
 if TYPE_CHECKING:
     from collections.abc import Collection, Mapping
 
+    from glitchygames.audio import PlayingSound, Sound
     from glitchygames.events.base import ControllerButtonEvent, JoyButtonEvent, KeyEvent
     from glitchygames.input.action_map import ActionMap
     from zombies_aint_my_neighbors.roster import DeviceIdentity
@@ -200,6 +209,31 @@ def _clamp(value: float, *, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
+# How far a sound pans at the screen's edges (feature plan 10): left edge -0.6, right edge 0.6
+PAN_WIDTH: Final = 0.6
+# How long a laser's sound takes to fade when it stops (the dot out, or a tap that never lit)
+LASER_FADE_SECONDS: Final = 0.06
+
+
+def pan_for(*, world_x: float, camera: Camera2D, screen_width: int) -> float:
+    """Return the pan of a sound made at a world x: by its place across the screen.
+
+    The camera's shake is left out: the picture shakes, the sound stays put. A sound beyond an
+    edge pans no further than that edge.
+
+    Args:
+        world_x: Where the sound is made (a kid's middle, a zombie's).
+        camera: The camera (its left edge is the screen's).
+        screen_width: The screen's width.
+
+    Returns:
+        From -``PAN_WIDTH`` (the left edge) to ``PAN_WIDTH`` (the right edge).
+
+    """
+    across = (world_x - camera.world_x) / screen_width
+    return _clamp((2.0 * across - 1.0) * PAN_WIDTH, low=-PAN_WIDTH, high=PAN_WIDTH)
+
+
 def stage_needs(*, run: RunState, joined_slots: Collection[int]) -> Counter[Part]:
     """Return every sprite a stage takes from the kit, in the order it takes them (plan 9).
 
@@ -272,6 +306,15 @@ class NeighborhoodScene(RosterScene):
             max_x=YARD_WIDTH - self.screen_width,
             max_y=YARD_HEIGHT - self.screen_height,
         )
+        # The game's sounds by name, requested in setup (feature plan 10)
+        self.sounds: dict[str, Sound] = {}
+        # Each slot's laser sounds playing (its rise, its looping shine), and what its laser was
+        # doing last frame (aiming, lit), so each sound starts and stops on the frame it changes
+        self._laser_rises: dict[int, PlayingSound] = {}
+        self._laser_shines: dict[int, PlayingSound] = {}
+        self._lasers_heard: dict[int, tuple[bool, bool]] = {}
+        # When zombies last groaned, for the rule that they groan only sometimes
+        self.groan_timer = GroanTimer()
         # The sprites built ahead on the stage card (feature plan 9): every sprite comes from it
         self.kit = kit if kit is not None else SpriteKit()
         self.mirror_cache = self.kit.mirror_cache
@@ -430,8 +473,14 @@ class NeighborhoodScene(RosterScene):
 
     @override
     def setup(self) -> None:
-        """Lay the yard under the kids (once: setting up again after a pause keeps it)."""
+        """Request the sounds and lay the yard (once each: a pause's return keeps them)."""
         super().setup()
+        if not self.sounds:
+            audio = self.scene_manager.audio
+            self.sounds = {
+                name: audio.sound(sound_reference(name))
+                for name in (ZAP, LASER_RISE, LASER_SHINE, *GROANS)
+            }
         if self._yard_drawn:
             return
         self.camera.add_background_layer(
@@ -500,6 +549,28 @@ class NeighborhoodScene(RosterScene):
         self._order_by_feet(zap, height=ZAP_SIZE)
         return zap
 
+    def _maybe_groan(self, zombie: Zombie) -> None:
+        """Let a zombie that found a new target groan, sometimes (feature plan 10, groans.py).
+
+        The roll and the moan come from the named stream, read now, so a replay repeats them.
+        """
+        stream = random_stream(GROAN_STREAM)
+        if self.groan_timer.should_groan(zombie=zombie, now=self.game_time, roll=stream.random):
+            self.sounds[stream.choice(GROANS)].play(pan=self._pan_at(zombie))
+
+    def _pan_at(self, sprite: Kid | Zombie) -> float:
+        """Return the pan of a sound a kid or zombie makes, by its middle across the screen.
+
+        Returns:
+            The pan.
+
+        """
+        return pan_for(
+            world_x=sprite.world_x + KID_WIDTH / 2,
+            camera=self.camera,
+            screen_width=self.screen_width,
+        )
+
     def _order_by_feet(
         self, sprite: Kid | Zombie | Tv | Zap | Neighbor | ExitDoor, *, height: int = KID_HEIGHT
     ) -> None:
@@ -533,6 +604,7 @@ class NeighborhoodScene(RosterScene):
         super().dt_tick(dt)
         if self.stage_cleared:
             self._cheer(dt)
+            self._sound_the_lasers()
             return
         snapshot = current_input()
         for player in self.roster.joined_players:
@@ -555,13 +627,50 @@ class NeighborhoodScene(RosterScene):
             self._order_kid(kid)
             if fired:
                 self.add_zap(kid=kid, slot_index=player.slot_index)
+                self.sounds[ZAP].play(pan=self._pan_at(kid))
         self._save_neighbors()
         self._run_tvs(dt)
         self._run_zombies(dt)
         self._run_zaps(dt)
         self._run_neighbors(dt)
         self._end_the_stage_when_done()
+        self._sound_the_lasers()
         self._show_hud()
+
+    def _sound_the_lasers(self) -> None:
+        """Start, pan and stop each kid's laser sounds by what its laser does now (plan 10).
+
+        Aiming starts the rise (the warm-up's wheee); lighting starts the shine, looping, and it
+        pans with the kid; the dot going out (let go, switched, knocked out, the battery dead)
+        fades the shine, and a tap let go before it lit fades the rise. A kid that left (its pad
+        unplugged) has its sounds faded too. Run after everything that can put a dot out.
+        """
+        for slot_index, kid in self.kids.items():
+            aiming, lit = kid.laser_aiming, kid.laser_lit
+            was_aiming, was_lit = self._lasers_heard.get(slot_index, (False, False))
+            pan = self._pan_at(kid)
+            if aiming and not was_aiming and not lit:
+                self._laser_rises[slot_index] = self.sounds[LASER_RISE].play(pan=pan)
+            if was_aiming and not aiming and not was_lit:
+                self._fade_laser_sound(self._laser_rises, slot_index)
+            if lit and not was_lit:
+                self._laser_shines[slot_index] = self.sounds[LASER_SHINE].play(pan=pan, loop=True)
+            elif lit:
+                self._laser_shines[slot_index].set_pan(pan)
+            if was_lit and not lit:
+                self._fade_laser_sound(self._laser_shines, slot_index)
+            self._lasers_heard[slot_index] = (aiming, lit)
+        for slot_index in [slot for slot in self._lasers_heard if slot not in self.kids]:
+            self._fade_laser_sound(self._laser_rises, slot_index)
+            self._fade_laser_sound(self._laser_shines, slot_index)
+            del self._lasers_heard[slot_index]
+
+    @staticmethod
+    def _fade_laser_sound(playing: dict[int, PlayingSound], slot_index: int) -> None:
+        """Fade a slot's laser sound out, if one plays, and forget it."""
+        sound = playing.pop(slot_index, None)
+        if sound is not None:
+            sound.stop(fade=LASER_FADE_SECONDS)
 
     def _save_neighbors(self) -> None:
         """Each standing kid saves each standing neighbor it touches (before zombies move)."""
@@ -653,6 +762,8 @@ class NeighborhoodScene(RosterScene):
             # in this frame puts its kid's dot out for the zombies after
             lit_dots = [kid.dot for kid in kids if kid.laser_lit]
             zombie.chase(kids=kids, neighbors=self.neighbors, dots=lit_dots, dt=dt)
+            if zombie.new_target:
+                self._maybe_groan(zombie)
             for slot_index, kid in self.kids.items():
                 # knock_out refuses a kid it can't touch (down, blinking or out)
                 if touches(zombie=zombie, kid=kid) and kid.knock_out(

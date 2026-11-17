@@ -1,0 +1,237 @@
+# The game's sounds, written by zombies_aint_my_neighbors/sound_rig.py (do not edit by
+# hand: change the rig and run it). Feature plan 10.
+
+[glitchygames]
+kind = "sounds"
+version = 1
+
+# The remote's zap: warbly theremin radio waves (the owner, 2026-11-15). Six swoops
+# between about 600 and 700 Hz, 0.22 s in all (under the 0.25 s firing rhythm), and a
+# quiet high hiss for the radio.
+[effects.zap]
+volume = 0.35
+
+[[effects.zap.tones]]
+waveform = "sine"
+start_frequency = 620.0
+end_frequency = 700.0
+easing = "ease_in_out_sine"
+offset = 0.0
+duration = 0.036364
+envelope = { attack = 0.004, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.zap.tones]]
+waveform = "sine"
+start_frequency = 700.0
+end_frequency = 600.0
+easing = "ease_in_out_sine"
+offset = 0.036364
+duration = 0.035385
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.zap.tones]]
+waveform = "sine"
+start_frequency = 600.0
+end_frequency = 690.0
+easing = "ease_in_out_sine"
+offset = 0.071749
+duration = 0.035659
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.zap.tones]]
+waveform = "sine"
+start_frequency = 690.0
+end_frequency = 610.0
+easing = "ease_in_out_sine"
+offset = 0.107408
+duration = 0.035385
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.zap.tones]]
+waveform = "sine"
+start_frequency = 610.0
+end_frequency = 670.0
+easing = "ease_in_out_sine"
+offset = 0.142793
+duration = 0.035937
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.zap.tones]]
+waveform = "sine"
+start_frequency = 670.0
+end_frequency = 630.0
+easing = "ease_in_out_sine"
+offset = 0.17873
+duration = 0.035385
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.03 }
+
+[[effects.zap.tones]]
+waveform = "noise"
+start_frequency = 1000.0
+offset = 0.0
+duration = 0.214115
+volume = 0.12
+high_pass_cutoff = 2500.0
+envelope = { attack = 0.01, decay = 0.05, sustain_level = 0.5, release = 0.05 }
+
+# The laser's warm-up: wheeee, rising over its 0.4 s. Four swoops, each overshooting a
+# little and settling back as the next begins, about 500 to 1400 Hz in all.
+[effects.laser-rise]
+volume = 0.3
+
+[[effects.laser-rise.tones]]
+waveform = "sine"
+start_frequency = 500.0
+end_frequency = 820.0
+easing = "ease_in_out_sine"
+offset = 0.0
+duration = 0.1
+envelope = { attack = 0.005, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.laser-rise.tones]]
+waveform = "sine"
+start_frequency = 780.0
+end_frequency = 1060.0
+easing = "ease_in_out_sine"
+offset = 0.1
+duration = 0.1
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.laser-rise.tones]]
+waveform = "sine"
+start_frequency = 1020.0
+end_frequency = 1300.0
+easing = "ease_in_out_sine"
+offset = 0.2
+duration = 0.1
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.laser-rise.tones]]
+waveform = "sine"
+start_frequency = 1260.0
+end_frequency = 1420.0
+easing = "ease_in_out_sine"
+offset = 0.3
+duration = 0.1
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.03 }
+
+# The laser shining: a high wobble, looped while the dot shines (faded out by the game
+# when it goes out). Four swoops in about 0.5 s with no fade at either end: it ends at
+# the pitch and phase it starts at, so the loop runs on unbroken.
+[effects.laser-shine]
+volume = 0.3
+
+[[effects.laser-shine.tones]]
+waveform = "sine"
+start_frequency = 1300.0
+end_frequency = 1500.0
+easing = "ease_in_out_sine"
+offset = 0.0
+duration = 0.125
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.laser-shine.tones]]
+waveform = "sine"
+start_frequency = 1500.0
+end_frequency = 1300.0
+easing = "ease_in_out_sine"
+offset = 0.125
+duration = 0.125
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.laser-shine.tones]]
+waveform = "sine"
+start_frequency = 1300.0
+end_frequency = 1500.0
+easing = "ease_in_out_sine"
+offset = 0.25
+duration = 0.125
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.laser-shine.tones]]
+waveform = "sine"
+start_frequency = 1500.0
+end_frequency = 1300.0
+easing = "ease_in_out_sine"
+offset = 0.375
+duration = 0.125
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+# A zombie's moan, falling: a low growl sinking from about 115 to 80 Hz.
+[effects.groan-1]
+volume = 0.5
+
+[[effects.groan-1.tones]]
+waveform = "sawtooth"
+start_frequency = 115.0
+end_frequency = 80.0
+easing = "ease_in_out_sine"
+offset = 0.0
+duration = 0.8
+low_pass_cutoff = 700.0
+distortion = 0.3
+envelope = { attack = 0.08, decay = 0.1, sustain_level = 0.8, release = 0.25 }
+tremolo = { rate_hz = 5.0, depth = 0.35 }
+
+# A zombie's moan, rising then falling: "uuhh-aaahh".
+[effects.groan-2]
+volume = 0.5
+
+[[effects.groan-2.tones]]
+waveform = "sawtooth"
+start_frequency = 85.0
+end_frequency = 125.0
+easing = "ease_in_out_sine"
+offset = 0.0
+duration = 0.352381
+low_pass_cutoff = 700.0
+distortion = 0.3
+envelope = { attack = 0.08, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.groan-2.tones]]
+waveform = "sawtooth"
+start_frequency = 125.0
+end_frequency = 78.0
+easing = "ease_in_out_sine"
+offset = 0.352381
+duration = 0.502463
+low_pass_cutoff = 700.0
+distortion = 0.3
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.25 }
+
+# A zombie's moan, wavering as it trails off.
+[effects.groan-3]
+volume = 0.5
+
+[[effects.groan-3.tones]]
+waveform = "sawtooth"
+start_frequency = 100.0
+end_frequency = 82.0
+easing = "ease_in_out_sine"
+offset = 0.0
+duration = 0.252747
+low_pass_cutoff = 700.0
+distortion = 0.3
+envelope = { attack = 0.08, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.groan-3.tones]]
+waveform = "sawtooth"
+start_frequency = 82.0
+end_frequency = 108.0
+easing = "ease_in_out_sine"
+offset = 0.252747
+duration = 0.221053
+low_pass_cutoff = 700.0
+distortion = 0.3
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.groan-3.tones]]
+waveform = "sawtooth"
+start_frequency = 108.0
+end_frequency = 80.0
+easing = "ease_in_out_sine"
+offset = 0.4738
+duration = 0.319149
+low_pass_cutoff = 700.0
+distortion = 0.3
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.25 }

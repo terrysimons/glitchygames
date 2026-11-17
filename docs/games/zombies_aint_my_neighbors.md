@@ -155,6 +155,26 @@ P1. The game has two golden replays: the title's (`golden.jsonl.gz`) and the nei
 zombie zapped and the top-left TV destroyed); `main` (`launcher.py`) starts a replay on the scene its
 recording names, as Brave Adventurer's launcher does.
 
+## Sounds
+
+Every sound is an effect in one sound file, `sounds/sounds.toml`, written by `sound_rig.py`. Do not
+edit the file by hand: change the rig and run
+`uv run python -m zombies_aint_my_neighbors.sound_rig`. The sounds are declared in `SOUNDS` on
+`RosterScene`, so the engine compiles them while the game starts.
+
+- **The remote's zap:** warbly theremin radio waves. Six swoops of a sine between about 600 and
+  700 Hz, 0.22 s (under the 0.25 s firing rhythm), with a faint hiss.
+- **The laser:** a rising "wheeee" through the 0.4 s warm-up, then a high wobble looping while the
+  dot shines, panning with the kid, and fading out when the dot goes out.
+- **The zombies:** three low moans. A zombie that finds a new target (a kid, a neighbor or a laser
+  dot) groans one time in three, never within 3 s of its own last groan and never within half a
+  second of any groan, so a crowd does not moan in chorus. The rolls come from the named stream
+  `zombies_aint_my_neighbors.zombie-groans`, so a replay repeats them.
+
+The engine has no vibrato in a baked sound yet (milestone M4), so each warble is a chain of swoops,
+each lasting a whole number of its own cycles so the chain is one unbroken wave. Each sound pans by
+its source's place across the screen (-0.6 at the left edge, 0.6 at the right).
+
 ## The join roster
 
 `JoinRoster` (`roster.py`) is a frozen pydantic model: four slots, each free or held by one

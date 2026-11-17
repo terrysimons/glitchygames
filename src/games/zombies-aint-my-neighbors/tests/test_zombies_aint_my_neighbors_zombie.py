@@ -5,15 +5,19 @@ Feature plan 5 (plans/2026-11-14-zombies-aint-my-neighbors-5-zombies.md), Task 4
 
 from __future__ import annotations
 
+import gc
 import itertools
 import math
+import weakref
 
 import pygame
 import pytest
 
 from zombies_aint_my_neighbors.kid import Kid, MirrorCache
 from zombies_aint_my_neighbors.laser import LaserDot
+from zombies_aint_my_neighbors.neighbor import Neighbor
 from zombies_aint_my_neighbors.neighborhood import WALK_SPEED
+from zombies_aint_my_neighbors.run_state import NeighborKind
 from zombies_aint_my_neighbors.zombie import (
     CRUMBLE_SECONDS,
     FADE_SECONDS,
@@ -428,3 +432,130 @@ def test_a_dot_that_has_gone_out_lures_nobody(cache):
     zombie.chase(kids=[kid], dt=0.5, dots=[dot])
 
     assert zombie.facing is ZombieFacing.RIGHT
+
+
+# What a zombie chases (feature plan 10): a new target is a chance to groan
+
+
+def test_a_zombies_first_target_is_new(cache):
+    """Spawned, the first thing it sees to chase is new to it."""
+    zombie = zombie_at(cache, 400.0, 300.0)
+    kid = kid_at(cache, 480.0, 300.0)
+
+    zombie.chase(kids=[kid], dt=SIXTIETH)
+
+    assert zombie.target is kid
+    assert zombie.new_target
+
+
+def test_chasing_the_same_target_again_is_not_new(cache):
+    """Still after the same kid next frame: nothing new."""
+    zombie = zombie_at(cache, 400.0, 300.0)
+    kid = kid_at(cache, 480.0, 300.0)
+    zombie.chase(kids=[kid], dt=SIXTIETH)
+
+    zombie.chase(kids=[kid], dt=SIXTIETH)
+
+    assert zombie.target is kid
+    assert not zombie.new_target
+
+
+def test_turning_to_a_nearer_kid_is_a_new_target(cache):
+    """Another kid comes closer than the one it chased: that one is new."""
+    zombie = zombie_at(cache, 400.0, 300.0)
+    far = kid_at(cache, 600.0, 300.0)
+    near = kid_at(cache, 700.0, 300.0)
+    zombie.chase(kids=[far, near], dt=SIXTIETH)
+    assert zombie.target is far
+
+    near.world_x = 440.0
+    zombie.chase(kids=[far, near], dt=SIXTIETH)
+
+    assert zombie.target is near
+    assert zombie.new_target
+
+
+def test_a_laser_dot_is_a_new_target_and_so_is_the_kid_after_it(cache):
+    """Lured off a kid by a dot, then back to the kid when the dot goes out: both are new."""
+    zombie = zombie_at(cache, 400.0, 300.0)
+    kid = kid_at(cache, 480.0, 300.0)
+    dot = dot_at(416.0, 348.0 + 100.0)
+    zombie.chase(kids=[kid], dt=SIXTIETH)
+
+    zombie.chase(kids=[kid], dt=SIXTIETH, dots=[dot])
+    assert zombie.target is dot
+    assert zombie.new_target
+    dot.go_out()
+    zombie.chase(kids=[kid], dt=SIXTIETH, dots=[dot])
+
+    assert zombie.target is kid
+    assert zombie.new_target
+
+
+def test_nobody_to_chase_is_no_target(cache):
+    """With every kid down, it chases nothing, and nothing is new."""
+    zombie = zombie_at(cache, 400.0, 300.0)
+    kid = kid_at(cache, 480.0, 300.0)
+    zombie.chase(kids=[kid], dt=SIXTIETH)
+    kid.knock_out(last_life=False)
+
+    zombie.chase(kids=[kid], dt=SIXTIETH)
+
+    assert zombie.target is None
+    assert not zombie.new_target
+
+
+def test_a_grabbing_zombie_finds_nothing_new(cache):
+    """Busy grabbing, it does not look for anything, so nothing is new that frame."""
+    zombie = zombie_at(cache, 400.0, 300.0)
+    kid = kid_at(cache, 480.0, 300.0)
+    zombie.chase(kids=[kid], dt=SIXTIETH)
+    zombie.grab()
+
+    zombie.chase(kids=[kid], dt=SIXTIETH)
+
+    assert not zombie.new_target
+
+
+def test_a_zombie_back_from_its_pool_starts_fresh(cache):
+    """Put away and spawned again, the kid it chased before is new to its new life."""
+    zombie = zombie_at(cache, 400.0, 300.0)
+    kid = kid_at(cache, 480.0, 300.0)
+    zombie.chase(kids=[kid], dt=SIXTIETH)
+    zombie.put_away()
+    zombie.spawn_at(world_x=400.0, world_y=300.0)
+
+    zombie.chase(kids=[kid], dt=SIXTIETH)
+
+    assert zombie.target is kid
+    assert zombie.new_target
+
+
+@pytest.mark.parametrize('state', ['crumbling', 'grabbing', 'put away'])
+def test_a_zombie_keeps_no_target_alive_after_it_leaves_the_yard(cache, state):
+    """A neighbor it chased, rescued and gone, is freed whatever the zombie is doing.
+
+    A crumbling or grabbing zombie stops looking, and a pooled one waits: none may keep its old
+    target in memory (the engine's removed-sprites guard,
+    tests/replay/test_removed_sprites_are_freed.py).
+    """
+    group = pygame.sprite.LayeredDirty()
+    neighbor = Neighbor(kind=NeighborKind.PIZZA_TEEN, world_x=500.0, world_y=300.0, groups=group)
+    zombie = zombie_at(cache, 400.0, 300.0)
+    zombie.chase(kids=[], neighbors=[neighbor], dt=SIXTIETH)
+    assert zombie.target is neighbor
+    if state == 'crumbling':
+        zombie.zap()
+    elif state == 'grabbing':
+        zombie.grab()
+    else:
+        zombie.put_away()
+    watcher = weakref.ref(neighbor)
+
+    neighbor.rescue()
+    neighbor.kill()
+    del neighbor
+    gc.collect()
+
+    assert watcher() is None
+    assert zombie.target is None

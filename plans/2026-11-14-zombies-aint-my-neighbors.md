@@ -277,14 +277,14 @@ designs are not.
   duplicate touchable check, an always-true zap check, and the game over's and the effect
   order's None checks, now properties that fail loudly (`GameOverScene.screen_picture`,
   `Neighbor.playing_effect`). The game's test routine now measures its coverage (memory).
-- [ ] **Sound and music** (the owner, 2026-11-15: "We do need sounds in the game though, we
+- [ ] **Sound and music** (begun by feature plan 10: the zap, the laser, the groans; the rest
+  below still to come) (the owner, 2026-11-15: "We do need sounds in the game though, we
   just haven't gotten there yet"): effects for the game's actions (zaps, TV spawns and hits,
   rescues and losses, knockouts, the laser, the gate, the stage clear, the game over) and a
   B-movie score as layered loops, all engine-native (decisions 3 and 11: sound files version 1,
   the instrument catalog, compiled in `setup()`); every game moved onto the sound library with
-  live instruments in #213, so build on that. Needs its own feature plan. When the goldens
-  first play a library sound, `tests/audio/test_audio_engine_goldens.py` fails by design: set
-  this game's two `SOUND_FOLDERS` entries from None to `zombies_aint_my_neighbors`.
+  live instruments in #213, so build on that. (Feature plan 10 set this game's two
+  `SOUND_FOLDERS` entries in `tests/audio/test_audio_engine_goldens.py` to its folder.)
 - [ ] **A game cannot declare an engine context slot yet** (found 2026-11-15, feature plan 9):
   `tests/test_engine_context_source_guards.py` requires an isolation check for every slot,
   members' included, in the engine's `ISOLATION_CHECKS`, but engine tests may never import a
@@ -331,7 +331,7 @@ when filed; this table links to them.
 Each feature gets its own plan in `plans/`, linked here and linking back to this file.
 
 1. [Registration and the 4-player title](2026-11-14-zombies-aint-my-neighbors-1-title-and-registration.md):
-   BUILT (2026-11-14), uncommitted, awaiting the owner's review. The title with four blinking
+   BUILT (2026-11-14), committed. The title with four blinking
    slots, joining from the keyboard or pads, the feature card, the golden replay, the browser
    bundle and the docs page (`docs/games/zombies_aint_my_neighbors.md`).
 2. [Character BOM](2026-11-14-zombies-aint-my-neighbors-2-character-bom.md) (decision 18): every
@@ -342,21 +342,24 @@ Each feature gets its own plan in `plans/`, linked here and linking back to this
 4. [The kids walk the neighborhood](2026-11-14-zombies-aint-my-neighbors-4-walking.md): BUILT,
    committed locally (bfa4544c).
 5. [Zombies come out of the TVs](2026-11-14-zombies-aint-my-neighbors-5-zombies.md): BUILT,
-   uncommitted, awaiting the owner's review. Four TVs spawn Lawn Zombies (6 to 9 s waits, 3 per
+   committed. Four TVs spawn Lawn Zombies (6 to 9 s waits, 3 per
    TV, 10 in all); zombies chase and knock kids out; kids recover and blink. The props BOM is
    started ([2026-11-14-zombies-aint-my-neighbors-props-bom.md](2026-11-14-zombies-aint-my-neighbors-props-bom.md)).
 6. [The Channel Changer](2026-11-15-zombies-aint-my-neighbors-6-channel-changer.md): BUILT,
-   uncommitted, awaiting the owner's review. The first weapon, a TV remote with unlimited zaps (owner,
+   committed. The first weapon, a TV remote with unlimited zaps (owner,
    2026-11-15); zombies crumble in one zap; TVs crack, smash and die in 3 zaps a stage.
 7. [Neighbors, lives and stages](2026-11-15-zombies-aint-my-neighbors-7-neighbors-and-lives.md):
-   BUILT, uncommitted, awaiting the owner's review. Neighbors to save, 3 lives each, an exit door at a
+   BUILT, committed. Neighbors to save, 3 lives each, an exit door at a
    stage's end, the next stage with only the neighbors saved (owner, 2026-11-15), and game over.
 8. [The laser pointer](2026-11-15-zombies-aint-my-neighbors-8-laser-pointer.md): BUILT,
-   uncommitted, awaiting the owner's review. A second weapon, a lure: zombies chase its dot; its battery
+   committed. A second weapon, a lure: zombies chase its dot; its battery
    gives 3 s of shine and recharges by itself (owner, 2026-11-15). K or Y switches weapons.
 9. [A sprite kit built ahead](2026-11-15-zombies-aint-my-neighbors-9-sprite-kit.md): BUILT,
-   uncommitted. The stage card builds the coming stage's sprites into a kit, a sprite a frame,
+   committed (82074978). The stage card builds the coming stage's sprites into a kit, a sprite a frame,
    and hands it to the stage, so no stage pauses to load (the owner's option 2, 2026-11-15).
+10. [The first sounds](2026-11-15-zombies-aint-my-neighbors-10-first-sounds.md): BUILT,
+   uncommitted. The remote's warbly theremin zap, the laser's "wheeee", and
+   zombies groaning sometimes at a new target (the owner's ask, 2026-11-15), as baked sounds.
 
 ## Sources
 

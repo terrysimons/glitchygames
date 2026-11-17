@@ -22,9 +22,11 @@ from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.tracing import StableSpriteIds
 from tests.input.stand_in_devices import STAND_IN_PAD
+from zombies_aint_my_neighbors import groans as groans_module
 from zombies_aint_my_neighbors.exit_door import OPENING_SECONDS
 from zombies_aint_my_neighbors.feature_card import CARD_SECONDS, FeatureCardScene
 from zombies_aint_my_neighbors.game_over import GameOverScene
+from zombies_aint_my_neighbors.groans import GROAN_REST_SECONDS
 from zombies_aint_my_neighbors.kid import (
     KID_HEIGHT,
     KID_WIDTH,
@@ -34,19 +36,23 @@ from zombies_aint_my_neighbors.kid import (
     KidState,
     Weapon,
 )
-from zombies_aint_my_neighbors.laser import FULL_SECONDS
+from zombies_aint_my_neighbors.laser import FULL_SECONDS, WARM_UP_SECONDS
 from zombies_aint_my_neighbors.neighbor import NEIGHBOR_PLACES, NeighborState
 from zombies_aint_my_neighbors.neighborhood import (
     CHEER_SECONDS,
+    LASER_FADE_SECONDS,
     LAWN_COLOUR,
+    PAN_WIDTH,
     SCREEN_MARGIN,
     WALK_SPEED,
     YARD_HEIGHT,
     YARD_WIDTH,
     NeighborhoodScene,
+    pan_for,
 )
 from zombies_aint_my_neighbors.roster import JoinRoster
 from zombies_aint_my_neighbors.run_state import NeighborKind, RunState
+from zombies_aint_my_neighbors.sounds import GROANS, LASER_RISE, LASER_SHINE, ZAP
 from zombies_aint_my_neighbors.title import TitleScene
 from zombies_aint_my_neighbors.tv import (
     SPAWN_MINIMUM_SECONDS,
@@ -1561,3 +1567,329 @@ def test_a_stage_built_from_any_kit_is_the_stage_built_without_one(
     at_once = built_stage(roster=roster_of(stage_players), kit=None, seed=seed)
 
     assert ahead == at_once, failure_note(test=KIT_EQUIVALENCE_TEST, vector=vector, seed=seed)
+
+
+# The first sounds (feature plan 10)
+
+
+def test_a_shot_plays_the_zap_panned_toward_the_kid(mocker):
+    """Each shot plays the remote's warbly zap, panned to where the kid stands on the screen."""
+    scene = neighborhood()
+    dex = scene.kids[0]
+    zap = mocker.spy(scene.sounds[ZAP], 'play')
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+
+    run(scene, seconds=FRAME_SECONDS)
+
+    assert zap.call_count == 1
+    assert zap.call_args.kwargs['pan'] == pytest.approx(
+        pan_for(world_x=dex.world_x + KID_WIDTH / 2, camera=scene.camera, screen_width=SCREEN_WIDTH)
+    )
+
+
+def test_held_fire_plays_one_zap_for_every_shot(mocker):
+    """A second of held fire: as many zaps heard as fired, never more."""
+    scene = neighborhood()
+    zap = mocker.spy(scene.sounds[ZAP], 'play')
+    shots = mocker.spy(scene, 'add_zap')
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+
+    run(scene, seconds=1.0)
+
+    assert shots.call_count > 1
+    assert zap.call_count == shots.call_count
+
+
+def test_the_laser_pointer_plays_no_zap(mocker):
+    """Fire held with the laser pointer shines it: no zap is fired or heard."""
+    scene = neighborhood()
+    scene.kids[0].switch_weapon()
+    zap = mocker.spy(scene.sounds[ZAP], 'play')
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+
+    run(scene, seconds=0.5)
+
+    assert zap.call_count == 0
+
+
+def screen_left(scene: NeighborhoodScene) -> float:
+    """Return the world x the screen's left edge shows (the camera only shifts the world).
+
+    Returns:
+        The world x.
+
+    """
+    screen_x, _screen_y = scene.camera.world_to_screen(0.0, 0.0)
+    return float(-screen_x)
+
+
+@pytest.mark.parametrize(
+    ('screen_fraction', 'pan'), [(0.0, -PAN_WIDTH), (0.5, 0.0), (1.0, PAN_WIDTH)]
+)
+def test_a_sound_pans_with_its_place_on_the_screen(screen_fraction, pan):
+    """Left edge pans left, middle centres, right edge pans right, wherever the camera is."""
+    scene = neighborhood()
+    # Partway across the yard, so the screen's left edge is not the world's
+    scene.camera.world_x = 320.0
+    left = screen_left(scene)
+
+    assert pan_for(
+        world_x=left + screen_fraction * SCREEN_WIDTH,
+        camera=scene.camera,
+        screen_width=SCREEN_WIDTH,
+    ) == pytest.approx(pan, abs=0.01)
+
+
+def test_a_sound_off_the_screen_pans_no_further_than_its_edge():
+    """A zombie groaning beyond the screen's edge sounds from the edge."""
+    scene = neighborhood()
+    scene.camera.world_x = 320.0
+    left = screen_left(scene)
+
+    assert pan_for(world_x=left - 500.0, camera=scene.camera, screen_width=SCREEN_WIDTH) == (
+        pytest.approx(-PAN_WIDTH)
+    )
+
+
+def laser_scene(mocker):
+    """Return the neighborhood with Dex holding the laser pointer, and spies on its two sounds.
+
+    Returns:
+        The scene, the rise's spy and the shine's spy.
+
+    """
+    scene = neighborhood()
+    scene.kids[0].switch_weapon()
+    rise = mocker.spy(scene.sounds[LASER_RISE], 'play')
+    shine = mocker.spy(scene.sounds[LASER_SHINE], 'play')
+    return scene, rise, shine
+
+
+def test_aiming_the_laser_plays_its_rise_then_loops_its_shine(mocker):
+    """The wheee rises through the warm-up; once the dot shines, its wobble loops."""
+    scene, rise, shine = laser_scene(mocker)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+
+    run(scene, seconds=FRAME_SECONDS)
+    assert rise.call_count == 1
+    assert shine.call_count == 0
+    run(scene, seconds=WARM_UP_SECONDS + 0.1)
+
+    assert scene.kids[0].laser_lit
+    assert rise.call_count == 1
+    assert shine.call_count == 1
+    assert shine.call_args.kwargs['loop'] is True
+
+
+def stops_of(spy, sound) -> list:
+    """Return the fades a handle class's ``stop`` spy saw for one playing sound.
+
+    The engine's handles are frozen, so the spy watches their class.
+
+    Returns:
+        Each call's ``fade``.
+
+    """
+    return [call.kwargs.get('fade') for call in spy.call_args_list if call.args[0] is sound]
+
+
+def shining(mocker):
+    """Return the scene with Dex's dot lit, its looping shine, and a spy on handles' stop.
+
+    Returns:
+        The scene, the shine and the spy.
+
+    """
+    scene, _rise, shine = laser_scene(mocker)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+    run(scene, seconds=WARM_UP_SECONDS + 0.1)
+    assert scene.kids[0].laser_lit
+    return scene, shine.spy_return, mocker.spy(type(shine.spy_return), 'stop')
+
+
+def test_letting_go_fades_the_shine_out(mocker):
+    """The dot goes out with fire let go: its wobble fades."""
+    scene, sound, stop = shining(mocker)
+    hold_fire()
+
+    run(scene, seconds=FRAME_SECONDS)
+
+    assert stops_of(stop, sound) == [LASER_FADE_SECONDS]
+
+
+def test_switching_weapons_fades_the_shine_out(mocker):
+    """Switched to the remote mid-shine, the laser falls silent."""
+    scene, sound, stop = shining(mocker)
+
+    scene.kids[0].switch_weapon()
+    run(scene, seconds=FRAME_SECONDS)
+
+    assert stops_of(stop, sound) == [LASER_FADE_SECONDS]
+
+
+def test_a_knockout_fades_the_shine_out(mocker):
+    """Knocked out mid-shine, the kid's laser falls silent."""
+    scene, sound, stop = shining(mocker)
+
+    scene.kids[0].knock_out(last_life=False)
+    run(scene, seconds=FRAME_SECONDS)
+
+    assert stops_of(stop, sound) == [LASER_FADE_SECONDS]
+
+
+def test_a_dead_battery_fades_the_shine_out(mocker):
+    """Held until its battery dies, the laser falls silent with its dot."""
+    scene, sound, stop = shining(mocker)
+
+    run(scene, seconds=FULL_SECONDS)
+
+    assert not scene.kids[0].laser_lit
+    assert stops_of(stop, sound) == [LASER_FADE_SECONDS]
+
+
+def test_a_tap_too_short_to_light_stops_its_rise(mocker):
+    """Let go before the dot lights: the wheee fades and no shine starts."""
+    scene, rise, shine = laser_scene(mocker)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+    run(scene, seconds=0.1)
+    sound = rise.spy_return
+    stop = mocker.spy(type(sound), 'stop')
+    hold_fire()
+
+    run(scene, seconds=FRAME_SECONDS)
+
+    assert stops_of(stop, sound) == [LASER_FADE_SECONDS]
+    assert shine.call_count == 0
+
+
+def test_the_shine_follows_the_kid_across_the_screen(mocker):
+    """Walking while shining, the wobble pans with the kid."""
+    scene, sound, _stop = shining(mocker)
+    pan = mocker.spy(type(sound), 'set_pan')
+    hold_fire(scancodes=(pygame.KSCAN_J, pygame.KSCAN_D))
+
+    run(scene, seconds=0.2)
+
+    pans = [call.args[1] for call in pan.call_args_list if call.args[0] is sound]
+    assert pans
+    assert pans[-1] == pytest.approx(scene._pan_at(scene.kids[0]))
+    assert pans[-1] > pans[0]
+
+
+def test_an_unplugged_players_shine_stops(mocker):
+    """A pad unplugged mid-shine takes its kid, and the kid's laser falls silent."""
+    with support.running_game(scene_class=NeighborhoodScene, plugged_in_at_start=False) as (
+        engine,
+        scene,
+    ):
+        assert isinstance(scene, NeighborhoodScene)
+        support.plug_in_the_pad(engine)
+        pad = gamepad(STAND_IN_PAD.instance_id)
+        scene.roster = scene.roster.join(device=pad)
+        scene.add_missing_kids()
+        scene.kids[1].switch_weapon()
+        shine = mocker.spy(scene.sounds[LASER_SHINE], 'play')
+        hold_fire(pads_firing=(STAND_IN_PAD.instance_id,))
+        run(scene, seconds=WARM_UP_SECONDS + 0.1)
+        assert shine.call_count == 1
+        sound = shine.spy_return
+        stop = mocker.spy(type(sound), 'stop')
+
+        support.unplug_the_pad(engine)
+        run(scene, seconds=FRAME_SECONDS)
+
+        assert stops_of(stop, sound) == [LASER_FADE_SECONDS]
+
+
+def groans_heard(mocker, scene: NeighborhoodScene) -> list[str]:
+    """Spy on every groan the scene plays, recording each one's name in the order played.
+
+    Returns:
+        The list, filled as the scene runs.
+
+    """
+    heard: list[str] = []
+    for name in GROANS:
+        sound = scene.sounds[name]
+        original = sound.play
+
+        def play(*arguments, _name=name, _original=original, **keywords):
+            heard.append(_name)
+            return _original(*arguments, **keywords)
+
+        mocker.patch.object(sound, 'play', side_effect=play)
+    return heard
+
+
+def test_a_zombie_seeing_a_kid_groans_from_where_it_stands(mocker):
+    """Every chance taken (forced): a zombie that sees Dex groans once, panned to it.
+
+    Once: it groans at the new target, not again while it keeps chasing Dex, even past its 3 s
+    rest (it is 400 px off, at 40 px/s, so it never reaches him and turns to anything else).
+    """
+    mocker.patch.object(groans_module, 'GROAN_CHANCE', 1.0)
+    scene = neighborhood()
+    heard = groans_heard(mocker, scene)
+    dex = scene.kids[0]
+    zombie = scene.add_zombie(world_x=dex.world_x + 400.0, world_y=dex.world_y)
+
+    run(scene, seconds=FRAME_SECONDS)
+    run(scene, seconds=GROAN_REST_SECONDS + 1.0)
+
+    assert len(heard) == 1
+    played = scene.sounds[heard[0]].play
+    assert played.call_args.kwargs['pan'] == pytest.approx(scene._pan_at(zombie), abs=0.05)
+
+
+def test_no_zombie_groans_when_no_chance_is_taken(mocker):
+    """The chance at 0: zombies come and chase, in silence."""
+    mocker.patch.object(groans_module, 'GROAN_CHANCE', 0.0)
+    scene = busy_yard()
+    heard = groans_heard(mocker, scene)
+
+    run(scene, seconds=12.0)
+
+    assert scene.zombies or scene.zombie_pool.given_back
+    assert heard == []
+
+
+GROAN_REPLAY_TEST = 'test_the_same_seed_groans_the_same_groans'
+
+
+@pytest.mark.parametrize('seed_case', seed_cases(test=GROAN_REPLAY_TEST))
+def test_the_same_seed_groans_the_same_groans(mocker, seed_case, request):
+    """Groans come from a named stream: a busy yard run twice from one seed groans alike."""
+    seed = resolve_seed(seed_case, node=request.node, test=GROAN_REPLAY_TEST)
+    runs = []
+    for _ in range(2):
+        reset_streams(seed=seed)
+        scene = busy_yard()
+        heard = groans_heard(mocker, scene)
+        hold_fire(scancodes=(pygame.KSCAN_J,), pads_firing=(1, 2, 3))
+        run(scene, seconds=20.0)
+        hold_fire()
+        runs.append(list(heard))
+
+    note = failure_note(test=GROAN_REPLAY_TEST, vector='default', seed=seed)
+    assert runs[0], note
+    assert runs[0] == runs[1], note
+
+
+def test_an_unplugged_player_who_never_aimed_the_laser_fades_nothing(mocker):
+    """A pad unplugged before its kid ever shone: there is no laser sound to fade."""
+    with support.running_game(scene_class=NeighborhoodScene, plugged_in_at_start=False) as (
+        engine,
+        scene,
+    ):
+        assert isinstance(scene, NeighborhoodScene)
+        support.plug_in_the_pad(engine)
+        scene.roster = scene.roster.join(device=gamepad(STAND_IN_PAD.instance_id))
+        scene.add_missing_kids()
+        run(scene, seconds=FRAME_SECONDS)
+        played = mocker.spy(type(scene.sounds[LASER_SHINE]), 'play')
+
+        support.unplug_the_pad(engine)
+        run(scene, seconds=FRAME_SECONDS)
+
+        assert 1 not in scene.kids
+        assert played.call_count == 0
