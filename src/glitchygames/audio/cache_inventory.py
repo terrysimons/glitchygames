@@ -19,6 +19,11 @@ Rules:
 4. ``clear`` removes cache folders only: one game's, every game's, or only the stale ones. A
    game's start clears its own stale versions (``engine._disk_layer``), beside pruning, which
    looks only at the current version's folder.
+4a. The listening WAVs (glitchygames/audio/listening) are listed apart
+   (``CacheInventory.listening``: ``<root>/listening/<render version>/``, stale as rule 3
+   says) and only ``clear(listening=True)`` removes them, never a game's clear: rendering them
+   takes a while, and nothing prunes them. ``verify`` never reads them: they are plain WAVs,
+   not cache files.
 5. ``verify`` reads every sound file back and reports each one that is not well formed, and why
    (``disk_cache.file_problem``, the same check a read makes). It removes nothing: a game's read
    already deletes such a file and compiles the sound again, but silently.
@@ -45,6 +50,7 @@ from pydantic import BaseModel, ConfigDict
 
 from glitchygames.audio.disk_cache import (
     DISK_CACHE_LIMIT_BYTES,
+    LISTENING_FOLDER,
     SOUND_SUFFIX,
     SOUNDS_FOLDER,
     DiskSoundCache,
@@ -84,27 +90,49 @@ class CachedFolder(BaseModel):
     stale: bool
 
 
+class ListeningFolder(BaseModel):
+    """The listening WAVs for one render version (rule 4a).
+
+    Attributes:
+        render_version: The audio render version that compiled them.
+        path: The folder.
+        file_count: Its WAV files.
+        size_bytes: Their bytes.
+        stale: Whether only an older engine could have written it (rule 3).
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    render_version: int
+    path: Path
+    file_count: int
+    size_bytes: int
+    stale: bool
+
+
 class CacheInventory(BaseModel):
     """What a cache root holds, game by game and version by version (by game, then version).
 
     Attributes:
         root: The cache root.
-        folders: Its cache folders.
+        folders: Its games' cache folders.
+        listening: Its listening folders, by version (rule 4a).
     """
 
     model_config = ConfigDict(frozen=True, extra='forbid')
 
     root: Path
     folders: tuple[CachedFolder, ...]
+    listening: tuple[ListeningFolder, ...] = ()
 
     @property
     def total_bytes(self) -> int:
-        """Every cache folder's bytes."""
+        """Every game folder's bytes (the listening folders are ``listening``'s)."""
         return sum(folder.size_bytes for folder in self.folders)
 
     @property
     def stale_bytes(self) -> int:
-        """The stale folders' bytes: what ``clear(stale_only=True)`` would free."""
+        """The stale game folders' bytes: what ``clear(stale_only=True)`` would free."""
         return sum(folder.size_bytes for folder in self.folders if folder.stale)
 
 
@@ -196,20 +224,60 @@ def inventory(*, root: Path | str) -> CacheInventory:
                 )
             )
     folders.sort(key=lambda folder: (folder.game, folder.render_version))
-    return CacheInventory(root=root, folders=tuple(folders))
+    return CacheInventory(root=root, folders=tuple(folders), listening=_listening_folders(root))
 
 
-def clear(*, root: Path | str, game: str | None = None, stale_only: bool = False) -> ClearReport:
+def _listening_folders(root: Path) -> tuple[ListeningFolder, ...]:
+    """List the root's listening folders (rule 4a), by version.
+
+    Returns:
+        The folders.
+    """
+    listening: list[ListeningFolder] = []
+    for version_folder in _child_folders(root / LISTENING_FOLDER):
+        if not version_folder.name.isdigit():
+            continue
+        files = sorted(version_folder.rglob(f'*{SOUND_SUFFIX}'))
+        render_version = int(version_folder.name)
+        listening.append(
+            ListeningFolder(
+                render_version=render_version,
+                path=version_folder,
+                file_count=len(files),
+                size_bytes=sum(path.stat().st_size for path in files),
+                stale=render_version < AUDIO_RENDER_VERSION,
+            )
+        )
+    listening.sort(key=lambda folder: folder.render_version)
+    return tuple(listening)
+
+
+def clear(
+    *,
+    root: Path | str,
+    game: str | None = None,
+    stale_only: bool = False,
+    listening: bool = False,
+) -> ClearReport:
     """Remove cache folders (rule 4): one game's or every game's, all or only the stale ones.
 
     Args:
         root: The cache root, a path or its text.
         game: Only this game's folders; None for every game's.
         stale_only: Only the stale render versions.
+        listening: The listening folders instead of the games' (rule 4a).
 
     Returns:
         What was removed.
+
+    Raises:
+        ValueError: If ``listening`` is given with a ``game``: the listening WAVs are no game's.
     """
+    if listening:
+        if game is not None:
+            message = f"the listening WAVs are no game's: clear them without a game ({game!r})"
+            raise ValueError(message)
+        return _clear_listening(root=Path(root), stale_only=stale_only)
     chosen = [
         folder
         for folder in inventory(root=root).folders
@@ -221,6 +289,22 @@ def clear(*, root: Path | str, game: str | None = None, stale_only: bool = False
         _remove_if_empty(folder.path.parent.parent)  # <game>
     return ClearReport(
         removed_sounds=sum(folder.sound_count for folder in chosen),
+        freed_bytes=sum(folder.size_bytes for folder in chosen),
+    )
+
+
+def _clear_listening(*, root: Path, stale_only: bool) -> ClearReport:
+    """Remove the listening folders (rule 4a), or only the stale ones.
+
+    Returns:
+        What was removed.
+    """
+    chosen = [folder for folder in _listening_folders(root) if folder.stale or not stale_only]
+    for folder in chosen:
+        shutil.rmtree(folder.path, ignore_errors=True)
+    _remove_if_empty(root / LISTENING_FOLDER)
+    return ClearReport(
+        removed_sounds=sum(folder.file_count for folder in chosen),
         freed_bytes=sum(folder.size_bytes for folder in chosen),
     )
 

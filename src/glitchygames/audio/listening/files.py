@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.audio.disk_cache import LISTENING_FOLDER
 from glitchygames.audio.offline import write_wave_file
 from glitchygames.audio.spec import AUDIO_RENDER_VERSION
 
@@ -34,8 +35,6 @@ if TYPE_CHECKING:
     import numpy as np
     import numpy.typing as npt
 
-# The listening folder under the cache root (rule 1), beside the games' folders
-LISTENING_FOLDER = 'listening'
 INSTRUMENTS_FOLDER = 'instruments'
 PIPES_FOLDER = 'pipes'
 TUNES_FOLDER = 'tunes'

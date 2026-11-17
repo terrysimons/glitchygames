@@ -38,11 +38,18 @@ from glitchygames.argument_types import (
     non_negative_percent,
     percent_from_zero_to_one_hundred,
 )
+from glitchygames.audio.instruments.catalog import Family
 from glitchygames.audio.offline import SAMPLE_FORMATS
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.driver import REPLAY_FPS_CHOICES
 from glitchygames.replay.tools.children import GAME_FORMS
 from glitchygames.replay.tools.compare import DEFAULT_COMPARE_ALPHA_PERCENT
+from glitchygames.replay.tools.listening_tools import (
+    listening_instruments_command,
+    listening_instruments_on_the_game,
+    listening_pipes_command,
+    listening_pipes_on_the_game,
+)
 from glitchygames.replay.tools.measure import (
     clear_published_command,
     clear_published_on_the_game,
@@ -1005,7 +1012,8 @@ ONLY_OPTION = ToolOption(
     metavar='TEXT',
     help=(
         'with --verify or --measure: only the recordings whose name (the path relative to the '
-        'project, for one inside it) contains TEXT'
+        'project, for one inside it) contains TEXT; with --listening-instruments or '
+        '--listening-pipes: only the files whose name contains TEXT'
     ),
 )
 # measure's options (glitchygames/replay/tools/measure.py), as scripts/replay_metrics.py's
@@ -1086,6 +1094,23 @@ SOUND_CACHE_GAMES_OPTION = ToolOption(
         "whole cache root; for sound-cache-fill, the project's [tool.glitchygames] games): "
         f'{GAME_FORMS_TEXT}'
     ),
+)
+LISTENING_OPTION = ToolOption(
+    flag='--listening',
+    kind='flag',
+    help=(
+        "with --sound-cache-clear: remove the listening WAVs (--listening-instruments', "
+        "--listening-pipes') instead of the games' sounds; never with --game"
+    ),
+    default=False,
+)
+# listening-instruments' family (glitchygames/replay/tools/listening_tools.py)
+FAMILY_OPTION = ToolOption(
+    flag='--family',
+    kind='choice',
+    metavar='FAMILY',
+    choices=tuple(family.value for family in Family),
+    help="with --listening-instruments: only this family's instruments (default: every family)",
 )
 STALE_ONLY_OPTION = ToolOption(
     flag='--stale-only',
@@ -1446,7 +1471,7 @@ TOOLS: tuple[Tool, ...] = (
             f'exits {ExitCode.SUCCESS:d}, {ExitCode.OPTIONS_REFUSED:d} with no disk cache; runs no '
             'game (default: off)'
         ),
-        options=(STALE_ONLY_OPTION,),
+        options=(STALE_ONLY_OPTION, LISTENING_OPTION),
         runs_game=False,
         game_handler=sound_cache_clear_on_the_game,
         command_handler=sound_cache_clear_command,
@@ -1471,5 +1496,35 @@ TOOLS: tuple[Tool, ...] = (
         value_kind='flag',
         command_arguments=(SOUND_CACHE_GAMES_OPTION,),
         project_root_use='project',
+    ),
+    Tool(
+        name='listening-instruments',
+        help=(
+            'render each catalog instrument across its range into the listening folder under '
+            "the sound cache's root, only the files missing, printing each file's path (the "
+            f'summary on standard error); exits {ExitCode.SUCCESS:d}, '
+            f'{ExitCode.OPTIONS_REFUSED:d} with no disk cache; runs no game (default: off)'
+        ),
+        options=(FAMILY_OPTION, ONLY_OPTION),
+        runs_game=False,
+        game_handler=listening_instruments_on_the_game,
+        command_handler=listening_instruments_command,
+        value_kind='flag',
+        project_root_use='unused',
+    ),
+    Tool(
+        name='listening-pipes',
+        help=(
+            'render the pipe demos and the pipe tunes into the listening folder under the sound '
+            "cache's root, only the files missing, printing each file's path (the summary on "
+            f'standard error); exits {ExitCode.SUCCESS:d}, {ExitCode.OPTIONS_REFUSED:d} with '
+            'no disk cache; runs no game (default: off)'
+        ),
+        options=(ONLY_OPTION,),
+        runs_game=False,
+        game_handler=listening_pipes_on_the_game,
+        command_handler=listening_pipes_command,
+        value_kind='flag',
+        project_root_use='unused',
     ),
 )

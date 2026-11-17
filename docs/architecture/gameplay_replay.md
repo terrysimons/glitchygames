@@ -864,8 +864,9 @@ Each tool is reachable two ways, with the same name and the same options:
   nearest directory at or above the current one whose `pyproject.toml` has
   `[tool.glitchygames]`, else the nearest with a `pyproject.toml`, else the current directory);
   for `record-trace`, `replay-trace`, `record-golden-trace`, `record-session` and the other
-  `sound-cache-*` tools, the directory the game runs in (default: the current directory); `report`, `sound-render` and
-  `sound-migrate` read only what they are given.
+  `sound-cache-*` tools, the directory the game runs in (default: the current directory);
+  `report`, `sound-render`, `sound-migrate`, `listening-instruments` and `listening-pipes` read
+  only what they are given.
 
 Both front ends are generated from one table, `TOOLS` in
 `src/glitchygames/replay/tools/registry.py`, which is the reference for every flag, option,
@@ -892,8 +893,10 @@ own git repository.
 | `sound-cache-list` | no | `--sound-cache-list` (the game's own sound cache folders) | `glitchygames sound-cache-list [--game GAME ...]` (default: the whole cache root) |
 | `sound-cache-size` | no | `--sound-cache-size` | `glitchygames sound-cache-size [--game GAME ...]` (default: the whole cache root) |
 | `sound-cache-verify` | no | `--sound-cache-verify` (exit 65 for a damaged file) | `glitchygames sound-cache-verify [--game GAME ...]` (default: the whole cache root) |
-| `sound-cache-clear` | no | `--sound-cache-clear [--stale-only]` | `glitchygames sound-cache-clear [--stale-only] [--game GAME ...]` (default: the whole cache root) |
+| `sound-cache-clear` | no | `--sound-cache-clear [--stale-only]` (`--listening` is refused: those files are no game's) | `glitchygames sound-cache-clear [--stale-only] [--listening] [--game GAME ...]` (default: the whole cache root; `--listening`: the listening WAVs instead of the games' sounds, never with `--game`) |
 | `sound-cache-fill` | no | `--sound-cache-fill` (the game's declared sounds and the CRT power-on's) | `glitchygames sound-cache-fill [--game GAME ...]` (default: `[tool.glitchygames] games`) |
+| `listening-instruments` | no | `--listening-instruments [--family FAMILY] [--only TEXT]` (the same files as the command: they are no game's) | `glitchygames listening-instruments [--family FAMILY] [--only TEXT]` (each catalog instrument across its range, into the listening folder; prints each file's path) |
+| `listening-pipes` | no | `--listening-pipes [--only TEXT]` | `glitchygames listening-pipes [--only TEXT]` (the pipe demos and tunes, into the listening folder; prints each file's path) |
 
 - An option several tools list is one flag on the game: `--random-seed` (every tool that runs
   the game) and `--headless` (the four that record or replay). `--random-seed` is never needed:

@@ -99,6 +99,15 @@ time, so first use is the earliest point; a subcommand fills the cache ahead of 
      `listening-pipes`. **Flat names** (the owner): every tool is one name used both ways, a
      flag takes no sub-actions, and `--sound-cache` is already the mode option; the grammar
      matters least, since the Studio calls the API, not the command line.
+   - **As built** (2026-11-16, branch `feat/sound-cache-subcommands`): the API and all seven
+     commands. The listening folder is listed apart (`CacheInventory.listening`) and removed only
+     by `clear(listening=True)` (`sound-cache-clear --listening`, refused with a game: the files
+     are no game's); `verify` never reads it (plain WAVs, no peak chunk). Left out:
+     `sound-cache-fill --listening` (Interfaces), since `listening-instruments` and
+     `listening-pipes` render the same files; the owner may still want it in one command. Only
+     `sound-cache-fill` reads the project's settings; the other cache commands work without
+     them. Inner games now get the outer game's command line, less the refused flags (found
+     when the new flags made `--sound-cache` a prefix of refused ones).
 
 ## Interfaces
 

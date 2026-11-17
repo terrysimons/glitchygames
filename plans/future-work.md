@@ -1202,11 +1202,10 @@ changes the outer game's key repeat (the plan's Review Focus 4).
       and the sound's identity, so a machine compiles each sound once. Replays must still get the
       same samples (a cached sample equals a fresh compile; test it), and a corrupt or old-version
       entry is compiled again and replaced, never trusted.
-    - Listening WAVs: the instrument demos (`scripts/make_instrument_demos.py`, 724 files, about
-      219 MB) and the pipe tunes (`scripts/make_pipes.py`, `scripts/pipe_tunes.py`, about 85 MB)
-      are written to the git-ignored `build/` by hand today, so an installed copy cannot make them.
-      Make them `glitchygames` subcommands that render into the same cache folder on first request
-      (a family or instrument at a time, not all 300 MB at once).
+    - Listening WAVs: done 2026-11-16 (branch `feat/sound-cache-subcommands`):
+      `glitchygames listening-instruments [--family] [--only]` and `listening-pipes [--only]`
+      render into `<cache root>/listening/<render version>/`, only what is missing; the code is
+      `glitchygames.audio.listening`, the scripts are gone.
     - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
       clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
 - ~~**Move the games onto the new sound library (sound engine M2's migration), in

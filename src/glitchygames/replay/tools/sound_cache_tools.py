@@ -82,6 +82,13 @@ def _root_or_refusal(*, flag: str) -> Path | ExitCode:
     return root
 
 
+# --listening names the listening WAVs, which belong to no game (cache_inventory, rule 4a)
+LISTENING_IS_NO_GAMES = (
+    "--sound-cache-clear --listening: the listening WAVs are no game's; clear them without a "
+    'game (glitchygames sound-cache-clear --listening)'
+)
+
+
 # --- What each action says (one place, for the game flag and the command alike) ---
 
 
@@ -97,6 +104,12 @@ def describe_inventory(found: CacheInventory, *, game: str | None = None) -> lis
         f'{_kilobytes(folder.size_bytes)}{" (stale)" if folder.stale else ""}'
         for folder in folders
     ]
+    if game is None:  # the listening WAVs are no game's (cache_inventory, rule 4a)
+        lines.extend(
+            f'listening render {folder.render_version}: {folder.file_count} files, '
+            f'{_kilobytes(folder.size_bytes)}{" (stale)" if folder.stale else ""}'
+            for folder in found.listening
+        )
     total = sum(folder.size_bytes for folder in folders)
     lines.append(f'total: {len(folders)} folders, {_kilobytes(total)} in {found.root}')
     return lines
@@ -112,7 +125,12 @@ def describe_size(found: CacheInventory, *, game: str | None = None) -> str:
     total = sum(folder.size_bytes for folder in folders)
     stale = sum(folder.size_bytes for folder in folders if folder.stale)
     sounds = sum(folder.sound_count for folder in folders)
-    return f'{sounds} sounds, {_kilobytes(total)} ({_kilobytes(stale)} stale) in {found.root}'
+    line = f'{sounds} sounds, {_kilobytes(total)} ({_kilobytes(stale)} stale) in {found.root}'
+    if game is None and found.listening:  # the listening WAVs are no game's (rule 4a)
+        files = sum(folder.file_count for folder in found.listening)
+        listening_bytes = sum(folder.size_bytes for folder in found.listening)
+        line += f'; listening: {files} files, {_kilobytes(listening_bytes)}'
+    return line
 
 
 def describe_verify(report: VerifyReport) -> list[str]:
@@ -202,6 +220,8 @@ def sound_cache_clear_on_the_game(
     Returns:
         ``ExitCode.SUCCESS``, or the refusal without a disk cache.
     """
+    if options.get('listening'):
+        return refused(message=LISTENING_IS_NO_GAMES, exit_code=ExitCode.OPTIONS_REFUSED)
 
     def remove(root: Path, name: str) -> ExitCode:
         report = clear(root=root, game=name, stale_only=bool(options.get('stale_only')))
@@ -362,15 +382,20 @@ def sound_cache_verify_command(
 def sound_cache_clear_command(
     *, tool: Tool, arguments: argparse.Namespace, game_arguments: list[str]
 ) -> int:
-    """Run ``glitchygames sound-cache-clear [--stale-only] [--game GAME ...]``.
+    """Run ``glitchygames sound-cache-clear [--stale-only] [--listening] [--game GAME ...]``.
 
     Returns:
         The exit code.
     """
     del game_arguments
+    if arguments.listening and arguments.game is not None:
+        say(tool=tool, message=LISTENING_IS_NO_GAMES)
+        return ExitCode.OPTIONS_REFUSED
 
     def remove(root: Path) -> int:
-        report = clear(root=root, stale_only=bool(arguments.stale_only))
+        report = clear(
+            root=root, stale_only=bool(arguments.stale_only), listening=bool(arguments.listening)
+        )
         _say_line(f'removed {report.removed_sounds} sounds ({_kilobytes(report.freed_bytes)})')
         return ExitCode.SUCCESS
 

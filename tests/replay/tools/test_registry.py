@@ -270,6 +270,8 @@ def test_each_subcommands_project_root_help_says_what_its_tool_does_with_it():
         'sound-cache-verify': 'working-directory',
         'sound-cache-clear': 'working-directory',
         'sound-cache-fill': 'project',
+        'listening-instruments': 'unused',
+        'listening-pipes': 'unused',
     }
 
 

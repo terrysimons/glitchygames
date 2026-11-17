@@ -313,6 +313,60 @@ def test_every_command_without_a_disk_cache_is_refused(tool, games, monkeypatch,
     assert 'not-installed' not in errors  # no game was looked up
 
 
+def _write_listening(root: Path, *, version: int, count: int) -> None:
+    """Write ``count`` plain WAV files into the listening folder for a render version."""
+    from glitchygames.audio.offline import write_wave_file
+
+    directory = root / 'listening' / str(version) / 'pipes'
+    directory.mkdir(parents=True, exist_ok=True)
+    for index in range(count):
+        write_wave_file(
+            directory / f'demo_{index}.wav', np.zeros(100), sample_rate=RATE, sample_format='int16'
+        )
+
+
+def test_list_and_size_name_the_listening_files_apart(cache_root, capsys):
+    """The listening folder has its own line in each, so its size never hides a game's."""
+    _two_games(cache_root)
+    _write_listening(cache_root, version=CURRENT, count=2)
+
+    command.main(['sound-cache-list'])
+    listed = capsys.readouterr().out.splitlines()
+    command.main(['sound-cache-size'])
+    sized = capsys.readouterr().out
+
+    assert [line for line in listed if line.startswith('listening')] == [
+        line for line in listed if line.startswith(f'listening render {CURRENT}: 2 files')
+    ]
+    assert len([line for line in listed if line.startswith('listening')]) == 1
+    assert sized.startswith('6 sounds, ')
+    assert 'listening: 2 files' in sized
+
+
+def test_clear_listening_removes_only_the_listening_files(cache_root, capsys):
+    """--listening clears the listening folder, never a game's."""
+    _two_games(cache_root)
+    _write_listening(cache_root, version=CURRENT, count=2)
+
+    assert command.main(['sound-cache-clear', '--listening']) == ExitCode.SUCCESS
+
+    assert capsys.readouterr().out.startswith('removed 2 sounds')
+    assert not (cache_root / 'listening').exists()
+    assert len(list(cache_root.rglob('*.wav'))) == 6
+
+
+def test_clear_listening_for_a_game_is_refused(cache_root, tmp_path, capsys):
+    """The listening files are no game's: --listening with --game, or on a game, is refused."""
+    game = _game_script(tmp_path, name='game', exit_code=ExitCode.SUCCESS)
+
+    command_status = command.main(['sound-cache-clear', '--listening', '--game', str(game)])
+    flag_status = sound_cache_clear_on_the_game(options={'listening': True}, game=GameWithOneSound)
+
+    assert (command_status, flag_status) == (ExitCode.OPTIONS_REFUSED, ExitCode.OPTIONS_REFUSED)
+    assert not game.with_suffix('.json').exists()  # the game was never started
+    assert 'no game' in capsys.readouterr().err
+
+
 # --- The game flags: one game's own folders ---
 
 

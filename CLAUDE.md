@@ -203,7 +203,9 @@ git, a git archive, or a build stamp; held by every recorded run.
   empty: no disk layer, which the test harness sets; a test wanting the disk uses the
   `disk_sound_cache` fixture). Compiled samples are shared process-wide (`ENGINE_SOUND_CACHE`).
   Cache operations are one API, `audio/cache_inventory.py` (`inventory`, `clear`, `verify`,
-  `fill`); the `sound-cache-{list,size,verify,clear,fill}` tools only call it.
+  `fill`); the `sound-cache-{list,size,verify,clear,fill}` tools only call it. The listening
+  WAVs (every instrument's range, the pipe demos and tunes) are `audio/listening/`, rendered by
+  `listening-instruments` and `listening-pipes` into `<root>/listening/<render version>/`.
 - Live sounds: `audio.sound(Instrument(..., live=True)).start(owner=...)` returns a
   `LiveSoundHandle` (`set`, `release`, `stop`, `cancel`); parameters and routes are in
   `audio/live_controls.py`, the voice in `audio/live_instrument.py`. The older toolkit

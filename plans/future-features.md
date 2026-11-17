@@ -2498,11 +2498,11 @@ This document tracks planned future features for the GlitchyGames project. Featu
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
 - **Goal**: confirm or overturn the calls made while batch 2 of #70 ran, and listen to its new
   instruments (the owner, 2026-11-08: "make note of those checks")
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+- **Listen** (render with `uv run glitchygames listening-instruments`;
   every level, filter, ring and glide below is sound design, not sourced):
   - [ ] `hohner pianet` against `reed electric piano`: distinct enough to be two entries (the
     anti-goal), and does the Pianet's bright strike settle as its source describes?
-  - [ ] The eight sound effects (`build/instruments/sound effects/`): thunder sheet, rain
+  - [ ] The eight sound effects (`instruments/sound effects/`): thunder sheet, rain
     machine, ocean drum, cannon, crash box, coconut shells, door slam, giants footsteps
   - [ ] `thunder sheet`: `drum`'s one `attack` also swells its 120 Hz metal-ring tone, not
     only the noise
@@ -2537,9 +2537,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Goal**: confirm or overturn the calls made while batch 3 of #70 ran, and listen to its new
   instruments (drums and percussion, 61 to 237 entries; the owner, 2026-11-08: "I want them to
   all show up")
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+- **Listen** (render with `uv run glitchygames listening-instruments`;
   every level, filter, ring and glide is sound design, not sourced; the folder is
-  `build/instruments/drums and percussion/`). The 45 new builds come first, then the
+  `instruments/drums and percussion/`). The 45 new builds come first, then the
   sound-alikes; each group below is a parent with the sound-alikes that share its build, which
   must sound alike by design:
   - [ ] The 45 new builds: `bendir`, `bombo leguero`, `chenda`, `daf`, `dhol`, `dholak`,
@@ -2674,9 +2674,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   show up"). Most of the audit's candidates wait, because the owner ruled the range rule stays
   strict (2026-11-09, asked directly: "Keep it strict"): an instrument with no sourced range
   waits. See "Calls to confirm" for what a later pass could do about that
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+- **Listen** (render with `uv run glitchygames listening-instruments`;
   every level, filter, ring and pick click is sound design, not sourced; the folder is
-  `build/instruments/plucked strings/`). The 7 new builds come first, then the sound-alikes;
+  `instruments/plucked strings/`). The 7 new builds come first, then the sound-alikes;
   each group below is a parent with the sound-alikes that share its build, which must sound
   alike by design. The ranges differ within a group, since each sound-alike gives its own:
   - [ ] The 7 new builds: `angelique`, `banjolele`, `chapman stick`, `qanun`, `ruan`, `tar`,
@@ -2803,9 +2803,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Goal**: confirm or overturn the calls made while batch 5 of #70 ran, and listen to its new
   instruments (tuned percussion, 23 to 36 entries). Most of the audit's candidates wait, because
   the range rule stays strict: an instrument with no sourced range waits
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+- **Listen** (render with `uv run glitchygames listening-instruments`;
   every level, filter, ring and mallet click is sound design unless a source is cited in the
-  code; the folder is `build/instruments/tuned percussion/`). The 2 new builds come first, then
+  code; the folder is `instruments/tuned percussion/`). The 2 new builds come first, then
   the sound-alikes; each group below is a parent with the sound-alikes that share its build,
   which must sound alike by design. The ranges differ within a group, since each gives its own:
   - [ ] The 2 new builds: `boomwhackers`, `gangsa`: each distinct from the 23 already there and
@@ -2899,9 +2899,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Goal**: confirm or overturn the calls made while batch 6 of #70 ran, and listen to its new
   instruments (electronic, 15 to 26 entries). Most candidates wait, drop or alias: 1 built, 10
   sound-alikes, 56 waits, 5 aliases and 89 drops in the sheet's 161 rows
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+- **Listen** (render with `uv run glitchygames listening-instruments`;
   every level, filter, ring and click is sound design unless a source is cited in the code; the
-  folder is `build/instruments/electronic/`). The 1 new build comes first, then the
+  folder is `instruments/electronic/`). The 1 new build comes first, then the
   sound-alikes; each group below is a parent with the sound-alikes that share its build, which
   must sound alike by design. The ranges differ within a group, since a chip gives its own:
   - [ ] The new build, `nes triangle`: a 32-step 4-bit staircase, distinct from the smooth
@@ -3076,9 +3076,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Goal**: confirm or overturn the calls made while batch 7 of #70 ran, and listen to its new
   instruments (bowed strings, 27 to 29 entries). Almost every candidate waits, drops or aliases:
   0 built, 2 sound-alikes, 118 waits, 5 aliases and 13 drops in the sheet's 138 rows
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+- **Listen** (render with `uv run glitchygames listening-instruments`;
   every level, filter, ring and click is sound design unless a source is cited in the code; the
-  folder is `build/instruments/bowed strings/`). No new build was added, so the listening is the
+  folder is `instruments/bowed strings/`). No new build was added, so the listening is the
   sound-alikes under their parents, which must sound alike by design. The ranges differ within a
   group, since each gives its own:
   - [ ] `viola pomposa` (C3-A6) beside its parent `viola`: its source calls it "less resonant than
@@ -3210,9 +3210,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   drops or aliases: 0 built, 1 sound-alike, 64 waits, 2 aliases and 71 drops in the sheet's 138
   rows. The plan's Task 5 (the choir vowels' build and its part-range test) was skipped by
   ruling, since no choir row shipped
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+- **Listen** (render with `uv run glitchygames listening-instruments`;
   every level, filter, ring and click is sound design unless a source is cited in the code; the
-  folders are `build/instruments/voices/` and `build/instruments/choirs/`). No new build was
+  folders are `instruments/voices/` and `instruments/choirs/`). No new build was
   added, so there is nothing new to hear in `choirs/`, and the listening is the sound-alike and
   the aliases under their parents, which must sound alike by design:
   - [ ] `basso buffo ah` (E2-F4) beside its parent `bass ah`: the Fach page gives the type's own
@@ -3358,9 +3358,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   instruments (flutes 30 to 33 entries). Almost every candidate waits or drops: 0 built, 3
   sound-alikes, 131 waits, 5 aliases and 7 drops in the sheet's 146 rows. The plan's Task 2 (the
   two recorder retitles) was skipped by ruling: see the recorder naming call below
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+- **Listen** (render with `uv run glitchygames listening-instruments`;
   every level, filter, ring and click is sound design unless a source is cited in the code; the
-  folder is `build/instruments/flutes/`). No new build was added, so there is nothing new to hear
+  folder is `instruments/flutes/`). No new build was added, so there is nothing new to hear
   as a build, and the listening is the sound-alikes and the aliases under their parents, which
   must sound alike by design:
   - [ ] The new builds: none (0 SHIP rows)
@@ -3558,9 +3558,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   instruments (brass 42 to 44 entries). Almost every candidate waits or drops: 0 built, 2
   sound-alikes, 99 waits, 16 aliases and 10 drops in the sheet's 127 rows. The plan's Task 5 had
   no build or sound-alike to code (half B shipped only aliases), so only its alias steps ran
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+- **Listen** (render with `uv run glitchygames listening-instruments`;
   every level, filter, ring and click is sound design unless a source is cited in the code; the
-  folder is `build/instruments/brass/`). No new build was added, so there is nothing new to hear
+  folder is `instruments/brass/`). No new build was added, so there is nothing new to hear
   as a build, and the listening is the sound-alikes and the aliases beside their parents, which
   must sound alike by design:
   - [ ] The new builds: none (0 SHIP rows)
@@ -3795,9 +3795,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sound-alikes, 82 waits, 11 aliases and 21 drops in the sheet's 116 rows. The plan's Task 5 added
   only `balaban` and 7 aliases, and the final review's ruling then took `balaban` out (it waits for
   its own build); the contraforte's own build was taken out in Task 3's second fix round
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+- **Listen** (render with `uv run glitchygames listening-instruments`; every
   level, filter, ring and click is sound design unless a source is cited in the code; the folder is
-  `build/instruments/double reeds/`). No new build was added, so there is nothing new to hear as a
+  `instruments/double reeds/`). No new build was added, so there is nothing new to hear as a
   build, and the listening is the sound-alikes and the aliases beside their parents, which must
   sound alike by design:
   - [ ] The new builds: none (0 SHIP rows)
@@ -4114,9 +4114,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   reversed during the batch (see the list below): `dudy` shipped and then went back to waiting,
   `brian boru bagpipes`, `sac de gemecs` and `parkapzuk` wait for a range rather than for an
   engine feature, and `union pipes`, `biniou braz`, `tulug` and `mushak baja` were dropped
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+- **Listen** (render with `uv run glitchygames listening-instruments`; every
   level, filter, drone level and click is sound design unless a source is cited in the code; the
-  folder is `build/instruments/bagpipes/`):
+  folder is `instruments/bagpipes/`):
   - [ ] The new build: `sackpipa` (Säckpipa in A, E4-E5, one drone at E4), the family's first
     cylindrical chanter (`CYLINDRICAL_CHANTER_LEVELS`: odd harmonics only, sound design marked so
     in its comment). Listen for a hollow, clarinet-like chanter against `scottish smallpipes`
@@ -4433,9 +4433,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   waiting for a footage, the 6 organs held back for an engine feature (`fairground organ`, `dance
   organ`, `orchestrion`, `panharmonicon`, `regal`, `band organ`) wait for a range first, and
   `carousel organ` was dropped
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+- **Listen** (render with `uv run glitchygames listening-instruments`; every
   level, filter, chiff and release is sound design unless a source is cited in the code; the
-  folder is `build/instruments/organs/`):
+  folder is `instruments/organs/`):
   - [ ] The new builds: `stopped diapason` (`STOPPED_FLUTE_LEVELS`, the flute stop's levels with
     the even harmonics silent: Audsley, a covered pipe's missing even harmonics; listen for a
     hollow, flute-like tone against `pipe organ flute`, whose second harmonic is 0.1 where this
@@ -4727,9 +4727,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sound-alike (`c clarinet`), 40 waits and 10 drops in the sheet's 51 rows (SHIP 0,
   SOUND_ALIKE 1, WAIT 40, ALIAS 0, DROP 10). Two rows were reversed during the batch (the list
   below): `d clarinet` went from a sound-alike to a wait, and `xaphoon` from ranged to a wait
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+- **Listen** (render with `uv run glitchygames listening-instruments`; every
   level, filter and release is sound design unless a source is cited in the code; the folder is
-  `build/instruments/clarinets/`):
+  `instruments/clarinets/`):
   - [ ] The new builds: none (no row shipped; no drone or detuned build, so `_drone_clarinet` and
     `chorus_cents` were not added, and there is no droned build to compare with the catalog
     clarinet its values would have been copied from)
@@ -4953,14 +4953,14 @@ This document tracks planned future features for the GlitchyGames project. Featu
   the sheet's 70 rows (SHIP 0, SOUND_ALIKE 0, WAIT 47, ALIAS 1, DROP 22). The 5 mechanical-audit
   piano rows were added as candidates, and the electromechanical instruments moved out of
   `keyboards.py` into `electromechanical.py`
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+- **Listen** (render with `uv run glitchygames listening-instruments`; every
   level, filter and release is sound design unless a source is cited in the code; the folder is
-  `build/instruments/keyboards/`):
+  `instruments/keyboards/`):
   - [ ] The new builds: none (no 16' harpsichord and no keyed idiophone shipped, so there is no
     build to compare with the catalog entry its values would have been copied from)
   - [ ] The sound-alikes beside their parents: none shipped
   - [ ] The alias: `fender rhodes` (of `tine electric piano`, in
-    `build/instruments/electromechanical/`: it is the same instrument under another name, and
+    `instruments/electromechanical/`: it is the same instrument under another name, and
     sounds as `tine electric piano` does)
 - **Calls to confirm** (each in `plans/data/instrument-audit/batch-15.tsv`; the sheet's 70 rows:
   SHIP 0, SOUND_ALIKE 0, WAIT 47, ALIAS 1, DROP 22):
@@ -5217,9 +5217,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   drops in the sheet's 67 rows (SHIP 0, SOUND_ALIKE 0, WAIT 58, ALIAS 1, DROP 8). The free reeds
   moved out of `winds.py` into `free_reeds.py` and `free_reed_sound_alikes.py`, and `winds.py`
   now holds only the saxophones
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+- **Listen** (render with `uv run glitchygames listening-instruments`; every
   level, filter and release is sound design unless a source is cited in the code; the folder is
-  `build/instruments/free reeds/`):
+  `instruments/free reeds/`):
   - [ ] The new builds: none (no droned reed shipped, so there is no build to compare with
     `harmonica`, whose chanter it would have shared)
   - [ ] The sound-alikes beside their parents: none shipped (so no `sound_changes` beside a parent)
@@ -5451,9 +5451,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sound-alikes), with 23 waits, 3 aliases and 21 drops in the sheet's 47 rows (SHIP 0,
   SOUND_ALIKE 0, WAIT 23, ALIAS 3, DROP 21). The harps moved out of `strings.py` into `harps.py`
   and `harp_sound_alikes.py`, and `strings.py` now holds only the struck strings
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+- **Listen** (render with `uv run glitchygames listening-instruments`; every
   level, filter and release is sound design unless a source is cited in the code; the folder is
-  `build/instruments/harps/`):
+  `instruments/harps/`):
   - [ ] The sound-alikes beside their parents: none shipped (so no `sound_changes` beside a
     parent)
   - [ ] The aliases, each of the entry it names: `pedal harp` (of
@@ -5680,9 +5680,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   and 27 drops in the sheet's 67 rows (SHIP 0, SOUND_ALIKE 0, WAIT 27, ALIAS 13, DROP 27). The struck strings moved out of `strings.py`, which
   was renamed `struck_strings.py`, and `struck_sound_alikes.py` holds the family's sound-alikes
   (none yet)
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+- **Listen** (render with `uv run glitchygames listening-instruments`; every
   level, filter and release is sound design unless a source is cited in the code; the folder is
-  `build/instruments/struck strings/`):
+  `instruments/struck strings/`):
   - [ ] The sound-alikes beside their parents: none shipped (so no `sound_changes` beside a
     parent)
   - [ ] The aliases, each of the entry it names: `hackbrett`, `dulcemele`, `dultzimar`,
@@ -5954,9 +5954,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   WAIT 16, ALIAS 2, DROP 7). `winds.py` was renamed `saxophones.py`, and
   `saxophone_sound_alikes.py` holds the family's sound-alikes. The expansion's close (#70's
   closing summary, the design's status line and the final audit) is here for you to rule on too
-- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`; every
+- **Listen** (render with `uv run glitchygames listening-instruments`; every
   level, filter and release is sound design unless a source is cited in the code; the folder is
-  `build/instruments/saxophones/`):
+  `instruments/saxophones/`):
   - [ ] The sound-alikes beside their parents (none carries `sound_changes`, so each is its
     parent's build over its own range): `soprillo saxophone` (Ab4-Db7) beside `sopranino
     saxophone` (Db4-Ab6); `tubax in eb` (Db1-A3) beside `contrabass saxophone` (Db1-Ab3);

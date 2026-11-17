@@ -1,28 +1,21 @@
 """The listening WAVs (glitchygames/audio/listening): where they go and what is rendered.
 
-And that the move from scripts/ changed no sample.
-
-The comparison with ``scripts/make_instrument_demos.py``, ``scripts/make_pipes.py`` and
-``scripts/pipe_tunes.py`` (their ``main`` writing into one folder, the moved code into another)
-is the plan's proof (plans/2026-11-14-sound-cache-on-first-use.md, decision 5): it holds while
-the scripts exist, listed in tests/test_suite_collection.py's ``SCRIPT_TEST_FILES``, and goes
-with them.
+The move from scripts/ was proven sample for sample against the scripts while they existed
+(commit 155cc1fa): all 733 files matched, and the rewritten transposition search chose as the
+script did in every key and on a tie. These tests hold the package to its own behaviour.
 """
 
 from __future__ import annotations
 
 import re
-import sys
 import wave
 from fractions import Fraction
 from typing import TYPE_CHECKING
 
 import pytest
-from scripts import make_instrument_demos, make_pipes, pipe_tunes
 
 from glitchygames.audio import instruments
-from glitchygames.audio.listening import listening_directory, pipes
-from glitchygames.audio.listening import pipe_tunes as pipe_tunes_moved
+from glitchygames.audio.listening import listening_directory, pipe_tunes, pipes
 from glitchygames.audio.listening.renders import render_instruments, render_pipes
 from glitchygames.audio.spec import AUDIO_RENDER_VERSION
 
@@ -45,84 +38,15 @@ def _wave_file(path: Path) -> tuple[tuple[int, int, int], bytes]:
         )
 
 
-def _assert_same_files(*, reference: Path, ours: Path) -> None:
-    """The same WAV files under both folders, each the same format and samples."""
-    reference_files = sorted(path.relative_to(reference) for path in reference.rglob('*.wav'))
-    our_files = sorted(path.relative_to(ours) for path in ours.rglob('*.wav'))
-    assert our_files == reference_files
-    assert reference_files  # a comparison of nothing proves nothing
-    different = [
-        str(relative)
-        for relative in reference_files
-        if _wave_file(ours / relative) != _wave_file(reference / relative)
-    ]
-    assert different == []
-
-
-def test_the_instrument_demos_are_the_scripts_sample_for_sample(
-    tmp_path: Path, mocker: MockerFixture
-):
-    """Every catalog instrument's file, and the index, as make_instrument_demos.py wrote them."""
-    reference = tmp_path / 'script'
-    mocker.patch.object(sys, 'argv', ['make_instrument_demos', str(reference)])
-    make_instrument_demos.main()
-
-    render_instruments(root=tmp_path / 'cache')
-
-    ours = listening_directory(root=tmp_path / 'cache') / 'instruments'
-    _assert_same_files(reference=reference, ours=ours)
-    assert (ours / 'index.txt').read_bytes() == (reference / 'index.txt').read_bytes()
-
-
-def test_the_pipe_demos_and_tunes_are_the_scripts_sample_for_sample(
-    tmp_path: Path, mocker: MockerFixture
-):
-    """The six demos as make_pipes.py wrote them, the 20 tunes as pipe_tunes.py did."""
-    reference = tmp_path / 'script'
-    mocker.patch.object(sys, 'argv', ['make_pipes', str(reference)])
-    make_pipes.main()
-    tunes_directory = make_pipes.__file__.removesuffix('make_pipes.py') + 'pipe_tunes_abc'
-    mocker.patch.object(sys, 'argv', ['pipe_tunes', tunes_directory, str(reference / 'tunes')])
-    pipe_tunes.main()
-
-    render_pipes(root=tmp_path / 'cache')
-
-    _assert_same_files(
-        reference=reference, ours=listening_directory(root=tmp_path / 'cache') / 'pipes'
-    )
-
-
-# Every key the uilleann arranger may be given (a major key on each of the twelve pitch classes,
-# and modes), and melodies from narrow to wider than the chanter's two octaves, so its choice of
-# transposition is compared where the tunes alone never make two choices tie
-KEYS = ('C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'F', 'Bb', 'Eb', 'Ab', 'Ador', 'Emin', 'Gmix')
-MELODIES = ('CDEF GABc', 'C,D,E,F, G,A,B,C', "cdef gabc'", "C,E,G,c egc'e'", 'C4 c4', 'G2 G2')
-
-
-def test_the_uilleann_transposition_is_the_scripts_in_every_key():
-    """The rewritten search (``min``) picks what the script's loop picked, ties included."""
-    different = []
-    for key in KEYS:
-        for melody in MELODIES:
-            text = f'X:1\nT:t\nM:4/4\nL:1/8\nK:{key}\n{melody} |\n'
-            ours = pipe_tunes_moved.uilleann_transposition(pipe_tunes_moved.read_tune(text))
-            script = pipe_tunes.uilleann_transposition(pipe_tunes.read_tune(text))
-            if ours != script:
-                different.append((key, melody, ours, script))
-    assert different == []
-
-
 def test_a_tie_between_two_transpositions_goes_to_the_first_tried():
     """D flat major from B flat 3 to E6: down 6 and up 6 score alike; the first tried, -6, wins.
 
-    Found by searching every relative major and span (the 20 tunes never tie), so the order the
-    rewritten search tries its candidates in is compared too.
+    Found by searching every relative major and span (the 20 tunes never tie); the script's
+    search chose -6 too (commit 155cc1fa), so the order candidates are tried in stays its.
     """
     text = "X:1\nT:t\nM:4/4\nL:1/8\nK:Db\nB,2 =e'2 |\n"
 
-    ours = pipe_tunes_moved.uilleann_transposition(pipe_tunes_moved.read_tune(text))
-
-    assert ours == pipe_tunes.uilleann_transposition(pipe_tunes.read_tune(text)) == -6
+    assert pipe_tunes.uilleann_transposition(pipe_tunes.read_tune(text)) == -6
 
 
 # --- The ABC reader: what each notation means (abcnotation.com, the 2.1 standard) ---
@@ -137,7 +61,7 @@ def _bars(body: str) -> list[list[int | None]]:
     Returns:
         The bars.
     """
-    tune = pipe_tunes_moved.read_tune(ABC_HEADER + body)
+    tune = pipe_tunes.read_tune(ABC_HEADER + body)
     return [[note.midi for note in bar] for bar in tune.bars]
 
 
@@ -147,7 +71,7 @@ def _lengths(body: str) -> list[Fraction]:
     Returns:
         The lengths.
     """
-    tune = pipe_tunes_moved.read_tune(ABC_HEADER + body)
+    tune = pipe_tunes.read_tune(ABC_HEADER + body)
     return [note.whole_notes for bar in tune.bars for note in bar]
 
 
@@ -206,14 +130,14 @@ def test_rhythm_marks_change_note_lengths(body: str, lengths: list[Fraction]):
 def test_a_key_that_cannot_be_read_is_refused(key: str, message: str):
     """A tune in no key the reader knows fails, rather than playing in the wrong one."""
     with pytest.raises(ValueError, match=re.escape(message)):
-        pipe_tunes_moved.key_signature(key)
+        pipe_tunes.key_signature(key)
 
 
 def test_tied_notes_are_held_as_one():
     """``A-A`` sounds one A for both lengths (on the Highland chanter, which adds no cut)."""
-    tune = pipe_tunes_moved.read_tune(ABC_HEADER + 'A4-A4 |')
+    tune = pipe_tunes.read_tune(ABC_HEADER + 'A4-A4 |')
 
-    events = pipe_tunes_moved.chanter_events(
+    events = pipe_tunes.chanter_events(
         tune, seconds_per_whole=2.0, instrument='highland', transposition=0
     )
 
@@ -222,15 +146,15 @@ def test_tied_notes_are_held_as_one():
 
 def test_a_highland_note_off_the_chanter_follows_equal_temperament_from_its_a():
     """The nine written notes are the chanter's own; any other is tempered from its 480 Hz A."""
-    assert pipe_tunes_moved.highland_frequency(69) == pipes.HIGHLAND_SCALE['LA']
-    assert pipe_tunes_moved.highland_frequency(60) == pytest.approx(480.0 * 2 ** (-9 / 12))
+    assert pipe_tunes.highland_frequency(69) == pipes.HIGHLAND_SCALE['LA']
+    assert pipe_tunes.highland_frequency(60) == pytest.approx(480.0 * 2 ** (-9 / 12))
 
 
 def test_no_regulator_chords_fit_a_key_other_than_d_or_g():
     """The regulators are tuned to D: a tune left in another key gets no chords."""
-    tune = pipe_tunes_moved.read_tune(ABC_HEADER + 'C8 |')
+    tune = pipe_tunes.read_tune(ABC_HEADER + 'C8 |')
 
-    layers = pipe_tunes_moved.regulator_layers(
+    layers = pipe_tunes.regulator_layers(
         tune, seconds_per_whole=2.0, transposition=0, start_frame=0
     )
 
@@ -242,10 +166,10 @@ def test_a_highland_tune_with_a_note_off_the_chanter_goes_on_the_uilleann_pipes(
 ):
     """Middle C is not one of the Highland chanter's nine notes: the uilleann pipes play it."""
     (tmp_path / 'low.abc').write_text(ABC_HEADER + 'C2 D2 |', encoding='utf-8')
-    monkeypatch.setattr(pipe_tunes_moved, 'TUNES_DIRECTORY', tmp_path)
-    arrange = mocker.spy(pipe_tunes_moved, 'arrange')
+    monkeypatch.setattr(pipe_tunes, 'TUNES_DIRECTORY', tmp_path)
+    arrange = mocker.spy(pipe_tunes, 'arrange')
 
-    pipe_tunes_moved.tune_samples({'file': 'low.abc', 'suggested_instrument': 'highland'})
+    pipe_tunes.tune_samples({'file': 'low.abc', 'suggested_instrument': 'highland'})
 
     assert arrange.call_args.kwargs['instrument'] == 'uilleann'
 
@@ -310,8 +234,8 @@ def test_every_pipe_demo_and_tune_renders(tmp_path: Path):
     expected = sorted(
         [directory / f'{name}.wav' for name in pipes.PIPE_DEMOS]
         + [
-            directory / 'tunes' / f'{pipe_tunes_moved.tune_name(entry)}.wav'
-            for entry in pipe_tunes_moved.tune_entries()
+            directory / 'tunes' / f'{pipe_tunes.tune_name(entry)}.wav'
+            for entry in pipe_tunes.tune_entries()
         ]
     )
     assert sorted(report.written) == expected

@@ -97,6 +97,9 @@ log: logging.Logger = logging.getLogger('game.audio.disk_cache')
 SOUND_CACHE_ROOT_VARIABLE: Final[str] = 'GLITCHYGAMES_SOUND_CACHE_ROOT'
 CACHE_APP_NAME: Final[str] = 'glitchygames'
 SOUNDS_FOLDER: Final[str] = 'sounds'
+# The listening WAVs' folder under the root, beside the games' (glitchygames/audio/listening):
+# <root>/listening/<render version>/, no size limit, never pruned
+LISTENING_FOLDER = 'listening'
 # The disk layer's size limit, pruned to at startup (impl spec 6.4, the owner's 64 MB)
 DISK_CACHE_LIMIT_BYTES: Final[int] = 64 * 1024 * 1024
 

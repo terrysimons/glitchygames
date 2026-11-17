@@ -1242,13 +1242,6 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
     ),
     'tests/test_ai_model_comparison.py': ('scripts/ai_model_comparison.py',),
     'tests/replay/test_record_scripted_session.py': ('scripts/record_scripted_session.py',),
-    # The listening WAVs' move from scripts/ (glitchygames/audio/listening): the scripts' output is
-    # the moved code's reference until they are removed
-    'tests/audio/test_listening.py': (
-        'scripts/make_instrument_demos.py',
-        'scripts/make_pipes.py',
-        'scripts/pipe_tunes.py',
-    ),
     'tests/sprites/test_animated_sprite.py': ('scripts/sprite_stack.py',),
     'tests/sprites/test_legacy_sprite_glyphs.py': ('scripts/raw_sprite_loader.py',),
     'tests/sprites/test_sprite_color_map_limits.py': ('scripts/raw_sprite_loader.py',),

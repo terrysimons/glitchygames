@@ -1111,6 +1111,33 @@ def check_sound_cache_fill(world: World, run: Run) -> None:
     assert f'{PACKAGE}: {POWER_ON_SOUNDS} sounds written' in run.output, run.output
 
 
+def listening_files(world: World) -> list[Path]:
+    """The listening WAVs in the cache root beside the project.
+
+    Returns:
+        Their paths, in order.
+    """
+    folder = sound_cache_root(world) / 'listening' / str(AUDIO_RENDER_VERSION)
+    return sorted(folder.rglob('*.wav'))
+
+
+def check_listening_pipes(world: World, run: Run) -> None:
+    """The two chanter notes are written, and their paths printed (a player opens them)."""
+    assert run.status == ExitCode.SUCCESS, run.output + run.errors
+    files = listening_files(world)
+    assert [path.name for path in files] == ['highland_chanter_A.wav', 'uilleann_chanter_A.wav']
+    assert all(str(path) in run.output for path in files), run.output
+
+
+def check_listening_instruments(world: World, run: Run) -> None:
+    """The uilleann pipes of the bagpipes family are written, and their paths printed."""
+    assert run.status == ExitCode.SUCCESS, run.output + run.errors
+    files = listening_files(world)
+    assert files
+    assert all(path.parent.name == 'bagpipes' and 'uilleann' in path.stem for path in files)
+    assert all(str(path) in run.output for path in files), run.output
+
+
 SCENARIOS = (
     Scenario(
         name='record-trace',
@@ -1316,6 +1343,26 @@ SCENARIOS = (
         expected_written=nothing_written,
         check=check_sound_cache_fill,
         unnamed_game_starts=True,
+        environment=sound_cache_environment,
+    ),
+    Scenario(
+        name='listening-pipes',
+        tool='listening-pipes',
+        values=no_values,
+        options=('--only', 'chanter_A'),
+        game_on_the_command=None,
+        expected_written=nothing_written,
+        check=check_listening_pipes,
+        environment=sound_cache_environment,
+    ),
+    Scenario(
+        name='listening-instruments',
+        tool='listening-instruments',
+        values=no_values,
+        options=('--family', 'bagpipes', '--only', 'uilleann'),
+        game_on_the_command=None,
+        expected_written=nothing_written,
+        check=check_listening_instruments,
         environment=sound_cache_environment,
     ),
 )

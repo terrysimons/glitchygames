@@ -89,8 +89,14 @@ def test_what_is_not_a_cache_folder_is_left_out(tmp_path):
     (tmp_path / 'notes.txt').write_text('mine')
     (tmp_path / 'clockwork_keep' / 'sounds' / 'drafts').mkdir()
     (tmp_path / 'other' / 'things').mkdir(parents=True)
+    (tmp_path / 'listening' / 'drafts').mkdir(parents=True)
 
-    assert [folder.game for folder in inventory(root=tmp_path).folders] == ['clockwork_keep']
+    found = inventory(root=tmp_path)
+
+    assert [folder.game for folder in found.folders] == ['clockwork_keep']
+    assert found.listening == ()
+    clear(root=tmp_path, listening=True)
+    assert (tmp_path / 'listening' / 'drafts').is_dir()
 
 
 def test_clearing_the_stale_versions_removes_only_older_folders_and_says_what_it_freed(tmp_path):
@@ -274,6 +280,82 @@ def test_verifying_one_game_checks_only_its_folders(tmp_path):
     report = verify(root=tmp_path, game='clockwork_keep')
 
     assert (report.checked, report.damaged) == (3, ())
+
+
+def _write_listening(root: Path, *, version: int, count: int) -> list[Path]:
+    """Write ``count`` plain WAV files into the listening folder for a render version.
+
+    Returns:
+        Their paths.
+    """
+    from glitchygames.audio.offline import write_wave_file
+
+    directory = root / 'listening' / str(version) / 'pipes'
+    directory.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for index in range(count):
+        path = directory / f'demo_{index}.wav'
+        write_wave_file(path, np.zeros(100), sample_rate=RATE, sample_format='int16')
+        paths.append(path)
+    return paths
+
+
+def test_the_listening_folders_are_listed_apart_from_the_games(tmp_path):
+    """Each render version's listening folder, its files and bytes; an older one stale."""
+    _write_sounds(tmp_path, game='clockwork_keep', version=CURRENT, count=1)
+    current = _write_listening(tmp_path, version=CURRENT, count=2)
+    _write_listening(tmp_path, version=CURRENT - 1, count=1)
+
+    found = inventory(root=tmp_path)
+
+    assert [folder.game for folder in found.folders] == ['clockwork_keep']
+    assert [
+        (folder.render_version, folder.file_count, folder.stale) for folder in found.listening
+    ] == [(CURRENT - 1, 1, True), (CURRENT, 2, False)]
+    assert found.listening[1].size_bytes == sum(path.stat().st_size for path in current)
+    assert found.listening[1].path == tmp_path / 'listening' / str(CURRENT)
+
+
+def test_clearing_the_games_leaves_the_listening_files(tmp_path):
+    """Only clear(listening=True) removes them (the plan's rule)."""
+    _write_sounds(tmp_path, game='clockwork_keep', version=CURRENT, count=1)
+    _write_listening(tmp_path, version=CURRENT, count=2)
+
+    clear(root=tmp_path)
+
+    assert inventory(root=tmp_path).folders == ()
+    assert len(inventory(root=tmp_path).listening) == 1
+
+
+@pytest.mark.parametrize(('stale_only', 'left'), [(False, []), (True, [CURRENT])])
+def test_clearing_the_listening_files_leaves_the_games(tmp_path, stale_only, left):
+    """listening=True removes listening folders (with stale_only, only the older ones)."""
+    _write_sounds(tmp_path, game='clockwork_keep', version=CURRENT, count=1)
+    _write_listening(tmp_path, version=CURRENT, count=2)
+    _write_listening(tmp_path, version=CURRENT - 1, count=1)
+
+    report = clear(root=tmp_path, listening=True, stale_only=stale_only)
+
+    found = inventory(root=tmp_path)
+    assert [folder.render_version for folder in found.listening] == left
+    assert [folder.game for folder in found.folders] == ['clockwork_keep']
+    assert report.removed_sounds == (1 if stale_only else 3)
+
+
+def test_clearing_one_games_listening_files_is_refused(tmp_path):
+    """The listening files are no game's."""
+    with pytest.raises(ValueError, match='no game'):
+        clear(root=tmp_path, game='clockwork_keep', listening=True)
+
+
+def test_verifying_leaves_the_listening_files_out(tmp_path):
+    """They are plain WAVs, not cache files (no peak chunk): never reported as damaged."""
+    _write_sounds(tmp_path, game='clockwork_keep', version=CURRENT, count=1)
+    _write_listening(tmp_path, version=CURRENT, count=2)
+
+    report = verify(root=tmp_path)
+
+    assert (report.checked, report.damaged) == (1, ())
 
 
 FIXTURE_SOUNDS = Path(__file__).parent / 'fixtures' / 'sounds'
