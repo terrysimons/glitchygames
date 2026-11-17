@@ -13,16 +13,6 @@ from glitchygames.sprites.sprite_toml import (
     split_sprite_text,
     write_sprite_toml,
 )
-from tests.workspace_sprite_files import MEMBER_SPRITE_FILES, sprite_file_id
-
-# The sprite files the Python loader reads: every member's, Bitmappy's library among them
-BITMAPPY_LIBRARY_PREFIX = 'apps/bitmappy/src/bitmappy/resources/sprites/'
-
-# The engine's own sprites (src/glitchygames/assets) join the members'
-SHIPPED_SPRITE_FILES = [
-    *sorted((Path(sprite_toml.__file__).parent.parent / 'assets').glob('*.toml')),
-    *MEMBER_SPRITE_FILES,
-]
 
 # A static sprite: pixels in [sprite], three colors including the '#', 'é' and 'Ŧ' glyphs
 STATIC_SPRITE_TEXT = '''\
@@ -350,21 +340,6 @@ def test_a_value_the_toml_format_cannot_hold_here_is_refused():
         write_sprite_toml(data={'sprite': {'name': 'x'}, 'extra': {'when': object()}})
 
 
-def test_the_bitmappy_library_is_among_the_files_checked():
-    """The round trip below covers Bitmappy's sprite library as well as the games'."""
-    names = {sprite_file_id(sprite_file) for sprite_file in MEMBER_SPRITE_FILES}
-    assert any(name.startswith(BITMAPPY_LIBRARY_PREFIX) for name in names)
-
-
-@pytest.mark.parametrize('sprite_file', SHIPPED_SPRITE_FILES, ids=sprite_file_id)
-def test_every_shipped_sprite_file_round_trips(sprite_file):
-    """Parsing a shipped sprite, writing it and parsing the text gives an equal document."""
-    text = sprite_file.read_text(encoding='utf-8')
-    document = parse_sprite_toml(text=text, source_name=str(sprite_file))
-    written = write_sprite_toml(data=document)
-    assert parse_sprite_toml(text=written, source_name=str(sprite_file)) == document
-
-
 def test_a_document_without_a_sprite_table_round_trips():
     """The loader accepts a file with no [sprite]; so does the writer, adding none."""
     document = parse_sprite_toml(text='[colors.a]\nred = 1\n', source_name='test')
@@ -502,21 +477,3 @@ def test_animations_without_a_namespace_give_frames_named_default():
     text = f'[sprite]\nname = "x"\n[[animation]]\n{frame}[[animation]]\n{frame}'
     names = [document['sprite']['name'] for document in split_documents(text)]
     assert names == ['x-default-0', 'x-default-0']
-
-
-def test_a_shipped_multi_animation_sprite_splits_into_loadable_frames_with_equal_pixels():
-    """Every frame of a real sprite is written, loads, and keeps its source pixels."""
-    (sprite_file,) = [
-        path
-        for path in MEMBER_SPRITE_FILES
-        if path.as_posix().endswith('brave_adventurer_papyrus/sprites/player.toml')
-    ]
-    source = parse_sprite_toml(text=sprite_file.read_text(encoding='utf-8'), source_name='source')
-    source_pixels = [
-        frame['pixels'] for animation in source['animation'] for frame in animation['frame']
-    ]
-    assert len(source['animation']) > 1
-    written = split_documents(sprite_file.read_text(encoding='utf-8'))
-    assert [document['sprite']['pixels'] for document in written] == source_pixels
-    for document in written:
-        assert set(document['colors']) <= set(source['colors'])

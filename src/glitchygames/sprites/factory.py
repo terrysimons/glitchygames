@@ -6,7 +6,6 @@ for loading and saving both static and animated sprites.
 
 from __future__ import annotations
 
-import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -203,14 +202,16 @@ class SpriteFactory:
 
     @staticmethod
     def _get_toml_data(filename: str) -> dict[str, Any]:
-        """Get raw TOML data from file.
+        """Get raw TOML data from file, parsed as the text load parses text.
 
         Returns:
-            dict: The toml data.
+            dict: The toml data. A file that is not valid TOML raises the ValueError
+            ``parse_sprite_toml`` raises for the same text, naming the file.
 
         """
-        with Path(filename).open('rb') as f:
-            return tomllib.load(f)
+        # Bytes decoded, as AnimatedSprite._load_toml reads a file: the same text, the same error
+        text = Path(filename).read_bytes().decode('utf-8')
+        return parse_sprite_toml(text=text, source_name=filename)
 
     @staticmethod
     def _determine_type(analysis: dict[str, Any]) -> str:

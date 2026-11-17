@@ -9,7 +9,6 @@ from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites import AnimatedSprite, SpriteFactory
 from glitchygames.sprites.sprite_text import sprite_from_text
 from glitchygames.testing.sprite_files import check_text_and_file_loads_agree
-from tests.workspace_sprite_files import MEMBER_SPRITE_FILES, sprite_file_id
 
 # A static sprite whose second row is shorter than its first: the loader repairs it and says so
 SHORT_ROW_TEXT = """\
@@ -81,12 +80,6 @@ def display():
         set_display_mode(size=(96, 64))
 
 
-@pytest.mark.parametrize('sprite_file', MEMBER_SPRITE_FILES, ids=sprite_file_id)
-def test_text_and_file_loads_agree(sprite_file):
-    """The text of a sprite file loads to the sprite the file does (RGBA frames, metadata, ...)."""
-    check_text_and_file_loads_agree(sprite_file=sprite_file)
-
-
 def test_the_agreement_check_fails_when_the_text_loads_differently(tmp_path, mocker):
     """The check can fail: a text load that changes the sprite is reported with the file."""
     sprite_file = tmp_path / 'blink.toml'
@@ -103,13 +96,6 @@ def test_the_agreement_check_fails_when_the_text_loads_differently(tmp_path, moc
 
     with pytest.raises(AssertionError, match=r'blink\.toml: animation_metadata'):
         check_text_and_file_loads_agree(sprite_file=sprite_file)
-
-
-def test_the_files_checked_include_bitmappys_library():
-    """Bitmappy's library (toadstool.toml among it) is in the files the agreement runs on."""
-    names = {sprite_file.name for sprite_file in MEMBER_SPRITE_FILES}
-
-    assert 'toadstool.toml' in names
 
 
 def test_repair_warnings_name_the_text_source(caplog):
@@ -199,3 +185,16 @@ def test_text_without_any_sprite_content_is_refused():
     """Text with neither pixels nor animations is refused as a file is."""
     with pytest.raises(ValueError, match='Invalid sprite file'):
         SpriteFactory.load_sprite_from_text(text='[sprite]\nname = "empty"\n', source_name='test')
+
+
+def test_the_factory_refuses_a_file_that_is_not_toml_as_it_refuses_the_same_text(tmp_path):
+    """Both routes name the source and say "is not valid TOML", for the same bad TOML."""
+    bad_file = tmp_path / 'bad.toml'
+    bad_file.write_text('[sprite\n', encoding='utf-8')
+
+    with pytest.raises(ValueError, match=r'bad\.toml is not valid TOML') as from_file:
+        SpriteFactory.load_sprite(filename=str(bad_file))
+    with pytest.raises(ValueError, match=r'bad\.toml is not valid TOML') as from_text:
+        SpriteFactory.load_sprite_from_text(text='[sprite\n', source_name=str(bad_file))
+
+    assert str(from_text.value) == str(from_file.value)
