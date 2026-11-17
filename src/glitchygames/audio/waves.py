@@ -364,7 +364,9 @@ class Wave:
         The band's top frequency is 20 Hz times a power of two at or above
         ``highest_frequency``. Only the harmonics that stay below Nyquist at that top are kept.
         The frequency is that of the table's cycle: the note frequency divided by
-        ``note_periods_per_cycle`` (a table with sub-harmonics spans two note periods).
+        ``note_periods_per_cycle`` (a table with sub-harmonics spans two note periods). A
+        frequency that is not positive or is above Nyquist raises ``_kept_harmonics``'
+        ValueError. The table is built once and kept.
 
         Args:
             highest_frequency: The highest table-cycle frequency, in hertz, that will read the
@@ -373,6 +375,20 @@ class Wave:
 
         Returns:
             A read-only array of ``WAVE_TABLE_LENGTH`` samples.
+        """
+        kept_harmonics = self._kept_harmonics(
+            highest_frequency=highest_frequency, sample_rate=sample_rate
+        )
+        if kept_harmonics not in self._bands:
+            self._bands[kept_harmonics] = self._band_table(kept_harmonics=kept_harmonics)
+        return self._bands[kept_harmonics]
+
+    @staticmethod
+    def _kept_harmonics(*, highest_frequency: float, sample_rate: int) -> int:
+        """How many harmonics the band read at ``highest_frequency`` keeps.
+
+        Returns:
+            The band's harmonic count.
 
         Raises:
             ValueError: If the frequency is not positive or is above Nyquist.
@@ -383,12 +399,17 @@ class Wave:
             raise ValueError(message)
         band_index = max(0, math.ceil(math.log2(highest_frequency / LOWEST_BAND_HERTZ)))
         band_top = LOWEST_BAND_HERTZ * 2.0**band_index
-        kept_harmonics = min(max(1, math.floor(nyquist / band_top)), HIGHEST_TABLE_HARMONIC)
-        if kept_harmonics not in self._bands:
-            spectrum = np.fft.rfft(self._table)
-            spectrum[kept_harmonics + 1 :] = 0.0
-            self._bands[kept_harmonics] = _freeze(np.fft.irfft(spectrum, n=WAVE_TABLE_LENGTH))
-        return self._bands[kept_harmonics]
+        return min(max(1, math.floor(nyquist / band_top)), HIGHEST_TABLE_HARMONIC)
+
+    def _band_table(self, *, kept_harmonics: int) -> FloatArray:
+        """The table with only its first ``kept_harmonics`` harmonics, built and not cached.
+
+        Returns:
+            A read-only array of ``WAVE_TABLE_LENGTH`` samples.
+        """
+        spectrum = np.fft.rfft(self._table)
+        spectrum[kept_harmonics + 1 :] = 0.0
+        return _freeze(np.fft.irfft(spectrum, n=WAVE_TABLE_LENGTH))
 
     def band_limited_peak(self, *, sample_rate: int) -> float:
         """The loudest sample of any band table a note in the supported range reads.
@@ -397,7 +418,9 @@ class Wave:
         table's peak of 1, worst in the high bands where few harmonics are left. The renderer
         divides by this so a level-1 source never clips. The bands are those read by notes from
         8 Hz to 12 kHz (``SUPPORTED_LOW_HZ`` to ``SUPPORTED_HIGH_HZ``); a linear read between
-        table samples never exceeds them. Computed once per sample rate and cached.
+        table samples never exceeds them. Computed once per sample rate and cached; the tables
+        it measures are not kept (a table already cached is reused), as a note reads only a few
+        of them and each is 16 KiB (the instrument catalog's test kept 85 MiB of them).
 
         Args:
             sample_rate: Samples per second.
@@ -415,16 +438,19 @@ class Wave:
                 min(LOWEST_BAND_HERTZ * 2.0**band, nyquist)
                 for band in range(first_band, last_band + 1)
             ]
-            self._band_peaks[sample_rate] = max(
-                float(
-                    np.max(
-                        np.abs(
-                            self.band_limited_table(highest_frequency=top, sample_rate=sample_rate)
-                        )
-                    )
+            peak = 0.0
+            for top in band_tops:
+                kept_harmonics = self._kept_harmonics(
+                    highest_frequency=top, sample_rate=sample_rate
                 )
-                for top in band_tops
-            )
+                cached = self._bands.get(kept_harmonics)
+                table = (
+                    cached
+                    if cached is not None
+                    else self._band_table(kept_harmonics=kept_harmonics)
+                )
+                peak = max(peak, float(np.max(np.abs(table))))
+            self._band_peaks[sample_rate] = peak
         return self._band_peaks[sample_rate]
 
     @classmethod

@@ -1315,10 +1315,22 @@ class TestEventSystemUtilities:
         """Every call shares one scan of pygame's event names, and answers as before.
 
         The module's own calls at import already scanned them: the cache is emptied first, so
-        the count starts at none, and again after, so no later call keeps the spied scan.
+        the count starts at none, and again after, so no later call keeps the counted scan.
+
+        The scan is counted, not spied: a spy records each of its 65,535 calls, which raised the
+        test process's memory by about 70 MiB and pushed CircleCI's 2 GB Linux job past its
+        memory limit (2026-11-17).
         """
+        real_event_name = pygame.event.event_name
+        calls = 0
+
+        def counted_event_name(event_type: int) -> str:
+            nonlocal calls
+            calls += 1
+            return real_event_name(event_type)
+
         pygame_event_names.cache_clear()
-        scan = mocker.spy(pygame.event, 'event_name')
+        mocker.patch.object(pygame.event, 'event_name', new=counted_event_name)
         try:
             keyboard_events = supported_events(like='KEY.*?')
             every_event = supported_events()
@@ -1326,7 +1338,7 @@ class TestEventSystemUtilities:
         finally:
             pygame_event_names.cache_clear()
 
-        assert scan.call_count == pygame.NUMEVENTS
+        assert calls == pygame.NUMEVENTS
         assert sorted(keyboard_events) == sorted(KEYBOARD_EVENTS)
         assert sorted(every_event) == sorted(ALL_EVENTS)
         assert sorted(mouse_events) == sorted(MOUSE_EVENTS)
