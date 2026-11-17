@@ -11,8 +11,9 @@
 #   circleci auth login
 #   unset CIRCLE_TOKEN
 #   read -rs CIRCLECI_API_TOKEN && export CIRCLECI_API_TOKEN
-#   uvx --from ansible-core ansible-playbook -i ansible/inventory.yml \
-#     ansible/raspberry_pi_runner.yml --ask-become-pass
+#   uv run ansible-playbook -i ansible/inventory.yml ansible/raspberry_pi_runner.yml \
+#     --ask-become-pass
+# (Ansible is in the dev group, so uv sync installs it.)
 # Registers each Pi with CircleCI on its first run. The auto-login takes effect at the next
 # reboot, which this never does: rebooting ends the desktop session in use.
 - name: Set up the Raspberry Pi runners

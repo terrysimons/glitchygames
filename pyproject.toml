@@ -118,6 +118,9 @@ dev = [
   "filelock>=3.32.7",
   # uv.lock's dependency markers and package names (scripts/generate_sbom.py)
   "packaging>=26.0",
+  # Runs the Raspberry Pi and AI service playbooks (uv run ansible-playbook; ansible/). A
+  # development tool, never imported or bundled: its GPL is cleared in scripts/check_licenses.py
+  "ansible>=14.6.0",
 ]
 api = []
 # Building a new game project from a template (glitchygames.templates, scripts/create.py):
