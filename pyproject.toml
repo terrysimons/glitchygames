@@ -870,6 +870,9 @@ DEP002 = [
   "yamllint",
   "wily",
   "radon",
+  # Runs the Raspberry Pi and AI service playbooks (uv run ansible-playbook); GPL-3.0, so a
+  # development tool only, never imported (its exception in scripts/check_licenses.py)
+  "ansible",
 ]
 
 [build-system]
