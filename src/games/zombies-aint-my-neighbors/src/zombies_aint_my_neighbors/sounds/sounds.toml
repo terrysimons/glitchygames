@@ -186,18 +186,18 @@ offset = 0.0
 duration = 0.352381
 low_pass_cutoff = 700.0
 distortion = 0.3
-envelope = { attack = 0.08, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+envelope = { attack = 0.08, decay = 0.0, sustain_level = 1.0, release = 0.016 }
 
 [[effects.groan-2.tones]]
 waveform = "sawtooth"
 start_frequency = 125.0
 end_frequency = 78.0
 easing = "ease_in_out_sine"
-offset = 0.352381
+offset = 0.336381
 duration = 0.502463
 low_pass_cutoff = 700.0
 distortion = 0.3
-envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.25 }
+envelope = { attack = 0.016, decay = 0.0, sustain_level = 1.0, release = 0.25 }
 
 # A zombie's moan, wavering as it trails off.
 [effects.groan-3]
@@ -212,26 +212,26 @@ offset = 0.0
 duration = 0.252747
 low_pass_cutoff = 700.0
 distortion = 0.3
-envelope = { attack = 0.08, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+envelope = { attack = 0.08, decay = 0.0, sustain_level = 1.0, release = 0.02439 }
 
 [[effects.groan-3.tones]]
 waveform = "sawtooth"
 start_frequency = 82.0
 end_frequency = 108.0
 easing = "ease_in_out_sine"
-offset = 0.252747
+offset = 0.228357
 duration = 0.221053
 low_pass_cutoff = 700.0
 distortion = 0.3
-envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+envelope = { attack = 0.02439, decay = 0.0, sustain_level = 1.0, release = 0.018519 }
 
 [[effects.groan-3.tones]]
 waveform = "sawtooth"
 start_frequency = 108.0
 end_frequency = 80.0
 easing = "ease_in_out_sine"
-offset = 0.4738
+offset = 0.430891
 duration = 0.319149
 low_pass_cutoff = 700.0
 distortion = 0.3
-envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.25 }
+envelope = { attack = 0.018519, decay = 0.0, sustain_level = 1.0, release = 0.25 }

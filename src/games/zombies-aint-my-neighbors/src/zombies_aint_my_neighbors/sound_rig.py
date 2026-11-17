@@ -52,13 +52,23 @@ class ToneSpec(BaseModel):
 
 
 class Shaping(BaseModel):
-    """What every swoop of a chain shares: its wave, and any filter or distortion."""
+    """What every swoop of a chain shares: its wave, any filter or distortion, and its joins.
+
+    With no crossfade the swoops join end to end, and a plain sine runs on as one unbroken wave.
+    A filtered wave can't: its filter starts afresh with each tone, and a sawtooth restarts its
+    ramp, so each join clicks. A crossfade overlaps neighbours instead: each later swoop starts
+    before the last ends, fading in while the last fades out. Each overlap is the whole number of
+    cycles at its join's pitch nearest ``crossfade`` seconds, so the two waves fade across each
+    other in step (half a cycle apart, they would cancel: a dip in loudness at every join).
+    """
 
     model_config = ConfigDict(frozen=True, extra='forbid')
 
     waveform: str = 'sine'
     low_pass_cutoff: float | None = None
     distortion: float | None = None
+    # Seconds each join overlaps, roughly (0: end to end, with no fade between swoops)
+    crossfade: float = 0.0
 
 
 class EffectSpec(BaseModel):
@@ -96,12 +106,14 @@ def swoops(
     fade_out: float,
     shaping: Shaping = SINE,
 ) -> tuple[ToneSpec, ...]:
-    """Return a chain of sine-shaped pitch swoops, end to end, each a whole number of cycles.
+    """Return a chain of sine-shaped pitch swoops, each a whole number of cycles.
+
+    Joined end to end, or crossfaded as ``shaping`` says (see ``Shaping``).
 
     Args:
         pitches: Each swoop's start and end pitch, in hertz.
         abouts: Each swoop's rough length, in seconds (made a whole number of cycles).
-        fade_in: The first swoop's attack (none between swoops).
+        fade_in: The first swoop's attack.
         fade_out: The last swoop's release.
         shaping: What every swoop shares (a plain sine by default).
 
@@ -109,24 +121,31 @@ def swoops(
         The tones.
 
     """
+    # Each join's overlap: whole cycles at the pitch the earlier swoop ends on
+    overlaps = [
+        round(max(1, round(end * shaping.crossfade)) / end, DECIMALS) if shaping.crossfade else 0.0
+        for _, end in pitches[:-1]
+    ]
     tones: list[ToneSpec] = []
     offset = 0.0
     for index, ((start, end), about) in enumerate(zip(pitches, abouts, strict=True)):
         duration = whole_cycle_seconds(start=start, end=end, about=about)
+        fade_from_last = overlaps[index - 1] if index else fade_in
+        fade_into_next = overlaps[index] if index < len(overlaps) else fade_out
         tones.append(
             ToneSpec(
                 start_frequency=start,
                 end_frequency=end,
                 offset=round(offset, DECIMALS),
                 duration=round(duration, DECIMALS),
-                attack=fade_in if index == 0 else 0.0,
-                release=fade_out if index == len(pitches) - 1 else 0.0,
+                attack=fade_from_last,
+                release=fade_into_next,
                 waveform=shaping.waveform,
                 low_pass_cutoff=shaping.low_pass_cutoff,
                 distortion=shaping.distortion,
             )
         )
-        offset += round(duration, DECIMALS)
+        offset += round(duration, DECIMALS) - (overlaps[index] if index < len(overlaps) else 0.0)
     return tuple(tones)
 
 
@@ -205,8 +224,10 @@ def _laser_shine() -> EffectSpec:
     )
 
 
-# Every groan's tone: a growly sawtooth, darkened and roughened
-GROWL: Final = Shaping(waveform='sawtooth', low_pass_cutoff=700.0, distortion=0.3)
+# Every groan's tone: a growly sawtooth, darkened and roughened. Its swoops overlap by about two
+# cycles of its 80 to 125 Hz, long enough to hide the filter's restart (end to end, each join
+# clicked: the owner heard it as clipping, 2026-11-16)
+GROWL: Final = Shaping(waveform='sawtooth', low_pass_cutoff=700.0, distortion=0.3, crossfade=0.02)
 
 
 def _groans() -> tuple[EffectSpec, ...]:

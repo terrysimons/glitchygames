@@ -39,6 +39,17 @@ HOP_SECONDS: Final = 0.005
 PADDED_WINDOW: Final = 1 << 15
 # Windows quieter than this share of the loudest are skipped (a sound's fade in and out)
 QUIET_SHARE: Final = 0.25
+# A click: a step between neighbouring samples this many times the sound's own largest steps
+# (its 99.9th percentile). Measured 2026-11-16: the clean sounds' largest steps are at most 1.5
+# times it, the groans' clicking swoop joins 12 to 14 times
+CLICK_STEP_RATIO: Final = 3.0
+# A crossfaded join may be no quieter than this share of the sound 50 ms either side of it.
+# Measured 2026-11-16: in step, within 8%; half a cycle apart, 30% down
+JOIN_LOUDNESS_SHARE: Final = 0.85
+JOIN_NEIGHBOURHOOD_SECONDS: Final = 0.05
+# Loudness is measured over 20 ms, about two cycles of a groan
+LOUDNESS_WINDOW_SECONDS: Final = 0.02
+EVERY_EFFECT: Final = tuple(effect.name for effect in sound_rig.effects())
 
 
 def rendered(name: str) -> np.ndarray:
@@ -201,15 +212,68 @@ def test_the_groans_are_three_different_moans():
     assert len({tuple(round(value) for value in track) for track in tracks}) == 3
 
 
+@pytest.mark.parametrize('name', EVERY_EFFECT)
+def test_no_sound_clicks(name):
+    """No jump between neighbouring samples stands far out of the sound's own steps.
+
+    A tone that starts or stops abruptly, such as a filtered sawtooth restarting where two swoops
+    join, clicks: one step many times the waveform's largest (the owner heard the groans'
+    joins as clipping, 2026-11-16).
+    """
+    steps = np.abs(np.diff(rendered(name)))
+
+    assert steps.max() <= CLICK_STEP_RATIO * np.percentile(steps, 99.9), (
+        f'a click at {np.argmax(steps) / SAMPLE_RATE:.4f} s'
+    )
+
+
+def loudness(samples: np.ndarray, *, at_seconds: float) -> float:
+    """Return a sound's root-mean-square level over a short window centred on a moment.
+
+    Returns:
+        The level.
+
+    """
+    half = round(LOUDNESS_WINDOW_SECONDS * SAMPLE_RATE / 2)
+    centre = round(at_seconds * SAMPLE_RATE)
+    window = samples[max(0, centre - half) : centre + half]
+    return float(np.sqrt(np.mean(window**2)))
+
+
+@pytest.mark.parametrize('name', EVERY_EFFECT)
+def test_no_crossfaded_join_dips(name):
+    """Two swoops fading across each other stay as loud as the sound around them.
+
+    Out of step (half a cycle apart) they cancel, and the moan ducks at every join.
+    """
+    samples = rendered(name)
+    effect = load_sound_file(SOUND_FILE).sounds[name].effect
+    assert effect is not None
+    for tone in effect.tones[1:]:
+        if tone.envelope.attack == 0.0 or tone.offset == 0.0:
+            continue
+        join = tone.offset + tone.envelope.attack / 2
+        around = min(
+            loudness(samples, at_seconds=join - JOIN_NEIGHBOURHOOD_SECONDS),
+            loudness(samples, at_seconds=join + JOIN_NEIGHBOURHOOD_SECONDS),
+        )
+
+        assert loudness(samples, at_seconds=join) >= JOIN_LOUDNESS_SHARE * around, (
+            f'a dip at {join:.3f} s'
+        )
+
+
 def test_the_sound_file_is_its_rigs_output():
     """Written by sound_rig.py, never by hand: the file equals what the rig writes now."""
     assert SOUND_FILE.read_text(encoding='utf-8') == sound_rig.document()
 
 
-def test_every_swoop_ends_where_the_next_begins_on_a_whole_cycle():
-    """Each swoop holds a whole number of its cycles and starts where the last ended.
+def test_every_swoop_holds_whole_cycles_and_joins_end_to_end_or_crossfaded():
+    """Each swoop holds a whole number of its cycles; each join is one of two kinds.
 
-    So a warble is one unbroken wave (overlapped tones beat, a blip at each join).
+    End to end with no fade, so a plain sine warble is one unbroken wave (overlapped tones beat,
+    a blip at each join); or crossfaded, the overlap exactly the earlier swoop's fade out and the
+    later one's fade in, so a filtered wave's restart is hidden under the fade.
     """
     for effect in sound_rig.effects():
         swoop_tones = [tone for tone in effect.tones if tone.end_frequency is not None]
@@ -218,7 +282,9 @@ def test_every_swoop_ends_where_the_next_begins_on_a_whole_cycle():
             cycles = (tone.start_frequency + tone.end_frequency) / 2 * tone.duration
             assert cycles == pytest.approx(round(cycles), abs=0.01), effect.name
         for earlier, later in itertools.pairwise(swoop_tones):
-            assert later.offset == pytest.approx(earlier.offset + earlier.duration, abs=1e-6)
+            overlap = earlier.offset + earlier.duration - later.offset
+            assert overlap == pytest.approx(earlier.release, abs=1e-6), effect.name
+            assert overlap == pytest.approx(later.attack, abs=1e-6), effect.name
 
 
 def test_running_the_rig_writes_the_sound_file(tmp_path, monkeypatch):
