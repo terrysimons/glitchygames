@@ -67,6 +67,15 @@ text `AnimatedSprite.save` writes to its file.
     server, a command-line converter) can parse and write sprite files. It deals in data;
     `sprite_text` turns that data into the `AnimatedSprite` the engine draws.
 
+!!! warning "Opaque magenta cannot be kept"
+
+    A sprite file's transparency key is magenta (255, 0, 255). `sprite_text_from_frames` writes
+    every fully transparent pixel (alpha 0), whatever its RGB, as the key. An image pixel that is
+    opaque magenta is written as the key too, so it loads and draws as transparent: the format
+    cannot tell the two apart. That color is lost, not changed to another. Partial alpha and every
+    other color are kept exactly, up to the glyph limit (`SpriteColorLimitError`); the key takes
+    no glyph of that limit.
+
 ::: glitchygames.sprites.sprite_text
     options:
       heading_level: 3

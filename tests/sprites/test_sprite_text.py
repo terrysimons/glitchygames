@@ -299,7 +299,7 @@ def test_frames_become_one_animation_with_each_frames_own_interval():
 
 def test_one_frame_is_written_in_the_static_layout_and_round_trips():
     """A single surface is a static sprite whose pixels load back exactly."""
-    surface = pygame.Surface((3, 2), pygame.SRCALPHA)
+    surface = solid_surface(size=(3, 2), color=(50, 60, 70, 255))
     surface.set_at((0, 0), (1, 2, 3, 255))
     surface.set_at((1, 0), (4, 5, 6, 255))
     surface.set_at((2, 1), (7, 8, 9, 255))
@@ -329,7 +329,7 @@ def test_partial_alpha_is_kept():
     assert {'red': 255, 'green': 0, 'blue': 0, 'alpha': 128} in colors
 
 
-def sixty_five_color_surface(*, color_count):
+def distinct_color_surface(*, color_count):
     """Build a surface of color_count distinct opaque colors in a row.
 
     Returns:
@@ -348,12 +348,13 @@ def test_more_colors_than_glyphs_is_refused_with_the_count():
 
     with pytest.raises(SpriteColorLimitError) as refusal:
         sprite_text_from_frames(
-            frames=[sixty_five_color_surface(color_count=too_many)],
+            frames=[distinct_color_surface(color_count=too_many)],
             frame_intervals=[0.1],
             name='photo',
         )
 
     assert (refusal.value.color_count, refusal.value.limit) == (too_many, len(SPRITE_GLYPHS))
+    # The same check with literal values: it pins today's limit of 64 glyphs
     assert (refusal.value.color_count, refusal.value.limit) == (65, 64)
     assert isinstance(refusal.value, ValueError)
 
@@ -361,7 +362,7 @@ def test_more_colors_than_glyphs_is_refused_with_the_count():
 def test_the_colors_of_all_frames_are_counted_together():
     """Colors are counted across frames, not per frame."""
     half = len(SPRITE_GLYPHS) // 2 + 1
-    first = sixty_five_color_surface(color_count=half)
+    first = distinct_color_surface(color_count=half)
     second = pygame.Surface((half, 1), pygame.SRCALPHA)
     for x in range(half):
         second.set_at((x, 0), (x, 200, 20, 255))
@@ -373,7 +374,7 @@ def test_the_colors_of_all_frames_are_counted_together():
 def test_exactly_as_many_colors_as_glyphs_is_accepted():
     """The limit itself is allowed."""
     text = sprite_text_from_frames(
-        frames=[sixty_five_color_surface(color_count=len(SPRITE_GLYPHS))],
+        frames=[distinct_color_surface(color_count=len(SPRITE_GLYPHS))],
         frame_intervals=[0.1],
         name='full',
     )
@@ -433,3 +434,85 @@ def test_surface_rgba_pixels_of_a_surface_without_alpha_are_opaque():
     surface.fill((10, 20, 30))
 
     assert surface_rgba_pixels(surface=surface) == [(10, 20, 30, 255), (10, 20, 30, 255)]
+
+
+def drawn_over(*, sprite, background_color):
+    """Blit the sprite's drawn image onto a surface of one color.
+
+    Returns:
+        The RGB of each pixel of the first row.
+
+    """
+    background = pygame.Surface(sprite.image.get_size())
+    background.fill(background_color)
+    background.blit(sprite.image, (0, 0))
+    return [tuple(background.get_at((x, 0)))[:3] for x in range(background.get_width())]
+
+
+def test_every_transparent_pixel_is_one_color_whatever_its_rgb():
+    """Pixels of alpha 0 with different RGBs are one color: they cost one glyph, not several."""
+    visible_colors = len(SPRITE_GLYPHS) - 1
+    surface = distinct_color_surface(color_count=visible_colors + 3)
+    for x, rgb in enumerate([(0, 0, 0), (9, 9, 9), (1, 2, 3)], start=visible_colors):
+        surface.set_at((x, 0), (*rgb, 0))
+
+    text = sprite_text_from_frames(frames=[surface], frame_intervals=[0.1], name='ghost')
+
+    colors = parse_sprite_toml(text=text, source_name='t')['colors']
+    assert len(colors) == visible_colors + 1
+
+
+def test_a_full_glyph_set_of_visible_colors_and_transparent_pixels_is_accepted():
+    """The limit counts visible colors: transparent pixels of any RGB add none."""
+    visible_colors = len(SPRITE_GLYPHS)
+    surface = distinct_color_surface(color_count=visible_colors + 2)
+    surface.set_at((visible_colors, 0), (0, 0, 0, 0))
+    surface.set_at((visible_colors + 1, 0), (9, 9, 9, 0))
+
+    text = sprite_text_from_frames(frames=[surface], frame_intervals=[0.1], name='full')
+
+    assert sprite_from_text(text=text, source_name='t').animations['full']
+
+
+def test_transparent_pixels_load_back_transparent():
+    """Alpha 0 pixels, whatever their RGB, load as the transparency key and draw as nothing."""
+    surface = pygame.Surface((3, 1), pygame.SRCALPHA)
+    surface.set_at((0, 0), (0, 0, 0, 0))
+    surface.set_at((1, 0), (9, 9, 9, 0))
+    surface.set_at((2, 0), (255, 0, 0, 255))
+
+    sprite = sprite_from_text(
+        text=sprite_text_from_frames(frames=[surface], frame_intervals=[0.1], name='ghost'),
+        source_name='t',
+    )
+
+    # The loaded frame reports the transparency key (magenta) for them
+    assert only_animation_frames(sprite)[0].get_pixel_data() == [
+        (255, 0, 255),
+        (255, 0, 255),
+        (255, 0, 0),
+    ]
+    assert drawn_over(sprite=sprite, background_color=(10, 20, 30)) == [
+        (10, 20, 30),
+        (10, 20, 30),
+        (255, 0, 0),
+    ]
+
+
+def test_an_opaque_magenta_pixel_becomes_transparent_as_the_format_cannot_hold_it():
+    """Opaque magenta is the format's transparency key: it loads and draws as transparent.
+
+    The image loses that color; it is not changed to another. The docs page says so.
+    """
+    surface = pygame.Surface((2, 1), pygame.SRCALPHA)
+    surface.set_at((0, 0), (255, 0, 255, 255))
+    surface.set_at((1, 0), (255, 0, 0, 255))
+
+    sprite = sprite_from_text(
+        text=sprite_text_from_frames(frames=[surface], frame_intervals=[0.1], name='key'),
+        source_name='t',
+    )
+
+    # The frame's pixels hold the key's RGB, the same as a transparent pixel's
+    assert only_animation_frames(sprite)[0].get_pixel_data() == [(255, 0, 255), (255, 0, 0)]
+    assert drawn_over(sprite=sprite, background_color=(10, 20, 30)) == [(10, 20, 30), (255, 0, 0)]

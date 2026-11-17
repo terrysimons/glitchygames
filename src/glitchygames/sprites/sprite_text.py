@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
+from glitchygames.color import MAGENTA_TRANSPARENCY_KEY
+
 from .animated import AnimatedSprite
 from .constants import SPRITE_GLYPHS
 from .frame import SpriteFrame
@@ -110,6 +112,25 @@ def surface_rgba_pixels(*, surface: pygame.Surface) -> list[tuple[int, int, int,
     return pixels
 
 
+# The two colors the sprite format writes with its transparency key's own glyph
+_KEY_GLYPH_COLORS = frozenset({(*MAGENTA_TRANSPARENCY_KEY, 0), (*MAGENTA_TRANSPARENCY_KEY, 255)})
+
+
+def _canonical_pixel(*, pixel: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+    """Give every fully transparent pixel the one color the format writes for it.
+
+    An image often carries arbitrary RGB under alpha 0; each would take a glyph of its own for
+    a color nobody sees. They all become the transparency key, magenta, with alpha 0.
+
+    Returns:
+        The pixel, or the transparent key when its alpha is 0.
+
+    """
+    if pixel[3] == 0:
+        return (*MAGENTA_TRANSPARENCY_KEY, 0)
+    return pixel
+
+
 def sprite_text_from_frames(
     *,
     frames: Sequence[pygame.Surface],
@@ -119,8 +140,14 @@ def sprite_text_from_frames(
     """Write an image's frames as the text of a sprite file.
 
     The frames become one animation named ``name``, each with its own interval; a single frame
-    is written in the static layout. Pixels, including partial alpha, are kept exactly. This
-    touches no files: the caller decodes the image and passes the surfaces.
+    is written in the static layout. Pixels, including partial alpha, are kept exactly, with
+    two exceptions that come from the format's transparency key (magenta, 255, 0, 255):
+
+    - Every fully transparent pixel (alpha 0) is written as the key, whatever its RGB.
+    - An opaque magenta pixel is written as the key too, and loads and draws as transparent:
+      the format cannot tell the two apart. The color is lost, not changed to another.
+
+    This touches no files: the caller decodes the image and passes the surfaces.
 
     Args:
         frames: The frames, all the same size.
@@ -155,8 +182,15 @@ def sprite_text_from_frames(
             )
             raise ValueError(message)
 
-    frame_pixels = [surface_rgba_pixels(surface=surface) for surface in frames]
-    distinct_colors = {pixel for pixels in frame_pixels for pixel in pixels}
+    frame_pixels = [
+        [_canonical_pixel(pixel=pixel) for pixel in surface_rgba_pixels(surface=surface)]
+        for surface in frames
+    ]
+    # The transparency key's glyph is outside the glyph set, so the key (what a transparent pixel
+    # becomes) and an opaque magenta pixel (which the format cannot tell from it) take none
+    distinct_colors = {
+        pixel for pixels in frame_pixels for pixel in pixels if pixel not in _KEY_GLYPH_COLORS
+    }
     if len(distinct_colors) > len(SPRITE_GLYPHS):
         raise SpriteColorLimitError(color_count=len(distinct_colors), limit=len(SPRITE_GLYPHS))
 
