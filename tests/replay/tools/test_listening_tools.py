@@ -8,7 +8,7 @@ unseen game, is in tests/replay/tools/test_an_unseen_game.py.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
@@ -21,9 +21,6 @@ from glitchygames.replay.tools.listening_tools import (
     listening_pipes_on_the_game,
 )
 from glitchygames.scenes import Scene
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 @pytest.fixture
@@ -72,7 +69,10 @@ def test_listening_instruments_takes_a_family_and_a_name(cache_root, capsys):
     assert status == ExitCode.SUCCESS
     paths = capsys.readouterr().out.splitlines()
     assert paths
-    assert all('/bagpipes/' in path and 'uilleann' in path for path in paths)
+    # Compared by parts: a printed path is native (backslashes on Windows)
+    assert all(
+        Path(path).parent.name == 'bagpipes' and 'uilleann' in Path(path).stem for path in paths
+    )
 
 
 def test_an_unknown_family_is_an_argument_error(cache_root):
