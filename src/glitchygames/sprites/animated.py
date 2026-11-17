@@ -13,7 +13,7 @@ import logging
 import operator
 from enum import Enum
 from pathlib import Path
-from typing import IO, Any, Self, cast, override
+from typing import IO, TYPE_CHECKING, Any, Self, cast, override
 
 import pygame
 
@@ -53,6 +53,9 @@ from .pixel_utils import (
 from .root_sprite import RootSprite
 from .sprite_toml import write_sprite_toml
 from .tags import TAGS_KEY, normalize_sprite_tags
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 # The toml_* writers live in sprite_toml; they stay importable from here for existing importers
 toml_basic_string = sprite_toml.toml_basic_string
@@ -1875,17 +1878,25 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             The sprite file's TOML text.
 
         """
+        # Which frames keep their loaded rows is decided once per save: the color map and the
+        # rows both follow it
+        kept_rows = self._kept_rows_by_frame()
         if self._is_single_frame_sprite():
-            data = self._static_document()
+            data = self._static_document(kept_rows=kept_rows)
         else:
-            data = self._animated_document()
+            data = self._animated_document(kept_rows=kept_rows)
         if self.transition_data:
             data['transition'] = self.transition_data
         data.update(self._game_tables)
         return write_sprite_toml(data=data)
 
-    def _static_document(self: Self) -> dict[str, Any]:
+    def _static_document(
+        self: Self, *, kept_rows: dict[SpriteFrame, tuple[str, ...]]
+    ) -> dict[str, Any]:
         """Build the single frame's document in the static layout.
+
+        Args:
+            kept_rows: The frames that keep their loaded rows (_kept_rows_by_frame).
 
         Returns:
             The document's ``[sprite]`` (pixels in it) and ``[colors]``.
@@ -1896,11 +1907,11 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         frame = self._animations[animation_name][0]
 
         # Build color map for the single frame
-        color_map = self._build_toml_color_map()
+        color_map = self._build_toml_color_map(kept_rows=kept_rows)
 
         # The same rows an animated save writes for a frame: its loaded rows while unchanged,
         # else each pixel by its color
-        pixel_rows = self._frame_pixel_rows(frame=frame, color_map=color_map)
+        pixel_rows = self._frame_pixel_rows(frame=frame, color_map=color_map, kept_rows=kept_rows)
 
         sprite_section: dict[str, Any] = {'name': self.name}
         if self.description:
@@ -1938,7 +1949,9 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         ordered.update({char: color for char, color in colors.items() if char not in ordered})
         return ordered
 
-    def _animated_document(self: Self) -> dict[str, Any]:
+    def _animated_document(
+        self: Self, *, kept_rows: dict[SpriteFrame, tuple[str, ...]]
+    ) -> dict[str, Any]:
         """Build the animated sprite's document.
 
         This is the main TOML save method for animated sprites. To add new formats:
@@ -1948,14 +1961,19 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         4. Update tests
         See LOADER_README.md for detailed implementation guide.
 
+        Args:
+            kept_rows: The frames that keep their loaded rows (_kept_rows_by_frame).
+
         Returns:
             The document's ``[sprite]``, ``[colors]`` and ``[[animation]]`` tables.
 
         """
-        color_map = self._build_toml_color_map()
-        return self._build_toml_data_structure(color_map)
+        color_map = self._build_toml_color_map(kept_rows=kept_rows)
+        return self._build_toml_data_structure(color_map, kept_rows=kept_rows)
 
-    def _build_toml_color_map(self: Self) -> dict[tuple[int, ...], str]:
+    def _build_toml_color_map(
+        self: Self, *, kept_rows: dict[SpriteFrame, tuple[str, ...]]
+    ) -> dict[tuple[int, ...], str]:
         """Build color map for TOML format.
 
         This method creates a mapping from RGB/RGBA colors to characters for TOML format.
@@ -1963,6 +1981,13 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         To add new formats, create similar methods like _build_json_color_map(),
         _build_xml_color_map()
         See LOADER_README.md for detailed implementation guide.
+
+        Only the frames written by color are given glyphs (and only their magenta adds the
+        transparency key): a frame in ``kept_rows`` keeps its loaded rows, whose glyphs the
+        palette already defines.
+
+        Args:
+            kept_rows: The frames that keep their loaded rows (_kept_rows_by_frame).
 
         Returns:
             dict: The result.
@@ -1972,6 +1997,12 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
 
         """
         color_map: dict[tuple[int, ...], str] = {}
+        frames_written_by_color = [
+            frame
+            for frames in self._animations.values()
+            for frame in frames
+            if frame not in kept_rows
+        ]
         universal_chars = SPRITE_GLYPHS
         char_index = 0
 
@@ -1982,7 +2013,7 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         # This determines whether magenta is stored as RGBA (255,0,255,255)
         # or stays as RGB (255,0,255) for indexed color mode.
         sprite_needs_alpha = self._sprite_uses_per_pixel_alpha()
-        has_magenta = self._any_pixel_is_magenta()
+        has_magenta = AnimatedSprite._any_pixel_is_magenta(frames=frames_written_by_color)
 
         if has_magenta:
             # Reserve character for magenta transparency key
@@ -1999,7 +2030,7 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             universal_chars = [c for c in universal_chars if c != TRANSPARENCY_KEY_GLYPH]
 
         # Only frames written by color need glyphs: an unchanged frame keeps its loaded rows
-        for frame in self._frames_written_by_color():
+        for frame in frames_written_by_color:
             pixels = frame.get_pixel_data()
             needs_alpha = sprite_needs_alpha
 
@@ -2063,19 +2094,21 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
                 return glyph
         raise ValueError(ERR_TOO_MANY_COLORS.format(len(SPRITE_GLYPHS)))
 
-    def _frames_written_by_color(self: Self) -> list[SpriteFrame]:
-        """Return every frame a save writes pixel by pixel: those not keeping loaded rows.
+    def _kept_rows_by_frame(self: Self) -> dict[SpriteFrame, tuple[str, ...]]:
+        """Return the frames whose loaded rows a save writes back, each with its rows.
 
         Returns:
-            The frames, animation by animation in order.
+            Each frame that keeps its loaded rows (see _rows_kept_from_load) and the rows; every
+            other frame is written by color.
 
         """
-        return [
-            frame
-            for frames in self._animations.values()
-            for frame in frames
-            if self._rows_kept_from_load(frame=frame) is None
-        ]
+        kept_rows: dict[SpriteFrame, tuple[str, ...]] = {}
+        for frames in self._animations.values():
+            for frame in frames:
+                rows = self._rows_kept_from_load(frame=frame)
+                if rows is not None:
+                    kept_rows[frame] = rows
+        return kept_rows
 
     def _build_reverse_color_map(self: Self) -> tuple[dict[tuple[int, ...], str], set[str]]:
         """Build reverse mapping from colors to characters using original color map.
@@ -2114,23 +2147,21 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
 
         return original_color_to_char, used_chars
 
-    def _any_pixel_is_magenta(self: Self) -> bool:
-        """Check if any pixel across all animations is magenta.
+    @staticmethod
+    def _any_pixel_is_magenta(*, frames: Iterable[SpriteFrame]) -> bool:
+        """Check if any pixel of the given frames is magenta.
+
+        Args:
+            frames: The frames to look at (a save passes those it writes by color).
 
         Returns:
             True if any pixel is the magenta transparency key.
 
         """
-        for frames in self._animations.values():
-            for frame in frames:
-                pixels = frame.get_pixel_data()
-                for pixel in pixels:
-                    if len(pixel) == RGBA_COMPONENT_COUNT:
-                        r, g, b, _a = pixel
-                        if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
-                            return True
-                    elif pixel == MAGENTA_TRANSPARENCY_KEY:
-                        return True
+        for frame in frames:
+            for pixel in frame.get_pixel_data():
+                if pixel[:3] == MAGENTA_TRANSPARENCY_KEY:
+                    return True
         return False
 
     def _sprite_uses_per_pixel_alpha(self: Self) -> bool:
@@ -2181,6 +2212,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
     def _build_toml_data_structure(
         self: Self,
         color_map: dict[tuple[int, ...], str],
+        *,
+        kept_rows: dict[SpriteFrame, tuple[str, ...]],
     ) -> dict[str, Any]:
         """Build TOML data structure.
 
@@ -2216,7 +2249,9 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
 
         # Add animations
         for anim_name, frames in self._animations.items():
-            data['animation'].append(self._build_toml_animation_entry(anim_name, frames, color_map))
+            data['animation'].append(
+                self._build_toml_animation_entry(anim_name, frames, color_map, kept_rows=kept_rows)
+            )
             self.log.debug("Serializing animation '%s' with %s frames", anim_name, len(frames))
 
         return data
@@ -2226,6 +2261,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         animation_name: str,
         frames: list[SpriteFrame],
         color_map: dict[tuple[int, ...], str],
+        *,
+        kept_rows: dict[SpriteFrame, tuple[str, ...]],
     ) -> dict[str, Any]:
         """Build one [[animation]] entry with its timing and frames.
 
@@ -2235,7 +2272,9 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
 
         """
         animation_frame_interval = self._animation_frame_interval_for_save(animation_name)
-        animation_frames = self._create_toml_animation_frames(frames, color_map)
+        animation_frames = self._create_toml_animation_frames(
+            frames, color_map, kept_rows=kept_rows
+        )
         written_without_frame_index = animation_name in self._animations_without_frame_index
         for frame, frame_data in zip(frames, animation_frames, strict=True):
             frame_data['namespace'] = animation_name
@@ -2275,6 +2314,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         self: Self,
         frames: list[SpriteFrame],
         color_map: dict[tuple[int, ...], str],
+        *,
+        kept_rows: dict[SpriteFrame, tuple[str, ...]],
     ) -> list[dict[str, Any]]:
         """Create TOML animation frames.
 
@@ -2284,7 +2325,7 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         """
         animation_frames: list[dict[str, Any]] = []
         for i, frame in enumerate(frames):
-            frame_data = self._create_toml_frame_data(frame, i, color_map)
+            frame_data = self._create_toml_frame_data(frame, i, color_map, kept_rows=kept_rows)
             animation_frames.append(frame_data)
         return animation_frames
 
@@ -2293,6 +2334,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         frame: SpriteFrame,
         frame_index: int,
         color_map: dict[tuple[int, ...], str],
+        *,
+        kept_rows: dict[SpriteFrame, tuple[str, ...]],
     ) -> dict[str, Any]:
         """Create TOML frame data.
 
@@ -2300,7 +2343,7 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             dict: The result.
 
         """
-        pixel_chars = self._frame_pixel_rows(frame=frame, color_map=color_map)
+        pixel_chars = self._frame_pixel_rows(frame=frame, color_map=color_map, kept_rows=kept_rows)
         frame_data: dict[str, Any] = {
             'frame_index': frame_index,
             # Every row ends in a line break, as a loaded sprite's pixels do
@@ -2320,11 +2363,12 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
 
         return frame_data
 
+    @staticmethod
     def _frame_pixel_rows(
-        self: Self,
         *,
         frame: SpriteFrame,
         color_map: dict[tuple[int, ...], str],
+        kept_rows: dict[SpriteFrame, tuple[str, ...]],
     ) -> list[str]:
         """Return the pixel rows a save writes for one frame.
 
@@ -2335,14 +2379,15 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         Args:
             frame: The frame to write.
             color_map: The colors the frames written by color use, each with its glyph.
+            kept_rows: The frames that keep their loaded rows (_kept_rows_by_frame).
 
         Returns:
             One string per row.
 
         """
-        kept_rows = self._rows_kept_from_load(frame=frame)
-        if kept_rows is not None:
-            return list(kept_rows)
+        rows = kept_rows.get(frame)
+        if rows is not None:
+            return list(rows)
         width, height = frame.get_size()
         return AnimatedSprite._convert_pixels_to_toml_chars(
             frame.get_pixel_data(), width, height, color_map
@@ -2356,15 +2401,24 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         ``set_pixel_data`` and resizes frames, none of which marks the frame. The rows decode
         with the remembered palette, as the load decoded them.
 
+        Rows are kept only if this sprite's palette defines every glyph in them. A frame is the
+        sprite's own data, so it can move into another sprite (``add_frame``) whose palette
+        lacks its glyphs; an undefined glyph decodes as magenta, which a transparent pixel also
+        is, so the pixel comparison alone would let such rows through (and a new color could
+        then take the undefined glyph).
+
         Args:
             frame: The frame to check.
 
         Returns:
-            The loaded rows, or None for a frame built in code, repaired on load, or changed.
+            The loaded rows, or None for a frame built in code, repaired on load, changed, or
+            holding a glyph this sprite's palette doesn't define.
 
         """
         loaded_rows = frame.loaded_pixel_rows
         if loaded_rows is None:
+            return None
+        if not set(''.join(loaded_rows)) <= self._color_map.keys():
             return None
         width, height = frame.get_size()
         if (len(loaded_rows[0]), len(loaded_rows)) != (width, height):

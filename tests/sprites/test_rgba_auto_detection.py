@@ -147,7 +147,7 @@ class TestAnimatedSpriteRGBRGBA:
 
         sprite._animations = {'test': [frame]}
 
-        color_map = sprite._build_toml_color_map()
+        color_map = sprite._build_toml_color_map(kept_rows=sprite._kept_rows_by_frame())
 
         # Should create RGB color tuples
         assert (255, 0, 0) in color_map
@@ -164,7 +164,7 @@ class TestAnimatedSpriteRGBRGBA:
 
         sprite._animations = {'test': [frame]}
 
-        color_map = sprite._build_toml_color_map()
+        color_map = sprite._build_toml_color_map(kept_rows=sprite._kept_rows_by_frame())
 
         # Should create RGBA color tuples for transparent pixels
         assert (255, 0, 0, 255) in color_map
@@ -180,7 +180,7 @@ class TestAnimatedSpriteRGBRGBA:
 
         sprite._animations = {'test': [frame]}
 
-        color_map = sprite._build_toml_color_map()
+        color_map = sprite._build_toml_color_map(kept_rows=sprite._kept_rows_by_frame())
 
         # Should convert to RGB tuples
         assert (255, 0, 0) in color_map

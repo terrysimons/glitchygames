@@ -869,3 +869,80 @@ def test_a_resized_frame_is_written_by_its_colors_at_its_new_size():
 
     (reloaded_frame,) = only_animation_frames(reloaded)
     assert reloaded_frame.get_size() == (1, 2)
+
+
+# A sprite whose palette has the transparency key under '.', and one whose palette has only '#'
+KEYED_PALETTE_TEXT = (
+    '[sprite]\nname = "keyed"\npixels = """\n#.\n"""\n\n'
+    '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n\n'
+    '[colors."."]\nred = 255\ngreen = 0\nblue = 255\n'
+)
+BLACK_ONLY_TEXT = (
+    '[sprite]\nname = "plain"\npixels = """\n##\n"""\n\n'
+    '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n'
+)
+
+
+def test_a_frame_moved_from_another_sprite_keeps_its_colors_beside_a_new_color():
+    """A frame's loaded rows are kept only if the palette being written defines their glyphs.
+
+    The moved frame's '.' is not in this sprite's palette; were its rows kept, the new green would
+    take '.' and the transparent pixel would load green.
+    """
+    keyed = sprite_from_text(text=KEYED_PALETTE_TEXT, source_name='keyed')
+    plain = sprite_from_text(text=BLACK_ONLY_TEXT, source_name='plain')
+    (moved_frame,) = only_animation_frames(keyed)
+    (plain_frame,) = only_animation_frames(plain)
+    plain_frame.set_pixel_data([(0, 0, 0), (10, 200, 30)])
+    plain.add_frame(plain.animation_order[0], moved_frame)
+
+    reloaded = sprite_from_text(text=sprite_to_text(sprite=plain), source_name='saved')
+
+    reloaded_frames = only_animation_frames(reloaded)
+    assert [pixel[:3] for pixel in reloaded_frames[1].get_pixel_data()] == [
+        (0, 0, 0),
+        (255, 0, 255),
+    ]
+    assert reloaded.pixel_row_repairs == []
+
+
+def test_a_moved_frame_alone_never_writes_a_glyph_its_palette_lacks():
+    """Without a new color to collide with, a moved frame's rows still need their glyphs defined."""
+    keyed = sprite_from_text(text=KEYED_PALETTE_TEXT, source_name='keyed')
+    plain = sprite_from_text(text=BLACK_ONLY_TEXT, source_name='plain')
+    (moved_frame,) = only_animation_frames(keyed)
+    plain.add_frame(plain.animation_order[0], moved_frame)
+
+    reloaded = sprite_from_text(text=sprite_to_text(sprite=plain), source_name='saved')
+
+    assert reloaded.pixel_row_repairs == []
+    assert [pixel[:3] for pixel in only_animation_frames(reloaded)[1].get_pixel_data()] == [
+        (0, 0, 0),
+        (255, 0, 255),
+    ]
+
+
+def test_magenta_in_a_frame_that_keeps_its_rows_takes_no_glyph_in_the_color_map():
+    """Only frames written by color are given glyphs, the transparency key's among them.
+
+    The loaded frame keeps its rows (its '.' is already in the palette); the added frame has no
+    magenta, so the color map holds black alone.
+    """
+    sprite = sprite_from_text(text=KEYED_PALETTE_TEXT, source_name='keyed')
+    added_frame = SpriteFrame(pygame.Surface((2, 1)))
+    added_frame.set_pixel_data([(0, 0, 0), (0, 0, 0)])
+    sprite.add_frame(sprite.animation_order[0], added_frame)
+
+    color_map = sprite._build_toml_color_map(kept_rows=sprite._kept_rows_by_frame())
+
+    assert color_map == {(0, 0, 0): '#'}
+
+
+def test_a_save_decides_each_frames_kept_rows_once(mocker):
+    """Each frame's loaded rows are decoded and compared once per save, not once per use."""
+    sprite = sprite_from_text(text=UNUSED_COLOR_TEXT, source_name='spare')
+    decide = mocker.spy(AnimatedSprite, '_rows_kept_from_load')
+
+    sprite_to_text(sprite=sprite)
+
+    assert decide.call_count == len(sprite.animations['spare'])

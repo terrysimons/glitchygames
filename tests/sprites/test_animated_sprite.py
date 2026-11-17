@@ -2083,7 +2083,7 @@ class TestAnimatedSpriteAnyPixelIsMagenta:
         frame = SpriteFrame(surface)
         frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)]
         sprite.add_animation('idle', [frame])
-        assert sprite._any_pixel_is_magenta() is False
+        assert AnimatedSprite._any_pixel_is_magenta(frames=[frame]) is False
 
     def test_has_magenta_rgba_pixel(self):
         """Test returns True when magenta RGBA pixel exists."""
@@ -2092,7 +2092,7 @@ class TestAnimatedSpriteAnyPixelIsMagenta:
         frame = SpriteFrame(surface)
         frame.pixels = [(255, 0, 255, 255), (0, 255, 0, 255)]
         sprite.add_animation('idle', [frame])
-        assert sprite._any_pixel_is_magenta() is True
+        assert AnimatedSprite._any_pixel_is_magenta(frames=[frame]) is True
 
     def test_has_magenta_rgb_pixel(self):
         """Test returns True when magenta RGB pixel exists."""
@@ -2101,7 +2101,7 @@ class TestAnimatedSpriteAnyPixelIsMagenta:
         frame = SpriteFrame(surface)
         frame.pixels = [(255, 0, 255)]
         sprite.add_animation('idle', [frame])
-        assert sprite._any_pixel_is_magenta() is True
+        assert AnimatedSprite._any_pixel_is_magenta(frames=[frame]) is True
 
 
 class TestAnimatedSpriteClearSurfaceCache:
