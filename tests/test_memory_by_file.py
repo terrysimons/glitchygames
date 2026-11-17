@@ -82,9 +82,11 @@ def test_the_plugin_is_off_unless_its_variable_names_an_output(mocker, monkeypat
 
 
 def test_with_its_variable_set_a_recorder_is_registered(mocker, monkeypatch, tmp_path):
-    """The recorder writes to the file the variable names."""
+    """The recorder writes to the file the variable names, on any host that has a reader."""
     config = mocker.Mock()
     monkeypatch.setenv(memory_by_file.OUTPUT_VARIABLE, str(tmp_path / 'rows.json'))
+    # Windows has no reader: give every host one, so the test is the same everywhere
+    mocker.patch.object(memory_by_file, 'resident_reader', return_value=ScriptedResident(1.0))
 
     memory_by_file.pytest_configure(config)
 
@@ -129,7 +131,8 @@ def test_linux_reads_proc_self_statm(mocker, tmp_path):
     statm.write_text('1000 256 10 1 0 100 0\n', encoding='ascii')
     mocker.patch.object(sys, 'platform', 'linux')
     mocker.patch.object(memory_by_file, 'PROC_STATM', statm)
-    mocker.patch.object(memory_by_file.os, 'sysconf', return_value=4096)
+    # Windows' os has no sysconf: create it there
+    mocker.patch.object(memory_by_file.os, 'sysconf', create=True, return_value=4096)
 
     reader = memory_by_file.resident_reader()
 
