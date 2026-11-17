@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import math
 import operator
 import tomllib
 from enum import Enum
@@ -30,6 +29,7 @@ from glitchygames.color import (
     RGBA_COMPONENT_COUNT,
 )
 
+from . import sprite_toml
 from .animated_interface import AnimatedSpriteInterface
 from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 from .file_format import detect_file_format
@@ -50,148 +50,16 @@ from .pixel_utils import (
     palette_key_problems,
 )
 from .root_sprite import RootSprite
+from .sprite_toml import write_sprite_toml
 from .tags import TAGS_KEY, normalize_sprite_tags
 
-# Characters TOML basic strings must escape with a short escape sequence
-# (https://toml.io/en/v1.0.0#string)
-TOML_SHORT_ESCAPES = {
-    '\\': '\\\\',
-    '"': '\\"',
-    '\b': '\\b',
-    '\t': '\\t',
-    '\n': '\\n',
-    '\f': '\\f',
-    '\r': '\\r',
-}
-# Code points below this, and DEL, are control characters TOML strings must escape
-TOML_FIRST_PRINTABLE_CODE_POINT = 0x20
-TOML_DELETE_CODE_POINT = 0x7F
-# Bare TOML keys may use only these characters
-TOML_BARE_KEY_CHARACTERS = frozenset(
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-'
-)
-
-
-def toml_basic_string(value: str) -> str:
-    """Quote a string as a TOML basic string, escaping what TOML requires.
-
-    Returns:
-        str: The quoted, escaped string: a quote becomes backslash-quote, a backslash
-        becomes two backslashes and control characters use their escape sequences.
-
-    """
-    escaped_characters: list[str] = []
-    for character in value:
-        if character in TOML_SHORT_ESCAPES:
-            escaped_characters.append(TOML_SHORT_ESCAPES[character])
-        elif (
-            ord(character) < TOML_FIRST_PRINTABLE_CODE_POINT
-            or ord(character) == TOML_DELETE_CODE_POINT
-        ):
-            escaped_characters.append(f'\\u{ord(character):04X}')
-        else:
-            escaped_characters.append(character)
-    return '"' + ''.join(escaped_characters) + '"'
-
-
-def toml_pixel_block(pixel_text: str) -> str:
-    """Write pixel rows as a TOML multi-line basic string, one row per line.
-
-    Each row is escaped as toml_basic_string escapes (a backslash, a quote and control
-    characters), so any glyph survives: unescaped, a row ending in a backslash glyph joins the
-    next row (TOML's line-ending backslash), and three quote glyphs end the string. The line
-    breaks between rows stay real so the rows stay readable. A trailing line break of the input
-    is dropped: the closing quotes' line ends the last row.
-
-    Returns:
-        str: The rows wrapped in triple quotes, the opening quotes on their own line.
-
-    """
-    rows = pixel_text.removesuffix('\n').split('\n')
-    # toml_basic_string quotes a row; the quotes are dropped, the escapes kept
-    escaped_rows = [toml_basic_string(row)[1:-1] for row in rows]
-    return '"""\n' + '\n'.join(escaped_rows) + '\n"""'
-
-
-def toml_tags_line(tags: list[str]) -> str:
-    """Return the ``tags = [...]`` line a writer puts in ``[sprite]``, or '' for no tags.
-
-    Args:
-        tags: The tags (``glitchygames.sprites.tags``: already in their one spelling).
-
-    Returns:
-        The line, with its newline, or ''.
-
-    """
-    if not tags:
-        return ''
-    return f'{TAGS_KEY} = [{", ".join(toml_basic_string(tag) for tag in tags)}]\n'
-
-
-def toml_multiline_basic_string(value: str) -> str:
-    """Quote a string as a TOML multi-line basic string (triple quotes), escaping as needed.
-
-    Newlines stay as real line breaks so descriptions stay readable. Backslashes and quotes
-    are escaped (so no run of three quotes can end the string early), as are other control
-    characters, and a leading newline is written as an escape because TOML drops a newline
-    right after the opening quotes.
-
-    Returns:
-        str: The value wrapped in triple quotes.
-
-    """
-    escaped_characters: list[str] = []
-    for position, character in enumerate(value):
-        if character == '\n' and position > 0:
-            escaped_characters.append(character)
-        elif character in TOML_SHORT_ESCAPES:
-            escaped_characters.append(TOML_SHORT_ESCAPES[character])
-        elif (
-            ord(character) < TOML_FIRST_PRINTABLE_CODE_POINT
-            or ord(character) == TOML_DELETE_CODE_POINT
-        ):
-            escaped_characters.append(f'\\u{ord(character):04X}')
-        else:
-            escaped_characters.append(character)
-    return '"""' + ''.join(escaped_characters) + '"""'
-
-
-def toml_key(key: str) -> str:
-    """Return a TOML key: bare when TOML allows it, otherwise a quoted basic string.
-
-    Returns:
-        str: The key as written in a TOML file.
-
-    """
-    if key and all(character in TOML_BARE_KEY_CHARACTERS for character in key):
-        return key
-    return toml_basic_string(key)
-
-
-def toml_scalar(value: object) -> str:
-    """Format a string, boolean, integer or float as a TOML value.
-
-    Returns:
-        str: The value as written in a TOML file.
-
-    Raises:
-        TypeError: For any other type (TOML tables, arrays and dates are not supported here).
-
-    """
-    if isinstance(value, bool):
-        return 'true' if value else 'false'
-    if isinstance(value, str):
-        return toml_basic_string(value)
-    if isinstance(value, int):
-        return str(value)
-    if isinstance(value, float):
-        if math.isnan(value):
-            return 'nan'
-        if math.isinf(value):
-            return 'inf' if value > 0 else '-inf'
-        return repr(value)
-    msg = f'Cannot write {type(value).__name__} value {value!r} as a TOML scalar'
-    raise TypeError(msg)
+# The toml_* writers live in sprite_toml; they stay importable from here for existing importers
+toml_basic_string = sprite_toml.toml_basic_string
+toml_key = sprite_toml.toml_key
+toml_multiline_basic_string = sprite_toml.toml_multiline_basic_string
+toml_pixel_block = sprite_toml.toml_pixel_block
+toml_scalar = sprite_toml.toml_scalar
+toml_tags_line = sprite_toml.toml_tags_line
 
 
 def frame_tables_in_load_order(frame_tables: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1968,34 +1836,42 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         # requiring identical tuples and silently writing '.'
         pixel_rows = AnimatedSprite._convert_pixels_to_toml_chars(pixels, width, height, color_map)
 
-        # Write TOML file with proper block string format
-        with Path(filename).open('w', encoding='utf-8') as f:
-            f.write('[sprite]\n')
-            f.write(f'name = {toml_basic_string(self.name)}\n')
-            # The same [sprite] keys, in the same format, as _write_toml_sprite_section
-            if self.description:
-                f.write(f'description = {toml_multiline_basic_string(self.description)}\n')
-            f.write(toml_tags_line(self.tags))
-            if self.frame_anchor is not FrameAnchor.NONE:
-                f.write(f'frame_anchor = "{self.frame_anchor.value}"\n')
-            f.write(f'pixels = {toml_pixel_block("\n".join(pixel_rows))}\n\n')
+        sprite_section: dict[str, Any] = {'name': self.name}
+        if self.description:
+            sprite_section['description'] = self.description
+        if self.tags:
+            sprite_section[TAGS_KEY] = list(self.tags)
+        if self.frame_anchor is not FrameAnchor.NONE:
+            sprite_section['frame_anchor'] = self.frame_anchor.value
+        sprite_section['pixels'] = '\n'.join(pixel_rows)
+        hitbox_data = self._get_effective_static_hitbox(frame)
+        if hitbox_data is not None:
+            sprite_section['hitbox'] = hitbox_data
+        data: dict[str, Any] = {
+            'sprite': sprite_section,
+            'colors': self._colors_in_saved_order(AnimatedSprite._color_map_to_defs(color_map)),
+        }
+        if self.transition_data:
+            data['transition'] = self.transition_data
+        Path(filename).write_text(write_sprite_toml(data=data), encoding='utf-8')
 
-            hitbox_data = self._get_effective_static_hitbox(frame)
-            if hitbox_data is not None:
-                AnimatedSprite._write_toml_hitbox_section(
-                    f,
-                    section_header='[sprite.hitbox]',
-                    hitbox_data=hitbox_data,
-                )
+    def _colors_in_saved_order(
+        self: Self,
+        colors: dict[str, dict[str, int]],
+    ) -> dict[str, dict[str, int]]:
+        """Order color definitions as the sprite's file had them, new colors last.
 
-            # Write colors using the shared writer for consistent TOML format
-            color_data = AnimatedSprite._color_map_to_defs(color_map)
-            AnimatedSprite._write_toml_colors(
-                f,
-                {'colors': color_data},
-                self._color_order,
-            )
-            AnimatedSprite._write_toml_transitions(f, self.transition_data)
+        Uses the original color order when there is one, to preserve the file format.
+
+        Returns:
+            The same definitions, in the order they are written.
+
+        """
+        if not self._color_order:
+            return colors
+        ordered = {char: colors[char] for char in self._color_order if char in colors}
+        ordered.update({char: color for char, color in colors.items() if char not in ordered})
+        return ordered
 
     def _save_toml(self: Self, filename: str) -> None:
         """Save animated sprite in TOML format.
@@ -2010,12 +1886,10 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         color_map = self._build_toml_color_map()
         data = self._build_toml_data_structure(color_map)
 
-        with Path(filename).open('w', encoding='utf-8') as f:
-            AnimatedSprite._write_toml_sprite_section(f, data)
-            AnimatedSprite._write_toml_animations(f, data)
-            # Use original color order if available to preserve file format
-            AnimatedSprite._write_toml_colors(f, data, self._color_order)
-            AnimatedSprite._write_toml_transitions(f, self.transition_data)
+        data['colors'] = self._colors_in_saved_order(data['colors'])
+        if self.transition_data:
+            data['transition'] = self.transition_data
+        Path(filename).write_text(write_sprite_toml(data=data), encoding='utf-8')
 
     def _build_toml_color_map(self: Self) -> dict[tuple[int, ...], str]:
         """Build color map for TOML format.
@@ -2373,52 +2247,6 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         return pixel_chars
 
     @staticmethod
-    def _write_toml_sprite_section(f: IO[str], data: dict[str, Any]) -> None:
-        """Write TOML sprite section."""
-        f.write('[sprite]\n')
-        f.write(f'name = {toml_basic_string(data["sprite"]["name"])}\n')
-        if data['sprite'].get('description'):
-            description = data['sprite']['description']
-            f.write(f'description = {toml_multiline_basic_string(description)}\n')
-        f.write(toml_tags_line(data['sprite'].get(TAGS_KEY, [])))
-        if 'frame_anchor' in data['sprite']:
-            f.write(f'frame_anchor = "{data["sprite"]["frame_anchor"]}"\n')
-        f.write('\n')
-
-        # Write sprite-level hitbox if present
-        if 'hitbox' in data['sprite']:
-            AnimatedSprite._write_toml_hitbox_section(
-                f,
-                section_header='[sprite.hitbox]',
-                hitbox_data=data['sprite']['hitbox'],
-            )
-
-    @staticmethod
-    def _write_toml_animations(f: IO[str], data: dict[str, Any]) -> None:
-        """Write TOML animations section."""
-        for animation in data['animation']:
-            f.write('[[animation]]\n')
-            f.write(f'namespace = "{animation["namespace"]}"\n')
-            f.write(f'frame_interval = {animation["frame_interval"]}\n')
-            f.write(f'loop = {str(animation["loop"]).lower()}\n\n')
-
-            for frame in animation['frame']:
-                f.write('[[animation.frame]]\n')
-                f.write(f'namespace = "{animation["namespace"]}"\n')
-                f.write(f'frame_index = {frame["frame_index"]}\n')
-                if 'frame_interval' in frame:
-                    f.write(f'frame_interval = {frame["frame_interval"]}\n')
-                f.write(f'pixels = {toml_pixel_block(frame["pixels"])}\n\n')
-
-                # Write per-frame hitbox if present
-                if 'hitbox' in frame:
-                    AnimatedSprite._write_toml_hitbox_section(
-                        f,
-                        section_header='[animation.frame.hitbox]',
-                        hitbox_data=frame['hitbox'],
-                    )
-
-    @staticmethod
     def _color_map_to_defs(
         color_map: dict[tuple[int, ...], str],
     ) -> dict[str, dict[str, int]]:
@@ -2443,72 +2271,6 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
                 r, g, b = color_tuple[:3]
                 color_defs[char] = {'red': r, 'green': g, 'blue': b}
         return color_defs
-
-    @staticmethod
-    def _write_toml_transitions(f: IO[str], transitions: list[dict[str, Any]]) -> None:
-        """Write [[transition]] tables in order, each key and value as loaded (escaped)."""
-        for transition in transitions:
-            f.write('\n[[transition]]\n')
-            for key, value in transition.items():
-                f.write(f'{toml_key(key)} = {toml_scalar(value)}\n')
-
-    @staticmethod
-    def _write_toml_hitbox_section(
-        f: IO[str],
-        section_header: str,
-        hitbox_data: dict[str, int],
-    ) -> None:
-        """Write a TOML hitbox section with offset and dimension fields.
-
-        Args:
-            f: File handle to write to.
-            section_header: The TOML section header (e.g. '[sprite.hitbox]').
-            hitbox_data: Dict with offset_x, offset_y, width, height keys.
-        """
-        f.write(f'{section_header}\n')
-        f.write(f'offset_x = {hitbox_data["offset_x"]}\n')
-        f.write(f'offset_y = {hitbox_data["offset_y"]}\n')
-        f.write(f'width = {hitbox_data["width"]}\n')
-        f.write(f'height = {hitbox_data["height"]}\n')
-        f.write('\n')
-
-    @staticmethod
-    def _write_toml_colors(
-        f: IO[str],
-        data: dict[str, Any],
-        color_order: list[str] | None = None,
-    ) -> None:
-        """Write TOML colors section.
-
-        Args:
-            f: File handle to write to
-            data: TOML data structure
-            color_order: Optional list of characters in the order they should be written.
-                        If None, uses dictionary iteration order.
-
-        """
-        if data['colors']:
-            f.write('[colors]\n')
-            # Use original order if provided, otherwise use dict iteration order
-            if color_order:
-                chars_to_write = [char for char in color_order if char in data['colors']]
-                # Add any new colors not in original order
-                for char in data['colors']:
-                    if char not in chars_to_write:
-                        chars_to_write.append(char)
-            else:
-                chars_to_write = list(data['colors'].keys())
-
-            for char in chars_to_write:
-                color = data['colors'][char]
-                # Quoted and escaped, so a backslash or quote glyph is a valid key
-                f.write(f'[colors.{toml_basic_string(char)}]\n')
-                f.write(f'red = {color["red"]}\n')
-                f.write(f'green = {color["green"]}\n')
-                f.write(f'blue = {color["blue"]}\n')
-                if 'alpha' in color:
-                    f.write(f'alpha = {color["alpha"]}\n')
-                f.write('\n')
 
     @staticmethod
     def _write_toml_alpha(

@@ -2370,36 +2370,33 @@ class TestAnimatedSpriteWriteTomlHelpers:
         assert len(first_frame_rows[0]) == 2
         assert first_frame_rows[1] == '..'
 
-    def test_write_toml_colors_with_color_order(self):
-        """Test _write_toml_colors uses color_order when provided."""
-        data = {
-            'colors': {
-                '#': {'red': 0, 'green': 0, 'blue': 0},
-                '.': {'red': 255, 'green': 255, 'blue': 255},
-                '@': {'red': 255, 'green': 0, 'blue': 0},
-            },
+    def test_colors_in_saved_order_follow_the_color_order_then_new_colors(self):
+        """_colors_in_saved_order puts the sprite's color order first and new colors last."""
+        colors = {
+            '#': {'red': 0, 'green': 0, 'blue': 0},
+            '.': {'red': 255, 'green': 255, 'blue': 255},
+            '@': {'red': 255, 'green': 0, 'blue': 0},
         }
-        output_buffer = StringIO()
-        AnimatedSprite._write_toml_colors(output_buffer, data, color_order=['.', '#'])
-        content = output_buffer.getvalue()
-        # '.' should appear before '#' and '@' should be added at the end
-        dot_pos = content.index('[colors."."]')
-        hash_pos = content.index('[colors."#"]')
-        at_pos = content.index('[colors."@"]')
-        assert dot_pos < hash_pos
-        assert hash_pos < at_pos
+        sprite = AnimatedSprite()
+        sprite._color_order = ['.', '#']
+        # '.' comes before '#' and '@' is added at the end
+        assert list(sprite._colors_in_saved_order(colors)) == ['.', '#', '@']
 
-    def test_write_toml_colors_with_alpha(self):
-        """Test _write_toml_colors writes alpha when present."""
-        data = {
-            'colors': {
-                '#': {'red': 255, 'green': 0, 'blue': 0, 'alpha': 128},
-            },
-        }
-        output_buffer = StringIO()
-        AnimatedSprite._write_toml_colors(output_buffer, data)
-        content = output_buffer.getvalue()
-        assert 'alpha = 128' in content
+    def test_colors_in_saved_order_keep_their_own_order_without_a_color_order(self):
+        """With no color order the definitions keep the order they were built in."""
+        colors = {'#': {'red': 0, 'green': 0, 'blue': 0}, '.': {'red': 1, 'green': 1, 'blue': 1}}
+        assert list(AnimatedSprite()._colors_in_saved_order(colors)) == ['#', '.']
+
+    def test_colors_with_alpha_are_saved_with_alpha(self, tmp_path):
+        """A translucent color is written with its alpha value."""
+        frame = SpriteFrame(pygame.Surface((1, 1), pygame.SRCALPHA))
+        frame.pixels = [(255, 0, 0, 128)]
+        sprite = AnimatedSprite()
+        sprite.name = 'translucent'
+        sprite.add_animation('idle', [frame])
+        saved_file = tmp_path / 'translucent.toml'
+        sprite.save(str(saved_file), 'toml')
+        assert 'alpha = 128' in saved_file.read_text(encoding='utf-8')
 
     def test_write_toml_alpha_section(self):
         """Test _write_toml_alpha writes alpha blending section."""
