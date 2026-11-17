@@ -23,6 +23,7 @@ import json
 import os
 import re
 import shlex
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -301,6 +302,30 @@ def hand_set_lines(text: str, *, host: str, tmp_path: Path) -> str:
     )
     assert result.returncode == 0, result.stderr
     return result.stdout
+
+
+# --- Ansible itself, on every Python ----------------------------------------------------------
+
+
+@pytest.mark.skipif(sys.platform == 'win32', reason='Ansible has no Windows control node')
+def test_ansible_runs_on_this_python():
+    """``ansible-playbook --version`` starts on the Python running the suite.
+
+    nox -s test runs the suite on each Python of noxfile.TEST_PYTHONS, so each gets this check.
+    ansible-core 2.21 patched dataclasses._is_type, which Python 3.15 removed, so it crashed at
+    startup on a .venv synced on 3.15 (the owner's deploy, 2026-11-17); 2.22 runs on both.
+    """
+    playbook_command = Path(sys.executable).parent / 'ansible-playbook'
+
+    result = run_command(
+        command=[str(playbook_command), '--version'],
+        environment={'PATH': os.environ['PATH']},
+        timeout_seconds=60,
+        capture_output=OutputCapture.APART,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert f'python version = {sys.version_info.major}.{sys.version_info.minor}' in result.stdout
 
 
 # --- The inventory: OS groups ---------------------------------------------------------------

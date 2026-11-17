@@ -382,8 +382,9 @@ To bring it up (the owner's run: it needs sudo and a reboot):
 
 1. As the playbook's header says (the circleci CLI logged in, `unset CIRCLE_TOKEN`, and
    `read -rs CIRCLECI_API_TOKEN && export CIRCLECI_API_TOKEN`), then
-   `uv run ansible-playbook -i ansible/inventory.yml ansible/raspberry_pi_runner.yml --limit raspberry-pi-5-16gb-raspberry-pi-os --ask-become-pass`
-   (Ansible is in the dev group since 2026-11-16, so `uv sync` installs it).
+   `uv run --extra dev ansible-playbook -i ansible/inventory.yml ansible/raspberry_pi_runner.yml --limit raspberry-pi-5-16gb-raspberry-pi-os --ask-become-pass`
+   (ansible-core is in the dev extra since 2026-11-16, and alone, without the community
+   bundle, since 2026-11-17: 2.22 is the first to run on Python 3.15).
 2. Reboot it: the overclock and the runner's auto-login apply at boot.
 3. Run the playbook again: it checks the firmware runs 3000 MHz, GPU 1100 and over_voltage 6, and
    applies and checks 1080p at 120 Hz in the runner's session.

@@ -118,9 +118,12 @@ dev = [
   "filelock>=3.32.7",
   # uv.lock's dependency markers and package names (scripts/generate_sbom.py)
   "packaging>=26.0",
-  # Runs the Raspberry Pi and AI service playbooks (uv run ansible-playbook; ansible/). A
-  # development tool, never imported or bundled: its GPL is cleared in scripts/check_licenses.py
-  "ansible>=14.6.0",
+  # Runs the Raspberry Pi and AI service playbooks (uv run --extra dev ansible-playbook;
+  # ansible/). A development tool, never imported or bundled: its GPL is cleared in
+  # scripts/check_licenses.py. ansible-core alone, not the community bundle: the playbooks use only
+  # ansible.builtin modules, and 2.22 is the first to run on Python 3.15 (2.21 crashed at startup:
+  # dataclasses._is_type is gone), while the bundle still held core at 2.21 (2026-11-17)
+  "ansible-core>=2.22.0",
 ]
 api = []
 # Building a new game project from a template (glitchygames.templates, scripts/create.py):
@@ -870,9 +873,10 @@ DEP002 = [
   "yamllint",
   "wily",
   "radon",
-  # Runs the Raspberry Pi and AI service playbooks (uv run ansible-playbook); GPL-3.0, so a
-  # development tool only, never imported (its exception in scripts/check_licenses.py)
-  "ansible",
+  # Runs the Raspberry Pi and AI service playbooks (uv run --extra dev ansible-playbook);
+  # GPL-3.0, so a development tool only, never imported (its exception in
+  # scripts/check_licenses.py)
+  "ansible-core",
 ]
 
 [build-system]

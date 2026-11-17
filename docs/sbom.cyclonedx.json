@@ -399,87 +399,7 @@
       "version": "0.8.0"
     },
     {
-      "cpe": "cpe:2.3:a:python-ansible:python-ansible:14.6.0:*:*:*:*:*:*:*",
-      "licenses": [
-        {
-          "license": {
-            "name": "GPL-3.0-or-later"
-          }
-        }
-      ],
-      "name": "ansible",
-      "properties": [
-        {
-          "name": "syft:package:foundBy",
-          "value": "python-package-cataloger"
-        },
-        {
-          "name": "syft:package:language",
-          "value": "python"
-        },
-        {
-          "name": "syft:package:type",
-          "value": "python"
-        },
-        {
-          "name": "syft:package:metadataType",
-          "value": "python-uv-lock-entry"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-ansible:python_ansible:14.6.0:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ansible:python-ansible:14.6.0:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ansible:python_ansible:14.6.0:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible:python-ansible:14.6.0:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible:python_ansible:14.6.0:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-ansible:ansible:14.6.0:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ansible:ansible:14.6.0:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-ansible:14.6.0:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_ansible:14.6.0:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible:ansible:14.6.0:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:ansible:14.6.0:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:location:0:path",
-          "value": "/uv.lock"
-        }
-      ],
-      "purl": "pkg:pypi/ansible@14.6.0",
-      "type": "library",
-      "version": "14.6.0"
-    },
-    {
-      "cpe": "cpe:2.3:a:python-ansible-core:python-ansible-core:2.21.6:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-ansible-core:python-ansible-core:2.22.0:*:*:*:*:*:*:*",
       "licenses": [
         {
           "expression": "GPL-3.0-or-later"
@@ -505,136 +425,136 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-ansible-core:python_ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-ansible-core:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ansible_core:python-ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_ansible_core:python-ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ansible_core:python_ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_ansible_core:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-ansible:python-ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-ansible:python-ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-ansible:python_ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-ansible:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ansible:python-ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_ansible:python-ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ansible:python_ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_ansible:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible-core:python-ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ansible-core:python-ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible-core:python_ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ansible-core:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible_core:python-ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ansible_core:python-ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible_core:python_ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ansible_core:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-ansible-core:ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-ansible-core:ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-ansible-core:ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-ansible-core:ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ansible_core:ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_ansible_core:ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ansible_core:ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_ansible_core:ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible:python-ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ansible:python-ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible:python_ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ansible:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-ansible:ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-ansible:ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-ansible:ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-ansible:ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ansible:ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_ansible:ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_ansible:ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_ansible:ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible-core:ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ansible-core:ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible-core:ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ansible-core:ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible_core:ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ansible_core:ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible_core:ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ansible_core:ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible:ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ansible:ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:ansible:ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:ansible:ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:ansible-core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:ansible-core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:ansible_core:2.21.6:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:ansible_core:2.22.0:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/ansible-core@2.21.6",
+      "purl": "pkg:pypi/ansible-core@2.22.0",
       "type": "library",
-      "version": "2.21.6"
+      "version": "2.22.0"
     },
     {
       "cpe": "cpe:2.3:a:python-anyio:python-anyio:4.16.0:*:*:*:*:*:*:*",
@@ -18490,12 +18410,7 @@
     },
     {
       "dependsOn": [
-        "pkg:pypi/ansible-core@2.21.6"
-      ]
-    },
-    {
-      "dependsOn": [
-        "pkg:pypi/ansible@14.6.0",
+        "pkg:pypi/ansible-core@2.22.0",
         "pkg:pypi/apng@0.3.4",
         "pkg:pypi/bandit@1.9.4",
         "pkg:pypi/basedpyright@1.40.2",
