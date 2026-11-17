@@ -10,7 +10,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import operator
-import tomllib
 from enum import Enum
 from pathlib import Path
 from typing import IO, Any, Self, cast, override
@@ -1285,20 +1284,36 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             self.log.debug('No animations available, set to empty')
 
     def _load_toml(self: Self, filename: str) -> None:
-        """Load animated sprite from TOML file.
+        """Load animated sprite from TOML file: read the file's text and load the text.
 
         Raises:
             FileNotFoundError: If the sprite file does not exist.
-            ValueError: If the TOML file cannot be parsed or loaded.
+            ValueError: If the file is not UTF-8 text or its TOML cannot be loaded.
 
         """
         try:
-            with Path(filename).open('rb') as f:
-                data = tomllib.load(f)
+            # Bytes decoded, not read_text: the TOML parser then sees the file's own line endings
+            text = Path(filename).read_bytes().decode('utf-8')
         except FileNotFoundError as e:
             raise FileNotFoundError(ERR_SPRITE_FILE_NOT_FOUND.format(filename)) from e
-        except Exception as e:
+        except UnicodeDecodeError as e:
             raise ValueError(ERR_TOML_LOAD_FAILED.format(filename, e)) from e
+
+        self.load_text(text=text, source_name=filename)
+
+    def load_text(self: Self, *, text: str, source_name: str) -> None:
+        """Load animated sprite from the text of a sprite file.
+
+        The one path a sprite loads by: a file's load reads its text and calls this, so a sprite
+        from text and from a file are the same sprite.
+
+        Args:
+            text: The sprite file's TOML text.
+            source_name: What the text came from (a file name, a console); it names the text in
+                an error and in the warnings about pixel rows the loader repaired.
+
+        """
+        data = sprite_toml.parse_sprite_toml(text=text, source_name=source_name)
 
         self.name = data.get('sprite', {}).get('name', 'animated_sprite')
         self.description = data.get('sprite', {}).get('description', '')
@@ -1320,7 +1335,7 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         self._loop_flags = {}
         self.transition_data = [dict(transition) for transition in data.get('transition', [])]
         self.pixel_row_repairs = []
-        self._pixel_rows_source = filename
+        self._pixel_rows_source = source_name
 
         color_map, color_order, colors_with_per_pixel_alpha = self.build_color_map(data)
         self._record_pixel_row_repairs('palette', palette_key_problems(data.get('colors', {})))

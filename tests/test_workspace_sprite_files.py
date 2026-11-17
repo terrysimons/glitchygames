@@ -1,9 +1,10 @@
 """Every workspace member's sprite files pass the engine's checks of a bundled sprite file.
 
-The sprite files are discovered, not listed: every TOML sprite (a file with a ``sprite`` table)
-in any member's import packages. So a sprite that moves with its game into a member, or a new
-member's sprites, are checked without anyone adding them (Drawing Fire's soldier dropped out of
-the checks once when it left examples/: the Part 2 draft audit's M5). The checks are
+The sprite files are discovered, not listed (tests/workspace_sprite_files.py): every TOML sprite
+(a file with a ``sprite`` table) in any member's import packages. So a sprite that moves with its
+game into a member, or a new member's sprites, are checked without anyone adding them (Drawing
+Fire's soldier dropped out of the checks once when it left examples/: the Part 2 draft audit's
+M5). The checks are
 glitchygames.testing.sprite_files, which the engine runs on its own sprites
 (tests/sprites/test_engine_sprite_files.py); a member may also run them from its own tests
 (Papyrus's, and Bitmappy's sprite library), with checks of its own beside them.
@@ -13,57 +14,17 @@ The files are read from the source tree by path: nothing here imports a member.
 
 from __future__ import annotations
 
-import tomllib
-from pathlib import Path
-
 import pygame
 import pytest
-from scripts.workspace_packages import workspace_members
 
 from glitchygames.display_mode import set_display_mode
 from glitchygames.testing import sprite_files
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-# What makes a TOML file a sprite file: a [sprite] table (read as TOML, so a header written
-# '[ sprite ]' or with a comment counts too)
-SPRITE_TABLE = 'sprite'
-
-
-def member_sprite_files(*, project_root: Path) -> list[Path]:
-    """Return every sprite file in the workspace members' import packages, in path order.
-
-    Args:
-        project_root: The repository.
-
-    Returns:
-        The sprite files.
-
-    """
-    return sorted(
-        toml_file
-        for member in workspace_members(project_root=project_root)
-        for package_directory in member.package_directories
-        for toml_file in package_directory.rglob(sprite_files.SPRITE_FILE_PATTERN)
-        if SPRITE_TABLE in tomllib.loads(toml_file.read_text(encoding='utf-8'))
-    )
-
-
-MEMBER_SPRITE_FILES = member_sprite_files(project_root=PROJECT_ROOT)
-MEMBER_ANIMATED_SPRITE_FILES = [
-    sprite_file
-    for sprite_file in MEMBER_SPRITE_FILES
-    if sprite_files.ANIMATION_MARKER in sprite_file.read_text(encoding='utf-8')
-]
-
-
-def sprite_file_id(sprite_file: Path) -> str:
-    """Name a sprite file by its path below src/ (``games/drawing-fire/src/.../soldier.toml``).
-
-    Returns:
-        The path.
-
-    """
-    return sprite_file.relative_to(PROJECT_ROOT / 'src').as_posix()
+from tests.workspace_sprite_files import (
+    MEMBER_ANIMATED_SPRITE_FILES,
+    MEMBER_SPRITE_FILES,
+    member_sprite_files,
+    sprite_file_id,
+)
 
 
 @pytest.fixture

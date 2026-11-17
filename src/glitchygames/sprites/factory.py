@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from .bitmappy_sprite import BitmappySprite
 
 from .constants import DEFAULT_FILE_FORMAT
+from .sprite_toml import parse_sprite_toml
 
 # Error message constants for TRY003 compliance
 _ERR_INVALID_SPRITE_FILE = 'Invalid sprite file'
@@ -39,9 +40,7 @@ class SpriteFactory:
 
         Returns:
             AnimatedSprite (static sprites are converted to single-frame animations).
-
-        Raises:
-            ValueError: If file format is invalid or contains mixed content.
+            A file of an invalid format, or of mixed content, is refused with a ValueError.
 
         """
         # Handle default sprite loading
@@ -49,8 +48,46 @@ class SpriteFactory:
             filename = SpriteFactory._get_default_sprite_path()
 
         # Validate file content before loading
-        analysis = SpriteFactory._analyze_file(filename)
+        SpriteFactory._require_sprite_content(SpriteFactory._analyze_file(filename))
 
+        # Always return AnimatedSprite - it handles both static and animated content
+        from glitchygames.sprites.animated import AnimatedSprite
+
+        return AnimatedSprite(filename, groups=None)
+
+    @staticmethod
+    def load_sprite_from_text(*, text: str, source_name: str) -> AnimatedSprite:
+        """Load a sprite from the text of a sprite file, as load_sprite loads a file.
+
+        The text gets the content checks a file gets, then loads by the one path a file's load
+        takes (``sprite_from_text``), so the two give the same sprite.
+
+        Args:
+            text: The sprite file's TOML text.
+            source_name: What the text came from (a file name, a console), named in errors and in
+                the warnings about pixel rows the loader repaired.
+
+        Returns:
+            AnimatedSprite (static text is converted to a single-frame animation).
+            Text that is not valid TOML, or is invalid or mixed content, is refused with a
+            ValueError.
+
+        """
+        document = parse_sprite_toml(text=text, source_name=source_name)
+        SpriteFactory._require_sprite_content(SpriteFactory._analyze_toml_document(document))
+
+        from glitchygames.sprites.sprite_text import sprite_from_text
+
+        return sprite_from_text(text=text, source_name=source_name)
+
+    @staticmethod
+    def _require_sprite_content(analysis: dict[str, Any]) -> None:
+        """Refuse an analysis of no sprite content or of static and animated content together.
+
+        Raises:
+            ValueError: If the sprite is invalid or mixed.
+
+        """
         # Check if file has valid content
         if not (
             analysis['has_sprite_pixels']
@@ -64,11 +101,6 @@ class SpriteFactory:
             analysis['has_animation_sections'] or analysis['has_frame_sections']
         ):
             raise ValueError(_ERR_INVALID_SPRITE_FILE)
-
-        # Always return AnimatedSprite - it handles both static and animated content
-        from glitchygames.sprites.animated import AnimatedSprite
-
-        return AnimatedSprite(filename, groups=None)
 
     @staticmethod
     def detect_file_format(filename: str) -> str:
@@ -122,9 +154,16 @@ class SpriteFactory:
             dict: The result.
 
         """
-        with Path(filename).open('rb') as f:
-            data = tomllib.load(f)
+        return SpriteFactory._analyze_toml_document(SpriteFactory._get_toml_data(filename))
 
+    @staticmethod
+    def _analyze_toml_document(data: dict[str, Any]) -> dict[str, Any]:
+        """Analyze a parsed sprite document to determine sprite type.
+
+        Returns:
+            dict: The result.
+
+        """
         has_sprite_pixels = False
         has_animation_sections = False
         has_frame_sections = False

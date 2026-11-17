@@ -13,7 +13,7 @@ from glitchygames.sprites.sprite_toml import (
     split_sprite_text,
     write_sprite_toml,
 )
-from tests.test_workspace_sprite_files import MEMBER_SPRITE_FILES, sprite_file_id
+from tests.workspace_sprite_files import MEMBER_SPRITE_FILES, sprite_file_id
 
 # The sprite files the Python loader reads: every member's, Bitmappy's library among them
 BITMAPPY_LIBRARY_PREFIX = 'apps/bitmappy/src/bitmappy/resources/sprites/'

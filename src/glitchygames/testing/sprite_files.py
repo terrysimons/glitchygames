@@ -1,7 +1,8 @@
 """Checks of a sprite file, for the engine's tests and for every package that ships sprites.
 
-Every pixel row is the same width, the tags are well formed, and a save round trip keeps a
-sprite's timings, hitboxes, pixels, metadata and transitions. The engine runs these checks on its
+Every pixel row is the same width, the tags are well formed, a save round trip keeps a
+sprite's timings, hitboxes, pixels, metadata and transitions, and the file's text loads to the
+sprite the file does. The engine runs these checks on its
 own sprites
 (tests/sprites/test_engine_sprite_files.py), the repository runs them on every workspace member's
 sprites, discovered (tests/test_workspace_sprite_files.py), and a package with sprites of its own
@@ -33,6 +34,7 @@ import pytest
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.sprites.animated import frame_tables_in_load_order
 from glitchygames.sprites.pixel_utils import normalize_pixel_rows, palette_key_problems
+from glitchygames.sprites.sprite_text import sprite_from_text
 from glitchygames.sprites.tags import TAGS_KEY, sprite_tags_problems
 
 if TYPE_CHECKING:
@@ -334,6 +336,65 @@ def check_metadata_survives_a_save_round_trip(*, sprite_file: Path, directory: P
     if reloaded_metadata != original_metadata:
         message = f'{sprite_file}: reloaded metadata {reloaded_metadata} != {original_metadata}'
         raise AssertionError(message)
+
+
+def _loaded_state(*, sprite: AnimatedSprite) -> dict[str, object]:
+    """Return everything a load gives a sprite that the text and the file loads must share.
+
+    Returns:
+        dict[str, object]: The RGBA frames, metadata, animation order, each animation's metadata
+        (loop flag, total duration) and every frame's duration, every hitbox the frames carry
+        (None where a frame has none of its own), the transitions as loaded and the pixel row
+        repairs.
+
+    """
+    return {
+        'frames': _rgba_frames(sprite=sprite),
+        'metadata': _metadata(sprite=sprite),
+        'animation_order': sprite.animation_order,
+        'animation_metadata': {
+            name: sprite.get_animation_metadata(name) for name in sprite.animations
+        },
+        'durations': {
+            name: [frame.duration for frame in frames] for name, frames in sprite.animations.items()
+        },
+        'frame_hitboxes': {
+            name: [frame.hitbox if frame.has_explicit_hitbox else None for frame in frames]
+            for name, frames in sprite.animations.items()
+        },
+        'transitions': sprite.transition_data,
+        'pixel_row_repairs': sprite.pixel_row_repairs,
+    }
+
+
+def check_text_and_file_loads_agree(*, sprite_file: Path) -> None:
+    """Check that the text of a sprite file loads to the sprite the file does.
+
+    Loads the file (``AnimatedSprite(path)``) and its text read by hand (``sprite_from_text``),
+    and compares the RGBA frames, metadata, animation order, timings, hitboxes, transitions and
+    pixel row repairs. The file load reads the file's text and calls the text load, so they must
+    never differ.
+
+    Args:
+        sprite_file: The sprite file to check.
+
+    Raises:
+        AssertionError: The two loads differ; the message names the file and the difference.
+
+    """
+    from_file = _loaded_state(sprite=AnimatedSprite(str(sprite_file)))
+    from_text = _loaded_state(
+        sprite=sprite_from_text(
+            text=sprite_file.read_bytes().decode('utf-8'), source_name=str(sprite_file)
+        )
+    )
+    for part, file_value in from_file.items():
+        if from_text[part] != file_value:
+            message = (
+                f'{sprite_file}: {part} loaded from the text {from_text[part]} '
+                f'!= loaded from the file {file_value}'
+            )
+            raise AssertionError(message)
 
 
 def check_sprite_tags_are_well_formed(*, sprite_file: Path) -> None:

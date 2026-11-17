@@ -2467,7 +2467,7 @@ class TestAnimatedSpriteLoadEdgeCases:
         bad_file.write_bytes(b'\x00\x01\x02\x03')  # Invalid TOML content
 
         sprite = AnimatedSprite()
-        with pytest.raises(ValueError, match='Error loading TOML file'):
+        with pytest.raises(ValueError, match=r'bad\.toml is not valid TOML'):
             sprite.load(str(bad_file))
 
     def test_set_initial_animation_with_no_animations(self):

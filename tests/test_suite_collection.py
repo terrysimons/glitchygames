@@ -1293,6 +1293,9 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
         'scripts/git_checkout.py',
     ),
 }
+# Why a sprite test may reach scripts/: tests/workspace_sprite_files.py finds every member's
+# sprite files from the workspace, and these tests run on all of them
+SPRITE_FILES_REASON = "runs on every member's sprite files, found from the workspace"
 # Why a source guard may reach scripts/: tests/workspace_sources.py's scanned_source_files lists
 # the members' packages with scripts/workspace_packages.py, so the guard reads every member's
 # source
@@ -1356,6 +1359,8 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/test_workspace_sprite_files.py': (
         "checks every member's sprite files, found from the workspace"
     ),
+    'tests/sprites/test_sprite_text.py': SPRITE_FILES_REASON,
+    'tests/sprites/test_sprite_toml.py': SPRITE_FILES_REASON,
     'tests/test_workspace_expectations.py': (
         'checks the hand-written expected sets against a workspace (tests/workspace_goldens.py)'
     ),
