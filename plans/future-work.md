@@ -1606,8 +1606,8 @@ discussing it found and decided:
   frame (camera, culling, pixel snapping), and blending needs two copies of the world; every clock
   (game time, frame clock, tweens, shake, rumble, sound voices ending by played time) needs a
   per-step or per-frame answer; the Arcade drives inner games by the outer game's frames. The
-  engine's rules shape it: time only through `glitchygames/clock.py` (not `time.perf_counter()`),
-  and world sprites' `rect` the engine's alone.
+  engine's rules shape it: time only through `src/glitchygames/clock.py` (not
+  `time.perf_counter()`), and world sprites' `rect` the engine's alone.
 - **Steps are the recorded unit; frames are only drawing (the owner's idea, 2026-11-17).** A
   recording stays a list of steps, each with its `dt`. Existing recordings replay as they are, each
   recorded frame one step of its recorded `dt`, drawn at any refresh rate by blending between steps,
