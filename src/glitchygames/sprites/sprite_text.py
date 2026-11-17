@@ -33,3 +33,20 @@ def sprite_from_text(*, text: str, source_name: str) -> AnimatedSprite:
     sprite = AnimatedSprite(groups=None)
     sprite.load_text(text=text, source_name=source_name)
     return sprite
+
+
+def sprite_to_text(*, sprite: AnimatedSprite) -> str:
+    """Write a sprite as the text of a sprite file.
+
+    This is the text ``AnimatedSprite.save`` writes to its file: a single animation with one
+    frame in the static layout (pixels in ``[sprite]``), anything else with its ``[[animation]]``
+    tables. No temporary file is involved.
+
+    Args:
+        sprite: The sprite to write.
+
+    Returns:
+        The sprite file's TOML text; ``sprite_from_text`` loads it back to the same sprite.
+
+    """
+    return sprite.to_text()

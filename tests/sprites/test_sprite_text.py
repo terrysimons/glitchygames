@@ -7,7 +7,8 @@ import pytest
 
 from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites import AnimatedSprite, SpriteFactory
-from glitchygames.sprites.sprite_text import sprite_from_text
+from glitchygames.sprites.sprite_text import sprite_from_text, sprite_to_text
+from glitchygames.sprites.sprite_toml import parse_sprite_toml
 from glitchygames.testing.sprite_files import check_text_and_file_loads_agree
 
 # A static sprite whose second row is shorter than its first: the loader repairs it and says so
@@ -198,3 +199,21 @@ def test_the_factory_refuses_a_file_that_is_not_toml_as_it_refuses_the_same_text
         SpriteFactory.load_sprite_from_text(text='[sprite\n', source_name=str(bad_file))
 
     assert str(from_text.value) == str(from_file.value)
+
+
+def test_a_single_frame_sprite_is_written_in_the_static_layout():
+    """One animation with one frame is written with its pixels in [sprite], as save always did."""
+    text = sprite_to_text(sprite=sprite_from_text(text=SHORT_ROW_TEXT, source_name='static'))
+
+    document = parse_sprite_toml(text=text, source_name='written')
+    assert 'pixels' in document['sprite']
+    assert 'animation' not in document
+
+
+def test_an_animated_sprite_is_written_with_its_animations():
+    """Several frames are written as [[animation]] tables, and the text loads back the same."""
+    text = sprite_to_text(sprite=sprite_from_text(text=ANIMATED_TEXT, source_name='animated'))
+
+    document = parse_sprite_toml(text=text, source_name='written')
+    assert 'pixels' not in document['sprite']
+    assert len(document['animation'][0]['frame']) == 2

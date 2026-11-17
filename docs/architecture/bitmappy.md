@@ -485,7 +485,7 @@ flowchart TD
             DECIDE -->|Yes| CANVAS_STATIC["AnimatedCanvasSprite._save_as_static_sprite()\nbuilds an AnimatedSprite, calls its save()"]
         end
         subgraph ENGINE_SAVE["Engine"]
-            STATIC["AnimatedSprite._save_as_static_sprite()"]
+            STATIC["AnimatedSprite.save()\nwrites to_text() (sprite_to_text)"]
             WRITE_TOML["Write TOML\ncolors (per-pixel alpha detected) + frames + animations"]
         end
         CANVAS_STATIC --> STATIC

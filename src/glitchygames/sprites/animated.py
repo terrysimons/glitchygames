@@ -1748,14 +1748,9 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             ValueError: If the file format is not supported.
 
         """
-        # Check if this is a single animation with a single frame
-        if self._is_single_frame_sprite():
-            self.log.info('Detected single-frame sprite, saving in static sprite format')
-            self._save_as_static_sprite(filename, file_format)
-        elif file_format == 'toml':
-            self._save_toml(filename)
-        else:
+        if file_format != 'toml':
             raise ValueError(ERR_UNSUPPORTED_FORMAT.format(file_format))
+        Path(filename).write_text(self.to_text(), encoding='utf-8')
 
     def get_total_frame_count(self: Self) -> int:
         """Get the total number of frames across all animations.
@@ -1795,20 +1790,6 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         animation_frames = next(iter(self._animations.values()))
         return len(animation_frames) == 1
 
-    def _save_as_static_sprite(self: Self, filename: str, file_format: str) -> None:
-        """Save as a static sprite format using existing TOML save methods.
-
-        Raises:
-            ValueError: If the file format is not supported.
-
-        """
-        if file_format == 'toml':
-            # Use the existing TOML save method but modify it for single frame
-            self._save_toml_single_frame(filename)
-        else:
-            # For unsupported formats, raise an error
-            raise ValueError(ERR_UNSUPPORTED_FORMAT.format(file_format))
-
     def _get_effective_static_hitbox(
         self: Self,
         frame: SpriteFrame,
@@ -1833,8 +1814,34 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             'height': effective_hitbox.height,
         }
 
+    def to_text(self: Self) -> str:
+        """Write the sprite as the text of a sprite file.
+
+        The one path a sprite is written by, as ``load_text`` is the one it loads by: ``save``
+        writes this text to its file, and ``sprite_to_text`` returns it. A single animation with
+        one frame is written in the static layout (pixels in ``[sprite]``); anything else with
+        its ``[[animation]]`` tables.
+
+        Returns:
+            The sprite file's TOML text.
+
+        """
+        if self._is_single_frame_sprite():
+            self.log.info('Detected single-frame sprite, saving in static sprite format')
+            return self._static_toml_text()
+        return self._animated_toml_text()
+
     def _save_toml_single_frame(self: Self, filename: str) -> None:
-        """Save single frame as static TOML using existing TOML infrastructure."""
+        """Save single frame as static TOML."""
+        Path(filename).write_text(self._static_toml_text(), encoding='utf-8')
+
+    def _static_toml_text(self: Self) -> str:
+        """Write the single frame as static TOML text.
+
+        Returns:
+            The sprite file's TOML text, pixels in ``[sprite]``.
+
+        """
         # Get the single frame from the single animation
         animation_name = next(iter(self._animations.keys()))
         frame = self._animations[animation_name][0]
@@ -1870,7 +1877,7 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         }
         if self.transition_data:
             data['transition'] = self.transition_data
-        Path(filename).write_text(write_sprite_toml(data=data), encoding='utf-8')
+        return write_sprite_toml(data=data)
 
     def _colors_in_saved_order(
         self: Self,
@@ -1891,7 +1898,11 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         return ordered
 
     def _save_toml(self: Self, filename: str) -> None:
-        """Save animated sprite in TOML format.
+        """Save animated sprite in TOML format."""
+        Path(filename).write_text(self._animated_toml_text(), encoding='utf-8')
+
+    def _animated_toml_text(self: Self) -> str:
+        """Write the animated sprite as TOML text.
 
         This is the main TOML save method for animated sprites. To add new formats:
         1. Create similar methods like _save_json(), _save_xml()
@@ -1899,6 +1910,10 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         3. Add save logic in save() method
         4. Update tests
         See LOADER_README.md for detailed implementation guide.
+
+        Returns:
+            The sprite file's TOML text, with ``[[animation]]`` tables.
+
         """
         color_map = self._build_toml_color_map()
         data = self._build_toml_data_structure(color_map)
@@ -1906,7 +1921,7 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         data['colors'] = self._colors_in_saved_order(data['colors'])
         if self.transition_data:
             data['transition'] = self.transition_data
-        Path(filename).write_text(write_sprite_toml(data=data), encoding='utf-8')
+        return write_sprite_toml(data=data)
 
     def _build_toml_color_map(self: Self) -> dict[tuple[int, ...], str]:
         """Build color map for TOML format.

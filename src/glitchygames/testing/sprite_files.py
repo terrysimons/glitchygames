@@ -34,7 +34,7 @@ import pytest
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.sprites.animated import frame_tables_in_load_order
 from glitchygames.sprites.pixel_utils import normalize_pixel_rows, palette_key_problems
-from glitchygames.sprites.sprite_text import sprite_from_text
+from glitchygames.sprites.sprite_text import sprite_from_text, sprite_to_text
 from glitchygames.sprites.tags import TAGS_KEY, sprite_tags_problems
 
 if TYPE_CHECKING:
@@ -395,6 +395,30 @@ def check_text_and_file_loads_agree(*, sprite_file: Path) -> None:
                 f'!= loaded from the file {file_value}'
             )
             raise AssertionError(message)
+
+
+def check_save_writes_the_sprites_text(*, sprite_file: Path, directory: Path) -> None:
+    """Check that ``save`` writes the text ``sprite_to_text`` gives for the loaded sprite.
+
+    Loads the file, saves it into ``directory`` and compares the saved file's text with
+    ``sprite_to_text``, so save and the text writer stay one path.
+
+    Args:
+        sprite_file: The sprite file to check.
+        directory: Where the sprite is saved (a test's ``tmp_path``).
+
+    Raises:
+        AssertionError: The saved text differs; the message names the file.
+
+    """
+    sprite = AnimatedSprite(str(sprite_file))
+    saved_file = directory / sprite_file.name
+    sprite.save(str(saved_file), 'toml')
+    saved_text = saved_file.read_text(encoding='utf-8')
+    expected_text = sprite_to_text(sprite=sprite)
+    if saved_text != expected_text:
+        message = f'{sprite_file}: save wrote text that differs from sprite_to_text'
+        raise AssertionError(message)
 
 
 def check_sprite_tags_are_well_formed(*, sprite_file: Path) -> None:
