@@ -1581,6 +1581,66 @@ Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversatio
   3. Palette fades and flashes: a fade steps each color down its color space's levels (the NES's
      way); a hit flash swaps to an all-white map for a frame.
 
+## Refresh-aware rendering and fixed simulation (the owner, 2026-11-17)
+
+The owner's brief, verbatim: plans/2026-11-17-refresh-aware-rendering-and-fixed-simulation.md.
+A to-do while two branches are in flight (the zombies PR and the color profiles branch). What
+discussing it found and decided:
+
+- **Measure one thing at a time** (the owner). First today's loop as it is, on the Pi (frame
+  intervals at median, p95, p99 and p99.9, how often each frame spins, CPU use); then one change
+  (for example sleeping instead of spinning), measured again under the same display and power
+  settings. The kernel page-size comparison (the Raspberry Pi OS Pi's 16 KB pages, the Ubuntu Pis'
+  4 KB) is a separate experiment, never mixed with a pacing change.
+- **Today's engine (read 2026-11-17).** No refresh-rate query and no VSync request anywhere
+  (`get_current_refresh_rate`, `vsync=`); no fixed timestep, accumulator or interpolation. One loop
+  iteration is one frame is one step: scenes get one variable `dt` per frame (`Scene.dt_tick`).
+  The pacer busy-waits by default: `--timer-backend auto` (`timing.py`) sleeps to just before each
+  deadline and spins the rest, spinning whole waits where the OS delays sleeps. The brief says not
+  to default to that on the Pi.
+- **Why a fixed simulation is architectural, not local.** At 120 Hz frames over 60 Hz steps, half
+  the frames run no step and an overloaded one runs several. The engine leans on frame = step:
+  32 `dt_tick` implementations in the games, demos and Bitmappy (38 with the engine's) mix per-step
+  and per-frame work; event dispatch hands each event to the scene in the frame it arrives, so a
+  one-shot event on a frame with no step would act between steps; world sprites are positioned per
+  frame (camera, culling, pixel snapping), and blending needs two copies of the world; every clock
+  (game time, frame clock, tweens, shake, rumble, sound voices ending by played time) needs a
+  per-step or per-frame answer; the Arcade drives inner games by the outer game's frames. The
+  engine's rules shape it: time only through `glitchygames/clock.py` (not `time.perf_counter()`),
+  and world sprites' `rect` the engine's alone.
+- **Steps are the recorded unit; frames are only drawing (the owner's idea, 2026-11-17).** A
+  recording stays a list of steps, each with its `dt`. Existing recordings replay as they are, each
+  recorded frame one step of its recorded `dt`, drawn at any refresh rate by blending between steps,
+  so the 25 golden replays and demos and the 5 golden-trace baselines keep their meaning and are
+  never re-recorded for this. New live play steps at the fixed rate. One stepping path: live, the
+  accumulator decides when to step; in a replay, the recording does. The game logic always replays
+  at exactly the steps it was recorded with: re-stepping it at another rate changes outcomes
+  (collisions land at other points, timers such as the zap's 0.25 s cooldown cross on other steps,
+  random streams draw per step), so only drawing is resampled.
+- **Drawing above the step rate:** positions and the camera blend between steps; a discrete change
+  (a spawn, an animation frame, score) shows from the first frame after its step, not a middle one,
+  which would add half a step of delay. Teleports and respawns reset both copies and draw as jumps.
+- **Drawing below the step rate: nothing vanishes (the owner: "design a smarter algorithm that
+  can't let something vanish ... do it at the end of the last frame").** Between frames the engine
+  lists what happened since the last drawn one: sprites that appeared, sprites removed (their last
+  image, position and layer), and marked states entered and left. Each frame draws the latest step,
+  then, once each, every sprite that appeared and was removed unseen, at its last state, and every
+  marked state entered and left unseen, in place of the current one; then the list is cleared, so
+  nothing is ever more than one frame late and a slow device never piles them up. Drawing only:
+  never game state, collisions, recordings or replays. Existence is guaranteed for every sprite;
+  marked states (a hit flash, not an idle blink) are the game's opt-in. Skipped animation frames
+  stay skipped. Example, 30 Hz frames over 60 Hz steps: a zap hits a zombie on step 1 (its struck
+  flash) and it crumbles on step 2; the frame shows the zap at its last position and the zombie
+  struck, once, rather than the zombie blinking out of existence.
+- **Inputs:** read once per frame and handed to the first step after; below the step rate their
+  timing is as coarse as the frames. Two presses within one step keep their order but not their
+  timing inside it; a game needing finer timing (a rhythm game) chooses a faster step rate.
+- **A cheaper first change, nothing architectural:** pace to the display's detected rate with
+  variable `dt` as today (120 game steps a second at 120 Hz). Every contract stays and replays
+  still serve their recorded `dt`; the cost is twice the game work and no smoothing of uneven
+  frames. The measurements decide whether that alone fixes the hitching before the fixed
+  simulation is paid for.
+
 ## Code quality
 
 - **Lint caps shape the replay classes.** `GameEngine.__init__` and `ReplaySources.__init__`
