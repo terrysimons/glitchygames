@@ -8,9 +8,9 @@
 sprite file's text as data (parse, write, split into frames), and the engine's module that turns
 that text into sprites and sprites and images into that text.
 
-**Architecture:** `glitchygames/sprites/sprite_toml.py` imports nothing outside the standard
+**Architecture:** `src/glitchygames/sprites/sprite_toml.py` imports nothing outside the standard
 library and works on the document as `tomllib` reads it; every engine writer goes through its
-`write_sprite_toml`. `glitchygames/sprites/sprite_text.py` builds on it with pygame and
+`write_sprite_toml`. `src/glitchygames/sprites/sprite_text.py` builds on it with pygame and
 `AnimatedSprite`: the file loader reads a file's text and calls `sprite_from_text`, and `save`
 writes `sprite_to_text`, so file and text share one path.
 

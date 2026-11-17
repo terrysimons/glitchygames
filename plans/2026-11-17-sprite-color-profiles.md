@@ -117,7 +117,7 @@ game read only until we decide to wire it up, and allow us to do some testing."
   with a sprite file in them can exhaust it.
 - **Limits:** the service's 1 MB live-link message limit and its four concurrent requests; the
   console's one request at a time.
-- **Engine rules:** time only through `glitchygames/clock.py`; no new module-level mutable state
+- **Engine rules:** time only through `src/glitchygames/clock.py`; no new module-level mutable state
   outside a `ContextSlot`; sprites load through `SpriteFactory`; every sprite class stands on
   `RootSprite`; sprite files are checked with `glitchygames.testing.sprite_files`.
 - **The live link is untouched:** protocol version 1, `hello`, `ping` and `input_event` as today.
@@ -174,7 +174,7 @@ game read only until we decide to wire it up, and allow us to do some testing."
   cannot import the engine, and the owner approved (2026-11-17) moving sprite generation into it,
   in `plans/2026-11-17-sprite-generation-in-the-ai-service.md` on that session's branch, which
   lifts the text-only module into a small pygame-free package without changing its signatures.
-  - `glitchygames/sprites/sprite_toml.py`, pygame-free, a sprite file's text as data:
+  - `src/glitchygames/sprites/sprite_toml.py`, pygame-free, a sprite file's text as data:
     - `parse_sprite_toml(*, text: str, source_name: str) -> dict[str, Any]`: the document as
       `tomllib` reads it; a file that isn't valid TOML raises `ValueError` naming `source_name`.
     - `write_sprite_toml(*, data: Mapping[str, Any]) -> str`: the document in the engine's
@@ -182,7 +182,7 @@ game read only until we decide to wire it up, and allow us to do some testing."
       `[colors]`, `[[transition]]`). Every engine writer goes through it.
     - `split_sprite_text(*, text: str) -> list[str]`: one single-frame sprite file per frame, in
       animation and frame order, each named `<sprite>-<animation>-<frame>`.
-  - `glitchygames/sprites/sprite_text.py`, the engine's, built on it:
+  - `src/glitchygames/sprites/sprite_text.py`, the engine's, built on it:
     - `sprite_from_text(*, text: str, source_name: str) -> AnimatedSprite`: what
       `SpriteFactory.load_sprite` returns; `source_name` names the text in repair warnings. The file
       loader reads the file and calls it (one path, never a temporary file);
