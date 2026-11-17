@@ -33,7 +33,9 @@ uv python pin 3.15.2   # optional: develop on 3.15 (.python-version is ignored: 
 Two Pythons are supported and tested: 3.14, the oldest (the browser builds' Pyodide runs it, so
 `requires-python`, ruff's and the type checkers' targets stay there), and 3.15, the development
 version. `nox -s test` and the pre-push shuffled run test both, each in its own environment, and
-so does every CircleCI job (`noxfile.TEST_PYTHONS`, `PYTHON_NEXT_VERSION`).
+so does CircleCI on every OS: macOS in one job, Linux and Windows with 3.15 in a job of its own
+(`test-python-3-15-*`), as one Python alone takes them close to CircleCI's one-hour job limit
+(`noxfile.TEST_PYTHONS`, `PYTHON_NEXT_VERSION`).
 
 The packages are not on PyPI yet: outside the repository, `uv build --all-packages` and install
 from `dist/` (extras: `games`, `apps`, `templates` for cookiecutter).
