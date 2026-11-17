@@ -1429,6 +1429,11 @@ Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversatio
   (which colors exist).**
 - **Profiles are counts only, named by era with "+": each sprite may use as many colors as the
   console's largest color table** (the owner: "Oh nice, I like that").
+- **Every profile's count is per sprite, never a total** (the owner: "Make sure to clarify that the
+  + variants are per-sprite, not total"). 16-bit+ lets each sprite use up to 256 colors of its
+  own; two such sprites may use 512 different colors between them, and a scene has no limit on
+  the colors on screen at once. The consoles capped the screen too (a NES showed at most 25
+  colors at once, a SNES's sprites shared 128 slots); no profile models that.
 
   | Profile | The console gave a sprite | "+" gives it | Bits per pixel | Colors |
   |---|---|---|---|---|
@@ -1442,6 +1447,35 @@ Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversatio
   more than a 32x48 sprite has pixels, so no limit at all; and the NES was 2 bits per pixel, its
   "8-bit" the processor's word). Rejected: a "16-bit+ 64" profile for the Genesis (the owner:
   "Isn't 64 colors per sprite just 8-bit+?"; the count is the same, only the colors differ).
+- **Strict profiles, below today's format** (the owner agreed to a 4-color profile, 2026-11-16;
+  its name and the 16-color one are my proposal, to confirm). No "+" is the console's real budget
+  for one sprite, "+" its largest color table, each per sprite, as above:
+
+  | Profile | Colors per sprite | Bits per pixel | The real budget of |
+  |---|---|---|---|
+  | 8-bit | 4 (3 + transparent) | 2 | the NES and the Game Boy |
+  | 16-bit | 16 (15 + transparent) | 4 | the SNES and the Genesis (every Zombies sprite today) |
+
+  The mono color spaces need the 4-color profile: `8-bit+ · 2-bit mono` would allow 64 colors
+  chosen from 4 shades, so the profile would limit nothing.
+- **Direct-color profiles: High Color and True Color** (the owner agreed, 2026-11-16). Era names
+  cover the palette years, where the era defined what a sprite got; established color-depth names
+  cover the direct-color years, where the depth is the whole story.
+
+  | Profile | Colors per sprite | Bits per pixel | Era |
+  |---|---|---|---|
+  | High Color | 32,768 | 15 | the PlayStation's and Saturn's direct-color sprites |
+  | True Color | no budget | 24 | the N64 onward; how every existing file reads |
+
+  High Color is the 15-bit flavor (32,768), not the 16-bit one (65,536, 6 bits of green): its
+  description says so. It barely limits anything (more than a sprite has pixels until about
+  181x181) and outgrows the glyph generator (about 24,000), so a full High Color sprite is the PNG
+  case. True Color is no `profile` key, or `profile = "true-color"` written out; both read alike.
+  Rejected: "32-bit+" (PCs read "32-bit color" as RGB with alpha; the PlayStation's and Saturn's
+  sprites were 15-bit, their "32-bit" the processor), a "24-bit" profile (no console era had the
+  name, and "24-bit RGB" is already the full-color color space), and a strict "32-bit" (their
+  largest indexed mode, 256, is 16-bit+'s count; 16-bit+'s description says it is also those
+  consoles' 256-color sprites).
 - **Color spaces: a bit depth ("N-bit RGB") or a named fixed palette.** Off means any 24-bit
   color, as today. The NES's needs the named kind: its 54 colors were a hand-picked list, not a
   grid of levels (`color/resources/nes.palette` holds 55).
@@ -1450,6 +1484,18 @@ Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversatio
     steps. Its shadow and highlight mode (half a step darker or brighter, about 1,500 colors on
     screen) would be another color space name, never a third setting.
   - 15-bit RGB: the SNES's 32,768 (5 bits a channel, 32 levels).
+  - Mono: one hue at even brightness levels, named by bits like the RGB ones (the owner: "2-bit
+    gray should probably be like... 4-mono or something"; "2-bit mono" matches "9-bit RGB", which
+    names its bits, not its 512). 1-bit mono (2 shades: the original Mac, terminal screens), 2-bit
+    mono (4: the Game Boy), 4-bit mono (16: grayscale LCDs and Macs). Plain mono is even grays
+    (the Game Boy Pocket's look); a tint is a named palette of particular colors, like the NES's,
+    never a third setting: a Game Boy green from the commonly cited emulator values (`#0f380f` dark
+    to `#9bbc0f` light; credit the source used), an amber terminal, a green phosphor.
+  - Candidates, discussed and not decided: 6-bit RGB (64: the Master System, the PC's EGA), 12-bit
+    RGB (4,096: the Amiga, Game Gear, Neo Geo), and named palettes for the C64's 16, the CGA's
+    4-color sets, the ZX Spectrum's 15 and the web-safe 216. Community palettes (DawnBringer's
+    DB16 and DB32, Endesga 32 and 64, Sweetie 16, PICO-8's 16; collected on Lospec) only after
+    each author's license is checked, recorded and credited in its palette file.
 - **The notation.** For people (menus, descriptions, docs): `profile · color space`, the color
   space left out when it's full color.
 
@@ -1460,6 +1506,9 @@ Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversatio
   | `8-bit+ · 9-bit RGB` | 64 | 512 | the Genesis's whole 64-entry palette |
   | `16-bit+` | 256 | any (24-bit RGB) | |
   | `16-bit+ · 15-bit RGB` | 256 | 32,768 | the SNES's whole palette RAM |
+  | `High Color` | 32,768 | any (24-bit RGB) | |
+  | `High Color · 15-bit RGB` | 32,768 | 32,768 | the PlayStation's and Saturn's sprites |
+  | `True Color` | no budget | any (24-bit RGB) | today's default |
 
   8-bit+'s description says it is also the Genesis's whole palette, so Genesis-minded artists
   aren't steered to 16-bit+. In a sprite file, two plain keys, neither parsed out of the other:
@@ -1499,6 +1548,18 @@ Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversatio
   colors than glyphs; write that test first. Sweep the same assignment at `animated.py:2037`,
   `bitmappy_sprite.py:709` and `toml_processing.py:828` (not checked yet) and move all of them to
   the generator.
+- **Palette features: what the indexed format makes cheap.** A sprite file's pixels are glyphs and
+  its `[colors]` map says what each means, so changing the map recolors the art. In order of
+  value (my recommendation; the owner agreed to record them, 2026-11-16, order not decided):
+  1. Palette swaps: one drawing, many color maps (the NES's enemy variants). For Zombies, one
+     lawn-zombie drawing as green, gray and glowing zombies, or each neighbor's zombie keeping
+     their shirt, with no new art and the sprite kit building variants. Drawing Fire's
+     `recolor_surface` (its swatch schemes) does a version for one game: the engine's swap becomes
+     the one shared path and Drawing Fire moves onto it, so the two don't drift.
+  2. Color cycling: a range of colors rotates over time while the pixels stay put (16-bit
+     waterfalls, fire, lava, signs). For Zombies, the TV's glow or the laser's shimmer.
+  3. Palette fades and flashes: a fade steps each color down its color space's levels (the NES's
+     way); a hit flash swaps to an all-white map for a frame.
 
 ## Code quality
 
