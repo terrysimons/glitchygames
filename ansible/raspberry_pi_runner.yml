@@ -98,7 +98,11 @@
     # because only the desktop brings it in today. build-essential and python3-dev: numpy has no
     # wheels in uv.lock and miniaudio none for Linux ARM on Python 3.14, so both compile.
     # util-linux: flock, which scripts/measure_on_raspberry_pi.py takes so one push at a time
-    # measures in the clone (BUGS.md #273); every install has it, named here so it is explicit
+    # measures in the clone (BUGS.md #273); every install has it, named here so it is explicit.
+    # libusb-1.0-0-dev and libudev-dev: hidapi's source build. Its Linux ARM wheels are for Python
+    # 3.14 only, so on 3.15 uv compiles it: its hid extension finds libusb through pkg-config, its
+    # hidraw extension includes libudev.h. Found on Raspberry Pi OS, then checked by hand on
+    # Ubuntu (the owner, 2026-11-17). Not libusb-dev, the old libusb 0.1
     - name: Install what the checkout, the tests and the source builds need
       ansible.builtin.apt:
         name:
@@ -107,6 +111,8 @@
           - curl
           - fontconfig
           - git
+          - libudev-dev
+          - libusb-1.0-0-dev
           - openssh-server
           - python3-dev
           # deb822_repository's own dependency (CircleCI's repository below)
@@ -115,15 +121,6 @@
         state: present
         update_cache: true
         cache_valid_time: 3600
-
-    # What the Pi's OS group adds (ansible/inventory.yml's raspberry_pi_os_packages)
-    - name: Install what this Pi's OS needs besides
-      ansible.builtin.apt:
-        name: "{{ raspberry_pi_os_packages }}"
-        state: present
-        update_cache: true
-        cache_valid_time: 3600
-      when: raspberry_pi_os_packages | length > 0
 
     # Rust built only taplo, which pyproject.toml's marker now leaves out on Linux ARM: without
     # it, the job's first install proves nothing else needs it

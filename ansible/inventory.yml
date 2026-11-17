@@ -37,8 +37,6 @@ all:
             raspberry_pi_os_supported_releases: ["26.04", "26.10"]
             # Ubuntu's firmware config (the boot partition is mounted at /boot/firmware)
             raspberry_pi_firmware_config: /boot/firmware/config.txt
-            # Nothing beyond every Pi's packages (ansible/raspberry_pi_runner.yml)
-            raspberry_pi_os_packages: []
           hosts:
             raspberry-pi-4-4gb-ubuntu:
               ansible_host: 172.23.23.155
@@ -114,14 +112,6 @@ all:
             raspberry_pi_os_supported_releases: ["13"]
             raspberry_pi_os_marker_file: /etc/rpi-issue
             raspberry_pi_firmware_config: /boot/firmware/config.txt
-            # Beyond every Pi's packages: what hidapi's source build needs. Its Linux ARM wheels
-            # are for Python 3.14 only, so on 3.15 uv builds it from source, which works once
-            # these are installed (the owner, on Python 3.15.2, 2026-11-16). Its hid extension
-            # finds libusb through pkg-config (the owner: "add libusb-dev to the deps on the
-            # ansible deploy for raspberry pi os"); its hidraw extension includes libudev.h
-            raspberry_pi_os_packages:
-              - libusb-1.0-0-dev
-              - libudev-dev
           hosts:
             # The first Raspberry Pi OS Pi (2026-11-16): the 16 GB Pi 5 in the NVMe heat-sink
             # case, set up as the Ubuntu 16 GB Pi is (the owner: "the same sorts of corallary

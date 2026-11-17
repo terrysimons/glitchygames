@@ -1970,40 +1970,30 @@ def test_the_raspberry_pi_os_pi_is_reached_by_its_lasting_name_and_keeps_it():
     )
 
 
-# --- What each OS installs beyond every Pi's packages -------------------------------------
+# --- hidapi's source build, on every Pi ----------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    ('group_name', 'packages'),
-    [
-        (UBUNTU_GROUP, []),
-        # hidapi's source build: its hid extension wants libusb (the owner, 2026-11-16: "add
-        # libusb-dev to the deps on the ansible deploy for raspberry pi os"), its hidraw extension
-        # libudev.h (the Pi's next failure, 2026-11-16). Its wheels are for Python 3.14, so a uv
-        # that picked another Python builds it
-        (RASPBERRY_PI_OS_GROUP, ['libusb-1.0-0-dev', 'libudev-dev']),
-    ],
-)
-def test_each_os_group_names_its_own_packages(group_name, packages):
-    """Each OS group says what its Pis install besides every Pi's packages."""
-    variables = inventory_group('raspberry_pis')['children'][group_name]['vars']
+def test_every_pi_gets_what_hidapis_source_build_needs():
+    """The libusb and libudev headers, on every OS: uv builds hidapi from source on Linux ARM.
 
-    assert variables['raspberry_pi_os_packages'] == packages
+    hidapi's Linux ARM wheels are for Python 3.14 only, so on 3.15 uv compiles it: its hid
+    extension finds libusb through pkg-config, its hidraw extension includes libudev.h. Found on
+    Raspberry Pi OS, then checked by hand on Ubuntu (the owner, 2026-11-17: "I installed them
+    manually and verified that those packages are needed on ubuntu"). libusb-1.0-0-dev, not
+    libusb-dev, which is the old libusb 0.1.
+    """
+    packages = task(
+        runner_play_tasks(), 'Install what the checkout, the tests and the source builds need'
+    )['ansible.builtin.apt']['name']
+
+    assert {'libusb-1.0-0-dev', 'libudev-dev'} <= set(packages)
+    assert 'libusb-dev' not in packages
 
 
-def test_the_runner_play_installs_the_os_groups_packages_after_every_pis():
-    """Installed with apt right after every Pi's packages, and only when the group names some."""
-    tasks = plays()[0]['tasks']
-    names = [each.get('name') for each in tasks]
-    install = task(tasks, "Install what this Pi's OS needs besides")
-
-    assert install['ansible.builtin.apt'] == {
-        'name': '{{ raspberry_pi_os_packages }}',
-        'state': 'present',
-        'update_cache': True,
-        'cache_valid_time': 3600,
-    }
-    assert install['when'] == 'raspberry_pi_os_packages | length > 0'
-    assert names.index("Install what this Pi's OS needs besides") == (
-        names.index('Install what the checkout, the tests and the source builds need') + 1
-    )
+def test_no_os_group_lists_packages_of_its_own():
+    """Every Pi installs one list: no OS needs a package the other doesn't (2026-11-17)."""
+    for group in inventory_group('raspberry_pis')['children'].values():
+        assert 'raspberry_pi_os_packages' not in group['vars']
+    assert "Install what this Pi's OS needs besides" not in [
+        each.get('name') for each in plays()[0]['tasks']
+    ]
