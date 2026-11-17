@@ -1421,6 +1421,85 @@ Loading and memory:
   reboot applying it, and have a play check every Pi's `/sys/fs/cgroup/cgroup.controllers` holds
   `memory`. Details: plans/2026-11-04-raspberry-pi-ci-runner.md, "The first Raspberry Pi OS Pi".
 
+## Sprite color profiles and a glyph generator (the owner, 2026-11-16)
+
+Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversation:
+
+- **Two separate settings: a profile (how many colors one sprite may use) and a color space
+  (which colors exist).**
+- **Profiles are counts only, named by era with "+": each sprite may use as many colors as the
+  console's largest color table** (the owner: "Oh nice, I like that").
+
+  | Profile | The console gave a sprite | "+" gives it | Bits per pixel | Colors |
+  |---|---|---|---|---|
+  | 8-bit+ | 3 + transparent (one of 4 sprite palettes) | the NES's whole 64-entry master palette | 6 | 64: today's format |
+  | 16-bit+ | 15 + transparent (one of 8 sprite palettes) | the SNES's whole 256-entry palette RAM | 8 | 256 |
+
+  Neither console's sprites could reach that much, which is the "+": a NES sprite never used all
+  64 master colors, and SNES sprites reached only the top half of palette RAM (palettes 8 to 15,
+  128 entries; the bottom 128 were the backgrounds', all 256 only in its 256-color background
+  modes). Rejected: the era's number as bits per pixel (16-bit+ would allow 65,536 per sprite,
+  more than a 32x48 sprite has pixels, so no limit at all; and the NES was 2 bits per pixel, its
+  "8-bit" the processor's word). Rejected: a "16-bit+ 64" profile for the Genesis (the owner:
+  "Isn't 64 colors per sprite just 8-bit+?"; the count is the same, only the colors differ).
+- **Color spaces: a bit depth ("N-bit RGB") or a named fixed palette.** Off means any 24-bit
+  color, as today. The NES's needs the named kind: its 54 colors were a hand-picked list, not a
+  grid of levels (`color/resources/nes.palette` holds 55).
+  - 9-bit RGB: the Genesis's 512 (3 bits a channel, 8 levels). Its levels weren't evenly spaced
+    (a non-linear output stage), so snap to a published measured table, credited, not to even
+    steps. Its shadow and highlight mode (half a step darker or brighter, about 1,500 colors on
+    screen) would be another color space name, never a third setting.
+  - 15-bit RGB: the SNES's 32,768 (5 bits a channel, 32 levels).
+- **The notation.** For people (menus, descriptions, docs): `profile · color space`, the color
+  space left out when it's full color.
+
+  | Written | Colors per sprite | Chosen from | Matches |
+  |---|---|---|---|
+  | `8-bit+` | 64 | any (24-bit RGB) | |
+  | `8-bit+ · NES palette` | 64 | the NES's 54 | the NES, every color for every sprite |
+  | `8-bit+ · 9-bit RGB` | 64 | 512 | the Genesis's whole 64-entry palette |
+  | `16-bit+` | 256 | any (24-bit RGB) | |
+  | `16-bit+ · 15-bit RGB` | 256 | 32,768 | the SNES's whole palette RAM |
+
+  8-bit+'s description says it is also the Genesis's whole palette, so Genesis-minded artists
+  aren't steered to 16-bit+. In a sprite file, two plain keys, neither parsed out of the other:
+  `profile = "8-bit+"` and `color_space = "rgb9"` (or `"nes"`, `"rgb15"`) in `[sprite]`. No
+  `profile` means no budget and no `color_space` means full color, which is how every existing
+  file reads today, so none changes. Console names (NES, SNES, Genesis) are trademarks: use them
+  in descriptions ("like the Genesis"), not as profile names.
+- **One format, a longer glyph list, not a second format** (the owner: "keep the current format,
+  but clamp on the glyph map but make it a robust generator that returns printable characters in a
+  savory order"). Readers already take any character: `zap.toml` with three glyphs swapped for
+  `#`, `é`, `Ŧ` loaded pixel for pixel identical (2026-11-16). Only the writers stop at
+  `SPRITE_GLYPHS`' 64 (Bitmappy's save raises above it, `bitmappy_sprite.py:555`). Rejected: a
+  hex-pair format (an extra reader and writer and conversions, rows twice as wide, still 256).
+  Past a few thousand colors (photo-like art, hand-edited by nobody) the second format is PNG,
+  which Bitmappy already imports.
+- **The generator's rules:**
+  - The first 64 are `SPRITE_GLYPHS` in its order, so every writer's output today is unchanged
+    and a re-save changes nothing in git. "Core glyphs" in code and docs; possibly "the Crayon Box"
+    as 8-bit+'s friendly name (64, the big crayon box; not the brand name).
+  - Then a savory order: the rest of safe ASCII punctuation (not the busy marks), accented Latin
+    grouped by base letter (`à á â ä`), then Greek and Cyrillic less lookalikes of anything earlier
+    (Cyrillic `а о р с х`, Greek `Α Β Ο`), from Unicode's `confusables.txt`, credited.
+  - Every glyph is one terminal cell wide (East Asian width `Na` or `N`), left to right, not a
+    combining mark, unchanged by NFKC, and not `"`, `\`, `'` or whitespace. Counted 2026-11-16
+    (Python 3.14, Unicode 16): 91 in ASCII, 429 with Latin-1 and Latin Extended A/B (16-bit+
+    fits in characters every common font has), about 24,000 in all, so never 65,536.
+  - Frozen as a literal in the source, built once by a dev script and never at import (the comment
+    on `SPRITE_GLYPHS` asks this; another Python's Unicode data could change which characters pass,
+    so one sprite would save differently on two machines). A test proves the frozen list still
+    meets every rule.
+  - Clamped by profile: more colors than the profile or the list allows raises, naming both.
+- **A bug it fixes: Bitmappy's terminal preview gives two colors one glyph above 64.**
+  `_build_color_to_glyph_map` (`src/apps/bitmappy/src/bitmappy/pixel_ops.py:264`) picks
+  `SPRITE_GLYPHS[char_index % len(SPRITE_GLYPHS)]`: reproduced 2026-11-16, 65 colors gave
+  `(0,0,0)` and `(64,0,0)` both `.`, so `sprite_inspection.py`'s preview draws one in the other's
+  color (preview only: saving refuses above 64). The test gap: nothing renders a preview with more
+  colors than glyphs; write that test first. Sweep the same assignment at `animated.py:2037`,
+  `bitmappy_sprite.py:709` and `toml_processing.py:828` (not checked yet) and move all of them to
+  the generator.
+
 ## Code quality
 
 - **Lint caps shape the replay classes.** `GameEngine.__init__` and `ReplaySources.__init__`
