@@ -1,6 +1,8 @@
-"""Two pipe instruments built on the M1 sound API, rendered to WAV files for listening.
+"""Two pipe instruments built on the sound API, and their demos for listening (the pipe demos).
 
-Run from the repository root: ``uv run python scripts/make_pipes.py [OUTPUT_DIRECTORY]``.
+Moved from ``scripts/make_pipes.py`` (plans/2026-11-14-sound-cache-on-first-use.md, decision 5);
+``glitchygames listening-pipes`` writes the demos (``PIPE_DEMOS``) into the listening folder
+(glitchygames/audio/listening/__init__.py).
 
 Great Highland bagpipe vs uilleann pipes: both are reed chanters over drones, but they differ in
 pitch centre, brightness, loudness, drone weight and articulation:
@@ -21,9 +23,6 @@ from __future__ import annotations
 
 import operator
 import string
-import sys
-import wave
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -34,15 +33,13 @@ from glitchygames.audio.render import render_sound
 from glitchygames.audio.spec import EnvelopeSpec, PlaybackDefaults
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
     import numpy.typing as npt
 
     from glitchygames.audio.pitch import PitchLike
 
 SAMPLE_RATE = 44100
-# Where the WAV files go without an argument (git-ignored)
-DEFAULT_OUTPUT_DIRECTORY = Path('build') / 'pipes'
 
 # --- Great Highland bagpipe --------------------------------------------------------------------
 
@@ -322,7 +319,7 @@ UILLEANN_REGULATOR_HALF_BARS = ['D', 'D', 'D', 'A', 'G', 'A', 'A', 'D']
 # Melody notes from the traditional D major, 3/4, AABB setting given in The Fiddler's Companion
 # (Andrew Kuntz, https://www.ibiblio.org/fiddlers/SIA_SIO.htm), which cites Bunting (1796) among
 # its sources. Only the melody is taken from there; the pipe arrangement (drones, regulator
-# chords, articulation) is this script's own. Durations are in eighth notes (six to a bar).
+# chords, articulation) is this module's own. Durations are in eighth notes (six to a bar).
 
 SI_BHEAG_SCALE = {
     'D4': 293.66,
@@ -594,30 +591,23 @@ def mix(*layers: tuple[npt.NDArray[np.float64], int, float]) -> npt.NDArray[np.f
     return output * (10 ** (-1 / 20) / np.max(np.abs(output)))
 
 
-def write_wav(path: Path, samples: npt.NDArray[np.float64]) -> None:
-    """Write mono float samples as a 16-bit PCM WAV file at ``SAMPLE_RATE``.
+# --- The demos: each file's name and how its samples are made -----------------------------------
+#
+# Each was one step of make_pipes.py's main; a demo sharing another's layers renders them again
+# (a second at most), so each file can be rendered on its own when it is missing.
 
-    Args:
-        path: The file to write.
-        samples: The mono samples, nominally within -1.0 to 1.0.
+# Quieter overall than the Highland pipe: about -9 dBFS peak
+UILLEANN_LEVEL = 10 ** (-8 / 20)
+# A chanter note on its own: -1 dBFS peak
+CHANTER_NOTE_LEVEL = 10 ** (-1 / 20)
+
+
+def highland_bagpipe() -> npt.NDArray[np.float64]:
+    """Highland: drones strike in, the chanter enters after a second, all sound to the end.
+
+    Returns:
+        The samples.
     """
-    pcm = np.clip(np.round(samples * 32767), -32768, 32767).astype('<i2')
-    with wave.open(str(path), 'wb') as file:
-        file.setnchannels(1)
-        file.setsampwidth(2)
-        file.setframerate(SAMPLE_RATE)
-        file.writeframes(pcm.tobytes())
-
-
-def main() -> None:
-    """Render the Highland and uilleann pipe demos into the first argument's directory.
-
-    Without an argument they go to ``DEFAULT_OUTPUT_DIRECTORY``.
-    """
-    output_directory = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_OUTPUT_DIRECTORY
-    output_directory.mkdir(parents=True, exist_ok=True)
-
-    # Highland: drones strike in, chanter enters after a second, all keep sounding to the end
     chanter = render(
         highland_chanter,
         name='highland_chanter',
@@ -630,32 +620,60 @@ def main() -> None:
         pitch=Hz(HIGHLAND_TENOR_DRONE_HZ),
         length=drone_seconds,
     )
-    highland = mix((drones, 0, 0.55), (chanter, SAMPLE_RATE, 1.0))
-    write_wav(output_directory / 'highland_bagpipe.wav', highland)
+    return mix((drones, 0, 0.55), (chanter, SAMPLE_RATE, 1.0))
 
-    # Uilleann: drones softly under a lighter chanter with detached notes, regulator chords beneath
-    beat_seconds = 0.28
+
+UILLEANN_BEAT_SECONDS = 0.28
+
+
+def _uilleann_drones_and_chanter() -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], int]:
+    """The uilleann phrase's drones and chanter, and the frame the chanter enters on.
+
+    Returns:
+        The drones, the chanter, and its start frame.
+    """
     chanter_start = int(0.8 * SAMPLE_RATE)
     chanter = render(
         uilleann_chanter,
         name='uilleann_chanter',
-        notes=uilleann_melody(UILLEANN_PHRASE, beat_seconds=beat_seconds),
+        notes=uilleann_melody(UILLEANN_PHRASE, beat_seconds=UILLEANN_BEAT_SECONDS),
     )
     drone_seconds = 0.8 + len(chanter) / SAMPLE_RATE + 0.6
     drones = render(uilleann_drones, name='uilleann_drones', pitch=Hz(146.83), length=drone_seconds)
+    return drones, chanter, chanter_start
+
+
+def uilleann_pipes() -> npt.NDArray[np.float64]:
+    """Uilleann: drones softly under a lighter chanter with detached notes, regulator chords below.
+
+    Returns:
+        The samples.
+    """
+    drones, chanter, chanter_start = _uilleann_drones_and_chanter()
     uilleann = mix(
         (drones, 0, 0.35),
         (chanter, chanter_start, 0.8),
-        *regulator_layers(start_frame=chanter_start, beat_seconds=beat_seconds),
+        *regulator_layers(start_frame=chanter_start, beat_seconds=UILLEANN_BEAT_SECONDS),
     )
-    write_wav(
-        output_directory / 'uilleann_pipes_without_regulators.wav',
-        mix((drones, 0, 0.35), (chanter, chanter_start, 0.8)) * (10 ** (-8 / 20)),
-    )
-    # Quieter overall than the Highland pipe: scale to about -9 dBFS peak
-    write_wav(output_directory / 'uilleann_pipes.wav', uilleann * (10 ** (-8 / 20)))
+    return uilleann * UILLEANN_LEVEL
 
-    # Sí Bheag, Sí Mhór on the uilleann pipes: drones, chanter, regulators
+
+def uilleann_pipes_without_regulators() -> npt.NDArray[np.float64]:
+    """The uilleann phrase with drones and chanter only.
+
+    Returns:
+        The samples.
+    """
+    drones, chanter, chanter_start = _uilleann_drones_and_chanter()
+    return mix((drones, 0, 0.35), (chanter, chanter_start, 0.8)) * UILLEANN_LEVEL
+
+
+def si_bheag_si_mhor() -> npt.NDArray[np.float64]:
+    """Sí Bheag, Sí Mhór on the uilleann pipes: drones, chanter, regulators.
+
+    Returns:
+        The samples.
+    """
     bars = si_bheag_bars()
     chanter = render(uilleann_chanter, name='si_bheag_chanter', notes=si_bheag_melody(bars))
     chanter_start = SAMPLE_RATE  # drones sound for a second first
@@ -673,19 +691,35 @@ def main() -> None:
         (chanter, chanter_start, 0.8),
         *si_bheag_regulator_layers(bars, start_frame=first_bar_start),
     )
-    write_wav(output_directory / 'si_bheag_si_mhor.wav', tune * (10 ** (-8 / 20)))
-
-    # Chanter-only single notes for side-by-side comparison of the two reeds on the same pitch class
-    for label, instrument, frequency in (
-        ('highland_chanter_A', highland_chanter, 480.0),
-        ('uilleann_chanter_A', uilleann_chanter, 440.0),
-    ):
-        note = render(instrument, name=label, pitch=Hz(frequency), length=1.5)
-        write_wav(
-            output_directory / f'{label}.wav', note * (10 ** (-1 / 20) / np.max(np.abs(note)))
-        )
-    sys.stdout.write(f'wrote {sorted(path.name for path in output_directory.glob("*.wav"))}\n')
+    return tune * UILLEANN_LEVEL
 
 
-if __name__ == '__main__':
-    main()
+def chanter_note(
+    *, label: str, instrument: Instrument, frequency: float
+) -> Callable[[], npt.NDArray[np.float64]]:
+    """A chanter's single note, for comparing the two reeds on the same pitch class.
+
+    Returns:
+        What renders it.
+    """
+
+    def note() -> npt.NDArray[np.float64]:
+        samples = render(instrument, name=label, pitch=Hz(frequency), length=1.5)
+        return samples * (CHANTER_NOTE_LEVEL / np.max(np.abs(samples)))
+
+    return note
+
+
+# Each demo's file name (without .wav) and what renders it
+PIPE_DEMOS: dict[str, Callable[[], npt.NDArray[np.float64]]] = {
+    'highland_bagpipe': highland_bagpipe,
+    'uilleann_pipes_without_regulators': uilleann_pipes_without_regulators,
+    'uilleann_pipes': uilleann_pipes,
+    'si_bheag_si_mhor': si_bheag_si_mhor,
+    'highland_chanter_A': chanter_note(
+        label='highland_chanter_A', instrument=highland_chanter, frequency=480.0
+    ),
+    'uilleann_chanter_A': chanter_note(
+        label='uilleann_chanter_A', instrument=uilleann_chanter, frequency=440.0
+    ),
+}

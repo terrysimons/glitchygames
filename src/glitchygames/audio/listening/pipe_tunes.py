@@ -1,10 +1,10 @@
-"""Play public-domain tunes written in ABC notation on the pipe instruments of make_pipes.py.
+"""Play public-domain tunes written in ABC notation on the pipe instruments (``pipes``).
 
-Run from the repository root:
-``uv run python -m scripts.pipe_tunes TUNES_DIRECTORY [OUTPUT_DIRECTORY]``.
-TUNES_DIRECTORY holds ``index.json`` (title, file, instrument, tempo per tune) and the ``.abc``
-files. Each tune is rendered to ``OUTPUT_DIRECTORY/<file stem>.wav`` (default
-``build/pipes/tunes``).
+Moved from ``scripts/pipe_tunes.py`` (plans/2026-11-14-sound-cache-on-first-use.md, decision 5),
+its tunes with it: ``tunes/`` holds ``index.json`` (title, file, instrument, tempo per tune, and
+each tune's source and why it is public domain) and the ``.abc`` files.
+``glitchygames listening-pipes`` writes each tune to ``pipes/tunes/<file stem>.wav`` in the
+listening folder (glitchygames/audio/listening/files.py).
 
 The ABC reader covers the subset traditional-tune transcriptions use: the X/T/M/L/K/Q headers,
 keys with modes, notes with octave marks and accidentals (accidentals last to the end of the bar),
@@ -23,15 +23,16 @@ from __future__ import annotations
 
 import json
 import math
+import operator
 import re
-import sys
-from dataclasses import dataclass, field
 from fractions import Fraction
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeGuard
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from glitchygames.audio import Hz
-from scripts.make_pipes import (
+from glitchygames.audio.listening.pipes import (
     HIGHLAND_GRACE_SECONDS,
     HIGHLAND_SCALE,
     HIGHLAND_TENOR_DRONE_HZ,
@@ -44,12 +45,17 @@ from scripts.make_pipes import (
     uilleann_chanter,
     uilleann_drones,
     uilleann_regulators,
-    write_wav,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     import numpy as np
     import numpy.typing as npt
+
+# The tunes and their index ship with the engine, beside this module
+TUNES_DIRECTORY = Path(__file__).parent / 'tunes'
+TUNES_INDEX_FILE = 'index.json'
 
 # --- ABC reading ------------------------------------------------------------------------------
 
@@ -95,22 +101,66 @@ TRIPLET_COUNT = 3  # ``(3``: three notes in the time of two
 DUPLET_SCALE = Fraction(3, 2)
 TRIPLET_SCALE = Fraction(2, 3)
 
-# One token of a tune's body: ('note', Note), ('bar', text) or ('ending', number)
-type Token = tuple[str, object]
 
+class Note(BaseModel):
+    """One sounding note or rest.
 
-@dataclass(frozen=True)
-class Note:
-    """One sounding note or rest: MIDI number (None for a rest) and length in whole notes."""
+    Attributes:
+        midi: Its MIDI number; None for a rest.
+        whole_notes: Its length in whole notes.
+        tied_to_next: Whether it is tied to the next note.
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
     midi: int | None
     whole_notes: Fraction
     tied_to_next: bool = False
 
 
-@dataclass(frozen=True)
-class Tune:
-    """A tune read from ABC: its meter and key, and its bars in playing order."""
+class NoteToken(BaseModel):
+    """A note or rest in a tune's body."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    note: Note
+
+
+class BarToken(BaseModel):
+    """A bar line in a tune's body, as written (``|``, ``|:``, ``:|``, ``::``...)."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    text: str
+
+
+class EndingToken(BaseModel):
+    """A ``[1`` or ``[2`` ending bracket in a tune's body."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    number: int
+
+
+# One token of a tune's body
+type Token = NoteToken | BarToken | EndingToken
+
+
+class Tune(BaseModel):
+    """A tune read from ABC: its meter and key, and its bars in playing order.
+
+    Attributes:
+        title: Its title (the T: header).
+        meter: A bar's length in whole notes.
+        beats_per_bar: 2 for 6/8, 3 for 9/8 and 3/4, 4 for 4/4 (compound meters count dotted
+            beats).
+        compound: Whether the beat is a dotted quarter (6/8, 9/8, 12/8).
+        relative_major_pitch_class: Its key's relative major, as a pitch class.
+        key_signature: The key signature's accidental for each letter.
+        bars: Its bars in playing order.
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
     title: str
     meter: Fraction  # a bar's length in whole notes
@@ -200,14 +250,15 @@ def _strip_annotations(body: str) -> str:
     return re.sub(r'%[^\n]*', '', body)  # comments
 
 
-@dataclass
-class _BodyState:
-    """What parse_body carries from one token to the next."""
+class _BodyState(BaseModel):
+    """What parse_body carries from one token to the next (changed as it reads)."""
+
+    model_config = ConfigDict(extra='forbid')
 
     unit: Fraction
     signature: dict[str, int]
-    tokens: list[Token] = field(default_factory=list)
-    bar_accidentals: dict[tuple[str, int], int] = field(default_factory=dict)
+    tokens: list[Token] = Field(default_factory=list)
+    bar_accidentals: dict[tuple[str, int], int] = Field(default_factory=dict)
     triplet_left: int = 0
     triplet_scale: Fraction = Fraction(1)
     pending_broken: str | None = None
@@ -225,10 +276,10 @@ def _read_bar(body: str, position: int, state: _BodyState) -> int | None:
     text = bar_match.group(0)
     position += len(text)
     ending = re.match(r'\[?([12])', body[position:])
-    state.tokens.append(('bar', text))
+    state.tokens.append(BarToken(text=text))
     state.bar_accidentals.clear()
     if ending:
-        state.tokens.append(('ending', int(ending.group(1))))
+        state.tokens.append(EndingToken(number=int(ending.group(1))))
         position += len(ending.group(0))
     return position
 
@@ -242,7 +293,7 @@ def _read_ending(body: str, position: int, state: _BodyState) -> int | None:
     ending = re.match(r'\[([12])', body[position:])
     if not ending:
         return None
-    state.tokens.append(('ending', int(ending.group(1))))
+    state.tokens.append(EndingToken(number=int(ending.group(1))))
     return position + len(ending.group(0))
 
 
@@ -294,12 +345,14 @@ def _apply_broken_rhythm(state: _BodyState, length: Fraction) -> Fraction:
         This note's new length.
     """
     # broken rhythm: the previous note takes 3/4 (or 1/4) of the pair, this one the rest
-    last_kind, last_note = state.tokens[-1]
-    if last_kind == 'note':
-        assert isinstance(last_note, Note)  # a 'note' token always holds a Note
+    last = state.tokens[-1]
+    if isinstance(last, NoteToken):
+        last_note = last.note
         total = last_note.whole_notes + length
         first = total * (Fraction(3, 4) if state.pending_broken == '>' else Fraction(1, 4))
-        state.tokens[-1] = ('note', Note(last_note.midi, first, last_note.tied_to_next))
+        state.tokens[-1] = NoteToken(
+            note=Note(midi=last_note.midi, whole_notes=first, tied_to_next=last_note.tied_to_next)
+        )
         length = total - first
     state.pending_broken = None
     return length
@@ -323,7 +376,7 @@ def _read_note(body: str, position: int, state: _BodyState) -> int | None:
     if state.pending_broken and state.tokens:
         length = _apply_broken_rhythm(state, length)
     if letter == 'z':
-        state.tokens.append(('note', Note(None, length)))
+        state.tokens.append(NoteToken(note=Note(midi=None, whole_notes=length)))
         return position
     upper = letter.upper()
     octave = 4 if letter.isupper() else 5
@@ -332,7 +385,9 @@ def _read_note(body: str, position: int, state: _BodyState) -> int | None:
         state.bar_accidentals[upper, octave] = ACCIDENTAL_SHIFTS[accidental]
     shift = state.bar_accidentals.get((upper, octave), state.signature[upper])
     midi = 12 * (octave + 1) + LETTER_SEMITONES[upper] + shift
-    state.tokens.append(('note', Note(midi, length, tied_to_next=tie == '-')))
+    state.tokens.append(
+        NoteToken(note=Note(midi=midi, whole_notes=length, tied_to_next=tie == '-'))
+    )
     return position
 
 
@@ -345,7 +400,7 @@ def parse_body(body: str, *, unit: Fraction, signature: dict[str, int]) -> list[
         signature: The key signature's accidental for each letter.
 
     Returns:
-        Tokens: ``('note', Note)``, ``('bar', text)`` and ``('ending', number)``.
+        Its tokens: notes and rests, bar lines and ending brackets.
     """
     body = _strip_annotations(body)
     state = _BodyState(unit=unit, signature=signature)
@@ -362,28 +417,36 @@ def parse_body(body: str, *, unit: Fraction, signature: dict[str, int]) -> list[
     return state.tokens
 
 
-def _starts_repeat(kind: str, value: object) -> bool:
+def _starts_repeat(token: Token) -> bool:
     """Whether the token is a ``|:`` style bar line that opens a repeated section.
 
     Returns:
         True for such a bar line.
     """
     return (
-        kind == 'bar'
-        and isinstance(value, str)
-        and value.startswith('|')
-        and value.endswith(':')
-        and ':' not in value[:-1]
+        isinstance(token, BarToken)
+        and token.text.startswith('|')
+        and token.text.endswith(':')
+        and ':' not in token.text[:-1]
     )
 
 
-def _ends_repeat(kind: str, value: object) -> bool:
+def _ends_repeat(token: Token) -> TypeGuard[BarToken]:
     """Whether the token is a ``:|`` style bar line that closes a repeated section.
 
     Returns:
         True for such a bar line.
     """
-    return kind == 'bar' and isinstance(value, str) and value.startswith(':')
+    return isinstance(token, BarToken) and token.text.startswith(':')
+
+
+def _is_second_ending(token: Token) -> bool:
+    """Whether the token is the ``[2`` ending bracket.
+
+    Returns:
+        True for it.
+    """
+    return isinstance(token, EndingToken) and token.number == SECOND_ENDING
 
 
 def _split_sections(tokens: list[Token]) -> list[tuple[list[Token], bool]]:
@@ -394,20 +457,19 @@ def _split_sections(tokens: list[Token]) -> list[tuple[list[Token], bool]]:
     """
     sections: list[tuple[list[Token], bool]] = []
     current: list[Token] = []
-    for kind, value in tokens:
-        if _starts_repeat(kind, value):
+    for token in tokens:
+        if _starts_repeat(token):
             if current:
                 sections.append((current, False))
-            current = [(kind, value)]
+            current = [token]
             continue
-        current.append((kind, value))
-        if _ends_repeat(kind, value):
+        current.append(token)
+        if _ends_repeat(token):
             # the end of a repeated section (::, :|, :|:); a :|: also starts the next
-            assert isinstance(value, str)  # _ends_repeat checked it
             sections.append((current, True))
             current = []
-            if value.endswith(':') and len(value) > 1:
-                current = [('bar', '|:')]
+            if token.text.endswith(':') and len(token.text) > 1:
+                current = [BarToken(text='|:')]
     if current:
         sections.append((current, False))
     return sections
@@ -431,7 +493,7 @@ def _play_sections(sections: list[tuple[list[Token], bool]]) -> list[Token]:
         second_pass = _without_ending(section, keep=SECOND_ENDING)
         played.extend(first_pass)
         follow = sections[index + 1][0] if index + 1 < len(sections) else []
-        if any(kind == 'ending' and value == SECOND_ENDING for kind, value in follow[:3]):
+        if any(_is_second_ending(token) for token in follow[:3]):
             played.extend(_without_ending(section, keep=0))
             played.extend(_take_ending_two(follow))
             sections[index + 1] = (_drop_ending_two(follow), sections[index + 1][1])
@@ -452,11 +514,10 @@ def expand_repeats(tokens: list[Token]) -> list[list[Note]]:
     played = _play_sections(_split_sections(tokens))
     bars: list[list[Note]] = []
     bar: list[Note] = []
-    for kind, value in played:
-        if kind == 'note':
-            assert isinstance(value, Note)  # a 'note' token always holds a Note
-            bar.append(value)
-        elif kind == 'bar' and bar:
+    for token in played:
+        if isinstance(token, NoteToken):
+            bar.append(token.note)
+        elif isinstance(token, BarToken) and bar:
             bars.append(bar)
             bar = []
     if bar:
@@ -472,19 +533,18 @@ def _without_ending(section: list[Token], *, keep: int) -> list[Token]:
     """
     result: list[Token] = []
     in_ending: int | None = None
-    for kind, value in section:
-        if kind == 'ending':
-            assert isinstance(value, int)  # an 'ending' token always holds its number
-            in_ending = value
+    for token in section:
+        if isinstance(token, EndingToken):
+            in_ending = token.number
             continue
         if in_ending is not None and in_ending != keep:
-            if kind == 'bar':
+            if isinstance(token, BarToken):
                 # an ending lasts to the next bar line that closes it (one bar, the usual case)
                 in_ending = None
             continue
-        if kind == 'bar' and in_ending is not None:
+        if isinstance(token, BarToken) and in_ending is not None:
             in_ending = None
-        result.append((kind, value))
+        result.append(token)
     return result
 
 
@@ -496,13 +556,13 @@ def _take_ending_two(section: list[Token]) -> list[Token]:
     """
     result: list[Token] = []
     started = False
-    for kind, value in section:
-        if kind == 'ending' and value == SECOND_ENDING:
+    for token in section:
+        if _is_second_ending(token):
             started = True
             continue
         if started:
-            result.append((kind, value))
-            if kind == 'bar':
+            result.append(token)
+            if isinstance(token, BarToken):
                 break
     return result
 
@@ -515,15 +575,15 @@ def _drop_ending_two(section: list[Token]) -> list[Token]:
     """
     result: list[Token] = []
     skipping = False
-    for kind, value in section:
-        if kind == 'ending' and value == SECOND_ENDING:
+    for token in section:
+        if _is_second_ending(token):
             skipping = True
             continue
         if skipping:
-            if kind == 'bar':
+            if isinstance(token, BarToken):
                 skipping = False
             continue
-        result.append((kind, value))
+        result.append(token)
     return result
 
 
@@ -561,13 +621,13 @@ def read_tune(text: str) -> Tune:
     signature, relative_major = key_signature(headers.get('K', 'C'))
     tokens = parse_body(' '.join(body_lines), unit=unit, signature=signature)
     return Tune(
-        headers.get('T', 'untitled'),
-        meter,
-        beats_per_bar,
-        compound,
-        relative_major,
-        signature,
-        expand_repeats(tokens),
+        title=headers.get('T', 'untitled'),
+        meter=meter,
+        beats_per_bar=beats_per_bar,
+        compound=compound,
+        relative_major_pitch_class=relative_major,
+        key_signature=signature,
+        bars=expand_repeats(tokens),
     )
 
 
@@ -591,8 +651,6 @@ UILLEANN_CUT_MINIMUM_SECONDS = 0.3  # a bar-opening note this long gets a cut
 UILLEANN_CUT_SECONDS = 0.025
 UILLEANN_REPEAT_MINIMUM_SECONDS = 0.08  # a repeated note this long gets a breath before it
 UILLEANN_BREATH_SECONDS = 0.035  # the chanter closes this long between repeated notes
-ARGUMENT_COUNT_WITH_TUNES_DIRECTORY = 2  # script, tunes directory
-ARGUMENT_COUNT_WITH_OUTPUT_DIRECTORY = 3  # script, tunes directory, output directory
 UILLEANN_CHORDS = {  # regulator chords for each relative major
     2: {
         'D': (146.83, 185.00, 220.00),
@@ -632,23 +690,28 @@ def uilleann_transposition(tune: Tune) -> int:
     Returns:
         The transposition in semitones.
     """
-    best: tuple[tuple[int, int], int] | None = None
-    for target in (2, 7):
-        for octave_shift in (-24, -12, 0, 12, 24):
-            shift = (target - tune.relative_major_pitch_class) % 12
-            for candidate in (shift, shift - 12):
-                total = candidate + octave_shift
-                pitches = [
-                    note.midi + total for bar in tune.bars for note in bar if note.midi is not None
-                ]
-                outside = sum(
-                    1 for pitch in pitches if not UILLEANN_LOW_MIDI <= pitch <= UILLEANN_HIGH_MIDI
-                )
-                score = (outside, abs(total))
-                if best is None or score < best[0]:
-                    best = (score, total)
-    assert best is not None  # the candidate loops always run
-    return best[1]
+    pitches = [note.midi for bar in tune.bars for note in bar if note.midi is not None]
+
+    def score(total: int) -> tuple[int, int]:
+        """Score a move: notes outside the chanter's range, then its size (smaller is better).
+
+        Returns:
+            The score.
+        """
+        outside = sum(
+            1 for pitch in pitches if not UILLEANN_LOW_MIDI <= pitch + total <= UILLEANN_HIGH_MIDI
+        )
+        return outside, abs(total)
+
+    candidates = [
+        candidate + octave_shift
+        for target in (2, 7)
+        for octave_shift in (-24, -12, 0, 12, 24)
+        for shift in ((target - tune.relative_major_pitch_class) % 12,)
+        for candidate in (shift, shift - 12)
+    ]
+    # min keeps the first of equal scores, as the search it replaces did
+    return min(candidates, key=score)
 
 
 def chanter_events(
@@ -756,15 +819,15 @@ def regulator_layers(
     layers: list[tuple[npt.NDArray[np.float64], int, float]] = []
     elapsed = 0.0
     for bar in tune.bars:
-        sounding = [note for note in bar if note.midi is not None]
+        # (length, MIDI number) of each note with a pitch; max keeps the first longest
+        sounding = [(note.whole_notes, note.midi) for note in bar if note.midi is not None]
         bar_seconds = sum(float(note.whole_notes) for note in bar) * seconds_per_whole
         if sounding and math.isclose(
             bar_seconds, float(tune.meter) * seconds_per_whole, rel_tol=0.05
         ):
-            longest = max(sounding, key=lambda note: note.whole_notes)
-            assert longest.midi is not None  # sounding holds only notes with a pitch
+            _length, longest_midi = max(sounding, key=operator.itemgetter(0))
             chord = CHORD_FOR_PITCH_CLASS[relative_major].get(
-                (longest.midi + transposition) % 12, next(iter(chords))
+                (longest_midi + transposition) % 12, next(iter(chords))
             )
             layers.extend(
                 (
@@ -837,64 +900,50 @@ def arrange(
     return mix((drones, 0, 0.35), (chanter, chanter_start, 0.8), *regulators) * (10 ** (-8 / 20))
 
 
-def render_entry(
-    entry: dict[str, str | float], *, tunes_directory: Path, output_directory: Path
-) -> str:
-    """Render one tune of the index to a WAV file.
+def tune_samples(entry: Mapping[str, str | float]) -> npt.NDArray[np.float64]:
+    """Render one tune of the index (``index.json``) on its instrument.
+
+    A tune marked for the Highland pipes with a note outside the Highland chanter's nine goes on
+    the uilleann pipes, which can play it.
 
     Args:
         entry: The tune's entry in ``index.json``.
-        tunes_directory: The directory holding the ``.abc`` files.
-        output_directory: Where the WAV file goes.
 
     Returns:
-        The line that reports the tune.
+        Its samples.
     """
-    path = tunes_directory / str(entry['file'])
-    name = Path(str(entry['file'])).stem
-    tune = read_tune(path.read_text())
+    tune = read_tune((TUNES_DIRECTORY / str(entry['file'])).read_text(encoding='utf-8'))
     instrument = entry.get('suggested_instrument', 'uilleann')
     if instrument == 'highland' and any(
         note.midi is not None and note.midi not in HIGHLAND_WRITTEN
         for bar in tune.bars
         for note in bar
     ):
-        instrument = (
-            'uilleann'  # notes outside the Highland chanter's nine: the uilleann can play them
-        )
-    samples = arrange(
+        instrument = 'uilleann'
+    return arrange(
         tune,
         instrument=str(instrument),
         quarter_bpm=float(entry.get('suggested_tempo_quarter_bpm', 100)),
-        name=name,
-    )
-    write_wav(output_directory / f'{name}.wav', samples)
-    return (
-        f'{entry["title"]}: {instrument}, {len(tune.bars)} bars, {len(samples) / SAMPLE_RATE:.1f} s'
+        name=Path(str(entry['file'])).stem,
     )
 
 
-def main() -> None:
-    """Render every tune of ``TUNES_DIRECTORY/index.json`` into the output directory."""
-    if len(sys.argv) < ARGUMENT_COUNT_WITH_TUNES_DIRECTORY:
-        sys.stderr.write('usage: python -m scripts.pipe_tunes TUNES_DIRECTORY [OUTPUT_DIRECTORY]\n')
-        sys.exit(2)
-    tunes_directory = Path(sys.argv[1])
-    output_directory = (
-        Path(sys.argv[2])
-        if len(sys.argv) >= ARGUMENT_COUNT_WITH_OUTPUT_DIRECTORY
-        else Path('build') / 'pipes' / 'tunes'
+def tune_entries() -> list[dict[str, str | float]]:
+    """Return the tunes' index (``tunes/index.json``: title, file, instrument, tempo per tune).
+
+    Returns:
+        Its entries, in order.
+    """
+    entries: list[dict[str, str | float]] = json.loads(
+        (TUNES_DIRECTORY / TUNES_INDEX_FILE).read_text(encoding='utf-8')
     )
-    output_directory.mkdir(parents=True, exist_ok=True)
-    for entry in json.loads((tunes_directory / 'index.json').read_text()):
-        try:
-            report = render_entry(
-                entry, tunes_directory=tunes_directory, output_directory=output_directory
-            )
-        except Exception as error:  # ruff: ignore[blind-except] - report every tune, keep going
-            report = f'{entry["title"]}: FAILED ({error})'
-        sys.stdout.write(f'{report}\n')
+    return entries
 
 
-if __name__ == '__main__':
-    main()
+def tune_name(entry: Mapping[str, str | float]) -> str:
+    """Return a tune's file name without its suffix (its WAV file's name).
+
+    Returns:
+        The name.
+    """
+    return Path(str(entry['file'])).stem

@@ -1202,11 +1202,10 @@ changes the outer game's key repeat (the plan's Review Focus 4).
       and the sound's identity, so a machine compiles each sound once. Replays must still get the
       same samples (a cached sample equals a fresh compile; test it), and a corrupt or old-version
       entry is compiled again and replaced, never trusted.
-    - Listening WAVs: the instrument demos (`scripts/make_instrument_demos.py`, 724 files, about
-      219 MB) and the pipe tunes (`scripts/make_pipes.py`, `scripts/pipe_tunes.py`, about 85 MB)
-      are written to the git-ignored `build/` by hand today, so an installed copy cannot make them.
-      Make them `glitchygames` subcommands that render into the same cache folder on first request
-      (a family or instrument at a time, not all 300 MB at once).
+    - Listening WAVs: done 2026-11-16 (branch `feat/sound-cache-subcommands`):
+      `glitchygames listening-instruments [--family] [--only]` and `listening-pipes [--only]`
+      render into `<cache root>/listening/<render version>/`, only what is missing; the code is
+      `glitchygames.audio.listening`, the scripts are gone.
     - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
       clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
 - ~~**Move the games onto the new sound library (sound engine M2's migration), in
@@ -1218,9 +1217,10 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   2026-11-15, `scripts/measure_sound_start.py`): a start-up slice compiles at least one whole
   sound, and Clockwork Keep's victory jingle takes 117 ms on a Raspberry Pi 4 (Mr. Muncher's
   film snap 81 ms), so the power-on stalls once for about 7 frames there (about 2 on a Pi 5).
-  Once per machine: later launches read the disk cache. Remedies, in order: `sound-cache fill`
-  (the disk plan's subcommand, so an install fills the cache and even a first launch reads);
-  rendering a long effect tone by tone across slices and mixing at the end (keeps the
+  Once per machine: later launches read the disk cache. Remedies, in order: `sound-cache-fill`
+  (built 2026-11-16: `glitchygames sound-cache-fill`, or a game's `--sound-cache-fill`, so even a
+  first launch reads; nothing runs it yet: an installer, a packaged build's first run or the
+  sound editor would); rendering a long effect tone by tone across slices and mixing at the end (keeps the
   no-thread design; the longest tone bounds the stall). Not a background thread (the plan's
   decision 6; the mixer's callback needs the GIL, BUGS.md #27).
   (the owner,

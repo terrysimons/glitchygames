@@ -14,16 +14,25 @@ from ``outcome``.
 
 The rules:
 
-1. **Only recordings run inner** (decision 5). Every inner game replays a recording headless
-   (``--replay-trace PATH --headless``; ``--headless`` is a switch no later argument can undo).
-   Arguments that would do anything else are refused before anything is built
+1. **Only recordings run inner, so far** (decision 5; a live game inside the Arcade is its
+   sub-plan 7's). Every inner game replays a recording headless (``--replay-trace PATH
+   --headless``; ``--headless`` is a switch no later argument can undo). It is given the outer
+   game's command line next (the current engine's ``command_arguments``, up to a bare ``--``,
+   less every refused flag below with its values: ``inherited_arguments``), so an Arcade run
+   with ``--sound-cache ram`` or ``--log-level debug`` runs its tiles so, and one recording
+   itself (``--record-trace``) or replayed (``--replay-trace``, its golden) still plays them;
+   and the host's own arguments last, which win (argparse keeps the last value). A recording
+   still overrides every option but its run-local ones (``replay.REPLAY_LOCAL_OPTIONS``). The
+   host's own arguments that would do anything else are refused before anything is built
    (``InnerGameRefusedError``): every tool flag (live play, ``--record-trace`` and another
    ``--replay-trace`` among them), ``--rebaseline``, ``--audit``, ``--compare-trace`` and the
    frame stream, a watched replay's restart options, ``--profile`` and ``--list-input-devices``
    (a hosted start would ignore them silently), and ``--help`` and ``--version`` (each prints
    to stdout and exits), with their short forms ``-p``, ``-h`` and ``-v``. Argparse takes any
-   unambiguous prefix of a long flag, so a prefix of a refused flag is refused too, and reads a
-   short-flag cluster letter by letter (``-ph`` is ``-p -h``) until a letter that takes a value,
+   unambiguous prefix of a long flag, so a prefix of a refused flag is refused too, unless it is
+   an engine flag of its own (argparse takes an exact flag first: ``--sound-cache`` is the cache
+   mode, though it begins ``--sound-cache-list``), and reads a short-flag cluster letter by
+   letter (``-ph`` is ``-p -h``) until a letter that takes a value,
    which takes the rest; after a bare ``--`` nothing is a flag.
 2. **A failure belongs to the inner game** (decisions 2 and 4). An ``Exception`` or a
    ``SystemExit`` (a game's ``sys.exit()``, the engine's ``exit_with``, argparse's exit) raised
@@ -92,6 +101,7 @@ the QUIT is posted to and drained from the context's private queue, never SDL's.
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import logging
 import sys
@@ -168,6 +178,12 @@ LONG_FLAG_PREFIX = '--'
 SHORT_FLAG_PREFIX = '-'
 # A long flag's inline value (--record-trace=PATH)
 INLINE_VALUE_SEPARATOR = '='
+# argparse's nargs for a flag taking values until the next flag (--verify's and --measure's)
+ANY_NUMBER_OF_VALUES = '*'
+# The kinds of value count a refused flag has (argparse's nargs): none, one, or any number. A
+# refused flag of another kind would be left out with the wrong number of values, so
+# tests/engine/test_inner_game.py fails on one
+FLAG_VALUE_COUNTS: frozenset[object] = frozenset({0, None, ANY_NUMBER_OF_VALUES})
 
 
 class InnerGameState(StrEnum):
@@ -222,19 +238,148 @@ def refused_arguments(*, arguments: Sequence[str]) -> list[str]:
 
     """
     refused: list[str] = []
+    engine_flags = engine_long_flags()
     for argument in arguments:
         if argument == ARGUMENTS_SEPARATOR:
             break
-        if is_refused_argument(argument=argument) and argument not in refused:
+        if (
+            is_refused_argument(argument=argument, engine_flags=engine_flags)
+            and argument not in refused
+        ):
             refused.append(argument)
     return refused
 
 
-def is_refused_argument(*, argument: str) -> bool:
+def inherited_arguments(*, command_arguments: Sequence[str]) -> tuple[str, ...]:
+    """Return what an inner game is given of the outer game's command line (rule 1).
+
+    Every argument up to a bare ``--`` (what follows it is the outer game's own positionals,
+    never options, and passed on it would make the host's own arguments positionals too), less
+    each refused flag with its values: those say how the outer run itself is recorded, replayed
+    or watched (an Arcade recording itself), not how its tiles run. Its values are the count
+    argparse gives the flag (``FLAG_VALUE_COUNTS``), none when it is inline (``--flag=value``);
+    a short cluster keeps its other letters (``-wp`` is ``-w``).
+
+    Args:
+        command_arguments: The outer engine's command line, after the command.
+
+    Returns:
+        The arguments.
+
+    """
+    arguments = tuple(command_arguments)
+    if ARGUMENTS_SEPARATOR in arguments:
+        arguments = arguments[: arguments.index(ARGUMENTS_SEPARATOR)]
+    actions = engine_option_actions()
+    engine_flags = frozenset(flag for flag in actions if flag.startswith(LONG_FLAG_PREFIX))
+    kept: list[str] = []
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        index += 1
+        if argument.startswith(LONG_FLAG_PREFIX):
+            if not is_refused_argument(argument=argument, engine_flags=engine_flags):
+                kept.append(argument)
+            elif INLINE_VALUE_SEPARATOR not in argument:
+                index = _after_the_values(
+                    arguments=arguments,
+                    index=index,
+                    value_count=_refused_flag_value_count(name=argument, actions=actions),
+                )
+        elif argument.startswith(SHORT_FLAG_PREFIX) and len(argument) > len(SHORT_FLAG_PREFIX):
+            cluster = _cluster_without_refused_letters(cluster=argument[len(SHORT_FLAG_PREFIX) :])
+            if cluster:
+                kept.append(f'{SHORT_FLAG_PREFIX}{cluster}')
+        else:
+            kept.append(argument)
+    return tuple(kept)
+
+
+def _refused_flag_value_count(*, name: str, actions: dict[str, argparse.Action]) -> object:
+    """Return how many values argparse gives a refused flag (its ``nargs``), or its abbreviation.
+
+    The outer game's argparse took the command line, so an abbreviation names one flag. A flag
+    the engine does not define (a game's ``--version``) takes none.
+
+    Returns:
+        Its ``nargs``.
+
+    """
+    flag = name if name in REFUSED_FLAGS else min(f for f in REFUSED_FLAGS if f.startswith(name))
+    action = actions.get(flag)
+    return 0 if action is None else action.nargs
+
+
+def _after_the_values(*, arguments: Sequence[str], index: int, value_count: object) -> int:
+    """Return where the arguments after a flag's values start (``FLAG_VALUE_COUNTS``' kinds).
+
+    Returns:
+        The index.
+
+    """
+    if value_count == 0:
+        return index
+    if value_count == ANY_NUMBER_OF_VALUES:
+        # argparse's rule: values until the next argument that looks like a flag
+        while index < len(arguments) and not arguments[index].startswith(SHORT_FLAG_PREFIX):
+            index += 1
+        return index
+    return min(index + 1, len(arguments))
+
+
+def _cluster_without_refused_letters(*, cluster: str) -> str:
+    """Return a short-flag cluster without its refused letters (``wp`` is ``w``).
+
+    A letter taking a value takes the rest of the cluster as it (argparse's rule): kept whole.
+
+    Returns:
+        The letters kept, empty when none is.
+
+    """
+    kept: list[str] = []
+    for position, letter in enumerate(cluster):
+        if letter in SHORT_FLAGS_TAKING_A_VALUE:
+            kept.append(cluster[position:])
+            break
+        if letter not in REFUSED_SHORT_FLAG_LETTERS:
+            kept.append(letter)
+    return ''.join(kept)
+
+
+def engine_option_actions() -> dict[str, argparse.Action]:
+    """Return the engine's own options (``GameEngine.args``), by each of their flags.
+
+    Returns:
+        Each flag (long and short) and its argparse action.
+
+    """
+    from glitchygames.engine.game_engine import GameEngine
+
+    parser = GameEngine.args(argparse.ArgumentParser())
+    # argparse keeps its actions here, and only here
+    return {flag: action for action in parser._actions for flag in action.option_strings}
+
+
+def engine_long_flags() -> frozenset[str]:
+    """Return the engine's own long flags (``GameEngine.args``), each read as itself by argparse.
+
+    Returns:
+        The flags.
+
+    """
+    return frozenset(flag for flag in engine_option_actions() if flag.startswith(LONG_FLAG_PREFIX))
+
+
+def is_refused_argument(*, argument: str, engine_flags: frozenset[str] | None = None) -> bool:
     """Tell whether one argument is a refused flag, or a prefix argparse would read as one.
+
+    An exact engine flag is itself, never a prefix (argparse takes an exact flag first). A game's
+    own flag is not known here, so one that is a prefix of a refused flag is refused anyway: a
+    refusal too many, never one too few.
 
     Args:
         argument: One command-line argument (``--audit``, ``--record-trace=PATH``, ``-ph``).
+        engine_flags: The engine's long flags (``engine_long_flags``; None reads them).
 
     Returns:
         True when argparse could take it for a refused flag.
@@ -242,6 +387,10 @@ def is_refused_argument(*, argument: str) -> bool:
     """
     if argument.startswith(LONG_FLAG_PREFIX):
         name = argument.split(INLINE_VALUE_SEPARATOR, maxsplit=1)[0]
+        if name in REFUSED_FLAGS:
+            return True
+        if name in (engine_long_flags() if engine_flags is None else engine_flags):
+            return False
         return any(flag.startswith(name) for flag in REFUSED_FLAGS)
     if argument.startswith(SHORT_FLAG_PREFIX):
         return is_refused_short_flag_cluster(cluster=argument[len(SHORT_FLAG_PREFIX) :])
@@ -365,16 +514,25 @@ class InnerGame:
             name: The context's name.
             size: The render target's size (a replay is refused at another size than recorded:
                 the outcome is then ``FAILED``).
-            arguments: More arguments for the game, after ``--replay-trace PATH --headless``.
+            arguments: More arguments for the game, after ``--replay-trace PATH --headless`` and
+                the outer game's command line (``inherited_arguments``), so these win (argparse
+                keeps the last value given).
 
         Returns:
             The inner game, built up to its first frame, or ``FAILED`` if that failed.
 
         Raises:
-            InnerGameRefusedError: If an argument asks for anything but a headless replay
-                (nothing is built).
+            InnerGameRefusedError: If an argument, the outer game's or these, asks for anything
+                but a headless replay (nothing is built).
 
         """
+        outer_engine = current_context().value(slot=CURRENT_ENGINE_SLOT).engine
+        outer = (
+            ()
+            if outer_engine is None
+            else inherited_arguments(command_arguments=outer_engine.command_arguments)
+        )
+        arguments = (*outer, *arguments)
         refused = refused_arguments(arguments=arguments)
         if refused:
             message = (
