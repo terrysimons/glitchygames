@@ -169,14 +169,60 @@ def test_a_toml_sprites_frames_come_back_with_their_animation_and_timing():
     assert response.total_duration_ms == 750
 
 
-def test_a_static_toml_sprite_is_one_frame_with_no_delay():
-    """A still sprite has no timing: one frame, delay 0."""
+def test_a_static_toml_sprite_is_one_frame_timed_as_the_loader_times_it():
+    """A still sprite is one frame; its delay is the loader's default, as for any frame."""
     response = extract_toml_frames_response(
         toml_content=STATIC_SPRITE, renderer_service=RendererService()
     )
 
     assert response.success is True
-    assert [(frame.index, frame.delay_ms) for frame in response.frames] == [(0, 0)]
+    assert [(frame.index, frame.delay_ms) for frame in response.frames] == [(0, 500)]
+
+
+ONE_FRAME_ANIMATION = """[sprite]
+name = "glint"
+
+[[animation]]
+namespace = "glint"
+frame_interval = 0.3
+
+[[animation.frame]]
+pixels = "#"
+
+[colors."#"]
+red = 255
+green = 255
+blue = 0
+"""
+
+
+def test_a_one_frame_animation_keeps_its_interval():
+    """One frame of an [[animation]] is still timed: its frame_interval, not 0."""
+    response = extract_toml_frames_response(
+        toml_content=ONE_FRAME_ANIMATION, renderer_service=RendererService()
+    )
+
+    assert response.success is True
+    assert [(frame.index, frame.delay_ms) for frame in response.frames] == [(0, 300)]
+
+
+@pytest.mark.parametrize(
+    'toml_content',
+    [
+        '[sprite]\nname = "x"\nanimation = 5\n',
+        'animation = 5\n',
+        ONE_FRAME_ANIMATION.replace('frame_interval = 0.3', 'frame_interval = "fast"'),
+    ],
+    ids=['animation is a number', 'a bare animation number', 'frame_interval is text'],
+)
+def test_a_sprite_file_of_the_wrong_shape_is_unsuccessful(toml_content):
+    """Valid TOML that is not a valid sprite fails as a response, never raised (rule 4)."""
+    response = extract_toml_frames_response(
+        toml_content=toml_content, renderer_service=RendererService()
+    )
+
+    assert response.success is False
+    assert response.error
 
 
 def test_toml_that_is_not_a_sprite_is_unsuccessful():

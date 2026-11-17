@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any
 
 from apng import APNG, PNG
+from pydantic import ValidationError
 
 from glitchygames import clock
 from glitchygames.ai.local_service import DEFAULT_BASE_URL
@@ -60,7 +61,7 @@ def create_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(
         prog='glitchygames-client',
-        description='CLI client for GlitchyGames Sprite Generation API',
+        description='Generate sprites through the local AI service, or extract their frames',
     )
 
     parser.add_argument(
@@ -84,7 +85,7 @@ def create_parser() -> argparse.ArgumentParser:
         action='append',
         choices=['toml', 'png'],
         dest='output_formats',
-        help='Output format (can be specified multiple times). Default: toml and png',
+        help='Output format (can be given more than once). Default: toml',
     )
 
     parser.add_argument(
@@ -758,6 +759,9 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
         The exit code (``ExitCode``; see the module docstring): ``GENERATION_REJECTED`` when
         the generation says it failed.
 
+    Raises:
+        ValidationError: An option out of range (``main`` reports it as a usage error).
+
     """
     LOG.info('Generating sprite: %s', parsed_args.prompt)
     if parsed_args.animation_language_model:
@@ -774,6 +778,9 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
             png_scale=parsed_args.png_scale,
             model=parsed_args.animation_language_model,
         )
+    except ValidationError:
+        # An option out of range: a usage error, which main reports through argparse
+        raise
     except REQUEST_ERRORS as error:
         return _exit_code_for_request_error(error=error, parsed_args=parsed_args)
 
@@ -858,12 +865,34 @@ def main(args: list[str] | None = None) -> int:
             # Use default output formats if none specified
             output_formats = parsed_args.output_formats or DEFAULT_OUTPUT_FORMATS
             exit_code = _handle_generate_sprite(parsed_args, output_formats)
+    except ValidationError as error:
+        parser.error(option_errors(error))
     except Exception:
         # The handlers map every error they expect, so anything else is a client bug
         LOG.exception('Unexpected error in the sprite client')
         exit_code = ExitCode.INTERNAL_ERROR
     LOG.info('Exiting with %s', ExitCode(exit_code).describe())
     return ExitCode(exit_code)
+
+
+def option_errors(error: ValidationError) -> str:
+    """Say which options are out of range, as the command line names them.
+
+    The request's fields are the options' names (``png_scale`` is ``--png-scale``); the prompt
+    is the positional argument.
+
+    Args:
+        error: The request's validation error.
+
+    Returns:
+        One clause per option, as ``--width: Input should be less than or equal to 64``.
+    """
+    clauses: list[str] = []
+    for detail in error.errors():
+        field = str(detail['loc'][0]) if detail['loc'] else 'request'
+        name = field if field == 'prompt' else f'--{field.replace("_", "-")}'
+        clauses.append(f'{name}: {detail["msg"]}')
+    return '; '.join(clauses)
 
 
 def run() -> None:

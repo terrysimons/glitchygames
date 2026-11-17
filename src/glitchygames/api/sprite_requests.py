@@ -17,9 +17,9 @@ Rules:
    400).
 4. Frames come from an APNG (``extract_frames_response``) or a ``.toml`` sprite
    (``extract_toml_frames_response``) in one response shape, so they are saved the same way. Bad
-   input is an unsuccessful response, never an exception. A ``.toml`` sprite's delays are its
-   ``frame_interval``s (the frame's, else its animation's, else 0.5 s: ANIMATION_README.md); a
-   static sprite is one frame with no delay.
+   input is an unsuccessful response, never an exception. A ``.toml`` sprite is read by the
+   sprite loader alone (through the renderer), and each frame's delay is the duration the loader
+   gave it (its ``frame_interval``, else its animation's, else the loader's default).
 """
 
 from __future__ import annotations
@@ -28,9 +28,8 @@ import base64
 import io
 import logging
 import struct
-import tomllib
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from glitchygames.api.models import (
     OUTPUT_FORMAT_PNG,
@@ -56,8 +55,6 @@ LOG = logging.getLogger('glitchygames.api.sprite_requests')
 PNG_IHDR_MINIMUM_BYTES = 24
 # The eight bytes every PNG (and so every APNG) starts with (PNG specification, section 5.2)
 PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
-# A frame's time when neither it nor its animation says (ANIMATION_README.md)
-DEFAULT_FRAME_INTERVAL_SECONDS = 0.5
 MILLISECONDS_PER_SECOND = 1000
 
 # Base directory under which all sprite files will be saved.
@@ -462,51 +459,47 @@ def extract_toml_frames_response(
 ) -> ApngExtractResponse:
     """Render every frame of a ``.toml`` sprite, in an APNG's response shape (rule 4).
 
+    The sprite loader is the only reader of the file: the renderer loads it and reports each
+    frame with the duration the loader gave it, so nothing here parses the TOML a second way.
+
     Args:
         toml_content: The sprite file's text.
         renderer_service: The renderer.
 
     Returns:
         Each frame with its animation, its place in it and its delay; or an unsuccessful
-        response for text that is not a sprite.
+        response for text that is not a sprite (including a ``frame_interval`` that is not a
+        number).
     """
-    try:
-        delays_ms = _frame_delays_ms(data=tomllib.loads(toml_content))
-    except tomllib.TOMLDecodeError as e:
-        LOG.warning('Refused a .toml that is not TOML: %s', e)
-        return ApngExtractResponse(success=False, error=f'Invalid sprite file: {e}')
     render_result = renderer_service.render_from_toml(toml_content, render_all_frames=True)
-    if not render_result.success or render_result.png_base64 is None:
+    if not render_result.success or not render_result.rendered_frames:
         LOG.warning('Refused a .toml that does not render: %s', render_result.error)
         return ApngExtractResponse(
-            success=False, error=f'Invalid sprite file: {render_result.error}'
+            success=False, error=f'Invalid sprite file: {render_result.error or "no frames"}'
         )
     width, height = render_result.width, render_result.height
-    if render_result.rendered_frames:
-        frames = [
+    frames: list[ApngFrameInfo] = []
+    for index, rendered in enumerate(render_result.rendered_frames):
+        delay_ms = _delay_ms(duration_seconds=rendered.duration_seconds)
+        if delay_ms is None:
+            message = (
+                f'Invalid sprite file: frame {rendered.frame_index} of animation '
+                f'{rendered.animation_index} has a frame_interval that is not a number '
+                f'({rendered.duration_seconds!r})'
+            )
+            LOG.warning('Refused a .toml sprite: %s', message)
+            return ApngExtractResponse(success=False, error=message)
+        frames.append(
             ApngFrameInfo(
                 index=index,
                 png_base64=rendered.png_base64,
-                delay_ms=delays_ms.get((rendered.animation_index, rendered.frame_index), 0),
+                delay_ms=delay_ms,
                 width=width,
                 height=height,
                 animation_index=rendered.animation_index,
                 animation_frame_index=rendered.frame_index,
             )
-            for index, rendered in enumerate(render_result.rendered_frames)
-        ]
-    else:  # a static sprite: one frame, with no timing
-        frames = [
-            ApngFrameInfo(
-                index=0,
-                png_base64=render_result.png_base64,
-                delay_ms=0,
-                width=width,
-                height=height,
-                animation_index=0,
-                animation_frame_index=0,
-            )
-        ]
+        )
     return ApngExtractResponse(
         success=True,
         frame_count=len(frames),
@@ -518,16 +511,15 @@ def extract_toml_frames_response(
     )
 
 
-def _frame_delays_ms(*, data: dict[str, Any]) -> dict[tuple[int, int], int]:
-    """Each animation frame's delay in a sprite file, by (animation, frame) index (rule 4).
+def _delay_ms(*, duration_seconds: object) -> int | None:
+    """A frame's duration in whole milliseconds, or None when it is not a number.
+
+    The loader keeps a sprite file's ``frame_interval`` as written, so text there arrives as
+    text.
 
     Returns:
-        The delays in milliseconds.
+        The delay, or None.
     """
-    delays: dict[tuple[int, int], int] = {}
-    for animation_index, animation in enumerate(data.get('animation', [])):
-        interval = animation.get('frame_interval', DEFAULT_FRAME_INTERVAL_SECONDS)
-        for frame_index, frame in enumerate(animation.get('frame', [])):
-            seconds = frame.get('frame_interval', interval)
-            delays[animation_index, frame_index] = round(seconds * MILLISECONDS_PER_SECOND)
-    return delays
+    if isinstance(duration_seconds, bool) or not isinstance(duration_seconds, int | float):
+        return None
+    return round(duration_seconds * MILLISECONDS_PER_SECOND)

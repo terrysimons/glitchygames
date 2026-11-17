@@ -1396,6 +1396,19 @@ blue = 255
 """
 
 
+def _tracebacks_shown(caplog) -> list[str]:
+    """The messages logged with a traceback at the client's own level (INFO; DEBUG needs -v).
+
+    Returns:
+        Each such message.
+    """
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno >= logging.INFO and record.exc_info
+    ]
+
+
 @pytest.fixture
 def no_http_of_its_own(mocker):
     """Fail the test if the client builds an HTTP client itself (review focus 3)."""
@@ -1455,6 +1468,7 @@ class TestWithoutAServer:
 
         assert status == ExitCode.SERVICE_UNAVAILABLE
         assert 'http://127.0.0.1:23231' in caplog.text
+        assert not _tracebacks_shown(caplog)  # an expected failure is one line
 
     def test_the_ai_services_own_error_is_unavailable_with_its_message(self, ai_answering, caplog):
         """Review focus 2: an unknown model, as the service says it."""
@@ -1466,6 +1480,7 @@ class TestWithoutAServer:
 
         assert status == ExitCode.SERVICE_UNAVAILABLE
         assert 'unknown model bonsai-99' in caplog.text
+        assert not _tracebacks_shown(caplog)  # an expected failure is one line
 
     def test_png_only_with_rendering_failing_is_rejected(self, ai_answering, mocker):
         """Review focus 4: nothing usable came back."""
@@ -1500,12 +1515,39 @@ class TestWithoutAServer:
             'blink_frame_001.png',
         ]
 
-    def test_extracting_a_toml_that_is_not_a_sprite_is_rejected(self, tmp_path):
-        """Review focus 5: a .toml with no sprite in it."""
+    def test_extracting_a_toml_that_is_not_a_sprite_is_rejected(self, tmp_path, caplog):
+        """Review focus 5: a .toml with no sprite in it, said in one line."""
         not_a_sprite = tmp_path / 'settings.toml'
         not_a_sprite.write_text('title = "not a sprite"\n', encoding='utf-8')
 
         assert main(['--extract-frames', str(not_a_sprite)]) == ExitCode.EXTRACTION_REJECTED
+        assert not _tracebacks_shown(caplog)
+
+    @pytest.mark.parametrize(
+        ('arguments', 'option'),
+        [
+            (['--width', '100'], '--width'),
+            (['--png-scale', '0'], '--png-scale'),
+            (['--frame-count', '33'], '--frame-count'),
+        ],
+        ids=['width over 64', 'png scale under 1', 'frame count over 32'],
+    )
+    def test_an_option_out_of_range_is_a_usage_error(self, arguments, option, capsys):
+        """A usage error from argparse, naming the option: not an unreadable file or a dump."""
+        with pytest.raises(SystemExit) as usage_error:
+            main(['a heart', *arguments])
+
+        assert usage_error.value.code == ExitCode.ARGUMENT_PARSER_ERROR
+        errors = capsys.readouterr().err
+        assert option in errors
+        assert 'validation error for' not in errors
+
+    def test_help_says_the_default_format_is_toml(self):
+        """--help tells the truth about the default: the .toml alone."""
+        help_text = ' '.join(create_parser().format_help().split())
+
+        assert 'Default: toml' in help_text
+        assert 'toml and png' not in help_text
 
     def test_server_url_is_no_longer_an_option(self):
         """There is no server to name."""
