@@ -391,3 +391,24 @@ To bring it up (the owner's run: it needs sudo and a reboot):
 Then, by hand: a few minutes of full load at 3 GHz with `vcgencmd get_throttled` and
 `measure_temp` (the overclock was proven on the Ubuntu Pi's chip, not this one); and `uv --version`
 plus `uv run python -c 'import numpy'` as the runner's user (16 KB pages: never exercised before).
+
+### Brought up (2026-11-16)
+
+The owner ran the playbook, rebooted and ran it again. Read afterwards on the Pi: the managed block
+in `config.txt` holds `arm_freq=3000`, `gpu_freq=1100`, `over_voltage=6`, and the firmware runs
+exactly those (`vcgencmd get_config`); the original is kept as `config.txt.ansible-backup`;
+`circleci-runner` is enabled and active; lightdm auto-logs in as `circleci`; `libusb-1.0-0-dev`
+and `libudev-dev` are installed; the display scripts are in `/usr/local/lib/glitchygames`. The
+owner confirmed 1920x1080 at 120 Hz on the runner's session.
+
+The load test at 3 GHz (all four cores in busy loops for five minutes, from the owner's login,
+sampled every 5 s, a stop at 82 C that never triggered): 3000 MHz throughout, 60.4 C at 30 s,
+73.6 C at 3 min, levelling at 75.7 C, peak 77.9 C, back to 52.7 C 20 s after; `get_throttled`
+0x0 at the end (its flags latch until reboot, so no under-voltage, cap or throttle happened).
+About 7 C below the Pi 5's 85 C throttle, with the Active Cooler on the firmware's default curve.
+Not exercised: floating point, memory bandwidth, the GPU, or a run longer than five minutes; the
+Pi job prints `vcgencmd get_throttled` and `measure_temp` after every run, where a real workload
+would show any throttling.
+
+Still to check on a first run as the runner's user: `uv` and the Python it downloads on the 16 KB
+page kernel.
