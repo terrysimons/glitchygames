@@ -2084,10 +2084,9 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             dict: The result.
 
         """
-        sprite_section: dict[str, Any] = {
-            'name': self.name or 'animated_sprite',
-            'description': self.description or '',
-        }
+        sprite_section: dict[str, Any] = {'name': self.name or 'animated_sprite'}
+        if self.description:
+            sprite_section['description'] = self.description
         if self.tags:
             sprite_section[TAGS_KEY] = list(self.tags)
         if self.frame_anchor is not FrameAnchor.NONE:
@@ -2135,6 +2134,7 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         animation_frame_interval = self._animation_frame_interval_for_save(animation_name)
         animation_frames = AnimatedSprite._create_toml_animation_frames(frames, color_map)
         for frame, frame_data in zip(frames, animation_frames, strict=True):
+            frame_data['namespace'] = animation_name
             if frame.duration != animation_frame_interval:
                 frame_data['frame_interval'] = frame.duration
         return {
