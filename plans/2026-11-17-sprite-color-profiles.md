@@ -85,6 +85,13 @@ game read only until we decide to wire it up, and allow us to do some testing."
    (`scripts/ai_behaviour/`) is a later follow-up (the owner: "Good for now").
 8. **The converted file reaches the console from the game's own tool result**, never from the
    model's text (the designer's, from the anti-goal above).
+9. **The tools read the live game, for now: a recorded, temporary exception** to the owner's rule
+   of 2026-11-06 that the AI works on a copy of the game (`plans/lucid-circuit-4b-mirror.md`),
+   which isn't built yet (the owner, 2026-11-17: "1. Ok", to reading live with a cost guard until
+   the copy exists). The exception covers reading only: `list_sprites` and `sprite_file` (a
+   sprite written out as text); `convert_sprite` reads no game at all. **It ends when the copy
+   works:** the tools then read the copy instead, a one-place change, because each tool takes the
+   game it reads as a parameter rather than reaching for the running one.
 
 ## Constraints (from the project)
 
@@ -270,6 +277,12 @@ The game's tool registry: each tool has a name, a description, a JSON schema for
 in part 3's async step, after the frame's logic and events and before drawing, so they read the
 state the player is about to see, directly and consistently, and they never change it. Names
 avoid the mirror plan's `get_sprite(id)`, which returns attributes.
+
+- **The game a tool reads is a parameter** (decision 9): the live game's scene today, the copy's
+  when it exists.
+- **A cost guard:** each tool's time on the frame is measured. A read that would take more than a
+  set share of the frame budget is split across frames (one sprite written out per frame), so a
+  tool never causes a hitch; the share is the builder's, with its reason.
 
 | Tool | Arguments | Returns (to the model) |
 |---|---|---|
