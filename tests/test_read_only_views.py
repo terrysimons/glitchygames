@@ -399,9 +399,23 @@ def compared_names(*, function: ast.FunctionDef, argument: str) -> frozenset[str
     return frozenset(names)
 
 
+@pytest.fixture(autouse=True, scope='module')
+def parsed_files_freed_after_this_file() -> Iterator[None]:
+    """Let go of every parsed file when this file's tests are done.
+
+    ``scanned_file`` keeps each engine file's syntax tree, about 100 MiB in all: kept for the rest
+    of a serial run, they pushed CircleCI's 2 GB Linux job past its memory limit (2026-11-17).
+    """
+    yield
+    scanned_file.cache_clear()
+
+
 @functools.cache
 def scanned_file(source_path: Path) -> ScannedFile:
-    """Return what a file declares (each file is parsed once per run).
+    """Return what a file declares (each file is parsed once while its tests run).
+
+    The cache is emptied after each test file that fills it (``parsed_files_freed_after_this_file``
+    and its twin in tests/test_engine_context_source_guards.py).
 
     Args:
         source_path: A Python file.
