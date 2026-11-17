@@ -776,7 +776,10 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
     },
     'api/main.py': {'app': API_SERVER},
     'api/routes/health.py': {'router': API_SERVER},
-    'api/routes/sprites.py': {'router': API_SERVER, 'ALLOWED_OUTPUT_ROOT': API_SERVER},
+    'api/routes/sprites.py': {'router': API_SERVER},
+    # The save root moved here from the routes (the client calls this module too, but never
+    # saves through it: it sends no output_path), computed once at import and never written
+    'api/sprite_requests.py': {'ALLOWED_OUTPUT_ROOT': API_SERVER},
     'audio/assets.py': {
         '_CACHE': (
             'R17: loaded sound files (frozen SoundFile) by path, reloaded when the file changes; '

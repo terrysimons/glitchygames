@@ -1,33 +1,28 @@
-"""Sprite generation endpoints for the GlitchyGames API."""
+"""Sprite generation endpoints for the GlitchyGames API.
 
-from __future__ import annotations
+The work is ``glitchygames.api.sprite_requests``'s, which ``glitchygames-client`` also calls in
+its own process (plans/2026-11-16-console-sprite-generation.md, part 1); these routes only map its
+errors to HTTP statuses: ``AIProviderError`` to 503, ``SpriteRequestRefusedError`` (an output
+path off the allowed root) to 400, anything else to 500. A frame extraction's bad input is not an
+HTTP error: the response (200) says it failed.
+"""
 
-import base64
-import io
+# No `from __future__ import annotations`: FastAPI reads the routes' annotations (their request
+# and response models) at run time, as api/routes/health.py does
+
 import logging
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-
-    import apng as apng_types
-
-    from glitchygames.services.sprite_generation_service import GenerationResult
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from glitchygames.api import sprite_requests
 from glitchygames.api.dependencies import (
     get_renderer_service,
     get_sprite_generation_service,
 )
-from glitchygames.api.models import (
-    OUTPUT_FORMAT_PNG,
-    OUTPUT_FORMAT_TOML,
+from glitchygames.api.models import (  # ruff: ignore[typing-only-first-party-import] - FastAPI resolves the routes' request and response models at run time
     ApngExtractRequest,
     ApngExtractResponse,
-    ApngFrameInfo,
-    RenderedFrameInfo,
     SpriteGenerationRequest,
     SpriteGenerationResponse,
     SpriteRefinementRequest,
@@ -39,14 +34,6 @@ from glitchygames.services import (
 )
 
 LOG = logging.getLogger('glitchygames.api.sprites')
-
-PNG_IHDR_MINIMUM_BYTES = 24
-# The eight bytes every PNG (and so every APNG) starts with (PNG specification, section 5.2)
-PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
-
-# Base directory under which all sprite files will be saved.
-# All requested output paths are resolved relative to this directory.
-ALLOWED_OUTPUT_ROOT = (Path.cwd() / 'sprite_outputs').resolve()
 
 router: Any = APIRouter(prefix='/sprites', tags=['sprites'])
 
@@ -63,214 +50,24 @@ def _get_services() -> tuple[SpriteGenerationService, RendererService]:
     return sprite_service, renderer_service
 
 
-def _save_sprite_files(  # ruff: ignore[too-many-arguments]
-    output_path: str,
-    sprite_name: str,
-    *,
-    toml_content: str | None,
-    png_bytes: bytes | None,
-    rendered_frames: list[RenderedFrameInfo] | None,
-    output_format: Sequence[str],
-) -> list[str]:
-    """Save sprite files to the specified directory.
-
-    Args:
-        output_path: Directory to save files to (created if doesn't exist)
-        sprite_name: Name of the sprite (used for filenames)
-        toml_content: TOML content to save (if any)
-        png_bytes: PNG bytes to save (if any)
-        rendered_frames: List of RenderedFrameInfo with animation/frame indices
-        output_format: List of requested output formats
+def _http_answer(error: Exception) -> tuple[int, str]:
+    """The HTTP status and detail for a sprite request's error (the module docstring's mapping).
 
     Returns:
-        List of saved file paths
-
-    Raises:
-        HTTPException: If the output path is absolute or resolves outside the allowed root.
-
+        The status code and the detail.
     """
-    saved_files: list[str] = []
-
-    # Normalize and validate the requested output path to prevent writing
-    # outside the allowed root directory.
-    requested_path = Path(output_path)
-    if requested_path.is_absolute():
-        raise HTTPException(
-            status_code=400,
-            detail='Absolute output paths are not allowed.',
-        )
-
-    save_dir = (ALLOWED_OUTPUT_ROOT / requested_path).resolve()
-    # Ensure the resolved save_dir is within the allowed root
-    if save_dir != ALLOWED_OUTPUT_ROOT and ALLOWED_OUTPUT_ROOT not in save_dir.parents:
-        raise HTTPException(
-            status_code=400,
-            detail='Invalid output path.',
-        )
-
-    # Create directory if it doesn't exist
-    save_dir.mkdir(parents=True, exist_ok=True)
-    LOG.info('Saving sprite files to: %s', save_dir)
-
-    # Sanitize sprite name for filename
-    safe_name = ''.join(c if c.isalnum() or c in '-_' else '_' for c in sprite_name)
-    if not safe_name:
-        safe_name = 'sprite'
-
-    # Save TOML if requested
-    if OUTPUT_FORMAT_TOML in output_format and toml_content:
-        toml_path = save_dir / f'{safe_name}.toml'
-        toml_path.write_text(toml_content, encoding='utf-8')
-        saved_files.append(str(toml_path))
-        LOG.info('Saved TOML: %s', toml_path)
-
-    # Save PNG if requested
-    if OUTPUT_FORMAT_PNG in output_format and png_bytes:
-        png_path = save_dir / f'{safe_name}.png'
-        png_path.write_bytes(png_bytes)
-        saved_files.append(str(png_path))
-        LOG.info('Saved PNG: %s', png_path)
-
-    # Save animation frames if provided (using animation-#-frame-#.png naming)
-    if rendered_frames:
-        for frame_info in rendered_frames:
-            frame_bytes = base64.b64decode(frame_info.png_base64)
-            frame_path = save_dir / (
-                f'animation-{frame_info.animation_index}-frame-{frame_info.frame_index}.png'
-            )
-            frame_path.write_bytes(frame_bytes)
-            saved_files.append(str(frame_path))
-            LOG.info('Saved frame: %s', frame_path)
-
-    return saved_files
-
-
-def _render_png_to_response(
-    renderer_service: RendererService,
-    response: SpriteGenerationResponse,
-    toml_content: str,
-    *,
-    png_scale: int,
-    frame_count: int,
-) -> bytes | None:
-    """Render PNG frames and populate the response object.
-
-    Args:
-        renderer_service: The renderer service instance
-        response: The response object to populate
-        toml_content: TOML content to render
-        png_scale: Scale factor for PNG output
-        frame_count: Number of frames (>1 triggers multi-frame rendering)
-
-    Returns:
-        Raw PNG bytes for the first frame, or None if rendering failed
-
-    """
-    render_all_frames = frame_count > 1
-    render_result = renderer_service.render_from_toml(
-        toml_content,
-        scale=png_scale,
-        render_all_frames=render_all_frames,
-    )
-    if not render_result.success:
-        LOG.warning('PNG rendering failed: %s', render_result.error)
-        return None
-
-    response.png_base64 = render_result.png_base64
-    response.width = render_result.width
-    response.height = render_result.height
-
-    if render_all_frames and render_result.all_frames_png_base64:
-        response.all_frames_png_base64 = render_result.all_frames_png_base64
-        # Convert rendered_frames to API model
-        response.rendered_frames = [
-            RenderedFrameInfo(
-                animation_index=rf.animation_index,
-                frame_index=rf.frame_index,
-                png_base64=rf.png_base64,
-            )
-            for rf in render_result.rendered_frames
-        ]
-
-    return render_result.png_bytes
-
-
-def _response_for_result(
-    *,
-    result: GenerationResult,
-    request: SpriteGenerationRequest | SpriteRefinementRequest,
-    renderer_service: RendererService,
-    failure_label: str,
-) -> SpriteGenerationResponse:
-    """Build a generation or refinement response: TOML, PNG and saved files as requested.
-
-    Args:
-        result: The generation service's result.
-        request: The request, for its output format, PNG scale and output path.
-        renderer_service: The renderer service instance.
-        failure_label: What failed, for the log ('Generation' or 'Refinement').
-
-    Returns:
-        The response; unsuccessful when the service failed, or when PNG was the only
-        requested format and rendering it failed.
-
-    """
-    if not result.success:
-        LOG.warning('%s failed: %s', failure_label, result.error)
-        return SpriteGenerationResponse(
-            success=False,
-            error=result.error,
-        )
-
-    # Prepare response based on output format
-    response = SpriteGenerationResponse(
-        success=True,
-        sprite_name=result.sprite_name,
-        is_animated=result.is_animated,
-        frame_count=result.frame_count,
-    )
-
-    # Include TOML if requested
-    if OUTPUT_FORMAT_TOML in request.output_format:
-        response.toml_content = result.toml_content
-
-    # Render PNG if requested
-    png_bytes = None
-    if OUTPUT_FORMAT_PNG in request.output_format and result.toml_content:
-        png_bytes = _render_png_to_response(
-            renderer_service,
-            response,
-            result.toml_content,
-            png_scale=request.png_scale,
-            frame_count=result.frame_count,
-        )
-        # Only fail if PNG was the only requested format and rendering failed
-        if png_bytes is None and request.output_format == [OUTPUT_FORMAT_PNG]:
-            return SpriteGenerationResponse(
-                success=False,
-                error='PNG rendering failed',
-            )
-
-    # Save files if output_path is specified
-    if request.output_path and result.sprite_name:
-        saved_files = _save_sprite_files(
-            output_path=request.output_path,
-            sprite_name=result.sprite_name,
-            toml_content=response.toml_content,
-            png_bytes=png_bytes,
-            rendered_frames=response.rendered_frames,
-            output_format=request.output_format,
-        )
-        response.saved_files = saved_files
-    return response
+    if isinstance(error, AIProviderError):
+        LOG.error('AI provider error', exc_info=error)
+        return 503, f'AI provider unavailable: {error}'
+    if isinstance(error, sprite_requests.SpriteRequestRefusedError):
+        return 400, str(error)
+    LOG.error('Unexpected error', exc_info=error)
+    return 500, f'Internal server error: {error}'
 
 
 @router.post('/generate')
 async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationResponse:
-    """Generate a new sprite from a text prompt.
-
-    This endpoint uses AI to generate a sprite based on the provided text
-    description. The sprite can be returned as TOML, PNG, or both.
+    """Generate a new sprite from a text prompt (``sprite_requests.generate_response``).
 
     Args:
         request: Sprite generation request with prompt and options
@@ -279,57 +76,23 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
         Generated sprite data in the requested format
 
     Raises:
-        HTTPException: If AI provider is unavailable (503) or other errors (500)
+        HTTPException: 503 if the AI provider is unavailable, 400 for a refused output path,
+            500 for other errors.
 
     """
     generation_service, renderer_service = _get_services()
-
     try:
-        # Generate the sprite
-        LOG.info('Generating sprite from prompt: %s...', request.prompt[:50])
-        if request.model:
-            LOG.info('Using model override: %s', request.model)
-        result = generation_service.generate_sprite(
-            prompt=request.prompt,
-            width=request.width,
-            height=request.height,
-            frame_count=request.frame_count,
-            film_strip_count=request.film_strip_count,
-            animation_duration=request.animation_duration,
-            model=request.model,
+        return sprite_requests.generate_response(
+            request, generation_service=generation_service, renderer_service=renderer_service
         )
-        response = _response_for_result(
-            result=result,
-            request=request,
-            renderer_service=renderer_service,
-            failure_label='Generation',
-        )
-    except AIProviderError as e:
-        LOG.exception('AI provider error')
-        raise HTTPException(
-            status_code=503,
-            detail=f'AI provider unavailable: {e}',
-        ) from e
-    except HTTPException:
-        # An answer already chosen (a refused output_path is a 400): passed on as it is, not
-        # turned into a 500 by the handler below (BUGS.md #200 item 3)
-        raise
-    except Exception as e:
-        LOG.exception('Unexpected error')
-        raise HTTPException(
-            status_code=500,
-            detail=f'Internal server error: {e}',
-        ) from e
-    else:
-        return response
+    except Exception as error:
+        status_code, detail = _http_answer(error)
+        raise HTTPException(status_code=status_code, detail=detail) from error
 
 
 @router.post('/refine')
 async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationResponse:
-    """Refine an existing sprite based on a text prompt.
-
-    This endpoint uses AI to modify an existing sprite based on the provided
-    instructions. The original sprite is provided as TOML content.
+    """Refine an existing sprite from a text prompt (``sprite_requests.refine_response``).
 
     Args:
         request: Sprite refinement request with prompt, current TOML, and options
@@ -338,137 +101,23 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
         Refined sprite data in the requested format
 
     Raises:
-        HTTPException: If AI provider is unavailable (503) or other errors (500)
+        HTTPException: 503 if the AI provider is unavailable, 400 for a refused output path,
+            500 for other errors.
 
     """
     generation_service, renderer_service = _get_services()
-
     try:
-        # Refine the sprite
-        LOG.info('Refining sprite with prompt: %s...', request.prompt[:50])
-        result = generation_service.refine_sprite(
-            prompt=request.prompt,
-            current_toml=request.current_toml,
+        return sprite_requests.refine_response(
+            request, generation_service=generation_service, renderer_service=renderer_service
         )
-        response = _response_for_result(
-            result=result,
-            request=request,
-            renderer_service=renderer_service,
-            failure_label='Refinement',
-        )
-    except AIProviderError as e:
-        LOG.exception('AI provider error')
-        raise HTTPException(
-            status_code=503,
-            detail=f'AI provider unavailable: {e}',
-        ) from e
-    except HTTPException:
-        # An answer already chosen (a refused output_path is a 400): passed on as it is, not
-        # turned into a 500 by the handler below (BUGS.md #200 item 3)
-        raise
-    except Exception as e:
-        LOG.exception('Unexpected error')
-        raise HTTPException(
-            status_code=500,
-            detail=f'Internal server error: {e}',
-        ) from e
-    else:
-        return response
-
-
-def _extract_single_frame(
-    png: apng_types.PNG,
-    control: apng_types.FrameControl | None,
-    index: int,
-) -> tuple[ApngFrameInfo, int]:
-    """Extract a single frame and its metadata from an APNG frame pair.
-
-    Args:
-        png: The PNG frame object
-        control: The APNG control chunk (may be None)
-        index: Frame index
-
-    Returns:
-        Tuple of (ApngFrameInfo, delay_ms)
-
-    """
-    # Get PNG bytes for this frame (uncompressed)
-    frame_buffer = io.BytesIO()
-    png.save(frame_buffer)
-    frame_bytes = frame_buffer.getvalue()
-    frame_base64 = base64.b64encode(frame_bytes).decode('utf-8')
-
-    # Calculate frame delay in milliseconds
-    # APNG stores delay as delay_num/delay_den seconds
-    if control is not None:
-        delay_num: int = control.delay
-        delay_den: int = control.delay_den
-        if delay_den == 0:
-            delay_den = 1000
-        delay_ms: int = int((delay_num / delay_den) * 1000)
-
-        # Get frame dimensions and offsets
-        frame_width: int = control.width or 0
-        frame_height: int = control.height or 0
-        x_offset: int = control.x_offset
-        y_offset: int = control.y_offset
-    else:
-        # Default values if no control chunk
-        delay_ms = 100
-        frame_width = 0
-        frame_height = 0
-        x_offset = 0
-        y_offset = 0
-
-    # Try to get dimensions from PNG if not in control chunk
-    if frame_width == 0 or frame_height == 0:
-        frame_width, frame_height = _extract_png_dimensions(frame_bytes, frame_width, frame_height)
-
-    frame_info = ApngFrameInfo(
-        index=index,
-        png_base64=frame_base64,
-        delay_ms=delay_ms,
-        width=frame_width,
-        height=frame_height,
-        x_offset=x_offset,
-        y_offset=y_offset,
-    )
-    return frame_info, delay_ms
-
-
-def _extract_png_dimensions(
-    frame_bytes: bytes,
-    default_width: int,
-    default_height: int,
-) -> tuple[int, int]:
-    """Extract width and height from PNG IHDR chunk bytes.
-
-    Args:
-        frame_bytes: Raw PNG file bytes
-        default_width: Default width if extraction fails
-        default_height: Default height if extraction fails
-
-    Returns:
-        Tuple of (width, height)
-
-    """
-    import struct
-
-    # PNG dimensions are in the IHDR chunk at bytes 16-24; with at least 24 bytes each
-    # slice holds exactly the 4 bytes '>I' unpacks, so unpacking cannot fail
-    if len(frame_bytes) >= PNG_IHDR_MINIMUM_BYTES:
-        width = struct.unpack('>I', frame_bytes[16:20])[0]
-        height = struct.unpack('>I', frame_bytes[20:24])[0]
-        return width, height
-    return default_width, default_height
+    except Exception as error:
+        status_code, detail = _http_answer(error)
+        raise HTTPException(status_code=status_code, detail=detail) from error
 
 
 @router.post('/extract-frames')
 async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractResponse:
-    """Extract individual frames and metadata from an APNG file.
-
-    This endpoint decodes an APNG (Animated PNG) file and returns each frame
-    as a separate PNG along with timing and metadata information.
+    """Extract frames and metadata from an APNG (``sprite_requests.extract_frames_response``).
 
     Args:
         request: APNG extraction request with base64-encoded APNG data
@@ -482,104 +131,7 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
 
     """
     try:
-        response = _extract_apng_frames(apng_base64=request.apng_base64)
-    except Exception as e:
+        return sprite_requests.extract_frames_response(apng_base64=request.apng_base64)
+    except Exception as error:
         LOG.exception('Unexpected error extracting APNG frames')
-        raise HTTPException(
-            status_code=500,
-            detail=f'Internal server error: {e}',
-        ) from e
-    else:
-        return response
-
-
-def _extract_apng_frames(*, apng_base64: str) -> ApngExtractResponse:
-    """Decode an APNG and extract its frames and metadata.
-
-    Args:
-        apng_base64: The base64-encoded APNG data.
-
-    Returns:
-        The extracted frames and metadata, or an unsuccessful response for bad base64 or APNG
-        data
-
-    """
-    import struct
-
-    from apng import APNG
-
-    # Decode the base64 APNG data
-    try:
-        apng_bytes = base64.b64decode(apng_base64)
-    except (ValueError, TypeError) as e:
-        LOG.warning('Failed to decode base64: %s', e)
-        return ApngExtractResponse(
-            success=False,
-            error=f'Invalid base64 data: {e}',
-        )
-
-    # The apng package does not check the PNG signature: it parses arbitrary bytes as an APNG
-    # with no frames, which used to come back as a success (BUGS.md #137)
-    if not apng_bytes.startswith(PNG_SIGNATURE):
-        LOG.warning('Refused APNG data without the PNG signature')
-        return ApngExtractResponse(
-            success=False,
-            error='Invalid APNG file: the data does not start with the PNG signature',
-        )
-
-    # Parse the APNG. The apng package reads chunk headers with struct, so data cut off inside
-    # one raises struct.error (not a ValueError subclass)
-    try:
-        apng: APNG = APNG.from_bytes(apng_bytes)
-    except (ValueError, OSError, struct.error) as e:
-        LOG.warning('Failed to parse APNG: %s', e)
-        return ApngExtractResponse(
-            success=False,
-            error=f'Invalid APNG file: {e}',
-        )
-
-    # A PNG signature followed by no image data parses as an APNG with no frames (BUGS.md #137)
-    if not apng.frames:
-        LOG.warning('Refused APNG data with no frames')
-        return ApngExtractResponse(
-            success=False,
-            error='Invalid APNG file: it has no frames',
-        )
-
-    # Extract frames and metadata
-    frames_info: list[ApngFrameInfo] = []
-    total_duration_ms: int = 0
-    canvas_width: int | None = None
-    canvas_height: int | None = None
-
-    for index, (png, control) in enumerate(apng.frames):
-        frame_info, delay_ms = _extract_single_frame(png, control, index)
-
-        # Track canvas size (first frame usually defines it)
-        if canvas_width is None:
-            canvas_width = frame_info.width
-            canvas_height = frame_info.height
-
-        total_duration_ms += delay_ms
-        frames_info.append(frame_info)
-
-    # Get loop count from APNG
-    loop_count = apng.num_plays if hasattr(apng, 'num_plays') else 0
-
-    LOG.info(
-        'Extracted %s frames from APNG (%sx%s, %sms total)',
-        len(frames_info),
-        canvas_width,
-        canvas_height,
-        total_duration_ms,
-    )
-
-    return ApngExtractResponse(
-        success=True,
-        frame_count=len(frames_info),
-        width=canvas_width,
-        height=canvas_height,
-        loop_count=loop_count,
-        total_duration_ms=total_duration_ms,
-        frames=frames_info,
-    )
+        raise HTTPException(status_code=500, detail=f'Internal server error: {error}') from error
