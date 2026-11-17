@@ -4166,12 +4166,14 @@ object (<code>identity.py</code>).</p>
   the game as a child process with the tool's flag. Arguments after a bare <code>--</code> go to that game
   unchanged (<code>glitchygames record-trace paddleslap run.jsonl.gz -- --resolution 640x480</code>).
   <code>--project-root DIR</code> is, for the tools that read the project's settings (<code>verify</code>, <code>measure</code>,
-  <code>unmeasured</code>, <code>clear-published</code>, <code>performance-pages</code>), the project they work on (default: the
+  <code>unmeasured</code>, <code>clear-published</code>, <code>performance-pages</code>, <code>sound-cache-fill</code>), the project they
+  work on (default: the
   nearest directory at or above the current one whose <code>pyproject.toml</code> has
   <code>[tool.glitchygames]</code>, else the nearest with a <code>pyproject.toml</code>, else the current directory);
-  for <code>record-trace</code>, <code>replay-trace</code>, <code>record-golden-trace</code> and <code>record-session</code>, the directory
-  the game runs in (default: the current directory); <code>report</code>, <code>sound-render</code> and
-  <code>sound-migrate</code> read only what they are given.</li>
+  for <code>record-trace</code>, <code>replay-trace</code>, <code>record-golden-trace</code>, <code>record-session</code> and the other
+  <code>sound-cache-*</code> tools, the directory the game runs in (default: the current directory);
+  <code>report</code>, <code>sound-render</code>, <code>sound-migrate</code>, <code>listening-instruments</code> and <code>listening-pipes</code> read
+  only what they are given.</li>
 </ul>
 <p>Both front ends are generated from one table, <code>TOOLS</code> in
 <code>src/glitchygames/replay/tools/registry.py</code>, which is the reference for every flag, option,
@@ -4261,6 +4263,48 @@ own git repository.</p>
 <td>no</td>
 <td><code>--sound-migrate FILE [--migrated-output PATH]</code> (a version 0 recipe file to version 1, default <code>&lt;stem&gt;.v1.toml</code> beside it, never over FILE)</td>
 <td><code>glitchygames sound-migrate FILE [--migrated-output PATH]</code></td>
+</tr>
+<tr>
+<td><code>sound-cache-list</code></td>
+<td>no</td>
+<td><code>--sound-cache-list</code> (the game's own sound cache folders)</td>
+<td><code>glitchygames sound-cache-list [--game GAME ...]</code> (default: the whole cache root)</td>
+</tr>
+<tr>
+<td><code>sound-cache-size</code></td>
+<td>no</td>
+<td><code>--sound-cache-size</code></td>
+<td><code>glitchygames sound-cache-size [--game GAME ...]</code> (default: the whole cache root)</td>
+</tr>
+<tr>
+<td><code>sound-cache-verify</code></td>
+<td>no</td>
+<td><code>--sound-cache-verify</code> (exit 65 for a damaged file)</td>
+<td><code>glitchygames sound-cache-verify [--game GAME ...]</code> (default: the whole cache root)</td>
+</tr>
+<tr>
+<td><code>sound-cache-clear</code></td>
+<td>no</td>
+<td><code>--sound-cache-clear [--stale-only]</code> (<code>--listening</code> is refused: those files are no game's)</td>
+<td><code>glitchygames sound-cache-clear [--stale-only] [--listening] [--game GAME ...]</code> (default: the whole cache root; <code>--listening</code>: the listening WAVs instead of the games' sounds, never with <code>--game</code>)</td>
+</tr>
+<tr>
+<td><code>sound-cache-fill</code></td>
+<td>no</td>
+<td><code>--sound-cache-fill</code> (the game's declared sounds and the <abbr title="Cathode-ray tube: the old television the power-on sequence imitates">CRT</abbr> power-on's)</td>
+<td><code>glitchygames sound-cache-fill [--game GAME ...]</code> (default: <code>[tool.glitchygames] games</code>)</td>
+</tr>
+<tr>
+<td><code>listening-instruments</code></td>
+<td>no</td>
+<td><code>--listening-instruments [--family FAMILY] [--only TEXT]</code> (the same files as the command: they are no game's)</td>
+<td><code>glitchygames listening-instruments [--family FAMILY] [--only TEXT]</code> (each catalog instrument across its range, into the listening folder; prints each file's path)</td>
+</tr>
+<tr>
+<td><code>listening-pipes</code></td>
+<td>no</td>
+<td><code>--listening-pipes [--only TEXT]</code></td>
+<td><code>glitchygames listening-pipes [--only TEXT]</code> (the pipe demos and tunes, into the listening folder; prints each file's path)</td>
 </tr>
 </tbody>
 </table>
@@ -4639,7 +4683,7 @@ play: they have no hitbox and change nothing the game does.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:25:25 UTC">November 15, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 09:13:42 UTC">November 17, 2026</span>
   </span>
 
     

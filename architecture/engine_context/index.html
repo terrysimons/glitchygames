@@ -3048,13 +3048,19 @@ the contract; <code>plans/2026-11-12-arcade-3-inner-game.md</code>):</p>
    <code>InnerGame.replay(command=..., path=..., name=..., size=..., arguments=())</code> makes a fresh
    context with a render target of <code>size</code> and its private queue enabled, and calls the
    installed command's own entry point with <code>sys.argv</code> swapped to <code>--replay-trace PATH
-   --headless ...</code> for that call only. <code>step()</code> runs one unpaced frame; <code>finish()</code> ends the run
+   --headless</code>, then the outer game's command line (up to a bare <code>--</code>, less every refused flag
+   below with its values), then <code>arguments</code>, for that call only: so <code>uv run arcade --sound-cache
+   ram</code> runs its tiles on <code>ram</code>, an Arcade recording itself or replaying its golden still plays
+   them, and a host's own arguments win (argparse keeps the last value). A recording still overrides every option but
+   its run-local ones. <code>step()</code> runs one unpaced frame; <code>finish()</code> ends the run
    and settles the replay's result into <code>outcome</code> (<code>InnerGameOutcome</code>: <code>RUNNING</code>, <code>ENDED</code> or
    <code>FAILED</code>, the frames run, the replay's report, the error), without quitting pygame or
-   exiting. Only recordings run inner: live play, every tool flag, <code>--rebaseline</code>, <code>--audit</code>,
+   exiting. Only recordings run inner so far (a live game is the Arcade's sub-plan 7): live play,
+   every tool flag, <code>--rebaseline</code>, <code>--audit</code>,
    <code>--compare-trace</code>, the frame stream, a watched replay's restart options, <code>--profile</code>,
    <code>--list-input-devices</code>, <code>--help</code> and <code>--version</code> (with argparse's prefixes and short-flag
-   clusters) raise <code>InnerGameRefusedError</code> before anything is built.</li>
+   clusters, an exact engine flag being itself) in the host's <code>arguments</code> raise
+   <code>InnerGameRefusedError</code> before anything is built.</li>
 <li><strong>A failure belongs to the inner game</strong>: an <code>Exception</code> or <code>SystemExit</code> while building,
    stepping or finishing makes its outcome <code>FAILED</code>; the host and every other inner game go on,
    and the default context is current again after every call. <code>KeyboardInterrupt</code> and
@@ -3312,7 +3318,7 @@ best-of-five figures (slot read 61 ns, view 126 ns or 2.07 slot reads, <code>cur
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 01:06:12 UTC">November 15, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 09:13:42 UTC">November 17, 2026</span>
   </span>
 
     

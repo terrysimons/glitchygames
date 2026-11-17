@@ -1125,6 +1125,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Cache modes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#managing-the-disk-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Managing the disk cache
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3175,6 +3192,47 @@ mode):</p>
 </tr>
 </tbody>
 </table>
+<p>A game's start also removes its own folders for older render versions: only an older engine
+wrote them. A newer version's folder is kept, since another engine on the machine (a branch with
+a bumped render version) may share the root.</p>
+<h3 id="managing-the-disk-cache">Managing the disk cache<a class="headerlink" href="#managing-the-disk-cache" title="Permanent link">#</a></h3>
+<p>Five tools work on the cache, each a flag on every game (acting on that game's own folder) and a
+<code>glitchygames</code> subcommand. With no game named, the subcommand works on the whole root; with
+<code>--game GAME</code> (given once per game) it starts each game with the flag. All five refuse (exit 64)
+when <code>GLITCHYGAMES_SOUND_CACHE_ROOT</code> is empty, since there is then no disk cache.</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>glitchygames sound-cache-list</code></td>
+<td>One line per game and render version (sounds, size, whether stale), a line per listening folder, then the total.</td>
+</tr>
+<tr>
+<td><code>glitchygames sound-cache-size</code></td>
+<td>The whole cache in one line, stale versions counted apart, the listening files after.</td>
+</tr>
+<tr>
+<td><code>glitchygames sound-cache-verify</code></td>
+<td>Reads every file back and lists each damaged one and why; removes nothing (a game's read already replaces a damaged file, silently). Exits 65 when a file is damaged.</td>
+</tr>
+<tr>
+<td><code>glitchygames sound-cache-clear [--stale-only] [--listening]</code></td>
+<td>Removes cache folders, and never anything else under the root (it may be a folder of the player's). <code>--stale-only</code> removes only older render versions. <code>--listening</code> removes the listening WAVs (below) instead of the games' sounds; nothing else ever removes them.</td>
+</tr>
+<tr>
+<td><code>glitchygames sound-cache-fill</code></td>
+<td>Compiles each game's declared sounds (<code>SOUNDS</code>) and the <abbr title="Cathode-ray tube: the old television the power-on sequence imitates">CRT</abbr> power-on's into its folder, so even a first launch reads them all. With no <code>--game</code> it fills the project's <code>[tool.glitchygames] games</code>. Live sounds and recorded files are never cached. Running it twice writes nothing more.</td>
+</tr>
+</tbody>
+</table>
+<p>The logic is one engine <abbr title="Application programming interface">API</abbr>, <code>glitchygames.audio.cache_inventory</code> (<code>inventory</code>, <code>clear</code>,
+<code>verify</code>, <code>fill</code>, returning frozen models), which the tools, the tests and the sound editor all
+call.</p>
 <h2 id="voices-channels-and-buses">Voices, channels and buses<a class="headerlink" href="#voices-channels-and-buses" title="Permanent link">#</a></h2>
 <p>The mixer's channels are partitioned once at startup: the live voice pool (<code>--live-voice-pool</code>,
 4), then the sound library's channels (<code>--sound-channels</code>, 32), then pygame's 8 for legacy
@@ -3519,13 +3577,20 @@ and renders offline like any other:</p>
   footage, a 16' an octave lower, a 4' an octave higher). Paired strings double every note, though a twelve-string
   guitar's or a bouzouki's octave pairs are only on its lower courses, and a church bell leaves
   out its weak quint, as an instrument has at most four sources.</li>
-<li><code>uv run python -m scripts.make_instrument_demos [DIRECTORY] [--only TEXT]</code> renders every
-  instrument climbing its range (or four hits) to <code>build/instruments/&lt;family&gt;/&lt;name&gt;.wav</code>.</li>
-<li><code>uv run python scripts/make_pipes.py [DIRECTORY]</code> renders a Highland bagpipe and uilleann
-  pipes (chanter, drones and regulators) and <em>Sí Bheag, Sí Mhór</em> to <code>build/pipes/</code>;
-  <code>uv run python -m scripts.pipe_tunes scripts/pipe_tunes_abc [DIRECTORY]</code> plays the 20
-  public-domain tunes in <code>scripts/pipe_tunes_abc/</code> (ABC notation, sources in its
-  <code>index.json</code>) on them, to <code>build/pipes/tunes/</code>.</li>
+<li><code>uv run glitchygames listening-instruments [--family FAMILY] [--only TEXT]</code> renders every
+  instrument climbing its range (or four hits) to <code>instruments/&lt;family&gt;/&lt;name&gt;.wav</code> in the
+  listening folder, with <code>instruments/index.txt</code> (every instrument, its family and range).</li>
+<li><code>uv run glitchygames listening-pipes [--only TEXT]</code> renders a Highland bagpipe and uilleann
+  pipes (chanter, drones and regulators) and <em>Sí Bheag, Sí Mhór</em> to <code>pipes/</code>, and plays the 20
+  public-domain tunes in <code>src/glitchygames/audio/listening/tunes/</code> (ABC notation, sources in its
+  <code>index.json</code>) on them, to <code>pipes/tunes/</code>.</li>
+<li>The listening folder is <code>&lt;cache root&gt;/listening/&lt;render version&gt;/</code>, beside the games' sound
+  folders (about 300 MB in all, so no size limit applies and nothing prunes it). Each tool
+  renders only the files missing and prints every file's path (written or already there) on
+  standard output, the summary on standard error. <code>glitchygames sound-cache-list</code> and
+  <code>sound-cache-size</code> show it apart from the games', and only <code>glitchygames sound-cache-clear
+  --listening</code> removes it. The code is <code>glitchygames.audio.listening</code> (<code>renders.render_instruments</code>
+  and <code>render_pipes</code>).</li>
 </ul>
 <h2 id="the-sound-board">The Sound Board<a class="headerlink" href="#the-sound-board" title="Permanent link">#</a></h2>
 <p><code>uv run sound-board-demo</code> (<code>src/demos/sound-board-demo/</code>) plays every built-in wave and noise:
@@ -3582,7 +3647,7 @@ once per sound).</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:25:25 UTC">November 15, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 09:13:42 UTC">November 17, 2026</span>
   </span>
 
     
