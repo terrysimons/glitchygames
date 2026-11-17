@@ -133,7 +133,7 @@ uv run glitchygames-server
 
 ### `glitchygames-client` -- Sprite API Client
 
-CLI client for the sprite API server. Generates sprites from text prompts and extracts APNG frames.
+Generates sprites from text prompts, in its own process through the local AI service (no server to start), and extracts the frames of an APNG or a `.toml` sprite.
 
 ```bash
 # Generate a sprite from a prompt
@@ -145,11 +145,11 @@ uv run glitchygames-client "walking knight" --width 32 --height 32 --frame-count
 # Save output to a directory
 uv run glitchygames-client "idle slime" -o ./sprites/
 
-# Extract frames from an APNG file
+# Extract frames from an APNG file or a .toml sprite
 uv run glitchygames-client --extract-frames animation.apng
 
-# Output as TOML only
-uv run glitchygames-client "red mushroom" -f toml
+# The image as well as the .toml
+uv run glitchygames-client "red mushroom" -f toml -f png
 
 # Use a specific AI model
 uv run glitchygames-client "blue dragon" --animation-language-model bonsai-2-9b
@@ -160,8 +160,7 @@ uv run glitchygames-client "blue dragon" --animation-language-model bonsai-2-9b
 | Flag | Description | Default |
 |------|-------------|---------|
 | `prompt` | Text description of the sprite to generate | -- |
-| `--server-url` | Server URL | `http://localhost:8000` |
-| `-f`, `--output-format` | Output format: `toml` or `png` (repeat for both) | both |
+| `-f`, `--output-format` | Output format: `toml` or `png` (repeat for both) | `toml` |
 | `-o`, `--output-path` | Directory to save output files | -- |
 | `--width` | Sprite width in pixels (1-64) | the AI chooses |
 | `--height` | Sprite height in pixels (1-64) | the AI chooses |
@@ -171,7 +170,7 @@ uv run glitchygames-client "blue dragon" --animation-language-model bonsai-2-9b
 | `--png-scale` | PNG output scale factor (1-10) | 1 |
 | `--extract-scale` | Nearest-neighbor scale factor for extracted PNG frames | 8 |
 | `--animation-language-model` | AI model override: a role or an exact size | -- |
-| `--extract-frames` | Extract frames from an APNG file | -- |
+| `--extract-frames` | Extract the frames of an APNG or a `.toml` sprite (as PNGs) | -- |
 | `-v`, `--verbose` | Verbose output | -- |
 | `-q`, `--quiet` | Quiet output | -- |
 

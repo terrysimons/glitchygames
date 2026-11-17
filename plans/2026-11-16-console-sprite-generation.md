@@ -3,7 +3,9 @@
 Status: APPROVED (2026-11-17, the owner). Where each part lands (the owner, 2026-11-17):
 
 - **Part 1** (the client without a server): its own branch, `feat/sprite-client-without-server`,
-  first.
+  first. Built 2026-11-17 (Tasks 1-3 below). The owner's call on keeping or removing
+  `glitchygames-server` is still open: nothing uses it now, and it keeps `fastapi` and `uvicorn`
+  in the engine's core dependencies.
 - **Part 2** (`/sprite`): the color profiles branch (the zombies session's, stacked on
   `feature/zombies-aint-my-neighbors`), "1 branch" with that work. That branch builds the shared
   sprite-text code in both directions (sprite to TOML text, TOML text to sprite: this design's
