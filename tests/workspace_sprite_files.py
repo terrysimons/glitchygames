@@ -54,8 +54,16 @@ MEMBER_ANIMATED_SPRITE_FILES = [
 def sprite_file_id(sprite_file: Path) -> str:
     """Name a sprite file by its path below src/ (``games/drawing-fire/src/.../soldier.toml``).
 
+    An engine sprite installed outside the repository is named below the engine's parent folder
+    (``glitchygames/assets/eraser.toml``), the same name as under src/.
+
     Returns:
         The path.
 
     """
-    return sprite_file.relative_to(PROJECT_ROOT / 'src').as_posix()
+    source_root = PROJECT_ROOT / 'src'
+    if not sprite_file.is_relative_to(source_root):
+        # A non-editable install (nox -s test) puts the engine's own sprites in site-packages:
+        # name them below the folder holding the engine package, as src/ would
+        source_root = Path(sprite_files.__file__).resolve().parent.parent.parent
+    return sprite_file.relative_to(source_root).as_posix()

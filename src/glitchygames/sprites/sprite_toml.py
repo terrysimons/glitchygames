@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime as dt
 import math
 import tomllib
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
@@ -47,29 +48,35 @@ COLOR_KEYS = frozenset({'red', 'green', 'blue', 'alpha'})
 # What each key of the engine's tables must hold (a bool is never an integer or a number here):
 # 'string', 'integer', 'number' or 'boolean'. Keys not listed (tags, hitbox, frame) are checked
 # on their own.
-SPRITE_VALUE_KINDS = {
+SPRITE_VALUE_KINDS: Mapping[str, str] = MappingProxyType({
     'name': 'string',
     'description': 'string',
     'frame_anchor': 'string',
     'profile': 'string',
     'color_space': 'string',
     'pixels': 'string',
-}
-HITBOX_VALUE_KINDS: Mapping[str, str] = dict.fromkeys(HITBOX_KEYS, 'integer')
-COLOR_VALUE_KINDS: Mapping[str, str] = dict.fromkeys(('red', 'green', 'blue', 'alpha'), 'integer')
-ANIMATION_VALUE_KINDS = {'namespace': 'string', 'frame_interval': 'number', 'loop': 'boolean'}
-FRAME_VALUE_KINDS = {
+})
+HITBOX_VALUE_KINDS: Mapping[str, str] = MappingProxyType(dict.fromkeys(HITBOX_KEYS, 'integer'))
+COLOR_VALUE_KINDS: Mapping[str, str] = MappingProxyType(
+    dict.fromkeys(('red', 'green', 'blue', 'alpha'), 'integer')
+)
+ANIMATION_VALUE_KINDS: Mapping[str, str] = MappingProxyType({
+    'namespace': 'string',
+    'frame_interval': 'number',
+    'loop': 'boolean',
+})
+FRAME_VALUE_KINDS: Mapping[str, str] = MappingProxyType({
     'namespace': 'string',
     'frame_index': 'integer',
     'frame_interval': 'number',
     'pixels': 'string',
-}
-KIND_DESCRIPTIONS = {
+})
+KIND_DESCRIPTIONS: Mapping[str, str] = MappingProxyType({
     'string': 'a string',
     'integer': 'an integer',
     'number': 'a number',
     'boolean': 'true or false',
-}
+})
 
 # Characters TOML basic strings must escape with a short escape sequence
 # (https://toml.io/en/v1.0.0#string)

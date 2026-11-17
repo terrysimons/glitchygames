@@ -60,6 +60,18 @@ def test_the_members_sprites_are_found():
     assert MEMBER_ANIMATED_SPRITE_FILES
 
 
+def test_an_installed_engine_sprite_is_named_without_the_repository(mocker, tmp_path):
+    """Under a non-editable install the engine's sprites are not below the repository's src/.
+
+    nox -s test installs the engine into site-packages, so SHIPPED_SPRITE_FILES points there:
+    the id is then the path below the engine's parent folder, the same under either install.
+    """
+    mocker.patch('tests.workspace_sprite_files.PROJECT_ROOT', tmp_path)
+    engine_sprite = next((Path(sprite_toml.__file__).parent.parent / 'assets').glob('*.toml'))
+
+    assert sprite_file_id(engine_sprite) == f'glitchygames/assets/{engine_sprite.name}'
+
+
 def test_the_bitmappy_library_is_among_the_files_checked():
     """The checks below cover Bitmappy's sprite library (toadstool.toml among it) as well."""
     found = {sprite_file_id(sprite_file) for sprite_file in MEMBER_SPRITE_FILES}

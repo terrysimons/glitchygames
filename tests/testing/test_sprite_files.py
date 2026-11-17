@@ -360,6 +360,30 @@ class TestMetadata:
             )
 
 
+class TestSaveWritesTheSpritesText:
+    """check_save_writes_the_sprites_text."""
+
+    def test_the_real_save_passes(self, tmp_path):
+        """Save and sprite_to_text are one path, so their texts are equal."""
+        sprite_file = write_sprite(directory=tmp_path, name='rock.toml', text=STATIC_SPRITE)
+        saved_directory = tmp_path / 'saved'
+        saved_directory.mkdir()
+        sprite_files.check_save_writes_the_sprites_text(
+            sprite_file=sprite_file, directory=saved_directory
+        )
+
+    def test_a_save_that_writes_other_text_fails_naming_the_file(self, tmp_path, mocker):
+        """A save that diverges from sprite_to_text fails."""
+        sprite_file = write_sprite(directory=tmp_path, name='rock.toml', text=STATIC_SPRITE)
+        save_altered(mocker=mocker, find='A grey rock.', replace='')
+        saved_directory = tmp_path / 'saved'
+        saved_directory.mkdir()
+        with pytest.raises(AssertionError, match=r'rock\.toml: save wrote text that differs'):
+            sprite_files.check_save_writes_the_sprites_text(
+                sprite_file=sprite_file, directory=saved_directory
+            )
+
+
 class TestTransitions:
     """check_transitions_survive_a_save_round_trip."""
 
