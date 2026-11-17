@@ -5,9 +5,17 @@ import logging
 import pygame
 import pytest
 
+from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites import AnimatedSprite, SpriteFactory
-from glitchygames.sprites.sprite_text import sprite_from_text, sprite_to_text
+from glitchygames.sprites.constants import SPRITE_GLYPHS
+from glitchygames.sprites.sprite_text import (
+    SpriteColorLimitError,
+    sprite_from_text,
+    sprite_text_from_frames,
+    sprite_to_text,
+    surface_rgba_pixels,
+)
 from glitchygames.sprites.sprite_toml import parse_sprite_toml
 from glitchygames.testing.sprite_files import check_text_and_file_loads_agree
 
@@ -242,3 +250,186 @@ def test_save_writes_the_text_and_refuses_other_formats(tmp_path):
     assert saved_file.read_text(encoding='utf-8') == sprite.to_text()
     with pytest.raises(ValueError, match='ormat'):
         sprite.save(str(saved_file), 'png')
+
+
+def solid_surface(*, size, color):
+    """Build a SRCALPHA surface of one color.
+
+    Returns:
+        The surface.
+
+    """
+    surface = pygame.Surface(size, pygame.SRCALPHA)
+    surface.fill(color)
+    return surface
+
+
+def only_animation_frames(sprite):
+    """Return the frames of the sprite's only animation.
+
+    Returns:
+        The frame list.
+
+    """
+    assert len(sprite.animations) == 1
+    return next(iter(sprite.animations.values()))
+
+
+def test_frames_become_one_animation_with_each_frames_own_interval():
+    """Each surface becomes a frame of one animation named for the sprite, with its interval."""
+    text = sprite_text_from_frames(
+        frames=[
+            solid_surface(size=(4, 4), color=(255, 0, 0, 255)),
+            solid_surface(size=(4, 4), color=(0, 0, 255, 255)),
+        ],
+        frame_intervals=[0.1, 0.25],
+        name='blink',
+    )
+
+    sprite = sprite_from_text(text=text, source_name='t')
+
+    assert list(sprite.animations) == ['blink']
+    assert [frame.duration for frame in only_animation_frames(sprite)] == [0.1, 0.25]
+    # Opaque colors load as plain RGB
+    assert [frame.get_pixel_data()[0] for frame in only_animation_frames(sprite)] == [
+        (255, 0, 0),
+        (0, 0, 255),
+    ]
+
+
+def test_one_frame_is_written_in_the_static_layout_and_round_trips():
+    """A single surface is a static sprite whose pixels load back exactly."""
+    surface = pygame.Surface((3, 2), pygame.SRCALPHA)
+    surface.set_at((0, 0), (1, 2, 3, 255))
+    surface.set_at((1, 0), (4, 5, 6, 255))
+    surface.set_at((2, 1), (7, 8, 9, 255))
+
+    text = sprite_text_from_frames(frames=[surface], frame_intervals=[0.1], name='one')
+
+    assert 'pixels' in parse_sprite_toml(text=text, source_name='t')['sprite']
+    reloaded = sprite_from_text(text=text, source_name='t')
+    # Opaque pixels may load as plain RGB; compare them as RGBA
+    reloaded_pixels = [
+        pixel if len(pixel) == RGBA_COMPONENT_COUNT else (*pixel, 255)
+        for pixel in only_animation_frames(reloaded)[0].get_pixel_data()
+    ]
+    assert reloaded_pixels == surface_rgba_pixels(surface=surface)
+
+
+def test_partial_alpha_is_kept():
+    """A pixel with partial alpha is written with its alpha."""
+    text = sprite_text_from_frames(
+        frames=[solid_surface(size=(4, 4), color=(255, 0, 0, 128))],
+        frame_intervals=[0.1],
+        name='glass',
+    )
+
+    colors = parse_sprite_toml(text=text, source_name='t')['colors'].values()
+
+    assert {'red': 255, 'green': 0, 'blue': 0, 'alpha': 128} in colors
+
+
+def sixty_five_color_surface(*, color_count):
+    """Build a surface of color_count distinct opaque colors in a row.
+
+    Returns:
+        The surface.
+
+    """
+    surface = pygame.Surface((color_count, 1), pygame.SRCALPHA)
+    for x in range(color_count):
+        surface.set_at((x, 0), (x, 10, 20, 255))
+    return surface
+
+
+def test_more_colors_than_glyphs_is_refused_with_the_count():
+    """One more color than the glyph set holds is refused, with the count and the limit."""
+    too_many = len(SPRITE_GLYPHS) + 1
+
+    with pytest.raises(SpriteColorLimitError) as refusal:
+        sprite_text_from_frames(
+            frames=[sixty_five_color_surface(color_count=too_many)],
+            frame_intervals=[0.1],
+            name='photo',
+        )
+
+    assert (refusal.value.color_count, refusal.value.limit) == (too_many, len(SPRITE_GLYPHS))
+    assert (refusal.value.color_count, refusal.value.limit) == (65, 64)
+    assert isinstance(refusal.value, ValueError)
+
+
+def test_the_colors_of_all_frames_are_counted_together():
+    """Colors are counted across frames, not per frame."""
+    half = len(SPRITE_GLYPHS) // 2 + 1
+    first = sixty_five_color_surface(color_count=half)
+    second = pygame.Surface((half, 1), pygame.SRCALPHA)
+    for x in range(half):
+        second.set_at((x, 0), (x, 200, 20, 255))
+
+    with pytest.raises(SpriteColorLimitError):
+        sprite_text_from_frames(frames=[first, second], frame_intervals=[0.1, 0.1], name='x')
+
+
+def test_exactly_as_many_colors_as_glyphs_is_accepted():
+    """The limit itself is allowed."""
+    text = sprite_text_from_frames(
+        frames=[sixty_five_color_surface(color_count=len(SPRITE_GLYPHS))],
+        frame_intervals=[0.1],
+        name='full',
+    )
+
+    assert len(parse_sprite_toml(text=text, source_name='t')['colors']) == len(SPRITE_GLYPHS)
+
+
+@pytest.mark.parametrize('intervals', [[], [0.1, 0.1]])
+def test_intervals_must_match_the_frames(intervals):
+    """A count of intervals that differs from the frames is refused, naming frame_intervals."""
+    with pytest.raises(ValueError, match='frame_intervals'):
+        sprite_text_from_frames(
+            frames=[solid_surface(size=(4, 4), color=(255, 0, 0, 255))],
+            frame_intervals=intervals,
+            name='x',
+        )
+
+
+def test_no_frames_is_refused():
+    """No frames is refused, naming frames."""
+    with pytest.raises(ValueError, match='at least one frame'):
+        sprite_text_from_frames(frames=[], frame_intervals=[], name='x')
+
+
+def test_frames_of_different_sizes_are_refused():
+    """Frames of different sizes are refused, naming size."""
+    with pytest.raises(ValueError, match='size'):
+        sprite_text_from_frames(
+            frames=[
+                solid_surface(size=(4, 4), color=(255, 0, 0, 255)),
+                solid_surface(size=(8, 8), color=(255, 0, 0, 255)),
+            ],
+            frame_intervals=[0.1, 0.1],
+            name='x',
+        )
+
+
+def test_surface_rgba_pixels_are_row_major_with_alpha():
+    """Pixels come row by row, x within y, as (red, green, blue, alpha)."""
+    surface = pygame.Surface((2, 2), pygame.SRCALPHA)
+    surface.set_at((0, 0), (1, 2, 3, 4))
+    surface.set_at((1, 0), (5, 6, 7, 8))
+    surface.set_at((0, 1), (9, 10, 11, 12))
+    surface.set_at((1, 1), (13, 14, 15, 16))
+
+    assert surface_rgba_pixels(surface=surface) == [
+        (1, 2, 3, 4),
+        (5, 6, 7, 8),
+        (9, 10, 11, 12),
+        (13, 14, 15, 16),
+    ]
+
+
+def test_surface_rgba_pixels_of_a_surface_without_alpha_are_opaque():
+    """A surface with no alpha channel reads as fully opaque."""
+    surface = pygame.Surface((2, 1))
+    surface.fill((10, 20, 30))
+
+    assert surface_rgba_pixels(surface=surface) == [(10, 20, 30, 255), (10, 20, 30, 255)]

@@ -9,6 +9,7 @@ import pygame
 from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.input.state import current_input
 from glitchygames.sprites import BitmappySprite
+from glitchygames.sprites.sprite_text import surface_rgba_pixels
 
 from .constants import LOG
 
@@ -682,16 +683,8 @@ class FilmStripSprite(BitmappySprite):
             rgba_image.blit(image, (0, 0))
             image = rgba_image
 
-        # The image has an alpha channel by now. pygame-ce has no surfarray.array4d
-        # (BUGS.md #87), so read the colour and alpha planes separately; both are
-        # indexed [x, y], and the pixel list is row-major (y outer, x inner).
-        color_planes: Any = pygame.surfarray.array3d(image)
-        alpha_plane: Any = pygame.surfarray.array_alpha(image)
-        pixels: list[tuple[int, ...]] = []
-        for y in range(canvas_height):
-            for x in range(canvas_width):
-                red, green, blue = color_planes[x, y]
-                pixels.append((int(red), int(green), int(blue), int(alpha_plane[x, y])))
+        # The image has an alpha channel by now; read it through the shared row-major reader
+        pixels = surface_rgba_pixels(surface=image)
 
         # Create a new SpriteFrame with the surface
         from glitchygames.sprites import SpriteFrame
