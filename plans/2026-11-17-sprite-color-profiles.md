@@ -10,7 +10,8 @@
   profiles and a glyph generator" (that entry keeps the full tables and points here); the
   mirror game and its tools, `plans/lucid-circuit-4b-mirror.md`; the AI service,
   `plans/lucid-circuit.md`.
-- Feature plans, one per part, are written after this is approved and link back here.
+- Feature plans, one per part, each linking back here:
+  1. [Sprites as text](2026-11-17-sprite-color-profiles-1-sprite-text.md)
 
 ## Intent
 
@@ -161,19 +162,36 @@ game read only until we decide to wire it up, and allow us to do some testing."
   data (names, colors, glyphs, frames, animations, hitboxes, tags), for every sprite file in the
   repository. Not byte for byte: comments and layout aren't kept (the designer's call: a
   byte-identical bar would mean rewriting the writers for formatting nobody reads).
-- **The interface** (the designer's call; sent to the `/sprite` session for review before it is
-  built, since that session codes against it), in a new module beside the loaders,
-  `glitchygames/sprites/sprite_text.py`:
-  - `sprite_from_text(*, text: str, source_name: str) -> AnimatedSprite`: what
-    `SpriteFactory.load_sprite` returns; `source_name` names the text in repair warnings. The file
-    loader reads the file and calls it. `SpriteFactory.load_sprite_from_text` is the same call.
-  - `sprite_to_text(*, sprite: AnimatedSprite) -> str`: what `save` writes.
-  - `sprite_text_from_frames(*, frames: Sequence[pygame.Surface], name: str, frame_interval: float)
-    -> str`: an image's frames, each a surface of the image's size, alpha kept, as one animation.
-    Decoding a file (a PNG, an APNG's frames) into surfaces is its caller's (the client already
-    reads APNGs with the `apng` package), so the shared code never touches files.
-  - `split_sprite_text(*, text: str) -> list[str]`: one single-frame sprite file per frame, in
-    animation and frame order, each named `<sprite>-<animation>-<frame>`.
+- **The interface** (the designer's call, reviewed by the `/sprite` session, 2026-11-17). Two
+  modules, so that the text-only half needs neither pygame nor `AnimatedSprite`: the AI service
+  cannot import the engine, and the owner approved (2026-11-17) moving sprite generation into it,
+  in `plans/2026-11-17-sprite-generation-in-the-ai-service.md` on that session's branch, which
+  lifts the text-only module into a small pygame-free package without changing its signatures.
+  - `glitchygames/sprites/sprite_toml.py`, pygame-free, a sprite file's text as data:
+    - `parse_sprite_toml(*, text: str, source_name: str) -> dict[str, Any]`: the document as
+      `tomllib` reads it; a file that isn't valid TOML raises `ValueError` naming `source_name`.
+    - `write_sprite_toml(*, data: Mapping[str, Any]) -> str`: the document in the engine's
+      sprite format (the writers' layout today: `[sprite]`, `[[animation]]` and its frames,
+      `[colors]`, `[[transition]]`). Every engine writer goes through it.
+    - `split_sprite_text(*, text: str) -> list[str]`: one single-frame sprite file per frame, in
+      animation and frame order, each named `<sprite>-<animation>-<frame>`.
+  - `glitchygames/sprites/sprite_text.py`, the engine's, built on it:
+    - `sprite_from_text(*, text: str, source_name: str) -> AnimatedSprite`: what
+      `SpriteFactory.load_sprite` returns; `source_name` names the text in repair warnings. The file
+      loader reads the file and calls it (one path, never a temporary file);
+      `SpriteFactory.load_sprite_from_text` is the same call. `COORDINATE_SPACE` is left to the
+      caller.
+    - `sprite_to_text(*, sprite: AnimatedSprite) -> str`: what `save` writes; `save` writes it.
+    - `sprite_text_from_frames(*, frames: Sequence[pygame.Surface], frame_intervals:
+      Sequence[float], name: str) -> str`: an image's frames, each a surface of the image's size
+      with alpha kept, each with its own interval in seconds (an APNG's frames each have their
+      own delay; the two sequences must be the same length), as one animation. Decoding files is
+      the caller's.
+  - **Too many colors:** an image whose frames use more colors than the glyphs hold (64 today) is
+    refused with `SpriteColorLimitError` (a `ValueError`) carrying its color count and the limit,
+    never reduced silently; reducing colors is the converter's, asked for.
+  - The loader's value checks (a non-number `frame_interval` loads today and crashes later) belong
+    to that package's work, on the other session's branch.
 
 ### Part 2: profiles, color spaces and the converter
 
