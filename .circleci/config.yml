@@ -383,7 +383,10 @@ jobs:
           command: |
             set -euo pipefail
             sudo apt-get update
-            sudo apt-get install -y fontconfig
+            # fontconfig: the suite's text tests. pkg-config, libudev-dev, libusb-1.0-0-dev:
+            # hidapi's source build on Python 3.15, which has no manylinux wheel for it (job
+            # 3629); the Raspberry Pis install the same. nox -s test-linux-ci reads this line
+            sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config
 
       - restore-uv-cache-posix
       - install-deps-posix

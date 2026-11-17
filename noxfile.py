@@ -20,7 +20,7 @@ import nox
 from nox.command import CommandFailed
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Sequence
 
 # Use uv as the venv backend so nox sessions get their own isolated venvs
 # managed by uv, without touching the project's .venv.
@@ -1189,6 +1189,30 @@ def _circleci_job(*, configuration: str, name: str) -> str:
     return match['body']
 
 
+def _linux_ci_job_packages(*, configuration: str) -> list[str]:
+    """Return the apt packages the Linux job installs, from its own install line.
+
+    Read from the job rather than listed again here, so the Docker reproduction installs exactly
+    what the job does (a second list drifted: hidapi's build packages, CircleCI job 3629).
+
+    Args:
+        configuration: The CircleCI configuration's text.
+
+    Returns:
+        The packages, in the job's order.
+
+    Raises:
+        ValueError: If the job has no ``sudo apt-get install -y`` line.
+
+    """
+    job = _circleci_job(configuration=configuration, name=_CIRCLECI_LINUX_JOB)
+    install = re.search(r'^\s+sudo apt-get install -y (?P<packages>\S.*)$', job, flags=re.MULTILINE)
+    if install is None:
+        message = f'{_CIRCLECI_LINUX_JOB} has no "sudo apt-get install -y" line'
+        raise ValueError(message)
+    return install['packages'].split()
+
+
 def _linux_ci_job_settings(*, configuration: str) -> tuple[str, str, dict[str, str]]:
     """Return the Linux job's image, resource class and environment.
 
@@ -1280,17 +1304,18 @@ def _host_checkout(session: nox.Session) -> _HostCheckout:
 
 def _linux_ci_script(
     *,
-    python_version: str,
-    next_python_version: str,
+    python_versions: Sequence[str],
     uv_version: str,
     nox_version: str,
+    apt_packages: Sequence[str],
     checkout: _HostCheckout,
 ) -> str:
     """Return the container's shell script: the Linux job's steps, then the results copied out.
 
     Args:
-        python_version: ``PYTHON_LATEST_VERSION``.
-        next_python_version: ``PYTHON_NEXT_VERSION``.
+        python_versions: ``PYTHON_LATEST_VERSION`` and ``PYTHON_NEXT_VERSION``, installed in
+            that order.
+        apt_packages: The job's apt packages (``_linux_ci_job_packages``).
         uv_version: ``UV_VERSION``.
         nox_version: ``NOX_VERSION``.
         checkout: This checkout's facts (``_host_checkout``).
@@ -1345,12 +1370,12 @@ def _linux_ci_script(
         f'if [ -f {common}/info/exclude ]; then cp {common}/info/exclude .git/info/exclude; fi',
         # "Install Linux system dependencies"
         'sudo apt-get update -qq',
-        'sudo apt-get install -y -qq fontconfig > /dev/null',
+        f'sudo apt-get install -y -qq {shlex.join(apt_packages)} > /dev/null',
         # install-deps-posix
         f'curl -LsSf https://astral.sh/uv/{uv_version}/install.sh | sh',
         'export PATH="$HOME/.local/bin:$PATH"',
         'uv --version',
-        f'uv python install "{python_version}" "{next_python_version}"',
+        'uv python install ' + ' '.join(f'"{version}"' for version in python_versions),
         # install-deps-posix installs nox as a uv tool, run directly (no uvx parent process)
         f'uv tool install "nox[uv]=={nox_version}"',
         # nox-test, then the job's store_test_results (to this checkout's test-results/linux-ci),
@@ -1410,14 +1435,13 @@ def test_linux_ci(session: nox.Session) -> None:
     memory, cpus = _CIRCLECI_DOCKER_RESOURCES[resource_class]
     checkout = _host_checkout(session)
     script = _linux_ci_script(
-        python_version=_circleci_parameter(
-            configuration=configuration, name='PYTHON_LATEST_VERSION'
-        ),
-        next_python_version=_circleci_parameter(
-            configuration=configuration, name='PYTHON_NEXT_VERSION'
-        ),
+        python_versions=[
+            _circleci_parameter(configuration=configuration, name=name)
+            for name in ('PYTHON_LATEST_VERSION', 'PYTHON_NEXT_VERSION')
+        ],
         uv_version=_circleci_parameter(configuration=configuration, name='UV_VERSION'),
         nox_version=_circleci_parameter(configuration=configuration, name='NOX_VERSION'),
+        apt_packages=_linux_ci_job_packages(configuration=configuration),
         checkout=checkout,
     )
     environment = {**job_environment, 'CI': 'true', 'CIRCLECI': 'true'}

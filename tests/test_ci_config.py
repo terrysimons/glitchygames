@@ -871,6 +871,25 @@ def test_windows_builds_from_source_within_the_path_limit():
     assert failing_path_under_short_cache <= WINDOWS_MAX_PATH
 
 
+# What hidapi's source build needs on Linux: Python 3.15 has no manylinux wheel for hidapi 0.15,
+# so uv compiles it, its hid extension finding libusb through pkg-config and its hidraw extension
+# including libudev.h (CircleCI job 3629: "pkg-config package 'libusb-1.0 >= 1.0.9' not found";
+# the Raspberry Pis' playbook installs the same, 2026-11-16 and 2026-11-17)
+HIDAPI_SOURCE_BUILD_PACKAGES = frozenset({'pkg-config', 'libusb-1.0-0-dev', 'libudev-dev'})
+
+
+def test_the_linux_job_installs_what_hidapis_source_build_needs():
+    """Its apt step installs pkg-config and libusb's and libudev's headers, beside fontconfig."""
+    import noxfile
+
+    packages = noxfile._linux_ci_job_packages(
+        configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    )
+
+    assert HIDAPI_SOURCE_BUILD_PACKAGES | {'fontconfig'} <= set(packages)
+    assert 'libusb-dev' not in packages
+
+
 def test_random_order_is_off_unless_asked_for():
     """pytest-randomly is blocked in addopts: CI and every ordinary run keep the files' order."""
     pyproject = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
@@ -1698,6 +1717,11 @@ def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monke
     assert f'https://astral.sh/uv/{uv_version}/install.sh' in script
     next_python_version = pipeline_parameter_default(name='PYTHON_NEXT_VERSION')
     assert f'uv python install "{python_version}" "{next_python_version}"' in script
+    # The job's own apt packages, read from it, so the two can't drift
+    job_packages = noxfile._linux_ci_job_packages(
+        configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    )
+    assert f'sudo apt-get install -y -qq {shlex.join(job_packages)} > /dev/null' in script
     nox_installed = script.index(f'uv tool install "nox[uv]=={nox_version}"')
     runs = [script.index(f'nox -s test-{python} || status=1') for python in noxfile.TEST_PYTHONS]
     assert nox_installed < runs[0]
