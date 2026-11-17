@@ -138,6 +138,16 @@ blue = 255  # Magenta: the transparency key
 #### `[[transition]]` Section (optional)
 - **`from`**, **`to`**, **`when`**: Animation state machine transitions (`src/glitchygames/animation/state_machine.py`); see `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprites/cobra.toml`
 
+#### Values are checked at load
+Every value is checked by type and range when the sprite loads (`src/glitchygames/sprites/sprite_file_schema.py`), and a bad one fails there, naming the file and the field (`fast.toml: animation.0.frame_interval: Input should be a valid number`), rather than later, mid-game:
+
+- **`frame_interval`** is a positive number of seconds (`0.25` is a quarter of a second), never text
+- **`loop`** is `true` or `false`, never text (`"false"` would have counted as true)
+- **Color channels and `alpha`** are whole numbers from 0 to 255
+- **Hitbox `width` and `height`** are whole numbers from 0; its offsets are whole numbers
+- **`frame_index`** is a whole number from 0; **`tags`** is a list of text; names and namespaces are text
+- **Unknown keys** inside `[sprite]`, `[[animation]]`, `[[animation.frame]]`, a hitbox, a color or a `[[transition]]` are refused, so a misspelling (`fram_interval`) fails at load. A top-level table of a game's own (Drawing Fire's `swatches`) is kept.
+
 ### Animation-Frame Relationship
 
 Frames belong to the `[[animation]]` table they follow (TOML nests each `[[animation.frame]]` in the most recent `[[animation]]`):
