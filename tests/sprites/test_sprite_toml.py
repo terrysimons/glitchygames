@@ -446,27 +446,61 @@ def test_a_games_own_tables_are_not_carried_into_split_frames():
     assert 'title' not in only
 
 
-def test_a_sprite_with_no_frames_splits_into_nothing():
-    """A document with neither animation frames nor sprite pixels has no frame to split."""
-    assert split_sprite_text(text='[sprite]\nname = "empty"\n') == []
+def test_a_sprite_without_pixels_or_animations_splits_into_one_empty_sprite():
+    """Like an animated frame without pixels, a static sprite without them is one empty frame."""
+    (only,) = split_documents('[sprite]\nname = "empty"\n')
+    assert only['sprite']['name'] == 'empty-default-0'
+    assert only['sprite']['pixels'].strip() == ''
+    assert 'colors' not in only
 
 
-def test_a_frame_without_pixels_is_refused_naming_it():
-    """A frame the loader could not draw is not split into an empty sprite."""
+def test_an_animation_with_no_frames_gives_no_sprites():
+    """Only frames are split: an animation without any contributes nothing."""
+    assert split_sprite_text(text='[sprite]\nname = "x"\n[[animation]]\nnamespace = "a"\n') == []
+
+
+def test_a_frame_without_pixels_becomes_an_empty_sprite():
+    """The loader defaults a frame's missing pixels to '', so the frame is split, not refused."""
     text = '[sprite]\nname = "x"\n[[animation]]\nnamespace = "walk"\n[[animation.frame]]\n'
-    with pytest.raises(ValueError, match='x-walk-0 has no pixels'):
-        split_sprite_text(text=text)
+    (only,) = split_documents(text)
+    assert only['sprite']['name'] == 'x-walk-0'
+    assert only['sprite']['pixels'].strip() == ''
+    assert 'colors' not in only
 
 
-@pytest.mark.parametrize(
-    'sprite_file',
-    [path for path in SHIPPED_SPRITE_FILES if path.name == 'player.toml'][:1],
-    ids=sprite_file_id,
-)
-def test_a_shipped_multi_animation_sprite_splits_into_loadable_frames_with_equal_pixels(
-    sprite_file,
-):
+def test_empty_pixels_and_empty_colors_are_written_and_parse_back():
+    """write_sprite_toml handles pixels = '' with an empty [colors]; the text parses back."""
+    document = {'sprite': {'name': 'x', 'pixels': ''}, 'colors': {}}
+    written = parse_sprite_toml(text=write_sprite_toml(data=document), source_name='test')
+    assert written['sprite']['name'] == 'x'
+    assert written['sprite']['pixels'].strip() == ''
+    assert 'colors' not in written
+
+
+def test_animations_with_the_same_namespace_give_frames_with_the_same_name():
+    """The naming rule does not make names unique: two 'a' animations both give x-a-0."""
+    frame = '[[animation.frame]]\npixels = "p"\n'
+    text = f'[sprite]\nname = "x"\n[[animation]]\nnamespace = "a"\n{frame}'
+    text += f'[[animation]]\nnamespace = "a"\n{frame}'
+    names = [document['sprite']['name'] for document in split_documents(text)]
+    assert names == ['x-a-0', 'x-a-0']
+
+
+def test_animations_without_a_namespace_give_frames_named_default():
+    """Both omitting the namespace is the same case: x-default-0 twice."""
+    frame = '[[animation.frame]]\npixels = "p"\n'
+    text = f'[sprite]\nname = "x"\n[[animation]]\n{frame}[[animation]]\n{frame}'
+    names = [document['sprite']['name'] for document in split_documents(text)]
+    assert names == ['x-default-0', 'x-default-0']
+
+
+def test_a_shipped_multi_animation_sprite_splits_into_loadable_frames_with_equal_pixels():
     """Every frame of a real sprite is written, loads, and keeps its source pixels."""
+    (sprite_file,) = [
+        path
+        for path in MEMBER_SPRITE_FILES
+        if path.as_posix().endswith('brave_adventurer_papyrus/sprites/player.toml')
+    ]
     source = parse_sprite_toml(text=sprite_file.read_text(encoding='utf-8'), source_name='source')
     source_pixels = [
         frame['pixels'] for animation in source['animation'] for frame in animation['frame']

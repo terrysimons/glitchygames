@@ -247,7 +247,11 @@ def split_sprite_text(*, text: str) -> list[str]:
     ``frame_anchor`` where it has them, the frame's ``pixels`` and its hitbox (the frame's, else
     the sprite's) as ``[sprite.hitbox]``. ``[colors]`` keeps the glyphs the frame uses, in the
     source's color order. A static sprite is one frame, named with the ``default`` animation and
-    frame 0; a document with no frames gives an empty list.
+    frame 0, even without pixels. A frame without ``pixels`` (the loader defaults them to '')
+    becomes a sprite with empty pixels, and an animation with no frames gives none.
+
+    Names follow from that rule, so two animations with the same namespace (or both omitting it)
+    give frames with the same name: the names are not made unique.
 
     A split frame is a new single-image sprite, not a round trip: a game's own top-level tables
     (Drawing Fire's ``[swatches]``) and ``[[transition]]`` are not carried into it, because they
@@ -260,7 +264,7 @@ def split_sprite_text(*, text: str) -> list[str]:
         One TOML text per frame, in animation and frame order.
 
     Raises:
-        ValueError: If the text is not valid TOML, or a frame has no pixels.
+        ValueError: If the text is not valid TOML.
 
     """
     document = parse_sprite_toml(text=text, source_name='sprite text')
@@ -274,25 +278,22 @@ def split_sprite_text(*, text: str) -> list[str]:
             for animation in animations
             for frame_number, frame in enumerate(animation.get('frame', []))
         ]
-    elif 'pixels' in sprite:
-        frames = [('default', 0, sprite)]
     else:
-        frames = []
+        frames = [('default', 0, sprite)]
     texts: list[str] = []
     for animation_name, frame_number, frame in frames:
         frame_name = f'{sprite_name}-{animation_name}-{frame_number}'
-        if 'pixels' not in frame:
-            msg = f'Cannot split the sprite: frame {frame_name} has no pixels'
-            raise ValueError(msg)
         frame_sprite: dict[str, Any] = {'name': frame_name}
         frame_sprite.update({
             key: sprite[key] for key in ('description', TAGS_KEY, 'frame_anchor') if key in sprite
         })
-        frame_sprite['pixels'] = frame['pixels']
+        # The loader defaults a frame's missing pixels to '': an empty frame is still a frame
+        pixels = frame.get('pixels', '')
+        frame_sprite['pixels'] = pixels
         hitbox = frame.get('hitbox', sprite.get('hitbox'))
         if hitbox is not None:
             frame_sprite['hitbox'] = hitbox
-        glyphs_used = set(frame['pixels'])
+        glyphs_used = set(pixels)
         frame_document: dict[str, Any] = {
             'sprite': frame_sprite,
             'colors': {glyph: color for glyph, color in colors.items() if glyph in glyphs_used},
