@@ -40,7 +40,7 @@ def sprite_to_text(*, sprite: AnimatedSprite) -> str:
 
     This is the text ``AnimatedSprite.save`` writes to its file: a single animation with one
     frame in the static layout (pixels in ``[sprite]``), anything else with its ``[[animation]]``
-    tables. No temporary file is involved.
+    tables. No temporary file is involved. ``sprite.to_text()`` is the same text as a method.
 
     Args:
         sprite: The sprite to write.

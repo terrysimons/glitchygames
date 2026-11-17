@@ -307,7 +307,7 @@ class TestSpriteSaveLoadRGBRGBA:
             temp_path = f.name
 
         try:
-            sprite._save_toml_single_frame(temp_path)
+            Path(temp_path).write_text(sprite.to_text(), encoding='utf-8')
 
             # Read the saved file
             content = Path(temp_path).read_text(encoding='utf-8')
@@ -346,7 +346,7 @@ class TestSpriteSaveLoadRGBRGBA:
             temp_path = f.name
 
         try:
-            sprite._save_toml_single_frame(temp_path)
+            Path(temp_path).write_text(sprite.to_text(), encoding='utf-8')
 
             # Read the saved file
             content = Path(temp_path).read_text(encoding='utf-8')
@@ -381,7 +381,7 @@ class TestSpriteSaveLoadRGBRGBA:
             temp_path = f.name
 
         try:
-            sprite._save_toml(temp_path)
+            Path(temp_path).write_text(sprite.to_text(), encoding='utf-8')
 
             # Read the saved file
             content = Path(temp_path).read_text(encoding='utf-8')
@@ -417,7 +417,7 @@ class TestSpriteSaveLoadRGBRGBA:
             temp_path = f.name
 
         try:
-            sprite._save_toml(temp_path)
+            Path(temp_path).write_text(sprite.to_text(), encoding='utf-8')
 
             # Read the saved file
             content = Path(temp_path).read_text(encoding='utf-8')
@@ -578,7 +578,7 @@ class TestRGBRGBAIntegration:
 
         try:
             # Save
-            sprite._save_toml_single_frame(temp_path)
+            Path(temp_path).write_text(sprite.to_text(), encoding='utf-8')
 
             loaded_sprite = AnimatedSprite(temp_path)
 
@@ -621,7 +621,7 @@ class TestRGBRGBAIntegration:
 
         try:
             # Save
-            sprite._save_toml_single_frame(temp_path)
+            Path(temp_path).write_text(sprite.to_text(), encoding='utf-8')
 
             loaded_sprite = AnimatedSprite(temp_path)
 
@@ -679,8 +679,8 @@ class TestRGBRGBAIntegration:
 
         try:
             # Save both
-            rgb_sprite._save_toml_single_frame(rgb_path)
-            rgba_sprite._save_toml_single_frame(rgba_path)
+            Path(rgb_path).write_text(rgb_sprite.to_text(), encoding='utf-8')
+            Path(rgba_path).write_text(rgba_sprite.to_text(), encoding='utf-8')
 
             # RGB file should be smaller (no alpha values)
             rgb_size = Path(rgb_path).stat().st_size

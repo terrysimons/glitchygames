@@ -212,8 +212,33 @@ def test_a_single_frame_sprite_is_written_in_the_static_layout():
 
 def test_an_animated_sprite_is_written_with_its_animations():
     """Several frames are written as [[animation]] tables, and the text loads back the same."""
-    text = sprite_to_text(sprite=sprite_from_text(text=ANIMATED_TEXT, source_name='animated'))
+    sprite = sprite_from_text(text=ANIMATED_TEXT, source_name='animated')
+    text = sprite_to_text(sprite=sprite)
 
     document = parse_sprite_toml(text=text, source_name='written')
     assert 'pixels' not in document['sprite']
     assert len(document['animation'][0]['frame']) == 2
+    reloaded = sprite_from_text(text=text, source_name='reloaded')
+    assert reloaded.animations.keys() == sprite.animations.keys()
+    assert [frame.get_pixel_data() for frame in reloaded.animations['blink']] == [
+        frame.get_pixel_data() for frame in sprite.animations['blink']
+    ]
+
+
+def test_to_text_is_what_sprite_to_text_returns():
+    """The method and the interface function are the same text."""
+    sprite = sprite_from_text(text=ANIMATED_TEXT, source_name='animated')
+
+    assert sprite.to_text() == sprite_to_text(sprite=sprite)
+
+
+def test_save_writes_the_text_and_refuses_other_formats(tmp_path):
+    """Save writes to_text() for a single-frame sprite, and refuses a format it cannot write."""
+    sprite = sprite_from_text(text=SHORT_ROW_TEXT, source_name='static')
+    saved_file = tmp_path / 'dex.toml'
+
+    sprite.save(str(saved_file), 'toml')
+
+    assert saved_file.read_text(encoding='utf-8') == sprite.to_text()
+    with pytest.raises(ValueError, match='ormat'):
+        sprite.save(str(saved_file), 'png')

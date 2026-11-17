@@ -1750,6 +1750,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         """
         if file_format != 'toml':
             raise ValueError(ERR_UNSUPPORTED_FORMAT.format(file_format))
+        if self._is_single_frame_sprite():
+            self.log.info('Detected single-frame sprite, saving in static sprite format')
         Path(filename).write_text(self.to_text(), encoding='utf-8')
 
     def get_total_frame_count(self: Self) -> int:
@@ -1818,7 +1820,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         """Write the sprite as the text of a sprite file.
 
         The one path a sprite is written by, as ``load_text`` is the one it loads by: ``save``
-        writes this text to its file, and ``sprite_to_text`` returns it. A single animation with
+        writes this text to its file, and ``sprite_to_text(sprite=...)`` (the interface in
+        ``sprite_text``, beside ``sprite_from_text``) returns it. A single animation with
         one frame is written in the static layout (pixels in ``[sprite]``); anything else with
         its ``[[animation]]`` tables.
 
@@ -1827,13 +1830,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
 
         """
         if self._is_single_frame_sprite():
-            self.log.info('Detected single-frame sprite, saving in static sprite format')
             return self._static_toml_text()
         return self._animated_toml_text()
-
-    def _save_toml_single_frame(self: Self, filename: str) -> None:
-        """Save single frame as static TOML."""
-        Path(filename).write_text(self._static_toml_text(), encoding='utf-8')
 
     def _static_toml_text(self: Self) -> str:
         """Write the single frame as static TOML text.
@@ -1896,10 +1894,6 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         ordered = {char: colors[char] for char in self._color_order if char in colors}
         ordered.update({char: color for char, color in colors.items() if char not in ordered})
         return ordered
-
-    def _save_toml(self: Self, filename: str) -> None:
-        """Save animated sprite in TOML format."""
-        Path(filename).write_text(self._animated_toml_text(), encoding='utf-8')
 
     def _animated_toml_text(self: Self) -> str:
         """Write the animated sprite as TOML text.
