@@ -92,7 +92,8 @@
   failed_when: raspberry_pi_hand_set_lines.stdout | length > 0
 
 # Celsius in the inventory, millicelsius in config.txt; each level's hysteresis is how far below
-# its start it stops
+# its start it stops. The pwm-gpio-fan overlay is one config.txt line written over several (under
+# .yamllint's line limit): each "-" in its tags drops the line break beside it
 - name: Write the firmware settings in their board section
   ansible.builtin.blockinfile:
     path: "{{ raspberry_pi_firmware_config }}"
@@ -117,7 +118,12 @@
       {% set level = raspberry_pi_fan.levels[0] %}
       dtoverlay=gpio-fan,gpiopin={{ raspberry_pi_fan.pin }},temp={{ (level.start_celsius * 1000) | int }},hyst={{ ((level.start_celsius - level.stop_below_celsius) * 1000) | int }}
       {% elif raspberry_pi_fan.kind == 'pwm-gpio-fan' %}
-      dtoverlay=pwm-gpio-fan,fan_gpio={{ raspberry_pi_fan.pin }}{% for level in raspberry_pi_fan.levels %},fan_temp{{ loop.index0 }}={{ (level.start_celsius * 1000) | int }},fan_temp{{ loop.index0 }}_hyst={{ ((level.start_celsius - level.stop_below_celsius) * 1000) | int }},fan_temp{{ loop.index0 }}_speed={{ level.speed }}{% endfor %}
+      dtoverlay=pwm-gpio-fan,fan_gpio={{ raspberry_pi_fan.pin }}
+      {%- for level in raspberry_pi_fan.levels -%}
+      ,fan_temp{{ loop.index0 }}={{ (level.start_celsius * 1000) | int }}
+      {{- ',fan_temp' ~ loop.index0 ~ '_hyst=' ~ ((level.start_celsius - level.stop_below_celsius) * 1000) | int }}
+      {{- ',fan_temp' ~ loop.index0 ~ '_speed=' ~ level.speed }}
+      {%- endfor %}
 
       {% endif %}
       [all]
