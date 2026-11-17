@@ -237,6 +237,70 @@ def write_sprite_toml(*, data: Mapping[str, Any]) -> str:
     return ''.join(lines)
 
 
+def split_sprite_text(*, text: str) -> list[str]:
+    """Split a sprite file's text into one single-image sprite text per frame.
+
+    Each frame becomes a static-layout document: ``[sprite]`` named
+    ``<sprite>-<animation>-<frame>`` (the sprite's name defaults to ``animated_sprite`` and an
+    animation's namespace to ``default``, as the loader does; frames are numbered from 0 within
+    their animation, animations in file order), the source's ``description``, ``tags`` and
+    ``frame_anchor`` where it has them, the frame's ``pixels`` and its hitbox (the frame's, else
+    the sprite's) as ``[sprite.hitbox]``. ``[colors]`` keeps the glyphs the frame uses, in the
+    source's color order. A static sprite is one frame, named with the ``default`` animation and
+    frame 0; a document with no frames gives an empty list.
+
+    A split frame is a new single-image sprite, not a round trip: a game's own top-level tables
+    (Drawing Fire's ``[swatches]``) and ``[[transition]]`` are not carried into it, because they
+    name glyphs and animations the frame may not keep.
+
+    Args:
+        text: The sprite file's TOML text.
+
+    Returns:
+        One TOML text per frame, in animation and frame order.
+
+    Raises:
+        ValueError: If the text is not valid TOML, or a frame has no pixels.
+
+    """
+    document = parse_sprite_toml(text=text, source_name='sprite text')
+    sprite: Mapping[str, Any] = document.get('sprite', {})
+    sprite_name = sprite.get('name', 'animated_sprite')
+    colors: Mapping[str, Any] = document.get('colors', {})
+    animations: list[Mapping[str, Any]] = document.get('animation', [])
+    if animations:
+        frames = [
+            (animation.get('namespace', 'default'), frame_number, frame)
+            for animation in animations
+            for frame_number, frame in enumerate(animation.get('frame', []))
+        ]
+    elif 'pixels' in sprite:
+        frames = [('default', 0, sprite)]
+    else:
+        frames = []
+    texts: list[str] = []
+    for animation_name, frame_number, frame in frames:
+        frame_name = f'{sprite_name}-{animation_name}-{frame_number}'
+        if 'pixels' not in frame:
+            msg = f'Cannot split the sprite: frame {frame_name} has no pixels'
+            raise ValueError(msg)
+        frame_sprite: dict[str, Any] = {'name': frame_name}
+        frame_sprite.update({
+            key: sprite[key] for key in ('description', TAGS_KEY, 'frame_anchor') if key in sprite
+        })
+        frame_sprite['pixels'] = frame['pixels']
+        hitbox = frame.get('hitbox', sprite.get('hitbox'))
+        if hitbox is not None:
+            frame_sprite['hitbox'] = hitbox
+        glyphs_used = set(frame['pixels'])
+        frame_document: dict[str, Any] = {
+            'sprite': frame_sprite,
+            'colors': {glyph: color for glyph, color in colors.items() if glyph in glyphs_used},
+        }
+        texts.append(write_sprite_toml(data=frame_document))
+    return texts
+
+
 def _sprite_section(*, sprite: Mapping[str, Any]) -> str:
     """Write the ``[sprite]`` table and its hitbox.
 
