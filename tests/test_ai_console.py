@@ -5,6 +5,7 @@ from __future__ import annotations
 import itertools
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from threading import Event, Thread
 from typing import Any, ClassVar
 
@@ -1001,6 +1002,37 @@ def test_history_is_kept_searched_bounded_and_forgotten(console, chat_service, m
     enter(console, '/history clear')
     wait_for(console, 'History forgotten')
     assert not path.exists()
+
+
+def test_a_history_file_is_only_ever_seen_whole(console, mocker):
+    """While a record is being written, a reader finds the earlier records, never a part file.
+
+    A slow disk (CircleCI's Windows job 3672) let a reader find the history truncated to nothing
+    between the write's truncate and its data: the disk is slowed here by reading the history
+    at that moment, from inside every write to the history folder.
+    """
+    path = console.install_root / 'history' / 'unknown.jsonl'
+    seen_mid_write: list[str] = []
+    original_write_text = Path.write_text
+
+    def write_text_slowly(self: Path, data: str, *args: Any, **kwargs: Any) -> int:
+        if self.parent == path.parent:
+            self.write_bytes(b'')  # the truncate a write starts with
+            seen_mid_write.append(path.read_text(encoding='utf-8') if path.exists() else '')
+        return original_write_text(self, data, *args, **kwargs)
+
+    mocker.patch.object(Path, 'write_text', write_text_slowly)
+    for number in range(2):
+        console._write_history(
+            request=ai_console.AiRequest(number=number, question='q', started_seconds=0.0),
+            outcome='answered',
+            answer='a',
+            messages=[{'role': 'system', 'content': 's'}],
+        )
+
+    first_record = seen_mid_write[1].splitlines()
+    assert [json.loads(line)['request'] for line in first_record] == [0]
+    assert [json.loads(line)['request'] for line in path.read_text().splitlines()] == [0, 1]
 
 
 def test_history_is_named_for_the_games_package(console, scene):
