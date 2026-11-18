@@ -51,6 +51,7 @@ from .pixel_utils import (
     palette_key_problems,
 )
 from .root_sprite import RootSprite
+from .sprite_file_schema import validate_sprite_file
 from .sprite_toml import write_sprite_toml
 from .tags import TAGS_KEY, normalize_sprite_tags
 
@@ -1320,7 +1321,6 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             raise FileNotFoundError(ERR_SPRITE_FILE_NOT_FOUND.format(filename)) from e
         except UnicodeDecodeError as e:
             raise ValueError(ERR_TOML_LOAD_FAILED.format(filename, e)) from e
-
         self.load_text(text=text, source_name=filename)
 
     def load_text(self: Self, *, text: str, source_name: str) -> None:
@@ -1336,6 +1336,9 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
 
         """
         data = sprite_toml.parse_sprite_toml(text=text, source_name=source_name)
+        # Every value checked once, here, so a bad one fails at load, naming the source and field
+        # (sprite_file_schema.py), never later in update: a file's text and any other text alike
+        validate_sprite_file(data=data, source_name=source_name)
 
         self.name = data.get('sprite', {}).get('name', 'animated_sprite')
         self.description = data.get('sprite', {}).get('description', '')

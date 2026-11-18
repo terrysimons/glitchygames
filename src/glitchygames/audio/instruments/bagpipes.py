@@ -22,7 +22,8 @@ from glitchygames.audio.instruments.timbres import blown, wave_from_levels, with
 if TYPE_CHECKING:
     from glitchygames.audio.instrument import Instrument
 
-# The Highland and uilleann timbres are scripts/make_pipes.py's, tuned there by ear
+# The Highland and uilleann timbres are glitchygames/audio/listening/pipes.py's (once
+# scripts/make_pipes.py), tuned there by ear
 HIGHLAND_LEVELS: Final[tuple[float, ...]] = (
     1.0,
     0.95,

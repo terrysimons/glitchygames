@@ -33,7 +33,9 @@ uv python pin 3.15.2   # optional: develop on 3.15 (.python-version is ignored: 
 Two Pythons are supported and tested: 3.14, the oldest (the browser builds' Pyodide runs it, so
 `requires-python`, ruff's and the type checkers' targets stay there), and 3.15, the development
 version. `nox -s test` and the pre-push shuffled run test both, each in its own environment, and
-so does every CircleCI job (`noxfile.TEST_PYTHONS`, `PYTHON_NEXT_VERSION`).
+so does CircleCI on every OS: macOS in one job, Linux and Windows with 3.15 in a job of its own
+(`test-python-3-15-*`), as one Python alone takes them close to CircleCI's one-hour job limit
+(`noxfile.TEST_PYTHONS`, `PYTHON_NEXT_VERSION`).
 
 The packages are not on PyPI yet: outside the repository, `uv build --all-packages` and install
 from `dist/` (extras: `games`, `apps`, `templates` for cookiecutter).
@@ -210,6 +212,10 @@ git, a git archive, or a build stamp; held by every recorded run.
   nothing. `GLITCHYGAMES_SOUND_CACHE_ROOT` names the root (unset: the platform cache folder;
   empty: no disk layer, which the test harness sets; a test wanting the disk uses the
   `disk_sound_cache` fixture). Compiled samples are shared process-wide (`ENGINE_SOUND_CACHE`).
+  Cache operations are one API, `audio/cache_inventory.py` (`inventory`, `clear`, `verify`,
+  `fill`); the `sound-cache-{list,size,verify,clear,fill}` tools only call it. The listening
+  WAVs (every instrument's range, the pipe demos and tunes) are `audio/listening/`, rendered by
+  `listening-instruments` and `listening-pipes` into `<root>/listening/<render version>/`.
 - Live sounds: `audio.sound(Instrument(..., live=True)).start(owner=...)` returns a
   `LiveSoundHandle` (`set`, `release`, `stop`, `cancel`); parameters and routes are in
   `audio/live_controls.py`, the voice in `audio/live_instrument.py`. The older toolkit
@@ -253,7 +259,10 @@ present. Check rendering on the real driver with `SDL_VIDEODRIVER=cocoa uv run p
   (`tests/test_sprite_classes_are_root_sprites.py`). Load sprites with
   `SpriteFactory.load_sprite(filename=...)`, not `BitmappySprite` directly.
 - Sprite files are TOML only (character-to-colour map, optional per-colour alpha, magenta
-  255,0,255 as the transparency key, `[[animation]]` sections); see ANIMATION_README.md.
+  255,0,255 as the transparency key, `[[animation]]` sections); see ANIMATION_README.md. Every
+  value is checked by type and range at load (`sprites/sprite_file_schema.py`, pydantic, strict;
+  unknown keys in known sections refused), and every shipped sprite is checked against it
+  (`glitchygames.testing.sprite_files.check_values_match_the_schema`).
 - Hitboxes (`collision/`) default to the image's visible pixels; TOML hitboxes win. A TOML
   `AnimatedSprite`'s frames keep magenta opaque, so give it a `[sprite.hitbox]`. Use
   `common_hitbox_x_range()` for standing support and `frame_anchor` for frames of different shapes.

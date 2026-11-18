@@ -34,6 +34,7 @@ from glitchygames.engine_context import ContextSlot, current_context
 from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 from .pixel_utils import PADDING_GLYPH, normalize_pixel_rows
 from .sprite import Sprite
+from .sprite_file_schema import validate_sprite_file
 
 LOG = logging.getLogger('game.sprites')
 
@@ -261,9 +262,10 @@ class BitmappySprite(Sprite):
         raw_content = Path(filename).read_text(encoding='utf-8')
         self.log.debug('Raw file content (%s bytes):\n%s', len(raw_content), raw_content)
 
-        # Parse TOML
+        # Parse TOML, then check every value once (sprite_file_schema.py)
         data = tomllib.loads(raw_content)
         self.log.debug('TOML data keys: %s', list(data.keys()))
+        validate_sprite_file(data=data, source_name=filename)
 
         try:
             (image, rect, name) = self._static_sprite_from_toml_data(data=data)
@@ -738,9 +740,10 @@ class BitmappySprite(Sprite):
         raw_content = Path(filename).read_text(encoding='utf-8')
         self.log.debug('Raw file content (%s bytes):\n%s', len(raw_content), raw_content)
 
-        # Parse TOML
+        # Parse TOML, then check every value once (sprite_file_schema.py)
         data = tomllib.loads(raw_content)
         self.log.debug('TOML data keys: %s', list(data.keys()))
+        validate_sprite_file(data=data, source_name=filename)
 
         try:
             sprite_data = self._sprite_data_from_toml_data(data=data)

@@ -10,6 +10,7 @@ from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites import AnimatedSprite, SpriteFactory
 from glitchygames.sprites.constants import SPRITE_GLYPHS
 from glitchygames.sprites.frame import SpriteFrame
+from glitchygames.sprites.sprite_file_schema import SpriteFileError
 from glitchygames.sprites.sprite_text import (
     SpriteColorLimitError,
     sprite_from_text,
@@ -946,3 +947,16 @@ def test_a_save_decides_each_frames_kept_rows_once(mocker):
     sprite_to_text(sprite=sprite)
 
     assert decide.call_count == len(sprite.animations['spare'])
+
+
+def test_text_with_a_value_out_of_range_is_refused_naming_the_text():
+    """Text loads through the same schema check as a file: a red of 300 fails at load, named."""
+    text = (
+        '[sprite]\nname = "bad"\npixels = """\n#\n"""\n\n'
+        '[colors."#"]\nred = 300\ngreen = 0\nblue = 0\n'
+    )
+
+    with pytest.raises(SpriteFileError, match=r'console text') as raised:
+        sprite_from_text(text=text, source_name='console text')
+
+    assert 'red' in str(raised.value)
