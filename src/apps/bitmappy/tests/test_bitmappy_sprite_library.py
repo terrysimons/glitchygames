@@ -265,6 +265,12 @@ def test_every_library_sprite_loads(sprite_file):
 
 
 @pytest.mark.parametrize('sprite_file', SPRITE_LIBRARY_FILES, ids=sprite_file_id)
+def test_values_match_the_schema(sprite_file):
+    """Every value in a library sprite has the loaders' type and range."""
+    sprite_files.check_values_match_the_schema(sprite_file=sprite_file)
+
+
+@pytest.mark.parametrize('sprite_file', SPRITE_LIBRARY_FILES, ids=sprite_file_id)
 def test_rows_have_equal_lengths(sprite_file):
     """Every pixel row of a library sprite is the same width."""
     sprite_files.check_rows_have_equal_lengths(sprite_file=sprite_file)

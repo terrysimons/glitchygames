@@ -1480,6 +1480,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         self.initialize_icon(icon=icon)
 
+        # The command line it parses (after the command): an inner game it hosts is given it
+        # first (glitchygames/inner_game.py, rule 1)
+        self.command_arguments: tuple[str, ...] = tuple(sys.argv[1:])
         options = self.initialize_arguments(game=game)
         # This engine's parsed command line (audit C8: its own; GameEngine.OPTIONS is a
         # read-only view of it), set before the engine is current below

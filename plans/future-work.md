@@ -188,6 +188,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | The joystick demo would raise if a device connected while another scene was active | `src/demos/joystick-demo/src/joystick_demo/__init__.py` | Found in Arcade sub-plan 2. Matters once the Arcade hosts the demo beside other scenes. |
 | Bitmappy's Arcade tile diverges at frame 0: it sizes its film strip from `pygame.display.get_surface()`, which inside a tile is the Arcade's window, not the tile's 800x480 render target (`FilmStripSprite#0` rect expected `[350, 24, 450, 124]`, got width 6914 or 930) | `src/apps/bitmappy/src/bitmappy/film_strip_coordinator.py:348` (also `animated_canvas.py:1628`, `controllers/visual_indicators.py:326`) | Found 2026-11-12 by the ten-tile check of the full-Arcade spike ported to main (Arcade sub-plan 3); the other nine tiles match their solo replays exactly. Left failing for now (the owner, 2026-11-12). The two fixes on the table each bend a rule: an engine answer for `get_surface` while a tile's context is active (no pygame shims), or Bitmappy reading its scene's screen (no game changes). Held by a strict xfail in `tests/test_every_recording_replays_inside_an_inner_game.py` (Arcade sub-plan 3, Task 4), which runs the tiles inside a 1280x720 outer window: the test display (800x600) is as wide as the demo and hid it (width 930 there). |
 | A tile changes the outer game's key repeat (and other window and process settings): the text-input demo's tile leaves SDL's key repeat at `(200, 200)` where the outer game had `(0, 0)` (`pygame.key.get_repeat()`, one per process). The demo's `setup()` calls `pygame.key.set_repeat(350)` and the engine's `InputBox.on_key_up_event` calls `pygame.key.set_repeat(200)` on every key release while the box is active; the outer game (the Arcade) would then get repeated KEYDOWNs for its own held keys. A replay is unaffected (it serves recorded events). The same holds, unmeasured, for SDL's other one-per-process settings an inner game can still reach (found by the branch's final review, 2026-11-12): text input start and stop (the engine's text widgets, `src/glitchygames/ui/text_widgets.py:1218, 1260, 1274, 1328, 1503, 1509`: a tile's active text box would turn the outer game's IME text input on or off), the mouse cursor's visibility (Bitmappy's canvas, `src/apps/bitmappy/src/bitmappy/animated_canvas.py:1153, 1175`), pygame's default font resolution (`pygame.freetype.set_default_resolution` in `FontManager.__init__`, `src/glitchygames/fonts/font_manager.py:307`, from the inner game's `--font-dpi`: the last `FontManager` made wins) and `os.environ.setdefault('SDL_MOUSE_FOCUS_CLICKTHROUGH', '1')` (`src/glitchygames/engine/game_engine.py:1571`, harmless once the outer engine set it) | `src/glitchygames/ui/inputs.py:195` (the engine's), `src/demos/text-input-demo/src/text_input_demo/__init__.py:69` (the demo's; no game changes), also `src/glitchygames/ui/text_widgets.py` (1220, 1262, 1275, 1329, 1504, 1511) | Found 2026-11-12 by Arcade sub-plan 3's Task 4 (the plan's Review Focus 4): `test_a_tile_leaves_the_outer_key_repeat_as_it_was[text-input-demo/typing.jsonl.gz]`, a strict xfail naming this entry; every other recording leaves it. The repeat belongs to the context that owns the window: an inner context should keep its own (a slot) and never call SDL's, the way it keeps no caption and never changes SDL's blocked event types (`events.set_event_types_allowed`); the same for text input, the cursor's visibility (a Bitmappy call: the engine would need a door for it, since no game file changes) and the font resolution. The engine's own widgets setting the repeat on every key release is worth a look on its own. |
+| The pending replay ledger is rewritten in place, its only copy of unpublished rows, so a crash or a full disk mid-write loses them | `src/glitchygames/replay/tools/measure.py` (`pending_path.write_text`) | Found 2026-11-17 sweeping for siblings of bugs/2026-11-17-ai-console-history-seen-part-written.md. Write it aside then into place (`output_files.write_aside_then_replace`). |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)
 
@@ -717,6 +718,19 @@ only replays; Part 2 Task 1).
   nothing when that doesn't fit. Agreed earlier and deferred: step down instead, full context, then
   32K, then 8K, then none, with Qwen starting with the game as it does today.
 
+- **`glitchygames-client` minors** (#216's final review, deferred; plans/2026-11-16-console-sprite-generation.md,
+  "Part 1: execution record"):
+  - The test guard against HTTP patches `httpx2.Client`, so a call through `httpx2.post` gets past it:
+    patch the transport or the socket instead.
+  - `RendererService` is built even for the TOML-only default, which logs one "Pygame initialized" line.
+  - `sprite_requests.ALLOWED_OUTPUT_ROOT = Path.cwd()` runs at import, so a deleted current folder
+    kills the client at import: compute it when first needed.
+  - `tests/api/test_sprite_requests.py` installs the AI stand-in through `generation_service._client`,
+    not `create_chat_client`.
+  - `output_format == ['png']` misses `-f png -f png` (older than the branch): compare as a set.
+- **Keep or remove `glitchygames-server`** (the owner's call, still open): nothing uses it since #216,
+  and it keeps `fastapi` and `uvicorn` in the engine's core dependencies.
+
 ## Arcade (sub-plan 2 follow-ups, 2026-11-11; plans/2026-11-11-arcade-2-demos.md)
 
 - **Longer attract scripts for Clockwork Keep and Brave Adventurer.** Their demos (`climb`, 330
@@ -1202,11 +1216,10 @@ changes the outer game's key repeat (the plan's Review Focus 4).
       and the sound's identity, so a machine compiles each sound once. Replays must still get the
       same samples (a cached sample equals a fresh compile; test it), and a corrupt or old-version
       entry is compiled again and replaced, never trusted.
-    - Listening WAVs: the instrument demos (`scripts/make_instrument_demos.py`, 724 files, about
-      219 MB) and the pipe tunes (`scripts/make_pipes.py`, `scripts/pipe_tunes.py`, about 85 MB)
-      are written to the git-ignored `build/` by hand today, so an installed copy cannot make them.
-      Make them `glitchygames` subcommands that render into the same cache folder on first request
-      (a family or instrument at a time, not all 300 MB at once).
+    - Listening WAVs: done 2026-11-16 (branch `feat/sound-cache-subcommands`):
+      `glitchygames listening-instruments [--family] [--only]` and `listening-pipes [--only]`
+      render into `<cache root>/listening/<render version>/`, only what is missing; the code is
+      `glitchygames.audio.listening`, the scripts are gone.
     - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
       clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
 - ~~**Move the games onto the new sound library (sound engine M2's migration), in
@@ -1218,9 +1231,10 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   2026-11-15, `scripts/measure_sound_start.py`): a start-up slice compiles at least one whole
   sound, and Clockwork Keep's victory jingle takes 117 ms on a Raspberry Pi 4 (Mr. Muncher's
   film snap 81 ms), so the power-on stalls once for about 7 frames there (about 2 on a Pi 5).
-  Once per machine: later launches read the disk cache. Remedies, in order: `sound-cache fill`
-  (the disk plan's subcommand, so an install fills the cache and even a first launch reads);
-  rendering a long effect tone by tone across slices and mixing at the end (keeps the
+  Once per machine: later launches read the disk cache. Remedies, in order: `sound-cache-fill`
+  (built 2026-11-16: `glitchygames sound-cache-fill`, or a game's `--sound-cache-fill`, so even a
+  first launch reads; nothing runs it yet: an installer, a packaged build's first run or the
+  sound editor would); rendering a long effect tone by tone across slices and mixing at the end (keeps the
   no-thread design; the longest tone bounds the stall). Not a background thread (the plan's
   decision 6; the mixer's callback needs the GIL, BUGS.md #27).
   (the owner,
@@ -1303,6 +1317,33 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   needs any `src/` change). First time every hook of one full gate run (pre-commit prints no
   times: wrap each session in `time`); the two suite runs, `test-random` and `compare-drivers`,
   are the likely bulk of the gate's ten minutes and more, and would come first.
+- **The docs deploy always publishes the latest `main`** (the owner, 2026-11-17: "break the
+  deploy docs job out into a triggered pipeline job so that when a subsequent branch is landed
+  and we re-trigger a main pipeline we can have that pipeline branch be pre-empted by the latest
+  one so the docs are always up-to-date with the latest main that successfully raced the docs";
+  "Then the docs job should always pull main right before it builds"). Today `deploy-docs`
+  (`.circleci/config.yml`) is a job in the `build-and-test` workflow on `main`, after
+  `build-and-test-macos`, in a `serial-group`: a second merge's deploy waits behind the first and
+  both run, each building its own pipeline's commit (`nox -s docs-deploy` refuses unless HEAD is
+  on `origin/main`). Wanted:
+  - its own pipeline, triggered by the main workflow once the macOS job passes (a pipeline
+    trigger through CircleCI's API, or a separate workflow), so a newer trigger cancels an older
+    deploy still waiting or running (CircleCI's auto-cancel of redundant builds, or a check at
+    the start of the job);
+  - the job fetches `origin/main` and checks out its tip right before it builds, not the commit
+    its pipeline started on, so whichever deploy runs publishes the latest `main`;
+  - no serializer queueing every merge's deploy (the owner, 2026-11-17: "remove the serializer -
+    just have it so we can only ever have one docs job running, and it fetches the latest main
+    always"; it makes the macOS usage more efficient). Only one docs job ever runs, and a deploy
+    whose work is already done costs almost nothing: before building, the job compares
+    `origin/main`'s tip with the commit `gh-pages` was last built from (recorded on publish) and
+    stops when they match. So two quick merges cost one build, never two, and the first never
+    publishes a commit that is already stale.
+  - To settle when built: the tip may be a merge whose own macOS job has not passed yet (the
+    deploy then publishes a commit only its pull request tested). That is the race the owner
+    describes ("the latest main that successfully raced the docs"); the alternative is to deploy
+    the newest `main` commit whose macOS job passed (ask CircleCI's API), at the cost of the docs
+    lagging a merge behind.
 
 ## Upstream issues to file
 
@@ -1425,7 +1466,8 @@ Loading and memory:
 
 Being built: the approved master plan is `plans/2026-11-17-sprite-color-profiles.md`, on
 `feature/sprite-color-profiles` (what ships first, the converter and the AI's tools, and in what
-order). This entry keeps the full tables it refers to.
+order). Part 1, sprites as text, is done (2026-11-17); what it left is in the master plan's
+Follow-ups. This entry keeps the full tables it refers to.
 
 Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversation:
 
@@ -1650,6 +1692,13 @@ discussing it found and decided:
   this pacer work.
 
 ## Code quality
+
+- **Test-suite memory on the Linux CI job: the structural options** (the owner's call;
+  bugs/2026-11-17-linux-test-memory-guard-stops.md). #218 brought the peak to 1341-1350 MiB of
+  1600; what is left grows from 503 to 859 MiB over 274 files, spread thin. In order of
+  robustness: run the suite as two pytest processes with coverage combined; `malloc_trim(0)`
+  after each test file on Linux (about 100 MiB); the parse-heavy scans in a child process; and
+  the 3.15 session inheriting about 200 MiB of 3.14's slab in the same container.
 
 - **Lint caps shape the replay classes.** `GameEngine.__init__` and `ReplaySources.__init__`
   sit at the statement limit, `ReplaySources` and `PlaybackSources` at the public-method limit

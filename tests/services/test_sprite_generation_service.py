@@ -3,8 +3,6 @@
 The AI client (the local AI service's) is the boundary and is replaced with a fake.
 """
 
-import types
-
 import pytest
 
 from glitchygames.services.config import ServiceConfig
@@ -13,6 +11,7 @@ from glitchygames.services.sprite_generation_service import (
     GenerationResult,
     SpriteGenerationService,
 )
+from tests.services.stand_in_ai_client import FakeAIClient
 
 
 class TestGenerationResult:
@@ -210,25 +209,6 @@ pixels = "#"
 red = 1
 green = 2
 blue = 3"""
-
-
-class FakeAIClient:
-    """Stands in for the local service's client: answers a scripted reply, recording requests."""
-
-    def __init__(self, *, reply):
-        """Answer `reply` to every request."""
-        self.reply = reply
-        self.requests: list[dict] = []
-        self.chat = types.SimpleNamespace(
-            completions=types.SimpleNamespace(create=self._create),
-        )
-
-    def _create(self, **request):
-        self.requests.append(request)
-        if isinstance(self.reply, Exception):
-            raise self.reply
-        message = types.SimpleNamespace(content=self.reply)
-        return types.SimpleNamespace(choices=[types.SimpleNamespace(message=message)])
 
 
 def _service_answering(reply):

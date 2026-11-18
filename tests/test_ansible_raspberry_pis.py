@@ -307,6 +307,14 @@ def hand_set_lines(text: str, *, host: str, tmp_path: Path) -> str:
 # --- Ansible itself, on every Python ----------------------------------------------------------
 
 
+# The firmware check's awk command and the display wrappers are the Pis' own shell commands: they
+# need a POSIX shell, as the Pis have. On Windows awk gets a backslashed path and a shell script
+# isn't a program (CircleCI job 3637: "awk: fatal: cannot open file", "WinError 193")
+NEEDS_A_POSIX_SHELL = pytest.mark.skipif(
+    sys.platform == 'win32', reason="runs the Pis' shell commands, which need a POSIX shell"
+)
+
+
 @pytest.mark.skipif(sys.platform == 'win32', reason='Ansible has no Windows control node')
 def test_ansible_runs_on_this_python():
     """``ansible-playbook --version`` starts on the Python running the suite.
@@ -937,6 +945,7 @@ def test_the_backup_is_made_once_and_kept_up_to_date_with_each_change():
     assert exists['register'] == 'raspberry_pi_firmware_backup_file'
 
 
+@NEEDS_A_POSIX_SHELL
 def test_the_check_finds_clock_lines_set_by_hand(tmp_path):
     """On the 16 GB Pi 5's file as it was, the check reports its hand-set clock lines."""
     found = hand_set_lines(PI5_16GB_CONFIG, host=PI5_16GB, tmp_path=tmp_path)
@@ -953,6 +962,7 @@ def test_the_check_finds_clock_lines_set_by_hand(tmp_path):
         'dtoverlay=pwm-gpio-fan,fan_gpio=18',
     ],
 )
+@NEEDS_A_POSIX_SHELL
 def test_the_check_finds_fan_lines_set_by_hand(tmp_path, line):
     """A fan setting typed by hand (raspi-config's Fan menu writes gpio-fan) is refused too."""
     found = hand_set_lines(PI5_8GB_CONFIG + line + '\n', host=PI5_8GB, tmp_path=tmp_path)
@@ -960,6 +970,7 @@ def test_the_check_finds_fan_lines_set_by_hand(tmp_path, line):
     assert line in found
 
 
+@NEEDS_A_POSIX_SHELL
 def test_the_check_passes_lines_inside_a_block(tmp_path):
     """After the cleanup and the block, nothing is reported; nor on a stock Pi with no block."""
     assert not hand_set_lines(
@@ -968,6 +979,7 @@ def test_the_check_passes_lines_inside_a_block(tmp_path):
     assert not hand_set_lines(PI5_8GB_CONFIG, host=PI5_8GB, tmp_path=tmp_path)
 
 
+@NEEDS_A_POSIX_SHELL
 def test_the_check_ignores_other_settings_and_comments(tmp_path):
     """Comments, near-miss names and other overlays are not managed lines."""
     text = (
@@ -1067,6 +1079,7 @@ def raspberry_pi_os_host(**host: Any) -> dict[str, Any]:
         ('pi4', {'arm_freq': 2000, 'over_voltage': 6}, {'kind': 'none'}),
     ],
 )
+@NEEDS_A_POSIX_SHELL
 def test_raspberry_pi_os_overclock(board, settings, fan, tmp_path):
     """An overclocked Pi on Raspberry Pi OS goes through the same role, on that OS's own config.txt.
 
@@ -1560,6 +1573,7 @@ def run_apply_display_mode(tmp_path: Path, *, plan_line: str, planner_status: in
     return result.returncode, result.stdout, arguments
 
 
+@NEEDS_A_POSIX_SHELL
 def test_the_wrapper_sets_a_planned_mode_with_gdctl_temporarily(tmp_path):
     """On apply, gdctl sets the planned connector and mode, temporarily.
 
@@ -1586,6 +1600,7 @@ def test_the_wrapper_sets_a_planned_mode_with_gdctl_temporarily(tmp_path):
 
 
 @pytest.mark.parametrize('plan_line', ['none HDMI-1 1920x1080@120.000', 'skip - -'])
+@NEEDS_A_POSIX_SHELL
 def test_the_wrapper_leaves_a_settled_or_skipped_display_alone(tmp_path, plan_line):
     """Nothing to apply: gdctl never runs, and the wrapper succeeds."""
     status, output, arguments = run_apply_display_mode(tmp_path, plan_line=plan_line)
@@ -1642,6 +1657,7 @@ def run_apply_labwc_display_mode(
     return result.returncode, result.stdout, arguments
 
 
+@NEEDS_A_POSIX_SHELL
 def test_the_labwc_wrapper_sets_the_4k_session_to_1080p_at_120_hz_scale_1(tmp_path):
     """From the Pi's own wlr-randr report to the exact call that sets 1080p at 120 Hz, scale 1."""
     status, output, arguments = run_apply_labwc_display_mode(
@@ -1653,6 +1669,7 @@ def test_the_labwc_wrapper_sets_the_4k_session_to_1080p_at_120_hz_scale_1(tmp_pa
     assert arguments == ['--output', 'HDMI-A-1', '--mode', '1920x1080@120.000000Hz', '--scale', '1']
 
 
+@NEEDS_A_POSIX_SHELL
 def test_the_labwc_wrapper_leaves_a_settled_display_alone(tmp_path):
     """Already 1080p at 120 Hz: nothing is set, and it succeeds."""
     status, output, arguments = run_apply_labwc_display_mode(tmp_path, outputs=wlr_randr_outputs())
@@ -1664,6 +1681,7 @@ def test_the_labwc_wrapper_leaves_a_settled_display_alone(tmp_path):
     )
 
 
+@NEEDS_A_POSIX_SHELL
 def test_the_labwc_wrapper_skips_when_no_labwc_session_runs(tmp_path):
     """Before the runner's session exists (a first deploy, before the reboot), nothing is set.
 
@@ -1674,6 +1692,7 @@ def test_the_labwc_wrapper_skips_when_no_labwc_session_runs(tmp_path):
     assert (status, output.splitlines(), arguments) == (0, ['skip - -'], None)
 
 
+@NEEDS_A_POSIX_SHELL
 def test_the_labwc_wrapper_fails_when_the_monitor_has_no_1080p(tmp_path):
     """A monitor that can't show the size fails the deploy, and nothing is set."""
     outputs = wlr_randr_outputs(current=PREFERRED_4K)
@@ -1688,6 +1707,7 @@ def test_the_labwc_wrapper_fails_when_the_monitor_has_no_1080p(tmp_path):
     assert arguments is None
 
 
+@NEEDS_A_POSIX_SHELL
 def test_the_wrapper_fails_when_the_plan_fails(tmp_path):
     """A planner that can't plan fails the wrapper, and gdctl never runs."""
     status, _output, arguments = run_apply_display_mode(

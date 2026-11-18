@@ -1,8 +1,8 @@
 """Checks of a sprite file, for the engine's tests and for every package that ships sprites.
 
-Every pixel row is the same width, the tags are well formed, a save round trip keeps a
-sprite's timings, hitboxes, pixels, metadata and transitions, and the file's text loads to the
-sprite the file does. The engine runs these checks on its
+Every value has the loaders' type and range (``sprite_file_schema.py``), every pixel row is the
+same width, the tags are well formed, and a save round trip keeps a sprite's timings, hitboxes,
+pixels, metadata and transitions. The engine runs these checks on its
 own sprites
 (tests/sprites/test_engine_sprite_files.py), the repository runs them on every workspace member's
 sprites, discovered (tests/test_workspace_sprite_files.py), and a package with sprites of its own
@@ -36,6 +36,7 @@ from glitchygames.sprites.animated import frame_tables_in_load_order
 from glitchygames.sprites.pixel_utils import normalize_pixel_rows, palette_key_problems
 from glitchygames.sprites.sprite_text import sprite_from_text, sprite_to_text
 from glitchygames.sprites.sprite_toml import parse_sprite_toml
+from glitchygames.sprites.sprite_file_schema import SpriteFileError, validate_sprite_file
 from glitchygames.sprites.tags import TAGS_KEY, sprite_tags_problems
 
 if TYPE_CHECKING:
@@ -178,6 +179,28 @@ def _save_and_reload(
     saved_file = directory / sprite_file.name
     original_sprite.save(str(saved_file), 'toml')
     return original_sprite, saved_file, AnimatedSprite(str(saved_file))
+
+
+def check_values_match_the_schema(*, sprite_file: Path) -> None:
+    """Check that every value in a sprite file has the type and range the loaders accept.
+
+    The loaders refuse a file that does not (``sprite_file_schema.validate_sprite_file``), so a
+    shipped sprite failing here would fail to load in a game.
+
+    Args:
+        sprite_file: The sprite file to check.
+
+    Raises:
+        AssertionError: A value has the wrong type or range, or a section has an unknown key; the
+            message names the file and each field.
+
+    """
+    try:
+        validate_sprite_file(
+            data=_read_sprite_data(sprite_file=sprite_file), source_name=str(sprite_file)
+        )
+    except SpriteFileError as error:
+        raise AssertionError(str(error)) from error
 
 
 def check_rows_have_equal_lengths(*, sprite_file: Path) -> None:

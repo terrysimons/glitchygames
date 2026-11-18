@@ -12,10 +12,10 @@ parameters:
   PYTHON_LATEST_VERSION:
     type: string
     default: "3.14.8"
-  # The development version: every job that tests runs the suite on PYTHON_LATEST_VERSION and
-  # then on this, one after the other (noxfile.TEST_PYTHONS; tests/test_ci_config.py checks every
-  # one is installed and run on every OS). 3.14 stays the oldest supported: the browser builds'
-  # Pyodide runs it
+  # The development version. macOS runs the suite on PYTHON_LATEST_VERSION and then on this in one
+  # job; Linux and Windows run it in jobs of their own, under CircleCI's one-hour job limit
+  # (noxfile.TEST_PYTHONS; tests/test_ci_config.py checks every one is installed and run on every
+  # OS). 3.14 stays the oldest supported: the browser builds' Pyodide runs it
   PYTHON_NEXT_VERSION:
     type: string
     default: "3.15.2"
@@ -368,12 +368,12 @@ jobs:
       DISABLE_MKDOCS_2_WARNING: "true"
       # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
       PYTEST_WORKERS: "0"
-      # Stop the run past 1600 MiB of the container's memory (its page cache left out), naming the
+      # Stop the run past 1750 MiB of the container's memory (its page cache left out), naming the
       # test (tests/memory_guard.py), before the 2 GB executor's kernel kills it with signal 9 and
-      # no test named (BUGS.md #235). 1600 is the owner's choice (2026-10-28: "Let's stay at 1600
-      # for a bit and see if we can reduce it further"); after BUGS.md #237's fixes a serial run
-      # peaked at 1409 MiB (amd64 emulated in Docker; CircleCI's summary line is the real figure)
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"
+      # no test named (BUGS.md #235). 1750 is the owner's choice (2026-11-17: "Let's raise the
+      # guard limit to 1750"), up from 1600 (2026-10-28): job 3686 stopped at 1604 MiB, 348 MiB
+      # of it reclaimable kernel slab, which the reading still counts (memory_guard.py)
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"
 
     steps:
       - checkout
@@ -396,8 +396,6 @@ jobs:
       - nox-timer-report
       - nox-test:
           session: test-3.14
-      - nox-test:
-          session: test-3.15
       - nox-build
       - save-uv-cache-posix
 
@@ -423,9 +421,12 @@ jobs:
       - nox-static-analysis
       - nox-lint-docs
       - nox-timer-report
-      # Both Pythons in this one job, one after the other, as on every OS (the owner, 2026-11-16:
-      # "For the mac, can we just run both in the same job so we can reduce the # of mac jobs?"
-      # and "We can do Linux and windows that way, too")
+      # Both Pythons in this one job, one after the other (the owner, 2026-11-16: "For the mac,
+      # can we just run both in the same job so we can reduce the # of mac jobs?"). Linux and
+      # Windows run 3.15 in jobs of their own (test-python-3-15-linux, -windows): CircleCI stops a
+      # job at one hour, and one Python already takes Linux 59 minutes and Windows 48 (jobs 3635,
+      # 3633), so both in one job timed out (jobs 3637, 3638; the owner, 2026-11-17: "make it 2
+      # separate jobs")
       - nox-test:
           session: test-3.14
       - nox-test:
@@ -464,8 +465,6 @@ jobs:
             nox -s timer-report
       - nox-test-windows:
           session: test-3.14
-      - nox-test-windows:
-          session: test-3.15
       - run:
           name: "Build binary and wheel"
           shell: powershell.exe
@@ -477,6 +476,55 @@ jobs:
           path: dist
           destination: dist
       - save-uv-cache-windows
+
+  # The suite on Python 3.15 (PYTHON_NEXT_VERSION) on Linux and Windows, a job each beside the
+  # build-and-test jobs, which run it on 3.14: one job can't hold both under CircleCI's one-hour job
+  # limit (see build-and-test-macos). Only the tests; the rest gives the same answer on either
+  # Python. Neither saves the uv cache: the build-and-test job of its OS saves it under the same key
+  test-python-3-15-linux:
+    # As build-and-test-linux: its image (uv installs 3.15 beside the image's 3.14), resource
+    # class, memory limits and system packages (tests/test_ci_config.py checks they match)
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>
+    resource_class: small
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+      PYTEST_WORKERS: "0"
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"
+
+    steps:
+      - checkout
+
+      - run:
+          name: "Install Linux system dependencies"
+          command: |
+            set -euo pipefail
+            sudo apt-get update
+            sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config
+
+      - restore-uv-cache-posix
+      - install-deps-posix
+      - nox-test:
+          session: test-3.15
+
+  test-python-3-15-windows:
+    executor:
+      name: win/default
+      size: medium
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+      # As build-and-test-windows: the short uv cache, so source builds fit Windows' path limit
+      UV_CACHE_DIR: 'C:\uv-cache'
+
+    steps:
+      - checkout
+
+      - restore-uv-cache-windows
+      - install-deps-windows
+      - nox-test-windows:
+          session: test-3.15
 
   # The test suite on real ARM hardware: a Raspberry Pi 4 (4 GB, no added cooling) running machine
   # runner 3 (plans/2026-11-04-raspberry-pi-ci-runner.md), set up by
@@ -492,9 +540,9 @@ jobs:
       DISABLE_MKDOCS_2_WARNING: "true"
       # Serially, as on Linux: parallel workers could reach the swap file on the SD card
       PYTEST_WORKERS: "0"
-      # As on Linux: stop past 1600 MiB, naming the test (tests/memory_guard.py), not a kernel kill
+      # As on Linux: stop past 1750 MiB, naming the test (tests/memory_guard.py), not a kernel kill
       # with no test named. The owner, 2026-11-04: limits stay on the real hardware
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"
 
     steps:
       - checkout
@@ -633,6 +681,8 @@ workflows:
       - build-and-test-linux
       - build-and-test-macos
       - build-and-test-windows
+      - test-python-3-15-linux
+      - test-python-3-15-windows
       # Off: the Pis measure replays when the owner pushes, and take no CI jobs
       # (plans/2026-11-04-raspberry-pi-ci-runner.md; the Pi 5 likewise, the owner, 2026-11-08,
       # the 8 GB Pi 5, 2026-11-14, and the Raspberry Pi OS Pi 5, 2026-11-16). deploy-docs must not
