@@ -4911,10 +4911,12 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         """
         spawn = SpriteSpawn.from_event(event)
-        if self._active_scene is None:
+        # The scene manager's: GameEngine._active_scene is never assigned in a run
+        active_scene = self.scene_manager.active_scene
+        if active_scene is None:
             LOG.warning('Spawned sprite %r not added: no scene yet', spawn.sprite_name)
             return
-        add_spawned_sprite(spawn=spawn, scene=self._active_scene)
+        add_spawned_sprite(spawn=spawn, scene=active_scene)
 
     def process_unimplemented_event(self: Self, event: events.HashableEvent) -> None:
         """Process an unimplemented event.

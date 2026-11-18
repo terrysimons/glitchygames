@@ -144,7 +144,7 @@ def test_a_spawn_never_reaches_the_games_handlers(mocker):
     """The engine handles it, under --no-unhandled-events, before any scene sees it."""
     engine = _make_engine(mocker, '--no-unhandled-events')
     scene = StrictScene()
-    engine._active_scene = scene
+    engine.scene_manager.active_scene = scene
     mocker.patch('pygame.event.get', return_value=[_spawn().to_event()])
     unhandled = mocker.patch('glitchygames.events.base.unhandled_event', wraps=unhandled_event)
 
@@ -159,6 +159,8 @@ def test_a_raw_event_scene_still_gets_the_spawn_added(mocker):
     """A scene that takes raw events gets the sprite, never the event."""
     engine = _make_engine(mocker)
     scene = RawEventScene()
+    engine.scene_manager.active_scene = scene
+    # Where the engine's raw-event bypass looks (process_events)
     engine._active_scene = scene
     mocker.patch('pygame.event.get', return_value=[_spawn().to_event()])
 
@@ -171,7 +173,7 @@ def test_a_raw_event_scene_still_gets_the_spawn_added(mocker):
 def test_a_spawn_with_no_scene_yet_is_logged_and_dropped(mocker, caplog):
     """Nowhere to add it: one warning naming the sprite, and the event still counts as handled."""
     engine = _make_engine(mocker)
-    engine._active_scene = None
+    engine.scene_manager.active_scene = None
     mocker.patch('pygame.event.get', return_value=[_spawn().to_event()])
 
     with caplog.at_level(logging.WARNING):
