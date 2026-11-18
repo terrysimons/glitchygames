@@ -188,6 +188,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | The joystick demo would raise if a device connected while another scene was active | `src/demos/joystick-demo/src/joystick_demo/__init__.py` | Found in Arcade sub-plan 2. Matters once the Arcade hosts the demo beside other scenes. |
 | Bitmappy's Arcade tile diverges at frame 0: it sizes its film strip from `pygame.display.get_surface()`, which inside a tile is the Arcade's window, not the tile's 800x480 render target (`FilmStripSprite#0` rect expected `[350, 24, 450, 124]`, got width 6914 or 930) | `src/apps/bitmappy/src/bitmappy/film_strip_coordinator.py:348` (also `animated_canvas.py:1628`, `controllers/visual_indicators.py:326`) | Found 2026-11-12 by the ten-tile check of the full-Arcade spike ported to main (Arcade sub-plan 3); the other nine tiles match their solo replays exactly. Left failing for now (the owner, 2026-11-12). The two fixes on the table each bend a rule: an engine answer for `get_surface` while a tile's context is active (no pygame shims), or Bitmappy reading its scene's screen (no game changes). Held by a strict xfail in `tests/test_every_recording_replays_inside_an_inner_game.py` (Arcade sub-plan 3, Task 4), which runs the tiles inside a 1280x720 outer window: the test display (800x600) is as wide as the demo and hid it (width 930 there). |
 | A tile changes the outer game's key repeat (and other window and process settings): the text-input demo's tile leaves SDL's key repeat at `(200, 200)` where the outer game had `(0, 0)` (`pygame.key.get_repeat()`, one per process). The demo's `setup()` calls `pygame.key.set_repeat(350)` and the engine's `InputBox.on_key_up_event` calls `pygame.key.set_repeat(200)` on every key release while the box is active; the outer game (the Arcade) would then get repeated KEYDOWNs for its own held keys. A replay is unaffected (it serves recorded events). The same holds, unmeasured, for SDL's other one-per-process settings an inner game can still reach (found by the branch's final review, 2026-11-12): text input start and stop (the engine's text widgets, `src/glitchygames/ui/text_widgets.py:1218, 1260, 1274, 1328, 1503, 1509`: a tile's active text box would turn the outer game's IME text input on or off), the mouse cursor's visibility (Bitmappy's canvas, `src/apps/bitmappy/src/bitmappy/animated_canvas.py:1153, 1175`), pygame's default font resolution (`pygame.freetype.set_default_resolution` in `FontManager.__init__`, `src/glitchygames/fonts/font_manager.py:307`, from the inner game's `--font-dpi`: the last `FontManager` made wins) and `os.environ.setdefault('SDL_MOUSE_FOCUS_CLICKTHROUGH', '1')` (`src/glitchygames/engine/game_engine.py:1571`, harmless once the outer engine set it) | `src/glitchygames/ui/inputs.py:195` (the engine's), `src/demos/text-input-demo/src/text_input_demo/__init__.py:69` (the demo's; no game changes), also `src/glitchygames/ui/text_widgets.py` (1220, 1262, 1275, 1329, 1504, 1511) | Found 2026-11-12 by Arcade sub-plan 3's Task 4 (the plan's Review Focus 4): `test_a_tile_leaves_the_outer_key_repeat_as_it_was[text-input-demo/typing.jsonl.gz]`, a strict xfail naming this entry; every other recording leaves it. The repeat belongs to the context that owns the window: an inner context should keep its own (a slot) and never call SDL's, the way it keeps no caption and never changes SDL's blocked event types (`events.set_event_types_allowed`); the same for text input, the cursor's visibility (a Bitmappy call: the engine would need a door for it, since no game file changes) and the font resolution. The engine's own widgets setting the repeat on every key release is worth a look on its own. |
+| The pending replay ledger is rewritten in place, its only copy of unpublished rows, so a crash or a full disk mid-write loses them | `src/glitchygames/replay/tools/measure.py` (`pending_path.write_text`) | Found 2026-11-17 sweeping for siblings of bugs/2026-11-17-ai-console-history-seen-part-written.md. Write it aside then into place (`output_files.write_aside_then_replace`). |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)
 
@@ -716,6 +717,19 @@ only replays; Part 2 Task 1).
   (`ai_service_default_bonsai_size`, plans/lucid-circuit.md section 5), at its full context, or
   nothing when that doesn't fit. Agreed earlier and deferred: step down instead, full context, then
   32K, then 8K, then none, with Qwen starting with the game as it does today.
+
+- **`glitchygames-client` minors** (#216's final review, deferred; plans/2026-11-16-console-sprite-generation.md,
+  "Part 1: execution record"):
+  - The test guard against HTTP patches `httpx2.Client`, so a call through `httpx2.post` gets past it:
+    patch the transport or the socket instead.
+  - `RendererService` is built even for the TOML-only default, which logs one "Pygame initialized" line.
+  - `sprite_requests.ALLOWED_OUTPUT_ROOT = Path.cwd()` runs at import, so a deleted current folder
+    kills the client at import: compute it when first needed.
+  - `tests/api/test_sprite_requests.py` installs the AI stand-in through `generation_service._client`,
+    not `create_chat_client`.
+  - `output_format == ['png']` misses `-f png -f png` (older than the branch): compare as a set.
+- **Keep or remove `glitchygames-server`** (the owner's call, still open): nothing uses it since #216,
+  and it keeps `fastapi` and `uvicorn` in the engine's core dependencies.
 
 ## Arcade (sub-plan 2 follow-ups, 2026-11-11; plans/2026-11-11-arcade-2-demos.md)
 
@@ -1669,6 +1683,13 @@ discussing it found and decided:
   simulation is paid for.
 
 ## Code quality
+
+- **Test-suite memory on the Linux CI job: the structural options** (the owner's call;
+  bugs/2026-11-17-linux-test-memory-guard-stops.md). #218 brought the peak to 1341-1350 MiB of
+  1600; what is left grows from 503 to 859 MiB over 274 files, spread thin. In order of
+  robustness: run the suite as two pytest processes with coverage combined; `malloc_trim(0)`
+  after each test file on Linux (about 100 MiB); the parse-heavy scans in a child process; and
+  the 3.15 session inheriting about 200 MiB of 3.14's slab in the same container.
 
 - **Lint caps shape the replay classes.** `GameEngine.__init__` and `ReplaySources.__init__`
   sit at the statement limit, `ReplaySources` and `PlaybackSources` at the public-method limit

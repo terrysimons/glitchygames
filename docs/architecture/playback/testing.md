@@ -182,3 +182,7 @@ test, instead of the kernel killing the job silently (`tests/memory_guard.py`;
   does nothing. It counts this process only, not the children a test starts.
 - macOS keeps freed memory differently from glibc: use its figures to rank files, and
   `nox -s test-linux-ci` for the numbers CI sees.
+- To see which code holds Python memory after a file (by allocating line or by the engine
+  frame that allocated it), use `uv run python -m scripts.memory_triage` (`collection`, `held`,
+  `traced`, `per-test`). The November 2026 triage it came from is
+  `bugs/2026-11-17-linux-test-memory-guard-stops.md`.
