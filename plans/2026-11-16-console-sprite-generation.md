@@ -3,9 +3,9 @@
 Status: APPROVED (2026-11-17, the owner). Where each part lands (the owner, 2026-11-17):
 
 - **Part 1** (the client without a server): its own branch, `feat/sprite-client-without-server`,
-  first. Built 2026-11-17 (Tasks 1-3 below). The owner's call on keeping or removing
-  `glitchygames-server` is still open: nothing uses it now, and it keeps `fastapi` and `uvicorn`
-  in the engine's core dependencies.
+  first. Merged 2026-11-17 (#216, `4f53b448`; Tasks 1-3 below). The owner's call on keeping or
+  removing `glitchygames-server` is still open: nothing uses it now, and it keeps `fastapi` and
+  `uvicorn` in the engine's core dependencies.
 - **Part 2** (`/sprite`): the color profiles branch (the zombies session's, stacked on
   `feature/zombies-aint-my-neighbors`), "1 branch" with that work. That branch builds the shared
   sprite-text code in both directions (sprite to TOML text, TOML text to sprite: this design's
@@ -336,3 +336,33 @@ must run; `.toml` is the default output; `--extract-frames` takes a `.toml` spri
   measured 347 MB against 18 MB with aisuite then). Not built in this branch either way.
 - [ ] The whole gate (ruff, basedpyright, ty, the full suite), commit, then push and PR on the
   owner's word.
+
+### Part 1: execution record (merged as #216, `4f53b448`)
+
+The executor's ledger, kept as written: its rulings, the final review's fixes and the minors it
+deferred (also in plans/future-work.md, "AI").
+
+- Spec: the same file's design sections (approved 2026-11-17); the plan is its "Part 1 implementation plan" section.
+- Pre-flight: Task 1 produces generate_response, refine_response, extract_frames_response, extract_toml_frames_response (api/sprite_requests.py); Task 2 consumes generate_response, extract_frames_response, extract_toml_frames_response (not refine: the client has no refine) — consistent. Task 3 consumes nothing of code.
+- Task 1: Ruling: the route tests import _extract_png_dimensions, _extract_single_frame, _get_services, _save_sprite_files and patch ALLOWED_OUTPUT_ROOT and _extract_apng_frames on the routes module, so "route tests untouched" cannot hold once those move — only their import lines and patch targets change to the shared module; the two tests calling _save_sprite_files directly expect SpriteRequestRefusedError instead of HTTPException (the endpoint still answers 400, its test untouched) — cost if wrong: route tests edited, reviewable as name-only diffs.
+- Task 1: Ruling: ApngFrameInfo gains animation_index (default 0) and animation_frame_index (default None, the frame's place in its animation) so a .toml sprite's frames say which animation they belong to; an APNG's frames are animation 0, index = its own; file naming unchanged — cost if wrong: two additive response fields.
+- Task 1: Ruling: a static .toml sprite extracts as one frame with delay 0 (it has no timing); an animated one's delays come from frame_interval (the frame's, else its animation's, else 0.5 s, ANIMATION_README) — cost if wrong: a delay value in metadata.
+- Task 1: Ruling: FakeAIClient moves from tests/services/test_sprite_generation_service.py into tests/services/stand_in_ai_client.py, shared by Tasks 1 and 2 (one stand-in, not copies) — cost if wrong: none (the service tests pass unchanged, 30/30).
+- Task 1: complete (commits 2acbc4c..fa21ebe, tests: uv run --locked --all-extras pytest tests/api tests/services tests/test_process_state_guard.py -p no:randomly -n auto --dummy-only -q --no-cov → ============================= 267 passed in 3.89s ==============================)
+- Task 2: Ruling: the client's public extract_apng_frames(server_url, apng_path) becomes extract_frames(path), since it now reads a .toml sprite as well as an APNG — cost if wrong: a renamed function nothing outside the client calls (checked: only API_README).
+- Task 2: Ruling: tests of behaviour the owner approved removing are removed, not rewritten: the trailing-slash URL, HTTP status mapping (503/422/500), JSON that is not an object, and httpx2's transport errors; the exit-code mapping they guarded is now one parametrized test over every error the in-process path raises (AI service, missing, unreadable, undecodable file) — cost if wrong: coverage of removed code only.
+- Task 2: Ruling: test_main_uses_default_output_formats now expects ['toml'] (the owner's "toml default"); generate_sprite validates its request with model_validate, so argparse's strings are checked as the server checks a body — cost if wrong: none (both formats still accepted).
+- Task 2: complete (commits fa21ebe..84d607a, tests: uv run --locked --all-extras pytest tests/api tests/services tests/test_exit_codes.py -p no:randomly -n auto --dummy-only -q --no-cov → ======================== 290 passed, 1 skipped in 4.89s ========================)
+- Task 3: complete (commits 84d607a..e716101, tests: uv run --locked --all-extras pytest tests/test_docs_claims.py tests/test_suite_collection.py -p no:randomly -n auto --dummy-only -q --no-cov → ============================== 56 passed in 4.01s ==============================)
+- Final review: opus, whole branch 80a57547..e7161011 — "With fixes".
+- Final: fixed 1 (+9, +12) a .toml of the wrong shape crashed --extract-frames (INTERNAL_ERROR): _frame_delays_ms, a second parser of sprite TOML beside the loader, is deleted; the renderer's RenderedFrame carries duration_seconds from SpriteFrame.duration and renders a one-frame sprite's frame too — test_a_sprite_file_of_the_wrong_shape_is_unsuccessful, test_a_one_frame_animation_keeps_its_interval RED→GREEN (planted: durations not passed on → 5 fail), suite 266/266 (api+services).
+- Final: Ruling: supersedes Task 1's static-sprite ruling — a still sprite's one frame now reports the loader's default delay (500 ms), since the loader is the only reader of the file — cost if wrong: a metadata value.
+- Final: fixed 2 an out-of-range option exited UNUSABLE_INPUT with a pydantic dump: main reports the request's ValidationError through parser.error, naming the options (option_errors) — test_an_option_out_of_range_is_a_usage_error RED→GREEN (planted: swallowed → 3 fail).
+- Final: fixed 3 (+6) expected failures printed tracebacks: the AI service's own error logs its traceback at debug only (_log_ai_failure; anything else keeps it), the renderer's bad-input catch logs one warning line — no-traceback assertions on focus 1, focus 2 and a non-sprite .toml RED→GREEN (planted: each → 1 fail).
+- Final: fixed 4 --help said the default was toml and png — test_help_says_the_default_format_is_toml RED→GREEN.
+- Final: minor (deferred): 5 the no-HTTP guard patches httpx2.Client, so httpx2.post bypasses it (patch the transport or socket instead).
+- Final: minor (deferred): 7 RendererService is built even for the TOML-only default (one "Pygame initialized" log line).
+- Final: minor (deferred): 8 sprite_requests' ALLOWED_OUTPUT_ROOT = Path.cwd() at import: a deleted current directory kills the client at import (compute it lazily).
+- Final: minor (deferred): 10 test_sprite_requests installs the AI stand-in through generation_service._client, not create_chat_client.
+- Final: minor (deferred): 11 output_format == ['png'] misses -f png -f png (predates the branch; compare as a set).
+- Found (reported to the owner): the sprite loader accepts a non-number frame_interval (sprites/animated.py keeps it as written); extraction now refuses it, a game would fail later.
