@@ -157,3 +157,39 @@ The color profiles plan (decision 6) says the game uses no threads: its Part 3 t
 
 - The command's exact wording in `/help` and the console's lines.
 - Where in `process_events` the check sits, as long as it comes before the raw-event bypass.
+
+## Execution record
+
+The executor's ledger, kept as written: the rulings made while building, the whole-branch review's fixes and the minors it deferred, and the merges of the base.
+
+- Spec: plans/2026-11-16-console-sprite-generation.md on origin/main (read with git show; not in this branch's base), Part 2 and "Settled after the builder check".
+- Pre-flight: T2 consumes T1's SpawnedSprite.from_text(*, text, source_name, center_x, center_y) — consistent. T3 consumes T2's SpriteSpawn, post_sprite_spawn and T1's load_sprite_from_text(sprite_class=...) for the pre-post check — consistent. T4 consumes T2's post_sprite_spawn and the replay test helpers — consistent.
+- Task 1: complete (commits d506293..b832a91, tests: uv run pytest tests/sprites --dummy-only -q --no-cov → ============================= 1078 passed in 7.74s =============================)
+- Task 1: Ruling: the factory's sprite_class is typed with overloads (no keyword: AnimatedSprite; a class: that class) instead of a defaulted type parameter, which ty refuses (invalid-parameter-default) — cost if wrong: none (same calls, same types).
+- Task 1: Ruling: factory.py imports AnimatedSprite at module level (it was type-checking only, with an import inside load_sprite); checked: no import cycle (animated imports nothing that imports the factory) — cost if wrong: an import-order failure the suite would show.
+- Task 2: complete (commits b832a91..60ef5ff, tests: uv run pytest tests/events tests/engine tests/test_engine_doors.py tests/test_process_state_guard.py tests/sprites --dummy-only -q --no-cov → ============================= 2850 passed in 7.97s =============================)
+- Task 2: Ruling: the engine handles a spawn with no active scene by logging one warning and dropping it (the plan named no case) — cost if wrong: a spawn posted before the first scene is lost, which the console cannot do (it refuses with no scene).
+- Task 2: Ruling: SPRITE_SPAWN_EVENT joins the process-state audit as EVENT_TYPE_TABLE, as the engine's other named event ids are — cost if wrong: none.
+- Task 3: complete (commits 60ef5ff..8f1dac4, tests: uv run pytest tests/test_ai_console.py tests/sprites tests/events tests/test_process_state_guard.py tests/test_engine_doors.py --dummy-only -q --no-cov → ============================= 2450 passed in 8.95s =============================)
+- Task 3: Ruling: the text-builds check runs on the main thread just before posting, not on the worker as the plan said (building a sprite makes pygame surfaces, which belong on the main thread); saving follows only once it builds, so an unbuildable sprite is neither posted nor saved — cost if wrong: a millisecond-scale build on the frame that posts.
+- Task 3: Ruling: the console takes sprites_folder (None: the game's package's sprites folder) beside sprite_service, so tests never write into a source package — cost if wrong: one more constructor keyword.
+- Task 3: Ruling: save_sprite imports find_available_path from api/client.py lazily instead of moving it (main's #216 reworked that file; a move would conflict) — cost if wrong: the sprites module reaches into the client module, to tidy when this branch takes main.
+- Task 3: Ruling: the banner drops "read-only" ("AI console. /help lists commands..."), since /sprite changes the game — cost if wrong: none.
+- Task 3: Ruling: unwritable-folder tests put the folder under a regular file instead of chmod 0o500, so they hold on Windows and as root — cost if wrong: none.
+- Task 4: complete (commits 8f1dac4..44dd2ed, tests: uv run pytest tests/engine/test_inner_game.py tests/world/test_gameplay_replay.py tests/events --dummy-only -q --no-cov → ============================ 1607 passed in 13.18s =============================)
+- Task 4: Ruling: fixed a Task 2 defect Task 4's replay test found — the handler read GameEngine._active_scene, which no run ever assigns, so every live spawn was dropped; it now reads scene_manager.active_scene (separate commit, tests corrected to set the scene where a run keeps it) — cost if wrong: none; the defect was real (probe: posted, recorded, never handled).
+- Task 4: Ruling: the stand-in writer's StandInSounds becomes StandInFrameActions (gaining spawn_on_frame) instead of a sixth parameter, which ruff's argument limit refuses — cost if wrong: a rename inside tests/stand_in_games.py only.
+- Task 4: Finding (reported, not fixed): GameEngine.process_events' raw-event bypass reads the same never-assigned _active_scene, so a scene's process_event is never called in a real run; its tests set the field by hand.
+- Final review: opus, whole branch e216633e..ee9c3689 — "merge after fixing Important 1 and 2; item 3 needs honest wording".
+- Final: fixed 1 a non-text model name (name = 5) raised in SpriteSpawn on the main thread — the service returns None for a name that is not non-empty text — test_a_name_that_is_not_text_is_no_name (5 cases), test_a_sprite_whose_name_is_not_text_still_spawns_under_the_description RED→GREEN.
+- Final: fixed 2 a worker exception other than AIProviderError left the request running — caught, the request fails with it — test_an_unexpected_worker_failure_ends_the_sprite_request RED→GREEN.
+- Final: fixed 3 (by wording, re-graded Important) /cancel cannot stop the service's blocking call; it now says the service finishes it and the sprite is dropped — test_cancelling_a_sprite_says_the_generation_runs_on RED→GREEN.
+- Final: added test_a_sprite_named_like_a_path_is_saved_in_the_sprites_folder (Review Focus 1 at console level).
+- Final: minor (deferred): 4 post_sprite_spawn's False return is ignored ("added" printed anyway); only a blocked type returns False, and the spawn type is never blocked.
+- Final: minor (deferred): 5 the build check runs uncapped on the main thread (a huge sprite costs two hitches); consider a pixel or frame cap.
+- Final: minor (deferred): 6 find_available_path then replace can overwrite if two processes save the same name at once; an exclusive create would close it.
+- Final: minor (deferred): 7 tests/stand_in_games.py's sound_constants / sound_lines / live_voice_import now also hold the spawn's lines; rename them.
+- Final: minor (deferred): 8 the file lands in debug_subject's class's package (a scene defined in glitchygames would write into the engine's source package), as the spec says.
+- Final: gate on a7c4d95d — ruff, basedpyright, ty clean; 28631 passed, 100.00% coverage, driver differences 0 (gate-final.log).
+- Merge: Ruling: after merging the base (main's #217 schema now checks text at load), a non-text sprite name fails the request naming the field, instead of spawning under the description; test updated to that contract — cost if wrong: a model's numbered name refuses the sprite rather than renaming it.
+- Merge: gate on bf5f6a8c (base cc6f8761 merged) — ruff, basedpyright, ty clean; 29195 passed, 100.00% coverage, driver differences 0.
