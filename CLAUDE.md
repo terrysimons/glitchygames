@@ -33,9 +33,12 @@ uv python pin 3.15.2   # optional: develop on 3.15 (.python-version is ignored: 
 Two Pythons are supported and tested: 3.14, the oldest (the browser builds' Pyodide runs it, so
 `requires-python`, ruff's and the type checkers' targets stay there), and 3.15, the development
 version. `nox -s test` and the pre-push shuffled run test both, each in its own environment, and
-so does CircleCI on every OS: macOS in one job, Linux and Windows with 3.15 in a job of its own
-(`test-python-3-15-*`), as one Python alone takes them close to CircleCI's one-hour job limit
-(`noxfile.TEST_PYTHONS`, `PYTHON_NEXT_VERSION`).
+so does CircleCI on every OS: macOS in one job; Linux and Windows with 3.15 in a job of its own
+(`test-python-3-15-*`), each job split across two machines (`parallelism: 2`), as one Python
+alone ran past CircleCI's one-hour job limit on Linux (`noxfile.TEST_PYTHONS`,
+`PYTHON_NEXT_VERSION`). A split job's machines each run a share (`GLITCHYGAMES_TEST_SPLIT`,
+`tests/circleci_test_split.py`), and a `coverage-combine-*` job holds their coverage, combined, to
+100%.
 
 The packages are not on PyPI yet: outside the repository, `uv build --all-packages` and install
 from `dist/` (extras: `games`, `apps`, `templates` for cookiecutter).
@@ -67,6 +70,8 @@ Nox (`nox -l` lists all; each session's docstring explains it):
   the regenerated SBOM with any `uv.lock` change; exceptions in `.grype.yaml` and
   `scripts/check_licenses.py` are the owner's)
 - `build`, `build-wheel`, `build-binary` (stamp the commit into `_build_info.json` around the build)
+- `coverage-combine` (a split CI job's machines' coverage data, `coverage-data/` or
+  `-- DIRECTORY`, combined and held to 100%; installs only uv.lock's coverage)
 - `docs-serve` (isolated env; refuses a taken address), `docs-deploy` (CircleCI runs it after
   every merge to main; refused unless HEAD is on origin/main), `code-complexity`
 
@@ -318,6 +323,9 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
   `@pytest.mark.black_frame_expected(reason=...)`). Assert untouched pixels with
   `canvas_color_at(x=..., y=...)`, never as black.
 - Sprite-file checks: call `glitchygames.testing.sprite_files`' `check_*` functions; don't copy them.
+- `GLITCHYGAMES_TEST_SPLIT=circleci` (set by the split CI jobs, never locally: it needs
+  CircleCI's `circleci tests split` and `CIRCLE_NODE_*`) runs one machine's share of the
+  collected test files, with the share's coverage rule off (`tests/circleci_test_split.py`).
 - Coverage is 100% with no configured exclusions; a deliberate defensive line carries
   `# pragma: no cover` with its reason.
 - Run the linters after modifying files.

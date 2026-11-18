@@ -17,6 +17,8 @@ suite needs are declared here; the shared test harness (tests/harness.py) is one
 # or disabled logging (BUGS.md #235, #236)
 # tests.disk_sound_cache gives a test the sound cache's disk layer (the harness turns it off) and
 # fails one that never used it
+# tests.circleci_test_split keeps one CircleCI machine's share of the suite when
+# GLITCHYGAMES_TEST_SPLIT is set (the split CI jobs); unset, it does nothing
 pytest_plugins = [
     'tests.harness',
     'pytester',
@@ -25,4 +27,5 @@ pytest_plugins = [
     'tests.memory_guard',
     'tests.collection_logger_levels',
     'tests.disk_sound_cache',
+    'tests.circleci_test_split',
 ]

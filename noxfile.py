@@ -20,7 +20,7 @@ import nox
 from nox.command import CommandFailed
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Sequence
+    from collections.abc import Generator, Mapping, Sequence
 
 # Use uv as the venv backend so nox sessions get their own isolated venvs
 # managed by uv, without touching the project's .venv.
@@ -774,9 +774,80 @@ def test(session: nox.Session) -> None:
     if log_cli_level is not None:
         args.append(f'--log-cli-level={log_cli_level}')
 
+    # A CircleCI job split across machines (GLITCHYGAMES_TEST_SPLIT, tests/circleci_test_split.py)
+    # runs one machine's share: no share reaches the 100% coverage rule, so it is off here and
+    # applied once to every machine's data combined (coverage-combine); and the JUnit report
+    # names each test's file (xunit1), from which CircleCI learns the timings it splits by
+    args.extend(split_share_pytest_arguments(environment=os.environ))
+
     # Run tests with coverage: pytest-cov (pyproject.toml addopts) prints the terminal report
     # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion.
     session.run('pytest', *args)
+
+
+# A machine's share of a split CI job (tests/circleci_test_split.py): its coverage rule off, its
+# JUnit report naming each test's file
+SPLIT_SHARE_PYTEST_ARGUMENTS = ('--cov-fail-under=0', '-o', 'junit_family=xunit1')
+
+
+def split_share_pytest_arguments(*, environment: Mapping[str, str]) -> list[str]:
+    """Return the test session's extra pytest arguments for a split CI job's share, else none.
+
+    Args:
+        environment: The session's environment (GLITCHYGAMES_TEST_SPLIT set: a split job).
+
+    Returns:
+        ``SPLIT_SHARE_PYTEST_ARGUMENTS`` when the split is on, else an empty list (the plugin
+        refuses any value but ``circleci``, so any value set counts here).
+
+    """
+    if environment.get('GLITCHYGAMES_TEST_SPLIT') is None:
+        return []
+    return list(SPLIT_SHARE_PYTEST_ARGUMENTS)
+
+
+# Where a split CI job's machines leave their coverage data (``.coverage.<name>`` files), and
+# the percentage the combined data must reach (pyproject.toml's addopts: --cov-fail-under=100)
+COVERAGE_DATA_DIRECTORY = Path('coverage-data')
+COVERAGE_REQUIRED_PERCENT = 100
+
+
+def locked_version(*, package: str, lock: str) -> str:
+    """Return a package's version as uv.lock pins it.
+
+    Args:
+        package: The package's name, as uv.lock spells it.
+        lock: uv.lock's text.
+
+    Returns:
+        The version.
+
+    Raises:
+        ValueError: If the lock file pins no such package.
+
+    """
+    for entry in tomllib.loads(lock).get('package', []):
+        if entry.get('name') == package:
+            return entry['version']
+    message = f'uv.lock pins no package named {package!r}'
+    raise ValueError(message)
+
+
+@nox.session(python=['3.14'], reuse_venv=False, name='coverage-combine', default=False)
+def coverage_combine(session: nox.Session) -> None:
+    """Combine a split CI job's coverage data and apply the 100% rule to the whole.
+
+    The data is the machines' ``.coverage.*`` files in ``coverage-data/`` (or the directory
+    given: ``nox -s coverage-combine -- DIRECTORY``). Only coverage is installed, at uv.lock's
+    version; the report reads pyproject.toml's settings and the checkout's source, and writes
+    htmlcov/.
+    """
+    version = locked_version(package='coverage', lock=Path('uv.lock').read_text(encoding='utf-8'))
+    session.install(f'coverage=={version}')
+    directory = session.posargs[0] if session.posargs else str(COVERAGE_DATA_DIRECTORY)
+    session.run('coverage', 'combine', '--keep', directory)
+    session.run('coverage', 'html')
+    session.run('coverage', 'report', f'--fail-under={COVERAGE_REQUIRED_PERCENT}')
 
 
 # pytest-randomly, turned on for a shuffled run (pyproject.toml's addopts block it everywhere
@@ -1213,6 +1284,12 @@ def _linux_ci_job_packages(*, configuration: str) -> list[str]:
     return install['packages'].split()
 
 
+# The Linux job's variables test-linux-ci does not pass to its container: the split
+# (tests/circleci_test_split.py) needs CircleCI's machines, and a local run is one machine that
+# runs the whole suite, under pytest's own 100% coverage rule
+LINUX_CI_SESSION_LEAVES_OUT = frozenset({'GLITCHYGAMES_TEST_SPLIT'})
+
+
 def _linux_ci_job_settings(*, configuration: str) -> tuple[str, str, dict[str, str]]:
     """Return the Linux job's image, resource class and environment.
 
@@ -1444,7 +1521,15 @@ def test_linux_ci(session: nox.Session) -> None:
         apt_packages=_linux_ci_job_packages(configuration=configuration),
         checkout=checkout,
     )
-    environment = {**job_environment, 'CI': 'true', 'CIRCLECI': 'true'}
+    environment = {
+        **{
+            name: value
+            for name, value in job_environment.items()
+            if name not in LINUX_CI_SESSION_LEAVES_OUT
+        },
+        'CI': 'true',
+        'CIRCLECI': 'true',
+    }
     results = _LINUX_CI_RESULTS.resolve()
     shutil.rmtree(results, ignore_errors=True)
     if results.exists():

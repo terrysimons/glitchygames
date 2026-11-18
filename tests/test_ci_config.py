@@ -23,6 +23,11 @@ from tests.ledger_repositories import environment_without_git_variables, git
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CIRCLECI_CONFIG_PATH = PROJECT_ROOT / '.circleci' / 'config.yml'
+# How a job's text names its platform: the Linux image, the Windows executor
+LINUX_IMAGE_MARKER = '      - image: cimg/python:'
+WINDOWS_EXECUTOR_MARKER = 'name: win/default'
+# A job that runs a test session runs one of these commands
+TEST_SESSION_COMMANDS = ('      - nox-test:\n', '      - nox-test-windows:\n')
 LOCK_PATH = PROJECT_ROOT / 'uv.lock'
 
 
@@ -861,8 +866,8 @@ def test_windows_builds_from_source_within_the_path_limit():
     ]
 
     assert f"      UV_CACHE_DIR: '{WINDOWS_SHORT_UV_CACHE}'\n" in windows_job
-    # Every Windows job builds from source on 3.15 or might, so each has the short cache
-    windows_jobs = {name: job for name, job in jobs.items() if 'name: win/default' in job}
+    # Every Windows test job builds from source on 3.15 or might, so each has the short cache
+    windows_jobs = jobs_that_run_tests(platform_marker=WINDOWS_EXECUTOR_MARKER)
     assert set(windows_jobs) == {'build-and-test-windows', 'test-python-3-15-windows'}
     for name, job in windows_jobs.items():
         assert f"      UV_CACHE_DIR: '{WINDOWS_SHORT_UV_CACHE}'\n" in job, name
@@ -899,11 +904,7 @@ def test_every_linux_job_installs_the_linux_jobs_system_packages():
     """The 3.15 Linux job installs exactly what build-and-test-linux does, so they can't drift."""
     import noxfile
 
-    linux_jobs = {
-        name: job
-        for name, job in circleci_job_texts().items()
-        if '      - image: cimg/python:' in job
-    }
+    linux_jobs = jobs_that_run_tests(platform_marker=LINUX_IMAGE_MARKER)
     expected = noxfile._linux_ci_job_packages(
         configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     )
@@ -913,6 +914,102 @@ def test_every_linux_job_installs_the_linux_jobs_system_packages():
         )
         assert install is not None, name
         assert install['packages'].split() == expected, name
+
+
+@pytest.mark.parametrize(
+    ('platform_marker', 'platform', 'save_command', 'combine_job'),
+    [
+        (LINUX_IMAGE_MARKER, 'linux', 'save-coverage-share-posix', 'coverage-combine-linux'),
+        (
+            WINDOWS_EXECUTOR_MARKER,
+            'windows',
+            'save-coverage-share-windows',
+            'coverage-combine-windows',
+        ),
+    ],
+    ids=['linux', 'windows'],
+)
+def test_every_linux_and_windows_test_job_is_split_and_its_coverage_combined(
+    platform_marker, platform, save_command, combine_job
+):
+    """Each runs on two machines, saves each's coverage, and one combine job applies the rule.
+
+    The owner, 2026-11-18 (one Python ran past the one-hour limit on Linux, jobs 3705, 3707):
+    "yes" to two machines a job, and "Do it for windows too". tests/circleci_test_split.py picks
+    each machine's share; the combine job holds the shares together to 100%.
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    workflow = configuration[configuration.index('\nworkflows:\n') :]
+    jobs = jobs_that_run_tests(platform_marker=platform_marker)
+
+    assert set(jobs) == {f'build-and-test-{platform}', f'test-python-3-15-{platform}'}
+    for name, job in jobs.items():
+        session = re.search(r'session: (?P<session>test-[0-9.]+)\n', job)
+        assert session is not None, name
+        share = f'{platform}-{session["session"]}'
+        assert '    parallelism: 2\n' in job, name
+        assert '      GLITCHYGAMES_TEST_SPLIT: "circleci"\n' in job, name
+        assert f'      - {save_command}:\n          share: {share}\n' in job, name
+        # Saved after the tests ran, so the data is the run's
+        assert job.index(f'      - {save_command}:') > job.index('session: test-'), name
+        # One combine job for the share, after this job
+        combine = (
+            f'      - {combine_job}:\n'
+            f'          name: {combine_job}-{session["session"].replace(".", "-")}\n'
+            f'          share: {share}\n'
+            f'          requires:\n'
+            f'            - {name}\n'
+        )
+        assert workflow.count(combine) == 1, name
+        assert workflow.count(f'          share: {share}\n') == 1, name
+
+
+def test_a_split_share_turns_off_the_coverage_rule_and_names_test_files():
+    """Set: its 100% rule off (applied combined) and file names in JUnit (CircleCI's timings)."""
+    import noxfile
+
+    arguments = noxfile.split_share_pytest_arguments(
+        environment={'GLITCHYGAMES_TEST_SPLIT': 'circleci'}
+    )
+
+    assert arguments == ['--cov-fail-under=0', '-o', 'junit_family=xunit1']
+
+
+def test_an_unsplit_run_adds_no_arguments():
+    """Unset (macOS, a local run): pytest's own 100% rule and report stand."""
+    import noxfile
+
+    assert noxfile.split_share_pytest_arguments(environment={}) == []
+
+
+def test_the_combine_session_installs_the_locked_coverage():
+    """coverage-combine installs coverage at uv.lock's version, which the lock does pin."""
+    import noxfile
+
+    lock = (PROJECT_ROOT / 'uv.lock').read_text(encoding='utf-8')
+
+    version = noxfile.locked_version(package='coverage', lock=lock)
+
+    assert re.fullmatch(r'\d+\.\d+(\.\d+)?', version)
+
+
+def test_a_package_the_lock_does_not_pin_is_refused():
+    """A misspelled name is an error, never an unpinned install."""
+    import noxfile
+
+    with pytest.raises(ValueError, match="no package named 'coverge'"):
+        noxfile.locked_version(
+            package='coverge', lock='[[package]]\nname = "coverage"\nversion = "7.0"\n'
+        )
+
+
+def test_the_macos_job_is_not_split_and_holds_its_own_coverage():
+    """The macOS job runs both Pythons whole, under the hour, with pytest's own 100% rule."""
+    job = circleci_job_texts()['build-and-test-macos']
+
+    assert 'parallelism:' not in job
+    assert 'GLITCHYGAMES_TEST_SPLIT' not in job
+    assert 'save-coverage-share' not in job
 
 
 def test_random_order_is_off_unless_asked_for():
@@ -1479,6 +1576,23 @@ def test_the_wheel_build_builds_every_workspace_package(mocker):
     )
 
 
+def jobs_that_run_tests(*, platform_marker: str) -> dict[str, str]:
+    """Return the jobs on one platform that run a test session, each's text by its name.
+
+    A job on the same image that runs no tests (coverage-combine-linux, -windows) is left out:
+    the test jobs' rules (memory limit, system packages, the short uv cache) are about the suite.
+
+    Returns:
+        The jobs' texts by name.
+
+    """
+    return {
+        name: job
+        for name, job in circleci_job_texts().items()
+        if platform_marker in job and any(command in job for command in TEST_SESSION_COMMANDS)
+    }
+
+
 def circleci_job_texts() -> dict[str, str]:
     """Return each CircleCI job's text by its name, from its name line to the next job's.
 
@@ -1636,13 +1750,9 @@ def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():
     jobs have the memory, and the plugin needs Linux's ``/proc/self/statm`` anyway. The Linux
     job's resource class and worker count stay as they were.
     """
-    linux_jobs = {
-        name: job
-        for name, job in circleci_job_texts().items()
-        if '      - image: cimg/python:' in job
-    }
+    linux_jobs = jobs_that_run_tests(platform_marker=LINUX_IMAGE_MARKER)
 
-    # Every job on the Linux image, so a new one can't miss them
+    # Every test job on the Linux image, so a new one can't miss them
     assert set(linux_jobs) == {'build-and-test-linux', 'test-python-3-15-linux'}
     assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"\n' in raspberry_pi_job()
     for name, job in linux_jobs.items():
@@ -1736,6 +1846,8 @@ def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monke
         'CI=true',
         'CIRCLECI=true',
     } <= environment
+    # The job is split across CircleCI's machines; a local run is one machine, the whole suite
+    assert not any(variable.startswith('GLITCHYGAMES_TEST_SPLIT=') for variable in environment)
     script = docker_run[-1]
     uv_version = pipeline_parameter_default(name='UV_VERSION')
     nox_version = pipeline_parameter_default(name='NOX_VERSION')

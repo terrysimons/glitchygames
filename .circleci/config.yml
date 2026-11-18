@@ -204,6 +204,45 @@ commands:
           destination: coverage-html-<< parameters.session >>
           when: always
 
+  # A split job's machine leaves its coverage data for the job that combines them
+  # (tests/circleci_test_split.py): .coverage, renamed by the machine's index, in coverage-data/
+  # under the job's name. Each machine's file is its own, so the workspace never gets one path twice
+  save-coverage-share-posix:
+    parameters:
+      # The job's name in coverage-data/, which its combine job reads
+      share:
+        type: string
+    steps:
+      - run:
+          name: "Keep this machine's coverage data"
+          command: |
+            set -euo pipefail
+            mkdir -p "coverage-data/<< parameters.share >>"
+            mv .coverage "coverage-data/<< parameters.share >>/.coverage.node-${CIRCLE_NODE_INDEX}"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - coverage-data/<< parameters.share >>
+
+  # As save-coverage-share-posix
+  save-coverage-share-windows:
+    parameters:
+      share:
+        type: string
+    steps:
+      - run:
+          name: "Keep this machine's coverage data"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $share = "coverage-data\<< parameters.share >>"
+            New-Item -ItemType Directory -Force -Path $share | Out-Null
+            Move-Item .coverage "$share\.coverage.node-$env:CIRCLE_NODE_INDEX"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - coverage-data/<< parameters.share >>
+
   # syft and grype at their pinned versions, each release tarball checked against its pinned
   # SHA-256 before anything is extracted (macOS, Apple silicon: the checksums are darwin_arm64's)
   install-supply-chain-tools-macos:
@@ -360,12 +399,18 @@ jobs:
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
 
-    # small (1 vCPU, 2 GB): one process runs the whole suite. It grew past 2 GB until the recording
-    # mocks in two timing and hardware tests were replaced (BUGS.md #85)
+    # small (1 vCPU, 2 GB): one process runs the machine's share of the suite. It grew past 2 GB
+    # until the recording mocks in two timing and hardware tests were replaced (BUGS.md #85)
     resource_class: small
+    parallelism: 2
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
+      # Two machines, each running its share of the suite, as CircleCI's splitter assigns them by
+      # past timings (tests/circleci_test_split.py): one ran past CircleCI's one-hour job limit
+      # (jobs 3705, 3707; the owner, 2026-11-18). The coverage rule is applied to the shares
+      # combined, by coverage-combine-<os> after this job
+      GLITCHYGAMES_TEST_SPLIT: "circleci"
       # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
       PYTEST_WORKERS: "0"
       # Stop the run past 1750 MiB of the container's memory (its page cache left out), naming the
@@ -396,6 +441,8 @@ jobs:
       - nox-timer-report
       - nox-test:
           session: test-3.14
+      - save-coverage-share-posix:
+          share: linux-test-3.14
       - nox-build
       - save-uv-cache-posix
 
@@ -441,9 +488,12 @@ jobs:
     executor:
       name: win/default
       size: medium
+    # Split as on Linux (the owner, 2026-11-18: "Do it for windows too")
+    parallelism: 2
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
+      GLITCHYGAMES_TEST_SPLIT: "circleci"
       # uv's cache at a short path, so a source build's paths stay under Windows' 259
       # characters: the cache's path appears twice in them (see install-deps-windows)
       UV_CACHE_DIR: 'C:\uv-cache'
@@ -465,6 +515,8 @@ jobs:
             nox -s timer-report
       - nox-test-windows:
           session: test-3.14
+      - save-coverage-share-windows:
+          share: windows-test-3.14
       - run:
           name: "Build binary and wheel"
           shell: powershell.exe
@@ -487,11 +539,13 @@ jobs:
     docker:
       - image: cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>
     resource_class: small
+    parallelism: 2
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
       PYTEST_WORKERS: "0"
       GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"
+      GLITCHYGAMES_TEST_SPLIT: "circleci"
 
     steps:
       - checkout
@@ -507,14 +561,18 @@ jobs:
       - install-deps-posix
       - nox-test:
           session: test-3.15
+      - save-coverage-share-posix:
+          share: linux-test-3.15
 
   test-python-3-15-windows:
     executor:
       name: win/default
       size: medium
+    parallelism: 2
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
+      GLITCHYGAMES_TEST_SPLIT: "circleci"
       # As build-and-test-windows: the short uv cache, so source builds fit Windows' path limit
       UV_CACHE_DIR: 'C:\uv-cache'
 
@@ -525,6 +583,58 @@ jobs:
       - install-deps-windows
       - nox-test-windows:
           session: test-3.15
+      - save-coverage-share-windows:
+          share: windows-test-3.15
+
+  # A split test job's coverage, its machines' data combined, held to the 100% rule
+  # (nox -s coverage-combine; tests/circleci_test_split.py). Only coverage is installed
+  coverage-combine-linux:
+    parameters:
+      # The split job's name in coverage-data/ (save-coverage-share-posix)
+      share:
+        type: string
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>
+    resource_class: small
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - install-deps-posix
+      - run:
+          name: "Combine the machines' coverage and apply the 100% rule"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s coverage-combine -- "coverage-data/<< parameters.share >>"
+      - store_artifacts:
+          path: htmlcov
+          destination: coverage-html-<< parameters.share >>
+          when: always
+
+  # As coverage-combine-linux, on Windows: the data names Windows paths
+  coverage-combine-windows:
+    parameters:
+      share:
+        type: string
+    executor:
+      name: win/default
+      size: medium
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - install-deps-windows
+      - run:
+          name: "Combine the machines' coverage and apply the 100% rule"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            nox -s coverage-combine -- "coverage-data\<< parameters.share >>"
+      - store_artifacts:
+          path: htmlcov
+          destination: coverage-html-<< parameters.share >>
+          when: always
 
   # The test suite on real ARM hardware: a Raspberry Pi 4 (4 GB, no added cooling) running machine
   # runner 3 (plans/2026-11-04-raspberry-pi-ci-runner.md), set up by
@@ -683,6 +793,27 @@ workflows:
       - build-and-test-windows
       - test-python-3-15-linux
       - test-python-3-15-windows
+      # Each split job's coverage, combined
+      - coverage-combine-linux:
+          name: coverage-combine-linux-test-3-14
+          share: linux-test-3.14
+          requires:
+            - build-and-test-linux
+      - coverage-combine-linux:
+          name: coverage-combine-linux-test-3-15
+          share: linux-test-3.15
+          requires:
+            - test-python-3-15-linux
+      - coverage-combine-windows:
+          name: coverage-combine-windows-test-3-14
+          share: windows-test-3.14
+          requires:
+            - build-and-test-windows
+      - coverage-combine-windows:
+          name: coverage-combine-windows-test-3-15
+          share: windows-test-3.15
+          requires:
+            - test-python-3-15-windows
       # Off: the Pis measure replays when the owner pushes, and take no CI jobs
       # (plans/2026-11-04-raspberry-pi-ci-runner.md; the Pi 5 likewise, the owner, 2026-11-08,
       # the 8 GB Pi 5, 2026-11-14, and the Raspberry Pi OS Pi 5, 2026-11-16). deploy-docs must not
