@@ -1605,7 +1605,7 @@ def test_taplo_leaves_the_worktrees_nested_in_this_checkout_alone():
 
 
 def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():
-    """The Linux job (2 GB, serial) stops a run past 1600 MiB, naming the test (memory_guard.py).
+    """The Linux job (2 GB, serial) stops a run past 1750 MiB, naming the test (memory_guard.py).
 
     So does the Raspberry Pi's (real hardware, 3.7 GB with its desktop). The macOS and Windows
     jobs have the memory, and the plugin needs Linux's ``/proc/self/statm`` anyway. The Linux
@@ -1619,9 +1619,9 @@ def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():
 
     # Every job on the Linux image, so a new one can't miss them
     assert set(linux_jobs) == {'build-and-test-linux'}
-    assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"\n' in raspberry_pi_job()
+    assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"\n' in raspberry_pi_job()
     for name, job in linux_jobs.items():
-        assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"\n' in job, name
+        assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"\n' in job, name
         assert '    resource_class: small\n' in job, name
         assert '      PYTEST_WORKERS: "0"\n' in job, name
 
@@ -1707,7 +1707,7 @@ def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monke
     }
     assert {
         'PYTEST_WORKERS=0',
-        'GLITCHYGAMES_TEST_RSS_LIMIT_MB=1600',
+        'GLITCHYGAMES_TEST_RSS_LIMIT_MB=1750',
         'CI=true',
         'CIRCLECI=true',
     } <= environment
