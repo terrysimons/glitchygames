@@ -42,7 +42,8 @@ from glitchygames.services.config import ServiceConfig
 from glitchygames.sprites.spawned import SpawnedSprite
 from glitchygames.testing.keys import qwerty_scancode
 from tests.ai_service_stand_in import install
-from tests.services.test_sprite_generation_service import VALID_STATIC_TOML, FakeAIClient
+from tests.services.stand_in_ai_client import FakeAIClient
+from tests.services.test_sprite_generation_service import VALID_STATIC_TOML
 from tests.test_ai_link import FakeInnerSources
 
 # Every install here can run its control script, on Windows too (tests/ai_service_stand_in.py)
