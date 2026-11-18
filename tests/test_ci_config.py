@@ -861,6 +861,11 @@ def test_windows_builds_from_source_within_the_path_limit():
     ]
 
     assert f"      UV_CACHE_DIR: '{WINDOWS_SHORT_UV_CACHE}'\n" in windows_job
+    # Every Windows job builds from source on 3.15 or might, so each has the short cache
+    windows_jobs = {name: job for name, job in jobs.items() if 'name: win/default' in job}
+    assert set(windows_jobs) == {'build-and-test-windows', 'test-python-3-15-windows'}
+    for name, job in windows_jobs.items():
+        assert f"      UV_CACHE_DIR: '{WINDOWS_SHORT_UV_CACHE}'\n" in job, name
     assert f'            - {WINDOWS_SHORT_UV_CACHE}\n' in save_windows
     assert UV_DEFAULT_WINDOWS_CACHE not in configuration
     assert install_windows.index('LongPathsEnabled') < install_windows.index('uv python install')
@@ -888,6 +893,26 @@ def test_the_linux_job_installs_what_hidapis_source_build_needs():
 
     assert HIDAPI_SOURCE_BUILD_PACKAGES | {'fontconfig'} <= set(packages)
     assert 'libusb-dev' not in packages
+
+
+def test_every_linux_job_installs_the_linux_jobs_system_packages():
+    """The 3.15 Linux job installs exactly what build-and-test-linux does, so they can't drift."""
+    import noxfile
+
+    linux_jobs = {
+        name: job
+        for name, job in circleci_job_texts().items()
+        if '      - image: cimg/python:' in job
+    }
+    expected = noxfile._linux_ci_job_packages(
+        configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    )
+    for name, job in linux_jobs.items():
+        install = re.search(
+            r'^\s+sudo apt-get install -y (?P<packages>\S.*)$', job, flags=re.MULTILINE
+        )
+        assert install is not None, name
+        assert install['packages'].split() == expected, name
 
 
 def test_random_order_is_off_unless_asked_for():
@@ -1618,7 +1643,7 @@ def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():
     }
 
     # Every job on the Linux image, so a new one can't miss them
-    assert set(linux_jobs) == {'build-and-test-linux'}
+    assert set(linux_jobs) == {'build-and-test-linux', 'test-python-3-15-linux'}
     assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"\n' in raspberry_pi_job()
     for name, job in linux_jobs.items():
         assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"\n' in job, name

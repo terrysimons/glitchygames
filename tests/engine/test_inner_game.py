@@ -43,6 +43,7 @@ from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
 from glitchygames.engine_context import current_context, default_context
 from glitchygames.inner_game import (
+    FLAG_VALUE_COUNTS,
     REFUSED_FLAGS,
     REFUSED_SHORT_FLAG_LETTERS,
     SHORT_FLAGS_TAKING_A_VALUE,
@@ -50,6 +51,8 @@ from glitchygames.inner_game import (
     InnerGameOutcome,
     InnerGameRefusedError,
     InnerGameState,
+    engine_option_actions,
+    inherited_arguments,
     is_refused_argument,
     is_refused_short_flag_cluster,
 )
@@ -1127,6 +1130,23 @@ class TestRefusals:
         assert stand_in.package not in sys.modules
         assert current_context() is default_context()
 
+    @pytest.mark.parametrize('arguments', [('--sound-cache', 'ram'), ('--sound-cache=ram',)])
+    def test_an_engine_flag_that_begins_a_refused_flag_is_itself(
+        self, stand_in: StandInGame, recording: Path, arguments: tuple[str, ...]
+    ):
+        """Argparse takes an exact flag before any abbreviation: --sound-cache is the cache mode.
+
+        It begins --sound-cache-list and the other sound-cache tools' flags, all refused; an
+        abbreviation only they share is still one of them, so it is refused.
+        """
+        inner_game = replay_stand_in(game=stand_in, path=recording, arguments=arguments)
+
+        play_to_the_end(inner_game)
+
+        assert inner_game.outcome.state is InnerGameState.ENDED, inner_game.outcome
+        assert is_refused_argument(argument='--sound-cache-l')
+        assert is_refused_argument(argument='--sound-cache-fi')
+
     def test_a_cluster_whose_value_holds_a_refused_letter_is_the_games(
         self, stand_in: StandInGame, recording: Path
     ):
@@ -1625,6 +1645,9 @@ class TestInnerChannels:
         inner_game = replay_stand_in(game=live_voice_stand_in, path=live_voice_recording)
         for _step in range(LIVE_VOICE_FRAME + 1):
             assert inner_game.step()
+            # The outer game's loop feeds its voice every frame (LiveStream.update); unfed, its
+            # one chunk runs out on a slow runner and channel 0 reads idle (CircleCI job 3655)
+            outer_voice.stream.update()
         partition = inner_partition(inner_game)
         with inner_game.context.active():
             scene = SceneManager().active_scene
@@ -1727,3 +1750,151 @@ def outer_heard_set_start(*, set_number: int) -> int:
 
     """
     return LIVE_POOL + LIBRARY_CHANNELS + set_number * LIBRARY_CHANNELS
+
+
+def build_a_host(*, mocker: MockerFixture, arguments: tuple[str, ...]) -> GoldenTraceEngine:
+    """An outer game's engine, built (never started) from a command line: the current engine.
+
+    Returns:
+        The engine.
+    """
+    host_game = type('OptionsHost', (Scene,), {'NAME': 'OptionsHost'})
+    mocker.patch.object(sys, 'argv', ['options-host', *arguments])
+    return GoldenTraceEngine(game=host_game)
+
+
+def inner_options(inner_game: InnerGame) -> dict[str, object]:
+    """The inner game's engine's options, read in its own context.
+
+    Returns:
+        The options.
+    """
+    engine = inner_game.context.value(slot=CURRENT_ENGINE_SLOT).engine
+    assert engine is not None
+    return engine.options
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestTheOuterGamesOptions:
+    """Rule 1: an inner game is given the outer game's command line, then the host's arguments."""
+
+    def test_an_inner_game_runs_with_the_outer_games_options(
+        self, stand_in: StandInGame, recording: Path, mocker: MockerFixture
+    ):
+        """An Arcade run with --sound-cache none runs its tiles so (no recording overrides it)."""
+        build_a_host(mocker=mocker, arguments=('--sound-cache', 'none', *QUIET))
+
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        options = inner_options(inner_game)
+        play_to_the_end(inner_game)
+
+        assert inner_game.outcome.state is InnerGameState.ENDED, inner_game.outcome
+        assert options['sound_cache'] == 'none'
+
+    def test_the_hosts_own_arguments_win_over_the_outer_games(
+        self, stand_in: StandInGame, recording: Path, mocker: MockerFixture
+    ):
+        """They come last, and argparse keeps the last value given."""
+        build_a_host(mocker=mocker, arguments=('--log-level', 'warning'))
+
+        inner_game = replay_stand_in(game=stand_in, path=recording, arguments=QUIET)
+        options = inner_options(inner_game)
+        play_to_the_end(inner_game)
+
+        assert options['log_level'] == 'error'
+
+    def test_an_outer_game_that_records_itself_still_hosts_its_tiles(
+        self, stand_in: StandInGame, recording: Path, mocker: MockerFixture, tmp_path: Path
+    ):
+        """The outer run's own mode (recording itself) is left out of what its tiles are given.
+
+        So the Arcade can have a golden recording: its tiles replay their own demos, with the
+        rest of its options.
+        """
+        build_a_host(
+            mocker=mocker,
+            arguments=(
+                '--record-trace',
+                str(tmp_path / 'arcade.jsonl.gz'),
+                '--profile',
+                '--sound-cache',
+                'none',
+                *QUIET,
+            ),
+        )
+
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        options = inner_options(inner_game)
+        play_to_the_end(inner_game)
+
+        assert inner_game.outcome.state is InnerGameState.ENDED, inner_game.outcome
+        assert options['sound_cache'] == 'none'
+        assert options['record_trace'] is None
+        assert options['profile'] is False
+
+    def test_the_hosts_own_refused_arguments_are_still_refused(
+        self, stand_in: StandInGame, recording: Path, mocker: MockerFixture
+    ):
+        """Only the outer game's command line is filtered: a host asking for more is refused."""
+        build_a_host(mocker=mocker, arguments=QUIET)
+
+        with pytest.raises(InnerGameRefusedError, match='--profile cannot run inside'):
+            replay_stand_in(game=stand_in, path=recording, arguments=('--profile',))
+
+        assert stand_in.package not in sys.modules
+
+
+@pytest.mark.parametrize(
+    ('command_arguments', 'inherited'),
+    [
+        (('--record-trace', 'arcade.jsonl.gz', '--sound-cache', 'ram'), ('--sound-cache', 'ram')),
+        (('--record-trace=arcade.jsonl.gz', '--sound-cache', 'ram'), ('--sound-cache', 'ram')),
+        (('--record-t', 'arcade.jsonl.gz', *QUIET), QUIET),
+        (('--replay-trace', 'golden.jsonl.gz', '--headless'), ('--headless',)),
+        (('--verify', 'a.jsonl.gz', 'b.jsonl.gz', *QUIET), QUIET),
+        (('--verify', *QUIET), QUIET),
+        (('--audit', '--profile', '--help', '--version', *QUIET), QUIET),
+        (('-p', *QUIET), QUIET),
+        (('-wp', *QUIET), ('-w', *QUIET)),
+        (('-ph',), ()),
+        (('-lp',), ('-lp',)),
+        (('--sound-cache', 'ram'), ('--sound-cache', 'ram')),
+        (('--sound-cache-fill', '--sound-cache', 'ram'), ('--sound-cache', 'ram')),
+    ],
+    ids=[
+        'its value',
+        'an inline value',
+        'an abbreviation and its value',
+        'a replay of the outer game',
+        'any number of values',
+        'no values',
+        'switches',
+        'a short switch',
+        'a cluster keeps its other letters',
+        'a cluster of refused letters',
+        'a value holding a refused letter',
+        'an engine flag beginning refused ones',
+        'a refused flag beginning with an engine one',
+    ],
+)
+def test_the_outer_games_refused_flags_are_left_out_whole(command_arguments, inherited):
+    """Each refused flag goes with its values (argparse's count for it); nothing else goes."""
+    assert inherited_arguments(command_arguments=command_arguments) == inherited
+
+
+def test_every_refused_flag_takes_a_value_count_left_out_correctly():
+    """A refused flag of a new kind (two values, an optional one) would take the wrong count."""
+    actions = engine_option_actions()
+    counts = {flag: actions[flag].nargs for flag in REFUSED_FLAGS if flag in actions}
+
+    assert {flag: count for flag, count in counts.items() if count not in FLAG_VALUE_COUNTS} == {}
+    assert set(counts.values()) == FLAG_VALUE_COUNTS  # each kind is one a flag has
+
+
+def test_the_outer_games_positionals_are_never_passed_on():
+    """After the outer game's bare ``--`` come its own positionals, never options."""
+    assert inherited_arguments(command_arguments=('--sound-cache', 'none', '--', '--audit')) == (
+        '--sound-cache',
+        'none',
+    )
+    assert inherited_arguments(command_arguments=()) == ()

@@ -1,6 +1,8 @@
 """Tests for named waves, mixes, blends, harmonics, wave points and the wave registry."""
 
+import gc
 import math
+import tracemalloc
 
 import numpy as np
 import pytest
@@ -452,3 +454,43 @@ def test_band_limited_peak_covers_only_the_bands_supported_pitches_read():
     ]
     expected = max(float(np.max(np.abs(band))) for band in bands)
     assert wave.band_limited_peak(sample_rate=44100) >= expected
+
+
+def test_measuring_the_band_limited_peak_keeps_no_table_it_only_measured():
+    """The peak reads about eleven band tables; a wave keeps none it was not asked for.
+
+    Each table is WAVE_TABLE_LENGTH samples (16 KiB). Kept, they made the instrument catalog's
+    test keep 85 MiB in the test process, and pushed CircleCI's 2 GB Linux job past its memory
+    limit (2026-11-17). A game reads a few bands per wave: those stay cached.
+    """
+    wave = Wave.mix(saw=1.0)
+    tracemalloc.start()
+    try:
+        before = tracemalloc.get_traced_memory()[0]
+        wave.band_limited_peak(sample_rate=44100)
+        gc.collect()
+        kept = tracemalloc.get_traced_memory()[0] - before
+    finally:
+        tracemalloc.stop()
+
+    one_table = WAVE_TABLE_LENGTH * np.dtype(np.float64).itemsize
+    assert kept < one_table
+
+
+def test_the_band_limited_peak_is_the_loudest_table_whether_or_not_tables_were_read_first():
+    """Measuring first, or reading every band first, gives the same peak."""
+    measured_first = Wave.mix(square=1.0).band_limited_peak(sample_rate=44100)
+    wave = Wave.mix(square=1.0)
+    for frequency in (8.0, 100.0, 1000.0, 12000.0):
+        wave.band_limited_table(highest_frequency=frequency, sample_rate=44100)
+
+    assert wave.band_limited_peak(sample_rate=44100) == measured_first
+
+
+def test_a_band_table_that_was_read_is_kept_and_served_again():
+    """A band a render reads is built once: the same array comes back."""
+    wave = Wave.mix(saw=1.0)
+    wave.band_limited_peak(sample_rate=44100)
+    first = wave.band_limited_table(highest_frequency=440.0, sample_rate=44100)
+
+    assert wave.band_limited_table(highest_frequency=440.0, sample_rate=44100) is first

@@ -12,6 +12,8 @@ from __future__ import annotations
 import ast
 from typing import TYPE_CHECKING
 
+import pytest
+
 from glitchygames.engine_context import declared_context_slots
 from tests.ast_scanning import PROJECT_ROOT, qualified_name
 from tests.test_engine_context import (
@@ -54,6 +56,17 @@ def later():
 class Holder:
     held = performance.performance_manager
 """
+
+
+@pytest.fixture(autouse=True, scope='module')
+def parsed_files_freed_after_this_file() -> Iterator[None]:
+    """Let go of every file ``scanned_file`` parsed when this file's tests are done.
+
+    The syntax trees are about 100 MiB: kept for the rest of a serial run, they pushed CircleCI's
+    2 GB Linux job past its memory limit (2026-11-17). tests/test_read_only_views.py has the twin.
+    """
+    yield
+    scanned_file.cache_clear()
 
 
 def engine_module_views() -> frozenset[str]:

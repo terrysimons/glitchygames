@@ -51,6 +51,22 @@ class GenerationResult:
     raw_response: str | None = None
 
 
+def _log_ai_failure(*, error: Exception) -> None:
+    """Log a failed AI call, which the caller gets as ``AIProviderError``.
+
+    The local AI service answering an error (not running, an unknown model) is expected, and the
+    caller reports it in one line (the client's exit message, the route's 503 with its chained
+    traceback), so its traceback is logged only at debug level. Anything else is a bug here and
+    keeps its traceback.
+    """
+    from glitchygames.ai.local_service import LocalAIServiceError
+
+    if isinstance(error, LocalAIServiceError):
+        LOG.debug('AI API call failed', exc_info=error)
+        return
+    LOG.error('AI API call failed', exc_info=error)
+
+
 class SpriteGenerationService:
     """Service for generating sprites.
 
@@ -257,7 +273,7 @@ class SpriteGenerationService:
             LOG.debug('Raw AI response length: %s chars', len(raw_content or ''))
 
         except Exception as e:
-            LOG.exception('AI API call failed')
+            _log_ai_failure(error=e)
             message = f'AI generation failed: {e}'
             raise AIProviderError(
                 message,
@@ -308,7 +324,7 @@ class SpriteGenerationService:
             LOG.debug('Raw AI response length: %s chars', len(raw_content or ''))
 
         except Exception as e:
-            LOG.exception('AI API call failed')
+            _log_ai_failure(error=e)
             message = f'AI refinement failed: {e}'
             raise AIProviderError(
                 message,

@@ -631,15 +631,15 @@ the code it exits with as `Exiting with OPTIONS_REFUSED (64)`, at INFO (shown wi
 | 1 | `REPLAY_DIVERGED` | A replay's frames differ from the recording |
 | 2 | `ARGUMENT_PARSER_ERROR` | A usage error from argparse; the engine never exits with it itself |
 | 3 | `AUDIT_NONDETERMINISTIC` | `--audit`'s two runs differ from each other or from the recording |
-| 4 | `GENERATION_REJECTED` | The API server rejected the sprite client's generation request |
-| 5 | `EXTRACTION_REJECTED` | The API server rejected the sprite client's frame extraction |
+| 4 | `GENERATION_REJECTED` | The sprite client's generation failed (the AI's answer was not a valid sprite, or nothing could be rendered) |
+| 5 | `EXTRACTION_REJECTED` | The sprite client's frame extraction failed (the file is not an APNG or a sprite) |
 | 6 | `AUDIO_DROPOUT_RISK` | `scripts/audio_glitch_probe.py` found a risk of audio dropouts |
 | 7 | `REBASELINE_INPUT_LOST` | `--rebaseline` wrote NEW, but the run never received some of OLD's input (it ended early, or did not pump a recorded batch) |
 | 8 | `PROCESSING_SLOWER` | A replay matched, but its processing time exceeded the recording's by more than `--max-processing-slowdown` |
 | 64 | `OPTIONS_REFUSED` | The engine refuses the options given (a combination it will not run) |
-| 65 | `UNUSABLE_INPUT` | The recording or input data is unusable (another game's recording, an unsupported format version, a corrupt or unreadable file, a bad server response) |
+| 65 | `UNUSABLE_INPUT` | The recording or input data is unusable (another game's recording, an unsupported format version, a corrupt or unreadable file, a malformed response) |
 | 66 | `MISSING_INPUT` | The input file does not exist |
-| 69 | `SERVICE_UNAVAILABLE` | A required service (the API server) cannot be reached |
+| 69 | `SERVICE_UNAVAILABLE` | A required service (the local AI service) is not installed, cannot be reached, or answered an error |
 | 70 | `INTERNAL_ERROR` | An uncaught exception during a run or its teardown (logged with its traceback, after the teardown), or an audit that could not run |
 | 73 | `CANNOT_WRITE_OUTPUT` | An output file or directory cannot be created or written (a rebaseline's new recording could not be moved into place) |
 | 129 | `HANGUP` | Stopped by SIGHUP (Unix only) |
@@ -859,12 +859,14 @@ Each tool is reachable two ways, with the same name and the same options:
   the game as a child process with the tool's flag. Arguments after a bare `--` go to that game
   unchanged (`glitchygames record-trace paddleslap run.jsonl.gz -- --resolution 640x480`).
   `--project-root DIR` is, for the tools that read the project's settings (`verify`, `measure`,
-  `unmeasured`, `clear-published`, `performance-pages`), the project they work on (default: the
+  `unmeasured`, `clear-published`, `performance-pages`, `sound-cache-fill`), the project they
+  work on (default: the
   nearest directory at or above the current one whose `pyproject.toml` has
   `[tool.glitchygames]`, else the nearest with a `pyproject.toml`, else the current directory);
-  for `record-trace`, `replay-trace`, `record-golden-trace` and `record-session`, the directory
-  the game runs in (default: the current directory); `report`, `sound-render` and
-  `sound-migrate` read only what they are given.
+  for `record-trace`, `replay-trace`, `record-golden-trace`, `record-session` and the other
+  `sound-cache-*` tools, the directory the game runs in (default: the current directory);
+  `report`, `sound-render`, `sound-migrate`, `listening-instruments` and `listening-pipes` read
+  only what they are given.
 
 Both front ends are generated from one table, `TOOLS` in
 `src/glitchygames/replay/tools/registry.py`, which is the reference for every flag, option,
@@ -888,6 +890,13 @@ own git repository.
 | `performance-pages` | no | `--performance-pages DIRECTORY [--published]` | `glitchygames performance-pages DIRECTORY [--published]` |
 | `sound-render` | no | `--sound-render SOURCE --sound-output PATH [--sample-format int16\|float32]` (SOURCE: `sounds/pickups.toml#coin` or a WAV file; offline, no audio device) | `glitchygames sound-render SOURCE` with the same options |
 | `sound-migrate` | no | `--sound-migrate FILE [--migrated-output PATH]` (a version 0 recipe file to version 1, default `<stem>.v1.toml` beside it, never over FILE) | `glitchygames sound-migrate FILE [--migrated-output PATH]` |
+| `sound-cache-list` | no | `--sound-cache-list` (the game's own sound cache folders) | `glitchygames sound-cache-list [--game GAME ...]` (default: the whole cache root) |
+| `sound-cache-size` | no | `--sound-cache-size` | `glitchygames sound-cache-size [--game GAME ...]` (default: the whole cache root) |
+| `sound-cache-verify` | no | `--sound-cache-verify` (exit 65 for a damaged file) | `glitchygames sound-cache-verify [--game GAME ...]` (default: the whole cache root) |
+| `sound-cache-clear` | no | `--sound-cache-clear [--stale-only]` (`--listening` is refused: those files are no game's) | `glitchygames sound-cache-clear [--stale-only] [--listening] [--game GAME ...]` (default: the whole cache root; `--listening`: the listening WAVs instead of the games' sounds, never with `--game`) |
+| `sound-cache-fill` | no | `--sound-cache-fill` (the game's declared sounds and the CRT power-on's) | `glitchygames sound-cache-fill [--game GAME ...]` (default: `[tool.glitchygames] games`) |
+| `listening-instruments` | no | `--listening-instruments [--family FAMILY] [--only TEXT]` (the same files as the command: they are no game's) | `glitchygames listening-instruments [--family FAMILY] [--only TEXT]` (each catalog instrument across its range, into the listening folder; prints each file's path) |
+| `listening-pipes` | no | `--listening-pipes [--only TEXT]` | `glitchygames listening-pipes [--only TEXT]` (the pipe demos and tunes, into the listening folder; prints each file's path) |
 
 - An option several tools list is one flag on the game: `--random-seed` (every tool that runs
   the game) and `--headless` (the four that record or replay). `--random-seed` is never needed:

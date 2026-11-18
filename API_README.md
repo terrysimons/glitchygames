@@ -7,7 +7,7 @@ REST API and CLI client for generating pixel art sprites using the local AI serv
 The API consists of two components:
 
 - **`glitchygames-server`** -- A FastAPI server that accepts sprite generation requests, calls the local AI service to produce TOML sprite definitions, and optionally renders them to PNG.
-- **`glitchygames-client`** -- A CLI client that talks to the server, saves output files locally, and displays colorized ASCII previews in the terminal.
+- **`glitchygames-client`** -- A CLI client that generates sprites in its own process (no server to start: it calls the same code the server's routes call, `glitchygames.api.sprite_requests`, and talks to the local AI service itself), saves output files locally, and displays colorized ASCII previews in the terminal.
 
 ## Setup
 
@@ -243,19 +243,23 @@ Each `ApngFrameInfo` contains:
 | `height` | int | Frame height (pixels) |
 | `x_offset` | int | X offset within canvas |
 | `y_offset` | int | Y offset within canvas |
+| `animation_index` | int | The animation the frame belongs to (an APNG has one: `0`) |
+| `animation_frame_index` | int | The frame's place in its animation (an APNG's: its `index`) |
 
 ## Client CLI
 
 ### Basic Usage
 
+The client needs only the local AI service (127.0.0.1:23231, installed as above); no `glitchygames-server` runs. It writes `.toml`, the engine's sprite format, by default.
+
 ```bash
 # Generate a static sprite (prints TOML to stdout)
 uv run glitchygames-client "16x16 red heart"
 
-# Generate and save to a directory
+# Generate and save to a directory (the .toml)
 uv run glitchygames-client "16x16 red heart" -o ./sprites
 
-# Generate with specific output formats
+# The image too
 uv run glitchygames-client "16x16 red heart" -f toml -f png -o ./sprites
 ```
 
@@ -269,9 +273,8 @@ Positional Arguments:
                             (optional when using --extract-frames)
 
 Options:
-  --server-url URL          Server URL (default: http://localhost:8000)
   -f, --output-format FMT   Output format: "toml" or "png" (repeatable,
-                            default: both)
+                            default: toml)
   -o, --output-path DIR     Directory to save output files
   --width N                 Sprite width in pixels (1-64)
   --height N                Sprite height in pixels (1-64)
@@ -284,9 +287,9 @@ Options:
   --animation-language-model MODEL
                             AI model override: a role or an exact size
                             (e.g., "bonsai-2-9b")
-  --extract-frames APNG_PATH
-                            Extract frames from an APNG file instead
-                            of generating a sprite
+  --extract-frames FILE     Extract the frames of an APNG or a .toml
+                            sprite (as PNGs) instead of generating a
+                            sprite
   -v, --verbose             Enable verbose output
   -q, --quiet               Suppress output except errors
 ```
@@ -318,16 +321,17 @@ uv run glitchygames-client "16x16 character" \
 
 ```bash
 uv run glitchygames-client "16x16 treasure chest" \
-  --animation-language-model "openai:gpt-4o" -o ./sprites
+  --animation-language-model bonsai-2-9b -o ./sprites
 ```
 
-**Extract frames from an existing APNG:**
+**Extract frames from an existing APNG or `.toml` sprite:**
 
 ```bash
 uv run glitchygames-client --extract-frames sprite.apng -o ./extracted
+uv run glitchygames-client --extract-frames dragon.toml -o ./extracted
 ```
 
-This writes `<apng name>_frame_000.png`, `_frame_001.png`, ... into `./extracted` at their original size (`--extract-scale` does not apply). Without `-o` it prints the response as JSON (frame data abbreviated unless `-v`).
+This writes `<file name>_frame_000.png`, `_frame_001.png`, ... into `./extracted` at their original size (`--extract-scale` does not apply). A `.toml` sprite's frames are numbered across its animations, each with its delay from the sprite's `frame_interval` (a static sprite is one frame). Without `-o` it prints the response as JSON (frame data abbreviated unless `-v`). Writing the frames as `.toml` instead is planned (plans/2026-11-16-console-sprite-generation.md).
 
 **Lower extract scale for smaller files:**
 
@@ -342,11 +346,11 @@ When the response includes TOML content, the client automatically displays a col
 
 ### Exit Codes
 
-The client exits with an `ExitCode` (`src/glitchygames/exit_codes.py`; the module docstring of `src/glitchygames/api/client.py` lists them): `SUCCESS` (0), `GENERATION_REJECTED` (4) / `EXTRACTION_REJECTED` (5) when the server refuses the request, `SERVICE_UNAVAILABLE` (69) when it cannot be reached or answers 503, `OPTIONS_REFUSED` (64) for an unusable `--server-url`, `MISSING_INPUT` (66) / `UNUSABLE_INPUT` (65) for a missing or unreadable APNG or a malformed response, `CANNOT_WRITE_OUTPUT` (73), `INTERNAL_ERROR` (70) for a client bug, and argparse's `ARGUMENT_PARSER_ERROR` (2) for a usage error.
+The client exits with an `ExitCode` (`src/glitchygames/exit_codes.py`; the module docstring of `src/glitchygames/api/client.py` lists them): `SUCCESS` (0), `GENERATION_REJECTED` (4) / `EXTRACTION_REJECTED` (5) when the generation or extraction fails (the AI's answer is not a valid sprite, nothing could be rendered, the file is not an APNG or a sprite), `SERVICE_UNAVAILABLE` (69) when the local AI service is not installed, cannot be reached or answers an error (its address and message are logged), `MISSING_INPUT` (66) / `UNUSABLE_INPUT` (65) for a missing or unreadable file or a malformed response, `CANNOT_WRITE_OUTPUT` (73), `INTERNAL_ERROR` (70) for a client bug, and argparse's `ARGUMENT_PARSER_ERROR` (2) for a usage error.
 
 ## Output Directory Structure
 
-When saving with `-o`, the client creates a numbered directory per sprite to avoid overwrites. The server is never asked to save (`output_path` is not sent):
+When saving with `-o`, the client creates a numbered directory per sprite to avoid overwrites (the request never saves: `output_path` is not set):
 
 ```
 sprites/

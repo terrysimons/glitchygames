@@ -735,6 +735,11 @@ CATALOG_BUILD = (
     'R16: an instrument build (functools.partial of a module function with constant '
     'arguments), immutable though the rules cannot prove it.'
 )
+LISTENING_INSTRUMENT = (
+    'R16: a listening instrument (audio/listening/pipes.py), an Instrument built at import from '
+    'constants: immutable and hashable by content (audio/instrument.py), though the rules cannot '
+    'prove a call returns one.'
+)
 CATALOG_SERIES = (
     'R16: a harmonic series, a tuple of floats computed at import from constants; the rules '
     'cannot prove a function returns a tuple.'
@@ -771,7 +776,10 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
     },
     'api/main.py': {'app': API_SERVER},
     'api/routes/health.py': {'router': API_SERVER},
-    'api/routes/sprites.py': {'router': API_SERVER, 'ALLOWED_OUTPUT_ROOT': API_SERVER},
+    'api/routes/sprites.py': {'router': API_SERVER},
+    # The save root moved here from the routes (the client calls this module too, but never
+    # saves through it: it sends no output_path), computed once at import and never written
+    'api/sprite_requests.py': {'ALLOWED_OUTPUT_ROOT': API_SERVER},
     'audio/assets.py': {
         '_CACHE': (
             'R17: loaded sound files (frozen SoundFile) by path, reloaded when the file changes; '
@@ -796,6 +804,13 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         'VIOL': CATALOG_BUILD,
         'FOLK_FIDDLE': CATALOG_BUILD,
         'SPIKE_FIDDLE': CATALOG_BUILD,
+    },
+    'audio/listening/pipes.py': {
+        'highland_chanter': LISTENING_INSTRUMENT,
+        'highland_drones': LISTENING_INSTRUMENT,
+        'uilleann_chanter': LISTENING_INSTRUMENT,
+        'uilleann_drones': LISTENING_INSTRUMENT,
+        'uilleann_regulators': LISTENING_INSTRUMENT,
     },
     'audio/instruments/brass.py': {
         'HARMON_LEVELS': CATALOG_SERIES,

@@ -52,6 +52,7 @@ from .pixel_utils import (
 )
 from .root_sprite import RootSprite
 from .sprite_toml import write_sprite_toml
+from .sprite_file_schema import validate_sprite_file
 from .tags import TAGS_KEY, normalize_sprite_tags
 
 if TYPE_CHECKING:
@@ -1320,6 +1321,9 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             raise FileNotFoundError(ERR_SPRITE_FILE_NOT_FOUND.format(filename)) from e
         except UnicodeDecodeError as e:
             raise ValueError(ERR_TOML_LOAD_FAILED.format(filename, e)) from e
+        # Every value checked once, here, so a bad one fails at load, naming the file and field
+        # (sprite_file_schema.py), never later in update
+        validate_sprite_file(data=data, source_name=filename)
 
         self.load_text(text=text, source_name=filename)
 
