@@ -47,11 +47,11 @@ class SpriteColorLimitError(ValueError):
         self.limit = limit
 
 
-@overload
+@overload  # pragma: no cover - a typing stub, never called (the implementation below is)
 def sprite_from_text(*, text: str, source_name: str) -> AnimatedSprite: ...
 
 
-@overload
+@overload  # pragma: no cover - a typing stub, never called (the implementation below is)
 def sprite_from_text[SpriteType: AnimatedSprite](
     *, text: str, source_name: str, sprite_class: type[SpriteType]
 ) -> SpriteType: ...

@@ -52,11 +52,11 @@ class SpriteFactory:
         # Always return AnimatedSprite - it handles both static and animated content
         return AnimatedSprite(filename, groups=None)
 
-    @overload
+    @overload  # pragma: no cover - a typing stub, never called (the implementation below is)
     @staticmethod
     def load_sprite_from_text(*, text: str, source_name: str) -> AnimatedSprite: ...
 
-    @overload
+    @overload  # pragma: no cover - a typing stub, never called (the implementation below is)
     @staticmethod
     def load_sprite_from_text[SpriteType: AnimatedSprite](
         *, text: str, source_name: str, sprite_class: type[SpriteType]
