@@ -2008,8 +2008,11 @@ def test_a_game_with_no_folder_says_the_sprite_was_not_saved(tmp_path):
     assert [spawn.sprite_name for spawn in posted_spawns()] == ['heart']
 
 
-def test_a_sprite_whose_name_is_not_text_still_spawns_under_the_description(tmp_path, scene):
-    """A model naming the sprite with a number neither crashes the frame nor sticks the console."""
+def test_a_sprite_whose_name_is_not_text_fails_naming_the_field(tmp_path, scene):
+    """A number for a name fails the request, naming the field; the frame and console go on.
+
+    The sprite schema refuses it at load (sprites/sprite_file_schema.py).
+    """
     console = sprite_console(
         tmp_path=tmp_path,
         scene=scene,
@@ -2017,9 +2020,11 @@ def test_a_sprite_whose_name_is_not_text_still_spawns_under_the_description(tmp_
     )
 
     enter(console, '/sprite a red heart')
-    wait_for(console, 'a_red_heart.toml')
+    shown = wait_for(console, '#1 failed')
 
-    assert [spawn.sprite_name for spawn in posted_spawns()] == ['a red heart']
+    assert 'sprite.name' in shown
+    assert posted_spawns() == []
+    assert not (tmp_path / 'sprites').exists()
     assert console.running is None
 
 
