@@ -1645,6 +1645,9 @@ class TestInnerChannels:
         inner_game = replay_stand_in(game=live_voice_stand_in, path=live_voice_recording)
         for _step in range(LIVE_VOICE_FRAME + 1):
             assert inner_game.step()
+            # The outer game's loop feeds its voice every frame (LiveStream.update); unfed, its
+            # one chunk runs out on a slow runner and channel 0 reads idle (CircleCI job 3655)
+            outer_voice.stream.update()
         partition = inner_partition(inner_game)
         with inner_game.context.active():
             scene = SceneManager().active_scene

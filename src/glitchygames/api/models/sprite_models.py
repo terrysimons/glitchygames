@@ -263,7 +263,7 @@ class SpriteGenerationResponse(BaseModel):
 
 
 class ApngFrameInfo(BaseModel):
-    """Information about a single frame in an APNG.
+    """Information about a single frame in an APNG, or a ``.toml`` sprite's frame.
 
     Attributes:
         index: Frame index (0-based)
@@ -273,6 +273,8 @@ class ApngFrameInfo(BaseModel):
         height: Frame height in pixels
         x_offset: X offset of frame within canvas
         y_offset: Y offset of frame within canvas
+        animation_index: The animation the frame belongs to (an APNG has one: 0)
+        animation_frame_index: The frame's place in its animation (an APNG's: its index)
 
     """
 
@@ -303,6 +305,14 @@ class ApngFrameInfo(BaseModel):
     y_offset: int = Field(
         default=0,
         description='Y offset of frame within canvas',
+    )
+    animation_index: int = Field(
+        default=0,
+        description='The animation the frame belongs to (an APNG has one: 0)',
+    )
+    animation_frame_index: int | None = Field(
+        default=None,
+        description="The frame's place in its animation (an APNG's: its index)",
     )
 
 

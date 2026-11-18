@@ -6,9 +6,9 @@ import binascii
 import logging
 from pathlib import Path
 
-import httpx2
 import pytest
 
+from glitchygames.api import sprite_requests
 from glitchygames.api.client import (
     _handle_extract_frames,
     _handle_generate_sprite,
@@ -18,7 +18,7 @@ from glitchygames.api.client import (
     create_apng_from_frames,
     create_parser,
     display_sprite_ascii,
-    extract_apng_frames,
+    extract_frames,
     find_available_directory,
     find_available_path,
     generate_sprite,
@@ -26,11 +26,8 @@ from glitchygames.api.client import (
     save_files_locally,
 )
 from glitchygames.exit_codes import ExitCode
-
-# HTTP statuses the client tells apart: the server is overloaded or down for maintenance (503),
-# or it refused what was asked (422)
-HTTP_SERVICE_UNAVAILABLE = 503
-HTTP_UNPROCESSABLE_CONTENT = 422
+from glitchygames.services import AIProviderError
+from tests.services.stand_in_ai_client import FakeAIClient
 
 
 class TestCreateParser:
@@ -51,7 +48,6 @@ class TestCreateParser:
         """Test parser default values."""
         parser = create_parser()
         parsed_args = parser.parse_args(['test prompt'])
-        assert parsed_args.server_url == 'http://localhost:8000'
         assert parsed_args.output_formats is None
         assert parsed_args.output_path is None
         assert parsed_args.width is None
@@ -70,8 +66,6 @@ class TestCreateParser:
         parser = create_parser()
         parsed_args = parser.parse_args([
             'test',
-            '--server-url',
-            'http://example.com:9000',
             '--output-format',
             'toml',
             '--output-format',
@@ -96,7 +90,6 @@ class TestCreateParser:
             'anthropic:claude-sonnet-4-5',
             '--verbose',
         ])
-        assert parsed_args.server_url == 'http://example.com:9000'
         assert parsed_args.output_formats == ['toml', 'png']
         assert parsed_args.output_path == output_path
         assert parsed_args.width == 32
@@ -133,132 +126,71 @@ class TestCreateParser:
 
 
 class TestGenerateSprite:
-    """Tests for the generate_sprite function."""
+    """Tests for the generate_sprite function: the sprite request, in this process."""
 
-    def test_generate_sprite_basic(self, mocker):
-        """Test basic sprite generation via API."""
-        mock_response = mocker.Mock()
-        mock_response.json.return_value = {
-            'success': True,
-            'sprite_name': 'test_sprite',
-        }
-        mock_response.raise_for_status.return_value = None
+    def test_generate_sprite_basic(self, ai_answering):
+        """The AI's sprite comes back as the response's fields."""
+        ai_answering(A_STATIC_SPRITE)
 
-        mock_client_instance = mocker.Mock()
-        mock_client_instance.post.return_value = mock_response
-        mock_client_instance.__enter__ = mocker.Mock(return_value=mock_client_instance)
-        mock_client_instance.__exit__ = mocker.Mock(return_value=False)
-
-        mocker.patch('glitchygames.api.client.httpx2.Client', return_value=mock_client_instance)
-
-        result = generate_sprite(
-            server_url='http://localhost:8000',
-            prompt='a red heart',
-            output_formats=['toml'],
-        )
+        result = generate_sprite(prompt='a red heart', output_formats=['toml'])
 
         assert result['success'] is True
-        assert result['sprite_name'] == 'test_sprite'
-        mock_client_instance.post.assert_called_once()
+        assert result['sprite_name'] == 'heart'
+        assert 'name = "heart"' in result['toml_content']
 
-    def test_generate_sprite_with_optional_params(self, mocker, tmp_path):
-        """Test sprite generation with all optional parameters."""
-        mock_response = mocker.Mock()
-        mock_response.json.return_value = {'success': True}
-        mock_response.raise_for_status.return_value = None
+    def test_generate_sprite_with_optional_params(self, ai_answering, mocker):
+        """Every option reaches the request the sprite requests are given."""
+        ai_answering(A_STATIC_SPRITE)
+        generate_response = mocker.spy(sprite_requests, 'generate_response')
 
-        mock_client_instance = mocker.Mock()
-        mock_client_instance.post.return_value = mock_response
-        mock_client_instance.__enter__ = mocker.Mock(return_value=mock_client_instance)
-        mock_client_instance.__exit__ = mocker.Mock(return_value=False)
-
-        mocker.patch('glitchygames.api.client.httpx2.Client', return_value=mock_client_instance)
-
-        output_path = str(tmp_path / 'output')
         generate_sprite(
-            server_url='http://localhost:8000/',
             prompt='test',
             output_formats=['toml', 'png'],
-            output_path=output_path,
             width=16,
             height=16,
             frame_count=4,
             film_strip_count=2,
             animation_duration=2.0,
             png_scale=2,
-            model='anthropic:claude-sonnet-4-5',
+            model='bonsai-2-9b',
         )
 
-        call_args = mock_client_instance.post.call_args
-        payload = call_args.kwargs.get('json') or call_args[1].get('json')
-        assert payload['prompt'] == 'test'
-        assert payload['width'] == 16
-        assert payload['height'] == 16
-        assert payload['frame_count'] == 4
-        assert payload['film_strip_count'] == 2
-        assert payload['animation_duration'] == pytest.approx(2.0)
-        assert payload['model'] == 'anthropic:claude-sonnet-4-5'
-        assert payload['output_path'] == output_path
-
-    def test_generate_sprite_url_trailing_slash(self, mocker):
-        """Test that trailing slashes in server URL are handled."""
-        mock_response = mocker.Mock()
-        mock_response.json.return_value = {'success': True}
-        mock_response.raise_for_status.return_value = None
-
-        mock_client_instance = mocker.Mock()
-        mock_client_instance.post.return_value = mock_response
-        mock_client_instance.__enter__ = mocker.Mock(return_value=mock_client_instance)
-        mock_client_instance.__exit__ = mocker.Mock(return_value=False)
-
-        mocker.patch('glitchygames.api.client.httpx2.Client', return_value=mock_client_instance)
-
-        generate_sprite(
-            server_url='http://localhost:8000/',
-            prompt='test',
-            output_formats=['toml'],
-        )
-
-        call_args = mock_client_instance.post.call_args
-        url = call_args.args[0] if call_args.args else call_args[0][0]
-        assert url == 'http://localhost:8000/sprites/generate'
+        request = generate_response.call_args.args[0]
+        assert request.prompt == 'test'
+        assert request.output_format == ['toml', 'png']
+        assert (request.width, request.height) == (16, 16)
+        assert (request.frame_count, request.film_strip_count) == (4, 2)
+        assert request.animation_duration == pytest.approx(2.0)
+        assert request.png_scale == 2
+        assert request.model == 'bonsai-2-9b'
+        assert request.output_path is None  # files are saved by the client, never the request
 
 
-class TestExtractApngFrames:
-    """Tests for the extract_apng_frames function."""
+class TestExtractFrames:
+    """Tests for the extract_frames function: an APNG or a .toml sprite, in this process."""
 
-    def test_extract_apng_frames(self, mocker, tmp_path):
-        """Test extracting frames from an APNG file."""
-        # Create a dummy APNG file
-        apng_file = tmp_path / 'test.apng'
-        apng_file.write_bytes(b'\x89PNG\r\n\x1a\n')
+    def test_extract_frames_of_a_png(self, tmp_path):
+        """A plain PNG is an APNG of one frame."""
+        from PIL import Image
 
-        mock_response = mocker.Mock()
-        mock_response.json.return_value = {
-            'success': True,
-            'frame_count': 3,
-        }
-        mock_response.raise_for_status.return_value = None
+        image_path = tmp_path / 'dot.png'
+        Image.new('RGBA', (3, 2), (255, 0, 0, 255)).save(image_path)
 
-        mock_client_instance = mocker.Mock()
-        mock_client_instance.post.return_value = mock_response
-        mock_client_instance.__enter__ = mocker.Mock(return_value=mock_client_instance)
-        mock_client_instance.__exit__ = mocker.Mock(return_value=False)
-
-        mocker.patch('glitchygames.api.client.httpx2.Client', return_value=mock_client_instance)
-
-        result = extract_apng_frames(
-            server_url='http://localhost:8000',
-            apng_path=str(apng_file),
-        )
+        result = extract_frames(str(image_path))
 
         assert result['success'] is True
-        assert result['frame_count'] == 3
+        assert result['frame_count'] == 1
+        assert (result['width'], result['height']) == (3, 2)
 
-        # Verify the payload had base64-encoded data
-        call_args = mock_client_instance.post.call_args
-        payload = call_args.kwargs.get('json') or call_args[1].get('json')
-        assert 'apng_base64' in payload
+    def test_extract_frames_of_a_toml_sprite(self, tmp_path):
+        """A .toml file is read as a sprite, its frames rendered."""
+        sprite = tmp_path / 'blink.toml'
+        sprite.write_text(A_TWO_FRAME_SPRITE, encoding='utf-8')
+
+        result = extract_frames(str(sprite))
+
+        assert result['success'] is True
+        assert [frame['delay_ms'] for frame in result['frames']] == [250, 250]
 
 
 class TestFindAvailablePath:
@@ -524,131 +456,36 @@ class TestMainCli:
         assert 'prompt is required unless using --extract-frames' in capsys.readouterr().err
 
     @pytest.mark.parametrize(
-        'transport_error',
-        ['connect timeout', 'read timeout'],
-    )
-    def test_main_server_that_cannot_be_reached_is_unavailable(self, mocker, transport_error):
-        """Any failure to reach the server or hear back from it exits as unavailable."""
-        import httpx2
-
-        error = (
-            httpx2.ConnectTimeout('timed out connecting')
-            if transport_error == 'connect timeout'
-            else httpx2.ReadTimeout('timed out reading')
-        )
-        mocker.patch('glitchygames.api.client.generate_sprite', side_effect=error)
-
-        assert main(['test prompt']) == ExitCode.SERVICE_UNAVAILABLE
-
-    def test_main_unparseable_server_response_is_unusable_input(self, mocker):
-        """A response body that is not JSON (response.json() raises ValueError) is unusable."""
-        import json
-
-        mocker.patch(
-            'glitchygames.api.client.generate_sprite',
-            side_effect=json.JSONDecodeError('Expecting value', 'not json', 0),
-        )
-
-        assert main(['test prompt']) == ExitCode.UNUSABLE_INPUT
-
-    @pytest.mark.parametrize(
         ('request_error_factory', 'expected_exit_code'),
         [
-            (lambda: httpx2.InvalidURL('bad url'), ExitCode.OPTIONS_REFUSED),
-            (lambda: httpx2.UnsupportedProtocol('ftp is not http'), ExitCode.OPTIONS_REFUSED),
-            (lambda: httpx2.TooManyRedirects('loop'), ExitCode.UNUSABLE_INPUT),
-            (lambda: httpx2.DecodingError('bad gzip'), ExitCode.UNUSABLE_INPUT),
+            (lambda: AIProviderError('down', provider='local'), ExitCode.SERVICE_UNAVAILABLE),
+            (lambda: FileNotFoundError(2, 'No such file', 'x.png'), ExitCode.MISSING_INPUT),
+            (lambda: PermissionError(13, 'Permission denied'), ExitCode.UNUSABLE_INPUT),
+            (
+                lambda: UnicodeDecodeError('utf-8', b'\xff', 0, 1, 'invalid start byte'),
+                ExitCode.UNUSABLE_INPUT,
+            ),
         ],
-        ids=['invalid url', 'unsupported scheme', 'redirect loop', 'undecodable body'],
+        ids=['ai service', 'missing file', 'unreadable file', 'undecodable file'],
     )
     def test_main_request_errors_never_escape(
         self, mocker, request_error_factory, expected_exit_code
     ):
-        """Every httpx2 error maps to a named code (nothing escapes as Python's 1)."""
+        """Every error a request can raise maps to a named code (nothing escapes as Python's 1)."""
         mocker.patch('glitchygames.api.client.generate_sprite', side_effect=request_error_factory())
 
         assert main(['test prompt']) == expected_exit_code
 
-    @pytest.mark.parametrize(
-        ('status_code', 'expected_exit_code'),
-        [
-            (HTTP_SERVICE_UNAVAILABLE, ExitCode.SERVICE_UNAVAILABLE),
-            (HTTP_UNPROCESSABLE_CONTENT, ExitCode.GENERATION_REJECTED),
-        ],
-        ids=['503', '422'],
-    )
-    def test_main_http_status_maps_by_meaning(self, mocker, status_code, expected_exit_code):
-        mock_response = mocker.Mock(status_code=status_code, text='busy')
-        mocker.patch(
-            'glitchygames.api.client.generate_sprite',
-            side_effect=httpx2.HTTPStatusError(
-                'status', request=mocker.Mock(), response=mock_response
-            ),
-        )
+    def test_main_a_toml_that_is_not_text_is_unusable_input(self, tmp_path):
+        """A .toml whose bytes are not UTF-8 cannot be read as a sprite."""
+        not_text = tmp_path / 'binary.toml'
+        not_text.write_bytes(b'\xff\xfe\x00 not text')
 
-        assert main(['test prompt']) == expected_exit_code
-
-    @pytest.mark.parametrize(
-        'response_json', [['not', 'an', 'object'], 'just a string'], ids=['list', 'string']
-    )
-    @pytest.mark.parametrize('request_kind', ['generation', 'extraction'])
-    def test_main_response_that_is_not_a_json_object_is_unusable_input(
-        self, mocker, tmp_path, response_json, request_kind
-    ):
-        """A 2xx answer whose JSON is not an object is a malformed response, not a client bug."""
-        http_response = mocker.Mock()
-        http_response.json.return_value = response_json
-        http_response.raise_for_status.return_value = None
-        http_client = mocker.Mock()
-        http_client.post.return_value = http_response
-        http_client.__enter__ = mocker.Mock(return_value=http_client)
-        http_client.__exit__ = mocker.Mock(return_value=False)
-        mocker.patch('glitchygames.api.client.httpx2.Client', return_value=http_client)
-        apng_file = tmp_path / 'in.apng'
-        apng_file.write_bytes(b'\x89PNG\r\n\x1a\n')
-        arguments = (
-            ['test prompt']
-            if request_kind == 'generation'
-            else ['--extract-frames', str(apng_file)]
-        )
-
-        assert main(arguments) == ExitCode.UNUSABLE_INPUT
+        assert main(['--extract-frames', str(not_text)]) == ExitCode.UNUSABLE_INPUT
 
     def test_main_extract_frames_from_a_directory_is_unusable_input(self, tmp_path):
         """An input path that exists but cannot be read as a file is unusable, not missing."""
         assert main(['--extract-frames', str(tmp_path)]) == ExitCode.UNUSABLE_INPUT
-
-    def test_main_connection_error(self, mocker):
-        """Test handling of connection errors."""
-        import httpx2
-
-        mocker.patch(
-            'glitchygames.api.client.generate_sprite',
-            side_effect=httpx2.ConnectError('connection refused'),
-        )
-
-        result = main(['test prompt'])
-        assert result == ExitCode.SERVICE_UNAVAILABLE
-
-    def test_main_http_error(self, mocker):
-        """Test handling of HTTP errors."""
-        import httpx2
-
-        mock_response = mocker.Mock()
-        mock_response.status_code = 500
-        mock_response.text = 'Internal Server Error'
-
-        mocker.patch(
-            'glitchygames.api.client.generate_sprite',
-            side_effect=httpx2.HTTPStatusError(
-                'Server Error',
-                request=mocker.Mock(),
-                response=mock_response,
-            ),
-        )
-
-        result = main(['test prompt'])
-        assert result == ExitCode.GENERATION_REJECTED
 
     def test_main_generate_success(self, mocker):
         """Test successful sprite generation via CLI."""
@@ -1048,7 +885,6 @@ class TestHandleExtractFrames:
         """
         defaults = {
             'extract_frames': '/path/to/test.apng',
-            'server_url': 'http://localhost:8000',
             'output_path': None,
             'verbose': False,
         }
@@ -1059,7 +895,7 @@ class TestHandleExtractFrames:
         """Test successful extraction prints JSON to stdout."""
         parsed_args = self._make_parsed_args(mocker)
 
-        mock_extract = mocker.patch('glitchygames.api.client.extract_apng_frames')
+        mock_extract = mocker.patch('glitchygames.api.client.extract_frames')
         mock_extract.return_value = {
             'success': True,
             'frame_count': 2,
@@ -1080,7 +916,7 @@ class TestHandleExtractFrames:
         """Test successful extraction saves frames to output path."""
         parsed_args = self._make_parsed_args(mocker, output_path=str(tmp_path))
 
-        mock_extract = mocker.patch('glitchygames.api.client.extract_apng_frames')
+        mock_extract = mocker.patch('glitchygames.api.client.extract_frames')
         mock_extract.return_value = {
             'success': True,
             'frame_count': 2,
@@ -1097,7 +933,7 @@ class TestHandleExtractFrames:
         """Test handling of failed extraction response."""
         parsed_args = self._make_parsed_args(mocker)
 
-        mock_extract = mocker.patch('glitchygames.api.client.extract_apng_frames')
+        mock_extract = mocker.patch('glitchygames.api.client.extract_frames')
         mock_extract.return_value = {
             'success': False,
             'error': 'Bad APNG data',
@@ -1112,7 +948,7 @@ class TestHandleExtractFrames:
         parsed_args = self._make_parsed_args(mocker)
 
         mocker.patch(
-            'glitchygames.api.client.extract_apng_frames',
+            'glitchygames.api.client.extract_frames',
             side_effect=FileNotFoundError('file not found'),
         )
 
@@ -1120,50 +956,25 @@ class TestHandleExtractFrames:
 
         assert result == ExitCode.MISSING_INPUT
 
-    def test_extraction_connection_error(self, mocker):
-        """Test handling of connection error during extraction."""
-        import httpx2
-
+    def test_extraction_unreadable_file(self, mocker):
+        """A file that exists but cannot be read is unusable input."""
         parsed_args = self._make_parsed_args(mocker)
 
         mocker.patch(
-            'glitchygames.api.client.extract_apng_frames',
-            side_effect=httpx2.ConnectError('connection refused'),
+            'glitchygames.api.client.extract_frames',
+            side_effect=PermissionError(13, 'Permission denied'),
         )
 
         result = _handle_extract_frames(parsed_args)
 
-        assert result == ExitCode.SERVICE_UNAVAILABLE
-
-    def test_extraction_http_status_error(self, mocker):
-        """Test handling of HTTP status error during extraction."""
-        import httpx2
-
-        parsed_args = self._make_parsed_args(mocker)
-
-        mock_response = mocker.Mock()
-        mock_response.status_code = 500
-        mock_response.text = 'Internal Server Error'
-
-        mocker.patch(
-            'glitchygames.api.client.extract_apng_frames',
-            side_effect=httpx2.HTTPStatusError(
-                'Server Error',
-                request=mocker.Mock(),
-                response=mock_response,
-            ),
-        )
-
-        result = _handle_extract_frames(parsed_args)
-
-        assert result == ExitCode.EXTRACTION_REJECTED
+        assert result == ExitCode.UNUSABLE_INPUT
 
     def test_extraction_os_error_with_verbose_traceback(self, mocker, capsys):
         """Test that verbose mode prints traceback on OSError."""
         parsed_args = self._make_parsed_args(mocker, verbose=True)
 
         mocker.patch(
-            'glitchygames.api.client.extract_apng_frames',
+            'glitchygames.api.client.extract_frames',
             side_effect=OSError('disk error'),
         )
 
@@ -1177,7 +988,7 @@ class TestHandleExtractFrames:
         """Test that verbose mode outputs full JSON including base64 data."""
         parsed_args = self._make_parsed_args(mocker, verbose=True)
 
-        mock_extract = mocker.patch('glitchygames.api.client.extract_apng_frames')
+        mock_extract = mocker.patch('glitchygames.api.client.extract_frames')
         mock_extract.return_value = {
             'success': True,
             'frame_count': 1,
@@ -1210,12 +1021,11 @@ class TestHandleExtractFramesOutput:
     def test_frame_write_failures(self, mocker, tmp_path, save_error, expected_exit_code):
         parsed_args = argparse.Namespace(
             extract_frames=str(tmp_path / 'in.apng'),
-            server_url='http://localhost:8000',
             output_path=str(tmp_path / 'frames'),
             verbose=False,
         )
         mocker.patch(
-            'glitchygames.api.client.extract_apng_frames',
+            'glitchygames.api.client.extract_frames',
             return_value={'success': True, 'frame_count': 1},
         )
         mocker.patch('glitchygames.api.client._log_extraction_metadata')
@@ -1236,7 +1046,6 @@ class TestHandleGenerateSprite:
         """
         defaults = {
             'prompt': 'a red heart',
-            'server_url': 'http://localhost:8000',
             'output_path': None,
             'width': None,
             'height': None,
@@ -1411,7 +1220,7 @@ class TestMainCliExtended:
         mock_handler.assert_called_once()
 
     def test_main_uses_default_output_formats(self, mocker):
-        """Test that default output formats are used when none specified."""
+        """With no -f, a sprite is written as .toml only (the owner, 2026-11-17)."""
         mock_handler = mocker.patch(
             'glitchygames.api.client._handle_generate_sprite',
             return_value=ExitCode.SUCCESS,
@@ -1421,7 +1230,7 @@ class TestMainCliExtended:
 
         call_args = mock_handler.call_args
         output_formats = call_args[0][1]
-        assert output_formats == ['toml', 'png']
+        assert output_formats == ['toml']
 
     def test_main_uses_specified_output_formats(self, mocker):
         """Test that specified output formats override defaults."""
@@ -1540,3 +1349,209 @@ class TestRunEntryPoint:
         run()
 
         mock_exit.assert_called_once_with(ExitCode.GENERATION_REJECTED)
+
+
+# --- No server: the client calls the sprite requests in its own process ---
+
+A_STATIC_SPRITE = """[sprite]
+name = "heart"
+pixels = \"\"\"
+##
+##
+\"\"\"
+[colors."#"]
+red = 255
+green = 0
+blue = 0
+"""
+
+A_TWO_FRAME_SPRITE = """[sprite]
+name = "blink"
+
+[[animation]]
+namespace = "blink"
+frame_interval = 0.25
+
+[[animation.frame]]
+pixels = \"\"\"
+#.
+.#
+\"\"\"
+
+[[animation.frame]]
+pixels = \"\"\"
+.#
+#.
+\"\"\"
+
+[colors."#"]
+red = 255
+green = 0
+blue = 0
+
+[colors."."]
+red = 255
+green = 0
+blue = 255
+"""
+
+
+def _tracebacks_shown(caplog) -> list[str]:
+    """The messages logged with a traceback at the client's own level (INFO; DEBUG needs -v).
+
+    Returns:
+        Each such message.
+    """
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno >= logging.INFO and record.exc_info
+    ]
+
+
+@pytest.fixture
+def no_http_of_its_own(mocker):
+    """Fail the test if the client builds an HTTP client itself (review focus 3)."""
+    mocker.patch('httpx2.Client', side_effect=AssertionError('the client opened an HTTP client'))
+
+
+@pytest.fixture
+def ai_answering(mocker):
+    """Stand the local AI service in, answering a given reply.
+
+    Returns:
+        A function taking the reply (a string or an exception).
+    """
+
+    def answer(reply):
+        mocker.patch(
+            'glitchygames.ai.local_service.create_chat_client',
+            return_value=FakeAIClient(reply=reply),
+        )
+
+    return answer
+
+
+@pytest.mark.usefixtures('no_http_of_its_own')
+class TestWithoutAServer:
+    """The client generates and extracts with no glitchygames-server and no port of its own."""
+
+    def test_generation_writes_only_the_toml_by_default(self, ai_answering, tmp_path):
+        """The engine's sprite format is the default output."""
+        ai_answering(A_STATIC_SPRITE)
+
+        status = main(['a heart', '-o', str(tmp_path)])
+
+        assert status == ExitCode.SUCCESS
+        assert sorted(path.suffix for path in tmp_path.rglob('*') if path.is_file()) == ['.toml']
+
+    def test_both_formats_on_request(self, ai_answering, tmp_path):
+        """-f toml -f png writes the sprite file and its image."""
+        ai_answering(A_STATIC_SPRITE)
+
+        status = main(['a heart', '-f', 'toml', '-f', 'png', '-o', str(tmp_path)])
+
+        assert status == ExitCode.SUCCESS
+        suffixes = sorted(path.suffix for path in tmp_path.rglob('*') if path.is_file())
+        assert suffixes == ['.png', '.toml']
+
+    def test_an_ai_service_not_installed_is_unavailable_and_named(self, mocker, caplog):
+        """Review focus 1: the address it needs is in what it says."""
+        from glitchygames.ai.local_service import LocalAIServiceNotInstalledError
+
+        mocker.patch(
+            'glitchygames.ai.local_service.create_chat_client',
+            side_effect=LocalAIServiceNotInstalledError('not installed'),
+        )
+
+        status = main(['a heart'])
+
+        assert status == ExitCode.SERVICE_UNAVAILABLE
+        assert 'http://127.0.0.1:23231' in caplog.text
+        assert not _tracebacks_shown(caplog)  # an expected failure is one line
+
+    def test_the_ai_services_own_error_is_unavailable_with_its_message(self, ai_answering, caplog):
+        """Review focus 2: an unknown model, as the service says it."""
+        from glitchygames.ai.local_service import LocalAIServiceError
+
+        ai_answering(LocalAIServiceError('unknown model bonsai-99', status_code=400))
+
+        status = main(['a heart', '--animation-language-model', 'bonsai-99'])
+
+        assert status == ExitCode.SERVICE_UNAVAILABLE
+        assert 'unknown model bonsai-99' in caplog.text
+        assert not _tracebacks_shown(caplog)  # an expected failure is one line
+
+    def test_png_only_with_rendering_failing_is_rejected(self, ai_answering, mocker):
+        """Review focus 4: nothing usable came back."""
+        from glitchygames.services.renderer_service import RenderResult
+
+        ai_answering(A_STATIC_SPRITE)
+        mocker.patch(
+            'glitchygames.services.RendererService.render_from_toml',
+            return_value=RenderResult(success=False, error='x'),
+        )
+
+        assert main(['a heart', '-f', 'png']) == ExitCode.GENERATION_REJECTED
+
+    def test_extracting_a_file_that_is_not_a_png_is_rejected(self, tmp_path):
+        """Review focus 5: no server, and the refusal is the extraction's."""
+        not_a_png = tmp_path / 'notes.png'
+        not_a_png.write_bytes(b'not a png')
+
+        assert main(['--extract-frames', str(not_a_png)]) == ExitCode.EXTRACTION_REJECTED
+
+    def test_extracting_a_toml_sprite_writes_its_frames(self, tmp_path):
+        """A .toml sprite's frames are written as PNGs, as an APNG's are."""
+        sprite = tmp_path / 'blink.toml'
+        sprite.write_text(A_TWO_FRAME_SPRITE, encoding='utf-8')
+        output = tmp_path / 'frames'
+
+        status = main(['--extract-frames', str(sprite), '-o', str(output)])
+
+        assert status == ExitCode.SUCCESS
+        assert sorted(path.name for path in output.iterdir()) == [
+            'blink_frame_000.png',
+            'blink_frame_001.png',
+        ]
+
+    def test_extracting_a_toml_that_is_not_a_sprite_is_rejected(self, tmp_path, caplog):
+        """Review focus 5: a .toml with no sprite in it, said in one line."""
+        not_a_sprite = tmp_path / 'settings.toml'
+        not_a_sprite.write_text('title = "not a sprite"\n', encoding='utf-8')
+
+        assert main(['--extract-frames', str(not_a_sprite)]) == ExitCode.EXTRACTION_REJECTED
+        assert not _tracebacks_shown(caplog)
+
+    @pytest.mark.parametrize(
+        ('arguments', 'option'),
+        [
+            (['--width', '100'], '--width'),
+            (['--png-scale', '0'], '--png-scale'),
+            (['--frame-count', '33'], '--frame-count'),
+        ],
+        ids=['width over 64', 'png scale under 1', 'frame count over 32'],
+    )
+    def test_an_option_out_of_range_is_a_usage_error(self, arguments, option, capsys):
+        """A usage error from argparse, naming the option: not an unreadable file or a dump."""
+        with pytest.raises(SystemExit) as usage_error:
+            main(['a heart', *arguments])
+
+        assert usage_error.value.code == ExitCode.ARGUMENT_PARSER_ERROR
+        errors = capsys.readouterr().err
+        assert option in errors
+        assert 'validation error for' not in errors
+
+    def test_help_says_the_default_format_is_toml(self):
+        """--help tells the truth about the default: the .toml alone."""
+        help_text = ' '.join(create_parser().format_help().split())
+
+        assert 'Default: toml' in help_text
+        assert 'toml and png' not in help_text
+
+    def test_server_url_is_no_longer_an_option(self):
+        """There is no server to name."""
+        with pytest.raises(SystemExit) as usage_error:
+            main(['a heart', '--server-url', 'http://localhost:8000'])
+
+        assert usage_error.value.code == ExitCode.ARGUMENT_PARSER_ERROR

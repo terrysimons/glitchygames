@@ -1,8 +1,8 @@
 """Additional coverage tests for sprite API routes.
 
-Tests cover: _save_sprite_files edge cases, _extract_png_dimensions,
-_extract_single_frame, generate/refine with AI provider errors,
-PNG render failure paths, and path traversal protection.
+Tests cover: save_sprite_files edge cases, extract_png_dimensions, extract_single_frame
+(api/sprite_requests.py, which the routes call), generate/refine with AI provider errors, PNG
+render failure paths, and path traversal protection.
 """
 # pyright: reportMissingImports=false
 
@@ -19,11 +19,12 @@ pytest.importorskip('fastapi')
 from fastapi.testclient import TestClient
 
 from glitchygames.api.main import app
-from glitchygames.api.routes.sprites import (
-    _extract_png_dimensions,
-    _extract_single_frame,
-    _get_services,
-    _save_sprite_files,
+from glitchygames.api.routes.sprites import _get_services
+from glitchygames.api.sprite_requests import (
+    SpriteRequestRefusedError,
+    extract_png_dimensions,
+    extract_single_frame,
+    save_sprite_files,
 )
 from glitchygames.services.exceptions import AIProviderError
 from glitchygames.services.renderer_service import RenderedFrame, RenderResult
@@ -87,7 +88,7 @@ def successful_render_result():
 
 
 class TestExtractPngDimensions:
-    """Test _extract_png_dimensions function."""
+    """Test extract_png_dimensions function."""
 
     def test_valid_png_header(self):
         """Test extracting dimensions from valid PNG header bytes."""
@@ -96,28 +97,28 @@ class TestExtractPngDimensions:
         height = 48
         header = b'\x00' * 16 + struct.pack('>I', width) + struct.pack('>I', height)
 
-        result_width, result_height = _extract_png_dimensions(header, 0, 0)
+        result_width, result_height = extract_png_dimensions(header, 0, 0)
 
         assert result_width == width
         assert result_height == height
 
     def test_bytes_too_short(self):
         """Test that short byte sequences return defaults."""
-        result_width, result_height = _extract_png_dimensions(b'\x00' * 10, 99, 77)
+        result_width, result_height = extract_png_dimensions(b'\x00' * 10, 99, 77)
 
         assert result_width == 99
         assert result_height == 77
 
     def test_empty_bytes(self):
         """Test that empty bytes return defaults."""
-        result_width, result_height = _extract_png_dimensions(b'', 5, 10)
+        result_width, result_height = extract_png_dimensions(b'', 5, 10)
 
         assert result_width == 5
         assert result_height == 10
 
 
 class TestExtractSingleFrame:
-    """Test _extract_single_frame function."""
+    """Test extract_single_frame function."""
 
     def test_frame_without_control_chunk(self, mocker):
         """Test extracting a frame when control is None."""
@@ -128,7 +129,7 @@ class TestExtractSingleFrame:
         fake_png_bytes = b'\x00' * 16 + struct.pack('>I', width) + struct.pack('>I', height)
         mock_png.save = lambda buf: buf.write(fake_png_bytes)
 
-        frame_info, delay_ms = _extract_single_frame(mock_png, None, 0)
+        frame_info, delay_ms = extract_single_frame(mock_png, None, 0)
 
         assert frame_info.index == 0
         assert delay_ms == 100  # Default when control is None
@@ -153,7 +154,7 @@ class TestExtractSingleFrame:
         mock_control.x_offset = 2
         mock_control.y_offset = 3
 
-        frame_info, delay_ms = _extract_single_frame(mock_png, mock_control, 1)
+        frame_info, delay_ms = extract_single_frame(mock_png, mock_control, 1)
 
         assert frame_info.index == 1
         assert delay_ms == 200
@@ -174,22 +175,20 @@ class TestExtractSingleFrame:
         mock_control.x_offset = 0
         mock_control.y_offset = 0
 
-        _frame_info, delay_ms = _extract_single_frame(mock_png, mock_control, 0)
+        _frame_info, delay_ms = extract_single_frame(mock_png, mock_control, 0)
 
         # delay_den=0 should be treated as 1000, so 500/1000 * 1000 = 500
         assert delay_ms == 500
 
 
 class TestSaveSpritFilesEdgeCases:
-    """Test _save_sprite_files edge cases."""
+    """Test save_sprite_files edge cases."""
 
     def test_absolute_path_rejected(self, tmp_path):
-        """Test that absolute output paths are rejected with HTTPException."""
-        from fastapi import HTTPException
-
+        """Absolute output paths are refused (the route answers 400 for the refusal)."""
         # Absolute on this host: /etc/passwd has no drive, so Windows does not count it absolute
-        with pytest.raises(HTTPException) as exception_info:
-            _save_sprite_files(
+        with pytest.raises(SpriteRequestRefusedError) as exception_info:
+            save_sprite_files(
                 output_path=str(tmp_path.resolve() / 'passwd'),
                 sprite_name='evil',
                 toml_content='content',
@@ -198,21 +197,18 @@ class TestSaveSpritFilesEdgeCases:
                 output_format=['toml'],
             )
 
-        assert exception_info.value.status_code == 400
         # Either "Absolute output paths are not allowed." or "Invalid output path."
         # depending on test isolation (parallel mocking can affect Path.is_absolute)
-        assert 'Absolute' in exception_info.value.detail or 'Invalid' in exception_info.value.detail
+        assert 'Absolute' in str(exception_info.value) or 'Invalid' in str(exception_info.value)
 
     def test_path_traversal_rejected(self, mocker):
-        """Test that path traversal attempts are rejected."""
-        from fastapi import HTTPException
-
+        """Path traversal attempts are refused (the route answers 400 for the refusal)."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir).resolve()
-            mocker.patch('glitchygames.api.routes.sprites.ALLOWED_OUTPUT_ROOT', temp_root)
+            mocker.patch('glitchygames.api.sprite_requests.ALLOWED_OUTPUT_ROOT', temp_root)
 
-            with pytest.raises(HTTPException) as exception_info:
-                _save_sprite_files(
+            with pytest.raises(SpriteRequestRefusedError, match='Invalid output path'):
+                save_sprite_files(
                     output_path='../../etc',
                     sprite_name='evil',
                     toml_content='content',
@@ -221,15 +217,13 @@ class TestSaveSpritFilesEdgeCases:
                     output_format=['toml'],
                 )
 
-            assert exception_info.value.status_code == 400
-
     def test_empty_sprite_name_sanitized_to_default(self, mocker):
         """Test that an empty sprite name is sanitized to 'sprite'."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir).resolve()
-            mocker.patch('glitchygames.api.routes.sprites.ALLOWED_OUTPUT_ROOT', temp_root)
+            mocker.patch('glitchygames.api.sprite_requests.ALLOWED_OUTPUT_ROOT', temp_root)
 
-            saved_files = _save_sprite_files(
+            saved_files = save_sprite_files(
                 output_path='output',
                 sprite_name='',  # Empty name triggers fallback to 'sprite'
                 toml_content='toml content',
@@ -245,9 +239,9 @@ class TestSaveSpritFilesEdgeCases:
         """Test that special characters in sprite name are replaced with underscores."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir).resolve()
-            mocker.patch('glitchygames.api.routes.sprites.ALLOWED_OUTPUT_ROOT', temp_root)
+            mocker.patch('glitchygames.api.sprite_requests.ALLOWED_OUTPUT_ROOT', temp_root)
 
-            saved_files = _save_sprite_files(
+            saved_files = save_sprite_files(
                 output_path='output',
                 sprite_name='my sprite!',  # Spaces and punctuation are sanitized
                 toml_content='toml content',
@@ -265,7 +259,7 @@ class TestSaveSpritFilesEdgeCases:
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir).resolve()
-            mocker.patch('glitchygames.api.routes.sprites.ALLOWED_OUTPUT_ROOT', temp_root)
+            mocker.patch('glitchygames.api.sprite_requests.ALLOWED_OUTPUT_ROOT', temp_root)
 
             frame_data = base64.b64encode(b'fake frame png').decode('utf-8')
             frames = [
@@ -273,7 +267,7 @@ class TestSaveSpritFilesEdgeCases:
                 RenderedFrameInfo(animation_index=0, frame_index=1, png_base64=frame_data),
             ]
 
-            saved_files = _save_sprite_files(
+            saved_files = save_sprite_files(
                 output_path='anim_output',
                 sprite_name='walk',
                 toml_content=None,
@@ -607,7 +601,7 @@ class TestExtractFramesErrors:
     def test_unexpected_error_returns_500(self, client, mocker):
         """An error the extraction does not expect becomes an internal server error."""
         mocker.patch(
-            'glitchygames.api.routes.sprites._extract_apng_frames',
+            'glitchygames.api.sprite_requests.extract_frames_response',
             side_effect=RuntimeError('decoder exploded'),
         )
 
