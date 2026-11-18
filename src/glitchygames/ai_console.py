@@ -48,6 +48,7 @@ from glitchygames.clipboard import ClipboardUnavailableError, system_clipboard
 from glitchygames.debug.overlay import OVERLAY_KEYS, load_debug_font
 from glitchygames.debug.panels import HUD_TEXT_COLOR, blit_text
 from glitchygames.fonts import FontManager
+from glitchygames.output_files import write_aside_then_replace
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -1013,7 +1014,11 @@ class AiConsole:
         }
         lines = path.read_text(encoding='utf-8').splitlines() if path.exists() else []
         lines.append(json.dumps(record))
-        path.write_text('\n'.join(lines[-MAXIMUM_HISTORY_RECORDS:]) + '\n', encoding='utf-8')
+        text = '\n'.join(lines[-MAXIMUM_HISTORY_RECORDS:]) + '\n'
+        # Aside then into place: a reader (or a crash mid-write) never finds the file part written
+        write_aside_then_replace(
+            destination=path, write=lambda aside: aside.write_text(text, encoding='utf-8')
+        )
 
     def _read_history(self, path: Path, text: str) -> None:
         """Send the newest records holding the text to the transcript."""
