@@ -57,6 +57,7 @@ from glitchygames.render_target import render_target
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.scenes import Scene, SceneManager
+from glitchygames.sprites.spawned import SpawnedSprite
 from tests import demo_runs
 from tests.audio.voice_support import (
     LEGACY_CHANNELS,
@@ -68,11 +69,13 @@ from tests.audio.voice_support import (
 from tests.replay.replay_helpers import tamper_first_sprite_rect
 from tests.stand_in_games import (
     STAND_IN_GAME_RESOLUTION,
+    STAND_IN_SPAWN_POINT,
     StandInGame,
     copy_recording,
     record_stand_in_game_once,
     write_chiming_stand_in_game,
     write_live_voice_stand_in_game,
+    write_spawning_stand_in_game,
     write_stand_in_distribution,
     write_stand_in_game,
 )
@@ -88,6 +91,9 @@ STAND_IN_PACKAGE = 'inner_game_rally'
 # The chiming stand-in's package (a plain Sound.play() on CHIME_FRAME) and that frame
 CHIMING_STAND_IN_PACKAGE = 'inner_game_chime'
 CHIME_FRAME = 3
+# The spawning stand-in's package (a /sprite spawn posted on SPAWN_FRAME) and that frame
+SPAWNING_STAND_IN_PACKAGE = 'inner_game_spawner'
+SPAWN_FRAME = 3
 # The live-voice stand-in's package (a live synth voice from LIVE_VOICE_FRAME on) and that frame
 LIVE_VOICE_STAND_IN_PACKAGE = 'inner_game_projector'
 LIVE_VOICE_FRAME = 2
@@ -636,6 +642,82 @@ def replay_stand_in(
     return InnerGame.replay(
         command=game.console_script, path=path, name=name, size=size, arguments=arguments
     )
+
+
+@pytest.fixture(scope='module')
+def recorded_spawning_stand_in(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> tuple[StandInGame, Path]:
+    """Record the spawning stand-in (a /sprite spawn on SPAWN_FRAME) once per module.
+
+    Returns:
+        The stand-in game and its recording (each test copies it before reading it).
+
+    """
+    root = tmp_path_factory.mktemp('inner-game-spawn')
+    game = write_spawning_stand_in_game(
+        directory=root / 'site-packages',
+        package=SPAWNING_STAND_IN_PACKAGE,
+        spawn_on_frame=SPAWN_FRAME,
+    )
+    recording = record_stand_in_game_once(game=game, path=root / 'recorded.jsonl.gz')
+    return game, recording
+
+
+@pytest.fixture
+def spawning_stand_in(
+    recorded_spawning_stand_in: tuple[StandInGame, Path], monkeypatch: pytest.MonkeyPatch
+) -> Generator[StandInGame]:
+    """Install the spawning stand-in as a command in this process.
+
+    Yields:
+        The stand-in game; its package is forgotten afterwards.
+
+    """
+    game, _recording = recorded_spawning_stand_in
+    monkeypatch.syspath_prepend(game.install_directory)
+    try:
+        yield game
+    finally:
+        sys.modules.pop(game.package, None)
+
+
+class TestASpriteSpawnInsideATile:
+    """A recording that used /sprite replays inside a tile: the sprite joins the tile's scene."""
+
+    def test_an_inner_game_replays_a_spawn_into_its_own_scene(
+        self,
+        spawning_stand_in: StandInGame,
+        recorded_spawning_stand_in: tuple[StandInGame, Path],
+        tmp_path: Path,
+    ):
+        """The tile's scene gets the sprite at its point; the outer game's scene gets nothing."""
+        _game, shared_recording = recorded_spawning_stand_in
+        recording = copy_recording(recording=shared_recording, path=tmp_path / 'spawn.jsonl.gz')
+        # The outer game's scene, where a spawn handled in the wrong context would land
+        outer_scene_manager = SceneManager()
+        outer_active_scene = outer_scene_manager.active_scene
+        outer_scene = Scene(options={})
+        outer_scene_manager.active_scene = outer_scene
+        try:
+            inner_game = replay_stand_in(game=spawning_stand_in, path=recording)
+            for _step in range(SPAWN_FRAME + 1):
+                assert inner_game.step()
+            with inner_game.context.active():
+                inner_scene = SceneManager().active_scene
+            assert inner_scene is not None
+            spawned = [
+                sprite for sprite in inner_scene.all_sprites if isinstance(sprite, SpawnedSprite)
+            ]
+            play_to_the_end(inner_game)
+        finally:
+            outer_scene_manager.active_scene = outer_active_scene
+
+        assert [(sprite.world_x, sprite.world_y) for sprite in spawned] == [
+            (STAND_IN_SPAWN_POINT[0] - 2, STAND_IN_SPAWN_POINT[1] - 1)
+        ]
+        assert inner_game.outcome.diverged is False, inner_game.outcome.report
+        assert not any(isinstance(sprite, SpawnedSprite) for sprite in outer_scene.all_sprites)
 
 
 class TestAReplayInsideItsContext:
