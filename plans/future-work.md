@@ -1425,7 +1425,8 @@ Loading and memory:
 
 Being built: the approved master plan is `plans/2026-11-17-sprite-color-profiles.md`, on
 `feature/sprite-color-profiles` (what ships first, the converter and the AI's tools, and in what
-order). This entry keeps the full tables it refers to.
+order). Part 1, sprites as text, is done (2026-11-17); what it left is in the master plan's
+Follow-ups. This entry keeps the full tables it refers to.
 
 Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversation:
 

@@ -372,6 +372,30 @@ second caller, never a second implementation).
 C64, CGA, ZX Spectrum, Game Boy green, amber, green phosphor: a later part of this branch, each
 palette file naming the reference its values come from.
 
+### Left over from Part 1 (sprites as text)
+
+Part 1 is done (`plans/2026-11-17-sprite-color-profiles-1-sprite-text.md`). Its reviews left
+these minor items, none affecting what a sprite draws:
+
+- **Bitmappy's undo of an animation's removal** (`restore_animation_settings`) brings back a
+  `frame_index` the file never had: the sprite loads the same, the saved document differs. A fix
+  needs a parameter on that public method.
+- **Memory:** a loaded sprite remembers its rows, about 31% on top of its pixel lists (the largest
+  member sprite: 370 KB beside 1.20 MB), per loaded instance.
+- **Speed:** a sprite file is parsed twice on load (analysis, then load), as before Part 1;
+  `surface_rgba_pixels` reads pixels in a Python loop, where numpy would serve large images.
+- **Splitting:** `split_sprite_text` doesn't carry a per-frame `frame_interval`, `profile` or
+  `color_space` into the frames (Part 2 decides the last two).
+- **Edge cases:** a TOML date in a game's own table raises `TypeError`, not a named `ValueError`
+  (no shipped sprite has one); NaN writes and reads back but isn't equal to itself; a game's
+  arrays of tables are written inline; invalid UTF-8 raises `UnicodeDecodeError`.
+- **Tests:** no test of a document with both `pixels` and `animation`, or of a color missing
+  red, green or blue; the write-or-refuse invariant doesn't assert its "written" cases are
+  written; two checks (`check_text_and_file_loads_agree`, `check_save_writes_the_sprites_text`)
+  share the code they check, so they catch regressions rather than differences.
+- **Tidiness:** the documents are typed `Any` (a TypedDict would say their shape); `animated.py`
+  imports `sprite_toml` two ways; the pixel-block callers add the final newline two ways.
+
 ## Left to the builder
 
 - The round cap and `sprite_file`'s size limit, each with its reason.
