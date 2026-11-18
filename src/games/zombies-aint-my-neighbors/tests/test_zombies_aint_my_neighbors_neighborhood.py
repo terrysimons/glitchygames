@@ -1856,22 +1856,51 @@ def test_no_zombie_groans_when_no_chance_is_taken(mocker):
 GROAN_REPLAY_TEST = 'test_the_same_seed_groans_the_same_groans'
 
 
+def groan_decisions(mocker, scene: NeighborhoodScene) -> list[tuple[float, bool]]:
+    """Spy on every groan chance the scene takes, recording when it came and whether it groaned.
+
+    Every chance, groaned or silent, so a run proves its rolls repeat even when luck groans none:
+    a busy yard's 20 s gives some seeds only 9 chances at 1 in 3, all silent 1 seed in 38 (seed
+    1270429352, 2026-11-17).
+
+    Returns:
+        The list of (game time, groaned), filled as the scene runs.
+
+    """
+    decisions: list[tuple[float, bool]] = []
+    original = scene.groan_timer.should_groan
+
+    def should_groan(**keywords):
+        groaned = original(**keywords)
+        decisions.append((keywords['now'], groaned))
+        return groaned
+
+    mocker.patch.object(scene.groan_timer, 'should_groan', side_effect=should_groan)
+    return decisions
+
+
 @pytest.mark.parametrize('seed_case', seed_cases(test=GROAN_REPLAY_TEST))
 def test_the_same_seed_groans_the_same_groans(mocker, seed_case, request):
-    """Groans come from a named stream: a busy yard run twice from one seed groans alike."""
+    """Groans come from a named stream: a busy yard run twice from one seed groans alike.
+
+    Alike chance for chance, silent ones included, so the proof doesn't hang on luck: some seeds
+    groan none in 20 s (groan_decisions).
+    """
     seed = resolve_seed(seed_case, node=request.node, test=GROAN_REPLAY_TEST)
     runs = []
     for _ in range(2):
         reset_streams(seed=seed)
         scene = busy_yard()
+        decisions = groan_decisions(mocker, scene)
         heard = groans_heard(mocker, scene)
         hold_fire(scancodes=(pygame.KSCAN_J,), pads_firing=(1, 2, 3))
         run(scene, seconds=20.0)
         hold_fire()
-        runs.append(list(heard))
+        runs.append((list(decisions), list(heard)))
 
     note = failure_note(test=GROAN_REPLAY_TEST, vector='default', seed=seed)
-    assert runs[0], note
+    (first_decisions, _first_heard), _second = runs
+    assert first_decisions, note
     assert runs[0] == runs[1], note
 
 
