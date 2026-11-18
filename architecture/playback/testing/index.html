@@ -1087,6 +1087,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#memory-by-test-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory by test file
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3032,6 +3043,21 @@ test, instead of the kernel killing the job silently (<code>tests/memory_guard.p
 <li>It matters for playback because the golden replays and the tools' tests start child processes,
   and the container's figure counts them.</li>
 </ul>
+<h2 id="memory-by-test-file">Memory by test file<a class="headerlink" href="#memory-by-test-file" title="Permanent link">#</a></h2>
+<p><strong>Intent:</strong> when the guard stops a run, find which test files make the test process grow
+(<code>tests/memory_by_file.py</code>; <code>tests/test_memory_by_file.py</code>).</p>
+<ul>
+<li>It is a plugin loaded on request, never by default:
+  <code>GLITCHYGAMES_MEMORY_BY_FILE=rows.json pytest -p tests.memory_by_file -n 0</code>.</li>
+<li>Per file it writes <code>kept</code> (resident memory at the file's end less at its start, with garbage
+  collected at both ends), <code>peak_rise</code> (the most above that start after any of its tests) and
+  <code>after</code>, all in MiB. The rows are rewritten after every file, so a run the guard stops keeps
+  the files it finished.</li>
+<li>It reads <code>/proc/self/statm</code> on Linux and <code>task_info</code> on macOS; elsewhere it says so once and
+  does nothing. It counts this process only, not the children a test starts.</li>
+<li>macOS keeps freed memory differently from glibc: use its figures to rank files, and
+  <code>nox -s test-linux-ci</code> for the numbers <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> sees.</li>
+</ul>
 
 
 
@@ -3052,7 +3078,7 @@ test, instead of the kernel killing the job silently (<code>tests/memory_guard.p
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 29, 2026 08:29:43 UTC">October 29, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 22:49:07 UTC">November 17, 2026</span>
   </span>
 
     
