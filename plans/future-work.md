@@ -1106,6 +1106,22 @@ changes the outer game's key repeat (the plan's Review Focus 4).
 
 ## Developer environment
 
+- **Name the CI jobs for what they run** (the owner, 2026-11-18: "so it's more obvious what's
+  running in CI"). The 3.15 jobs are `test-python-3-15-linux` and `-windows`, but the 3.14 ones are
+  `build-and-test-linux` and `-windows`, which name no Python. In order:
+  1. The owner changes `main`'s required status checks to the workflow's own check,
+     `build-and-test` (the owner: "I'll take care of changing that"). It fails when any job in the
+     workflow fails, and its name never changes, so renaming or adding jobs never touches branch
+     protection again. Required per-job checks (`ci/circleci: build-and-test-linux`) would block
+     every PR the moment a job is renamed.
+  2. Rename the jobs inside the workflow: `test-python-3-14-linux` and `-windows`, the macOS job
+     to `test-macos` (it runs both Pythons), and the coverage jobs to match. Touches: the job
+     definitions, the workflow's list and every `requires:` (`deploy-docs` requires the macOS
+     job), `noxfile._CIRCLECI_LINUX_JOB` (`test-linux-ci` reads that job), and the names in
+     `tests/test_ci_config.py`, CLAUDE.md and the docs.
+  3. Move the wheel and binary build out of the 3.14 jobs into a job of its own
+     (`build-wheel-and-binary`), so no test job's name has to say "build".
+
 - Dropbox syncing test artefacts made the suite run in 10 minutes instead of 46 s. If Dropbox stays
   on, mark `test-results/`, `.coverage*`, `.venv` and cache directories as ignored
   (`xattr -w com.dropbox.ignored 1 <path>`).
