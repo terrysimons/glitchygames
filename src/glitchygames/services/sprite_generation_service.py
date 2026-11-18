@@ -318,14 +318,15 @@ class SpriteGenerationService:
 
         return self._validate_and_build_result(raw_content)
 
-    def _extract_sprite_metadata(self, toml_content: str) -> tuple[str, bool, int]:
+    def _extract_sprite_metadata(self, toml_content: str) -> tuple[str | None, bool, int]:
         """Extract metadata from sprite TOML content.
 
         Args:
             toml_content: Sprite TOML content
 
         Returns:
-            Tuple of (sprite_name, is_animated, frame_count)
+            Tuple of (sprite_name, is_animated, frame_count); the name is None when the
+            model's is not text with something in it.
 
         """
         import tomllib
@@ -336,8 +337,10 @@ class SpriteGenerationService:
             LOG.warning('Failed to parse TOML for metadata: %s', e)
             return 'unknown', False, 1
 
-        # Get sprite name
-        sprite_name = data.get('sprite', {}).get('name', 'unnamed')
+        # Get sprite name: the model's, only when it is text with something in it (a number or
+        # a list there is no name, and callers use the name as text)
+        name: object = data.get('sprite', {}).get('name', 'unnamed')
+        sprite_name = name if isinstance(name, str) and name.strip() else None
 
         # Check if animated
         is_animated = 'animation' in data

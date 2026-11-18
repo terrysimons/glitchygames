@@ -156,6 +156,8 @@ class AiRequest:
     reasoning_pieces: int = 0
     answer_pieces: int = 0
     line: TranscriptLine | None = None
+    # A /sprite request: its service call has no stream to close, so /cancel only drops it
+    makes_sprite: bool = False
     # Set by the main thread, read by the worker, which stops reading the stream when it can
     cancelled: threading.Event = dataclasses.field(default_factory=threading.Event)
 
@@ -896,7 +898,10 @@ class AiConsole:
             return
         self.running.cancelled.set()
         self.requests_cancelled += 1
-        self._add_line(text=f'#{self.running.number} cancelled', color=NOTE_COLOR)
+        cancelled = f'#{self.running.number} cancelled'
+        if self.running.makes_sprite:
+            cancelled += ': the AI service finishes it, and the sprite is dropped'
+        self._add_line(text=cancelled, color=NOTE_COLOR)
         self.running = None
 
     def _start_refusal(self) -> str | None:
@@ -958,6 +963,7 @@ class AiConsole:
                 number=self.requests_made,
                 question=description,
                 started_seconds=clock.raw_counter_seconds(),
+                makes_sprite=True,
             )
             self.running = request
             request.line = self._add_line(
@@ -1049,13 +1055,18 @@ class AiConsole:
         from glitchygames.services import SpriteGenerationService
         from glitchygames.services.exceptions import AIProviderError
 
-        if self._sprite_service is None:
-            self._sprite_service = SpriteGenerationService()
         try:
+            if self._sprite_service is None:
+                self._sprite_service = SpriteGenerationService()
             result = self._sprite_service.generate_sprite(prompt=request.question)
         except AIProviderError as error:
             reason = f'the AI service at {DEFAULT_BASE_URL} cannot be reached ({error})'
             self._updates.append(partial(self._failed, request, reason))
+            return
+        # Anything else must still end the request, or every later one is refused as running
+        except Exception as error:
+            LOG.exception('Generating a sprite failed')
+            self._updates.append(partial(self._failed, request, str(error)))
             return
         if request.cancelled.is_set():
             return

@@ -1973,3 +1973,61 @@ def test_a_game_with_no_folder_says_the_sprite_was_not_saved(tmp_path):
 
     assert "'no_such_package_anywhere' has no folder" in shown
     assert [spawn.sprite_name for spawn in posted_spawns()] == ['heart']
+
+
+def test_a_sprite_whose_name_is_not_text_still_spawns_under_the_description(tmp_path, scene):
+    """A model naming the sprite with a number neither crashes the frame nor sticks the console."""
+    console = sprite_console(
+        tmp_path=tmp_path,
+        scene=scene,
+        replies=[VALID_STATIC_TOML.replace('name = "heart"', 'name = 5')],
+    )
+
+    enter(console, '/sprite a red heart')
+    wait_for(console, 'a_red_heart.toml')
+
+    assert [spawn.sprite_name for spawn in posted_spawns()] == ['a red heart']
+    assert console.running is None
+
+
+def test_an_unexpected_worker_failure_ends_the_sprite_request(tmp_path, scene, mocker):
+    """Whatever the worker raises, the request fails and the next one can start."""
+    console = sprite_console(tmp_path=tmp_path, scene=scene, replies=[VALID_STATIC_TOML])
+    assert console._sprite_service is not None
+    mocker.patch.object(
+        console._sprite_service, 'generate_sprite', side_effect=RuntimeError('the service broke')
+    )
+
+    enter(console, '/sprite a red heart')
+    shown = wait_for(console, '#1 failed')
+
+    assert 'the service broke' in shown
+    assert console.running is None
+    assert posted_spawns() == []
+
+
+def test_cancelling_a_sprite_says_the_generation_runs_on(tmp_path, scene):
+    """/cancel frees the console and drops the result; the service's work is not stopped."""
+    console = sprite_console(tmp_path=tmp_path, scene=scene, replies=[VALID_STATIC_TOML])
+    held_client(console).hold.clear()
+    enter(console, '/sprite a red heart')
+
+    enter(console, '/cancel')
+
+    assert 'the AI service finishes it' in transcript(console)
+    held_client(console).hold.set()
+
+
+def test_a_sprite_named_like_a_path_is_saved_in_the_sprites_folder(tmp_path, scene):
+    """The model's name never steers the file out of the game's sprites folder."""
+    console = sprite_console(
+        tmp_path=tmp_path,
+        scene=scene,
+        replies=[VALID_STATIC_TOML.replace('name = "heart"', 'name = "../../evil"')],
+    )
+
+    enter(console, '/sprite a red heart')
+    wait_for(console, 'evil.toml')
+
+    assert [path.name for path in (tmp_path / 'sprites').iterdir()] == ['evil.toml']
+    assert not (tmp_path.parent / 'evil.toml').exists()
