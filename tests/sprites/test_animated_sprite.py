@@ -697,6 +697,13 @@ class TestExtractPixelColors:
         result = extract_pixel_colors(pixel_lines, width=2, height=1, color_map=color_map)
         assert result[1] == (255, 0, 255)
 
+    def test_out_of_bounds_pixel_becomes_magenta(self):
+        """Test pixel outside width/height bounds becomes magenta."""
+        color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0)}
+        pixel_lines = ['###']  # 3 chars wide but width=2
+        result = extract_pixel_colors(pixel_lines, width=2, height=1, color_map=color_map)
+        assert result[2] == (255, 0, 255)
+
 
 class TestSpriteFrame:
     """Test SpriteFrame class."""
