@@ -159,7 +159,7 @@ all of it (`tests/test_engine_doors.py`).
 test, instead of the kernel killing the job silently (`tests/memory_guard.py`;
 `tests/test_memory_guard.py`).
 
-- It is on only when `GLITCHYGAMES_TEST_RSS_LIMIT_MB` is set; CircleCI's Linux job sets 1600.
+- It is on only when `GLITCHYGAMES_TEST_RSS_LIMIT_MB` is set; CircleCI's Linux job sets 1750.
 - A background thread samples memory every `SAMPLE_INTERVAL_SECONDS`, and each test's start and
   end are checked too.
 - It reads the container's memory (cgroup v2) where there is one, else this process's resident

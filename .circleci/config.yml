@@ -368,12 +368,12 @@ jobs:
       DISABLE_MKDOCS_2_WARNING: "true"
       # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
       PYTEST_WORKERS: "0"
-      # Stop the run past 1600 MiB of the container's memory (its page cache left out), naming the
+      # Stop the run past 1750 MiB of the container's memory (its page cache left out), naming the
       # test (tests/memory_guard.py), before the 2 GB executor's kernel kills it with signal 9 and
-      # no test named (BUGS.md #235). 1600 is the owner's choice (2026-10-28: "Let's stay at 1600
-      # for a bit and see if we can reduce it further"); after BUGS.md #237's fixes a serial run
-      # peaked at 1409 MiB (amd64 emulated in Docker; CircleCI's summary line is the real figure)
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"
+      # no test named (BUGS.md #235). 1750 is the owner's choice (2026-11-17: "Let's raise the
+      # guard limit to 1750"), up from 1600 (2026-10-28): job 3686 stopped at 1604 MiB, 348 MiB
+      # of it reclaimable kernel slab, which the reading still counts (memory_guard.py)
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"
 
     steps:
       - checkout
@@ -491,7 +491,7 @@ jobs:
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
       PYTEST_WORKERS: "0"
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"
 
     steps:
       - checkout
@@ -540,9 +540,9 @@ jobs:
       DISABLE_MKDOCS_2_WARNING: "true"
       # Serially, as on Linux: parallel workers could reach the swap file on the SD card
       PYTEST_WORKERS: "0"
-      # As on Linux: stop past 1600 MiB, naming the test (tests/memory_guard.py), not a kernel kill
+      # As on Linux: stop past 1750 MiB, naming the test (tests/memory_guard.py), not a kernel kill
       # with no test named. The owner, 2026-11-04: limits stay on the real hardware
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"
 
     steps:
       - checkout
