@@ -6,7 +6,6 @@ detection, and color map lookups used by the animation system.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -688,8 +687,17 @@ def _shared_indentation_length(lines: Sequence[str]) -> int:
         int: The length of the shared prefix (0 when lines is empty).
 
     """
-    # os.path.commonprefix compares character by character, whatever the strings are
-    shared_prefix = os.path.commonprefix(list(lines))  # ruff: ignore[os-path-commonprefix] - character by character is the point
+    if not lines:
+        return 0
+    first = lines[0]
+    shared_len = len(first)
+    for line in lines[1:]:
+        shared_len = min(shared_len, len(line))
+        for i in range(shared_len):
+            if line[i] != first[i]:
+                shared_len = i
+                break
+    shared_prefix = first[:shared_len]
     return len(shared_prefix) - len(shared_prefix.lstrip(PIXEL_LINE_INDENTATION))
 
 

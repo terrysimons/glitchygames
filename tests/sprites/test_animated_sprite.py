@@ -1,5 +1,6 @@
 """Tests for animated sprite functionality."""
 
+import gc
 import logging
 import math
 import shutil
@@ -4610,3 +4611,24 @@ class TestOnePixelRowRule:
             / 'src/apps/bitmappy/src/bitmappy/resources/sprites/small_heart.toml'
         )
         assert AnimatedSprite(str(sprite_file)).pixel_row_repairs == []
+
+
+def test_an_animated_sprite_joins_only_the_group_it_is_given():
+    """No other group holds it, not even one ``groups()`` would not name.
+
+    A second group would keep it alive after its scene removed it
+    (tests/replay/test_removed_sprites_are_freed.py).
+    """
+    group = pygame.sprite.LayeredDirty()
+
+    sprite = AnimatedSprite(groups=group)
+
+    groups_holding_it = []
+    for candidate in gc.get_objects():
+        try:
+            if isinstance(candidate, pygame.sprite.AbstractGroup) and candidate.has(sprite):
+                groups_holding_it.append(candidate)
+        except ReferenceError:
+            pass
+
+    assert groups_holding_it == [group]
