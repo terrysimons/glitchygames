@@ -7,11 +7,11 @@ for loading and saving both static and animated sprites.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, overload
+
+from glitchygames.sprites.animated import AnimatedSprite
 
 if TYPE_CHECKING:
-    from glitchygames.sprites.animated import AnimatedSprite
-
     from .bitmappy_sprite import BitmappySprite
 
 from .constants import DEFAULT_FILE_FORMAT
@@ -50,12 +50,22 @@ class SpriteFactory:
         SpriteFactory._require_sprite_content(SpriteFactory._analyze_file(filename))
 
         # Always return AnimatedSprite - it handles both static and animated content
-        from glitchygames.sprites.animated import AnimatedSprite
-
         return AnimatedSprite(filename, groups=None)
 
+    @overload
     @staticmethod
-    def load_sprite_from_text(*, text: str, source_name: str) -> AnimatedSprite:
+    def load_sprite_from_text(*, text: str, source_name: str) -> AnimatedSprite: ...
+
+    @overload
+    @staticmethod
+    def load_sprite_from_text[SpriteType: AnimatedSprite](
+        *, text: str, source_name: str, sprite_class: type[SpriteType]
+    ) -> SpriteType: ...
+
+    @staticmethod
+    def load_sprite_from_text(
+        *, text: str, source_name: str, sprite_class: type[AnimatedSprite] = AnimatedSprite
+    ) -> AnimatedSprite:
         """Load a sprite from the text of a sprite file, as load_sprite loads a file.
 
         The text gets the content checks a file gets, then loads by the one path a file's load
@@ -65,6 +75,7 @@ class SpriteFactory:
             text: The sprite file's TOML text.
             source_name: What the text came from (a file name, a console), named in errors and in
                 the warnings about pixel rows the loader repaired.
+            sprite_class: The class built: ``AnimatedSprite`` or a subclass of it.
 
         Returns:
             AnimatedSprite (static text is converted to a single-frame animation).
@@ -77,7 +88,7 @@ class SpriteFactory:
 
         from glitchygames.sprites.sprite_text import sprite_from_text
 
-        return sprite_from_text(text=text, source_name=source_name)
+        return sprite_from_text(text=text, source_name=source_name, sprite_class=sprite_class)
 
     @staticmethod
     def _require_sprite_content(analysis: dict[str, Any]) -> None:
