@@ -4237,6 +4237,139 @@ def test_postrm_touches_no_home(tmp_path: Path, action: str):
     assert scripts.calls() == []
 
 
+class LeftoverUsers:
+    """A fake /etc/passwd, /etc/login.defs and root of homes for the postrm's notice (13.1)."""
+
+    def __init__(self, *, scripts: MaintainerScripts, tmp_path: Path):
+        """Write a passwd with a system account, two login users and one above the range."""
+        self.scripts = scripts
+        self.homes = tmp_path / 'fake-root'
+        self.passwd = tmp_path / 'passwd'
+        self.login_defs = tmp_path / 'login.defs'
+        self.passwd.write_text(
+            'root:x:0:0:root:/root:/bin/sh\n'
+            'daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n'
+            'alice:x:1000:1000:Alice:/home/alice:/bin/sh\n'
+            'bob:x:1001:1001:Bob:/home/bob:/bin/sh\n'
+            'nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin\n',
+            encoding='utf-8',
+        )
+        self.login_defs.write_text('# comment\nUID_MIN 1000\nUID_MAX 60000\n', encoding='utf-8')
+
+    def folder(self, *, user: str, kind: Literal['share', 'cache', 'state'], payload: str = 'x'):
+        """Create one of a user's default AI folders with a file in it.
+
+        Returns:
+            The folder.
+        """
+        parent = {'share': '.local/share', 'cache': '.cache', 'state': '.local/state'}[kind]
+        folder = self.homes / 'home' / user / parent / 'glitchygames' / 'ai'
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / 'file').write_text(payload, encoding='utf-8')
+        return folder
+
+    def run(self, *, action: str = 'remove') -> subprocess.CompletedProcess[str]:
+        """Run the postrm with the fakes injected.
+
+        Returns:
+            The finished run.
+        """
+        return self.scripts.run(
+            script='postrm',
+            arguments=[action],
+            environment={
+                'AI_POSTRM_PASSWD_FILE': str(self.passwd),
+                'AI_POSTRM_LOGIN_DEFS_FILE': str(self.login_defs),
+                'AI_POSTRM_HOME_ROOT': str(self.homes),
+            },
+        )
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('action', ['remove', 'purge'])
+def test_postrm_names_each_users_leftover_folders_and_deletes_nothing(tmp_path: Path, action: str):
+    """A removal prints each user's folder, its size and the command that deletes it (13.1).
+
+    Only users with data are named; a user without any, a system account and an id above the
+    login range are not. Nothing is deleted, and no file is read.
+    """
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+    users = LeftoverUsers(scripts=scripts, tmp_path=tmp_path)
+    share = users.folder(user='alice', kind='share', payload='x' * 20_000)
+    cache = users.folder(user='alice', kind='cache')
+    state = users.folder(user='alice', kind='state')
+    system_folder = users.folder(user='nobody', kind='share')
+    before = {path: path.read_bytes() for path in users.homes.rglob('*') if path.is_file()}
+
+    result = users.run(action=action)
+
+    assert result.returncode == 0, result.stderr
+    for folder in (share, cache, state):
+        assert f'rm -rf {folder}' in result.stdout
+    # du -sh rounds up to whole blocks, so the size is some figure with a unit
+    assert re.search(rf'{re.escape(str(share))} \(\d+(\.\d+)?[BKMG]\)', result.stdout)
+    assert 'bob' not in result.stdout
+    assert str(system_folder) not in result.stdout
+    assert 'Nothing was deleted' in result.stdout
+    assert {path: path.read_bytes() for path in users.homes.rglob('*') if path.is_file()} == before
+
+
+@needs_a_posix_shell
+def test_postrm_prints_nothing_when_no_user_has_data(tmp_path: Path):
+    """No leftover, no notice."""
+    users = LeftoverUsers(scripts=MaintainerScripts(tmp_path=tmp_path), tmp_path=tmp_path)
+
+    result = users.run()
+
+    assert (result.returncode, result.stdout, result.stderr) == (0, '', '')
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('action', ['upgrade', 'abort-install', 'failed-upgrade'])
+def test_postrm_prints_nothing_on_an_upgrade(tmp_path: Path, action: str):
+    """An upgrade keeps the data in use, so it needs no notice."""
+    users = LeftoverUsers(scripts=MaintainerScripts(tmp_path=tmp_path), tmp_path=tmp_path)
+    users.folder(user='alice', kind='share')
+
+    result = users.run(action=action)
+
+    assert (result.returncode, result.stdout) == (0, '')
+
+
+@needs_a_posix_shell
+def test_postrm_honours_the_login_range_in_login_defs(tmp_path: Path):
+    """UID_MIN and UID_MAX come from login.defs, so a site's range decides who is a user."""
+    users = LeftoverUsers(scripts=MaintainerScripts(tmp_path=tmp_path), tmp_path=tmp_path)
+    users.folder(user='alice', kind='share')
+    users.folder(user='bob', kind='share')
+    users.login_defs.write_text('UID_MIN 1001\nUID_MAX 1001\n', encoding='utf-8')
+
+    result = users.run()
+
+    assert 'bob' in result.stdout
+    assert 'alice' not in result.stdout
+
+
+@needs_a_posix_shell
+def test_postrm_exits_zero_when_du_fails_or_the_files_are_missing(tmp_path: Path):
+    """A failure must not block dpkg: the folder is still named, with its size unknown."""
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+    users = LeftoverUsers(scripts=scripts, tmp_path=tmp_path)
+    share = users.folder(user='alice', kind='share')
+    _write_executable(scripts.tools / 'du', '#!/bin/sh\nexit 1\n')
+
+    failing_du = users.run()
+    users.passwd.unlink()
+    users.login_defs.unlink()
+    without_files = users.run()
+
+    assert failing_du.returncode == 0, failing_du.stderr
+    assert f'rm -rf {share}' in failing_du.stdout
+    assert 'size unknown' in failing_du.stdout
+    assert without_files.returncode == 0, without_files.stderr
+    assert not without_files.stdout
+
+
 @needs_a_posix_shell
 @pytest.mark.parametrize('architecture', ARCHITECTURES)
 def test_every_maintainer_script_passes_sh_n(

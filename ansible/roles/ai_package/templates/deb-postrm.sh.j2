@@ -1,7 +1,61 @@
 #!/bin/sh
-# The .deb's postrm (plans/lucid-circuit-linux.md, 6.7). By Debian's convention a package removes
-# nothing in any home, purged or not: each user's models, keys, settings and history stay until
-# they run {{ ai_service_bin_directory }}/{{ ai_package_uninstaller_name }} before the removal, or
-# remove the folders themselves. dpkg removes the package's own files.
+# The .deb's postrm (plans/lucid-circuit-linux.md, 6.7 and 13.1). By Debian's convention a package
+# removes nothing in any home, purged or not: each user's models, keys, settings and history stay
+# until they run {{ ai_service_bin_directory }}/{{ ai_package_uninstaller_name }} before the
+# removal, or remove the folders themselves. dpkg removes the package's own files.
+#
+# That leaves other users' data (models of about 1.4 GB) behind with nobody told, and
+# uninstall-user.sh gone with the package. So a removal or purge prints, per local user who has
+# any, each folder, its size and the command that deletes it (the owner chose a notice, never a
+# deletion, 2026-11-19). It runs after the package's files are gone, so it calls nothing the
+# package shipped: only sh, awk and du. It reads no file's contents (sizes only), and exits 0
+# whatever happens: a maintainer script's failure must not block dpkg.
+#
+# The folders are the defaults under each home. A user's XDG_DATA_HOME, XDG_CACHE_HOME and
+# XDG_STATE_HOME are set in their session, which root can't see, so a user who moved them is
+# not told of the moved folders.
+#
+# The three files below are injectable so the tests can use a fake system (as setup.sh's sysfs):
+# AI_POSTRM_PASSWD_FILE, AI_POSTRM_LOGIN_DEFS_FILE, and AI_POSTRM_HOME_ROOT, a prefix for every home.
 set -u
+
+case "${1:-}" in
+    remove | purge) ;;
+    *) exit 0 ;;
+esac
+
+passwd_file=${AI_POSTRM_PASSWD_FILE:-/etc/passwd}
+login_defs_file=${AI_POSTRM_LOGIN_DEFS_FILE:-/etc/login.defs}
+home_root=${AI_POSTRM_HOME_ROOT:-}
+
+# The login range, as login.defs says; 1000-60000 when it says nothing
+uid_min=1000
+uid_max=60000
+if [ -r "$login_defs_file" ]; then
+    uid_min=$(awk '$1 == "UID_MIN" && $2 ~ /^[0-9]+$/ { value = $2 } END { print value + 0 }' "$login_defs_file" 2>/dev/null)
+    uid_max=$(awk '$1 == "UID_MAX" && $2 ~ /^[0-9]+$/ { value = $2 } END { print value + 0 }' "$login_defs_file" 2>/dev/null)
+    [ "$uid_min" -gt 0 ] 2>/dev/null || uid_min=1000
+    [ "$uid_max" -gt 0 ] 2>/dev/null || uid_max=60000
+fi
+
+[ -r "$passwd_file" ] || exit 0
+
+# One line per folder; a home with a space in it survives the read
+notice=$(awk -F: -v low="$uid_min" -v high="$uid_max" \
+    '$3 ~ /^[0-9]+$/ && $3 + 0 >= low && $3 + 0 <= high { print $1 ":" $6 }' "$passwd_file" 2>/dev/null \
+    | while IFS=: read -r user home; do
+        [ -n "$home" ] || continue
+        for relative in .local/share .cache .local/state; do
+            folder="$home_root$home/$relative/glitchygames/ai"
+            [ -d "$folder" ] || continue
+            size=$(du -sh "$folder" 2>/dev/null | awk '{ print $1 }')
+            echo "  $user: $folder (${size:-size unknown}); to delete it: rm -rf $folder"
+        done
+    done) || exit 0
+
+if [ -n "$notice" ]; then
+    printf '%s\n' "{{ ai_package_deb_name }}: removed, but these users' local AI data stays in their homes:"
+    printf '%s\n' "$notice"
+    printf '%s\n' "Nothing was deleted. Each user can also delete their own with the commands above."
+fi
 exit 0

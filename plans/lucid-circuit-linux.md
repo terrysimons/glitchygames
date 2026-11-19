@@ -598,8 +598,11 @@ plists on a Mac, unit files on Linux).
 - **Depends:** `libc6 (>= <recorded GLIBC version>)`, `libstdc++6`, `libgcc-s1`, `systemd`, `curl`,
   `openssl`, `ca-certificates`, `coreutils`. Checked against the binaries' `ldd` output.
 - **Maintainer scripts:** `postinst` enables and starts the setup job (6.2); `prerm` stops every
-  running `ai.glitchygames.*` user unit for every logged-in user; `postrm purge` removes nothing in
-  homes (Debian convention). `/opt/glitchygames/ai/bin/uninstall-user.sh` removes one user's data
+  running `ai.glitchygames.*` user unit for every logged-in user; `postrm` removes nothing in
+  homes (Debian convention) but, on `remove` and `purge` only, prints a notice per local login-range
+  user (`/etc/login.defs` range, 1000-60000 by default) naming each default AI folder that exists,
+  its `du -sh` size and the `rm -rf` that deletes it, then that nothing was deleted; silent when no
+  one has data, and it exits 0 whatever happens (proved in a Debian container, Task 13). `/opt/glitchygames/ai/bin/uninstall-user.sh` removes one user's data
   when they ask, and masks the setup job for that user (`systemctl --user mask`, the user's own
   override of the `--global` enable), or it would set everything up again at their next login; it
   says how to undo that (`systemctl --user unmask ai.glitchygames.setup.service`), or, when the
@@ -671,7 +674,10 @@ playbook. Nothing here depends on the architecture.
 - **`ai_uninstall`:** on Linux `uninstall-user.sh` for the owner first, then `apt remove
   glitchygames-ai` (the package holds `uninstall-user.sh`, so the reverse order the first draft
   gave would remove the uninstaller before it ran; found by Task 7, 2026-11-19). Other users'
-  units are stopped by prerm; their data stays in their homes (13.1 asks what to do about it).
+  units are stopped by prerm; their data stays in their homes, and the postrm on `remove`/`purge`
+  prints a notice naming each user's leftover folders, sizes and the `rm -rf` that deletes them
+  (never a deletion; the owner, 2026-11-19; the folders are the defaults under each home, as root
+  can't see a user's XDG variables; it uses only sh, awk and du, as the package's files are gone).
 
 ## 7. Tests, named as behaviours
 
