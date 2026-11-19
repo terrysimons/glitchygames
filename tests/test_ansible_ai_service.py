@@ -3952,6 +3952,57 @@ def test_linux_installs_the_package_then_waits_for_setup_then_smoke_tests():
     assert 'become' not in setup
 
 
+RECORD_SIZE_TASK = 'Record a size chosen by hand'
+CLEAR_SIZE_TASK = 'Otherwise let each run choose'
+PLATFORM_INSTALL_TASK = 'Install the service on this platform'
+
+
+@needs_a_posix_shell
+def test_a_size_chosen_in_ansible_reaches_linux_setup_before_it_runs(tmp_path: Path):
+    """ai_service_bonsai_size is written to selection.env on both platforms, before setup runs.
+
+    Linux's setup.sh reads selection.env, so the tasks writing it sit in main.yml ahead of the
+    platform's install (which runs setup.sh on Linux), and a size set in Ansible is what setup
+    downloads.
+    """
+    main_names = [task.get('name') for task in role_tasks(role='ai_service')]
+    mac_names = [task.get('name') for task in role_tasks(role='ai_service', file_name='macos.yml')]
+    assert main_names.index(RECORD_SIZE_TASK) < main_names.index(PLATFORM_INSTALL_TASK)
+    assert main_names.index(CLEAR_SIZE_TASK) < main_names.index(PLATFORM_INSTALL_TASK)
+    assert RECORD_SIZE_TASK not in mac_names
+    assert CLEAR_SIZE_TASK not in mac_names
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    chosen = setup.service.variables['ai_models_bonsai']['4b']
+    for model_file in (chosen['model'], chosen['vision']):
+        setup.serve(model_file=model_file, content=f'{model_file["file"]}\n'.encode())
+    variables = ansible_variables(
+        system='Linux',
+        architecture='aarch64',
+        home=setup.service.home,
+        overrides={'ai_service_bonsai_size': '4b'},
+    )
+    record = named_task(role='ai_service', file_name='main.yml', name=RECORD_SIZE_TASK)
+    clear = named_task(role='ai_service', file_name='main.yml', name=CLEAR_SIZE_TASK)
+    assert render_expression(expression='{{ ' + record['when'] + ' }}', variables=variables)
+    assert not render_expression(expression='{{ ' + clear['when'] + ' }}', variables=variables)
+    selection = Path(
+        render_value(value=record['ansible.builtin.copy']['dest'], variables=variables)
+    )
+    assert selection == setup.user_root / 'config' / 'selection.env'
+    selection.parent.mkdir(parents=True)
+    selection.write_text(
+        render_value(value=record['ansible.builtin.copy']['content'], variables=variables),
+        encoding='utf-8',
+    )
+
+    result = setup.run()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'downloading Bonsai 4b' in result.stdout
+    assert (setup.user_root / 'models' / chosen['model']['file']).is_file()
+
+
 def test_both_platforms_list_the_agents_and_run_the_same_smoke_test():
     """One list of agents and one smoke test: only the install between them is the platform's."""
     tasks = role_tasks(role='ai_service')

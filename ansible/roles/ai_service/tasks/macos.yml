@@ -13,19 +13,6 @@
     - "{{ ai_service_agents_directory }}"
     - "{{ ai_log_root }}"
 
-- name: Record a size chosen by hand
-  ansible.builtin.copy:
-    content: "bonsai_override={{ ai_service_bonsai_size | quote }}\n"
-    dest: "{{ ai_service_config_directory }}/selection.env"
-    mode: "0644"
-  when: ai_service_bonsai_size | length > 0
-
-- name: Otherwise let each run choose
-  ansible.builtin.file:
-    path: "{{ ai_service_config_directory }}/selection.env"
-    state: absent
-  when: ai_service_bonsai_size | length == 0
-
 - name: Generate the API keys
   ansible.builtin.shell:
     cmd: umask 077 && openssl rand -hex 32 > {{ item | quote }}

@@ -11,6 +11,27 @@
 - name: List the agents
   ansible.builtin.import_tasks: list_agents.yml
 
+# A size chosen by hand, which setup.sh and ai-service.sh read from selection.env: written here for
+# both platforms, before the platform's install, as Linux's runs setup.sh
+- name: Make the user's config folder
+  ansible.builtin.file:
+    path: "{{ ai_service_config_directory }}"
+    state: directory
+    mode: "0755"
+
+- name: Record a size chosen by hand
+  ansible.builtin.copy:
+    content: "bonsai_override={{ ai_service_bonsai_size | quote }}\n"
+    dest: "{{ ai_service_config_directory }}/selection.env"
+    mode: "0644"
+  when: ai_service_bonsai_size | length > 0
+
+- name: Otherwise let each run choose
+  ansible.builtin.file:
+    path: "{{ ai_service_config_directory }}/selection.env"
+    state: absent
+  when: ai_service_bonsai_size | length == 0
+
 # The Mac writes everything itself; Linux installs the .deb and runs its setup.sh for the owner
 # (plans/lucid-circuit-linux.md, 6.3). Both end with the same smoke test
 - name: Install the service on this platform
