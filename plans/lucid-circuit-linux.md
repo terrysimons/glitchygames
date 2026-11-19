@@ -392,8 +392,12 @@ option hashing, build, install) and includes `macos.yml` or `linux.yml` for the 
   `GGML_VULKAN=OFF`, `GGML_OPENMP=OFF`, identical on ARM and x86_64. llama.cpp then builds every
   variant section 4 lists for the host's architecture, each a shared library, and `llama-server`
   loads the best one the CPU supports when it starts. No machine is refused for its CPU. The
-  trade-offs, accepted: the libraries are shared, not one static binary as on the Mac, so they live
-  in the runtime's `lib/` with an `$ORIGIN`-relative RPATH; the build takes several times longer;
+  trade-offs, accepted: the libraries are shared, not one static binary as on the Mac. The CPU
+  variant modules (`libggml-cpu-*.so`) sit in the runtime's `bin/` beside `llama-server`, where
+  ggml's loader looks (b12167 `ggml/src/ggml-backend-reg.cpp:486-501`: `GGML_BACKEND_DIR` if built
+  in, then the executable's folder, then the current folder; never the RPATH), as llama.cpp's own
+  install puts them; the other shared libraries live in `lib/`, found through an `$ORIGIN/../lib`
+  RPATH (found by the Task 2 review, 2026-11-18); the build takes several times longer;
   the package is bigger by a few megabytes per variant. At `b12167`, `GGML_BACKEND_DL` requires
   `BUILD_SHARED_LIBS` and `GGML_CPU_ALL_VARIANTS` refuses `GGML_CPU_ARM_ARCH`, both checked by
   CMake. The Mac keeps its static Metal build: Apple Silicon is one CPU family.
@@ -824,7 +828,8 @@ changes for x86_64.
   load, journald versus the log file).
 - How `prerm` reaches every logged-in user's units.
 - The nox session's name and its container images.
-- Where the CPU variants' libraries sit inside the runtime folder, and the RPATH that finds them.
+- ~~Where the CPU variants' libraries sit inside the runtime folder~~: decided in 6.5 (`bin/`, beside
+  `llama-server`).
 
 ## 12. Decisions, and who made them
 
