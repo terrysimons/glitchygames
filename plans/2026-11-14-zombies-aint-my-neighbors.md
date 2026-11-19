@@ -339,7 +339,15 @@ while #215 is open, saying it is stacked; rebase onto `main` once #215 lands.
 - [ ] **Listen to the score and the effects, and watch a real launch** (feature plan 11): nobody
   has listened to the finished score, and the CRT power-on frame that builds it on a first launch
   has only been measured, not watched (`scripts/measure_sound_start.py`).
-- [ ] **A flaky engine test, on this branch only**:
+- [x] **FIXED 2026-11-19** (the owner: on this stacked branch). The diagnosis held: a dead
+  `weakref.proxy` is gc-tracked, and `isinstance()` on it raises `ReferenceError` (`type()`
+  does not). CircleCI's run (workflow 9f838a91) logged that error; eight shuffled orders of
+  `tests/sprites` did not reproduce it, so the regression test plants a dead proxy
+  (`test_the_search_for_groups_passes_over_a_dead_weak_proxy`, failed first). The search is
+  `groups_holding`, by `issubclass(type(...))`. Sweep: the other two `gc` walks
+  (`tests/replay/removed_sprites_watch.py`, `scripts/mirror_measurements/churn.py`) use only
+  `type()`. PR #224 (the bot's, base `main`) is not needed. Original note:
+  **A flaky engine test, on this branch only**:
   `tests/sprites/test_animated_sprite.py::test_an_animated_sprite_joins_only_the_group_it_is_given`.
   Another session's diagnosis (2026-11-18, not reproduced here): `isinstance()` raises
   `ReferenceError` on a dead `weakref.proxy` it meets in `gc.get_objects()`, and test order
