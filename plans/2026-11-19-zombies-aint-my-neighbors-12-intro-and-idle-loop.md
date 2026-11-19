@@ -5,8 +5,10 @@ Master plan: [2026-11-14-zombies-aint-my-neighbors.md](2026-11-14-zombies-aint-m
 BOM, section 7 ([2026-11-14-zombies-aint-my-neighbors-2-character-bom.md](2026-11-14-zombies-aint-my-neighbors-2-character-bom.md)).
 The attract demo is feature plan 13, which fills the loop's second slot.
 
-Status: design, agreed in conversation on 2026-11-19; a builder check's eight questions were
-settled as Claude's calls (marked below); not built.
+Status: BUILT (2026-11-19), Tasks 1 to 5 committed; Task 6's browser rumble check waits for the
+owner. The design was agreed in conversation on 2026-11-19; a builder check's eight questions were
+settled as Claude's calls (marked below); the owner changed decision 2 the same day (every
+launch, no saved flag).
 
 ## Intent
 
@@ -95,9 +97,11 @@ CRT power-on → TITLE ──(idle IDLE_SECONDS)──► INTRO ──► ATTRAC
 - Only an idle title with **no slot joined and no run** loops: a joined slot or a run held (Back
   from a STAGE n card) means someone is playing.
 - From the loop's intro (and the demo), the press that returns to the title is consumed: the
-  new title ignores presses until every key and pad button is up (read from the frame's
-  `current_input()`), so the key-up, a held button or a key repeat can't join anyone (Claude's
-  call: the arcade feel; no stray join). The intro itself handles every event it can be sent:
+  new title ignores the keys and pad buttons held as it opens (read from the frame's
+  `current_input()`), each until it is seen up, so the key-up, a held button or a key repeat
+  can't join anyone, while every other key and button counts at once (Claude's call: the arcade
+  feel; no stray join. First written "until every key and pad button is up"; the final review's
+  I1 found that one input held for good, a latched toggle, then locked every device out). The intro itself handles every event it can be sent:
   key down and up, pad buttons, axes, devices added and removed.
 - The intro returns to a fresh title whose idle count starts at zero, with an empty roster and
   no run (the only title that loops).

@@ -340,7 +340,10 @@ while #215 is open, saying it is stacked; rebase onto `main` once #215 lands.
 - [ ] **The intro and the attract demo** (decisions 6 and 15): a cinematic sprite intro of the
   sleepover and the monsters coming out of the TV (controllers rumble then, decision 15, which
   depends on the browser rumble item above), and the title's recorded attract-mode demo (bundled
-  demos). Each needs its own feature plan (12 and on).
+  demos). Each needs its own feature plan (12 and on). **The intro is BUILT (feature plan 12,
+  2026-11-19):** it opens every launch and plays in the title's idle loop; the browser rumble
+  check (its Task 6, step 1) waits for the owner at a browser with a pad. **The attract demo is
+  feature plan 13** (not started): it fills the idle loop's second slot, after the intro.
 - [ ] **Listen to the score and the effects, and watch a real launch** (feature plan 11): nobody
   has listened to the finished score, and the CRT power-on frame that builds it on a first launch
   has only been measured, not watched (`scripts/measure_sound_start.py`).
@@ -385,6 +388,7 @@ when filed; this table links to them.
 | 10 | 2026-11-14 | bug (engine) | The engine's `PauseScene` leaves raw device events (JOYDEVICEREMOVED and the like) unhandled, so unplugging a pad while any game is paused raises under `--no-unhandled-events` (off by default, so players only see a log line at most). Found by this game's pause-unplug test, which runs that path without the flag | not yet |
 | 8 | 2026-11-14 | bug (repo tooling) | `scripts/build_browser_bundle.py` `render_page` puts a game's title into the page's `<title>` unescaped (the index page escapes it). Harmless for this title, but a title with `&` or `<` would make invalid HTML | not yet |
 | 12 | 2026-11-15 | feature | The engine keeps no cache of loaded sprite files: every `AnimatedSprite(filename=...)` reads and parses its TOML and rebuilds its frame surfaces, so a game that creates sprites mid-play drops frames (a Lawn Zombie: 27 to 41 ms). A shared, read-only cache of parsed files (frames and surfaces), keyed by path, would let every game spawn freely. This game works around it with pools (feature plan 6) | not yet |
+| 15 | 2026-11-19 | feature | The engine keeps "would the CRT power-on play this run?" private (`GameEngine._power_on_plays`), so a game that wants to do something only where someone can see it (this game's launch intro, feature plan 12) repeats the engine's call to `crt_power_on.resolve_mode` and `should_play` (`launch_showing.launch_showing_allowed`). A public answer (a property on the engine or the active sources) would keep the rule in one place. It would also cover the Arcade's live inner games (its sub-plan 7): `pygame.display.get_driver()` reports the window's real driver there, so the game's own check would open each live tile with the intro and its rumble (today inner games only replay, so it cannot happen yet) | not yet |
 | 7 | 2026-11-14 | to consider | `tests/replay/test_golden_replays.py` assumes a game is one scene (header game == gameplay scene; the recording ends in it). A title in front of gameplay has to be left out of the golden. The tests could accept a start scene that differs from the gameplay scene | not yet |
 
 ## Feature plans
@@ -428,7 +432,7 @@ Each feature gets its own plan in `plans/`, linked here and linking back to this
    the engine's new `Mix` and cached as every sound is (`music.py`; the owner, 2026-11-18:
    "build it, then play the built copy. Same as our other caching layer.").
 12. [The intro and the title's idle loop](2026-11-19-zombies-aint-my-neighbors-12-intro-and-idle-loop.md):
-   DESIGN, not built (2026-11-19). The title plays the intro after 20 s idle, then (feature 13)
+   BUILT (2026-11-19), committed; the browser rumble check waits for the owner. The title plays the intro after 20 s idle, then (feature 13)
    the attract demo, arcade style; the intro also opens every launch, any key or button
    skipping it; pads rumble only then, never while unattended; built as one timeline of cues.
 
