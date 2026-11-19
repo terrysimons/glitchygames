@@ -587,6 +587,16 @@ def test_service_locations_on_linux_split_programs_and_user_data(
     )
 
 
+def test_the_placement_file_lives_in_the_user_config(tmp_path):
+    """setup.sh writes the CPU placement beside the key, in the user's own config."""
+    locations = ServiceLocations(program_root=tmp_path / 'programs', user_root=tmp_path / 'user')
+
+    assert locations.cpu_placement_file == tmp_path / 'user' / 'config' / 'cpu-placement.json'
+    assert ServiceLocations.in_one_folder(root=tmp_path).cpu_placement_file == (
+        tmp_path / 'config' / 'cpu-placement.json'
+    )
+
+
 def test_the_install_root_variable_still_sets_both_roots(tmp_path, monkeypatch, mocker):
     """On any platform, a test's one folder."""
     mocker.patch.object(ai_link.sys, 'platform', 'win32')

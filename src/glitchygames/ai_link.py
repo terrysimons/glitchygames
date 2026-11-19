@@ -120,6 +120,11 @@ class ServiceLocations(BaseModel):
         return self.user_root / 'config' / 'service-api-key'
 
     @property
+    def cpu_placement_file(self) -> Path:
+        """The cores the game, its mirror and the AI run on, as setup.sh wrote them (Linux)."""
+        return self.user_root / 'config' / 'cpu-placement.json'
+
+    @property
     def history_directory(self) -> Path:
         """Where the AI console keeps each game's history."""
         return self.user_root / 'history'

@@ -33,7 +33,7 @@ from typing import (
 import pygame
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames import clock, events
+from glitchygames import clock, cpu_placement, events
 from glitchygames.ai_link import AiLink, create_link
 from glitchygames.argument_types import non_negative_int, unit_interval
 from glitchygames.backgrounds import (
@@ -1639,6 +1639,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 captures_scene_starts=options.get('record_trace') is not None,
             )
             self.ai_link = create_link(options=options)
+            # A live run with AI moves onto the game's cores on Linux; an inner context shares
+            # the process with other games, so it never pins it (glitchygames/cpu_placement.py)
+            cpu_placement.pin_the_game_to_its_cores(link=self.ai_link)
             self.host = GameHost(
                 # Live play against OLD draws OLD over each presented frame
                 sources=self._host_sources(inner=live_sources, overlay=self.onion_skin)
