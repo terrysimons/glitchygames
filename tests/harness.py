@@ -31,6 +31,7 @@ import pygame
 
 from glitchygames import engine_context, pixel_snap, process, randomness, sources
 from glitchygames.audio.engine import AUDIO_ENGINE_SLOT
+from glitchygames.audio.instruments import registry as instruments_registry
 from glitchygames.audio.library import ENGINE_SOUND_CACHE
 from glitchygames.audio.voices import release_channels
 from glitchygames.backgrounds import set_active_default_background_pattern
@@ -479,6 +480,20 @@ def empty_engine_sound_cache():
 
 
 @pytest.fixture(autouse=True)
+def empty_instrument_catalog_builds():
+    """Start and end each test with no catalog instrument built (``instruments.get``'s cache).
+
+    A built instrument keeps a band-limited wave table for every band a note has read
+    (``Wave.band_limited_table``): kept for the whole run, the catalog's builds held 26 MiB of
+    them after the audio tests (2026-11-19, the Linux CI container), memory the Linux job's
+    guard counts. Within a test a build is still shared; no module keeps one past its test.
+    """
+    instruments_registry._built.cache_clear()
+    yield
+    instruments_registry._built.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def empty_engine_sprite_cache():
     """Start and end each test with an empty process cache of compiled sprites.
 
@@ -804,12 +819,28 @@ def per_context_state_resets(
 
 
 @pytest.fixture
+def engine_cache_resets(
+    empty_engine_sound_cache, empty_engine_sprite_cache, empty_instrument_catalog_builds
+):
+    """Group the emptying of the engine's process caches, for the leak check.
+
+    A group of its own inside engine_service_resets, which would otherwise take more arguments
+    than the lint allows.
+
+    Args:
+        empty_engine_sound_cache: Requested only to be torn down after the leak check.
+        empty_engine_sprite_cache: Requested only to be torn down after the leak check.
+        empty_instrument_catalog_builds: Requested only to be torn down after the leak check.
+
+    """
+
+
+@pytest.fixture
 def engine_service_resets(
     desktop_user_files,
     in_process_clipboard,
     restore_game_engine_class_state,
-    empty_engine_sound_cache,
-    empty_engine_sprite_cache,
+    engine_cache_resets,
 ):
     """Group the resets of the engine's other installed state, for the leak check.
 
@@ -817,8 +848,7 @@ def engine_service_resets(
         desktop_user_files: Requested only to be torn down after the leak check.
         in_process_clipboard: Requested only to be torn down after the leak check.
         restore_game_engine_class_state: Requested only to be torn down after the leak check.
-        empty_engine_sound_cache: Requested only to be torn down after the leak check.
-        empty_engine_sprite_cache: Requested only to be torn down after the leak check.
+        engine_cache_resets: Requested only to be torn down after the leak check.
 
     """
 
