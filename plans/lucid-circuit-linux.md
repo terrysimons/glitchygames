@@ -621,7 +621,9 @@ plists on a Mac, unit files on Linux).
   back; the postinst leaves every mask alone, as it runs at every `apt upgrade` too, and an unmask
   there brought the service back for a user who had uninstalled it. When a masked user's start
   fails, the postinst says the job is masked and how to unmask it (Task 11, 2026-11-19; checked
-  with systemd 257). A Mac's
+  with systemd 257). So a `.deb` installed again (by `apt` or `dpkg`, not Ansible) never unmasks
+  a user's setup job: the user who uninstalled stays uninstalled until they unmask it or Ansible's
+  install runs for them, which the owner kept (2026-11-19, 12). A Mac's
   setup job has no such problem: it runs once and removes its own plist, and installing the
   `.pkg` again is what brings it back.
 - **Contents check** (as the `.pkg`'s "holds the server and its notices, and no model"):
@@ -1008,6 +1010,7 @@ changes for x86_64.
 | The `.deb` depends on `libstdc++6 (>=` the release its GLIBCXX/CXXABI symbols need`)`, read from the build like the glibc floor (Task 6 review) | Designer's call |
 | Fix, in this branch, the Mac `.pkg` naming the builder's runtime instead of the player's (`bugs/2026-11-18-mac-package-settings-name-builders-runtime.md`) | The owner, 2026-11-19 |
 | The `.deb`'s Maintainer: `GlitchyGames <terry.simons@gmail.com>` | The owner, 2026-11-19 |
+| A user's setup job stays masked after their own uninstall: a reinstalled `.deb` never unmasks it, only Ansible's install does (for the owner), so no code change (6.7, 13.1) | The owner, 2026-11-19 |
 | The AI on every Pi: the `raspberry_pis` group's `ai_enabled: false` and the 16 GB Pis' own `ai_enabled: true` are removed, so `all`'s true applies to every Linux host; the memory tiers (6.4.1) pick what each runs (6.9, 8.2). Dropping the override rather than flipping it to true leaves one place that says it | The owner, 2026-11-19 |
 | CI installs no separate ansible-core: the Linux job's `uv tool install "ansible-core==2.22.0"` step, its `test-linux-ci` mirror and the pin half of their drift test are removed; `uv.lock`'s `dev` extra (main's #215) is the one install, which the syntax checks already ran first. The check that the Linux image installs `iproute2` and `lsof` stays (13.1, plan Task 12) | The owner, 2026-11-19 |
 
@@ -1035,6 +1038,7 @@ Resolved since (kept for the history):
 |---|---|
 | Install `iproute2` (and `lsof`) in the CircleCI Linux image: CircleCI had neither `ss` nor `lsof`, so the real-socket port test ran nowhere in CI | Done (plan Task 12): `test-python-3-15-linux` installs both, on each of its split machines |
 | Add `ansible-core` as a development dependency group, so CI runs the Ansible `--syntax-check` tests | The owner chose route B (12): a `uv` tool in CI, not a project dependency; built (plan Task 12). Main's #215 has since added it to the `dev` extra and group anyway |
+| Should a reinstalled `.deb` unmask the setup job of a user who ran `uninstall-user.sh`? Today only Ansible's install unmasks it (for the owner); `apt install` and every upgrade leave the mask, so that user stays uninstalled (raised with the postinst's unmask moving to Ansible, 6.7) | Kept as it is, no code change (the owner, 2026-11-19; 12) |
 | Keep CI's `uv tool install "ansible-core==2.22.0"` now that main's `dev` extra holds ansible-core (12, route B)? The test sessions install it from `uv.lock` on every OS, and the syntax checks take the one beside the session's Python first, so the tool is not what they run (raised by the merge with main) | Dropped: the step, its `test-linux-ci` mirror and the pin half of the drift test (the owner, 2026-11-19; 12) |
 
 ### 13.2 Measurements still to make
