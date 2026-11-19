@@ -177,6 +177,8 @@ class SpriteFrame:
         # A list of this frame's own, or a compiled sprite's tuple while _pixels_are_shared
         self._pixels: Sequence[tuple[int, ...]] = []
         self._pixels_are_shared = False
+        # The compile's drawn surface of these pixels at scale 1, for a frame made by sharing
+        self._shared_drawn_surface: pygame.Surface | None = None
         # The pixel rows this frame was loaded from, glyph for glyph, or None for a frame built
         # in code or whose rows the load had to repair. A save writes them back while the
         # frame's pixels still match them (AnimatedSprite._rows_kept_from_load), so two glyphs
@@ -187,7 +189,9 @@ class SpriteFrame:
         self._opaque_bounds_cache: tuple[pygame.Surface, pygame.Rect] | None = None
 
     @classmethod
-    def sharing(cls, template: SpriteFrame) -> SpriteFrame:
+    def sharing(
+        cls, template: SpriteFrame, *, drawn_surface: pygame.Surface | None = None
+    ) -> SpriteFrame:
         """Return a new frame pointing at template's surface and pixels, copied on first read.
 
         The rect and hitbox are the new frame's own copies; the duration and loaded pixel rows
@@ -195,6 +199,8 @@ class SpriteFrame:
 
         Args:
             template: A compiled sprite's frame.
+            drawn_surface: The compile's drawn surface of template at scale 1, shared while the
+                pixels are (``shared_drawn_surface``).
 
         Returns:
             SpriteFrame: The new frame, sharing.
@@ -206,6 +212,7 @@ class SpriteFrame:
         frame._rect = template._rect.copy()
         frame._pixels = template._pixels
         frame._pixels_are_shared = True
+        frame._shared_drawn_surface = drawn_surface
         frame.loaded_pixel_rows = template.loaded_pixel_rows
         # Measured from the same surface, so still true of it (opaque_bounds copies its rect)
         frame._opaque_bounds_cache = template._opaque_bounds_cache
@@ -248,6 +255,15 @@ class SpriteFrame:
         """Set the pixels (kept as given, as a plain attribute would keep them)."""
         self._pixels = new_pixels
         self._pixels_are_shared = False
+
+    @property
+    def shared_drawn_surface(self) -> pygame.Surface | None:
+        """The compile's drawn surface at scale 1 while the pixels are still shared, else None.
+
+        Shared by every sprite drawing this frame: never change it in place (as for
+        AnimatedSprite.drawn_frame_surface).
+        """
+        return self._shared_drawn_surface if self._pixels_are_shared else None
 
     @property
     def read_only_pixels(self) -> Sequence[tuple[int, ...]]:

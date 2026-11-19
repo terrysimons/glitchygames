@@ -666,8 +666,11 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         if cache_key in self._surface_cache:
             return self._surface_cache[cache_key]
 
-        # Create and cache surface if not available, drawn at the sprite's scale
-        surface = self._create_optimized_surface(frame)
+        # Create and cache surface if not available, drawn at the sprite's scale: a frame still
+        # sharing a compile's pixels draws the compile's surface, made once for every sprite
+        surface = getattr(frame, 'shared_drawn_surface', None)
+        if surface is None:
+            surface = self._create_optimized_surface(frame)
         if self._scale > 1:
             surface = pygame.transform.scale(
                 surface, (surface.get_width() * self._scale, surface.get_height() * self._scale)
@@ -1429,7 +1432,12 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         )
         self.frame_anchor = compiled.frame_anchor
         self._animations = {
-            name: [SpriteFrame.sharing(template) for template in templates]
+            name: [
+                SpriteFrame.sharing(
+                    template, drawn_surface=compiled.drawn_surfaces.get((name, index))
+                )
+                for index, template in enumerate(templates)
+            ]
             for name, templates in compiled.animations.items()
         }
         self._animation_order = list(compiled.animation_order)

@@ -4972,3 +4972,54 @@ class TestSharedFrames:
             )
             for frame in self._frames(other)
         ]
+
+
+class TestSharedDrawnSurfaces:
+    """Shared sprites draw the compile's surfaces at scale 1, their own when scaled or edited."""
+
+    @staticmethod
+    def _load(tmp_path: Path, toml_content: str = TWO_ANIMATIONS_TOML) -> AnimatedSprite:
+        toml_file = tmp_path / 'walker.toml'
+        toml_file.write_text(toml_content, encoding='utf-8')
+        return AnimatedSprite(str(toml_file))
+
+    def test_shared_sprites_draw_the_same_native_surface(self, tmp_path):
+        """At scale 1 both sprites draw one surface, made once by the compile."""
+        first = self._load(tmp_path)
+        second = self._load(tmp_path)
+
+        assert first.drawn_frame_surface() is second.drawn_frame_surface()
+
+    def test_a_scaled_sprite_draws_its_own_size_beside_a_native_one(self, tmp_path):
+        """The scaled surface is the sprite's own; the native one stays shared (Review Focus 3)."""
+        native = self._load(tmp_path)
+        scaled = self._load(tmp_path)
+        also_native = self._load(tmp_path)
+
+        scaled.scale = 3
+
+        assert scaled.drawn_frame_surface().get_size() == (6, 6)
+        assert native.drawn_frame_surface().get_size() == (2, 2)
+        assert native.drawn_frame_surface() is also_native.drawn_frame_surface()
+
+    def test_a_sprite_whose_pixels_were_edited_draws_its_own(self, tmp_path):
+        """An edit through pixels draws only that sprite differently."""
+        edited = self._load(tmp_path)
+        other = self._load(tmp_path)
+        other_before = pygame.image.tobytes(other.drawn_frame_surface(), 'RGBA')
+
+        edited.animation_data['walk'][0].pixels[0] = (1, 2, 3)
+        edited.clear_surface_cache()
+
+        assert edited.drawn_frame_surface() is not other.drawn_frame_surface()
+        assert edited.drawn_frame_surface().get_at((0, 0))[:3] == (1, 2, 3)
+        assert pygame.image.tobytes(other.drawn_frame_surface(), 'RGBA') == other_before
+
+    def test_new_text_at_the_same_path_loads_the_new_pixels(self, tmp_path):
+        """A file saved again is new text, so a new compile (Review Focus 5)."""
+        before = self._load(tmp_path)
+
+        after = self._load(tmp_path, TWO_ANIMATIONS_TOML.replace('red = 200', 'red = 99'))
+
+        assert before.drawn_frame_surface().get_at((0, 0))[:3] == (200, 10, 10)
+        assert after.drawn_frame_surface().get_at((0, 0))[:3] == (99, 10, 10)
