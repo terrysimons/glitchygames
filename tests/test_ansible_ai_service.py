@@ -4436,18 +4436,47 @@ def test_postrm_names_a_symbolic_link_without_following_it_or_offering_to_delete
     assert 'rm -rf' not in result.stdout
 
 
+TIMEOUT_STUB = """#!/bin/sh
+# The bound of coreutils' timeout (this Mac has none): run the command, TERM it after N seconds
+seconds=$1
+shift
+"$@" &
+command_pid=$!
+( sleep "$seconds"; kill "$command_pid" 2> /dev/null ) &
+watcher_pid=$!
+wait "$command_pid"
+status=$?
+kill "$watcher_pid" 2> /dev/null
+exit "$status"
+"""
+
+
 @needs_a_posix_shell
-def test_postrm_gives_up_on_a_du_that_hangs(tmp_path: Path):
-    """A hung mount must not hold dpkg: du is bounded, and a timeout reads as size unknown."""
+def test_postrm_gives_up_on_a_du_that_would_answer_too_late(tmp_path: Path):
+    """A hung mount must not hold dpkg: a du still running at the bound is cut off.
+
+    The stub answers (99G) only after the bound, so the answer appears only if du is unbounded.
+    No elapsed time is asserted. Coreutils' timeout is used where the system has it (CI's Linux
+    job); a stub of its bound stands in where it doesn't.
+    """
     scripts = MaintainerScripts(tmp_path=tmp_path)
     users = LeftoverUsers(scripts=scripts, tmp_path=tmp_path)
     users.folder(user='alice', kind='share')
-    _write_executable(scripts.tools / 'du', '#!/bin/sh\nsleep 30\n')
+    if shutil.which('timeout', path='/usr/bin:/bin') is None:
+        _write_executable(scripts.tools / 'timeout', TIMEOUT_STUB)
+    _write_executable(
+        scripts.tools / 'du',
+        '#!/bin/sh\n'
+        'trap \'kill "$sleeper" 2> /dev/null; exit 143\' TERM\n'
+        'sleep 3 &\nsleeper=$!\nwait "$sleeper"\n'
+        'printf "99G\\t%s\\n" "$3"\n',
+    )
 
     result = users.run(environment={'AI_POSTRM_DU_TIMEOUT_SECONDS': '1'})
 
     assert result.returncode == 0, result.stderr
     assert 'size unknown' in result.stdout
+    assert '99G' not in result.stdout
 
 
 @needs_a_posix_shell
