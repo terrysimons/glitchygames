@@ -437,9 +437,11 @@ def test_only_a_connected_link_pins(pinning, state, installed_with_placement):
 def test_no_pinning_without_ai_on_a_mac_or_without_a_placement(
     run, installed_with_placement, pinning, mocker
 ):
-    """Through the engine's start: each of these leaves every thread where the system put it.
+    """Through the engine: each of these leaves every thread where the system put it.
 
-    Each run is its extra arguments, its platform, and whether setup wrote a placement.
+    Each run is its extra arguments, its platform, and whether setup wrote a placement. A run
+    with a link has its service report a start, so the Mac and the missing placement are what
+    refuse, not a service that never started.
     """
     arguments, platform, with_placement = run
     mocker.patch.object(cpu_placement, 'sys', mocker.Mock(platform=platform))
@@ -448,8 +450,11 @@ def test_no_pinning_without_ai_on_a_mac_or_without_a_placement(
     system_call = mocker.patch('glitchygames.cpu_placement.os.sched_setaffinity', create=True)
 
     with command_line([*ARGUMENTS, *arguments]):
-        GameEngine(game=OneFrameScene)
+        engine = GameEngine(game=OneFrameScene)
+    if engine.ai_link is not None:
+        started_service(engine=engine, state=LinkState.CONNECTED)
 
+    assert (engine.ai_link is not None) is (platform == 'darwin' or not with_placement)
     pinning.assert_not_called()
     system_call.assert_not_called()
 
