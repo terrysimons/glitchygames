@@ -187,9 +187,14 @@ forget_every_agent() {
     done
     # The package enables the setup job for every user (systemctl --global enable), so it would set
     # everything up again at this user's next login. This user's own mask overrides that (checked
-    # with systemd 257); how_to_set_up_again says how to undo it, and the postinst undoes it for
-    # the user who installs the package again
-    systemctl --user mask '{{ ai_package_setup_label }}.service' 2>/dev/null
+    # with systemd 257); how_to_set_up_again says how to undo it, and Ansible's install undoes it
+    # for the owner. With no user manager to reach the mask fails, which setup_job_masked records
+    # for how_to_set_up_again to say
+    if systemctl --user mask '{{ ai_package_setup_label }}.service' 2>/dev/null; then
+        setup_job_masked=true
+    else
+        setup_job_masked=false
+    fi
     systemctl --user daemon-reload 2>/dev/null
 {% else %}
     # The models' agents, and the package's setup job or anything an older install left in
@@ -208,10 +213,16 @@ forget_every_agent() {
 
 {% macro how_to_set_up_again() %}
 # Says how this user gets the service back after uninstalling it, where that takes more than
-# installing it again
+# installing it again. Runs after forget_every_agent, whose setup_job_masked it reads
 how_to_set_up_again() {
 {% if ansible_facts['system'] == 'Linux' %}
-    echo "The setup job no longer runs at your login. To set the service up again: systemctl --user unmask {{ ai_package_setup_label }}.service, then log in again or run {{ ai_service_bin_directory }}/setup.sh."
+    # A failed mask is a warning, not a failed uninstall: Ansible's uninstall removes the package
+    # right after this, which takes the job away for every user, and a failed exit would stop it
+    if [ "${setup_job_masked:-false}" = true ]; then
+        echo "The setup job no longer runs at your login. To set the service up again: systemctl --user unmask {{ ai_package_setup_label }}.service, then log in again or run {{ ai_service_bin_directory }}/setup.sh."
+    else
+        echo "warning: could not reach systemd's user manager to stop the setup job, so it sets the service up again at your next login while the package is installed. To stop it, in a session with your user manager: systemctl --user mask {{ ai_package_setup_label }}.service" >&2
+    fi
 {% else %}
     # The setup job ran once and removed itself, and installing the package again brings it back
     :

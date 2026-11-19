@@ -1202,9 +1202,16 @@ HOST_PLATFORMS: list[tuple[Literal['Darwin', 'Linux'], Architecture]] = [
 MAC_GPU_LAYERS = 99
 # What runs in place of launchd's, systemd's and the package database's tools: each call is
 # recorded, asking whether an agent runs says no, and systemd's user manager reports the
-# environment in SERVICE_MANAGER_ENVIRONMENT. A test never reaches the real service
+# environment in SERVICE_MANAGER_ENVIRONMENT. A call naming SERVICE_TOOL_FAILS_ON among its
+# arguments fails, as one with no user manager to reach does. A test never reaches the real service
 SERVICE_TOOL_STUB = """#!/bin/sh
 printf '%s %s\\n' "$(basename "$0")" "$*" >> "$SERVICE_TOOL_LOG"
+case " $* " in
+    *" ${SERVICE_TOOL_FAILS_ON:-no such argument} "*)
+        echo "Failed to connect to user scope bus via local transport" >&2
+        exit 1
+        ;;
+esac
 for argument in "$@"; do
     case "$argument" in
         is-active|print) exit 3 ;;
@@ -2699,6 +2706,40 @@ def test_the_user_uninstaller_stops_the_units_and_removes_what_setup_wrote(tmp_p
 
     assert removed.returncode == 0, removed.stdout + removed.stderr
     assert not setup.user_root.exists()
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('mask', ['works', 'fails'])
+def test_the_user_uninstaller_says_whether_the_setup_job_stays_off(tmp_path: Path, mask: str):
+    """The mask keeps the setup job from setting everything up again at the next login.
+
+    With no user manager to reach (an SSH session without one, say) the mask fails, and the
+    uninstaller must not claim the job no longer runs: it warns on stderr, names the command that
+    stops it, and still exits 0, as Ansible's uninstall removes the package right after, which takes
+    the job away for every user, and a failed exit would stop that removal.
+    """
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    assert setup.run().returncode == 0
+    setup_unit = f'{setup.service.variables["ai_package_setup_label"]}.service'
+
+    result = setup.run(
+        template='uninstall.sh.j2',
+        extra={'SERVICE_TOOL_FAILS_ON': 'mask'} if mask == 'fails' else {},
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f'systemctl --user mask {setup_unit}' in setup.service.tool_calls()
+    assert not (setup.user_root / 'config').exists()
+    if mask == 'works':
+        assert 'no longer runs at your login' in result.stdout
+        assert f'systemctl --user unmask {setup_unit}' in result.stdout
+        assert result.stderr == ''
+    else:
+        assert 'no longer runs at your login' not in result.stdout + result.stderr
+        assert 'warning' in result.stderr
+        assert 'next login' in result.stderr
+        assert f'systemctl --user mask {setup_unit}' in result.stderr
 
 
 # The package: ai_package's tasks, walked as Ansible runs them on one host, give every file the
