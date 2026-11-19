@@ -47,6 +47,8 @@ from scripts.golden_inputs import (
     drawing_fire_script,
     mr_muncher_script,
     paddleslap_script,
+    zombies_aint_my_neighbors_neighborhood_script,
+    zombies_aint_my_neighbors_script,
 )
 
 if TYPE_CHECKING:
@@ -69,6 +71,10 @@ GAME_SCENES = GameSceneClasses({
     'paddleslap': 'paddleslap:Game',
     'mr_muncher': 'mr_muncher.game:MrMuncherScene',
     'drawing_fire': 'drawing_fire.game:DrawingFireScene',
+    'zombies_aint_my_neighbors': 'zombies_aint_my_neighbors.title:TitleScene',
+    'zombies_aint_my_neighbors_neighborhood': (
+        'zombies_aint_my_neighbors.neighborhood:NeighborhoodScene'
+    ),
 })
 
 # Game key -> the package holding the game: every game is in its own workspace member's package
@@ -83,6 +89,8 @@ GAME_MODULES: dict[str, str] = {
     'paddleslap': 'paddleslap',
     'mr_muncher': 'mr_muncher',
     'drawing_fire': 'drawing_fire',
+    'zombies_aint_my_neighbors': 'zombies_aint_my_neighbors',
+    'zombies_aint_my_neighbors_neighborhood': 'zombies_aint_my_neighbors',
 }
 
 # The games whose golden traces (tests/world/golden/) were recorded before the world-space
@@ -104,6 +112,8 @@ SCRIPT_BUILDERS: dict[str, Callable[[], InputScript]] = {
     'paddleslap': paddleslap_script,
     'mr_muncher': mr_muncher_script,
     'drawing_fire': drawing_fire_script,
+    'zombies_aint_my_neighbors': zombies_aint_my_neighbors_script,
+    'zombies_aint_my_neighbors_neighborhood': zombies_aint_my_neighbors_neighborhood_script,
 }
 
 

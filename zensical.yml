@@ -20,6 +20,7 @@ nav:
       - Clockwork Keep Architecture: "games/clockwork_keep.md"
       - Mr. Muncher Architecture: "games/mr_muncher.md"
       - Drawing Fire Architecture: "games/drawing_fire.md"
+      - Zombies Ain't My Neighbors Architecture: "games/zombies_aint_my_neighbors.md"
     - Event System: "architecture/event_system.md"
     - Argument System: "architecture/argument_system.md"
     - Gameplay Recording and Replay: "architecture/gameplay_replay.md"
@@ -77,6 +78,7 @@ nav:
     - clockwork_keep: "clockwork_keep/index.md"
     - paddleslap: "paddleslap/index.md"
     - drawing_fire: "drawing_fire/index.md"
+    - zombies_aint_my_neighbors: "zombies_aint_my_neighbors/index.md"
   - Demos API Reference:
     - dt_demo: "dt_demo/index.md"
     - joystick_demo: "joystick_demo/index.md"
@@ -231,6 +233,7 @@ plugins:
             - src/games/clockwork-keep/src
             - src/games/paddleslap/src
             - src/games/drawing-fire/src
+            - src/games/zombies-aint-my-neighbors/src
             - src/demos/dt-demo/src
             - src/demos/joystick-demo/src
             - src/demos/sound-board-demo/src

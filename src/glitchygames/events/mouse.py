@@ -86,7 +86,7 @@ class MouseEventManager(ResourceManager):
 
             if sprite:
                 self.log.debug('%s: Mouse Motion: %s', type(self), event)
-                sprite[0].on_mouse_motion_event(event)
+                call_sprite_handler(sprite[0], 'on_mouse_motion_event', event)
 
             # Caller can check the buttons.
             # Note: This probably doesn't work right because
@@ -260,7 +260,7 @@ class MouseEventManager(ResourceManager):
             self.current_focus = entering_focus
 
             # Send an enter event for the new focus.
-            entering_focus.on_mouse_focus_event(event, self.current_focus)  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[missing-attribute]
+            call_sprite_handler(entering_focus, 'on_mouse_focus_event', event, self.current_focus)
 
             self.log.info('Entered Focus: %s', self.current_focus)
 
@@ -276,7 +276,7 @@ class MouseEventManager(ResourceManager):
             self.previous_focus = leaving_focus
 
             if leaving_focus:
-                leaving_focus.on_mouse_unfocus_event(event)  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[missing-attribute]
+                call_sprite_handler(leaving_focus, 'on_mouse_unfocus_event', event)
                 self.current_focus = None
 
                 self.log.info('Left Focus: %s', self.previous_focus)
@@ -518,6 +518,24 @@ class MousePointer:
 
         """
         self.pos[1] = new_y
+
+
+def call_sprite_handler(sprite: object, handler_name: str, *arguments: object) -> None:
+    """Call a sprite's mouse handler, if it has one.
+
+    Every RootSprite has them all (silent by default), but a scene may hold a plain pygame
+    sprite (a replay's ghost is one): it gets no call it lacks, as the scene's click dispatch
+    already skips them. The pointer over a sprite without handlers once ended the game.
+
+    Args:
+        sprite: The sprite under the pointer, or the one leaving or taking the focus.
+        handler_name: The handler (``on_mouse_focus_event``, ...).
+        *arguments: What the handler takes.
+
+    """
+    handler = getattr(sprite, handler_name, None)
+    if handler is not None:
+        handler(*arguments)
 
 
 def collided_sprites(scene: object, event: HashableEvent, index: int | None = None) -> list[Any]:

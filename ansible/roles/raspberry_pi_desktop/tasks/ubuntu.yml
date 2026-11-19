@@ -1,0 +1,77 @@
+---
+# Ubuntu's desktop is GNOME under gdm3: gdm3 logs the runner's user in, and dconf's system
+# defaults keep the session awake
+# The display is the job's: its session starts at boot, and the owner switches users to play
+- name: Log the runner's user in at boot
+  ansible.builtin.blockinfile:
+    path: /etc/gdm3/custom.conf
+    insertafter: '^\[daemon\]'
+    block: |
+      AutomaticLoginEnable=true
+      AutomaticLogin={{ ci_user }}
+
+- name: Create the system's desktop defaults directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /etc/dconf/db/local.d
+    - /etc/dconf/profile
+
+# A sleeping output stops presenting frames, and a locked session measures nothing
+- name: Keep the desktop session's display on
+  ansible.builtin.copy:
+    content: |
+      [org/gnome/desktop/session]
+      idle-delay=uint32 0
+
+      [org/gnome/desktop/screensaver]
+      lock-enabled=false
+
+      [org/gnome/settings-daemon/plugins/power]
+      sleep-inactive-ac-type='nothing'
+    dest: /etc/dconf/db/local.d/00-hardware-runner
+    mode: "0644"
+  notify: Update the desktop defaults
+
+- name: Make sure the desktop reads the system's defaults
+  ansible.builtin.copy:
+    content: |
+      user-db:user
+      system-db:local
+    dest: /etc/dconf/profile/user
+    force: false
+    mode: "0644"
+  notify: Update the desktop defaults
+
+# The first build's script, which applied the mode itself (2026-11-14); the planner replaced it
+- name: Remove the replaced display script
+  ansible.builtin.file:
+    path: /usr/local/lib/glitchygames/set_display_mode.py
+    state: absent
+
+# GNOME's own tool, gdctl, sets the mode (GNOME reverts what isn't set through its tools: the owner,
+# 2026-11-14). GNOME 50 saves a display change only when someone clicks Keep in its confirmation
+# dialog and reverts it after 20 seconds otherwise; nothing a script can call confirms it (mutter's
+# meta-monitor-manager.c; the Pis' journals, 2026-11-14). So apply_display_mode applies it
+# temporarily, which asks nothing, and a deploy waits past the 20 s before checking it held
+- name: Set up the runner's display mode
+  ansible.builtin.include_tasks: display_mode.yml
+  vars:
+    raspberry_pi_display_wrapper: apply_display_mode
+    raspberry_pi_display_tool: gdctl
+    raspberry_pi_display_session_environment:
+      XDG_RUNTIME_DIR: /run/user/{{ raspberry_pi_runner_user.uid }}
+      DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/{{ raspberry_pi_runner_user.uid }}/bus
+    raspberry_pi_display_settle_seconds: 25
+    # The planner reads mutter's state itself, over the session's D-Bus
+    raspberry_pi_display_check_argv:
+      - /usr/bin/python3
+      - /usr/local/lib/glitchygames/plan_display_mode.py
+      - --width
+      - "{{ raspberry_pi_display_mode.width }}"
+      - --height
+      - "{{ raspberry_pi_display_mode.height }}"
+      - --refresh-rates
+      - "{{ raspberry_pi_display_mode.refresh_rates | join(',') }}"

@@ -1,0 +1,24 @@
+#!/bin/sh
+# Apply a GNOME session's display mode with GNOME's own tool, gdctl, temporarily.
+#
+#   apply_display_mode WIDTH HEIGHT REFRESH_RATES   (rates most wanted first, comma-separated)
+#
+# Run as the session's user in its session (ansible/roles/raspberry_pi_desktop: its autostart
+# entry at each login, and each deploy). The planner beside this script reads mutter's state and
+# prints "<action> <connector> <mode>"; this prints that line and, on apply, sets the mode with
+# gdctl. Temporarily, because GNOME 50 saves a display change only when someone clicks Keep in its
+# confirmation dialog and reverts it after 20 seconds otherwise, while a temporary change asks
+# nothing (2026-11-14). Exits 1 when the plan fails, else with gdctl's status (0 when nothing to
+# do). Tests: tests/test_ansible_raspberry_pis.py
+set -eu
+
+here=$(dirname "$0")
+plan=$(/usr/bin/env python3 "$here/plan_display_mode.py" \
+    --width "$1" --height "$2" --refresh-rates "$3" --format words)
+printf '%s\n' "$plan"
+
+# shellcheck disable=SC2086 # the plan is three words, split on purpose
+set -- $plan
+if [ "$1" = apply ]; then
+    exec gdctl set --logical-monitor --primary --scale 1 --monitor "$2" --mode "$3"
+fi

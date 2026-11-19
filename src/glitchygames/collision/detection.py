@@ -165,12 +165,19 @@ def get_collision_rect_with_margin(
         margin: Pixels to shrink on each side (default 0).
 
     Returns:
-        A pygame.Rect shrunk by margin on all sides.
+        A pygame.Rect shrunk by margin on all sides. A side shorter than twice the margin
+        shrinks to zero (an empty rect at the centre, which collides with nothing), never to a
+        negative size: pygame-ce normalises a negative size, so ``inflate`` alone would turn a
+        rect too small to hit into a hittable one.
 
     """
     rect = get_collision_rect(sprite, world_x, world_y)
     if margin > 0:
-        rect.inflate_ip(-margin * 2, -margin * 2)
+        shrunk = pygame.Rect(
+            0, 0, max(rect.width - margin * 2, 0), max(rect.height - margin * 2, 0)
+        )
+        shrunk.center = rect.center
+        return shrunk
     return rect
 
 

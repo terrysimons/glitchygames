@@ -9,12 +9,13 @@ given to them; the guard itself on real processes (POSIX: process groups).
 from __future__ import annotations
 
 import os
+import re
 import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - the guard records real children; these start them
 import sys
 import time
+from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
 
 import pytest
 
@@ -29,9 +30,6 @@ from tests.child_process_guard import (
     processes_to_sweep,
     sweep_processes_naming,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 # How long a test waits for a child to write its line, or for a stopped process to be gone
 WAIT_SECONDS = 10.0
@@ -402,9 +400,16 @@ class TestTheControllersSweep:
                     left_behind.kill()
                 left_behind.wait()
 
-        assert lines == [
-            f'pid {left_behind.pid}: {sys.executable} -c import time; time.sleep(60) {game}'
-        ]
+        # The command as ps shows it: a framework build (Homebrew's Python) shows the
+        # interpreter inside Python.app, not sys.executable, so any Python is accepted there
+        assert len(lines) == 1
+        named = re.fullmatch(
+            rf'pid {left_behind.pid}: (?P<interpreter>.+) -c import time; time\.sleep\(60\) '
+            rf'{re.escape(str(game))}',
+            lines[0],
+        )
+        assert named is not None, lines[0]
+        assert Path(named['interpreter']).name.lower().startswith('python'), lines[0]
         assert left_behind.returncode == -signal.SIGKILL
 
     def test_a_worker_and_a_run_that_made_no_temporary_directory_sweep_nothing(

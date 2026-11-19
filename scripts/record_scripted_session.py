@@ -53,9 +53,19 @@ dt included: plans/2026-10-20-recording-content-hash-and-history.md.) Then, one 
         --game mr_muncher --frames 1950
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python -m scripts.record_scripted_session \
         --game drawing_fire --frames 1600
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python -m scripts.record_scripted_session \
+        --game zombies_aint_my_neighbors --frames 240
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python -m scripts.record_scripted_session \
+        --game zombies_aint_my_neighbors_neighborhood --frames 2161
 
 With their controls tails the recordings hold 622 (PaddleSlap), 532 (Clockwork Keep), 472 (each
-Brave Adventurer edition), 2072 (Mr. Muncher) and 1614 (Drawing Fire) frames. Mr. Muncher's
+Brave Adventurer edition), 2072 (Mr. Muncher), 1614 (Drawing Fire), 342 (Zombies Ain't My
+Neighbors) and 2313 (its neighborhood) frames. The neighborhood's script runs 2161 frames so
+every TV's first zombie (a 6 to 9 s wait, then the pop) is in it, the Channel Changer kills a
+zombie and destroys a TV (frame 658), a neighbor is rescued (frame 744), the laser pointer
+shines and lures a zombie (feature plan 8), and the stage is cleared (frame 1771) into the
+STAGE 2 card and stage 2: its route is planned by scripts/plan_neighborhood_route.py, which
+prints the frame count to record. At 197 KB it is the largest golden. Mr. Muncher's
 script runs 1950 frames, not more (its death at about frame 1650 and the next life's READY
 included), so its fixture stays under 100 KB. Drawing Fire's cannot: its first frame alone is
 about 125 KB compressed (the scene start holds every random stream's state, a Mersenne Twister's
@@ -99,6 +109,8 @@ from scripts.golden_inputs import (
     drawing_fire_controls,
     mr_muncher_controls,
     paddleslap_controls,
+    zombies_aint_my_neighbors_controls,
+    zombies_aint_my_neighbors_neighborhood_controls,
 )
 from scripts.record_golden_traces import GAME_MODULES, GAME_SCENES, PROJECT_ROOT, SCRIPT_BUILDERS
 from scripts.workspace_packages import workspace_members
@@ -114,7 +126,7 @@ INPUT_ONLY_PLACEMENT_GAMES = frozenset({'paddleslap'})
 # events: their sessions' live snapshots show the posted input (polled_input). Only these:
 # another game's re-recording keeps the snapshots it had (held keys absent), so its content
 # hashes, and the metrics ledger's behavior changes, stay as they were
-POLLED_INPUT_GAMES = frozenset({'drawing_fire'})
+POLLED_INPUT_GAMES = frozenset({'drawing_fire', 'zombies_aint_my_neighbors_neighborhood'})
 
 # Golden replay fixtures: each game's are directly in its workspace member's replay fixtures
 # directory. Game key -> the fixtures directory of the workspace member whose package holds the
@@ -135,6 +147,7 @@ DEFAULT_FIXTURE_NAME = 'golden'
 GOLDEN_FIXTURE_NAMES: dict[str, str] = {
     'brave_adventurer': 'golden-classic',
     'brave_adventurer_papyrus': 'golden-papyrus',
+    'zombies_aint_my_neighbors_neighborhood': 'golden-neighborhood',
 }
 
 # Game key -> its controls tail (scripts/golden_inputs.py): input a golden replay session plays
@@ -150,6 +163,8 @@ CONTROLS_TAIL_BUILDERS: dict[str, Callable[[], InputScript]] = {
     'paddleslap': paddleslap_controls,
     'mr_muncher': mr_muncher_controls,
     'drawing_fire': drawing_fire_controls,
+    'zombies_aint_my_neighbors': zombies_aint_my_neighbors_controls,
+    'zombies_aint_my_neighbors_neighborhood': zombies_aint_my_neighbors_neighborhood_controls,
 }
 
 

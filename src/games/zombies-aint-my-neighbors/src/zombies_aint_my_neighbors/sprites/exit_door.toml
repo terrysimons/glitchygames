@@ -1,0 +1,375 @@
+# Written by zombies_aint_my_neighbors.art.build from the door's rig: edit the rig
+# and rebuild, never this file (plans/2026-11-14-zombies-aint-my-neighbors-props-bom.md)
+[sprite]
+name = "exit_door"
+description = "The exit door: a garden gate in the hedge, open when a stage is cleared"
+tags = ["prop", "door"]
+frame_anchor = "bottom"
+
+[sprite.hitbox]
+offset_x = 8
+offset_y = 16
+width = 32
+height = 32
+
+[colors]
+"." = { red = 255, green = 0, blue = 255 }
+"O" = { red = 24, green = 16, blue = 32 }
+"a" = { red = 250, green = 248, blue = 240 }
+"b" = { red = 222, green = 218, blue = 206 }
+"c" = { red = 172, green = 168, blue = 158 }
+"h" = { red = 70, green = 50, blue = 36 }
+"g" = { red = 200, green = 240, blue = 255 }
+"G" = { red = 96, green = 200, blue = 255 }
+"d" = { red = 40, green = 140, blue = 230 }
+"D" = { red = 24, green = 84, blue = 170 }
+"j" = { red = 76, green = 120, blue = 70 }
+"J" = { red = 52, green = 92, blue = 52 }
+"k" = { red = 36, green = 66, blue = 40 }
+"r" = { red = 116, green = 84, blue = 56 }
+"w" = { red = 244, green = 244, blue = 236 }
+"m" = { red = 120, green = 124, blue = 146 }
+
+[[animation]]
+namespace = "closed"
+frame_interval = 0.08
+loop = true
+
+[[animation.frame]]
+namespace = "closed"
+frame_index = 0
+pixels = """
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+........OOOOO......................OOOOO........
+.OOOOOOOcccccO....................OcccccOOOOOOO.
+OjjjJJJJkOrOO......................OOrOjjjJJJJkO
+jjjjJJJJkrrhO......................OrrhjjjJJJJkk
+jjjjJJJJkrrhO......................OrrhjjjJJJJkk
+jjjjkJJJkrrhO......................OrrhjjjkJJJkk
+jjjjJJJJkrrhO......................OrrhjjjJJJJkk
+jjjjJJJJkrrhO......................OrrhjjjJJJJkk
+jjjjJJJJkrrhO..O..O..O..O..O..O..O.OrrhjjjJJJJkk
+jjjjJkJJkrrhaOOaOOaOOaOOaOOaOOaOOaOOrrhjjjJkJJkk
+jjjjJJJJkrrhOO.OO.OO.OO.OO.OO.OO.OOOrrhjjjJJJJkk
+jjjjJJJJkrrhabOabOabOabOabOabOabOabOrrhjjjJJJJkk
+jjjjJJJJkrrhabOabOabOabOabOabOabOabOrrhjjjJJJJkk
+jjjkJJJJkrrhabOabOabOabOabOabOabOabOrrhjjkJJJJkk
+jjjjJJJkkrrhabOabOabOabOabOabOabOabOrrhjjjJJJkkk
+jjjJJJJkkrrhabOabOabOabOabOabOabOabOrrhjjJJJJkkk
+jjjJJJJkkrrhabcabcabcabcabcabcabcabcrrhjjJJJJkkk
+jjjJkJJkkrrhabOabOabOabOabOabOabOabOrrhjjJkJJkkk
+jjjJJJJkkrrhabOabOabOabOabOabOabOabOrrhjjJJJJkkk
+jjjJJJJkkrrhacOacOacOacOacOacOacOacOrrhjjJJJJkkk
+jjjJJJJkkrrhacOacOacOacOacOacOacOacOrrhjjJJJJkkk
+jjjJJkJkkrrhacOacOacOacOacOacOacOacOrrhjjJJkJkkk
+jjjJJJJkkrrhacOacOacOacOacOacOacOacOrrhjjJJJJkkk
+jjjJJJJkkrrhacOacOacOacOacOacOacOacOrrhjjJJJJkkk
+jjjJJJJkkrrhacOacOacOacOacOacOacOacOrrhjjJJJJkkk
+jjjkJJJkkrrhacOacOacOacOacOacOacOacOrrhjjkJJJkkk
+jjjJJJJkkrrhacOacOacOacOacOacOacOacOrrhjjJJJJkkk
+jjjJJJkkkrrhacOacOacOacOacOacOacOacOrrhjjJJJkkkk
+jjJJJJkkkrrhbcObcObcObcObcObcObcObcOrrhjJJJJkkkk
+jjJJkJkkkrrhbcObcObcObcObcObcObcObcOrrhjJJkJkkkk
+jjJJJJkkkrrhbccbccbccbccbccbccbccbccrrhjJJJJkkkk
+jjJJJJkkkrrhbcObcObcObcObcObcObcObcOrrhjJJJJkkkk
+jjJJJJkkkrrhbcObcObcObcObcObcObcObcOrrhjJJJJkkkk
+jjJJJkkkkrrhbcObcObcObcObcObcObcObcOrrhjJJJkkkkk
+jjJJJJkkkrrhbcObcObcObcObcObcObcObcOrrhjJJJJkkkk
+jjJJJJkkkrrhbcObcObcObcObcObcObcObcOrrhjJJJJkkkk
+jjJJJJkkkrrhOO.OO.OO.OO.OO.OO.OO.OOOrrhjJJJJkkkk
+jjJkJJkkkrrhO......................OrrhjJkJJkkkk
+jjJJJJkkkrrhO......................OrrhjJJJJkkkk
+OjJJJJkkkOrO........................OrOjJJJJkkkO
+"""
+
+[[animation]]
+namespace = "opening"
+frame_interval = 0.08
+loop = false
+
+[[animation.frame]]
+namespace = "opening"
+frame_index = 0
+pixels = """
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+........OOOOO......................OOOOO........
+.OOOOOOOcccccO....................OcccccOOOOOOO.
+OjjjJJJJkOrOO......................OOrOjjjJJJJkO
+jjjjJJJJkrrhO......................OrrhjjjJJJJkk
+jjjjJJJJkrrhO......................OrrhjjjJJJJkk
+jjjjkJJJkrrhOOOOOOOOOOOOOOOOOOOOOOOOrrhjjjkJJJkk
+jjjjJJJJkrrhODDDDDDDDDDDDDDDDDDDDDDOrrhjjjJJJJkk
+jjjjJJJJkrrhDDDDDDDDDDDDDDDDDDDDDDDDrrhjjjJJJJkk
+jjjjJJJJkrrhDDDDDDDDDDDDDDDDDDDDDDDDrrhjjjJJJJkk
+jjjjJkJJkrrhaDDaDDaDDDDDDDDDaDDaDDaDrrhjjjJkJJkk
+jjjjJJJJkrrhDDDDDDDDDDDDDDDDDDDDDDDDrrhjjjJJJJkk
+jjjjJJJJkrrhabDabDabDDDDDDDDabDabDabrrhjjjJJJJkk
+jjjjJJJJkrrhabDabDabDDDDDDDDabDabDabrrhjjjJJJJkk
+jjjkJJJJkrrhabDabDabDDDDDDDDabDabDabrrhjjkJJJJkk
+jjjjJJJkkrrhabDabDabDDDDDDDDabDabDabrrhjjjJJJkkk
+jjjJJJJkkrrhabDabDabDDDDDDDDabDabDabrrhjjJJJJkkk
+jjjJJJJkkrrhabcabcabDDDDDDDDabcabcabrrhjjJJJJkkk
+jjjJkJJkkrrhabDabDabDDDDDDDDabDabDabrrhjjJkJJkkk
+jjjJJJJkkrrhabDabDabDDDDDDDDabDabDabrrhjjJJJJkkk
+jjjJJJJkkrrhacDacDacDDDDDDDDacDacDacrrhjjJJJJkkk
+jjjJJJJkkrrhacDacDacDDDDDDDDacDacDacrrhjjJJJJkkk
+jjjJJkJkkrrhacDacDacDDDDDDDDacDacDacrrhjjJJkJkkk
+jjjJJJJkkrrhacDacDacDDDDDDDDacDacDacrrhjjJJJJkkk
+jjjJJJJkkrrhacDacDacDDDDDDDDacDacDacrrhjjJJJJkkk
+jjjJJJJkkrrhacDacDacDDDDDDDDacDacDacrrhjjJJJJkkk
+jjjkJJJkkrrhacDacDacDDDDDDDDacDacDacrrhjjkJJJkkk
+jjjJJJJkkrrhacDacDacDDDDDDDDacDacDacrrhjjJJJJkkk
+jjjJJJkkkrrhacDacDacDDDDDDDDacDacDacrrhjjJJJkkkk
+jjJJJJkkkrrhbcDbcDbcDDDDDDDDbcDbcDbcrrhjJJJJkkkk
+jjJJkJkkkrrhbcDbcDbcDDDDDDDDbcDbcDbcrrhjJJkJkkkk
+jjJJJJkkkrrhbccbccbcDDDDDDDDbccbccbcrrhjJJJJkkkk
+jjJJJJkkkrrhbcDbcDbcDDDDDDDDbcDbcDbcrrhjJJJJkkkk
+jjJJJJkkkrrhbcDbcDbcDDDDDDDDbcDbcDbcrrhjJJJJkkkk
+jjJJJkkkkrrhbcDbcDbcDDDDDDDDbcDbcDbcrrhjJJJkkkkk
+jjJJJJkkkrrhbcDbcDbcDDDDDDDDbcDbcDbcrrhjJJJJkkkk
+jjJJJJkkkrrhbcDbcDbcDDDDDDDDbcDbcDbcrrhjJJJJkkkk
+jjJJJJkkkrrhDDDDDDDDDDDDDDDDDDDDDDDDrrhjJJJJkkkk
+jjJkJJkkkrrhDDDDDDDDDDDDDDDDDDDDDDDDrrhjJkJJkkkk
+jjJJJJkkkrrhODDDDDDDDDDDDDDDDDDDDDDOrrhjJJJJkkkk
+OjJJJJkkkOrO.OOOOOOOOOOOOOOOOOOOOOO.OrOjJJJJkkkO
+"""
+
+[[animation.frame]]
+namespace = "opening"
+frame_index = 1
+pixels = """
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+........OOOOO......................OOOOO........
+.OOOOOOOcccccO....................OcccccOOOOOOO.
+OjjjJJJJkOrOO......................OOrOjjjJJJJkO
+jjjjJJJJkrrhO......................OrrhjjjJJJJkk
+jjjjJJJJkrrhO......................OrrhjjjJJJJkk
+jjjjkJJJkrrhOOOOOOOOOOOOOOOOOOOOOOOOrrhjjjkJJJkk
+jjjjJJJJkrrhOddddddddddGGGGGGGGGdddOrrhjjjJJJJkk
+jjjjJJJJkrrhdddddddddddGGGGGGGGGddddrrhjjjJJJJkk
+jjjjJJJJkrrhddddddddddGGGGGGGGGGddddrrhjjjJJJJkk
+jjjjJkJJkrrhaddaddddddGGGGGGGGGdaddarrhjjjJkJJkk
+jjjjJJJJkrrhddddddddddGGGGGGGGGdddddrrhjjjJJJJkk
+jjjjJJJJkrrhabdbdddddggwwwGGGGGdabdbrrhjjjJJJJkk
+jjjjJJJJkrrhabdbdddgggwwwwwwGGGdabdbrrhjjjJJJJkk
+jjjkJJJJkrrhabdbddggggwwwwwwwGGdabdbrrhjjkJJJJkk
+jjjjJJJkkrrhabdbddggggwwwwwwwGddabdbrrhjjjJJJkkk
+jjjJJJJkkrrhabdbdggggwwwwwwwggddabdbrrhjjJJJJkkk
+jjjJJJJkkrrhabcbdggggwwwwwwwggddabcbrrhjjJJJJkkk
+jjjJkJJkkrrhabdbggggwwwwwwwggggdabdbrrhjjJkJJkkk
+jjjJJJJkkrrhabdbggggwwwwwwwggggdabdbrrhjjJJJJkkk
+jjjJJJJkkrrhacdbgggwwwwwwwwggggdacdbrrhjjJJJJkkk
+jjjJJJJkkrrhacdbgggwwwwwwwgggggdacdbrrhjjJJJJkkk
+jjjJJkJkkrrhacdbgggwwwwwwwgggggdacdbrrhjjJJkJkkk
+jjjJJJJkkrrhacdbggwwwwwwwggggggdacdbrrhjjJJJJkkk
+jjjJJJJkkrrhacdbggwwwwwwwggggggdacdbrrhjjJJJJkkk
+jjjJJJJkkrrhacdbgwwwwwwwgggggggdacdbrrhjjJJJJkkk
+jjjkJJJkkrrhacdbgwwwwwwwgggggggdacdbrrhjjkJJJkkk
+jjjJJJJkkrrhacdbwwwwwwwggggggggdacdbrrhjjJJJJkkk
+jjjJJJkkkrrhacdbdwwwwwwgggggggddacdbrrhjjJJJkkkk
+jjJJJJkkkrrhbcdbdwwwwwwgggggggddbcdbrrhjJJJJkkkk
+jjJJkJkkkrrhbcdbddwwwwgggggggdddbcdbrrhjJJkJkkkk
+jjJJJJkkkrrhbccbddwwwwgggggggdddbccbrrhjJJJJkkkk
+jjJJJJkkkrrhbcdbdGGwwgggggggddddbcdbrrhjJJJJkkkk
+jjJJJJkkkrrhbcdbdGGGGgggggGdddddbcdbrrhjJJJJkkkk
+jjJJJkkkkrrhbcdbdGGGGGGGGGddddddbcdbrrhjJJJkkkkk
+jjJJJJkkkrrhbcdbdGGGGGGGGGddddddbcdbrrhjJJJJkkkk
+jjJJJJkkkrrhbcdbdGGGGGGGGGddddddbcdbrrhjJJJJkkkk
+jjJJJJkkkrrhddddGGGGGGGGGGddddddddddrrhjJJJJkkkk
+jjJkJJkkkrrhddddGGGGGGGGGdddddddddddrrhjJkJJkkkk
+jjJJJJkkkrrhOdddGGGGGGGGGddddddddddOrrhjJJJJkkkk
+OjJJJJkkkOrO.OOOOOOOOOOOOOOOOOOOOOO.OrOjJJJJkkkO
+"""
+
+[[animation.frame]]
+namespace = "opening"
+frame_index = 2
+pixels = """
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+........OOOOO......................OOOOO........
+.OOOOOOOcccccO....................OcccccOOOOOOO.
+OjjjJJJJkOrOO......................OOrOjjjJJJJkO
+jjjjJJJJkrrhO......................OrrhjjjJJJJkk
+jjjjJJJJkrrhO......................OrrhjjjJJJJkk
+jjjjkJJJkrrhOOOOOOOOOOOOOOOOOOOOOOOOrrhjjjkJJJkk
+jjjjJJJJkrrhOGGGGGGGGGGgggggggggGGGOrrhjjjJJJJkk
+jjjjJJJJkrrhGGGGGGGGGGGgggggggggGGGGrrhjjjJJJJkk
+jjjjJJJJkrrhGGGGGGGGGGggggggggggGGGGrrhjjjJJJJkk
+jjjjJkJJkrrhGGGGGGGGGGgggggggggGGGGGrrhjjjJkJJkk
+jjjjJJJJkrrhGGGGGGGGGggwwwgggggGGGGGrrhjjjJJJJkk
+jjjjJJJJkrrhGGGGGGGgggwwwwwwgggGGGGGrrhjjjJJJJkk
+jjjjJJJJkrrhGGGGGGggggwwwwwwwggGGGGGrrhjjjJJJJkk
+jjjkJJJJkrrhGGGGGgggggwwwwwwwwgGGGGGrrhjjkJJJJkk
+jjjjJJJkkrrhGGGGgggggwwwwwwwwggGGGGGrrhjjjJJJkkk
+jjjJJJJkkrrhGGGGgggggwwwwwwwwggGGGGGrrhjjJJJJkkk
+jjjJJJJkkrrhGGGGggggwwwwwwwwgggGGGGGrrhjjJJJJkkk
+jjjJkJJkkrrhGGGgggggwwwwwwwwggggGGGGrrhjjJkJJkkk
+jjjJJJJkkrrhGGGggggwwwwwwwwgggggGGGGrrhjjJJJJkkk
+jjjJJJJkkrrhGGGggggwwwwwwwwgggggGGGGrrhjjJJJJkkk
+jjjJJJJkkrrhGGGgggwwwwwwwwggggggGGGGrrhjjJJJJkkk
+jjjJJkJkkrrhGGGgggwwwwwwwwggggggGGGGrrhjjJJkJkkk
+jjjJJJJkkrrhGGGggwwwwwwwwgggggggGGGGrrhjjJJJJkkk
+jjjJJJJkkrrhGGGggwwwwwwwwgggggggGGGGrrhjjJJJJkkk
+jjjJJJJkkrrhGGGggwwwwwwwwgggggggGGGGrrhjjJJJJkkk
+jjjkJJJkkrrhGGGgwwwwwwwwggggggggGGGGrrhjjkJJJkkk
+jjjJJJJkkrrhGGGgwwwwwwwwggggggggGGGGrrhjjJJJJkkk
+jjjJJJkkkrrhGGGGwwwwwwwggggggggGGGGGrrhjjJJJkkkk
+jjJJJJkkkrrhGGGGwwwwwwwggggggggGGGGGrrhjJJJJkkkk
+jjJJkJkkkrrhGGGGwwwwwwgggggggggGGGGGrrhjJJkJkkkk
+jjJJJJkkkrrhGGGGGwwwwwggggggggGGGGGGrrhjJJJJkkkk
+jjJJJJkkkrrhGGGGGgwwwggggggggGGGGGGGrrhjJJJJkkkk
+jjJJJJkkkrrhGGGGGggwwgggggggGGGGGGGGrrhjJJJJkkkk
+jjJJJkkkkrrhGGGGGgggggggggGGGGGGGGGGrrhjJJJkkkkk
+jjJJJJkkkrrhGGGGGgggggggggGGGGGGGGGGrrhjJJJJkkkk
+jjJJJJkkkrrhGGGGGgggggggggGGGGGGGGGGrrhjJJJJkkkk
+jjJJJJkkkrrhGGGGggggggggggGGGGGGGGGGrrhjJJJJkkkk
+jjJkJJkkkrrhGGGGgggggggggGGGGGGGGGGGrrhjJkJJkkkk
+jjJJJJkkkrrhOGGGgggggggggGGGGGGGGGGOrrhjJJJJkkkk
+OjJJJJkkkOrO.OOOOOOOOOOOOOOOOOOOOOO.OrOjJJJJkkkO
+"""
+
+[[animation]]
+namespace = "open"
+frame_interval = 0.2
+loop = true
+
+[[animation.frame]]
+namespace = "open"
+frame_index = 0
+pixels = """
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+........OOOOO......................OOOOO........
+.OOOOOOOcccccO....................OcccccOOOOOOO.
+OjjjJJJJkOrOO......................OOrOjjjJJJJkO
+jjjjJJJJkrrhO......................OrrhjjjJJJJkk
+jjjjJJJJkrrhO......................OrrhjjjJJJJkk
+jjjjkJJJkrrhOOOOOOOOOOOOOOOOOOOOOOOOrrhjjjkJJJkk
+jjjjJJJJkrrhOGGGGGGGGGGgggggggggGGGOrrhjjjJJJJkk
+jjjjJJJJkrrhGGGGGGGGGGGgggggggggGGGGrrhjjjJJJJkk
+jjjjJJJJkrrhGGGGGGGGGGggggggggggGGGGrrhjjjJJJJkk
+jjjjJkJJkrrhGGGGGGGGGGgggggggggGGGGGrrhjjjJkJJkk
+jjjjJJJJkrrhGGGGGGGGGggwwwgggggGGGGGrrhjjjJJJJkk
+jjjjJJJJkrrhGGGGGGGgggwwwwwwgggGGGGGrrhjjjJJJJkk
+jjjjJJJJkrrhGGGGGGggggwwwwwwwggGGGGGrrhjjjJJJJkk
+jjjkJJJJkrrhGGGGGgggggwwwwwwwwgGGGGGrrhjjkJJJJkk
+jjjjJJJkkrrhGGGGgggggwwwwwwwwggGGGGGrrhjjjJJJkkk
+jjjJJJJkkrrhGGGGgggggwwwwwwwwggGGGGGrrhjjJJJJkkk
+jjjJJJJkkrrhGGGGggggwwwwwwwwgggGGGGGrrhjjJJJJkkk
+jjjJkJJkkrrhGGGgggggwwwwwwwwggggGGGGrrhjjJkJJkkk
+jjjJJJJkkrrhGGGggggwwwwwwwwgggggGGGGrrhjjJJJJkkk
+jjjJJJJkkrrhGGGggggwwwwwwwwgggggGGGGrrhjjJJJJkkk
+jjjJJJJkkrrhGGGgggwwwwwwwwggggggGGGGrrhjjJJJJkkk
+jjjJJkJkkrrhGGGgggwwwwwwwwggggggGGGGrrhjjJJkJkkk
+jjjJJJJkkrrhGGGggwwwwwwwwgggggggGGGGrrhjjJJJJkkk
+jjjJJJJkkrrhGGGggwwwwwwwwgggggggGGGGrrhjjJJJJkkk
+jjjJJJJkkrrhGGGggwwwwwwwwgggggggGGGGrrhjjJJJJkkk
+jjjkJJJkkrrhGGGgwwwwwwwwggggggggGGGGrrhjjkJJJkkk
+jjjJJJJkkrrhGGGgwwwwwwwwggggggggGGGGrrhjjJJJJkkk
+jjjJJJkkkrrhGGGGwwwwwwwggggggggGGGGGrrhjjJJJkkkk
+jjJJJJkkkrrhGGGGwwwwwwwggggggggGGGGGrrhjJJJJkkkk
+jjJJkJkkkrrhGGGGwwwwwwgggggggggGGGGGrrhjJJkJkkkk
+jjJJJJkkkrrhGGGGGwwwwwggggggggGGGGGGrrhjJJJJkkkk
+jjJJJJkkkrrhGGGGGgwwwggggggggGGGGGGGrrhjJJJJkkkk
+jjJJJJkkkrrhGGGGGggwwgggggggGGGGGGGGrrhjJJJJkkkk
+jjJJJkkkkrrhGGGGGgggggggggGGGGGGGGGGrrhjJJJkkkkk
+jjJJJJkkkrrhGGGGGgggggggggGGGGGGGGGGrrhjJJJJkkkk
+jjJJJJkkkrrhGGGGGgggggggggGGGGGGGGGGrrhjJJJJkkkk
+jjJJJJkkkrrhGGGGggggggggggGGGGGGGGGGrrhjJJJJkkkk
+jjJkJJkkkrrhGGGGgggggggggGGGGGGGGGGGrrhjJkJJkkkk
+jjJJJJkkkrrhOGGGgggggggggGGGGGGGGGGOrrhjJJJJkkkk
+OjJJJJkkkOrO.OOOOOOOOOOOOOOOOOOOOOO.OrOjJJJJkkkO
+"""
+
+[[animation.frame]]
+namespace = "open"
+frame_index = 1
+pixels = """
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+........OOOOO......................OOOOO........
+.OOOOOOOcccccO....................OcccccOOOOOOO.
+OjjjJJJJkOrOO......................OOrOjjjJJJJkO
+jjjjJJJJkrrhO......................OrrhjjjJJJJkk
+jjjjJJJJkrrhO......................OrrhjjjJJJJkk
+jjjjkJJJkrrhOOOOOOOOOOOOOOOOOOOOOOOOrrhjjjkJJJkk
+jjjjJJJJkrrhOddddddddddGGGGGGGGGdddOrrhjjjJJJJkk
+jjjjJJJJkrrhdddddddddddGGGGGGGGGddddrrhjjjJJJJkk
+jjjjJJJJkrrhddddddddddGGGGGGGGGGddddrrhjjjJJJJkk
+jjjjJkJJkrrhddddddddddGGGGGGGGGdddddrrhjjjJkJJkk
+jjjjJJJJkrrhddddddddddGGGGGGGGGdddddrrhjjjJJJJkk
+jjjjJJJJkrrhdddddddddggwwwGGGGGdddddrrhjjjJJJJkk
+jjjjJJJJkrrhdddddddgggwwwwwwGGGdddddrrhjjjJJJJkk
+jjjkJJJJkrrhddddddggggwwwwwwwGGdddddrrhjjkJJJJkk
+jjjjJJJkkrrhddddddggggwwwwwwwGddddddrrhjjjJJJkkk
+jjjJJJJkkrrhdddddggggwwwwwwwggddddddrrhjjJJJJkkk
+jjjJJJJkkrrhdddddggggwwwwwwwggddddddrrhjjJJJJkkk
+jjjJkJJkkrrhddddggggwwwwwwwggggdddddrrhjjJkJJkkk
+jjjJJJJkkrrhddddggggwwwwwwwggggdddddrrhjjJJJJkkk
+jjjJJJJkkrrhddddgggwwwwwwwwggggdddddrrhjjJJJJkkk
+jjjJJJJkkrrhddddgggwwwwwwwgggggdddddrrhjjJJJJkkk
+jjjJJkJkkrrhddddgggwwwwwwwgggggdddddrrhjjJJkJkkk
+jjjJJJJkkrrhddddggwwwwwwwggggggdddddrrhjjJJJJkkk
+jjjJJJJkkrrhddddggwwwwwwwggggggdddddrrhjjJJJJkkk
+jjjJJJJkkrrhddddgwwwwwwwgggggggdddddrrhjjJJJJkkk
+jjjkJJJkkrrhddddgwwwwwwwgggggggdddddrrhjjkJJJkkk
+jjjJJJJkkrrhddddwwwwwwwggggggggdddddrrhjjJJJJkkk
+jjjJJJkkkrrhdddddwwwwwwgggggggddddddrrhjjJJJkkkk
+jjJJJJkkkrrhdddddwwwwwwgggggggddddddrrhjJJJJkkkk
+jjJJkJkkkrrhddddddwwwwgggggggdddddddrrhjJJkJkkkk
+jjJJJJkkkrrhddddddwwwwgggggggdddddddrrhjJJJJkkkk
+jjJJJJkkkrrhdddddGGwwgggggggddddddddrrhjJJJJkkkk
+jjJJJJkkkrrhdddddGGGGgggggGdddddddddrrhjJJJJkkkk
+jjJJJkkkkrrhdddddGGGGGGGGGddddddddddrrhjJJJkkkkk
+jjJJJJkkkrrhdddddGGGGGGGGGddddddddddrrhjJJJJkkkk
+jjJJJJkkkrrhdddddGGGGGGGGGddddddddddrrhjJJJJkkkk
+jjJJJJkkkrrhddddGGGGGGGGGGddddddddddrrhjJJJJkkkk
+jjJkJJkkkrrhddddGGGGGGGGGdddddddddddrrhjJkJJkkkk
+jjJJJJkkkrrhOdddGGGGGGGGGddddddddddOrrhjJJJJkkkk
+OjJJJJkkkOrO.OOOOOOOOOOOOOOOOOOOOOO.OrOjJJJJkkkO
+"""
+
+[[transition]]
+from = "opening"
+to = "open"
+when = "animation_complete"

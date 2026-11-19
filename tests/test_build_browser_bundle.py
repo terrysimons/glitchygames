@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import errno
 import functools
+import html
 import importlib.metadata
 import json
 import re
@@ -250,6 +251,7 @@ class TestGeneratedFiles:
         assert GAMES['clockwork-keep'].member_packages == ('clockwork_keep',)
         assert GAMES['paddleslap'].member_packages == ('paddleslap',)
         assert GAMES['drawing-fire'].member_packages == ('drawing_fire',)
+        assert GAMES['zombies-aint-my-neighbors'].member_packages == ('zombies_aint_my_neighbors',)
         assert GAMES['bitmappy'].member_packages == ('bitmappy',)
         assert [name for name, game in GAMES.items() if game.member_packages] == [
             'paddleslap',
@@ -257,6 +259,7 @@ class TestGeneratedFiles:
             'clockwork-keep',
             'mr-muncher',
             'drawing-fire',
+            'zombies-aint-my-neighbors',
             'bitmappy',
         ]
 
@@ -513,7 +516,8 @@ class TestMain:
         assert TAB_ICON_LINK in index
         for game, specification in GAMES.items():
             assert (output / game / 'index.html').is_file()
-            assert f'<a href="{game}/">{specification.title}</a>' in index
+            # The page escapes each title (Zombies Ain't My Neighbors holds an apostrophe)
+            assert f'<a href="{game}/">{html.escape(specification.title)}</a>' in index
 
     def test_the_index_lists_the_games_then_the_tools_each_sorted_by_title(self):
         """Games first, then Tools (Bitmappy); each section's links in alphabetical order.

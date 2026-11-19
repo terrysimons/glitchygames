@@ -159,13 +159,32 @@ all of it (`tests/test_engine_doors.py`).
 test, instead of the kernel killing the job silently (`tests/memory_guard.py`;
 `tests/test_memory_guard.py`).
 
-- It is on only when `GLITCHYGAMES_TEST_RSS_LIMIT_MB` is set; CircleCI's Linux job sets 1600.
+- It is on only when `GLITCHYGAMES_TEST_RSS_LIMIT_MB` is set; CircleCI's Linux job sets 1750.
 - A background thread samples memory every `SAMPLE_INTERVAL_SECONDS`, and each test's start and
   end are checked too.
 - It reads the container's memory (cgroup v2) where there is one, else this process's resident
   memory, and does nothing on macOS or Windows.
 - It matters for playback because the golden replays and the tools' tests start child processes,
   and the container's figure counts them.
+
+## A CI job split across machines
+
+**Intent:** one CircleCI job ran past CircleCI's one-hour job limit running the whole suite on
+one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs on two
+(`parallelism: 2`), each running a share (`tests/circleci_test_split.py`;
+`tests/test_circleci_test_split.py`).
+
+- It is on only when `GLITCHYGAMES_TEST_SPLIT` is `circleci`; the split jobs set it, and any
+  other value stops the run. It needs CircleCI's `CIRCLE_NODE_TOTAL`, `CIRCLE_NODE_INDEX` and
+  `circleci` command, so it is never set locally (`nox -s test-linux-ci` leaves it out).
+- After collection, every collected test's file, golden replays included, goes to `circleci tests
+  split --split-by=timings`, and the tests of the files it returns run; the rest are deselected.
+  The share is written to `test-results/test-split.txt`.
+- CircleCI's timings come from the JUnit reports, which name each test's file
+  (`junit_family=xunit1`, which the test session adds for a split job).
+- No share reaches the 100% coverage rule alone, so the test session turns it off for a share;
+  each machine keeps its `.coverage` in `coverage-data/<job>/`, and a `coverage-combine-*` job
+  combines them on the job's Python and applies the rule (`nox -s coverage-combine-3.15`).
 
 ## Memory by test file
 

@@ -95,6 +95,7 @@ OUR_GAMES = (
     'paddleslap',
     'sound-board-demo',
     'text-input-demo',
+    'zombies-aint-my-neighbors',
 )
 # Our goldens: directly in each member's tests/fixtures/replays/
 OUR_GOLDEN_GLOBS = ('src/*/*/tests/fixtures/replays/golden*.jsonl.gz',)

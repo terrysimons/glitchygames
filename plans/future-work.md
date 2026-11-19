@@ -1106,6 +1106,36 @@ changes the outer game's key repeat (the plan's Review Focus 4).
 
 ## Developer environment
 
+- **Name the CI jobs for what they run** (the owner, 2026-11-18: "so it's more obvious what's
+  running in CI"). The 3.15 jobs are `test-python-3-15-linux` and `-windows`, but the 3.14 ones are
+  `build-and-test-linux` and `-windows`, which name no Python. In order:
+  1. The owner changes `main`'s required status checks to the workflow's own check,
+     `build-and-test` (the owner: "I'll take care of changing that"). It fails when any job in the
+     workflow fails, and its name never changes, so renaming or adding jobs never touches branch
+     protection again. Required per-job checks (`ci/circleci: build-and-test-linux`) would block
+     every PR the moment a job is renamed.
+  2. Rename the jobs inside the workflow: `test-python-3-14-linux` and `-windows`, and the
+     coverage jobs to match. Touches: the job definitions, the workflow's list and every
+     `requires:`, `noxfile._CIRCLECI_LINUX_JOB` (`test-linux-ci` reads that job), and the names in
+     `tests/test_ci_config.py`, CLAUDE.md and the docs. **Done another way (2026-11-18 and 19):**
+     the jobs are `test-python-3-15-macos`, `-linux` and `-windows`, and the 3.14 jobs are gone
+     (the owner: "let's get rid of Python 3.14 altogether"); only the coverage jobs
+     (`coverage-combine-linux-test-3-15`, `-windows-`) keep their own pattern.
+  3. ~~Move the wheel and binary build out of the 3.14 jobs into a job of its own.~~ **Done
+     differently (2026-11-18, the owner: "Switch the builds over to 3.15"):** the builds run in
+     the 3.15 jobs, on machine 0 of each split job, and in the macOS job; none is in a 3.14 job.
+
+- **Move the code's oldest Python to 3.15 when a Pyodide on 3.15 ships.** Python 3.14 is gone from
+  the tests, CI, the pre-push hooks and every nox session (the owner, 2026-11-19: "let's get rid of
+  Python 3.14 altogether"); it stays only as the oldest the code must parse and type-check as,
+  because the browser builds run on PyScript's Pyodide 314 (`scripts/build_browser_bundle.py`,
+  Python 3.14). Nothing tests on 3.14, so a 3.14-only break would show first in the browser
+  games; ruff and the type checkers catch 3.15-only syntax and standard-library names. When
+  Pyodide (and the PyScript release that pins it) moves to 3.15: rebuild our pygame-ce wheel for
+  it, then move `requires-python` (the root's and every member's), ruff's `target-version`, ty's
+  `python-version` and pyrightconfig.json's `pythonVersion` to 3.15, and the generated SBOM's
+  supported environments (`scripts/generate_sbom.py`).
+
 - Dropbox syncing test artefacts made the suite run in 10 minutes instead of 46 s. If Dropbox stays
   on, mark `test-results/`, `.coverage*`, `.venv` and cache directories as ignored
   (`xattr -w com.dropbox.ignored 1 <path>`).
@@ -1448,6 +1478,239 @@ Loading and memory:
 
 - **USB 3 SSD** against the SD card, for start-up and asset loading (the runner plan's storage decision).
 - **Background services and `vm.swappiness`** (60 now): fewer services, less swapping onto the card.
+
+## The Raspberry Pi OS Pi's memory cgroup (the owner, 2026-11-16)
+
+- [ ] **Decide whether to enable the memory cgroup on Raspberry Pi OS.** Its firmware boots the
+  kernel with `cgroup_disable=memory` (in its own boot arguments, ahead of `cmdline.txt`'s: read
+  2026-11-16 on `raspberry-pi-5-16gb-raspberry-pi-os`), so the runner's `MemoryMax=2G` and
+  `MemorySwapMax=0` are written and not enforced there; the Ubuntu Pis enforce them. Left alone
+  for now (the owner: "Leave boot arguments alone but make a todo"). It matters only once a Pi's
+  CircleCI job is switched on: no workflow runs one, and the push-time measuring logs in over SSH,
+  outside the runner's service. To enable it, append `cgroup_memory=1 cgroup_enable=memory` to
+  `/boot/firmware/cmdline.txt` (https://docs.k3s.io/installation/requirements, Raspberry Pi), a
+  reboot applying it, and have a play check every Pi's `/sys/fs/cgroup/cgroup.controllers` holds
+  `memory`. Details: plans/2026-11-04-raspberry-pi-ci-runner.md, "The first Raspberry Pi OS Pi".
+
+## Sprite color profiles and a glyph generator (the owner, 2026-11-16)
+
+Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversation:
+
+- **Two separate settings: a profile (how many colors one sprite may use) and a color space
+  (which colors exist).**
+- **Profiles are counts only, named by era with "+": each sprite may use as many colors as the
+  console's largest color table** (the owner: "Oh nice, I like that").
+- **Every profile's count is per sprite, never a total** (the owner: "Make sure to clarify that the
+  + variants are per-sprite, not total"). 16-bit+ lets each sprite use up to 256 colors of its
+  own; two such sprites may use 512 different colors between them, and a scene has no limit on
+  the colors on screen at once. The consoles capped the screen too (a NES showed at most 25
+  colors at once, a SNES's sprites shared 128 slots); no profile models that.
+
+  | Profile | The console gave a sprite | "+" gives it | Bits per pixel | Colors |
+  |---|---|---|---|---|
+  | 8-bit+ | 3 + transparent (one of 4 sprite palettes) | the NES's whole 64-entry master palette | 6 | 64: today's format |
+  | 16-bit+ | 15 + transparent (one of 8 sprite palettes) | the SNES's whole 256-entry palette RAM | 8 | 256 |
+
+  Neither console's sprites could reach that much, which is the "+": a NES sprite never used all
+  64 master colors, and SNES sprites reached only the top half of palette RAM (palettes 8 to 15,
+  128 entries; the bottom 128 were the backgrounds', all 256 only in its 256-color background
+  modes). Rejected: the era's number as bits per pixel (16-bit+ would allow 65,536 per sprite,
+  more than a 32x48 sprite has pixels, so no limit at all; and the NES was 2 bits per pixel, its
+  "8-bit" the processor's word). Rejected: a "16-bit+ 64" profile for the Genesis (the owner:
+  "Isn't 64 colors per sprite just 8-bit+?"; the count is the same, only the colors differ).
+- **Strict profiles, below today's format** (the owner agreed to a 4-color profile, then to its
+  name and the 16-color one, 2026-11-16: "All of it, love it"). No "+" is the console's real budget
+  for one sprite, "+" its largest color table, each per sprite, as above:
+
+  | Profile | Colors per sprite | Bits per pixel | The real budget of |
+  |---|---|---|---|
+  | 8-bit | 4 (3 + transparent) | 2 | the NES and the Game Boy |
+  | 16-bit | 16 (15 + transparent) | 4 | the SNES and the Genesis (every Zombies sprite today) |
+
+  The mono color spaces need the 4-color profile: `8-bit+ · 2-bit mono` would allow 64 colors
+  chosen from 4 shades, so the profile would limit nothing.
+- **Direct-color profiles: High Color and True Color** (the owner agreed, 2026-11-16). Era names
+  cover the palette years, where the era defined what a sprite got; established color-depth names
+  cover the direct-color years, where the depth is the whole story.
+
+  | Profile | Colors per sprite | Bits per pixel | Era |
+  |---|---|---|---|
+  | High Color | 32,768 | 15 | the PlayStation's and Saturn's direct-color sprites |
+  | True Color | no budget | 24 | the N64 onward; how every existing file reads |
+
+  High Color is the 15-bit flavor (32,768), not the 16-bit one (65,536, 6 bits of green): its
+  description says so. It barely limits anything (more than a sprite has pixels until about
+  181x181) and outgrows the glyph generator (about 24,000), so a full High Color sprite is the PNG
+  case. True Color is no `profile` key, or `profile = "true-color"` written out; both read alike.
+  Rejected: "32-bit+" (PCs read "32-bit color" as RGB with alpha; the PlayStation's and Saturn's
+  sprites were 15-bit, their "32-bit" the processor), a "24-bit" profile (no console era had the
+  name, and "24-bit RGB" is already the full-color color space), and a strict "32-bit" (their
+  largest indexed mode, 256, is 16-bit+'s count; 16-bit+'s description says it is also those
+  consoles' 256-color sprites).
+- **Color spaces: a bit depth ("N-bit RGB") or a named fixed palette.** Off means 32-bit RGBA
+  (below), as today. The NES's needs the named kind: its 54 colors were a hand-picked list, not a
+  grid of levels (`color/resources/nes.palette` holds 55).
+- **Alpha** (the owner agreed both rules, 2026-11-16):
+  1. Each distinct color with its alpha is one entry of a profile's budget, as the file already
+     stores it: a half-transparent red and a solid red are two of 8-bit+'s 64. The magenta key
+     counts too, as the consoles counted their transparent slot (8-bit is exactly 4 entries).
+  2. Only 32-bit RGBA has partial alpha; every other color space is on/off (the magenta key), as
+     the consoles were until the N64: the NES, Game Boy and Genesis had one transparent slot, the
+     SNES blended whole layers ("color math"), the PlayStation and Saturn whole sprites by a few
+     fixed modes.
+
+  | Color space | Colors | Alpha | Use |
+  |---|---|---|---|
+  | 32-bit RGBA | any | any (0 to 255) | the default, no `color_space` key |
+  | 24-bit RGB | any | on/off | full color the console way: solid or invisible |
+
+  32-bit RGBA is the owner's ("we should consider adding 32bit RGBA in that case, yes?"). The
+  default must allow partial alpha: of 104 sprite files, Bitmappy's `toadstool.toml` has 14
+  colors at alpha 137 or 128 (counted 2026-11-16). "32-bit" belongs here, with "RGBA" spelled out,
+  rather than in a profile's name.
+  - 9-bit RGB: the Genesis's 512 (3 bits a channel, 8 levels). Its levels weren't evenly spaced
+    (a non-linear output stage), so snap to a published measured table, credited, not to even
+    steps. Its shadow and highlight mode (half a step darker or brighter, about 1,500 colors on
+    screen) would be another color space name, never a third setting.
+  - 15-bit RGB: the SNES's 32,768 (5 bits a channel, 32 levels).
+  - Mono: one hue at even brightness levels, named by bits like the RGB ones (the owner: "2-bit
+    gray should probably be like... 4-mono or something"; "2-bit mono" matches "9-bit RGB", which
+    names its bits, not its 512). 1-bit mono (2 shades: the original Mac, terminal screens), 2-bit
+    mono (4: the Game Boy), 4-bit mono (16: grayscale LCDs and Macs). Plain mono is even grays
+    (the Game Boy Pocket's look); a tint is a named palette of particular colors, like the NES's,
+    never a third setting: a Game Boy green from the commonly cited emulator values (`#0f380f` dark
+    to `#9bbc0f` light; credit the source used), an amber terminal, a green phosphor.
+  - Also agreed (the owner, 2026-11-16: "All of it, love it"): 6-bit RGB (64: the Master System,
+    the PC's EGA), 12-bit RGB (4,096: the Amiga, Game Gear, Neo Geo), and named palettes for the
+    C64's 16, the CGA's 4-color sets, the ZX Spectrum's 15 and the web-safe 216. Community
+    palettes too (DawnBringer's DB16 and DB32, Endesga 32 and 64, Sweetie 16, PICO-8's 16;
+    collected on Lospec), each only after its author's license is checked, recorded and credited
+    in its palette file.
+- **The notation.** For people (menus, descriptions, docs): `profile · color space`, the color
+  space left out when it's full color.
+
+  | Written | Colors per sprite | Chosen from | Matches |
+  |---|---|---|---|
+  | `8-bit+` | 64 | any (32-bit RGBA) | |
+  | `8-bit+ · NES palette` | 64 | the NES's 54 | the NES, every color for every sprite |
+  | `8-bit+ · 9-bit RGB` | 64 | 512 | the Genesis's whole 64-entry palette |
+  | `16-bit+` | 256 | any (32-bit RGBA) | |
+  | `16-bit+ · 15-bit RGB` | 256 | 32,768 | the SNES's whole palette RAM |
+  | `High Color` | 32,768 | any (32-bit RGBA) | |
+  | `High Color · 15-bit RGB` | 32,768 | 32,768 | the PlayStation's and Saturn's sprites |
+  | `True Color` | no budget | any color, any alpha (32-bit RGBA) | today's default |
+  | `True Color · 24-bit RGB` | no budget | any color, alpha on/off | |
+
+  8-bit+'s description says it is also the Genesis's whole palette, so Genesis-minded artists
+  aren't steered to 16-bit+. In a sprite file, two plain keys, neither parsed out of the other:
+  `profile = "8-bit+"` and `color_space = "rgb9"` (or `"nes"`, `"rgb15"`) in `[sprite]`. No
+  `profile` means no budget and no `color_space` means full color, which is how every existing
+  file reads today, so none changes. Console names (NES, SNES, Genesis) are trademarks: use them
+  in descriptions ("like the Genesis"), not as profile names.
+- **One format, a longer glyph list, not a second format** (the owner: "keep the current format,
+  but clamp on the glyph map but make it a robust generator that returns printable characters in a
+  savory order"). Readers already take any character: `zap.toml` with three glyphs swapped for
+  `#`, `é`, `Ŧ` loaded pixel for pixel identical (2026-11-16). Only the writers stop at
+  `SPRITE_GLYPHS`' 64 (Bitmappy's save raises above it, `bitmappy_sprite.py:555`). Rejected: a
+  hex-pair format (an extra reader and writer and conversions, rows twice as wide, still 256).
+  Past a few thousand colors (photo-like art, hand-edited by nobody) the second format is PNG,
+  which Bitmappy already imports.
+- **The generator's rules:**
+  - The first 64 are `SPRITE_GLYPHS` in its order, so every writer's output today is unchanged
+    and a re-save changes nothing in git. "Core glyphs" in code and docs; possibly "the Crayon Box"
+    as 8-bit+'s friendly name (64, the big crayon box; not the brand name).
+  - Then a savory order: the rest of safe ASCII punctuation (not the busy marks), accented Latin
+    grouped by base letter (`à á â ä`), then Greek and Cyrillic less lookalikes of anything earlier
+    (Cyrillic `а о р с х`, Greek `Α Β Ο`), from Unicode's `confusables.txt`, credited.
+  - Every glyph is one terminal cell wide (East Asian width `Na` or `N`), left to right, not a
+    combining mark, unchanged by NFKC, and not `"`, `\`, `'` or whitespace. Counted 2026-11-16
+    (Python 3.14, Unicode 16): 91 in ASCII, 429 with Latin-1 and Latin Extended A/B (16-bit+
+    fits in characters every common font has), about 24,000 in all, so never 65,536.
+  - Frozen as a literal in the source, built once by a dev script and never at import (the comment
+    on `SPRITE_GLYPHS` asks this; another Python's Unicode data could change which characters pass,
+    so one sprite would save differently on two machines). A test proves the frozen list still
+    meets every rule.
+  - Clamped by profile: more colors than the profile or the list allows raises, naming both.
+- **A bug it fixes: Bitmappy's terminal preview gives two colors one glyph above 64.**
+  `_build_color_to_glyph_map` (`src/apps/bitmappy/src/bitmappy/pixel_ops.py:264`) picks
+  `SPRITE_GLYPHS[char_index % len(SPRITE_GLYPHS)]`: reproduced 2026-11-16, 65 colors gave
+  `(0,0,0)` and `(64,0,0)` both `.`, so `sprite_inspection.py`'s preview draws one in the other's
+  color (preview only: saving refuses above 64). The test gap: nothing renders a preview with more
+  colors than glyphs; write that test first. Sweep the same assignment at `animated.py:2037`,
+  `bitmappy_sprite.py:709` and `toml_processing.py:828` (not checked yet) and move all of them to
+  the generator.
+- **Palette features: what the indexed format makes cheap.** A sprite file's pixels are glyphs and
+  its `[colors]` map says what each means, so changing the map recolors the art. In order of
+  value (my recommendation; the owner agreed to record them, 2026-11-16, order not decided):
+  1. Palette swaps: one drawing, many color maps (the NES's enemy variants). For Zombies, one
+     lawn-zombie drawing as green, gray and glowing zombies, or each neighbor's zombie keeping
+     their shirt, with no new art and the sprite kit building variants. Drawing Fire's
+     `recolor_surface` (its swatch schemes) does a version for one game: the engine's swap becomes
+     the one shared path and Drawing Fire moves onto it, so the two don't drift.
+  2. Color cycling: a range of colors rotates over time while the pixels stay put (16-bit
+     waterfalls, fire, lava, signs). For Zombies, the TV's glow or the laser's shimmer.
+  3. Palette fades and flashes: a fade steps each color down its color space's levels (the NES's
+     way); a hit flash swaps to an all-white map for a frame.
+
+## Refresh-aware rendering and fixed simulation (the owner, 2026-11-17)
+
+The owner's brief, verbatim: plans/2026-11-17-refresh-aware-rendering-and-fixed-simulation.md.
+A to-do while two branches are in flight (the zombies PR and the color profiles branch). What
+discussing it found and decided:
+
+- **Measure one thing at a time** (the owner). First today's loop as it is, on the Pi (frame
+  intervals at median, p95, p99 and p99.9, how often each frame spins, CPU use); then one change
+  (for example sleeping instead of spinning), measured again under the same display and power
+  settings. The kernel page-size comparison (the Raspberry Pi OS Pi's 16 KB pages, the Ubuntu Pis'
+  4 KB) is a separate experiment, never mixed with a pacing change.
+- **Today's engine (read 2026-11-17).** No refresh-rate query and no VSync request anywhere
+  (`get_current_refresh_rate`, `vsync=`); no fixed timestep, accumulator or interpolation. One loop
+  iteration is one frame is one step: scenes get one variable `dt` per frame (`Scene.dt_tick`).
+  The pacer busy-waits by default: `--timer-backend auto` (`timing.py`) sleeps to just before each
+  deadline and spins the rest, spinning whole waits where the OS delays sleeps. The brief says not
+  to default to that on the Pi.
+- **Why a fixed simulation is architectural, not local.** At 120 Hz frames over 60 Hz steps, half
+  the frames run no step and an overloaded one runs several. The engine leans on frame = step:
+  32 `dt_tick` implementations in the games, demos and Bitmappy (38 with the engine's) mix per-step
+  and per-frame work; event dispatch hands each event to the scene in the frame it arrives, so a
+  one-shot event on a frame with no step would act between steps; world sprites are positioned per
+  frame (camera, culling, pixel snapping), and blending needs two copies of the world; every clock
+  (game time, frame clock, tweens, shake, rumble, sound voices ending by played time) needs a
+  per-step or per-frame answer; the Arcade drives inner games by the outer game's frames. The
+  engine's rules shape it: time only through `src/glitchygames/clock.py` (not
+  `time.perf_counter()`), and world sprites' `rect` the engine's alone.
+- **Steps are the recorded unit; frames are only drawing (the owner's idea, 2026-11-17).** A
+  recording stays a list of steps, each with its `dt`. Existing recordings replay as they are, each
+  recorded frame one step of its recorded `dt`, drawn at any refresh rate by blending between steps,
+  so the 25 golden replays and demos and the 5 golden-trace baselines keep their meaning and are
+  never re-recorded for this. New live play steps at the fixed rate. One stepping path: live, the
+  accumulator decides when to step; in a replay, the recording does. The game logic always replays
+  at exactly the steps it was recorded with: re-stepping it at another rate changes outcomes
+  (collisions land at other points, timers such as the zap's 0.25 s cooldown cross on other steps,
+  random streams draw per step), so only drawing is resampled.
+- **Drawing above the step rate:** positions and the camera blend between steps; a discrete change
+  (a spawn, an animation frame, score) shows from the first frame after its step, not a middle one,
+  which would add half a step of delay. Teleports and respawns reset both copies and draw as jumps.
+- **Drawing below the step rate: nothing vanishes (the owner: "design a smarter algorithm that
+  can't let something vanish ... do it at the end of the last frame").** Between frames the engine
+  lists what happened since the last drawn one: sprites that appeared, sprites removed (their last
+  image, position and layer), and marked states entered and left. Each frame draws the latest step,
+  then, once each, every sprite that appeared and was removed unseen, at its last state, and every
+  marked state entered and left unseen, in place of the current one; then the list is cleared, so
+  nothing is ever more than one frame late and a slow device never piles them up. Drawing only:
+  never game state, collisions, recordings or replays. Existence is guaranteed for every sprite;
+  marked states (a hit flash, not an idle blink) are the game's opt-in. Skipped animation frames
+  stay skipped. Example, 30 Hz frames over 60 Hz steps: a zap hits a zombie on step 1 (its struck
+  flash) and it crumbles on step 2; the frame shows the zap at its last position and the zombie
+  struck, once, rather than the zombie blinking out of existence.
+- **Inputs:** read once per frame and handed to the first step after; below the step rate their
+  timing is as coarse as the frames. Two presses within one step keep their order but not their
+  timing inside it; a game needing finer timing (a rhythm game) chooses a faster step rate.
+- **A cheaper first change, nothing architectural:** pace to the display's detected rate with
+  variable `dt` as today (120 game steps a second at 120 Hz). Every contract stays and replays
+  still serve their recorded `dt`; the cost is twice the game work and no smoothing of uneven
+  frames. The measurements decide whether that alone fixes the hitching before the fixed
+  simulation is paid for.
 
 ## Code quality
 

@@ -418,6 +418,7 @@ def test_the_root_goldens_are_the_engines_own():
         'brave-adventurer',
         'paddleslap',
         'drawing-fire',
+        'zombies-aint-my-neighbors',
     }
     assert [
         name for name in sorted(game_names) if (ROOT_REPLAY_FIXTURES_DIRECTORY / name).exists()

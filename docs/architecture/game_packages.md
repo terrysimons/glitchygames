@@ -16,7 +16,8 @@ src/
                        every game and demo is a member, and its resources/ holds only what the
                        engine itself ships
   games/<game>/        one member per game: every game (mr-muncher, clockwork-keep,
-                       brave-adventurer, paddleslap, drawing-fire)
+                       brave-adventurer, paddleslap, drawing-fire,
+                       zombies-aint-my-neighbors)
   demos/<demo>/        one member per demo (dt-demo, joystick-demo, sound-board-demo,
                        text-input-demo): a small
                        program that shows one engine feature (console scripts `dt-demo`,
