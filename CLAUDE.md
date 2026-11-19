@@ -258,6 +258,10 @@ present. Check rendering on the real driver with `SDL_VIDEODRIVER=cocoa uv run p
   keyboard handlers (silent by default) the dispatchers call
   (`tests/test_sprite_classes_are_root_sprites.py`). Load sprites with
   `SpriteFactory.load_sprite(filename=...)`, not `BitmappySprite` directly.
+- Sprites loaded from the same text share one compile's frames (`sprites/compiled_sprites.py`,
+  `ENGINE_SPRITE_CACHE`, emptied by the harness around each test). A frame's `image` and `pixels`
+  copy on first read; engine code reads `read_only_image`/`read_only_pixels`, never the public
+  ones, or every sprite silently stops sharing. Never change `drawn_frame_surface()` in place.
 - Sprite files are TOML only (character-to-colour map, optional per-colour alpha, magenta
   255,0,255 as the transparency key, `[[animation]]` sections); see ANIMATION_README.md. Every
   value is checked by type and range at load (`sprites/sprite_file_schema.py`, pydantic, strict;
