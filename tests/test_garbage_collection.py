@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import ctypes
 import gc
+import os
 import sys
 import weakref
+from pathlib import Path
 
 import pytest
 
 from tests.garbage_collection import (
+    AfterTestMemoryRelease,
     PeakMemoryCollector,
     malloc_bytes_in_use_reader,
+    malloc_trimmer,
+    process_memory_release,
     process_peak_memory_collector,
     release_test_instance,
 )
@@ -27,6 +33,7 @@ class FakeProcess:
         self.peak_bytes = 100
         self.heap_bytes = 1000
         self.collections = 0
+        self.events: list[str] = []
 
     def read_peak_bytes(self) -> int:
         return self.peak_bytes
@@ -36,6 +43,11 @@ class FakeProcess:
 
     def collect(self) -> int:
         self.collections += 1
+        self.events.append('collect')
+        return 0
+
+    def trim_heap(self) -> int:
+        self.events.append('trim')
         return 0
 
 
@@ -157,6 +169,142 @@ def test_a_peak_collection_also_restarts_the_heap_step():
     assert not collector.after_test()
 
     assert process.collections == 1
+
+
+def release_for(process: FakeProcess) -> AfterTestMemoryRelease:
+    """Return a release collecting and trimming the fake process.
+
+    Returns:
+        The release.
+
+    """
+    return AfterTestMemoryRelease(collector=collector_for(process), trim_heap=process.trim_heap)
+
+
+def test_the_heap_is_trimmed_after_every_test():
+    """The free heap goes back to the system after every test, collected or not."""
+    process = FakeProcess()
+    release = release_for(process)
+
+    release.after_test()
+    release.after_test()
+
+    assert process.events == ['trim', 'trim']
+
+
+def test_the_heap_is_trimmed_after_the_collection():
+    """A collection frees the garbage first, so the trim hands back what it freed too."""
+    process = FakeProcess()
+    release = release_for(process)
+
+    process.peak_bytes += STEP_BYTES + 1
+    release.after_test()
+
+    assert process.events == ['collect', 'trim']
+
+
+def test_without_a_trimmer_the_release_only_collects():
+    """Off glibc Linux (macOS, musl) there is no trimmer: the release only collects."""
+    process = FakeProcess()
+    release = AfterTestMemoryRelease(collector=collector_for(process), trim_heap=None)
+
+    process.peak_bytes += STEP_BYTES + 1
+    release.after_test()
+
+    assert process.events == ['collect']
+
+
+def test_without_a_collector_the_release_only_trims():
+    """A release with no collector (none on Windows) still trims, given a trimmer."""
+    process = FakeProcess()
+    release = AfterTestMemoryRelease(collector=None, trim_heap=process.trim_heap)
+
+    release.after_test()
+
+    assert process.events == ['trim']
+
+
+def test_a_release_with_neither_does_nothing():
+    """Windows has neither a collector nor a trimmer: the release does nothing, and is safe."""
+    AfterTestMemoryRelease(collector=None, trim_heap=None).after_test()
+
+
+def resident_bytes() -> int:
+    """Return this process's resident memory, from Linux's ``/proc/self/statm``.
+
+    Returns:
+        The resident bytes.
+
+    """
+    resident_pages = int(Path('/proc/self/statm').read_text(encoding='utf-8').split()[1])
+    return resident_pages * os.sysconf('SC_PAGE_SIZE')
+
+
+@pytest.mark.skipif(not sys.platform.startswith('linux'), reason='malloc_trim is glibc only')
+def test_the_trimmer_hands_freed_heap_back_to_the_system():
+    """Blocks freed below the heap's top stay resident until the trim hands them back.
+
+    glibc returns freed memory at the heap's top on its own, but not freed memory under a block
+    still in use: thousands of small blocks freed beneath one kept block stay resident, which
+    ``malloc_trim`` releases (glibc malloc/malloc.c ``mtrim``).
+    """
+    trim_heap = malloc_trimmer()
+    assert trim_heap is not None
+    # Small blocks (under the 128 KiB mmap threshold) come from the heap; 64 MiB of them
+    blocks = [ctypes.create_string_buffer(4096) for _ in range(16 * 1024)]
+    kept_at_the_top = ctypes.create_string_buffer(4096)
+    for block in blocks:
+        ctypes.memset(block, 1, 4096)
+    del blocks
+    before = resident_bytes()
+
+    trim_heap()
+
+    assert before - resident_bytes() >= 32 * 1024 * 1024
+    del kept_at_the_top
+
+
+def test_no_trimmer_off_linux():
+    """Off Linux there is no malloc_trim: macOS's and Windows' allocators return memory."""
+    assert malloc_trimmer(platform='darwin') is None
+    assert malloc_trimmer(platform='win32') is None
+
+
+def test_a_c_library_without_malloc_trim_gives_no_trimmer(mocker):
+    """A Linux C library without glibc (musl) gives no trimmer."""
+    mocker.patch('tests.garbage_collection.ctypes.CDLL', side_effect=OSError('no such library'))
+
+    assert malloc_trimmer(platform='linux') is None
+
+
+def test_a_glibc_without_the_call_gives_no_trimmer(mocker):
+    """A C library that loads but has no malloc_trim gives no trimmer."""
+    mocker.patch('tests.garbage_collection.ctypes.CDLL', return_value=object())
+
+    assert malloc_trimmer(platform='linux') is None
+
+
+def test_a_trimmer_calls_malloc_trim_keeping_no_padding(mocker):
+    """The trimmer asks glibc to keep no padding at the heap's top (``malloc_trim(0)``)."""
+    library = mocker.Mock()
+    library.malloc_trim.return_value = 1
+    mocker.patch('tests.garbage_collection.ctypes.CDLL', return_value=library)
+
+    trim_heap = malloc_trimmer(platform='linux')
+
+    assert trim_heap is not None
+    assert trim_heap() == 1
+    library.malloc_trim.assert_called_once_with(0)
+
+
+def test_the_process_release_trims_with_this_platforms_trimmer(mocker):
+    """The suite's release trims with ``malloc_trimmer``'s answer for this platform."""
+    process = FakeProcess()
+    mocker.patch('tests.garbage_collection.malloc_trimmer', return_value=process.trim_heap)
+
+    process_memory_release().after_test()
+
+    assert process.events == ['trim']
 
 
 @pytest.mark.skipif(

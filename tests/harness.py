@@ -61,7 +61,7 @@ from tests.display_canvas import (
     show_canvas_on_new_display,
 )
 from tests.engine_source import ENGINE_DIRECTORY
-from tests.garbage_collection import process_peak_memory_collector, release_test_instance
+from tests.garbage_collection import process_memory_release, release_test_instance
 from tests.git_environment import clear_git_repository_variables
 from tests.hidden_test_windows import hide_test_windows
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
@@ -256,18 +256,19 @@ def _fail_on_entirely_black_frame(
 settings.register_profile('glitchygames', deadline=None)
 settings.load_profile('glitchygames')
 
-# This process's collector (None on Windows), made as the session starts
-_PEAK_MEMORY_COLLECTOR = process_peak_memory_collector()
+# This process's garbage collector and glibc heap trimmer, made as the session starts
+_MEMORY_RELEASE = process_memory_release()
 
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_protocol(item, nextitem):
-    """Free the finished test's memory: its class instance's state, then its garbage.
+    """Free the finished test's memory: its class instance's state, its garbage, the free heap.
 
     Once the test's reports are made and logged, pytest has dropped its fixture values, and
     ``release_test_instance`` empties the test class's instance, which pytest itself keeps for
     the rest of the run; so its scene and sprites are garbage, which the collector frees when
-    memory climbs (tests/garbage_collection.py).
+    memory climbs. On glibc Linux the free heap then goes back to the system (``malloc_trim``):
+    tests/garbage_collection.py.
 
     Returns:
         object: The wrapped hook's result.
@@ -277,8 +278,7 @@ def pytest_runtest_protocol(item, nextitem):
         return (yield)
     finally:
         release_test_instance(item=item)
-        if _PEAK_MEMORY_COLLECTOR is not None:
-            _PEAK_MEMORY_COLLECTOR.after_test()
+        _MEMORY_RELEASE.after_test()
 
 
 def pytest_configure(config):
