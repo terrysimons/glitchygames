@@ -1339,11 +1339,12 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         The one path a sprite loads by: a file's load reads its text and calls this, so a sprite
         from text and from a file are the same sprite.
 
-        A text compiles once per process (glitchygames/sprites/compiled_sprites.py): every
-        sprite loaded from it, by the same source, gets frames of its own that share the
-        compile's surfaces and pixels, copied on their first public read (SpriteFrame), and its
-        own copies of everything else the load set. A text the loader refuses raises every time
-        and is never kept.
+        A text compiles once per process and class (glitchygames/sprites/compiled_sprites.py):
+        every sprite of this class loaded from it, by the same source, gets frames of its own
+        that share the compile's surfaces and pixels, copied on their first public read
+        (SpriteFrame), and its own copies of everything else the load set. The compile is the
+        loader run on the first such sprite, so a subclass's loader overrides run as they always
+        did. A text the loader refuses raises every time and is never kept.
 
         Args:
             text: The sprite file's TOML text.
@@ -1358,20 +1359,23 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             sprite_key,
         )
 
-        key = sprite_key(text=text, source_name=source_name)
+        key = sprite_key(text=text, source_name=source_name, sprite_class=type(self))
         compiled = ENGINE_SPRITE_CACHE.compiled(key=key)
         if compiled is None:
             compiled = ENGINE_SPRITE_CACHE.keep(
-                key=key, compiled=compile_sprite_text(text=text, source_name=source_name)
+                key=key,
+                compiled=compile_sprite_text(sprite=self, text=text, source_name=source_name),
             )
+        # Even the sprite that compiled takes sharing frames: the templates stay the cache's
         self._apply_compiled_sprite(compiled)
 
-    @classmethod
-    def compiled_from_text(cls, *, text: str, source_name: str) -> CompiledSprite:
-        """Load text once on a private sprite, uncached, and return what the load set.
+    def compile_text_by_loading(self: Self, *, text: str, source_name: str) -> CompiledSprite:
+        """Load text into this sprite, uncached, and return what the load set as a compile.
 
-        Its frames become the compile's templates, their pixels a tuple; each frame's drawn
-        surface at scale 1 is made now (glitchygames/sprites/compiled_sprites.py).
+        This sprite's loader runs, its class's overrides included. Its frames become the
+        compile's templates, their pixels a tuple; each frame's drawn surface at scale 1 is made
+        now (glitchygames/sprites/compiled_sprites.py). load_text then gives this sprite frames
+        sharing them, as every later load of the text gets.
 
         Args:
             text: The sprite file's TOML text.
@@ -1381,9 +1385,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             CompiledSprite: The compile.
 
         """
-        sprite = cls(groups=None)
-        sprite._load_text_uncached(text=text, source_name=source_name)
-        return sprite._compile_of_this_load()
+        self._load_text_uncached(text=text, source_name=source_name)
+        return self._compile_of_this_load()
 
     def _compile_of_this_load(self: Self) -> CompiledSprite:
         """Return what this sprite's load set, read-only, its frames the compile's templates.
@@ -1454,6 +1457,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         if compiled.frame_interval is not None:
             self._frame_interval = compiled.frame_interval
         self._compiled_sprite = compiled
+        # The sprite that compiled drew its own surfaces while loading; it draws the shared ones
+        self.clear_surface_cache()
         # The compile logged the warnings and the missing animations once
         self._finish_load(transitions=self.transition_data, log_missing_animations=False)
 

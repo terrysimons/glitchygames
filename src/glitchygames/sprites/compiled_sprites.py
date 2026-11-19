@@ -1,6 +1,6 @@
 """Compiled sprites: a sprite file's text loaded once per process, its frames shared read-only.
 
-Every ``AnimatedSprite`` loaded from the same text, by the same source, shares one compile: its
+Every sprite of one class loaded from the same text, by the same source, shares one compile: its
 frames (``SpriteFrame`` objects, their surfaces and pixels) and each frame's drawn surface at scale
 1. Each sprite keeps its own playback state and its own copies of everything else the load set
 (plans/2026-11-18-shared-sprite-frames.md, the owner, 2026-11-18: "like we did with sounds").
@@ -14,6 +14,10 @@ around every test. It is a read-only cache in the engine context's sense
 (plans/2026-10-25-engine-context.md): its values are computed only from their keys and never
 written after they are made. A sprite already loaded keeps its frames when its entry goes, as it
 holds them.
+
+The compile is the loader run on the first sprite that loads the text, so a subclass that changes
+how a file loads (overriding a loader step such as ``build_color_map``) loads as it always did;
+its class is in the key, so its compile is never another class's, in either load order.
 """
 
 from __future__ import annotations
@@ -22,13 +26,16 @@ import hashlib
 import threading
 from collections import OrderedDict
 from types import MappingProxyType  # ruff: ignore[typing-only-standard-library-import] - pydantic resolves CompiledSprite's read-only mappings at runtime
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
 import pygame
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.sprites.animated import AnimatedSprite, FrameAnchor
+from glitchygames.sprites.animated import FrameAnchor  # ruff: ignore[typing-only-first-party-import] - pydantic resolves CompiledSprite.frame_anchor at runtime
 from glitchygames.sprites.frame import SpriteFrame  # ruff: ignore[typing-only-first-party-import] - pydantic resolves CompiledSprite.animations at runtime
+
+if TYPE_CHECKING:
+    from glitchygames.sprites.animated import AnimatedSprite
 
 # Past this many bytes of compiled frames, the least recently used compiles are dropped
 DEFAULT_SPRITE_CACHE_LIMIT_BYTES: Final = 64 * 1024 * 1024
@@ -56,23 +63,29 @@ SHARED_SPRITE_FIELDS: Final = (
     '_color_order',
 )
 
-# A compile's key: the sha256 of the sprite file's text, and the source it was loaded from (the
-# compile's pixel-row repair warnings name its source, so another source compiles anew)
-type SpriteKey = tuple[str, str]
+# A compile's key: the sha256 of the sprite file's text, the source it was loaded from (the
+# compile's pixel-row repair warnings name its source, so another source compiles anew), and the
+# loading class's qualified name (a subclass may change how a file loads)
+type SpriteKey = tuple[str, str, str]
 
 
-def sprite_key(*, text: str, source_name: str) -> SpriteKey:
-    """Return the key a sprite file's text, loaded from source_name, is compiled under.
+def sprite_key(*, text: str, source_name: str, sprite_class: type) -> SpriteKey:
+    """Return the key a sprite file's text, loaded from source_name by sprite_class, is under.
 
     Args:
         text: The sprite file's TOML text.
         source_name: What the text came from (a file name, a console).
+        sprite_class: The class of the sprite loading it.
 
     Returns:
-        SpriteKey: The text's sha256 hexdigest, and the source.
+        SpriteKey: The text's sha256 hexdigest, the source, and the class's qualified name.
 
     """
-    return (hashlib.sha256(text.encode('utf-8')).hexdigest(), source_name)
+    return (
+        hashlib.sha256(text.encode('utf-8')).hexdigest(),
+        source_name,
+        f'{sprite_class.__module__}.{sprite_class.__qualname__}',
+    )
 
 
 class CompiledSprite(BaseModel):
@@ -109,14 +122,16 @@ class CompiledSprite(BaseModel):
     byte_count: int
 
 
-def compile_sprite_text(*, text: str, source_name: str) -> CompiledSprite:
-    """Compile a sprite file's text: run the loader once and keep what it set, read-only.
+def compile_sprite_text(*, sprite: AnimatedSprite, text: str, source_name: str) -> CompiledSprite:
+    """Compile a sprite file's text by loading it, uncached, into the sprite that asked.
 
-    The loader is AnimatedSprite's own, run on a private sprite (``AnimatedSprite.compiled_from_
-    text``), so a sprite loaded from the compile and one loaded without it cannot differ. A text
-    the loader refuses raises here, and nothing is made.
+    The loader is the sprite's own (its class's overrides included), so a sprite loaded from the
+    compile and one loaded without it cannot differ (``AnimatedSprite.compile_text_by_loading``).
+    A text the loader refuses raises here, and nothing is made.
 
     Args:
+        sprite: The sprite loading the text; its frames become the compile's templates, and its
+            load then gives it frames sharing them.
         text: The sprite file's TOML text.
         source_name: What the text came from (a file name, a console).
 
@@ -124,7 +139,7 @@ def compile_sprite_text(*, text: str, source_name: str) -> CompiledSprite:
         CompiledSprite: The compile.
 
     """
-    return AnimatedSprite.compiled_from_text(text=text, source_name=source_name)
+    return sprite.compile_text_by_loading(text=text, source_name=source_name)
 
 
 def compiled_sprite_bytes(

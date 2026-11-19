@@ -55,9 +55,10 @@
 
 ## Shared frames
 
-A sprite file's text compiles once per process: every `AnimatedSprite` loaded from the same text
-gets frames of its own that share the compile's surfaces and pixels, as compiled sounds are
-shared (`compiled_sprites`, `ENGINE_SPRITE_CACHE`). Sixteen sprites of one file hold one copy of
+A sprite file's text compiles once per process and sprite class: every sprite of one class loaded
+from the same text gets frames of its own that share the compile's surfaces and pixels, as
+compiled sounds are shared (`compiled_sprites`, `ENGINE_SPRITE_CACHE`). The compile is the loader
+run on the first such sprite, so a subclass that changes how a file loads loads as it always did. Sixteen sprites of one file hold one copy of
 its frames, and the second load parses nothing. Each sprite keeps its own playback and its own
 copies of everything else the load set, and an Arcade tile reuses what another game compiled.
 

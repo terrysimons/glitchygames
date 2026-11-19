@@ -22,7 +22,7 @@ The owner picks one.
 
 ## Decisions
 
-1. **The key is the text, plus where it came from:** `(sha256 of the text, source_name)`.
+1. **The key is the text, where it came from, and the loading class:** `(sha256 of the text, source_name, the class's qualified name)`. The class was added after the final review (the owner, 2026-11-19: a subclass overriding a loader step was silently given a plain compile; "It is a bug.").
    - The text is all a compile reads, so an edited file is a new key and nothing goes stale.
    - `source_name` is in the key because the compile's repair warnings name it.
    - Scale is not in the key: frames compile at native size.
@@ -33,7 +33,7 @@ The owner picks one.
    - Not held: anything holding the instance. `state_machine` is rebuilt per instance from `transition_data`, and the initial animation, frame manager and image are set per instance.
 3. **How it compiles: today's loader, captured.**
    - Today's `load_text` body becomes `_load_text_uncached` (no other change).
-   - The compile runs it on a private `AnimatedSprite(groups=None)` and captures those fields into a `CompiledSprite`. Each frame's pixels become a tuple, and that private sprite's frames are the compile's template frames.
+   - The compile runs it on the sprite being loaded (`compile_text_by_loading`), so its class's loader overrides run, and captures those fields into a `CompiledSprite`; that sprite then takes sharing frames like every later load. (First written as a private `AnimatedSprite(groups=None)`, which skipped a subclass's overrides; a subclass's constructor arguments rule out building a private instance of it.) Each frame's pixels become a tuple, and that private sprite's frames are the compile's template frames.
    - The loader is not rewritten, so a cached load and an uncached one cannot drift apart. The conservation test in Task 3 holds them equal for every shipped sprite.
 4. **Each sprite owns its frames; the frames share their surfaces and pixels.**
    - A load from the cache builds a new `SpriteFrame` per template frame (`SpriteFrame.sharing(template)`): the same surface, the same pixel tuple, the same `loaded_pixel_rows`; its own `rect` and hitbox (copies) and its own `duration`.

@@ -5023,3 +5023,59 @@ class TestSharedDrawnSurfaces:
 
         assert before.drawn_frame_surface().get_at((0, 0))[:3] == (200, 10, 10)
         assert after.drawn_frame_surface().get_at((0, 0))[:3] == (99, 10, 10)
+
+
+class DarkLoadingSprite(AnimatedSprite):
+    """A subclass that changes how its file loads: every color at half brightness."""
+
+    def build_color_map(self, data):
+        """Halve every color the file defines, as the loader builds the map.
+
+        Returns:
+            The map, order and per-pixel alphas, with every color halved.
+
+        """
+        color_map, color_order, alphas = super().build_color_map(data)
+        darkened = {
+            glyph: tuple(channel // 2 for channel in color[:3]) + tuple(color[3:])
+            for glyph, color in color_map.items()
+        }
+        return darkened, color_order, alphas
+
+
+class TestSharedFramesHonorTheLoadingClass:
+    """A subclass's loader runs on its loads, and its compile is never another class's."""
+
+    @staticmethod
+    def _write(tmp_path: Path) -> str:
+        toml_file = tmp_path / 'walker.toml'
+        toml_file.write_text(TWO_ANIMATIONS_TOML, encoding='utf-8')
+        return str(toml_file)
+
+    @pytest.mark.parametrize('subclass_first', [True, False], ids=['subclass-first', 'plain-first'])
+    def test_a_subclass_loader_override_runs_and_stays_its_own(self, tmp_path, subclass_first):
+        """Whichever class loads the file first, each draws its own colors."""
+        path = self._write(tmp_path)
+
+        if subclass_first:
+            dark = DarkLoadingSprite(path)
+            plain = AnimatedSprite(path)
+        else:
+            plain = AnimatedSprite(path)
+            dark = DarkLoadingSprite(path)
+
+        assert dark.drawn_frame_surface().get_at((0, 0))[:3] == (100, 5, 5)
+        assert plain.drawn_frame_surface().get_at((0, 0))[:3] == (200, 10, 10)
+
+    def test_sprites_of_one_subclass_share_their_frames(self, tmp_path):
+        """Sharing holds within a class."""
+        path = self._write(tmp_path)
+
+        first = DarkLoadingSprite(path)
+        second = DarkLoadingSprite(path)
+
+        assert (
+            first.animation_data['walk'][0].read_only_image
+            is second.animation_data['walk'][0].read_only_image
+        )
+        assert len(ENGINE_SPRITE_CACHE) == 1

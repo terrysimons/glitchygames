@@ -9,7 +9,7 @@ from types import MappingProxyType
 import pygame
 import pytest
 
-from glitchygames.sprites.animated import FrameAnchor
+from glitchygames.sprites.animated import AnimatedSprite, FrameAnchor
 from glitchygames.sprites.compiled_sprites import (
     ENGINE_SPRITE_CACHE,
     CompiledSprite,
@@ -53,7 +53,7 @@ def _compiled(*, byte_count: int, name: str = 'kept') -> CompiledSprite:
 def test_a_kept_sprite_is_found_by_its_key():
     """What was kept under a key is what that key finds."""
     cache = SharedSpriteCache()
-    key = sprite_key(text='[sprite]', source_name='a.toml')
+    key = sprite_key(text='[sprite]', source_name='a.toml', sprite_class=AnimatedSprite)
     compiled = _compiled(byte_count=10)
 
     cache.keep(key=key, compiled=compiled)
@@ -64,22 +64,33 @@ def test_a_kept_sprite_is_found_by_its_key():
 
 def test_the_same_text_from_another_source_is_another_key():
     """Its repair warnings name its source, so another source compiles anew."""
-    assert sprite_key(text='[sprite]', source_name='a.toml') != sprite_key(
-        text='[sprite]', source_name='b.toml'
+    assert sprite_key(
+        text='[sprite]', source_name='a.toml', sprite_class=AnimatedSprite
+    ) != sprite_key(text='[sprite]', source_name='b.toml', sprite_class=AnimatedSprite)
+
+
+def test_another_class_is_another_key():
+    """A subclass may change how a file loads, so it compiles its own."""
+
+    class Subclass(AnimatedSprite):
+        """Loads as its base does, but is another class."""
+
+    assert sprite_key(text='[sprite]', source_name='a.toml', sprite_class=AnimatedSprite) != (
+        sprite_key(text='[sprite]', source_name='a.toml', sprite_class=Subclass)
     )
 
 
 def test_another_text_is_another_key():
     """An edited file is a new key: nothing kept goes stale."""
-    assert sprite_key(text='[sprite]', source_name='a.toml') != sprite_key(
-        text='[sprite]\n', source_name='a.toml'
-    )
+    assert sprite_key(
+        text='[sprite]', source_name='a.toml', sprite_class=AnimatedSprite
+    ) != sprite_key(text='[sprite]\n', source_name='a.toml', sprite_class=AnimatedSprite)
 
 
 def test_a_second_keep_of_a_key_returns_the_first():
     """Two loads compiling one text at once keep one compile, and both get it."""
     cache = SharedSpriteCache()
-    key = sprite_key(text='[sprite]', source_name='a.toml')
+    key = sprite_key(text='[sprite]', source_name='a.toml', sprite_class=AnimatedSprite)
     first = _compiled(byte_count=10, name='first')
 
     cache.keep(key=key, compiled=first)
@@ -93,7 +104,10 @@ def test_past_the_limit_the_least_recently_used_go():
     """Reading an entry makes it the most recent; the oldest unread one goes first."""
     cache = SharedSpriteCache()
     cache.limit_bytes = 20
-    keys = [sprite_key(text=f'[sprite] {index}', source_name='a.toml') for index in range(3)]
+    keys = [
+        sprite_key(text=f'[sprite] {index}', source_name='a.toml', sprite_class=AnimatedSprite)
+        for index in range(3)
+    ]
     cache.keep(key=keys[0], compiled=_compiled(byte_count=10))
     cache.keep(key=keys[1], compiled=_compiled(byte_count=10))
 
@@ -109,7 +123,7 @@ def test_an_entry_larger_than_the_limit_is_still_kept():
     """The entry just compiled stays, as the sound cache keeps the sound it just compiled."""
     cache = SharedSpriteCache()
     cache.limit_bytes = 5
-    key = sprite_key(text='[sprite]', source_name='a.toml')
+    key = sprite_key(text='[sprite]', source_name='a.toml', sprite_class=AnimatedSprite)
 
     cache.keep(key=key, compiled=_compiled(byte_count=10))
 
@@ -119,8 +133,14 @@ def test_an_entry_larger_than_the_limit_is_still_kept():
 def test_bytes_held_is_the_sum_of_its_entries():
     """The byte count is what the limit is measured against."""
     cache = SharedSpriteCache()
-    cache.keep(key=sprite_key(text='a', source_name='a.toml'), compiled=_compiled(byte_count=7))
-    cache.keep(key=sprite_key(text='b', source_name='a.toml'), compiled=_compiled(byte_count=5))
+    cache.keep(
+        key=sprite_key(text='a', source_name='a.toml', sprite_class=AnimatedSprite),
+        compiled=_compiled(byte_count=7),
+    )
+    cache.keep(
+        key=sprite_key(text='b', source_name='a.toml', sprite_class=AnimatedSprite),
+        compiled=_compiled(byte_count=5),
+    )
 
     assert cache.bytes_held == 12
 
@@ -128,7 +148,7 @@ def test_bytes_held_is_the_sum_of_its_entries():
 def test_clear_empties_it():
     """The test harness's reset: the next load compiles."""
     cache = SharedSpriteCache()
-    key = sprite_key(text='[sprite]', source_name='a.toml')
+    key = sprite_key(text='[sprite]', source_name='a.toml', sprite_class=AnimatedSprite)
     cache.keep(key=key, compiled=_compiled(byte_count=10))
 
     cache.clear()
@@ -141,7 +161,7 @@ def test_clear_empties_it():
 def test_an_untouched_compile_is_unchanged():
     """A kept compile nothing wrote into reports no change."""
     cache = SharedSpriteCache()
-    key = sprite_key(text='[sprite]', source_name='a.toml')
+    key = sprite_key(text='[sprite]', source_name='a.toml', sprite_class=AnimatedSprite)
     cache.keep(key=key, compiled=_compiled(byte_count=10))
 
     assert cache.changed_entries() == []
@@ -164,7 +184,7 @@ def test_a_write_into_a_kept_compile_is_reported(write):
     edit straight into the shared surface) fails wherever it runs.
     """
     cache = SharedSpriteCache()
-    key = sprite_key(text='[sprite]', source_name='a.toml')
+    key = sprite_key(text='[sprite]', source_name='a.toml', sprite_class=AnimatedSprite)
     compiled = cache.keep(key=key, compiled=_compiled(byte_count=10))
 
     write(compiled)
@@ -194,7 +214,7 @@ def test_every_test_starts_with_an_empty_engine_sprite_cache(test_order):
     assert len(ENGINE_SPRITE_CACHE) == 0
 
     ENGINE_SPRITE_CACHE.keep(
-        key=sprite_key(text='[sprite]', source_name='order.toml'),
+        key=sprite_key(text='[sprite]', source_name='order.toml', sprite_class=AnimatedSprite),
         compiled=_compiled(byte_count=10),
     )
 
