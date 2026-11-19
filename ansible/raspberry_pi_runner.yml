@@ -21,6 +21,10 @@
     raspberry_pi_video_users:
       - "{{ ansible_user }}"
       - circleci
+    # Who runs llama.cpp's Vulkan build from an SSH login or a service: the owner, as the AI
+    # service runs as the player. CI's jobs never start the AI (the test harness turns it off)
+    raspberry_pi_gpu_compute_users:
+      - "{{ ansible_user }}"
     raspberry_pi_circle_token: "{{ lookup('ansible.builtin.env', 'CIRCLECI_API_TOKEN') }}"
     raspberry_pi_github_project: terrysimons/glitchygames
     # The organization's id (public: /api/v2/project/gh/<project>'s organization_id). Without it
@@ -99,6 +103,24 @@
           - openssh-server
           - python3-dev
           - util-linux
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    # The local AI service's llama.cpp, built here for the CPU and for the GPU through Vulkan
+    # (scripts/raspberry_pi_llama_cpp/build_llama_cpp.sh; ansible/roles/llama_cpp is Mac-only so
+    # far). cmake: both builds. libvulkan-dev, glslc and spirv-headers: llama.cpp's Vulkan backend
+    # compiles its shaders with glslc at build time. vulkan-tools: vulkaninfo, which shows whether
+    # the V3D GPU is seen. The driver itself (mesa-vulkan-drivers) comes with the desktop
+    - name: Install what building llama.cpp for the CPU and for Vulkan needs
+      ansible.builtin.apt:
+        name:
+          - cmake
+          - glslc
+          - libvulkan-dev
+          - mesa-vulkan-drivers
+          - spirv-headers
+          - vulkan-tools
         state: present
         update_cache: true
         cache_valid_time: 3600
@@ -374,6 +396,27 @@
       become_user: "{{ item }}"
       changed_when: false
       loop: "{{ raspberry_pi_video_users }}"
+
+    # /dev/dri/renderD128, the V3D GPU's render node, is root:render 0660. A desktop session
+    # reaches it through the seat's ACL, but an SSH login or a service doesn't, and Mesa then
+    # falls back to llvmpipe, a software renderer on the CPU, without failing (seen 2026-11-17)
+    - name: Add the users who run llama.cpp on the GPU to the render group
+      ansible.builtin.user:
+        name: "{{ item }}"
+        groups: render
+        append: true
+      loop: "{{ raspberry_pi_gpu_compute_users }}"
+
+    # sudo (become) reads the user's groups afresh, so it sees a group the task above just added.
+    # V3DV is Mesa's Vulkan driver for the V3D GPU
+    - name: Check each user's Vulkan sees the V3D GPU, not only llvmpipe
+      ansible.builtin.shell:
+        cmd: set -o pipefail && vulkaninfo --summary 2>/dev/null | grep -q 'driverName *= *V3DV'
+        executable: /bin/bash
+      become: true
+      become_user: "{{ item }}"
+      changed_when: false
+      loop: "{{ raspberry_pi_gpu_compute_users }}"
 
   handlers:
     - name: Apply the udev rule
