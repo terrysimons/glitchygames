@@ -4509,6 +4509,61 @@ def test_postrm_names_a_symbolic_link_without_following_it_or_offering_to_delete
     assert 'rm -rf' not in result.stdout
 
 
+@needs_a_posix_shell
+@pytest.mark.parametrize('linked', ['.local', '.cache', '.local/state'])
+def test_postrm_never_offers_to_delete_another_users_folder_through_a_linked_parent(
+    tmp_path: Path, linked: str
+):
+    """A folder above the AI one may link into another home: name it, size and delete nothing.
+
+    rm -rf follows a link in the path's middle, so alice's ~/.local linked into bob's would make
+    root's notice delete bob's data under alice's name. Bob's own folder is still listed as his.
+    """
+    users = LeftoverUsers(scripts=MaintainerScripts(tmp_path=tmp_path), tmp_path=tmp_path)
+    for kind in ('share', 'cache', 'state'):
+        users.folder(user='bob', kind=kind)
+    alice = users.homes / 'home' / 'alice'
+    link = alice / linked
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(users.homes / 'home' / 'bob' / linked)
+    reached = [
+        alice / parent / 'glitchygames' / 'ai'
+        for parent in ('.local/share', '.cache', '.local/state')
+        if (parent + '/').startswith(linked + '/')
+    ]
+    before = {path: path.read_bytes() for path in users.homes.rglob('*') if path.is_file()}
+
+    result = users.run()
+
+    assert result.returncode == 0, result.stderr
+    alice_lines = [line for line in result.stdout.splitlines() if line.startswith('  alice:')]
+    assert len(alice_lines) == len(reached) > 0, result.stdout
+    for folder, line in zip(reached, alice_lines, strict=True):
+        assert line.startswith(f"  alice: '{folder}' points outside alice's home"), line
+        assert 'rm -rf' not in line
+        assert ' (' not in line
+    for line in result.stdout.splitlines():
+        if 'rm -rf' in line:
+            assert line.startswith('  bob: '), line
+    assert {path: path.read_bytes() for path in users.homes.rglob('*') if path.is_file()} == before
+
+
+@needs_a_posix_shell
+def test_postrm_follows_a_link_that_stays_inside_the_users_own_home(tmp_path: Path):
+    """A ~/.local moved within the same home is still that user's, so it is listed as usual."""
+    users = LeftoverUsers(scripts=MaintainerScripts(tmp_path=tmp_path), tmp_path=tmp_path)
+    alice = users.homes / 'home' / 'alice'
+    (alice / 'dotfiles' / 'local' / 'share' / 'glitchygames' / 'ai').mkdir(parents=True)
+    (alice / '.local').symlink_to(alice / 'dotfiles' / 'local')
+    folder = alice / '.local' / 'share' / 'glitchygames' / 'ai'
+
+    result = users.run()
+
+    assert result.returncode == 0, result.stderr
+    assert f"rm -rf -- '{folder}'" in result.stdout
+    assert 'points outside' not in result.stdout
+
+
 TIMEOUT_STUB = """#!/bin/sh
 # The bound of coreutils' timeout (this Mac has none): run the command, TERM it after N seconds
 seconds=$1

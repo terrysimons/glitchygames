@@ -8,8 +8,9 @@
 # uninstall-user.sh gone with the package. So a removal or purge prints, per local user who has
 # any, each folder, its size and the command that deletes it (the owner chose a notice, never a
 # deletion, 2026-11-19). It runs after the package's files are gone, so it calls nothing the
-# package shipped: only sh, awk and du. It reads no file's contents (sizes only), and exits 0
-# whatever happens: a maintainer script's failure must not block dpkg.
+# package shipped: only sh and Essential tools (awk, du, sed, readlink, printf, and coreutils'
+# timeout where present). It reads no file's contents (sizes only), and exits 0 whatever
+# happens: a maintainer script's failure must not block dpkg.
 #
 # The folders are the defaults under each home. A user's XDG_DATA_HOME, XDG_CACHE_HOME and
 # XDG_STATE_HOME are set in their session, which root can't see, so a user who moved them is
@@ -63,6 +64,8 @@ notice=$(awk -F: -v low="$uid_min" -v high="$uid_max" \
     '$3 ~ /^[0-9]+$/ && $3 + 0 >= low && $3 + 0 <= high { print $1 ":" $6 }' "$passwd_file" 2>/dev/null \
     | while IFS=: read -r user home; do
         [ -n "$home" ] || continue
+        # The home as the file system resolves it, every link followed
+        own_home=$(readlink -f -- "$home_root$home" 2>/dev/null)
         for relative in .local/share .cache .local/state; do
             folder="$home_root$home/$relative/glitchygames/ai"
             if [ -L "$folder" ]; then
@@ -72,6 +75,18 @@ notice=$(awk -F: -v low="$uid_min" -v high="$uid_max" \
                 continue
             fi
             [ -d "$folder" ] || continue
+            # rm -rf follows a link above the folder (~/.local into another user's home), so the
+            # folder is offered for deletion only when, resolved, it is still in this user's home
+            resolved=$(readlink -f -- "$folder" 2>/dev/null)
+            # Each pattern opens with "(": inside $( ), a bare ")" would end the substitution for
+            # some shells (bash 3.2, macOS's /bin/sh)
+            case "$resolved/" in
+                ("${own_home:-/nonexistent}"/?*/) ;;
+                (*)
+                    echo "  $user: $(quoted "$folder") points outside $user's home, to $(quoted "$resolved"); not followed, no size or delete command given"
+                    continue
+                    ;;
+            esac
             size=$(bounded_du "$folder" 2>/dev/null | awk '{ print $1 }')
             echo "  $user: $(quoted "$folder") (${size:-size unknown}); to delete it: rm -rf -- $(quoted "$folder")"
         done
