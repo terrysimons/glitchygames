@@ -45,6 +45,18 @@ ARGUMENTS = ['--windowed', '--resolution', '320x240', '--log-level', 'warning']
 PI_5_PLACEMENT = {'game': [0], 'mirror': [1], 'ai': [2, 3]}
 GAME_CORES = frozenset({0})
 THREAD_IDS = (4242, 4243, 4250)
+# A Pi 5's cores, all allowed to this process
+PI_5_CORES = frozenset({0, 1, 2, 3})
+
+
+def four_cores() -> set[int]:
+    """Stand in for ``os.sched_getaffinity(0)`` on a Pi 5 with no cgroup limit.
+
+    Returns:
+        The cores this process may run on.
+
+    """
+    return set(PI_5_CORES)
 
 
 class OneFrameScene(Scene):
@@ -93,6 +105,7 @@ def test_a_live_run_with_ai_pins_every_thread_to_the_game_cores(tmp_path, mocker
         cores=GAME_CORES,
         task_directory=fake_task_directory(root=tmp_path),
         set_affinity=set_affinity,
+        read_allowed_cores=four_cores,
     )
 
     assert pinned
@@ -100,21 +113,86 @@ def test_a_live_run_with_ai_pins_every_thread_to_the_game_cores(tmp_path, mocker
 
 
 def test_a_core_the_machine_lacks_is_a_warning_not_a_crash(tmp_path, mocker, caplog):
-    """EINVAL (no such core) stops at the first thread, so every thread stays where it was."""
+    """EINVAL (a core gone offline since the check) stops at the first thread: none moved."""
     set_affinity = mocker.Mock(side_effect=OSError(errno.EINVAL, 'Invalid argument'))
     caplog.set_level(logging.WARNING, logger=cpu_placement.__name__)
 
     pinned = pin_this_process(
-        cores=frozenset({5, 6}),
+        cores=frozenset({2, 3}),
         task_directory=fake_task_directory(root=tmp_path),
         set_affinity=set_affinity,
+        read_allowed_cores=four_cores,
     )
 
     assert not pinned
     assert set_affinity.call_count == 1
     warnings = [record for record in caplog.records if record.levelno == logging.WARNING]
     assert len(warnings) == 1
-    assert '[5, 6]' in warnings[0].getMessage()
+    assert '[2, 3]' in warnings[0].getMessage()
+
+
+def test_a_core_the_process_may_not_use_is_a_warning_and_nothing_moves(tmp_path, mocker, caplog):
+    """{0, 7} on a four-core machine: the kernel would pin to 0 alone, silently, so it is refused.
+
+    The same holds for a core outside a cgroup's AllowedCPUs: the check is against the cores this
+    process may run on, not the cores the machine has.
+    """
+    set_affinity = mocker.Mock()
+    caplog.set_level(logging.WARNING, logger=cpu_placement.__name__)
+
+    pinned = pin_this_process(
+        cores=frozenset({0, 7}),
+        task_directory=fake_task_directory(root=tmp_path),
+        set_affinity=set_affinity,
+        read_allowed_cores=four_cores,
+    )
+
+    assert not pinned
+    set_affinity.assert_not_called()
+    warnings = [record for record in caplog.records if record.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert '[7]' in warnings[0].getMessage()
+
+
+def test_the_allowed_cores_unreadable_is_a_warning_and_nothing_moves(tmp_path, mocker, caplog):
+    """If the process's own cores can't be read, nothing is pinned, and the game goes on."""
+    set_affinity = mocker.Mock()
+    caplog.set_level(logging.WARNING, logger=cpu_placement.__name__)
+
+    pinned = pin_this_process(
+        cores=GAME_CORES,
+        task_directory=fake_task_directory(root=tmp_path),
+        set_affinity=set_affinity,
+        read_allowed_cores=mocker.Mock(side_effect=OSError(errno.EPERM, 'Operation not permitted')),
+    )
+
+    assert not pinned
+    set_affinity.assert_not_called()
+    assert len(caplog.records) == 1
+
+
+def test_a_later_refusal_leaves_the_earlier_threads_pinned(tmp_path, mocker, caplog):
+    """No rollback: a thread refused after others were moved stops there, the others stay moved."""
+    refused_thread = THREAD_IDS[1]
+    pinned_threads: list[int] = []
+
+    def set_affinity(thread_id: int, cores: set[int]) -> None:
+        if thread_id == refused_thread:
+            raise PermissionError(errno.EPERM, 'Operation not permitted')
+        pinned_threads.append(thread_id)
+
+    caplog.set_level(logging.WARNING, logger=cpu_placement.__name__)
+
+    pinned = pin_this_process(
+        cores=GAME_CORES,
+        task_directory=fake_task_directory(root=tmp_path),
+        set_affinity=set_affinity,
+        read_allowed_cores=four_cores,
+    )
+
+    assert not pinned
+    assert pinned_threads == [THREAD_IDS[0]]
+    assert len(caplog.records) == 1
 
 
 def test_a_thread_that_ends_while_pinning_is_skipped(tmp_path, mocker, caplog):
@@ -133,6 +211,7 @@ def test_a_thread_that_ends_while_pinning_is_skipped(tmp_path, mocker, caplog):
         cores=GAME_CORES,
         task_directory=fake_task_directory(root=tmp_path),
         set_affinity=set_affinity,
+        read_allowed_cores=four_cores,
     )
 
     assert pinned
@@ -147,7 +226,10 @@ def test_only_thread_ids_are_pinned(tmp_path, mocker):
     set_affinity = mocker.Mock()
 
     assert pin_this_process(
-        cores=GAME_CORES, task_directory=task_directory, set_affinity=set_affinity
+        cores=GAME_CORES,
+        task_directory=task_directory,
+        set_affinity=set_affinity,
+        read_allowed_cores=four_cores,
     )
     set_affinity.assert_called_once_with(7, {0})
 
@@ -158,7 +240,10 @@ def test_no_thread_list_is_a_warning_not_a_crash(tmp_path, mocker, caplog):
     caplog.set_level(logging.WARNING, logger=cpu_placement.__name__)
 
     pinned = pin_this_process(
-        cores=GAME_CORES, task_directory=tmp_path / 'no-proc', set_affinity=set_affinity
+        cores=GAME_CORES,
+        task_directory=tmp_path / 'no-proc',
+        set_affinity=set_affinity,
+        read_allowed_cores=four_cores,
     )
 
     assert not pinned
@@ -167,11 +252,15 @@ def test_no_thread_list_is_a_warning_not_a_crash(tmp_path, mocker, caplog):
 
 
 def test_the_affinity_call_is_the_systems_on_linux_and_none_elsewhere(tmp_path, mocker, caplog):
-    """Given none, Linux uses ``os.sched_setaffinity``; another platform pins nothing, and says so.
+    """Given neither call, Linux uses the system's; another platform pins nothing, and says so.
 
-    ``os.sched_setaffinity`` exists only on Linux, so the double is created where it is missing.
+    Linux's are ``os.sched_setaffinity`` and ``os.sched_getaffinity(0)``. Both exist only on
+    Linux, so their doubles are created where they are missing.
     """
     system_call = mocker.patch('glitchygames.cpu_placement.os.sched_setaffinity', create=True)
+    allowed_cores_call = mocker.patch(
+        'glitchygames.cpu_placement.os.sched_getaffinity', create=True, return_value=set(PI_5_CORES)
+    )
     task_directory = fake_task_directory(root=tmp_path, thread_ids=(7,))
     caplog.set_level(logging.WARNING, logger=cpu_placement.__name__)
 
@@ -182,6 +271,7 @@ def test_the_affinity_call_is_the_systems_on_linux_and_none_elsewhere(tmp_path, 
 
     assert (on_linux, on_a_mac) == (True, False)
     system_call.assert_called_once_with(7, {0})
+    allowed_cores_call.assert_called_once_with(0)
     assert len(caplog.records) == 1
 
 
@@ -192,12 +282,22 @@ def test_the_affinity_call_is_the_systems_on_linux_and_none_elsewhere(tmp_path, 
         {'game': [-1], 'mirror': [1], 'ai': [2, 3]},
         {**PI_5_PLACEMENT, 'spare': [4]},
         {'game': ['0'], 'mirror': [1], 'ai': [2, 3]},
+        b'\xff\xfe{"game": [0], "mirror": [1], "ai": [2, 3]}',
+        b'{"game": [0]',
     ],
-    ids=['empty-game', 'negative-core', 'unknown-key', 'core-as-text'],
+    ids=['empty-game', 'negative-core', 'unknown-key', 'core-as-text', 'not-utf-8', 'not-json'],
 )
 def test_a_malformed_placement_is_ignored_with_a_warning(placement, tmp_path, caplog):
-    """A placement that fails validation is no placement: a warning, and the game unpinned."""
-    path = write_placement(root=tmp_path, placement=placement)
+    """A placement that fails validation is no placement: a warning, and the game unpinned.
+
+    A file of bytes is written as they are: not UTF-8, or not JSON at all.
+    """
+    if isinstance(placement, bytes):
+        path = ServiceLocations.in_one_folder(root=tmp_path).cpu_placement_file
+        path.parent.mkdir(parents=True)
+        path.write_bytes(placement)
+    else:
+        path = write_placement(root=tmp_path, placement=placement)
     caplog.set_level(logging.WARNING, logger=cpu_placement.__name__)
 
     assert read_cpu_placement(path=path) is None
