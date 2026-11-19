@@ -6,10 +6,11 @@
 #
 # That leaves other users' data (models of about 1.4 GB) behind with nobody told, and
 # uninstall-user.sh gone with the package. So a removal or purge prints, per local user who has
-# any, each folder, its size and the command that deletes it (the owner chose a notice, never a
-# deletion, 2026-11-19). It runs after the package's files are gone, so it calls nothing the
-# package shipped: only sh and Essential tools (awk, du, sed, readlink, printf, and coreutils'
-# timeout where present). It reads no file's contents (sizes only), and exits 0 whatever
+# any, each folder and its size (the owner chose a notice, never a deletion, 2026-11-19). It
+# prints no delete command at all (the owner, 2026-11-19): it says what stays and leaves what to
+# do with it to whoever reads it, and the script itself deletes nothing. It runs after the
+# package's files are gone, so it calls nothing the package shipped: only sh and Essential tools
+# (awk, du, sed, readlink, printf, and coreutils' timeout where present). It reads no file's contents (sizes only), and exits 0 whatever
 # happens: a maintainer script's failure must not block dpkg.
 #
 # The folders are the defaults under each home. A user's XDG_DATA_HOME, XDG_CACHE_HOME and
@@ -52,8 +53,9 @@ bounded_du() {
     fi
 }
 
-# The folder as sh reads it back as one word: single-quoted, each ' written as '\''. Root
-# pastes the command, so a home with a space, a ; or a $( ) must not change what it deletes.
+# The folder as sh reads it back as one word: single-quoted, each ' written as '\''. A root may
+# paste a folder into a command of their own, so a home with a space, a ; or a $( ) must name
+# exactly that folder.
 quoted() {
     printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
 }
@@ -69,32 +71,33 @@ notice=$(awk -F: -v low="$uid_min" -v high="$uid_max" \
         for relative in .local/share .cache .local/state; do
             folder="$home_root$home/$relative/glitchygames/ai"
             if [ -L "$folder" ]; then
-                # [ -d ] and du would follow or not follow it inconsistently, and rm -rf on the
+                # [ -d ] and du would follow or not follow it inconsistently, and removing the
                 # link removes only the link: say what it is and leave the target to the user
-                echo "  $user: $(quoted "$folder") is a symbolic link to $(quoted "$(readlink -- "$folder" 2>/dev/null)"); not followed, no size or delete command given"
+                echo "  $user: $(quoted "$folder") is a symbolic link to $(quoted "$(readlink -- "$folder" 2>/dev/null)"); not followed, no size given"
                 continue
             fi
             [ -d "$folder" ] || continue
-            # rm -rf follows a link above the folder (~/.local into another user's home), so the
-            # folder is offered for deletion only when, resolved, it is still in this user's home
+            # A link above the folder (~/.local into another user's home) would name another
+            # user's data as this one's, so the folder is sized and named as this user's only
+            # when, resolved, it is still in this user's home
             resolved=$(readlink -f -- "$folder" 2>/dev/null)
             # Each pattern opens with "(": inside $( ), a bare ")" would end the substitution for
             # some shells (bash 3.2, macOS's /bin/sh)
             case "$resolved/" in
                 ("${own_home:-/nonexistent}"/?*/) ;;
                 (*)
-                    echo "  $user: $(quoted "$folder") points outside $user's home, to $(quoted "$resolved"); not followed, no size or delete command given"
+                    echo "  $user: $(quoted "$folder") points outside $user's home, to $(quoted "$resolved"); not followed, no size given"
                     continue
                     ;;
             esac
             size=$(bounded_du "$folder" 2>/dev/null | awk '{ print $1 }')
-            echo "  $user: $(quoted "$folder") (${size:-size unknown}); to delete it: rm -rf -- $(quoted "$folder")"
+            echo "  $user: $(quoted "$folder") (${size:-size unknown})"
         done
     done) || exit 0
 
 if [ -n "$notice" ]; then
     printf '%s\n' "{{ ai_package_deb_name }}: removed, but these users' local AI data stays in their homes:"
     printf '%s\n' "$notice"
-    printf '%s\n' "Nothing was deleted. Each user can also delete their own with the commands above."
+    printf '%s\n' "Nothing was deleted."
 fi
 exit 0

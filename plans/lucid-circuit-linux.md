@@ -609,9 +609,11 @@ plists on a Mac, unit files on Linux).
   running `ai.glitchygames.*` user unit for every logged-in user; `postrm` removes nothing in
   homes (Debian convention) but, on `remove` and `purge` only, prints a notice per local login-range
   user (`/etc/login.defs` range, 1000-60000 by default) naming each default AI folder that exists,
-  its `du -sh` size and the `rm -rf` that deletes it, then that nothing was deleted; silent when no
-  one has data, and it exits 0 whatever happens (proved in a Debian container, Task 13). The paths are single-quoted so a pasted
-  command names exactly the folder; a symbolic link is named, not followed; `du` is bounded by
+  and its `du -sh` size, then that nothing was deleted; silent when no one has data, and it exits
+  0 whatever happens (proved in a Debian container, Task 13). It prints no delete command at all,
+  in any case, a folder pointing outside its user's home included (the owner, 2026-11-19; it
+  first printed an `rm -rf` per folder). The paths are single-quoted so a folder pasted into a
+  command names exactly that folder; a symbolic link is named, not followed; `du` is bounded by
   `timeout`. `/opt/glitchygames/ai/bin/uninstall-user.sh` removes one user's data when they ask, and masks the setup job for that user (`systemctl --user mask`, the user's own
   override of the `--global` enable), or it would set everything up again at their next login; it
   says how to undo that (`systemctl --user unmask ai.glitchygames.setup.service`), or, when the
@@ -688,7 +690,7 @@ playbook. Nothing here depends on the architecture.
   glitchygames-ai` (the package holds `uninstall-user.sh`, so the reverse order the first draft
   gave would remove the uninstaller before it ran; found by Task 7, 2026-11-19). Other users'
   units are stopped by prerm; their data stays in their homes, and the postrm on `remove`/`purge`
-  prints a notice naming each user's leftover folders, sizes and the `rm -rf` that deletes them
+  prints a notice naming each user's leftover folders and sizes, with no delete command
   (never a deletion; the owner, 2026-11-19; the folders are the defaults under each home, as root
   can't see a user's XDG variables; it uses only sh, awk and du, as the package's files are gone).
 
@@ -996,7 +998,7 @@ changes for x86_64.
 | The nine per-line ruff suppressions the build added (subprocess calls in tests) | Approved by the owner, 2026-11-19 |
 | ~~`ansible-core` becomes a development dependency so CI runs the Ansible syntax checks~~ (superseded the same day by the route B row below: a `uv` tool, not a project dependency); `iproute2` and `lsof` in the CircleCI Linux image (plan Task 12) | The owner, 2026-11-19 |
 | Uninstalling keeps `history/` (no change) | The owner, 2026-11-19 |
-| Other users' data after `apt remove`: the package prints a notice naming each folder, its size and the delete command; it never deletes another user's data (plan Task 13) | The owner, 2026-11-19 |
+| Other users' data after `apt remove`: the package prints a notice naming each folder, its size and the delete command; it never deletes another user's data (plan Task 13). The delete command dropped later the same day (the row below) | The owner, 2026-11-19 |
 | Ansible in CI (route B): installed as a separate `uv` tool (`ansible-core==2.22.0`, pinned in the CI config), not a project dependency, so the license policy stays without an exception. Built (plan Task 12). Since merged with main, whose #215 had already put `ansible-core>=2.22.0` in the `dev` extra and group with a license exception (the owner, 2026-11-16, "Yeah dev group"): every test session now has it from `uv.lock`, so the tool is a second install of the same version. Superseded by the row below: the tool is dropped | The owner, 2026-11-19 |
 | The Pi's speed (15-25 s for a short question) is acceptable: go | The owner, 2026-11-19 |
 | Keep the per-line `jinja2-autoescape-false` suppression in `tests/ansible_rendering.py` (autoescape would corrupt shell templates) | The owner, 2026-11-18 |
@@ -1010,6 +1012,7 @@ changes for x86_64.
 | The `.deb` depends on `libstdc++6 (>=` the release its GLIBCXX/CXXABI symbols need`)`, read from the build like the glibc floor (Task 6 review) | Designer's call |
 | Fix, in this branch, the Mac `.pkg` naming the builder's runtime instead of the player's (`bugs/2026-11-18-mac-package-settings-name-builders-runtime.md`) | The owner, 2026-11-19 |
 | The `.deb`'s Maintainer: `GlitchyGames <terry.simons@gmail.com>` | The owner, 2026-11-19 |
+| The removal notice prints no delete command at all, in any case (the outside-the-home and symbolic-link lines included): each user's leftover folders and their sizes only. The script still deletes nothing (6.7, plan Task 13) | The owner, 2026-11-19 |
 | A user's setup job stays masked after their own uninstall: a reinstalled `.deb` never unmasks it, only Ansible's install does (for the owner), so no code change (6.7, 13.1) | The owner, 2026-11-19 |
 | The AI on every Pi: the `raspberry_pis` group's `ai_enabled: false` and the 16 GB Pis' own `ai_enabled: true` are removed, so `all`'s true applies to every Linux host; the memory tiers (6.4.1) pick what each runs (6.9, 8.2). Dropping the override rather than flipping it to true leaves one place that says it | The owner, 2026-11-19 |
 | CI installs no separate ansible-core: the Linux job's `uv tool install "ansible-core==2.22.0"` step, its `test-linux-ci` mirror and the pin half of their drift test are removed; `uv.lock`'s `dev` extra (main's #215) is the one install, which the syntax checks already ran first. The check that the Linux image installs `iproute2` and `lsof` stays (13.1, plan Task 12) | The owner, 2026-11-19 |

@@ -4403,10 +4403,20 @@ class LeftoverUsers:
         )
 
 
+# A word rm anywhere in the notice: it prints no delete command in any case (the owner,
+# 2026-11-19), so nothing a root pastes from it can delete a folder
+DELETE_COMMAND = re.compile(r'\brm\b')
+
+
+def assert_no_delete_command(output: str) -> None:
+    """The postrm's notice names no rm, in any form, on any line."""
+    assert DELETE_COMMAND.findall(output) == [], output
+
+
 @needs_a_posix_shell
 @pytest.mark.parametrize('action', ['remove', 'purge'])
 def test_postrm_names_each_users_leftover_folders_and_deletes_nothing(tmp_path: Path, action: str):
-    """A removal prints each user's folder, its size and the command that deletes it (13.1).
+    """A removal prints each user's folder and its size, and no delete command (13.1).
 
     Only users with data are named; a user without any, a system account and an id above the
     login range are not. Nothing is deleted, and no file is read.
@@ -4423,12 +4433,13 @@ def test_postrm_names_each_users_leftover_folders_and_deletes_nothing(tmp_path: 
 
     assert result.returncode == 0, result.stderr
     for folder in (share, cache, state):
-        assert f"rm -rf -- '{folder}'" in result.stdout
+        assert f"  alice: '{folder}' (" in result.stdout
     # du -sh rounds up to whole blocks, so the size is some figure with a unit
     assert re.search(rf"'{re.escape(str(share))}' \(\d+(\.\d+)?[BKMG]\)", result.stdout)
     assert 'bob' not in result.stdout
     assert str(system_folder) not in result.stdout
     assert 'Nothing was deleted' in result.stdout
+    assert_no_delete_command(result.stdout)
     assert {path: path.read_bytes() for path in users.homes.rglob('*') if path.is_file()} == before
 
 
@@ -4482,15 +4493,18 @@ def test_postrm_exits_zero_when_du_fails_or_the_files_are_missing(tmp_path: Path
     without_files = users.run()
 
     assert failing_du.returncode == 0, failing_du.stderr
-    assert f"rm -rf -- '{share}'" in failing_du.stdout
-    assert 'size unknown' in failing_du.stdout
+    assert f"  alice: '{share}' (size unknown)" in failing_du.stdout
+    assert_no_delete_command(failing_du.stdout)
     assert without_files.returncode == 0, without_files.stderr
     assert not without_files.stdout
 
 
 @needs_a_posix_shell
-def test_postrm_prints_a_delete_command_that_names_exactly_the_folder(tmp_path: Path):
-    """A home with a space, a ; and a ' pastes into sh as exactly the folder (13.1)."""
+def test_postrm_names_exactly_the_folder_in_words_sh_reads_back(tmp_path: Path):
+    """A home with a space, a ; and a ' is printed quoted, so sh reads it back as the folder (13.1).
+
+    The notice gives no command, but a root may still paste the folder into one of their own.
+    """
     scripts = MaintainerScripts(tmp_path=tmp_path)
     users = LeftoverUsers(scripts=scripts, tmp_path=tmp_path)
     home = "/home/Jo Smith; touch pwned; $(touch pwned2) `touch pwned3` it's"
@@ -4498,22 +4512,13 @@ def test_postrm_prints_a_delete_command_that_names_exactly_the_folder(tmp_path: 
     folder = users.homes / home.lstrip('/') / '.local' / 'share' / 'glitchygames' / 'ai'
     folder.mkdir(parents=True)
     (folder / 'file').write_text('x', encoding='utf-8')
-    arguments_log = tmp_path / 'rm-arguments'
-    _write_executable(
-        scripts.tools / 'rm',
-        '#!/bin/sh\nfor a in "$@"; do printf "%s\\n" "$a" >> "$ARGUMENTS_LOG"; done\n',
-    )
 
     result = users.run()
-    command = next(line for line in result.stdout.splitlines() if 'jo:' in line).split(
-        'to delete it: ', 1
-    )[1]
-    pasted = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - pastes the printed command into sh, as root would
-        ['/bin/sh', '-c', command],
-        env={
-            'PATH': f'{scripts.tools}:/usr/bin:/bin',
-            'ARGUMENTS_LOG': str(arguments_log),
-        },
+    line = next(line for line in result.stdout.splitlines() if line.startswith('  jo: '))
+    quoted_folder = line.removeprefix('  jo: ').rsplit(' (', 1)[0]
+    pasted = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - pastes the printed folder into sh, as root would
+        ['/bin/sh', '-c', f"printf '%s\\n' {quoted_folder}"],
+        env={'PATH': '/usr/bin:/bin'},
         cwd=tmp_path,
         capture_output=True,
         text=True,
@@ -4522,8 +4527,9 @@ def test_postrm_prints_a_delete_command_that_names_exactly_the_folder(tmp_path: 
     )
 
     assert pasted.returncode == 0, pasted.stderr
-    assert arguments_log.read_text(encoding='utf-8').splitlines() == ['-rf', '--', str(folder)]
+    assert pasted.stdout.splitlines() == [str(folder)]
     assert not list(tmp_path.glob('pwned*'))
+    assert_no_delete_command(result.stdout)
 
 
 @needs_a_posix_shell
@@ -4543,7 +4549,7 @@ def test_postrm_names_a_symbolic_link_without_following_it_or_offering_to_delete
     assert result.returncode == 0, result.stderr
     assert f"'{link}' is a symbolic link to '{target}'" in result.stdout
     assert 'not followed' in result.stdout
-    assert 'rm -rf' not in result.stdout
+    assert_no_delete_command(result.stdout)
 
 
 @needs_a_posix_shell
@@ -4551,10 +4557,11 @@ def test_postrm_names_a_symbolic_link_without_following_it_or_offering_to_delete
 def test_postrm_never_offers_to_delete_another_users_folder_through_a_linked_parent(
     tmp_path: Path, linked: str
 ):
-    """A folder above the AI one may link into another home: name it, size and delete nothing.
+    """A folder above the AI one may link into another home: name it, size nothing, no rm.
 
-    rm -rf follows a link in the path's middle, so alice's ~/.local linked into bob's would make
-    root's notice delete bob's data under alice's name. Bob's own folder is still listed as his.
+    It said so even when the notice printed delete commands: rm -rf follows a link in the path's
+    middle, so alice's ~/.local linked into bob's would have offered bob's data under alice's
+    name. Bob's own folder is still listed as his, with its size.
     """
     users = LeftoverUsers(scripts=MaintainerScripts(tmp_path=tmp_path), tmp_path=tmp_path)
     for kind in ('share', 'cache', 'state'):
@@ -4577,11 +4584,11 @@ def test_postrm_never_offers_to_delete_another_users_folder_through_a_linked_par
     assert len(alice_lines) == len(reached) > 0, result.stdout
     for folder, line in zip(reached, alice_lines, strict=True):
         assert line.startswith(f"  alice: '{folder}' points outside alice's home"), line
-        assert 'rm -rf' not in line
         assert ' (' not in line
-    for line in result.stdout.splitlines():
-        if 'rm -rf' in line:
-            assert line.startswith('  bob: '), line
+    bob_lines = [line for line in result.stdout.splitlines() if line.startswith('  bob:')]
+    assert len(bob_lines) == 3, result.stdout
+    assert all(' (' in line for line in bob_lines), bob_lines
+    assert_no_delete_command(result.stdout)
     assert {path: path.read_bytes() for path in users.homes.rglob('*') if path.is_file()} == before
 
 
@@ -4597,8 +4604,9 @@ def test_postrm_follows_a_link_that_stays_inside_the_users_own_home(tmp_path: Pa
     result = users.run()
 
     assert result.returncode == 0, result.stderr
-    assert f"rm -rf -- '{folder}'" in result.stdout
+    assert f"  alice: '{folder}' (" in result.stdout
     assert 'points outside' not in result.stdout
+    assert_no_delete_command(result.stdout)
 
 
 TIMEOUT_STUB = """#!/bin/sh

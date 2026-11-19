@@ -703,7 +703,9 @@ design's §6.7 and §13.1.
 - [ ] On `remove` and `purge`, the script finds every local user (from `/etc/passwd`, UID in the
   login range) whose user root exists — `${XDG_DATA_HOME:-$HOME/.local/share}/glitchygames/ai`, and
   the cache and state folders — and prints, per user: the folder, its size (`du -sh`), and the
-  command that deletes it (`rm -rf <folder>`), plus one line that nothing was deleted. Nothing
+  command that deletes it (`rm -rf <folder>`), plus one line that nothing was deleted. Changed by
+  the owner, 2026-11-19: no delete command at all, in any case; the folder and its size only
+  (tests assert no `rm` in the output, the outside-the-home case included). Nothing
   printed when no user has data. It reads no secret file (sizes only) and exits 0 whatever happens
   (a maintainer script failure must not block dpkg).
 - [ ] Tests: users with and without data (a fake passwd and homes under tmp_path); the folders
