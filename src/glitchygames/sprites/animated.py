@@ -13,6 +13,7 @@ import logging
 import operator
 from enum import Enum
 from pathlib import Path
+from types import MappingProxyType
 from typing import IO, TYPE_CHECKING, Any, Self, cast, override
 
 import pygame
@@ -1406,19 +1407,19 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             tags=tuple(self.tags),
             default_hitbox=self._default_hitbox,
             frame_anchor=self.frame_anchor,
-            animations=animations,
+            animations=MappingProxyType(animations),
             animation_order=tuple(self._animation_order or ()),
-            animation_frame_intervals=dict(self._animation_frame_intervals),
-            loop_flags=dict(self._loop_flags),
+            animation_frame_intervals=MappingProxyType(dict(self._animation_frame_intervals)),
+            loop_flags=MappingProxyType(dict(self._loop_flags)),
             animations_without_frame_index=frozenset(self._animations_without_frame_index),
-            game_tables=self._game_tables,
+            game_tables=MappingProxyType(self._game_tables),
             transition_data=tuple(self.transition_data),
             pixel_row_repairs=tuple(self.pixel_row_repairs),
             pixel_rows_source=self._pixel_rows_source,
-            color_map=dict(self._color_map),
+            color_map=MappingProxyType(dict(self._color_map)),
             color_order=tuple(self._color_order or ()),
             frame_interval=getattr(self, '_frame_interval', None),
-            drawn_surfaces=drawn_surfaces,
+            drawn_surfaces=MappingProxyType(drawn_surfaces),
             byte_count=compiled_sprite_bytes(animations=animations, drawn_surfaces=drawn_surfaces),
         )
 
@@ -1444,7 +1445,7 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         self._animation_frame_intervals = dict(compiled.animation_frame_intervals)
         self._loop_flags = dict(compiled.loop_flags)
         self._animations_without_frame_index = set(compiled.animations_without_frame_index)
-        self._game_tables = copy.deepcopy(compiled.game_tables)
+        self._game_tables = copy.deepcopy(dict(compiled.game_tables))
         self.transition_data = [dict(transition) for transition in compiled.transition_data]
         self.pixel_row_repairs = list(compiled.pixel_row_repairs)
         self._pixel_rows_source = compiled.pixel_rows_source

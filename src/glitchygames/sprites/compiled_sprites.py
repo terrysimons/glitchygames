@@ -21,9 +21,10 @@ from __future__ import annotations
 import hashlib
 import threading
 from collections import OrderedDict
+from types import MappingProxyType  # ruff: ignore[typing-only-standard-library-import] - pydantic resolves CompiledSprite's read-only mappings at runtime
 from typing import Any, Final
 
-import pygame  # ruff: ignore[typing-only-third-party-import] - pydantic resolves CompiledSprite's surfaces and rects at runtime
+import pygame
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.sprites.animated import AnimatedSprite, FrameAnchor
@@ -90,21 +91,21 @@ class CompiledSprite(BaseModel):
     tags: tuple[str, ...]
     default_hitbox: pygame.Rect | None
     frame_anchor: FrameAnchor
-    animations: dict[str, tuple[SpriteFrame, ...]]
+    animations: MappingProxyType[str, tuple[SpriteFrame, ...]]
     animation_order: tuple[str, ...]
-    animation_frame_intervals: dict[str, float]
-    loop_flags: dict[str, bool]
+    animation_frame_intervals: MappingProxyType[str, float]
+    loop_flags: MappingProxyType[str, bool]
     animations_without_frame_index: frozenset[str]
-    game_tables: dict[str, Any]
+    game_tables: MappingProxyType[str, Any]
     transition_data: tuple[dict[str, Any], ...]
     pixel_row_repairs: tuple[str, ...]
     pixel_rows_source: str
-    color_map: dict[str, tuple[int, ...]]
+    color_map: MappingProxyType[str, tuple[int, ...]]
     color_order: tuple[str, ...]
     # The loader's last [[animation]] frame_interval, or None when it set none (written, never
     # read: carried so a cached load is the loader's sprite exactly)
     frame_interval: float | None
-    drawn_surfaces: dict[tuple[str, int], pygame.Surface]
+    drawn_surfaces: MappingProxyType[tuple[str, int], pygame.Surface]
     byte_count: int
 
 
@@ -145,6 +146,23 @@ def compiled_sprite_bytes(
     return surface_bytes + sum(8 * len(frame.read_only_pixels) for frame in frames)
 
 
+def compiled_sprite_fingerprint(*, compiled: CompiledSprite) -> str:
+    """Return a digest of a compile's surfaces: their pixels, colorkeys and surface alphas.
+
+    Returns:
+        str: The sha256 hexdigest.
+
+    """
+    digest = hashlib.sha256()
+    surfaces = [
+        frame.read_only_image for frames in compiled.animations.values() for frame in frames
+    ] + list(compiled.drawn_surfaces.values())
+    for surface in surfaces:
+        digest.update(pygame.image.tobytes(surface, 'RGBA'))
+        digest.update(repr((surface.get_colorkey(), surface.get_alpha())).encode())
+    return digest.hexdigest()
+
+
 class SharedSpriteCache:
     """The process's compiled sprites by key, shared by every engine context.
 
@@ -156,6 +174,8 @@ class SharedSpriteCache:
     def __init__(self) -> None:
         """Start empty."""
         self._compiled: OrderedDict[SpriteKey, CompiledSprite] = OrderedDict()
+        # Each kept compile's fingerprint when kept (changed_entries)
+        self._fingerprints: dict[SpriteKey, str] = {}
         self._lock = threading.Lock()
         self.limit_bytes: int = DEFAULT_SPRITE_CACHE_LIMIT_BYTES
 
@@ -207,13 +227,32 @@ class SharedSpriteCache:
                 self._compiled.move_to_end(key)
                 return kept
             self._compiled[key] = compiled
+            self._fingerprints[key] = compiled_sprite_fingerprint(compiled=compiled)
             self._evict_past_the_limit(keep=key)
             return compiled
+
+    def changed_entries(self) -> list[SpriteKey]:
+        """Return the keys of kept compiles whose surfaces changed since they were kept.
+
+        A compile is never written after it is made: a change is a path that wrote around a
+        frame's copy-on-write. The test harness fails a test that leaves one.
+
+        Returns:
+            list[SpriteKey]: The changed compiles' keys, in the cache's order.
+
+        """
+        with self._lock:
+            return [
+                key
+                for key, compiled in self._compiled.items()
+                if compiled_sprite_fingerprint(compiled=compiled) != self._fingerprints[key]
+            ]
 
     def clear(self) -> None:
         """Forget every compile (the test harness's reset; the next load compiles)."""
         with self._lock:
             self._compiled.clear()
+            self._fingerprints.clear()
 
     def _evict_past_the_limit(self, *, keep: SpriteKey) -> None:
         """Drop the least recently used compiles, never keep, until the rest fit the limit."""
@@ -224,6 +263,7 @@ class SharedSpriteCache:
             if key == keep:
                 continue
             held -= self._compiled.pop(key).byte_count
+            del self._fingerprints[key]
 
 
 # The process's one cache of compiled sprites (SharedSpriteCache)

@@ -484,11 +484,18 @@ def empty_engine_sprite_cache():
 
     A sprite file's text compiles once per process (glitchygames.sprites.compiled_sprites
     ``ENGINE_SPRITE_CACHE``): without this, whether a test's load compiles would depend on which
-    test ran before it on the worker.
+    test ran before it on the worker. A test that leaves a compile changed fails: a compile is
+    never written after it is made, so a change is a path writing around a frame's copy-on-write.
     """
     ENGINE_SPRITE_CACHE.clear()
     yield
+    changed = ENGINE_SPRITE_CACHE.changed_entries()
     ENGINE_SPRITE_CACHE.clear()
+    if changed:
+        pytest.fail(
+            'A shared sprite compile was written into (its frames are shared by every sprite '
+            f'loaded from the same text; write through SpriteFrame.image or .pixels): {changed}'
+        )
 
 
 @pytest.fixture(autouse=True)

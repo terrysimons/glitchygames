@@ -3,7 +3,6 @@
 import logging
 import tempfile
 from pathlib import Path
-from types import SimpleNamespace
 from typing import cast
 
 import pygame
@@ -29,6 +28,7 @@ from bitmappy.sprite_inspection import (
 from glitchygames.engine.game_engine import exit_on_signal
 from glitchygames.exit_codes import ExitCode
 from glitchygames.sprites.file_format import detect_file_format
+from glitchygames.sprites.frame import SpriteFrame
 
 LOG = logging.getLogger('test.bitmappy_coverage')
 
@@ -1547,21 +1547,19 @@ class TestAnimatedCanvasSpriteDragMethods:
     def test_rebuild_frame_image_from_pixels(self, mock_groups, mocker):
         """Rebuilds frame image from pixel data."""
         canvas = self._make_canvas_sprite(mock_groups, mocker)
-        frame = SimpleNamespace(
-            _image=pygame.Surface((4, 4), pygame.SRCALPHA),
-            # One pixel more than the 4x4 image holds: it must not be drawn anywhere
-            pixels=[(255, 0, 0, 255)] * 15 + [(0, 0, 255, 128), (0, 255, 0, 255)],
-        )
+        frame = SpriteFrame(pygame.Surface((4, 4), pygame.SRCALPHA))
+        # One pixel more than the 4x4 image holds: it must not be drawn anywhere
+        frame.pixels = [(255, 0, 0, 255)] * 15 + [(0, 0, 255, 128), (0, 255, 0, 255)]
         canvas._rebuild_frame_image_from_pixels(frame)
         # The frame's image now shows its pixels, in row-major order
-        assert tuple(frame._image.get_at((0, 0))) == (255, 0, 0, 255)
-        assert tuple(frame._image.get_at((2, 3))) == (255, 0, 0, 255)
-        assert tuple(frame._image.get_at((3, 3))) == (0, 0, 255, 128)
-        rgb_rows = pygame.surfarray.array3d(frame._image).reshape(-1, 3)
+        assert tuple(frame.image.get_at((0, 0))) == (255, 0, 0, 255)
+        assert tuple(frame.image.get_at((2, 3))) == (255, 0, 0, 255)
+        assert tuple(frame.image.get_at((3, 3))) == (0, 0, 255, 128)
+        rgb_rows = pygame.surfarray.array3d(frame.image).reshape(-1, 3)
         assert (0, 255, 0) not in {tuple(int(component) for component in row) for row in rgb_rows}
 
     def test_rebuild_frame_image_no_image(self, mock_groups, mocker):
-        """Does nothing when frame has no _image."""
+        """Does nothing when frame has no image."""
         canvas = self._make_canvas_sprite(mock_groups, mocker)
         frame = mocker.MagicMock(spec=['pixels'])
         frame.pixels = [(255, 0, 0, 255)] * 16
@@ -1571,14 +1569,12 @@ class TestAnimatedCanvasSpriteDragMethods:
     def test_rebuild_frame_image_clears_stale_flag(self, mock_groups, mocker):
         """Clears _image_stale flag after rebuild."""
         canvas = self._make_canvas_sprite(mock_groups, mocker)
-        frame = SimpleNamespace(
-            _image=pygame.Surface((4, 4)),
-            pixels=[(255, 0, 0, 255)] * 16,
-            _image_stale=True,
-        )
+        frame = SpriteFrame(pygame.Surface((4, 4)))
+        frame.pixels = [(255, 0, 0, 255)] * 16
+        frame._image_stale = True
         canvas._rebuild_frame_image_from_pixels(frame)
         assert not hasattr(frame, '_image_stale')
-        assert tuple(frame._image.get_at((3, 3)))[:3] == (255, 0, 0)
+        assert tuple(frame.image.get_at((3, 3)))[:3] == (255, 0, 0)
 
     def test_flush_batched_drag_pixels(self, mock_groups, mocker):
         """Flushes drag pixel changes to frame."""
@@ -1715,9 +1711,8 @@ class TestAnimatedCanvasSpriteDragCleanup:
     def test_cleanup_drag_state(self, mock_groups, mocker):
         """Cleans up all drag-related state."""
         canvas = self._make_canvas_sprite(mock_groups, mocker)
-        frame = mocker.MagicMock()
+        frame = SpriteFrame(pygame.Surface((4, 4)))
         frame.pixels = [(255, 0, 0, 255)] * 16
-        frame._image = pygame.Surface((4, 4))
         frame._image_stale = True
         canvas._drag_frame = frame
         canvas._drag_active = True
@@ -1728,6 +1723,9 @@ class TestAnimatedCanvasSpriteDragCleanup:
         assert canvas._drag_pixels == {}
         assert not hasattr(canvas, '_drag_redraw_counter')
         assert not hasattr(canvas, '_drag_frame')
+        # The frame's image was rebuilt from its pixels
+        assert tuple(frame.image.get_at((3, 3)))[:3] == (255, 0, 0)
+        assert not hasattr(frame, '_image_stale')
 
     def test_cleanup_drag_state_no_drag_frame(self, mock_groups, mocker):
         """Cleanup works even without a drag frame."""

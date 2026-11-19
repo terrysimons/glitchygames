@@ -1333,7 +1333,9 @@ class TestFromFile:
         """A game's sprite of the same file keeps sharing, unchanged, while the editor draws.
 
         Sprites loaded from one text share its frames (glitchygames/sprites/compiled_sprites.py);
-        the editor's in-place pixel writes reach its own copies only.
+        the editor's drag writes its pixels in place, and its mouse-up rebuilds the frame's
+        surface from them: both must reach the editor's own copies only. The pixel drawn is
+        green on a red pixel, so a write into the shared surface shows.
         """
         sprite_path = tmp_path / 'blinker.toml'
         sprite_path.write_text(ANIMATED_SPRITE_TOML)
@@ -1348,15 +1350,21 @@ class TestFromFile:
             pixel_width=8,
             pixel_height=8,
         )
+        assert game_frame.read_only_image.get_at((0, 0))[:3] != GREEN_RGBA[:3]
 
         canvas._cache_drag_frame()
-        canvas._update_drag_frame_pixel(0, RED_RGBA)
+        canvas._update_drag_frame_pixel(0, GREEN_RGBA)
+        canvas._cleanup_drag_state()
         canvas._sync_all_frames_pixel_data()
 
-        assert canvas.animated_sprite.animation_data['blink'][0].pixels[0] == RED_RGBA
+        edited = canvas.animated_sprite.animation_data['blink'][0]
+        assert edited.pixels[0] == GREEN_RGBA
+        assert edited.read_only_image.get_at((0, 0))[:3] == GREEN_RGBA[:3]
         assert game_frame.is_sharing
         assert list(game_frame.read_only_pixels) == game_pixels
         assert pygame.image.tobytes(game_frame.read_only_image, 'RGBA') == game_bytes
+        reloaded = AnimatedSprite(str(sprite_path)).animation_data['blink'][0]
+        assert pygame.image.tobytes(reloaded.read_only_image, 'RGBA') == game_bytes
 
     def test_file_without_frames_is_refused(self, mocker):
         """A loaded object without frames raises ValueError."""

@@ -4,6 +4,8 @@ A sprite file's text compiles once per process into read-only frames that every 
 from the same text shares, as compiled sounds are shared (plans/2026-11-18-shared-sprite-frames.md).
 """
 
+from types import MappingProxyType
+
 import pygame
 import pytest
 
@@ -31,19 +33,19 @@ def _compiled(*, byte_count: int, name: str = 'kept') -> CompiledSprite:
         tags=(),
         default_hitbox=None,
         frame_anchor=FrameAnchor.NONE,
-        animations={'idle': (SpriteFrame(surface),)},
+        animations=MappingProxyType({'idle': (SpriteFrame(surface),)}),
         animation_order=('idle',),
-        animation_frame_intervals={'idle': 0.5},
-        loop_flags={'idle': True},
+        animation_frame_intervals=MappingProxyType({'idle': 0.5}),
+        loop_flags=MappingProxyType({'idle': True}),
         animations_without_frame_index=frozenset(),
-        game_tables={},
+        game_tables=MappingProxyType({}),
         transition_data=(),
         pixel_row_repairs=(),
         pixel_rows_source='kept.toml',
-        color_map={},
+        color_map=MappingProxyType({}),
         color_order=(),
         frame_interval=None,
-        drawn_surfaces={('idle', 0): surface},
+        drawn_surfaces=MappingProxyType({('idle', 0): surface}),
         byte_count=byte_count,
     )
 
@@ -134,6 +136,56 @@ def test_clear_empties_it():
     assert len(cache) == 0
     assert cache.compiled(key=key) is None
     assert cache.bytes_held == 0
+
+
+def test_an_untouched_compile_is_unchanged():
+    """A kept compile nothing wrote into reports no change."""
+    cache = SharedSpriteCache()
+    key = sprite_key(text='[sprite]', source_name='a.toml')
+    cache.keep(key=key, compiled=_compiled(byte_count=10))
+
+    assert cache.changed_entries() == []
+
+
+@pytest.mark.parametrize(
+    'write',
+    [
+        lambda compiled: compiled.animations['idle'][0].read_only_image.set_at((0, 0), (9, 9, 9)),
+        lambda compiled: compiled.drawn_surfaces['idle', 0].fill((9, 9, 9)),
+        lambda compiled: compiled.animations['idle'][0].read_only_image.set_colorkey((9, 9, 9)),
+    ],
+    ids=['frame-surface-pixel', 'drawn-surface', 'colorkey'],
+)
+def test_a_write_into_a_kept_compile_is_reported(write):
+    """The cache's promise, values never written after they are made, is checked.
+
+    The test harness fails any test that leaves a compile changed (empty_engine_sprite_cache), so
+    a path writing around a frame's copy-on-write (Bitmappy's mouse-up rebuild once wrote its
+    edit straight into the shared surface) fails wherever it runs.
+    """
+    cache = SharedSpriteCache()
+    key = sprite_key(text='[sprite]', source_name='a.toml')
+    compiled = cache.keep(key=key, compiled=_compiled(byte_count=10))
+
+    write(compiled)
+
+    assert cache.changed_entries() == [key]
+
+
+def test_a_compiles_mappings_are_read_only():
+    """Every sprite copies from them: a change in place would reach them all."""
+    compiled = _compiled(byte_count=10)
+
+    for mapping in (
+        compiled.animations,
+        compiled.animation_frame_intervals,
+        compiled.loop_flags,
+        compiled.game_tables,
+        compiled.color_map,
+        compiled.drawn_surfaces,
+    ):
+        with pytest.raises(TypeError):
+            mapping['new'] = ()  # type: ignore[index]
 
 
 @pytest.mark.parametrize('test_order', ['first', 'second'])
