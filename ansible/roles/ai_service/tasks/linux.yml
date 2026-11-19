@@ -55,6 +55,29 @@
     dest: "{{ ai_service_installed_package_checksum_file }}"
     mode: "0644"
 
+# uninstall-user.sh masks the setup job for its user, or the package's --global enable would set
+# everything up again at their next login. Running this install is asking for the service back, so
+# the owner's mask goes; the postinst leaves masks alone, as it runs at every apt upgrade too.
+# Removing a mask is what changes something (systemctl says "Removed ..."), and unmasking a job
+# never masked succeeds quietly
+- name: Unmask the setup job for the owner
+  ansible.builtin.command:
+    argv: [systemctl, --user, unmask, "{{ ai_package_setup_label }}.service"]
+  register: ai_service_setup_unmask
+  changed_when: ai_service_setup_unmask.rc == 0 and ai_service_setup_unmask.stderr is search('Removed')
+  # With no user manager to reach (an SSH session without one), the install still completes, as
+  # the next task runs setup.sh itself; the warning says what that leaves undone
+  failed_when: false
+
+- name: Warn when the setup job could not be unmasked
+  ansible.builtin.debug:
+    msg: >-
+      Could not reach the owner's systemd user manager to unmask
+      {{ ai_package_setup_label }}.service ({{ ai_service_setup_unmask.stderr }}). If an earlier
+      uninstall masked it, it won't run at login until unmasked: systemctl --user unmask
+      {{ ai_package_setup_label }}.service
+  when: ai_service_setup_unmask.rc != 0
+
 # The postinst's setup run usually holds setup's lock by now, and a run that finds the lock taken
 # leaves at once with exit 0, before any model is here. So Ansible runs setup.sh again until a run
 # is its own: that run checks every selected model's SHA-256 (downloading any still missing) and

@@ -2734,7 +2734,7 @@ def test_the_user_uninstaller_says_whether_the_setup_job_stays_off(tmp_path: Pat
     if mask == 'works':
         assert 'no longer runs at your login' in result.stdout
         assert f'systemctl --user unmask {setup_unit}' in result.stdout
-        assert result.stderr == ''
+        assert not result.stderr
     else:
         assert 'no longer runs at your login' not in result.stdout + result.stderr
         assert 'warning' in result.stderr
@@ -3316,10 +3316,17 @@ def test_the_setup_unit_is_the_only_one_enabled(tmp_path: Path):
 # Stand in for systemctl and loginctl in the maintainer scripts: each call is recorded; systemctl
 # fails when its arguments contain SYSTEMCTL_FAILS_ON, and loginctl answers only list-users
 # --no-legend, with LOGINCTL_USERS (a failure when it is unset, as with no logind)
+# is-enabled prints SYSTEMCTL_IS_ENABLED (enabled when unset), and exits 1 for masked, as
+# systemctl does for any state but enabled, static, alias or indirect
 MAINTAINER_SYSTEMCTL_STUB = """#!/bin/sh
 printf 'systemctl %s\\n' "$*" >> "$SERVICE_TOOL_LOG"
 case " $* " in
     *" ${SYSTEMCTL_FAILS_ON:-no such argument} "*) exit 1 ;;
+    *" is-enabled "*)
+        echo "${SYSTEMCTL_IS_ENABLED:-enabled}"
+        [ "${SYSTEMCTL_IS_ENABLED:-enabled}" != masked ]
+        exit
+        ;;
 esac
 exit 0
 """
@@ -3409,14 +3416,43 @@ def test_postinst_enables_the_setup_job_and_starts_it_for_the_user_who_ran_sudo(
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+    # No unmask: postinst runs at every upgrade, which would undo the mask of a user who ran
+    # uninstall-user.sh. Ansible's install unmasks for the owner instead
     assert scripts.calls() == [
         f'systemctl --global enable {SETUP_UNIT}',
-        # Undoes the mask an earlier uninstall-user.sh left for this user: they're installing it
-        f'systemctl --user --machine=alice@ unmask {SETUP_UNIT}',
         f'systemctl --user --machine=alice@ start --no-block {SETUP_UNIT}',
     ]
     assert 'background' in result.stdout
     assert f'journalctl --user -u {SETUP_UNIT}' in result.stdout
+
+
+@needs_a_posix_shell
+# A first install (no old version) and an upgrade from one
+@pytest.mark.parametrize('old_version', ['', '0.1.0'])
+def test_postinst_leaves_a_users_mask_and_says_so(tmp_path: Path, old_version: str):
+    """A user who ran uninstall-user.sh keeps their mask through an install and every upgrade.
+
+    systemd refuses to start a masked unit, and postinst then says why and how to undo it, rather
+    than promising a run at the next login that a mask prevents.
+    """
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+
+    result = scripts.run(
+        script='postinst',
+        arguments=['configure', old_version],
+        environment={
+            'SUDO_USER': 'alice',
+            'SYSTEMCTL_FAILS_ON': 'start',
+            'SYSTEMCTL_IS_ENABLED': 'masked',
+        },
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not [call for call in scripts.calls() if 'unmask' in call]
+    output = result.stdout + result.stderr
+    assert 'masked' in output
+    assert f'systemctl --user unmask {SETUP_UNIT}' in output
+    assert 'next login' not in output
 
 
 @needs_a_posix_shell
@@ -4031,6 +4067,50 @@ def test_linux_installs_the_package_then_waits_for_setup_then_smoke_tests():
     assert setup['ansible.builtin.command']['argv'] == ['{{ ai_service_bin_directory }}/setup.sh']
     assert setup['register'] == 'ai_service_setup'
     assert 'become' not in setup
+
+
+UNMASK_SETUP_TASK = 'Unmask the setup job for the owner'
+WARN_UNMASK_TASK = 'Warn when the setup job could not be unmasked'
+
+
+def test_ansible_unmasks_the_owners_setup_job_before_running_setup():
+    """Installing with Ansible is asking for the service back, so the owner's mask goes first.
+
+    uninstall-user.sh masks the setup job for its user; the postinst no longer undoes that, as it
+    runs at every upgrade. The unmask is the owner's own (no become), and a failure to reach the
+    user manager warns rather than fails: Ansible runs setup.sh itself, so the install still
+    completes, and the warning says the job won't run at login until unmasked.
+    """
+    tasks = role_tasks(role='ai_service', file_name='linux.yml')
+    names = [task['name'] for task in walk_tasks(tasks=tasks)]
+    unmask = named_task(role='ai_service', file_name='linux.yml', name=UNMASK_SETUP_TASK)
+    warning = named_task(role='ai_service', file_name='linux.yml', name=WARN_UNMASK_TASK)
+    variables = ansible_variables(system='Linux', architecture='aarch64', home=Path('/home/player'))
+
+    assert names.index(INSTALL_PACKAGE_TASK) < names.index(UNMASK_SETUP_TASK)
+    assert names.index(UNMASK_SETUP_TASK) < names.index(WARN_UNMASK_TASK)
+    assert names.index(WARN_UNMASK_TASK) < names.index(RUN_SETUP_TASK)
+    assert render_value(value=unmask['ansible.builtin.command']['argv'], variables=variables) == [
+        'systemctl',
+        '--user',
+        'unmask',
+        'ai.glitchygames.setup.service',
+    ]
+    assert 'become' not in unmask
+    assert 'become' not in warning
+    assert unmask['failed_when'] is False
+
+    def outcome(*, rc: int, stderr: str) -> tuple[bool, bool]:
+        result = registered_command(rc=rc, stdout='', stderr=stderr)
+        scope = variables | {unmask['register']: result}
+        changed = render_value(value='{{ ' + unmask['changed_when'] + ' }}', variables=scope)
+        warned = render_value(value='{{ ' + warning['when'] + ' }}', variables=scope)
+        return changed, warned
+
+    removed = "Removed '/home/player/.config/systemd/user/ai.glitchygames.setup.service'.\n"
+    assert outcome(rc=0, stderr=removed) == (True, False)
+    assert outcome(rc=0, stderr='') == (False, False)
+    assert outcome(rc=1, stderr='Failed to connect to user scope bus\n') == (False, True)
 
 
 RECORD_SIZE_TASK = 'Record a size chosen by hand'

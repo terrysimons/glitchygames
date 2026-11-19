@@ -37,11 +37,13 @@ if [ -z "${SUDO_USER:-}" ] || [ "$SUDO_USER" = root ]; then
     exit 0
 fi
 
-# A user who ran uninstall-user.sh masked the job for themselves; installing the package again is
-# asking for it back. Every other user's choice stays theirs
-systemctl --user --machine="$SUDO_USER@" unmask "$setup_unit" 2>/dev/null
+# A user who ran uninstall-user.sh masked the job for themselves, and that stays: this runs at
+# every upgrade too, so an unmask here would bring the service back for them at the next apt
+# upgrade. Ansible's install unmasks it for the owner, as running it is asking for it back
 if systemctl --user --machine="$SUDO_USER@" start --no-block "$setup_unit"; then
     say "setting up for $SUDO_USER; the models download in the background (follow it with: journalctl --user -u $setup_unit -f)"
+elif [ "$(systemctl --user --machine="$SUDO_USER@" is-enabled "$setup_unit" 2>/dev/null)" = masked ]; then
+    say "the setup job is masked for $SUDO_USER (uninstall-user.sh does that), so nothing is set up for them; to set it up again, as $SUDO_USER: systemctl --user unmask $setup_unit" >&2
 else
     say "could not start the setup for $SUDO_USER; it runs at their next login" >&2
 fi

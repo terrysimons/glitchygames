@@ -564,9 +564,14 @@ plists on a Mac, unit files on Linux).
   homes (Debian convention). `/opt/glitchygames/ai/bin/uninstall-user.sh` removes one user's data
   when they ask, and masks the setup job for that user (`systemctl --user mask`, the user's own
   override of the `--global` enable), or it would set everything up again at their next login; it
-  says how to undo that (`systemctl --user unmask ai.glitchygames.setup.service`). The postinst
-  unmasks it for the user who installs the package again, as that is asking for it back; every
-  other user's mask stays theirs (final review, 2026-11-19; checked with systemd 257). A Mac's
+  says how to undo that (`systemctl --user unmask ai.glitchygames.setup.service`), or, when the
+  mask fails for want of a user manager, warns that the job will run again at the next login (it
+  still exits 0, so Ansible's uninstall goes on to remove the package, which takes the job away).
+  Ansible's install unmasks it for the owner before running setup, as running it is asking for it
+  back; the postinst leaves every mask alone, as it runs at every `apt upgrade` too, and an unmask
+  there brought the service back for a user who had uninstalled it. When a masked user's start
+  fails, the postinst says the job is masked and how to unmask it (Task 11, 2026-11-19; checked
+  with systemd 257). A Mac's
   setup job has no such problem: it runs once and removes its own plist, and installing the
   `.pkg` again is what brings it back.
 - **Contents check** (as the `.pkg`'s "holds the server and its notices, and no model"):
@@ -940,7 +945,7 @@ changes for x86_64.
 | `setup.sh` takes a per-user lock: a kernel-held lock (`flock` on Linux, `lockf` on the Mac) on `config/setup.lock` in the user root it guards, freed however its holder ends, so no stale lock and no folder that depends on the environment; it replaced the first lock in `$XDG_RUNTIME_DIR` or the Mac's `$TMPDIR` (Task 6 review, round 3). The `.deb`'s postinst starts the owner's setup with `--no-block`, so apt never waits on the model download (Task 6 review) | Designer's call, the lock's place the controller's ruling |
 | The game pins itself only once its link reports the service started (`CONNECTED`); a refused or failed start never pins (6.2) | Controller's ruling on the final review, 2026-11-19 |
 | Each AI unit's drop-in names the user's folder (`Environment=GLITCHYGAMES_AI_USER_ROOT`), replacing `systemctl --user set-environment` (6.2) | Controller's ruling on the final review, 2026-11-19 |
-| `uninstall-user.sh` masks the setup job for its user; the postinst unmasks it for the user who installs again (6.7) | Final review, 2026-11-19; the unmask the implementer's call |
+| `uninstall-user.sh` masks the setup job for its user; Ansible's install unmasks it for the owner, the postinst never (6.7) | Final review, 2026-11-19; the unmask moved out of the postinst by the controller, 2026-11-19 (it undid a user's uninstall at every upgrade) |
 | The `.deb` depends on `libstdc++6 (>=` the release its GLIBCXX/CXXABI symbols need`)`, read from the build like the glibc floor (Task 6 review) | Designer's call |
 | Fix, in this branch, the Mac `.pkg` naming the builder's runtime instead of the player's (`bugs/2026-11-18-mac-package-settings-name-builders-runtime.md`) | The owner, 2026-11-19 |
 | The `.deb`'s Maintainer: `GlitchyGames <terry.simons@gmail.com>` | The owner, 2026-11-19 |
