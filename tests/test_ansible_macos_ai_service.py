@@ -641,6 +641,41 @@ done
 exit 0
 """
 # Stands in for llama-server: prints each argument it was given on its own line
+# Stand in for the port tools, refusing any arguments but the ones the scripts must use, and
+# printing what the real tool prints for a port in HELD_PORTS (ss -H: no header; lsof: a header
+# and exit 0) or nothing for a free one (lsof then exits 1)
+SS_STUB = """#!/bin/sh
+if [ "$#" -ne 2 ] || [ "$1" != -Hltn ]; then
+    echo "unexpected: ss $*" >> "$SERVICE_TOOL_LOG"
+    exit 2
+fi
+port=${2#sport = :}
+case "$2" in
+    "sport = :$port") ;;
+    *) echo "unexpected: ss $*" >> "$SERVICE_TOOL_LOG"; exit 2 ;;
+esac
+case " $HELD_PORTS " in
+    *" $port "*) printf 'LISTEN 0      128        127.0.0.1:%s      0.0.0.0:*\\n' "$port" ;;
+esac
+exit 0
+"""
+LSOF_STUB = """#!/bin/sh
+port=${2#-iTCP:}
+if [ "$#" -ne 3 ] || [ "$1" != -nP ] || [ "$2" != "-iTCP:$port" ] \\
+    || [ "$3" != -sTCP:LISTEN ]; then
+    echo "unexpected: lsof $*" >> "$SERVICE_TOOL_LOG"
+    exit 2
+fi
+case " $HELD_PORTS " in
+    *" $port "*)
+        echo 'COMMAND     PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME'
+        printf '%s  TCP 127.0.0.1:%s (LISTEN)\\n' \\
+            'llama-ser 4242 other    5u  IPv4 0x1234567890abcdef      0t0' "$port"
+        exit 0
+        ;;
+esac
+exit 1
+"""
 LLAMA_SERVER_STUB = """#!/bin/sh
 for argument in "$@"; do
     printf '%s\\n' "$argument"
@@ -873,10 +908,13 @@ def test_the_picker_chooses_the_same_on_both_platforms(
 def test_a_port_held_by_another_user_exits_4_and_starts_nothing(
     tmp_path: Path, system: Literal['Darwin', 'Linux']
 ):
-    """A second user's start finds the first user's ports taken and leaves their models alone.
+    """A start finds a port taken by a real listening socket, exits 4 and starts nothing.
 
     The port is checked with the platform's own tool (lsof on a Mac, ss on Linux), so each
-    rendering runs where its tool is installed: CircleCI's Linux image has neither.
+    rendering runs where its tool is installed: CircleCI's Linux image has neither, and a Mac has
+    no ss. The socket is this user's, so this can't show that a Mac's lsof sees another user's
+    socket (ss on Linux reads every user's); the stub-driven test below covers the control flow
+    on every platform.
     """
     port_tool = 'lsof' if system == 'Darwin' else 'ss'
     if shutil.which(port_tool) is None:
@@ -1110,3 +1148,48 @@ def test_run_llama_server_reads_a_named_config_folder_in_place_of_the_users(
     arguments = result.stdout.splitlines()
     assert result.returncode == 0, result.stderr
     assert arguments[arguments.index('--port') + 1] == '23239'
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+@pytest.mark.parametrize('port_state', ['held', 'free'])
+def test_a_port_the_port_tool_reports_held_stops_the_start(
+    tmp_path: Path, system: Literal['Darwin', 'Linux'], port_state: Literal['held', 'free']
+):
+    """Exit 4 and no start when ss or lsof reports the port held; every agent started when free.
+
+    The port tools are stubs that accept only the arguments the scripts must pass (ss's filter
+    `sport = :PORT`, lsof's -nP -iTCP:PORT -sTCP:LISTEN), so this runs on every platform.
+    """
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    _write_executable(service.tools / 'ss', SS_STUB)
+    _write_executable(service.tools / 'lsof', LSOF_STUB)
+    service.download_every_model()
+    port = service.variables['ai_service_bonsai_ports']['2b']
+
+    result = service.run(
+        template='ai-service.sh.j2',
+        arguments=['start'],
+        environment={
+            'AI_MEMORY_MB': '16384',
+            'AI_AVAILABLE_MB': '9216',
+            'HELD_PORTS': str(port) if port_state == 'held' else '',
+        },
+    )
+
+    calls = service.tool_calls()
+    # systemctl --user start LABEL.service, or launchctl bootstrap DOMAIN PLIST
+    starts = [
+        call
+        for call in calls
+        if call.split()[1:3] == ['--user', 'start'] or call.split()[1:2] == ['bootstrap']
+    ]
+    assert not [call for call in calls if call.startswith('unexpected')], calls
+    if port_state == 'held':
+        assert f'reason=port-{port}-in-use' in result.stdout.splitlines(), result.stdout
+        assert result.returncode == 4
+        assert starts == []
+    else:
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert 'reason=' not in result.stdout
+        assert len(starts) == 3, calls
