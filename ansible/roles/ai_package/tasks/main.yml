@@ -42,7 +42,8 @@
       - --delete
       - --itemize-changes
       - --exclude=__pycache__/
-      - "{{ ai_sidecar_directory }}/"
+      # Where Ansible built it, not where the installed package will put it
+      - "{{ ai_sidecar_install_directory }}/"
       - "{{ ai_package_stage_root }}/sidecar/"
   register: ai_package_sidecar_stage
   changed_when: ai_package_sidecar_stage.stdout | length > 0

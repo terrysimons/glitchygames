@@ -192,12 +192,16 @@
   loop: "{{ [ai_sidecar_install_directory ~ '/python/bin/python3.14'] + (ai_sidecar_libraries.files | map(attribute='path') | list) }}"
   register: ai_sidecar_otool_output
   changed_when: false
+  failed_when: >-
+    result.rc != 0 and not ((result.stdout ~ result.stderr) is search(ai_sidecar_not_an_object_pattern))
 
 - name: Check that the sidecar links only its own libraries and the system frameworks
-  when: ansible_facts['system'] == 'Darwin'
+  when: ansible_facts['system'] == 'Darwin' and not ((item.stdout ~ item.stderr) is search(ai_sidecar_not_an_object_pattern))
   ansible.builtin.assert:
+    # otool -L prints the file's name, and for a dylib its own install name (an absolute path)
+    # as the first entry, so a dylib's entries start at the third line
     that: >-
-      item.stdout_lines[1:]
+      item.stdout_lines[(2 if item.item is search('[.]dylib$') else 1):]
       | reject('search', ai_sidecar_macos_system_link_pattern)
       | list | length == 0
     fail_msg: "{{ item.item }} links {{ item.stdout }}"
@@ -214,9 +218,11 @@
   loop: "{{ [ai_sidecar_install_directory ~ '/python/bin/python3.14'] + (ai_sidecar_libraries.files | map(attribute='path') | list) }}"
   register: ai_sidecar_ldd_output
   changed_when: false
+  failed_when: >-
+    result.rc != 0 and not ((result.stdout ~ result.stderr) is search(ai_sidecar_not_an_object_pattern))
 
 - name: Check that the sidecar links only its own libraries and the system libc
-  when: ansible_facts['system'] == 'Linux'
+  when: ansible_facts['system'] == 'Linux' and not ((item.stdout ~ item.stderr) is search(ai_sidecar_not_an_object_pattern))
   ansible.builtin.assert:
     that: >-
       item.stdout_lines
@@ -226,3 +232,13 @@
   loop: "{{ ai_sidecar_ldd_output.results }}"
   loop_control:
     label: "{{ item.item }}"
+
+# Said, not silent: these were found by name and are not objects the loader reads
+- name: Say which files were skipped as not dynamic objects
+  ansible.builtin.debug:
+    msg: "{{ item.item }} is not a dynamic object, so its links were not checked"
+  loop: "{{ ai_sidecar_otool_output.results | default([]) + ai_sidecar_ldd_output.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item | default('') }}"
+  when: >-
+    item.item is defined and (item.stdout | default('') ~ item.stderr | default('')) is search(ai_sidecar_not_an_object_pattern)

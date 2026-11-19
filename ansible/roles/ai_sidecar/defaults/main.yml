@@ -36,3 +36,6 @@ ai_sidecar_linux_system_link_pattern: '^\s*(linux-vdso\S* |/lib\S*/ld-linux\S* |
 # What otool -L may list: the system's libraries and frameworks, and the sidecar's own by their
 # @rpath or @loader_path
 ai_sidecar_macos_system_link_pattern: '^\s+(/usr/lib/|/System/Library/|@rpath/|@loader_path/|@executable_path/)'
+# What ldd and otool -L say of a file that is not a dynamic object (a data file named *.so):
+# it is skipped, and said so, rather than aborting the install
+ai_sidecar_not_an_object_pattern: 'not a dynamic executable|is not an object file'

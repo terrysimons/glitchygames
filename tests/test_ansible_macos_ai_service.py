@@ -256,6 +256,10 @@ def test_the_sidecar_installs_into_the_package_stage_on_linux_and_the_program_fo
     assert linux['ai_sidecar_directory'] == '/opt/glitchygames/ai/sidecar'
 
 
+CORE_FOUNDATION = '/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation'
+SYSTEM_CONFIGURATION = (
+    '/System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration'
+)
 SIDECAR_LDD_TASK = 'Check that the sidecar links only its own libraries and the system libc'
 SIDECAR_OTOOL_TASK = 'Check that the sidecar links only its own libraries and the system frameworks'
 SIDECAR_LINUX_INSTALL = '/home/pi/.cache/glitchygames/ai/package/stage/opt/glitchygames/ai/sidecar'
@@ -271,7 +275,7 @@ GOOD_SIDECAR_LDD_LINES = [
 ]
 GOOD_SIDECAR_OTOOL_LINES = [
     '/x/python/bin/python3.14:',
-    '\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compat 150)',
+    f'\t{CORE_FOUNDATION} (compat 150)',
     '\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)',
     '\t@rpath/libpython3.14.dylib (compatibility version 3.14.0, current version 3.14.0)',
     '\t@loader_path/../lib/libz.dylib (compatibility version 1.0.0)',
@@ -283,8 +287,8 @@ def sidecar_check_passes(
     task_name: str,
     lines: list[str],
     system: Literal['Darwin', 'Linux'],
-    install_directory: str,
     tmp_path: Path,
+    file_name: str = 'python/bin/python3.14',
 ) -> bool:
     """Run one of the sidecar role's link assertions on sample `ldd` or `otool -L` output.
 
@@ -296,9 +300,15 @@ def sidecar_check_passes(
         for task in walk_tasks(tasks=role_tasks(role='ai_sidecar'))
         if task.get('name') == task_name
     ]
+    install_directory = SIDECAR_LINUX_INSTALL if system == 'Linux' else SIDECAR_MAC_INSTALL
     variables = ansible_variables(system=system, architecture='aarch64', home=tmp_path)
     variables['ai_sidecar_install_directory'] = install_directory
-    variables['item'] = {'stdout_lines': lines}
+    variables['item'] = {
+        'item': f'{install_directory}/{file_name}',
+        'stdout_lines': lines,
+        'stdout': '\n'.join(lines),
+        'stderr': '',
+    }
     template = tmp_path / 'assertion.j2'
     template.write_text(
         '{{ (' + task['ansible.builtin.assert']['that'].strip() + ') }}', encoding='utf-8'
@@ -314,7 +324,6 @@ def test_the_sidecar_ldd_check_accepts_its_own_and_libc_links_including_unnormal
         task_name=SIDECAR_LDD_TASK,
         lines=GOOD_SIDECAR_LDD_LINES,
         system='Linux',
-        install_directory=SIDECAR_LINUX_INSTALL,
         tmp_path=tmp_path,
     )
 
@@ -337,9 +346,113 @@ def test_the_sidecar_ldd_check_refuses_a_missing_foreign_or_usr_local_library(
         task_name=SIDECAR_LDD_TASK,
         lines=[*GOOD_SIDECAR_LDD_LINES, bad_line],
         system='Linux',
-        install_directory=SIDECAR_LINUX_INSTALL,
         tmp_path=tmp_path,
     )
+
+
+# Real `otool -L` output of python-build-standalone's cpython-3.14.8-macos-aarch64-none
+# (the pinned build), read 2026-11-18: a dylib lists its own install name, an absolute path, first
+REAL_PYTHON_BINARY_OTOOL_LINES = [
+    '/pbs/bin/python3.14:',
+    f'\t{CORE_FOUNDATION} (compatibility version 150.0.0)',
+    '\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)',
+    '\t/usr/lib/libz.1.dylib (compatibility version 1.0.0, current version 1.2.12)',
+    '\t/usr/lib/libedit.3.dylib (compatibility version 2.0.0, current version 3.0.0)',
+    '\t/usr/lib/libncurses.5.4.dylib (compatibility version 5.4.0, current version 5.4.0)',
+    '\t/usr/lib/libpanel.5.4.dylib (compatibility version 5.4.0, current version 5.4.0)',
+    f'\t{SYSTEM_CONFIGURATION} (compatibility version 1.0.0)',
+]
+LIBPYTHON_INSTALL_NAME = (
+    '/Users/terry/.local/share/uv/python/cpython-3.14.8-macos-aarch64-none/lib/libpython3.14.dylib'
+)
+REAL_LIBPYTHON_OTOOL_LINES = [
+    '/pbs/lib/libpython3.14.dylib:',
+    f'\t{LIBPYTHON_INSTALL_NAME} (compatibility version 3.14.0, current version 3.14.0)',
+    '\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)',
+    '\t/usr/lib/libz.1.dylib (compatibility version 1.0.0, current version 1.2.12)',
+    f'\t{CORE_FOUNDATION} (compatibility version 150.0.0)',
+]
+
+
+@pytest.mark.parametrize(
+    ('file_name', 'lines'),
+    [
+        ('python/bin/python3.14', REAL_PYTHON_BINARY_OTOOL_LINES),
+        ('python/lib/libpython3.14.dylib', REAL_LIBPYTHON_OTOOL_LINES),
+    ],
+)
+def test_the_sidecar_otool_check_accepts_a_real_binary_and_dylib_with_its_install_name(
+    tmp_path: Path, file_name: str, lines: list[str]
+):
+    """A dylib's first entry is its own absolute install name, which is not a link."""
+    assert sidecar_check_passes(
+        task_name=SIDECAR_OTOOL_TASK,
+        lines=lines,
+        system='Darwin',
+        tmp_path=tmp_path,
+        file_name=file_name,
+    )
+
+
+def test_the_sidecar_otool_check_still_refuses_a_foreign_link_in_a_dylib(tmp_path: Path):
+    """Skipping the install name must not skip the links after it."""
+    assert not sidecar_check_passes(
+        task_name=SIDECAR_OTOOL_TASK,
+        lines=[*REAL_LIBPYTHON_OTOOL_LINES, '\t/opt/homebrew/lib/libx.dylib (compat 1)'],
+        system='Darwin',
+        tmp_path=tmp_path,
+        file_name='python/lib/libpython3.14.dylib',
+    )
+
+
+@pytest.mark.parametrize(
+    ('task_name', 'not_an_object_output'),
+    [
+        ('List what the sidecar links on Linux', 'not a dynamic executable'),
+        ('List what the sidecar links on a Mac', '/x/data.so: is not an object file'),
+    ],
+)
+def test_a_file_that_is_not_a_dynamic_object_is_skipped_and_said_so_not_failed(
+    tmp_path: Path, task_name: str, not_an_object_output: str
+):
+    """A data file named *.so must not abort the install; any other failure still does."""
+    (task,) = [
+        task
+        for task in walk_tasks(tasks=role_tasks(role='ai_sidecar'))
+        if task.get('name') == task_name
+    ]
+    variables = ansible_variables(system='Linux', architecture='aarch64', home=tmp_path)
+
+    def fails(*, result: dict[str, Any]) -> bool:
+        return (
+            render_expression(
+                expression=task['failed_when'], variables={**variables, 'result': result}
+            )
+            is True
+        )
+
+    assert not fails(result={'rc': 1, 'stdout': '', 'stderr': not_an_object_output})
+    assert not fails(result={'rc': 0, 'stdout': not_an_object_output, 'stderr': ''})
+    assert fails(result={'rc': 1, 'stdout': '', 'stderr': 'No such file or directory'})
+    (say,) = [
+        task
+        for task in walk_tasks(tasks=role_tasks(role='ai_sidecar'))
+        if task.get('name') == 'Say which files were skipped as not dynamic objects'
+    ]
+    assert 'not a dynamic object' in say['ansible.builtin.debug']['msg']
+
+
+def test_packaging_reads_the_sidecar_from_where_ansible_built_it():
+    """On Linux the runtime path does not exist until the .deb is installed."""
+    (task,) = [
+        task
+        for task in walk_tasks(tasks=role_tasks(role='ai_package'))
+        if task.get('name') == 'Stage the sidecar'
+    ]
+    argv = task['ansible.builtin.command']['argv']
+
+    assert '{{ ai_sidecar_install_directory }}/' in argv
+    assert '{{ ai_sidecar_directory }}/' not in argv
 
 
 def test_the_sidecar_otool_check_accepts_system_and_own_libraries(tmp_path: Path):
@@ -348,7 +461,6 @@ def test_the_sidecar_otool_check_accepts_system_and_own_libraries(tmp_path: Path
         task_name=SIDECAR_OTOOL_TASK,
         lines=GOOD_SIDECAR_OTOOL_LINES,
         system='Darwin',
-        install_directory=SIDECAR_MAC_INSTALL,
         tmp_path=tmp_path,
     )
 
@@ -368,7 +480,6 @@ def test_the_sidecar_otool_check_refuses_a_homebrew_or_usr_local_library(
         task_name=SIDECAR_OTOOL_TASK,
         lines=[*GOOD_SIDECAR_OTOOL_LINES, bad_line],
         system='Darwin',
-        install_directory=SIDECAR_MAC_INSTALL,
         tmp_path=tmp_path,
     )
 
