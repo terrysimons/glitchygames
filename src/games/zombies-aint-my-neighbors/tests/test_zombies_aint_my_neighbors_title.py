@@ -415,3 +415,335 @@ def test_pausing_and_resuming_keeps_every_connected_player():
         rendered(title)
 
         assert joined_devices(title) == [gamepad(STAND_IN_PAD.instance_id), None, None, None]
+
+
+# The launch showing (feature plan 12, task 4): the opening title hands over to the intro on its
+# first frame wherever the CRT power-on would play. The test harness turns the power-on off for
+# every run (tests/sdl_defaults.py), so these pass --crt-power-on auto, which wins over it, and
+# stand in a real video driver for the dummy one.
+LAUNCH_OPTIONS = {'input_mode': 'auto', 'no_unhandled_events': True, 'crt_power_on': 'auto'}
+
+
+def launching_title(mocker: MockerFixture, *, driver: str = 'cocoa', **options: Any) -> TitleScene:
+    """Return an opening title as it starts on a driver someone can see, set up.
+
+    Returns:
+        The scene.
+    """
+    mocker.patch(
+        'zombies_aint_my_neighbors.launch_showing.current_video_driver', return_value=driver
+    )
+    title = TitleScene(options={**LAUNCH_OPTIONS, **options})
+    title.setup()
+    return title
+
+
+def test_the_opening_title_hands_over_to_the_intro_at_launch(mocker: MockerFixture):
+    """On its first frame the opening title starts the intro, showing at launch."""
+    from zombies_aint_my_neighbors.intro import IntroScene, IntroShowing
+
+    title = launching_title(mocker)
+
+    tick_to(title, seconds=FRAME_SECONDS)
+
+    assert isinstance(title.next_scene, IntroScene)
+    assert title.next_scene.showing is IntroShowing.LAUNCH
+
+
+def test_the_launch_showing_plays_at_every_launch(mocker: MockerFixture):
+    """Two launches in turn: each opening title starts the intro (nothing remembers the first)."""
+    from zombies_aint_my_neighbors.intro import IntroScene
+
+    for _ in range(2):
+        title = launching_title(mocker)
+        tick_to(title, seconds=FRAME_SECONDS)
+        assert isinstance(title.next_scene, IntroScene)
+
+
+@pytest.mark.parametrize(
+    ('driver', 'options'),
+    [
+        ('dummy', {}),
+        ('cocoa', {'replay_trace': 'run.jsonl.gz'}),
+        ('cocoa', {'record_trace': 'run.jsonl.gz'}),
+        ('cocoa', {'audit': ['run.jsonl.gz']}),
+        ('cocoa', {'rebaseline': 'new.jsonl.gz'}),
+        ('cocoa', {'crt_power_on': 'off'}),
+    ],
+    ids=['dummy-driver', 'replay', 'record', 'audit', 'rebaseline', 'power-on-off'],
+)
+def test_the_launch_showing_is_skipped_where_the_power_on_is(
+    mocker: MockerFixture, driver: str, options: dict[str, Any]
+):
+    """Where the CRT power-on would not play, the opening title stays the title."""
+    title = launching_title(mocker, driver=driver, **options)
+
+    tick_to(title, seconds=1.0)
+
+    assert title.next_scene is None
+
+
+def test_a_title_that_is_not_the_opening_one_never_plays_the_intro(mocker: MockerFixture):
+    """A title built after the launch (opening=False) stays the title, and replays as one."""
+    mocker.patch(
+        'zombies_aint_my_neighbors.launch_showing.current_video_driver', return_value='cocoa'
+    )
+    title = TitleScene(options=dict(LAUNCH_OPTIONS), opening=False)
+    title.setup()
+
+    tick_to(title, seconds=1.0)
+
+    assert title.next_scene is None
+    assert title.replay_arguments()['opening'] is False
+    assert TitleScene(options=dict(LAUNCH_OPTIONS), **title.replay_arguments()).opening is False
+
+
+def test_the_opening_title_replays_with_no_opening_key(scene):
+    """The opening title's replay arguments are what they were before feature plan 12."""
+    assert 'opening' not in scene.replay_arguments()
+    assert scene.opening is True
+
+
+# The idle loop (feature plan 12, task 5): an idle title, nobody joined and no run, hands over to
+# the intro after IDLE_SECONDS; the title the intro hands back waits until every key and button
+# is up before a press counts, so the press that skipped the intro can't join anyone.
+
+
+def hold_input(
+    *,
+    scancodes: tuple[int, ...] = (),
+    pad_buttons: dict[int, tuple[bool, ...]] | None = None,
+    joystick_buttons: dict[int, tuple[bool, ...]] | None = None,
+) -> None:
+    """Make this frame's polled input hold keys (by scancode) and pad buttons (by number).
+
+    ``pad_buttons`` are the controller layer's (by CONTROLLER_BUTTON_*), ``joystick_buttons`` the
+    joystick layer's (raw numbers), as ``InputSnapshot`` holds them.
+    """
+    from glitchygames.input.state import InputSnapshot, set_current_input
+
+    set_current_input(
+        snapshot=InputSnapshot(
+            pressed_scancodes=frozenset(scancodes),
+            modifiers=0,
+            mouse_position=(0, 0),
+            mouse_buttons=(False, False, False),
+            mouse_focused=True,
+            controller_buttons=pad_buttons or {},
+            device_buttons=joystick_buttons or {},
+        )
+    )
+
+
+def held(button: int) -> tuple[bool, ...]:
+    """Return a pad's buttons with one held.
+
+    Returns:
+        Up to ``button``, all up but that one.
+    """
+    return tuple(index == button for index in range(button + 1))
+
+
+def awaiting_title() -> TitleScene:
+    """Return the title the intro hands back, set up.
+
+    Returns:
+        The scene, awaiting release.
+    """
+    title = TitleScene(
+        options={'input_mode': 'auto', 'no_unhandled_events': True},
+        opening=False,
+        awaiting_release=True,
+    )
+    title.setup()
+    return title
+
+
+def test_an_idle_title_hands_over_to_the_intro_after_twenty_seconds(scene):
+    """Not a frame before IDLE_SECONDS; on the frame that reaches it, the intro, unattended."""
+    from zombies_aint_my_neighbors.intro import IntroScene, IntroShowing
+    from zombies_aint_my_neighbors.title import IDLE_SECONDS
+
+    tick_to(scene, seconds=IDLE_SECONDS - FRAME_SECONDS)
+    assert scene.next_scene is None
+
+    tick_to(scene, seconds=IDLE_SECONDS)
+
+    assert IDLE_SECONDS == 20.0
+    assert isinstance(scene.next_scene, IntroScene)
+    assert scene.next_scene.showing is IntroShowing.LOOP
+
+
+PRESSES = {
+    'a-key': lambda title: press_key(title, pygame.K_a),
+    'pad-button': lambda title: title.on_controller_button_down_event(
+        HashableEvent(pygame.CONTROLLERBUTTONDOWN, instance_id=1, button=pygame.CONTROLLER_BUTTON_A)
+    ),
+    'joystick-button': lambda title: title.on_joy_button_down_event(
+        HashableEvent(pygame.JOYBUTTONDOWN, instance_id=1, joy=1, button=3)
+    ),
+}
+
+
+@pytest.mark.parametrize('press', PRESSES.values(), ids=PRESSES.keys())
+def test_any_press_starts_the_count_again(scene, press):
+    """A press at 15 s: no intro at 20 s, and the count reaches 20 s again only at 35 s."""
+    from zombies_aint_my_neighbors.intro import IntroScene
+
+    tick_to(scene, seconds=15.0)
+    press(scene)
+    tick_to(scene, seconds=34.9)
+    assert scene.next_scene is None
+    assert scene.idle_seconds == pytest.approx(19.9, abs=FRAME_SECONDS)
+
+    tick_to(scene, seconds=35.0)
+
+    assert isinstance(scene.next_scene, IntroScene)
+
+
+def test_stick_movement_is_not_activity(scene):
+    """A stick or a hat moving (a resting stick drifts) leaves the count running."""
+    from zombies_aint_my_neighbors.intro import IntroScene
+
+    tick_to(scene, seconds=15.0)
+    scene.on_controller_axis_motion_event(
+        HashableEvent(pygame.CONTROLLERAXISMOTION, instance_id=1, axis=0, value=900)
+    )
+    scene.on_joy_hat_motion_event(
+        HashableEvent(pygame.JOYHATMOTION, instance_id=1, joy=1, hat=0, value=(1, 0))
+    )
+    tick_to(scene, seconds=20.0)
+
+    assert isinstance(scene.next_scene, IntroScene)
+
+
+def test_a_title_with_a_joined_slot_never_loops(scene):
+    """Someone has joined: the title waits for them, however long."""
+    press_key(scene, pygame.K_RETURN)
+
+    tick_to(scene, seconds=60.0)
+
+    assert joined_devices(scene)[0] == KEYBOARD
+    assert scene.next_scene is None
+
+
+def test_a_title_holding_a_run_never_loops():
+    """Back from a STAGE n card, the title holds the run: someone is playing."""
+    from zombies_aint_my_neighbors.run_state import RunState
+
+    title = TitleScene(
+        options={'input_mode': 'auto', 'no_unhandled_events': True},
+        run=RunState.new_run(),
+        opening=False,
+    )
+    title.setup()
+
+    tick_to(title, seconds=60.0)
+
+    assert title.next_scene is None
+
+
+def test_the_intro_hands_back_a_title_that_waits_for_release():
+    """The intro's end and its skip both build a title that waits for every key to come up."""
+    from zombies_aint_my_neighbors.intro import IntroScene
+
+    intro = IntroScene(options={'input_mode': 'auto', 'no_unhandled_events': True})
+    intro.setup()
+    tick_to(intro, seconds=1.0)
+    press_key(intro, pygame.K_SPACE)
+
+    assert isinstance(intro.next_scene, TitleScene)
+    assert intro.next_scene.awaiting_release
+    assert intro.next_scene.replay_arguments()['awaiting_release'] is True
+
+
+def test_a_key_still_held_after_a_skip_never_joins():
+    """Enter held from the skip, and its repeats, join nobody; once it is seen up, Enter joins."""
+    title = awaiting_title()
+    enter = support.key_event(pygame.KEYDOWN, pygame.K_RETURN)['scancode']
+    hold_input(scancodes=(enter,))
+    tick_to(title, seconds=FRAME_SECONDS)
+
+    press_key(title, pygame.K_RETURN)
+    tick_to(title, seconds=FRAME_SECONDS * 2)
+    press_key(title, pygame.K_RETURN)
+    assert joined_devices(title) == [None] * MAXIMUM_PLAYERS
+
+    hold_input()
+    tick_to(title, seconds=FRAME_SECONDS * 3)
+    press_key(title, pygame.K_RETURN)
+
+    assert joined_devices(title)[0] == KEYBOARD
+    assert not title.awaiting_release
+
+
+def test_a_latched_button_blocks_only_itself():
+    """A pad button held for good (a latched toggle) never stops anyone else joining.
+
+    The final review's I1: waiting until everything was up locked every device out for as long
+    as any one input stayed down.
+    """
+    title = awaiting_title()
+    hold_input(pad_buttons={2: held(pygame.CONTROLLER_BUTTON_LEFTSHOULDER)})
+    tick_to(title, seconds=FRAME_SECONDS)
+
+    press_key(title, pygame.K_RETURN)
+    controller_start(title, instance_id=1)
+
+    assert joined_devices(title)[:2] == [KEYBOARD, gamepad(1)]
+
+
+def test_every_title_recording_ends_before_the_idle_loop():
+    """Each golden and bundled demo of this game that starts on the title is under IDLE_SECONDS.
+
+    The loop is game logic, so a recording that idled past it would record the intro (the plan's
+    anti-goal: never by accident).
+    """
+    import gzip
+    from pathlib import Path
+
+    from zombies_aint_my_neighbors.title import IDLE_SECONDS
+
+    member = Path(__file__).resolve().parents[1]
+    recordings = [
+        *(member / 'tests' / 'fixtures' / 'replays').glob('*.jsonl.gz'),
+        *(member / 'src' / 'zombies_aint_my_neighbors' / 'demos').glob('*.jsonl.gz'),
+    ]
+    on_the_title = 0
+    for recording in recordings:
+        with gzip.open(recording, 'rt', encoding='utf-8') as lines:
+            records = [json.loads(line) for line in lines]
+        starts = [record['scene_start'] for record in records if record.get('scene_start')]
+        if not starts or starts[0]['scene_class'] != 'TitleScene':
+            continue
+        on_the_title += 1
+        recorded_seconds = sum(record.get('dt', 0.0) for record in records)
+        assert recorded_seconds < IDLE_SECONDS, recording.name
+
+    assert on_the_title >= 1
+
+
+@pytest.mark.parametrize(
+    'press',
+    [
+        lambda title: controller_start(title, instance_id=1),
+        lambda title: joystick_start(title, instance_id=1),
+    ],
+    ids=['controller-start', 'joystick-start'],
+)
+def test_a_pad_start_held_after_a_skip_never_joins(press):
+    """A pad's START still down from the skip joins nobody until it is seen up."""
+    title = awaiting_title()
+    start = held(pygame.CONTROLLER_BUTTON_START)
+    hold_input(pad_buttons={1: start}, joystick_buttons={1: start})
+    tick_to(title, seconds=FRAME_SECONDS)
+
+    press(title)
+    assert joined_devices(title) == [None] * MAXIMUM_PLAYERS
+    assert title.awaiting_release
+
+    hold_input()
+    tick_to(title, seconds=FRAME_SECONDS * 2)
+    press(title)
+
+    assert joined_devices(title)[0] == gamepad(1)

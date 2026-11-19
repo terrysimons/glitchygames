@@ -130,7 +130,8 @@ member-scanning tests run on push.
     never seen to open. Now it must have swung all the way open (`ExitDoor.is_passable`;
     `test_a_kid_waiting_at_the_gate_leaves_only_once_it_has_swung_open`).
   - **Deferred (Minor):** a kid knocked out when the stage clears doesn't cheer, and gets back up
-    during the cheer. Harmless, because the next stage builds new kids.
+    during the cheer. Harmless, because the next stage builds new kids. Fixed 2026-11-19: it
+    cheers as it gets up (the master plan's "What is left of level 1").
   - **For the owner:** Back on a STAGE n card returns to the title, and the next start begins
     a new run. Stage 1, 8 neighbors and full lives dodge the shrinking pool. The plan didn't say;
     Claude recommends Back keep the run (the title then leads to the same STAGE n card).

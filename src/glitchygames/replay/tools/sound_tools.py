@@ -56,7 +56,7 @@ from glitchygames.audio.assets import (
 )
 from glitchygames.audio.exceptions import SoundAssetError, SoundRenderError
 from glitchygames.audio.instrument import MAXIMUM_SOURCES, UNPITCHED_REFERENCE_HZ
-from glitchygames.audio.library import CacheMode, SoundLibrary
+from glitchygames.audio.library import CacheMode, SoundLibrary, compile_sound
 from glitchygames.audio.offline import render_to_file
 from glitchygames.audio.pitch import Tuning
 from glitchygames.audio.render import NORMALIZED_PEAK
@@ -108,14 +108,19 @@ def sound_render(*, source: str, output: Path, sample_format: str) -> ExitCode:
     if refusal is not None:
         sys.stderr.write(f'{refusal}\n')
         return ExitCode.CANNOT_WRITE_OUTPUT
+    # Cache none: the library resolves and checks the source but compiles nothing. The one
+    # compile is the copy below, which keeps its float samples for render_to_file (a library
+    # compile keeps int16 only, so the render would compile again) and knows its rate (under
+    # none a recorded file's rate is read by decoding it, so it would decode twice)
     library = SoundLibrary(
-        cache=CacheMode.RAM,
+        cache=CacheMode.NONE,
         accountant=AudioAccountant(),
         waves=current_wave_registry(),
         tuning_source=Tuning,
     )
     try:
-        sound = library.sound(source, scene_sound_directory=None)
+        sound = library.sound(source, scene_sound_directory=None).fresh_copy()
+        compile_sound(sound)
     except KeyError as error:
         sys.stderr.write(f'{source}: {error.args[0]}\n')
         return ExitCode.UNUSABLE_INPUT
