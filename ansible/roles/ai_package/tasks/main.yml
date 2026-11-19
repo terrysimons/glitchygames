@@ -61,7 +61,7 @@
 - name: Stage what renders with a player's home
   vars:
     ai_home: "{{ ai_package_home_placeholder }}"
-    llama_cpp_install_directory: "{{ ai_install_root }}/runtime/{{ ai_package_runtime_name }}"
+    llama_cpp_install_directory: "{{ ai_program_root }}/runtime/{{ ai_package_runtime_name }}"
   block:
     - name: Stage the service's settings
       ansible.builtin.template:

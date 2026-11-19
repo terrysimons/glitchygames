@@ -65,11 +65,11 @@ ai_service_qwen_context_size: 8192
 ai_service_ready_retries: 60
 ai_service_ready_delay_seconds: 5
 
-ai_service_config_directory: "{{ ai_install_root }}/config"
-ai_service_bin_directory: "{{ ai_install_root }}/bin"
+ai_service_config_directory: "{{ ai_user_root }}/config"
+ai_service_bin_directory: "{{ ai_program_root }}/bin"
 ai_service_launch_agents_directory: "{{ ai_home }}/Library/LaunchAgents"
 # Not LaunchAgents: launchd loads everything there at login, and these only run when a game asks
-ai_service_agents_directory: "{{ ai_install_root }}/agents"
+ai_service_agents_directory: "{{ ai_program_root }}/agents"
 # Only the service holds the workers' key. Games and tools use the service's
 ai_service_api_key_file: "{{ ai_service_config_directory }}/worker-api-key"
 ai_service_service_key_file: "{{ ai_service_config_directory }}/service-api-key"

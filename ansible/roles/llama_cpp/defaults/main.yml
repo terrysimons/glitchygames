@@ -30,4 +30,43 @@ llama_cpp_base_cmake_options:
 # The inventory's macos group sets the Metal options
 llama_cpp_cmake_options: {}
 
+# Added on Linux, over the base options, and the same on both architectures: one build holds every
+# CPU variant of its architecture (llama_cpp_cpu_variants) and llama-server loads the best one the
+# CPU supports when it starts, so nothing here names a CPU, and GGML_CPU_ARM_ARCH, which
+# GGML_CPU_ALL_VARIANTS refuses, is never set. The shared libraries sit in the runtime's lib/, found
+# by the $ORIGIN-relative RPATH (the last two options). Options at the pinned tag:
+# https://github.com/ggml-org/llama.cpp/blob/b12167/ggml/CMakeLists.txt
+llama_cpp_linux_cmake_options:
+  GGML_NATIVE: "OFF"
+  GGML_BACKEND_DL: "ON"
+  GGML_CPU_ALL_VARIANTS: "ON"
+  BUILD_SHARED_LIBS: "ON"
+  GGML_VULKAN: "OFF"
+  GGML_OPENMP: "OFF"
+  CMAKE_BUILD_WITH_INSTALL_RPATH: "ON"
+  CMAKE_INSTALL_RPATH: "$ORIGIN/../lib"
+
+# The CPU variants GGML_CPU_ALL_VARIANTS builds at b12167, by architecture (read from
+# ggml/src/CMakeLists.txt; plans/lucid-circuit-linux.md section 4). A build missing one is refused
+llama_cpp_cpu_variants:
+  aarch64: [armv8.0_1, armv8.2_1, armv8.2_2, armv8.2_3, armv8.6_1, armv8.6_2, armv9.2_1, armv9.2_2]
+  x86_64:
+    - x64
+    - sse42
+    - sandybridge
+    - ivybridge
+    - piledriver
+    - haswell
+    - skylakex
+    - cannonlake
+    - cascadelake
+    - icelake
+    - cooperlake
+    - zen4
+    - alderlake
+    - sapphirerapids
+
+# What ldd may list for the Linux build's binary and libraries: glibc's, libstdc++ and libgcc
+llama_cpp_allowed_link_pattern: '^\s*(linux-vdso|/lib.*/ld-linux|lib(c|m|dl|pthread|rt)\.so|libstdc\+\+\.so|libgcc_s\.so)'
+
 llama_cpp_source_directory: "{{ ai_cache_root }}/llama.cpp/source-{{ llama_cpp_tag }}"

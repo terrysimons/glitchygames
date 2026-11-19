@@ -5,14 +5,58 @@ these only check what would go wrong quietly: a pin that isn't exact, two agents
 model a host can never get.
 """
 
+import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
+import pytest
 import yaml
 
+from tests.ansible_rendering import ansible_variables, render_template
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-ROLES = PROJECT_ROOT / 'ansible' / 'roles'
+ANSIBLE = PROJECT_ROOT / 'ansible'
+ROLES = ANSIBLE / 'roles'
+MAC_ROOT_NAME = 'Library/Application Support/GlitchyGames/AI'
+# llama.cpp's CPU variants at b12167 (plans/lucid-circuit-linux.md section 4)
+ARM_CPU_VARIANTS = [
+    'armv8.0_1',
+    'armv8.2_1',
+    'armv8.2_2',
+    'armv8.2_3',
+    'armv8.6_1',
+    'armv8.6_2',
+    'armv9.2_1',
+    'armv9.2_2',
+]
+X86_CPU_VARIANTS = [
+    'x64',
+    'sse42',
+    'sandybridge',
+    'ivybridge',
+    'piledriver',
+    'haswell',
+    'skylakex',
+    'cannonlake',
+    'cascadelake',
+    'icelake',
+    'cooperlake',
+    'zen4',
+    'alderlake',
+    'sapphirerapids',
+]
+LINUX_LLAMA_CPP_OPTIONS = {
+    'GGML_NATIVE': 'OFF',
+    'GGML_BACKEND_DL': 'ON',
+    'GGML_CPU_ALL_VARIANTS': 'ON',
+    'BUILD_SHARED_LIBS': 'ON',
+    'GGML_VULKAN': 'OFF',
+    'GGML_OPENMP': 'OFF',
+}
 FULL_REVISION = re.compile(r'[0-9a-f]{40}')
 FULL_SHA256 = re.compile(r'[0-9a-f]{64}')
 # Ollama's and exoneris's llama.cpp ports on the owner's Mac
@@ -222,3 +266,197 @@ def test_only_hosts_with_ai_enabled_get_the_ai_service():
         "{{ 'ai_enabled' if ai_enabled | bool else 'ai_disabled' }}"
     )
     assert service_play['hosts'] == 'macos:&ai_enabled'
+
+
+def walk_tasks(*, tasks: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
+    """Yield every task, descending into blocks.
+
+    Yields:
+        Each task, a block before the tasks inside it.
+    """
+    for task in tasks:
+        yield task
+        yield from walk_tasks(tasks=task.get('block', []))
+
+
+def role_tasks(*, role: str, file_name: str = 'main.yml') -> list[dict[str, Any]]:
+    """Read a role's task file.
+
+    Returns:
+        The file's top-level tasks.
+    """
+    return yaml.safe_load((ROLES / role / 'tasks' / file_name).read_text(encoding='utf-8'))
+
+
+def rendered_options(
+    *,
+    system: Literal['Darwin', 'Linux'],
+    architecture: Literal['aarch64', 'x86_64'],
+    tmp_path: Path,
+) -> dict[str, str]:
+    """Render the options the platform's llama_cpp task file works out.
+
+    Returns:
+        The CMake options of a build on that platform, with the macOS SDK path faked.
+    """
+    file_name = 'macos.yml' if system == 'Darwin' else 'linux.yml'
+    (task,) = [
+        task
+        for task in walk_tasks(tasks=role_tasks(role='llama_cpp', file_name=file_name))
+        if task.get('name') == "Work out this build's options"
+    ]
+    expression = task['ansible.builtin.set_fact']['llama_cpp_all_cmake_options']
+    template = tmp_path / 'options.j2'
+    variables = ansible_variables(system=system, architecture=architecture, home=tmp_path)
+    variables['llama_cpp_sdk'] = {'stdout': '/sdk'}
+    if system == 'Darwin':
+        inventory = yaml.safe_load((ANSIBLE / 'inventory.yml').read_text(encoding='utf-8'))
+        variables['llama_cpp_cmake_options'] = inventory['all']['children']['macos']['vars'][
+            'llama_cpp_cmake_options'
+        ]
+    # The task's own expression, with its braces taken off, as JSON so the dict comes back whole
+    template.write_text(
+        '{{ (' + expression.strip().strip('{}') + ') | to_json }}', encoding='utf-8'
+    )
+    return json.loads(render_template(path=template, variables=variables))
+
+
+def test_no_role_names_the_old_install_root():
+    """Programs and a user's data are two folders on Linux, so one name for both can't stay."""
+    holders = [
+        path.relative_to(PROJECT_ROOT)
+        for path in ANSIBLE.rglob('*')
+        if path.is_file() and 'ai_install_root' in path.read_text(encoding='utf-8')
+    ]
+
+    assert holders == []
+
+
+def test_the_mac_roots_are_one_folder_and_unchanged(tmp_path: Path):
+    """The Mac keeps its single folder, so nothing already installed moves."""
+    variables = ansible_variables(system='Darwin', architecture='aarch64', home=tmp_path)
+    folder = str(tmp_path / MAC_ROOT_NAME)
+
+    assert variables['ai_program_root'] == folder
+    assert variables['ai_user_root'] == folder
+    assert variables['ai_cache_root'] == str(tmp_path / 'Library/Caches/GlitchyGames/AI')
+    assert variables['ai_log_root'] == str(tmp_path / 'Library/Logs/GlitchyGames/AI')
+
+
+@pytest.mark.parametrize('architecture', ['aarch64', 'x86_64'])
+def test_the_linux_roots_follow_the_design(
+    tmp_path: Path, architecture: Literal['aarch64', 'x86_64']
+):
+    """Programs under /opt (the .deb's), everything of the user's under the XDG folders."""
+    variables = ansible_variables(system='Linux', architecture=architecture, home=tmp_path)
+
+    assert variables['ai_program_root'] == '/opt/glitchygames/ai'
+    assert variables['ai_user_root'] == str(tmp_path / '.local/share/glitchygames/ai')
+    assert variables['ai_cache_root'] == str(tmp_path / '.cache/glitchygames/ai')
+    assert variables['ai_log_root'] == str(tmp_path / '.local/state/glitchygames/ai/logs')
+
+
+def test_the_linux_xdg_folders_win_when_set(tmp_path: Path):
+    """A host's XDG folders win, read from its own environment (the controller may be elsewhere)."""
+    group_text = (ANSIBLE / 'group_vars' / 'linux.yml').read_text(encoding='utf-8')
+    variables = ansible_variables(system='Linux', architecture='aarch64', home=tmp_path)
+    variables['ansible_facts']['env'] = {
+        'XDG_DATA_HOME': '/data',
+        'XDG_CACHE_HOME': '/cache',
+        'XDG_STATE_HOME': '/state',
+    }
+
+    assert 'lookup(' not in group_text
+    # ansible_variables resolved the roots with an empty environment, so render them again
+    environment_roots = yaml.safe_load(group_text)
+    resolved = {
+        name: render_template(
+            path=_write(tmp_path / f'{name}.j2', environment_roots[name]),
+            variables=variables | {'ai_home': str(tmp_path)},
+        )
+        for name in ('ai_user_root', 'ai_cache_root', 'ai_log_root')
+    }
+    assert resolved == {
+        'ai_user_root': '/data/glitchygames/ai',
+        'ai_cache_root': '/cache/glitchygames/ai',
+        'ai_log_root': '/state/glitchygames/ai/logs',
+    }
+
+
+def _write(path: Path, text: str) -> Path:
+    """Write a template file.
+
+    Returns:
+        The path.
+    """
+    path.write_text(text, encoding='utf-8')
+    return path
+
+
+def test_every_llama_cpp_build_starts_from_an_empty_directory():
+    """A build cut short by a power loss leaves empty objects, which a reused directory trusts."""
+    (build_block,) = [
+        task for task in role_tasks(role='llama_cpp') if task.get('name') == 'Build llama.cpp'
+    ]
+    steps = build_block['block']
+    names = [step['name'] for step in steps]
+    emptying = [
+        step
+        for step in steps
+        if step.get('ansible.builtin.file', {}).get('path') == '{{ llama_cpp_build_directory }}'
+        and step['ansible.builtin.file'].get('state') == 'absent'
+    ]
+
+    assert len(emptying) == 1
+    assert 'when' not in emptying[0]
+    assert names.index(emptying[0]['name']) < names.index('Configure the build')
+
+
+@pytest.mark.parametrize('architecture', ['aarch64', 'x86_64'])
+def test_the_linux_llama_cpp_options_name_no_cpu_and_match_on_both_architectures(
+    tmp_path: Path, architecture: Literal['aarch64', 'x86_64']
+):
+    """One build per architecture picks its CPU variant at run time, so no option names a CPU."""
+    options = rendered_options(system='Linux', architecture=architecture, tmp_path=tmp_path)
+    other = 'x86_64' if architecture == 'aarch64' else 'aarch64'
+
+    assert options == rendered_options(system='Linux', architecture=other, tmp_path=tmp_path)
+    assert LINUX_LLAMA_CPP_OPTIONS.items() <= options.items()
+    assert 'GGML_CPU_ARM_ARCH' not in options
+    assert not [value for value in options.values() if re.search(r'armv|native|x64|haswell', value)]
+
+
+def test_every_architecture_has_its_variant_list():
+    """The post-install check looks for every variant llama.cpp builds for the architecture."""
+    variants = role_defaults(role='llama_cpp')['llama_cpp_cpu_variants']
+
+    assert variants == {'aarch64': ARM_CPU_VARIANTS, 'x86_64': X86_CPU_VARIANTS}
+
+
+def test_the_mac_llama_cpp_options_are_unchanged(tmp_path: Path):
+    """The Mac's static Metal build is as it was before the split."""
+    options = rendered_options(system='Darwin', architecture='aarch64', tmp_path=tmp_path)
+
+    assert options == {
+        'CMAKE_BUILD_TYPE': 'Release',
+        'BUILD_SHARED_LIBS': 'OFF',
+        'LLAMA_OPENSSL': 'OFF',
+        'LLAMA_BUILD_TESTS': 'OFF',
+        'LLAMA_BUILD_EXAMPLES': 'OFF',
+        'LLAMA_BUILD_UI': 'OFF',
+        'LLAMA_USE_PREBUILT_UI': 'OFF',
+        'GGML_METAL': 'ON',
+        'GGML_METAL_EMBED_LIBRARY': 'ON',
+        'CMAKE_OSX_ARCHITECTURES': 'arm64',
+        'CMAKE_OSX_DEPLOYMENT_TARGET': '14.0',
+        'CMAKE_OSX_SYSROOT': '/sdk',
+    }
+
+
+def test_the_linux_runtime_is_staged_for_the_package_not_installed_under_opt(tmp_path: Path):
+    """Ansible installs /opt only through the .deb, so the build lands in the package stage."""
+    variables = ansible_variables(system='Linux', architecture='aarch64', home=tmp_path)
+
+    assert variables['llama_cpp_install_root'] == (
+        f'{tmp_path}/.cache/glitchygames/ai/package/stage/opt/glitchygames/ai'
+    )

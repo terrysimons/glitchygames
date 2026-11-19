@@ -1,0 +1,14 @@
+---
+# Where the local AI service lives on Linux (plans/lucid-circuit-linux.md, section 6.1). The
+# programs are the .deb's, under /opt; everything of the user's is under the XDG folders, which
+# win when the host sets them. They are read from the host's environment (the `env` fact), not the
+# controller's, which is a different machine when Ansible runs over SSH.
+# Nothing here is under the repository, or Dropbox would sync the models and the build tree.
+ai_home: "{{ ansible_facts['user_dir'] }}"
+ai_program_root: /opt/glitchygames/ai
+ai_user_root: "{{ ansible_facts['env']['XDG_DATA_HOME'] | default(ai_home ~ '/.local/share', true) }}/glitchygames/ai"
+ai_cache_root: "{{ ansible_facts['env']['XDG_CACHE_HOME'] | default(ai_home ~ '/.cache', true) }}/glitchygames/ai"
+ai_log_root: "{{ ansible_facts['env']['XDG_STATE_HOME'] | default(ai_home ~ '/.local/state', true) }}/glitchygames/ai/logs"
+# Ansible never installs under /opt itself: it builds into the package's stage, and the .deb
+# installs it, so a run exercises exactly what a player's machine gets
+llama_cpp_install_root: "{{ ai_cache_root }}/package/stage{{ ai_program_root }}"

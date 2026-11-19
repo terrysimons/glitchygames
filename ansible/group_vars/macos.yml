@@ -2,6 +2,11 @@
 # Where the local AI service lives, for the user running it (plans/lucid-circuit.md, section 6).
 # Nothing here is under the repository, or Dropbox would sync the models and the build tree.
 ai_home: "{{ ansible_facts['user_dir'] }}"
-ai_install_root: "{{ ai_home }}/Library/Application Support/GlitchyGames/AI"
+# On a Mac the programs and the user's data share one folder, so every template can name the two
+# without a platform test (plans/lucid-circuit-linux.md, section 6.1)
+ai_program_root: "{{ ai_home }}/Library/Application Support/GlitchyGames/AI"
+ai_user_root: "{{ ai_program_root }}"
 ai_cache_root: "{{ ai_home }}/Library/Caches/GlitchyGames/AI"
 ai_log_root: "{{ ai_home }}/Library/Logs/GlitchyGames/AI"
+# Where the llama_cpp role installs a build: straight into the program folder
+llama_cpp_install_root: "{{ ai_program_root }}"

@@ -1,42 +1,24 @@
 ---
-- name: Refuse anything but an Apple Silicon Mac
-  ansible.builtin.assert:
-    that:
-      - ansible_facts['system'] == 'Darwin'
-      - ansible_facts['machine'] == 'arm64'
-    fail_msg: "This builds for Apple Silicon only; this is {{ ansible_facts['system'] }} {{ ansible_facts['machine'] }}"
+# The platform's own steps: what it refuses, what it needs installed, the options it adds and where
+# an install goes (macos.yml and linux.yml). Run again after the install to check the binary
+- name: Prepare for this platform
+  ansible.builtin.include_tasks:
+    file: "{{ 'macos' if ansible_facts['system'] == 'Darwin' else 'linux' }}.yml"
+  vars:
+    llama_cpp_phase: prepare
 
-# Plain `xcrun --show-sdk-version` can follow a stale path to the Command Line Tools' SDK while
-# `--sdk macosx` finds Xcode's, so the build names the SDK it found this way
-- name: Find the macOS SDK
-  ansible.builtin.command:
-    argv: [xcrun, --sdk, macosx, --show-sdk-path]
-  register: llama_cpp_sdk
-  changed_when: false
-
-- name: Check that CMake is installed
-  ansible.builtin.command:
-    argv: [cmake, --version]
-  changed_when: false
-
-- name: Work out this build's options and where it installs
+- name: Work out the options' fingerprint
   ansible.builtin.set_fact:
-    llama_cpp_all_cmake_options: >-
-      {{ llama_cpp_base_cmake_options
-         | combine(llama_cpp_cmake_options)
-         | combine({'CMAKE_OSX_ARCHITECTURES': 'arm64',
-                    'CMAKE_OSX_DEPLOYMENT_TARGET': llama_cpp_macos_deployment_target,
-                    'CMAKE_OSX_SYSROOT': llama_cpp_sdk.stdout}) }}
+    llama_cpp_options_fingerprint: >-
+      {{ (llama_cpp_all_cmake_options | to_json(sort_keys=True) | hash('sha256'))[:12] }}
 
 # Named by the tag and the options, so changing either builds beside the old one and rollback works
 - name: Name the install directory
   ansible.builtin.set_fact:
     llama_cpp_install_directory: >-
-      {{ ai_install_root }}/runtime/llama.cpp-{{ llama_cpp_tag }}-{{
-         (llama_cpp_all_cmake_options | to_json(sort_keys=True) | hash('sha256'))[:12] }}
+      {{ llama_cpp_install_root }}/runtime/llama.cpp-{{ llama_cpp_tag }}-{{ llama_cpp_options_fingerprint }}
     llama_cpp_build_directory: >-
-      {{ ai_cache_root }}/llama.cpp/build-{{ llama_cpp_tag }}-{{
-         (llama_cpp_all_cmake_options | to_json(sort_keys=True) | hash('sha256'))[:12] }}
+      {{ ai_cache_root }}/llama.cpp/build-{{ llama_cpp_tag }}-{{ llama_cpp_options_fingerprint }}
 
 - name: Look for this build
   ansible.builtin.stat:
@@ -98,6 +80,13 @@
       loop_control:
         label: "{{ item.key }}"
 
+    # A build cut short (a power loss) leaves empty object files that a reused directory trusts and
+    # links (plans/lucid-circuit-linux.md section 10.1), so every build starts from nothing
+    - name: Empty the build directory
+      ansible.builtin.file:
+        path: "{{ llama_cpp_build_directory }}"
+        state: absent
+
     - name: Configure the build
       ansible.builtin.command:
         argv: "{{ ['cmake', '-S', llama_cpp_source_directory, '-B', llama_cpp_build_directory] + llama_cpp_cmake_arguments }}"
@@ -120,7 +109,13 @@
         path: "{{ llama_cpp_install_directory }}/{{ item }}"
         state: directory
         mode: "0755"
-      loop: [bin, notices]
+      loop: "{{ llama_cpp_install_subdirectories }}"
+
+    - name: Install what the platform's build needs beside the binary
+      ansible.builtin.include_tasks:
+        file: "{{ 'macos' if ansible_facts['system'] == 'Darwin' else 'linux' }}.yml"
+      vars:
+        llama_cpp_phase: install
 
     # The binary last, as its presence is what says this build is installed
     - name: Install llama.cpp's license
@@ -141,30 +136,18 @@
   register: llama_cpp_version_output
   changed_when: false
 
-- name: List the devices the build can use
-  ansible.builtin.command:
-    argv: ["{{ llama_cpp_install_directory }}/bin/llama-server", --list-devices]
-  register: llama_cpp_devices
-  changed_when: false
-
-- name: List the libraries it links
-  ansible.builtin.command:
-    argv: [otool, -L, "{{ llama_cpp_install_directory }}/bin/llama-server"]
-  register: llama_cpp_linked_libraries
-  changed_when: false
-
-- name: Check that it's the pinned build, with Metal, and needs nothing from Homebrew
+- name: Check that it's the pinned build
   ansible.builtin.assert:
     that:
       # By commit: the shallow clone makes the version's own build number read 1
       - ('commit ' ~ llama_cpp_commit[:7]) in (llama_cpp_version_output.stdout ~ llama_cpp_version_output.stderr)
-      - "'MTL' in (llama_cpp_devices.stdout ~ llama_cpp_devices.stderr)"
-      - "'/opt/homebrew' not in llama_cpp_linked_libraries.stdout"
-      - "'/usr/local' not in llama_cpp_linked_libraries.stdout"
-    fail_msg: >-
-      {{ llama_cpp_version_output.stdout }} {{ llama_cpp_version_output.stderr }}
-      {{ llama_cpp_devices.stdout }} {{ llama_cpp_devices.stderr }}
-      {{ llama_cpp_linked_libraries.stdout }}
+    fail_msg: "{{ llama_cpp_version_output.stdout }} {{ llama_cpp_version_output.stderr }}"
+
+- name: Check the build for this platform
+  ansible.builtin.include_tasks:
+    file: "{{ 'macos' if ansible_facts['system'] == 'Darwin' else 'linux' }}.yml"
+  vars:
+    llama_cpp_phase: verify
 
 - name: Say what's installed
   ansible.builtin.debug:
