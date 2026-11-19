@@ -2500,11 +2500,18 @@ MAC_STAGED_BEFORE_THE_DEB = [
 ]
 
 
-def test_the_mac_package_stage_is_unchanged(tmp_path: Path):
-    """Sharing the staging with the .deb leaves the .pkg's files as they were."""
+def test_the_mac_package_stage_is_unchanged_but_for_the_runtime_link(tmp_path: Path):
+    """Sharing the staging with the .deb leaves the .pkg's files as they were, plus one.
+
+    The one is runtime/current, which the settings name the runtime through
+    (bugs/2026-11-18-mac-package-settings-name-builders-runtime.md).
+    """
     staging = PackageStaging(system='Darwin', architecture='aarch64', home=tmp_path)
 
-    assert staging.relative_destinations() == MAC_STAGED_BEFORE_THE_DEB
+    assert staging.relative_destinations() == sorted([
+        *MAC_STAGED_BEFORE_THE_DEB,
+        f'stage/{MAC_ROOT_NAME}/runtime/current',
+    ])
 
 
 def staged_file(*, staging: PackageStaging, relative: str) -> StagedFile:
@@ -2603,17 +2610,13 @@ def test_the_linux_settings_name_both_roots_by_their_placeholders(tmp_path: Path
     assert service['worker_key_file'] == f'{user_placeholder}/config/worker-api-key'
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        'bugs/2026-11-18-mac-package-settings-name-builders-runtime.md: the llama_cpp role '
-        "sets llama_cpp_install_directory with set_fact, which beats ai_package's block "
-        "variables, so the .pkg's settings name the builder's runtime (open: the owner decides)"
-    ),
-)
 def test_the_mac_package_settings_name_the_players_runtime(tmp_path: Path):
-    """A player's Mac runs the runtime under their own home: the setting names the placeholder."""
+    """A player's Mac runs the runtime under their own home: the setting names the placeholder.
+
+    The llama_cpp role's set_fact of the runtime's path once won over the block that set it, so
+    the .pkg named the builder's runtime
+    (bugs/2026-11-18-mac-package-settings-name-builders-runtime.md).
+    """
     staging = PackageStaging(system='Darwin', architecture='aarch64', home=tmp_path)
     placeholder = role_defaults(role='ai_package')['ai_package_home_placeholder']
 
@@ -2624,8 +2627,68 @@ def test_the_mac_package_settings_name_the_players_runtime(tmp_path: Path):
         )
     )
 
-    server = next(line for line in reasoning.splitlines() if line.startswith('AI_LLAMA_SERVER='))
-    assert server.startswith(f"AI_LLAMA_SERVER='{placeholder}/"), server
+    assert str(tmp_path) not in reasoning
+    assert (
+        f"AI_LLAMA_SERVER='{placeholder}/{MAC_ROOT_NAME}/runtime/current/bin/llama-server'"
+        in reasoning.splitlines()
+    )
+
+
+def players_llama_server(*, staging: PackageStaging, home: Path) -> Path:
+    """Fill in a staged Mac setting's home placeholder, as setup.sh does, and read llama-server.
+
+    Returns:
+        The llama-server path the player's settings name.
+    """
+    placeholder = role_defaults(role='ai_package')['ai_package_home_placeholder']
+    text = staging.rendered(
+        file=staged_file(
+            staging=staging,
+            relative='share/agents/ai.glitchygames.bonsai-2-2b.llama-cpp.env.template',
+        )
+    ).replace(placeholder, str(home))
+    (server,) = [
+        shlex.split(line.split('=', 1)[1])[0]
+        for line in text.splitlines()
+        if line.startswith('AI_LLAMA_SERVER=')
+    ]
+    return Path(server)
+
+
+def install_mac_runtime(*, staging: PackageStaging, home: Path, runtime_name: str) -> Path:
+    """Lay a build and the package's runtime link into a player's home, as the .pkg does.
+
+    Returns:
+        The build's llama-server.
+    """
+    runtime = home / MAC_ROOT_NAME / 'runtime'
+    server = runtime / runtime_name / 'bin' / 'llama-server'
+    _write_executable(server, LLAMA_SERVER_STUB)
+    (link,) = [file for file in staging.staged if file.is_link]
+    target = runtime / Path(link.destination).name
+    target.unlink(missing_ok=True)
+    target.symlink_to(link.source)
+    return server
+
+
+def test_a_mac_upgrade_that_renames_the_runtime_keeps_the_settings_valid(tmp_path: Path):
+    """The .pkg's settings name runtime/current, so a renamed build needs no new settings."""
+    home = tmp_path / 'Users' / 'player'
+    before = PackageStaging(system='Darwin', architecture='aarch64', home=tmp_path / 'builder')
+    old_server = install_mac_runtime(staging=before, home=home, runtime_name=RUNTIME_NAME)
+    settings_before = players_llama_server(staging=before, home=home)
+    assert settings_before.resolve() == old_server.resolve()
+
+    after = PackageStaging(
+        system='Darwin',
+        architecture='aarch64',
+        home=tmp_path / 'builder',
+        runtime_name='llama.cpp-upgraded',
+    )
+    new_server = install_mac_runtime(staging=after, home=home, runtime_name='llama.cpp-upgraded')
+
+    assert players_llama_server(staging=after, home=home) == settings_before
+    assert settings_before.resolve() == new_server.resolve()
 
 
 def parse_control(*, text: str) -> dict[str, str]:
@@ -2673,7 +2736,7 @@ def test_the_deb_control_follows_the_design(
         'ca-certificates, coreutils, iproute2'
     )
     assert control['Description']
-    assert control['Maintainer']
+    assert control['Maintainer'] == 'GlitchyGames <terry.simons@gmail.com>'
 
 
 @pytest.mark.parametrize(

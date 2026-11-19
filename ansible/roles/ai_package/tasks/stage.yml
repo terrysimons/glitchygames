@@ -36,6 +36,15 @@
   when: llama_cpp_install_directory != ai_package_stage_root ~ '/runtime/' ~ ai_package_runtime_name
   notify: Build the package
 
+# Every player's settings name the runtime through this link, so an upgrade to a build of another
+# name (a new llama.cpp tag or options) leaves them right on either platform
+- name: Point the runtime link at this build
+  ansible.builtin.file:
+    src: "{{ ai_package_runtime_name }}"
+    dest: "{{ ai_package_stage_root }}/runtime/{{ ai_package_runtime_link }}"
+    state: link
+  notify: Build the package
+
 # The service's own Python and packages, using nothing outside themselves
 - name: Stage the sidecar
   ansible.builtin.command:

@@ -32,13 +32,6 @@
     label: "{{ item.path | basename }}"
   notify: Build the package
 
-- name: Point the runtime link at this build
-  ansible.builtin.file:
-    src: "{{ ai_package_runtime_name }}"
-    dest: "{{ ai_package_stage_root }}/runtime/{{ ai_package_runtime_link }}"
-    state: link
-  notify: Build the package
-
 # An include's variables, unlike a block's, win over the llama_cpp role's set_fact of the runtime's
 # path, so the settings name the runtime by the program folder's placeholder and the link, not
 # this stage or this build

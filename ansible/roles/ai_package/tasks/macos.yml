@@ -8,15 +8,20 @@
     mode: "0755"
 
 # These render with the home directory replaced by a placeholder, which setup.sh fills in on the
-# player's Mac. Setting ai_home here moves every path built from it
-- name: Stage what renders with a player's home
+# player's Mac. Setting ai_home moves every path built from it. The settings take it, and the
+# runtime's path through its link, as an include's variables: those win over the llama_cpp role's
+# set_fact of the runtime's path, which a block's would lose to, naming the builder's own runtime
+# (bugs/2026-11-18-mac-package-settings-name-builders-runtime.md)
+- name: Stage the service's and each agent's settings, with the home as a placeholder
+  ansible.builtin.include_tasks: settings.yml
   vars:
     ai_home: "{{ ai_package_home_placeholder }}"
-    llama_cpp_install_directory: "{{ ai_program_root }}/runtime/{{ ai_package_runtime_name }}"
-  block:
-    - name: Stage the service's and each agent's settings
-      ansible.builtin.include_tasks: settings.yml
+    llama_cpp_install_directory: "{{ ai_program_root }}/runtime/{{ ai_package_runtime_link }}"
 
+- name: Stage what else renders with a player's home
+  vars:
+    ai_home: "{{ ai_package_home_placeholder }}"
+  block:
     - name: Stage each agent's plist
       ansible.builtin.template:
         src: "{{ playbook_dir }}/roles/ai_service/templates/agent.plist.j2"
@@ -71,6 +76,7 @@
   ansible.builtin.assert:
     that:
       - ai_package_payload.stdout is search('bin/llama-server')
+      - ai_package_payload.stdout is search('runtime/' ~ ai_package_runtime_link)
       - ai_package_payload.stdout is search('llama.cpp-LICENSE')
       - ai_package_payload.stdout is search('NOTICE.txt')
       - ai_package_payload.stdout is search('bin/setup.sh')
