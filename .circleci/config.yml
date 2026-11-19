@@ -76,12 +76,14 @@ commands:
     steps:
       - restore_cache:
           keys:
-            - uv-cache-v2-{{ arch }}-{{ checksum "uv.lock" }}
-            - uv-cache-v2-{{ arch }}-
+            - uv-cache-v3-{{ arch }}-{{ checksum "uv.lock" }}
+            - uv-cache-v3-{{ arch }}-
 
   # Saved at the end of the job, once the nox sessions have filled it, and after
   # `uv cache prune --ci` drops what is cheaper to download again than to restore (pre-built
-  # wheels), keeping what was built from source. Skipped when the key already exists
+  # wheels), keeping what was built from source. Skipped when the key already exists, so the key's
+  # version goes up when what a job installs changes and uv.lock does not: v3 (posix) and v4
+  # (Windows) when every job moved to 3.15 (2026-11-18), as v2's keys held 3.14's Python
   save-uv-cache-posix:
     steps:
       - run:
@@ -91,7 +93,7 @@ commands:
             export PATH="$HOME/.local/bin:$PATH"
             uv cache prune --ci
       - save_cache:
-          key: uv-cache-v2-{{ arch }}-{{ checksum "uv.lock" }}
+          key: uv-cache-v3-{{ arch }}-{{ checksum "uv.lock" }}
           when: always
           paths:
             - ~/.cache/uv
@@ -335,8 +337,8 @@ commands:
     steps:
       - restore_cache:
           keys:
-            - uv-cache-v3-windows-{{ checksum "uv.lock" }}
-            - uv-cache-v3-windows-
+            - uv-cache-v4-windows-{{ checksum "uv.lock" }}
+            - uv-cache-v4-windows-
 
   save-uv-cache-windows:
     steps:
@@ -349,7 +351,7 @@ commands:
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
             uv cache prune --ci
       - save_cache:
-          key: uv-cache-v3-windows-{{ checksum "uv.lock" }}
+          key: uv-cache-v4-windows-{{ checksum "uv.lock" }}
           when: always
           paths:
             # The job's UV_CACHE_DIR (build-and-test-windows), not uv's default under AppData
@@ -542,10 +544,10 @@ jobs:
           share: windows-test-3.14
       - save-uv-cache-windows
 
-  # The suite on Python 3.15 (PYTHON_NEXT_VERSION) on Linux and Windows, a job each beside the
-  # build-and-test jobs, which run it on 3.14: one job can't hold both under CircleCI's one-hour job
-  # limit (see test-python-3-15-macos). Only the tests; the rest gives the same answer on either
-  # Python. Neither saves the uv cache: the build-and-test job of its OS saves it under the same key
+  # The suite on Python 3.15 (PYTHON_NEXT_VERSION) on Linux and Windows, a job each, beside the
+  # build-and-test jobs that ran it on 3.14 (off for now): one job can't hold both under CircleCI's
+  # one-hour job limit. The tests, the OS's build, and its uv cache, saved last (the owner,
+  # 2026-11-18: "Yes, let's move the uv cache"); the rest runs on macOS
   test-python-3-15-linux:
     # As build-and-test-linux: its image (uv installs 3.15 beside the image's 3.14), resource
     # class, memory limits and system packages (tests/test_ci_config.py checks they match)
@@ -578,6 +580,7 @@ jobs:
       - save-coverage-share-posix:
           share: linux-test-3.15
       - nox-build
+      - save-uv-cache-posix
 
   test-python-3-15-windows:
     executor:
@@ -602,6 +605,7 @@ jobs:
       - save-coverage-share-windows:
           share: windows-test-3.15
       - nox-build-windows
+      - save-uv-cache-windows
 
   # A split test job's coverage, its machines' data combined, held to the 100% rule
   # (nox -s coverage-combine; tests/circleci_test_split.py). Only coverage is installed

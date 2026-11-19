@@ -863,6 +863,25 @@ def test_no_parameter_reference_is_escaped():
     assert escaped == []
 
 
+def test_every_running_job_that_restores_the_uv_cache_saves_it_last():
+    """A job that restores the uv cache saves it as its last step, so each OS's cache is kept.
+
+    Only the 3.14 jobs saved it, so with them off (the owner, 2026-11-18) Linux and Windows saved
+    none: the 3.15 jobs save it now (the owner: "Yes, let's move the uv cache").
+    """
+    jobs = circleci_job_texts()
+    restoring = [name for name in workflow_jobs() if '- restore-uv-cache-' in jobs[name]]
+
+    assert set(restoring) >= {
+        'test-python-3-15-macos',
+        'test-python-3-15-linux',
+        'test-python-3-15-windows',
+    }
+    for name in restoring:
+        steps = re.findall(r'^      - ([a-z0-9-]+):?$', jobs[name], flags=re.MULTILINE)
+        assert steps[-1].startswith('save-uv-cache-'), (name, steps[-1])
+
+
 def test_windows_builds_from_source_within_the_path_limit():
     """The Windows job's uv cache is short, cached under that path, and long paths are on.
 
