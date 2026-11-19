@@ -16,7 +16,9 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
+from glitchygames import cpu_placement
 from glitchygames.ai_console import AiConsole
+from glitchygames.ai_link import LinkState
 from glitchygames.host import HostSources
 
 if TYPE_CHECKING:
@@ -81,15 +83,24 @@ class AiHostSources(HostSources):
         super().__init__(inner=inner, overlay=overlay)
         self.link = link
         self.console = AiConsole(link=link, locations=link.locations)
+        # Whether the game has tried to pin itself to its cores: once, as the service starts (Linux)
+        self.pinning_tried = False
 
     @override
     def pump_events(self: Self) -> list[pygame.event.Event]:
         """Return the host's batch less the console's keys, then what the AI has proposed.
 
+        On the first frame the link reports the service started, the game is pinned to its own
+        cores first (Linux; glitchygames/cpu_placement.py): here, on the main thread, and never
+        for a start that failed or was refused, which never reaches ``CONNECTED``.
+
         Returns:
             The batch, in queue order.
 
         """
+        if not self.pinning_tried and self.link.state is LinkState.CONNECTED:
+            self.pinning_tried = True
+            cpu_placement.pin_the_game_to_its_cores(link=self.link)
         events = self.console.filter_events(events=super().pump_events())
         messages = self.link.take_messages()
         if not messages:

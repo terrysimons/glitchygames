@@ -236,14 +236,18 @@ uncapped while it catches up (Stage 4b). llama.cpp gets the rest.
   `<user root>/config/cpu-placement.json`, `{"game": [0], "mirror": [1], "ai": [2, 3]}`, which the
   engine and the mirror read. Where nothing is pinned it removes both. The engine never works the
   rule out for itself: a second copy of the rule would drift.
-- **The game pins itself.** A game isn't a systemd unit (it starts from `uv run`, a menu or a
-  terminal), so the engine sets its own affinity, on Linux only and only for a live run that has
-  AI (the run `create_link` gives a link): `--no-ai`, `--headless`, replays, the browser and the
-  pre-push measurements keep every core. `create_link` runs after `pygame.init()`, so SDL's audio
-  thread already exists; the engine sets the game's cores on every thread in `/proc/self/task`,
-  and threads started later inherit them. A placement naming a core this machine doesn't have (a
-  disk moved to another machine, a core taken offline) is logged as a warning and the run goes on
-  unpinned, never stopped.
+- **The game pins itself, once its AI has started.** A game isn't a systemd unit (it starts from
+  `uv run`, a menu or a terminal), so the engine sets its own affinity, on Linux only and only for
+  a live run that has AI (the run `create_link` gives a link): `--no-ai`, `--headless`, replays,
+  the browser and the pre-push measurements keep every core. It pins only once the link reports
+  the service started (`CONNECTED`), on the main thread, the first frame it sees that: a start
+  that `ai-service.sh` refuses (exit 3, not enough memory) or that fails never pins, since a game
+  pinned for an AI that never runs would keep one core of four for nothing (the final review found
+  that pinning as `create_link` returned did exactly that; the controller's ruling, 2026-11-19).
+  By then `pygame.init()` has started SDL's audio thread and the link its own; the engine sets the
+  game's cores on every thread in `/proc/self/task`, and threads started later inherit them. A
+  placement naming a core this machine doesn't have (a disk moved to another machine, a core taken
+  offline) is logged as a warning and the run goes on unpinned, never stopped.
 - **The mirror pins itself to its core** when Stage 4b builds it. Started by the game, it would
   inherit core 0, so it sets its own affinity from `cpu-placement.json` before it runs a frame.
   Recorded here so Stage 4b's plan carries it.
@@ -621,9 +625,11 @@ In `tests/test_ansible_macos_ai_service.py`, renamed with the playbook to
   platforms and `run-llama-server.sh` passes them, each with `--flash-attn on`.
 - `ai_validate`'s arguments for each role equal what `run-llama-server.sh` passes for it (the drift
   6.5 found), checked by rendering both.
-- A live run with AI on Linux sets the game's cores on every thread it has; a run with `--no-ai`,
-  `--headless` or a replay, a Mac, or a missing placement file sets nothing; a placement naming a
-  core the machine lacks logs a warning and the run plays on unpinned.
+- A live run with AI on Linux sets the game's cores on every thread it has, once, on the first
+  frame its link reports `CONNECTED`, and not before; a start refused for memory, one that fails,
+  a run with `--no-ai`, `--headless` or a replay, an inner game, a Mac, or a missing placement file
+  sets nothing; a placement naming a core the machine lacks logs a warning and the run plays on
+  unpinned.
 - The Linux llama.cpp options turn on runtime-loaded backends and every CPU variant, and turn off
   native tuning, Vulkan and OpenMP; no option names a CPU; the options are the same for both
   architectures.

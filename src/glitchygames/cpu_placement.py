@@ -9,12 +9,15 @@ works the rule out for itself: a second copy of it would drift.
 
 A game isn't a systemd unit, so it pins itself: on Linux only, and only for a live run with AI
 (the run ``create_link`` gives a link) that isn't an inner context, which shares the process with
-other games. ``pin_the_game_to_its_cores`` is that step, called by the engine once the link is made.
-By then ``pygame.init()`` has started SDL's audio thread, so every thread listed in
-``/proc/self/task`` is moved; a thread started later inherits the affinity of the thread that
-starts it. A placement naming a core this process may not run on (one the machine lacks, or one
-outside its cgroup's allowed cores), or a placement that can't be read, is a warning and an
-unpinned game, never a crash.
+other games, and only once the service has started: the link reports ``CONNECTED``. A start that
+is refused (not enough memory) or fails never pins, as a game pinned for an AI that never runs
+would keep one core of four for nothing. ``pin_the_game_to_its_cores`` is that step, called on the
+main thread by the AI's doors (``glitchygames.ai_host``) on the first frame the link reports
+``CONNECTED``. By then ``pygame.init()`` has started SDL's audio thread and the link its own, so
+every thread listed in ``/proc/self/task`` is moved; a thread started later inherits the affinity
+of the thread that starts it. A placement naming a core this process may not run on (one the
+machine lacks, or one outside its cgroup's allowed cores), or a placement that can't be read, is a
+warning and an unpinned game, never a crash.
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ from typing import TYPE_CHECKING, Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from glitchygames.ai_link import LinkState
 from glitchygames.render_target import is_inner_context
 
 if TYPE_CHECKING:
@@ -160,19 +164,25 @@ def pin_this_process(
 
 
 def pin_the_game_to_its_cores(*, link: AiLink | None) -> bool:
-    """Pin a live run with AI to the placement's game cores, on Linux.
+    """Pin a live run with AI to the placement's game cores, on Linux, once its service started.
 
-    The engine calls it once ``create_link`` has run, with what it gave.
+    The AI's doors call it on the main thread, on the first frame the link reports ``CONNECTED``.
 
     Args:
         link: The run's link to the AI service; None for a run without AI.
 
     Returns:
-        Whether the game was pinned: False without a link, in an inner context, off Linux,
-        without a placement, or on a refusal.
+        Whether the game was pinned: False without a link, before the link reports the service
+        started (``CONNECTED``) or after a start that failed or was refused, in an inner context,
+        off Linux, without a placement, or on a refusal.
 
     """
-    if link is None or is_inner_context() or sys.platform != 'linux':
+    if (
+        link is None
+        or link.state is not LinkState.CONNECTED
+        or is_inner_context()
+        or sys.platform != 'linux'
+    ):
         return False
     placement = read_cpu_placement(path=link.locations.cpu_placement_file)
     if placement is None:

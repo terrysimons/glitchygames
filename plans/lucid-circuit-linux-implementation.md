@@ -393,7 +393,10 @@ test in the task named.
     None); an `OSError` (a core this machine lacks) logs a warning, leaves the threads as they
     were where it can, and returns False; never raises.
   - The engine calls it only when `sys.platform == 'linux'`, `create_link` returned a link, and
-    the run isn't an inner context; with the placement's `game` cores.
+    the run isn't an inner context; with the placement's `game` cores. Amended by the final
+    review's fix wave (2026-11-19): not as `create_link` returns but on the main thread, the first
+    frame the link reports `CONNECTED` (`AiHostSources.pump_events`), so a start refused for
+    memory or one that fails never pins (design §6.2).
 
 - [ ] **Step 1: Write the failing tests** (a fake `task_directory` under `tmp_path` holding thread
   id folders; `set_affinity` a recording `mocker.Mock`):

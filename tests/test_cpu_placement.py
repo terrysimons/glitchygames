@@ -18,7 +18,12 @@ import pygame
 import pytest
 
 from glitchygames import cpu_placement
-from glitchygames.ai_link import INSTALL_ROOT_ENVIRONMENT_VARIABLE, ServiceLocations
+from glitchygames.ai_link import (
+    INSTALL_ROOT_ENVIRONMENT_VARIABLE,
+    AiLink,
+    LinkState,
+    ServiceLocations,
+)
 from glitchygames.cpu_placement import CpuPlacement, pin_this_process, read_cpu_placement
 from glitchygames.engine import GameEngine
 from glitchygames.engine_context import EngineContext
@@ -357,13 +362,65 @@ def pinning(mocker: MockerFixture) -> Any:
     return mocker.patch.object(cpu_placement, 'pin_this_process', return_value=True)
 
 
+def started_service(*, engine: GameEngine, state: LinkState) -> None:
+    """Have the engine's link report a state, then run the frame's first step, as the loop does.
+
+    The link's thread sets the state; the main thread reads it as each frame pumps its events.
+    """
+    assert engine.ai_link is not None
+    engine.ai_link.state = state
+    engine.host.sources.pump_events()
+
+
 @pytest.mark.usefixtures('installed_with_placement')
-def test_a_live_linux_run_with_ai_pins_itself_to_the_game_cores(pinning):
-    """Through the engine's start: a live run with a link moves onto the placement's game cores."""
+def test_a_live_linux_run_with_ai_pins_itself_once_the_service_has_started(pinning):
+    """Not as the link is made: on the first frame the link reports CONNECTED, and only once.
+
+    Before the start the service may yet refuse (not enough memory) or fail, and a game pinned for
+    an AI that never runs would keep one core of four for nothing (design section 6.2).
+    """
+    with command_line(ARGUMENTS):
+        engine = GameEngine(game=OneFrameScene)
+    assert engine.ai_link is not None
+    pinning.assert_not_called()
+
+    started_service(engine=engine, state=LinkState.STARTING)
+    pinning.assert_not_called()
+    started_service(engine=engine, state=LinkState.CONNECTED)
+    started_service(engine=engine, state=LinkState.RECONNECTING)
+    started_service(engine=engine, state=LinkState.CONNECTED)
+
+    pinning.assert_called_once_with(cores=GAME_CORES)
+
+
+@pytest.mark.usefixtures('installed_with_placement')
+@pytest.mark.parametrize(
+    'state',
+    [LinkState.NOT_ENOUGH_MEMORY, LinkState.UNAVAILABLE, LinkState.REFUSED, LinkState.STOPPED],
+)
+def test_a_start_that_fails_or_is_refused_never_pins(pinning, state):
+    """A run whose AI never started leaves every thread where the system put it."""
     with command_line(ARGUMENTS):
         engine = GameEngine(game=OneFrameScene)
 
-    assert engine.ai_link is not None
+    for _ in range(3):
+        started_service(engine=engine, state=state)
+
+    pinning.assert_not_called()
+
+
+@pytest.mark.usefixtures('installed_with_placement')
+@pytest.mark.parametrize(
+    'state', [state for state in LinkState if state is not LinkState.CONNECTED]
+)
+def test_only_a_connected_link_pins(pinning, state, installed_with_placement):
+    """pin_the_game_to_its_cores itself refuses every state but CONNECTED."""
+    link = AiLink(locations=ServiceLocations.in_one_folder(root=installed_with_placement))
+    link.state = state
+    assert cpu_placement.pin_the_game_to_its_cores(link=link) is False
+
+    link.state = LinkState.CONNECTED
+    assert cpu_placement.pin_the_game_to_its_cores(link=link) is True
     pinning.assert_called_once_with(cores=GAME_CORES)
 
 
@@ -397,6 +454,12 @@ def test_no_pinning_without_ai_on_a_mac_or_without_a_placement(
     system_call.assert_not_called()
 
 
+def test_no_link_never_pins(pinning):
+    """A run without AI has no link to report a start, so nothing pins it."""
+    assert cpu_placement.pin_the_game_to_its_cores(link=None) is False
+    pinning.assert_not_called()
+
+
 @pytest.mark.usefixtures('installed_with_placement')
 def test_a_replay_never_pins(pinning, tmp_path):
     """A replay has no link: watching one leaves the process where it was."""
@@ -418,6 +481,7 @@ def test_an_inner_game_never_pins_the_process_it_shares(pinning):
         set_render_target(surface=pygame.Surface((320, 240)))
         with command_line(ARGUMENTS):
             engine = GameEngine(game=OneFrameScene)
+        started_service(engine=engine, state=LinkState.CONNECTED)
 
     assert engine.ai_link is not None
     pinning.assert_not_called()
