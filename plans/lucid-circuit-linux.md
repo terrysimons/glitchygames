@@ -1,8 +1,10 @@
 # Lucid Circuit: the local AI service on Linux, and its .deb
 
 - **Date:** 2026-11-18
-- **Status:** Design approved by the owner (2026-11-18), not built. Branch `feature/ai-service-raspberry-pi`. Benchmarks on the first
-  machine (a Raspberry Pi 5) wait for its power supply to be fixed (section 8.3).
+- **Status:** Design approved by the owner (2026-11-18), amended the same day (section 12). Being
+  built, subagent-driven, on `feature/ai-service-raspberry-pi`: Tasks 1-3 done and reviewed, Task 4
+  in progress (the plan's progress ledger: `.superpowers/sdd/lucid-circuit-linux-implementation/progress.md`,
+  gitignored). The Pi's power is fixed (27 W supply, 2026-11-18). What is still open: section 13.
 - **Implementation plan:** [lucid-circuit-linux-implementation.md](lucid-circuit-linux-implementation.md).
 - **Master plan:** [lucid-circuit.md](lucid-circuit.md). This sub-plan widens section 6 (the
   installer) and the Ansible setup from "a Mac" to "a Mac or a Linux machine": 64-bit ARM, built
@@ -888,4 +890,77 @@ changes for x86_64.
 | 8 GB: Bonsai 32K with Qwen 8K (6.4.1) | The owner, 2026-11-18 |
 | 4 GB fallback, if a measured run doesn't fit everything: turn-taking (6.4.1) | The owner, 2026-11-18 |
 | Qwen's agent passes `--flash-attn on`, which a quantized V cache needs (6.5) | Designer's call |
-| Smaller-memory machines: context tiers proposed, smaller models listed; open (6.4.1) | Raised by the owner, 2026-11-18; not decided |
+| Smaller-memory machines: memory tiers (6.4.1); 16 GB, 8 GB and 4 GB rows decided, the 4 GB "everything" route open (13.1) | The owner, 2026-11-18 |
+| Keep the per-line `jinja2-autoescape-false` suppression in `tests/ansible_rendering.py` (autoescape would corrupt shell templates) | The owner, 2026-11-18 |
+| Accept slower embeddings on 4 GB machines for Qwen's `--no-repack` (13.1) | The owner, 2026-11-18 |
+| The CPU variant modules beside `llama-server` in `bin/`, not `lib/` (6.5) | Designer's call, from the b12167 source |
+
+## 13. Open questions, pending measurements, and facts to keep (2026-11-18)
+
+Everything below was raised and not settled, so a later session doesn't rediscover it. The
+review findings deferred during the build are in the progress ledger (lines starting "minor
+(deferred)"), for the final whole-branch review to triage.
+
+### 13.1 The owner's to decide
+
+| Question | Where it stands | Recommendation |
+|---|---|---|
+| Can a 4 GB machine run everything (Bonsai with vision, plus Qwen)? | The first capped run passed but didn't count the model files (13.3); two reruns are ready on the Pi: the honest baseline, then with `QWEN_NO_REPACK=1 QWEN_SLEEP_SECONDS=30` | Decide from the reruns: everything with Qwen on `--no-repack` and a short sleep if run 2 holds; Bonsai alone otherwise, turn-taking the recorded fallback |
+| The game's memory reserve (`ai_service_game_reserve_mib`, 2,048, a guess) | Bitmappy idles at about 262 MiB; with 2,048 the 4 GB tier never starts. The owner asked what figure would make 4 GB work: none does with a desktop for "everything" (about 3.3 GB needed against 2.8 GB free) until the reruns show the levers | Measure every game's peak on the Pi (a busy scene, sound loaded), one figure for every machine |
+| Install `iproute2` (and `lsof`) in the CircleCI Linux image | CircleCI has neither `ss` nor `lsof`, so the real-socket port test runs nowhere in CI; a stub-driven test covers the logic everywhere | Yes, so the real tool is exercised too; a CI change |
+| The Pi's speed bar (go/no-go, 8.3) | 15-25 s for a short question at about 5-7.5 tokens a second; prompt reading about 10 tokens a second, so a 1,000-token prompt waits 80-95 s unless the prompt cache holds it | The owner's; measure the console's real prompt lengths first |
+| Another session's request: merge GitHub's `feature/zombies-aint-my-neighbors` into the local one and push (CI split `dc70fe4a`, for #215/#220/#221) | Declined by this session: not its branch, 29 uncommitted files of another session's sound work in that worktree, and pushes need the owner's own ask | The owner, or the session owning that branch |
+
+### 13.2 Measurements still to make
+
+- **The two 4 GB reruns** (13.1), on the 16 GB Pi through `MEMORY_LIMIT=2500M BONSAI_CONTEXT=32768`.
+- **The game beside the models, pinned** (game core 0, models 2-3): frame times through the
+  performance overlay (F3, F4) and audio underruns against `--no-ai`; whether one core is enough
+  for the game's main loop, SDL's audio thread and the AI link's thread.
+- **Bitmappy idles at about 60% of one core** on the Pi: not explained (a full redraw each frame,
+  or the frame timer's sleep spinning near its deadline, are guesses). It matters for the
+  game-on-one-core placement.
+- **Reserved figures at q8_0 and 128K**, every size, on the Mac (`--tags ai_validate`) and on Linux,
+  replacing the f16/262K ones; then recheck `ai_service_bonsai_tiers` (every Bonsai size now
+  reserves about half, so a 16 GB Mac could hold the 9B).
+- **The Pi 4** (4 GB in the inventory): only estimated (2.5-3.5 tokens a second, no dot product,
+  `armv8.0_1`); the same build and benchmark scripts run there.
+- **The first Ansible install on the Pi** (plan Task 10): capture the real `ldd` output of
+  `bin/llama-server`, a `lib/*.so` and a `bin/libggml-cpu-*.so`, and `llama-server
+  --log-verbosity 4 --list-devices` stderr, as fixtures replacing the tests' hand-made samples;
+  confirm the `load_backend` line appears at that verbosity, and that the logged path equals the
+  install folder (ggml reads `/proc/self/exe`, which resolves symlinks).
+- **Qwen's vectors with a q8_0 cache** against f16's: not measured; the owner chose q8_0 for every
+  model, so it's a note, not a blocker.
+- **A long-context recall check** (a fact planted early in a several-thousand-token prompt): not
+  built; it would decide a 4-bit cache, which the owner set aside for q8_0.
+- **q8_0 on Metal**: speed against f16, on the Mac, after the change lands.
+
+### 13.3 Facts to keep
+
+- **KV cache per token at q8_0** (from the configs, and measured where marked): Bonsai 2B 6.4 KiB
+  (6 of 24 layers, 2 KV heads of 256; measured 204 MiB at 32K, 1,632 MiB at 262K, exact), 4B and 9B
+  17 KiB, 27B 34 KiB; Qwen 0.6B 59.5 KiB (measured 476 MiB at 8K), 4B and 8B 76.5 KiB. Bonsai's
+  recurrent state is a fixed 19.27 MiB (measured).
+- **Measured on the Pi at q8_0** (2026-11-18, Bitmappy pinned to core 0, the models on 2-3): Bonsai
+  at 32K holds 1,277 MiB at load and 1,614 after three questions; Qwen 1,717 MiB, of which 446 MiB is
+  a repacked copy of its weights in ordinary memory (`CPU_REPACK`), 476 its KV cache and 144 its
+  compute buffer. Bonsai's weights stay the mapped file (`CPU_Mapped`, 511 MiB). Answers at about 6
+  tokens a second (4.7 with a 4,096-token cache), prompts at about 10.6 (7.9).
+- **Cache-type speed on the Pi** (6.5): q8_0 writes answers 12% faster than f16 with a deep cache and
+  reads new prompt 20% slower; q4_0 faster still at answers; all within a few percent with an empty
+  cache.
+- **llama.cpp b12167 behaviours relied on:** a quantized V cache needs flash attention
+  (`src/llama-context.cpp:4340`); library INFO lines are logged at verbosity 4, which
+  llama-server's default 3 drops (`common/log.cpp`), so buffer sizes and `load_backend` need
+  `--log-verbosity 4`; ggml finds CPU variant modules in `GGML_BACKEND_DIR`, the executable's folder
+  or the current folder, never through RPATH (`ggml/src/ggml-backend-reg.cpp:486-501`); `-nr` /
+  `--no-repack` exists.
+- **A memory-capped run must evict the model files first:** the kernel charges a cached page to the
+  cgroup that first read it, so a capped run after an uncapped one counts no model pages
+  (`posix_fadvise(POSIX_FADV_DONTNEED)`, no root, checked with `fincore`).
+- **The Pi:** models on NVMe (`/dev/nvme0n1p2`); no swap; the soft temperature limit trips at
+  about 80 C on four threads, not on two; systemd 259 delegates `cpu memory pids` to user services.
+- **The build itself:** in this repository, a commit runs pre-commit, which sets uncommitted files
+  aside and restores them; committing while an implementer subagent edits the same worktree
+  corrupted its files once (2026-11-18), so the controller commits only between tasks.
