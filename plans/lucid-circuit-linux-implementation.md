@@ -322,8 +322,9 @@ test in the task named.
   `cpu-placement.conf` drop-in and `config/cpu-placement.json` (Global constraints), reading core
   capacities under
   `${AI_SYSFS_CPU_ROOT:-/sys/devices/system/cpu}` (the override exists for tests); runs
-  `systemctl --user daemon-reload`; and logs a warning
-  when `systemctl --user show-environment` has a different `XDG_DATA_HOME` from its own.
+  `systemctl --user daemon-reload`; writes every AI unit's `user-root.conf` drop-in (design §6.2);
+  and logs a warning when `systemctl --user show-environment` has a different `XDG_DATA_HOME` from
+  its own.
   `uninstall-user.sh` removes the calling user's user root, cache and logs, after stopping their
   units.
 
@@ -460,10 +461,12 @@ test in the task named.
   `share/agents/*.template` (`agent.env.j2`, `service.json.j2`) with `ai_user_root` and
   `ai_program_root` set to the `ai_package_*_placeholder` defaults, as the tests' `LinuxSetup`
   helper does, since `setup.sh` fills those placeholders per user; install the rendered
-  `uninstall.sh.j2` as `bin/uninstall-user.sh` (one uninstaller, Task 4 ruling 3); `ai-service.sh`
-  hands the resolved user root to the systemd user manager (`systemctl --user set-environment
-  GLITCHYGAMES_AI_USER_ROOT=...`) before starting units, so the units' runner finds the same
-  folder; stage `bin/*.so*` (the CPU variant modules) and `lib/` from the llama.cpp runtime, not
+  `uninstall.sh.j2` as `bin/uninstall-user.sh` (one uninstaller, Task 4 ruling 3); `setup.sh`
+  writes every AI unit a drop-in, `user-root.conf`, holding
+  `Environment="GLITCHYGAMES_AI_USER_ROOT=..."` with the resolved user root, so the units' runner
+  finds the same folder however a unit starts (the final review's fix wave replaced the first
+  build's `systemctl --user set-environment` in `ai-service.sh`, which leaked the variable into
+  every later process of the user manager; design §6.2); stage `bin/*.so*` (the CPU variant modules) and `lib/` from the llama.cpp runtime, not
   only `bin/llama-server` (Task 2); `Depends` gains `iproute2` (`ss`, which the port check needs:
   an absent `ss` reads as "port free", Task 3 review).
 - Produces: `{{ ai_cache_root }}/package/glitchygames-ai_<ai_package_version>_<deb arch>.deb`;

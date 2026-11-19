@@ -7,8 +7,8 @@ script imports this with context (the host's facts) and writes out the functions
   {{ platform.user_root() }}
 start_agent_process and forget_every_agent call user_root, so a script with either writes it too.
 The functions only setup.sh uses (from machine_can_run_the_service down) also call its say,
-sed_literal and install_if_changed, and install_agent_definition and place_the_cores call
-program_root and user_root.
+sed_literal and install_if_changed, and install_agent_definition, place_the_cores and
+tell_the_units_the_user_root call program_root and user_root.
 #}
 
 {#- Where systemd reads a user's own unit files and drop-ins, as shell text #}
@@ -18,7 +18,8 @@ program_root and user_root.
 # The folder holding the user's models, settings and keys, by the engine's rule
 # (src/glitchygames/ai_link.py, service_locations): GLITCHYGAMES_AI_USER_ROOT, then
 # GLITCHYGAMES_AI_INSTALL_ROOT, then the platform's. On a Mac the programs live in it too. A systemd
-# unit can't see a shell's variables, so ai-service.sh hands this folder to the user manager
+# unit can't see a shell's variables, so setup.sh names this folder in each AI unit's drop-in
+# (tell_the_units_the_user_root)
 user_root() {
     if [ -n "${GLITCHYGAMES_AI_USER_ROOT:-}" ]; then
         echo "$GLITCHYGAMES_AI_USER_ROOT"
@@ -119,9 +120,9 @@ agent_is_running() {
 # Starts an agent, which then runs until stopped: start_agent_process LABEL
 start_agent_process() {
 {% if ansible_facts['system'] == 'Linux' %}
-    # The unit's run-llama-server.sh then finds the folder this script resolved, whatever the
-    # user manager's own XDG_DATA_HOME
-    systemctl --user set-environment "GLITCHYGAMES_AI_USER_ROOT=$(user_root)" || return 1
+    # The unit's run-llama-server.sh finds the user's folder in the unit's own drop-in, which
+    # setup.sh wrote, so nothing goes into the user manager's environment, where every process it
+    # starts later would inherit it
     systemctl --user start "$1.service"
 {% else %}
     # The plists live in the program folder and not in ~/Library/LaunchAgents, because launchd
@@ -177,14 +178,13 @@ sha256_of() {
 forget_every_agent() {
 {% if ansible_facts['system'] == 'Linux' %}
     # The unit files are the package's, and dpkg removes them. What setup.sh wrote for this user
-    # goes: each unit's CPU placement drop-in, and the folder handed to the user manager
+    # goes: each unit's CPU placement drop-in and the drop-in naming the user's folder
     systemctl --user stop '{{ ai_service_label_prefix }}.*.service' 2>/dev/null
-    for drop_in in "{{ user_units_directory() }}"/{{ ai_service_label_prefix }}.*.service.d/cpu-placement.conf; do
-        [ -e "$drop_in" ] || continue
-        rm -f "$drop_in"
-        rmdir "$(dirname "$drop_in")" 2>/dev/null
+    for drop_in_directory in "{{ user_units_directory() }}"/{{ ai_service_label_prefix }}.*.service.d; do
+        [ -d "$drop_in_directory" ] || continue
+        rm -f "$drop_in_directory/cpu-placement.conf" "$drop_in_directory/user-root.conf"
+        rmdir "$drop_in_directory" 2>/dev/null
     done
-    systemctl --user unset-environment GLITCHYGAMES_AI_USER_ROOT 2>/dev/null
     systemctl --user daemon-reload 2>/dev/null
 {% else %}
     # The models' agents, and the package's setup job or anything an older install left in
@@ -339,6 +339,31 @@ place_the_cores() {
 }
 {% endmacro %}
 
+{% macro tell_the_units_the_user_root() %}
+# Names this run's user folder in a drop-in for each AI unit, so the unit's runner finds the folder
+# however the unit is started, and nothing goes into the user manager's own environment:
+# tell_the_units_the_user_root AI_UNIT_LABEL...
+tell_the_units_the_user_root() {
+{% if ansible_facts['system'] == 'Linux' %}
+    # Inside systemd's double quotes a backslash and a double quote are escaped with a backslash
+    # (systemd.syntax(7)), and % starts a specifier, so it is written %% (systemd.unit(5))
+    escaped_root=$(printf '%s' "$(user_root)" | sed -e 's/[\\"]/\\&/g' -e 's/%/%%/g')
+    for label in "$@"; do
+        drop_in_directory="{{ user_units_directory() }}/$label.service.d"
+        mkdir -p "$drop_in_directory" || return 1
+        printf '[Service]\nEnvironment="GLITCHYGAMES_AI_USER_ROOT=%s"\n' "$escaped_root" \
+            > "$drop_in_directory/user-root.conf.new" || return 1
+        install_if_changed "$drop_in_directory/user-root.conf.new" \
+            "$drop_in_directory/user-root.conf"
+    done
+{% else %}
+    # A launchd agent's plist names its folder
+    :
+{% endif %}
+    return 0
+}
+{% endmacro %}
+
 {% macro reload_agent_definitions() %}
 # Has the service manager read the agents' definitions again
 reload_agent_definitions() {
@@ -356,18 +381,20 @@ reload_agent_definitions() {
 {% endmacro %}
 
 {% macro check_the_service_managers_data_home() %}
-# Says when the service manager would choose another user folder than this run did
+# Says when the service manager's environment would choose another user folder than this run did
 check_the_service_managers_data_home() {
 {% if ansible_facts['system'] == 'Linux' %}
-    # ai-service.sh hands the user manager its folder before each start, so this matters only to a
-    # unit started some other way. Ansible, over SSH, may run this with another XDG_DATA_HOME
+    # The AI's units find the folder in their drop-ins, which name this run's, however they are
+    # started. A game started with the manager's environment (from the desktop, say) follows the
+    # engine's rule there, and would look for its key in the other folder. Ansible, over SSH, may
+    # run this with another XDG_DATA_HOME
     if ! manager_environment=$(systemctl --user show-environment 2>/dev/null); then
         say "warning: could not ask systemd's user manager for its environment"
         return 0
     fi
     manager_data_home=$(printf '%s\n' "$manager_environment" | sed -n 's/^XDG_DATA_HOME=//p')
     if [ "$manager_data_home" != "${XDG_DATA_HOME:-}" ]; then
-        say "warning: systemd's user manager has XDG_DATA_HOME=${manager_data_home:-(unset)} and this run ${XDG_DATA_HOME:-(unset)}, so a unit not started by ai-service.sh would look for the models elsewhere"
+        say "warning: systemd's user manager has XDG_DATA_HOME=${manager_data_home:-(unset)} and this run ${XDG_DATA_HOME:-(unset)}; the AI's units use $(user_root), and a game started with the manager's environment would look for its key elsewhere"
     fi
 {% else %}
     # A launchd agent's plist names its folder

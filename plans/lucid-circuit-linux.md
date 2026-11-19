@@ -192,6 +192,21 @@ exit 0 from `refuse` stops it, as `SuccessfulExit=false` does on a Mac), `Restar
 `systemctl --user start` and stops them with `systemctl --user stop`. The unit names `%h` for the
 home, so one unit file serves every user.
 
+**How a unit finds the user's folder.** A unit sees only the user manager's environment, never the
+shell's, so `setup.sh` writes each AI unit (each model's, the API's and the setup job's) a drop-in,
+`~/.config/systemd/user/<unit>.d/user-root.conf`, holding
+`Environment="GLITCHYGAMES_AI_USER_ROOT=<the folder this run resolved>"`, escaped for systemd (a
+backslash and a double quote behind a backslash, `%` as `%%`; checked with real systemd 257 on
+trixie, a folder with spaces, quotes, `%`, `$` and a backslash). The runner then finds the folder
+however the unit is started, on every machine, a one-core one (which has no placement drop-in)
+included. Not `systemctl --user set-environment`, the first build's way: the variable stayed in the
+user manager's environment and was inherited by every process it started later, terminals
+included, which then pointed tests and tools at the real service (final review, controller's
+ruling, 2026-11-19). The cost: a unit started before `setup.sh` has ever run lacks it, and the
+setup job runs at every login and before the package starts anything. `setup.sh` still warns when
+the user manager's `XDG_DATA_HOME` differs from its own run's, since a game started with the
+manager's environment would then look for its key in another folder than the units use.
+
 **CPU placement of the two model units** (the owner, 2026-11-18). The cores a game needs: one for
 the game's main thread and one for the mirror, the AI's headless copy of the game, which runs
 uncapped while it catches up (Stage 4b). llama.cpp gets the rest.
@@ -292,7 +307,8 @@ templates staged in `share/agents/` with the home placeholder filled in.
 
 On Linux the same template is used, with its platform parts made functions (5.3): `sha256sum` for
 `shasum -a 256`, unit files with no placeholder (systemd's `%h` names the home) for plists that need
-one, and `systemctl --user daemon-reload` for `plutil -lint`. The download source stays the pinned
+one, and `systemctl --user daemon-reload` for `plutil -lint`. It also writes each AI unit's two
+drop-ins, the CPU placement and the user's folder (6.2), the only per-user parts of a unit. The download source stays the pinned
 Hugging Face URLs, as on a Mac; no mirror.
 
 Ansible on Linux therefore does not write the user's config itself, as `ai_service` does on a Mac:

@@ -2065,6 +2065,14 @@ class LinuxSetup:
             / 'cpu-placement.conf'
         )
 
+    def user_root_drop_in(self, *, label: str) -> Path:
+        """Name the drop-in that tells an AI unit the user's folder.
+
+        Returns:
+            The drop-in's path, beside the unit's CPU placement drop-in.
+        """
+        return self.drop_in(label=label).with_name('user-root.conf')
+
     def ai_unit_labels(self) -> list[str]:
         """Name every AI unit: each model's, the API's and the setup job's.
 
@@ -2317,7 +2325,10 @@ def test_setup_gives_the_game_the_mirror_and_the_ai_their_own_cores(
         assert not placement_file.exists()
         for label in setup.ai_unit_labels():
             assert not setup.drop_in(label=label).exists(), label
-            assert not setup.drop_in(label=label).parent.exists(), label
+            # Only the drop-in naming the user's folder, which every unit needs
+            assert sorted(path.name for path in setup.drop_in(label=label).parent.iterdir()) == [
+                'user-root.conf'
+            ], label
         return
     for label in setup.ai_unit_labels():
         unit = configparser.ConfigParser(interpolation=None, strict=True)
@@ -2450,6 +2461,51 @@ def test_a_failed_key_is_never_left_empty_and_the_next_run_makes_it(tmp_path: Pa
         assert ((config / key).stat().st_mode & 0o777) == 0o600, key
 
 
+def systemd_environment(*, drop_in: Path) -> dict[str, str]:
+    """Read the variables a drop-in's Environment= lines give its unit, as systemd reads them.
+
+    Only what setup.sh writes: each line one double-quoted NAME=value, in which a backslash and a
+    double quote are escaped with a backslash and % is written %% (systemd.syntax(7); the
+    specifiers of systemd.unit(5)). The same file was read by real systemd 257 in a Debian trixie
+    container (the final review's fix report), so this reading is checked against the real one.
+
+    Returns:
+        Each variable's value, by name.
+    """
+    variables: dict[str, str] = {}
+    for line in drop_in.read_text(encoding='utf-8').splitlines():
+        if not line.startswith('Environment='):
+            continue
+        for word in shlex.split(line.removeprefix('Environment=')):
+            name, value = word.split('=', 1)
+            variables[name] = value.replace('%%', '%')
+    return variables
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('core_count', [4, 1])
+def test_every_ai_unit_is_told_the_user_root_however_odd_the_home(tmp_path: Path, core_count: int):
+    """Each unit's drop-in names the folder, with what systemd would read as escapes escaped.
+
+    On a one-core machine there is no CPU placement drop-in, and the folder's drop-in is still
+    written: every unit needs it to find its settings.
+    """
+    setup = LinuxSetup(tmp_path=tmp_path, home=tmp_path / 'a home' / '100% "odd" back\\slash')
+    setup.set_cores(count=core_count, capacities={})
+
+    result = setup.run()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    for label in setup.ai_unit_labels():
+        assert systemd_environment(drop_in=setup.user_root_drop_in(label=label)) == {
+            'GLITCHYGAMES_AI_USER_ROOT': str(setup.user_root)
+        }, label
+        assert setup.drop_in(label=label).exists() is (core_count > 1), label
+    started = setup.run(template='ai-service.sh.j2', arguments=['start'])
+    assert started.returncode == 0, started.stdout + started.stderr
+    assert not [call for call in setup.service.tool_calls() if 'set-environment' in call]
+
+
 USER_ROOT_CASES = [
     pytest.param({}, id='xdg-unset'),
     pytest.param({'XDG_DATA_HOME': 'xdg data'}, id='xdg-set'),
@@ -2506,9 +2562,11 @@ def test_the_engine_and_the_scripts_agree_on_the_user_root(
 ):
     """One rule for the user's folder (Review focus 1): the engine's, in every script.
 
-    setup.sh fills that folder; ai-service.sh hands it to systemd's user manager before it
-    starts a unit, which can't see the shell's variables; and run-llama-server.sh, as the unit
-    starts it with only the manager's environment, reads its settings from there.
+    setup.sh fills that folder and names it in a drop-in for every AI unit, which can't see a
+    shell's variables; ai-service.sh starts a unit with nothing more; and run-llama-server.sh, as
+    the unit starts it with only the manager's environment and its drop-in's, reads its settings
+    from there. Nothing goes into the user manager's own environment, which every later process
+    it starts would inherit.
     """
     setup = LinuxSetup(tmp_path=tmp_path)
     setup.set_cores(count=4, capacities={})
@@ -2534,15 +2592,17 @@ def test_the_engine_and_the_scripts_agree_on_the_user_root(
     assert (engine_root / 'models' / setup.selected_model_files()[0]['file']).is_file()
     assert started.returncode == 0, started.stdout + started.stderr
     calls = setup.service.tool_calls()
-    handed_over = f'systemctl --user set-environment GLITCHYGAMES_AI_USER_ROOT={engine_root}'
-    first_start = next(index for index, call in enumerate(calls) if ' --user start ' in call)
-    assert handed_over in calls[:first_start], calls
-    # The unit's run: HOME and what the manager was handed, none of the shell's own folders
+    assert not [call for call in calls if 'environment' in call and 'show-environment' not in call]
+    for label in setup.ai_unit_labels():
+        assert systemd_environment(drop_in=setup.user_root_drop_in(label=label)) == {
+            'GLITCHYGAMES_AI_USER_ROOT': str(engine_root)
+        }, label
+    # The unit's run: HOME and its drop-in's variable, none of the shell's own folders
     reasoning = setup.service.agent(role='reasoning')
     unit_run = setup.service.run(
         template='run-llama-server.sh.j2',
         arguments=[reasoning['label']],
-        environment={'GLITCHYGAMES_AI_USER_ROOT': str(engine_root)},
+        environment=systemd_environment(drop_in=setup.user_root_drop_in(label=reasoning['label'])),
         unset=('XDG_DATA_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME'),
     )
     arguments = unit_run.stdout.splitlines()
@@ -2568,7 +2628,10 @@ def test_setup_warns_when_systemd_sees_another_data_home(
     own_data_home: str | None,
     expected: Literal['warned', 'silent'],
 ):
-    """A unit started other than through ai-service.sh would look in the manager's folder."""
+    """A game started with the manager's environment would look for its key in another folder.
+
+    The units themselves read the folder from the drop-ins this run wrote, so the warning names it.
+    """
     setup = LinuxSetup(tmp_path=tmp_path)
     setup.set_cores(count=4, capacities={})
     manager_environment = f'HOME={setup.service.home}\nLANG=C.UTF-8\n'
@@ -2577,12 +2640,16 @@ def test_setup_warns_when_systemd_sees_another_data_home(
     extra = {'SERVICE_MANAGER_ENVIRONMENT': manager_environment}
     if own_data_home is not None:
         extra['XDG_DATA_HOME'] = str(tmp_path / own_data_home)
+    own_root = (
+        tmp_path / own_data_home / 'glitchygames' / 'ai' if own_data_home else setup.user_root
+    )
 
     result = setup.run(extra=extra, unset=() if own_data_home else ('XDG_DATA_HOME',))
 
     assert result.returncode == 0, result.stdout + result.stderr
     warnings = [line for line in result.stdout.splitlines() if 'XDG_DATA_HOME' in line]
     assert bool(warnings) is (expected == 'warned'), result.stdout
+    assert all(f"the AI's units use {own_root}" in line for line in warnings), warnings
     assert 'systemctl --user show-environment' in setup.service.tool_calls()
 
 
