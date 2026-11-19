@@ -816,7 +816,11 @@ class TraceReader:
         self.is_complete = False
         self._file = path.open('rb')
         self._decompressor = zlib.decompressobj(wbits=GZIP_WINDOW_BITS)
+        # Decompressed text not yet returned as lines starts at _pending_start: taking a line
+        # moves the offset, never copying what follows it (that was a copy of the rest per line:
+        # bugs/2026-11-19-trace-reader-copied-the-rest-per-line.md)
         self._pending = b''
+        self._pending_start = 0
         self._line_number = 0
         self._has_iterated = False
         self.format_version: int = TRACE_FORMAT_VERSION
@@ -859,7 +863,8 @@ class TraceReader:
                 stream.
 
         """
-        while b'\n' not in self._pending:
+        newline_index = self._pending.find(b'\n', self._pending_start)
+        while newline_index < 0:
             if self._decompressor.eof:
                 break
             chunk = self._file.read(self.chunk_bytes)
@@ -867,15 +872,21 @@ class TraceReader:
                 break
             self.bytes_read += len(chunk)
             try:
-                self._pending += self._decompressor.decompress(chunk)
+                decompressed = self._decompressor.decompress(chunk)
             except zlib.error as error:
                 message = f'{self.path}: not a gzip trace ({error})'
                 raise TraceFormatError(message) from error
             if self._decompressor.unused_data:
                 message = f'{self.path}: unexpected data after the end of the gzip stream'
                 raise TraceFormatError(message)
-        line, newline, rest = self._pending.partition(b'\n')
-        if not newline:
+            # The unread tail (no newline in it) then the new text: one copy per chunk. The
+            # search goes on from where the tail ended, so a long line is searched once
+            unread_tail = self._pending[self._pending_start :]
+            self._pending = unread_tail + decompressed
+            self._pending_start = 0
+            newline_index = self._pending.find(b'\n', len(unread_tail))
+        if newline_index < 0:
+            line = self._pending[self._pending_start :]
             self.is_complete = self._decompressor.eof
             if self._decompressor.eof and self._file.read(1):
                 message = f'{self.path}: unexpected data after the end of the gzip stream'
@@ -883,8 +894,10 @@ class TraceReader:
             # A cut-off stream can end inside a UTF-8 sequence; only this dropped line can
             self.dropped_partial_line = line.decode('utf-8', errors='replace') or None
             self._pending = b''
+            self._pending_start = 0
             return None
-        self._pending = rest
+        line = self._pending[self._pending_start : newline_index]
+        self._pending_start = newline_index + 1
         self._line_number += 1
         return line
 
