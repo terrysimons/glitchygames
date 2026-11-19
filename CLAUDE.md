@@ -33,12 +33,13 @@ uv python pin 3.15.2   # optional: develop on 3.15 (.python-version is ignored: 
 Two Pythons are supported and tested: 3.14, the oldest (the browser builds' Pyodide runs it, so
 `requires-python`, ruff's and the type checkers' targets stay there), and 3.15, the development
 version. `nox -s test` tests both, each in its own environment (the pre-push shuffled run tests
-3.15 only, so a push is quicker), and so does CircleCI on every OS: macOS in one job; Linux and Windows with 3.15 in a job of its own
-(`test-python-3-15-*`), each job split across two machines (`parallelism: 2`), as one Python
-alone ran past CircleCI's one-hour job limit on Linux (`noxfile.TEST_PYTHONS`,
-`PYTHON_NEXT_VERSION`). A split job's machines each run a share (`GLITCHYGAMES_TEST_SPLIT`,
-`tests/circleci_test_split.py`), and a `coverage-combine-*` job holds their coverage, combined, to
-100%.
+3.15 only, so a push is quicker). CircleCI runs both on macOS, in one job; Linux and Windows run
+3.15 (`test-python-3-15-*`), their 3.14 jobs (`build-and-test-linux`, `-windows`, which also build
+the Bitmappy binary) commented out of the workflow for now (the owner, 2026-11-18). Each Linux and
+Windows job is split across two machines (`parallelism: 2`), as one Python alone ran past
+CircleCI's one-hour job limit on Linux (`noxfile.TEST_PYTHONS`, `PYTHON_NEXT_VERSION`). A split
+job's machines each run a share (`GLITCHYGAMES_TEST_SPLIT`, `tests/circleci_test_split.py`), and a
+`coverage-combine-*` job holds their coverage, combined, to 100%.
 
 The packages are not on PyPI yet: outside the repository, `uv build --all-packages` and install
 from `dist/` (extras: `games`, `apps`, `templates` for cookiecutter).
@@ -69,9 +70,10 @@ Nox (`nox -l` lists all; each session's docstring explains it):
 - `security-scan` (bandit, syft SBOM `docs/sbom.cyclonedx.json`, grype, license check; commit
   the regenerated SBOM with any `uv.lock` change; exceptions in `.grype.yaml` and
   `scripts/check_licenses.py` are the owner's)
-- `build`, `build-wheel`, `build-binary` (stamp the commit into `_build_info.json` around the build)
-- `coverage-combine` (a split CI job's machines' coverage data, `coverage-data/` or
-  `-- DIRECTORY`, combined and held to 100%; installs only uv.lock's coverage)
+- `build`, `build-wheel`, `build-binary` (on 3.15; stamp the commit into `_build_info.json`
+  around the build)
+- `coverage-combine-3.14`, `-3.15` (a split CI job's machines' coverage data, `coverage-data/` or
+  `-- DIRECTORY`, combined on the job's Python and held to 100%; installs only uv.lock's coverage)
 - `docs-serve` (isolated env; refuses a taken address), `docs-deploy` (CircleCI runs it after
   every merge to main; refused unless HEAD is on origin/main), `code-complexity`
 

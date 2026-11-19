@@ -311,7 +311,7 @@ class StageMusic:
         return self._clear_sound
 
     def prepare(self, audio: AudioEngine) -> None:
-        """Get the sounds (built ahead by the card, or now).
+        """Get the sounds (built while the game started: ``SCORE`` is in the roster's ``SOUNDS``).
 
         Args:
             audio: The audio engine.

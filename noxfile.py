@@ -733,8 +733,8 @@ def _usable_cpu_count() -> int:
 # and 3.15, the development version (the owner, 2026-11-16: "Add 3.15 support to nox ... Run
 # both"). Each is its own session, test-3.14 and test-3.15; nox -s test runs both, one after the
 # other (two at once would share htmlcov/, test-results/ and the coverage data, and each already
-# uses every core). CircleCI runs each in its own job, side by side
-# (tests/test_ci_config.py checks every one is installed and run there)
+# uses every core). CircleCI runs both on macOS and 3.15 on Linux and Windows, whose 3.14 jobs are
+# off for now (tests/test_ci_config.py checks every one is installed and what each job runs)
 TEST_PYTHONS = ('3.14', '3.15')
 
 
@@ -833,10 +833,13 @@ def locked_version(*, package: str, lock: str) -> str:
     raise ValueError(message)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='coverage-combine', default=False)
+@nox.session(python=list(TEST_PYTHONS), reuse_venv=False, name='coverage-combine', default=False)
 def coverage_combine(session: nox.Session) -> None:
     """Combine a split CI job's coverage data and apply the 100% rule to the whole.
 
+    One session a Python of TEST_PYTHONS (coverage-combine-3.14, coverage-combine-3.15): a split
+    job's data is combined on the Python it was measured on, so a 3.15 job's CI runs only 3.15
+    (the owner, 2026-11-18: "only targeting 3.15 with nox in the 3.15 jobs", the same for 3.14).
     The data is the machines' ``.coverage.*`` files in ``coverage-data/`` (or the directory
     given: ``nox -s coverage-combine -- DIRECTORY``). Only coverage is installed, at uv.lock's
     version; the report reads pyproject.toml's settings and the checkout's source, and writes
@@ -2522,7 +2525,12 @@ def _build_wheel(session: nox.Session) -> None:
     session.run('uv', 'build', '--all-packages', '--wheel', '--out-dir', 'dist', external=True)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='build-binary', default=False)
+# The Python the binary and the wheels are built on (the owner, 2026-11-18: "Switch the builds over
+# to 3.15"); CircleCI builds in the 3.15 jobs
+BUILD_PYTHONS = ['3.15']
+
+
+@nox.session(python=BUILD_PYTHONS, reuse_venv=False, name='build-binary', default=False)
 def build_binary(session: nox.Session) -> None:
     """Build a standalone Bitmappy binary with PyInstaller.
 
@@ -2550,7 +2558,7 @@ def build_wheel(session: nox.Session) -> None:
         _build_wheel(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='build', default=False)
+@nox.session(python=BUILD_PYTHONS, reuse_venv=False, name='build', default=False)
 def build_all(session: nox.Session) -> None:
     """Build the Bitmappy binary and the wheel of every workspace package.
 

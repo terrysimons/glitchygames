@@ -13,9 +13,9 @@ parameters:
     type: string
     default: "3.14.8"
   # The development version. macOS runs the suite on PYTHON_LATEST_VERSION and then on this in one
-  # job; Linux and Windows run it in jobs of their own, under CircleCI's one-hour job limit
-  # (noxfile.TEST_PYTHONS; tests/test_ci_config.py checks every one is installed and run on every
-  # OS). 3.14 stays the oldest supported: the browser builds' Pyodide runs it
+  # job; Linux and Windows run it in jobs of their own, under CircleCI's one-hour job limit, their
+  # 3.14 jobs off for now (noxfile.TEST_PYTHONS; tests/test_ci_config.py checks what each job
+  # installs and runs). 3.14 stays the oldest supported: the browser builds' Pyodide runs it
   PYTHON_NEXT_VERSION:
     type: string
     default: "3.15.2"
@@ -99,6 +99,10 @@ commands:
 
   install-deps-posix:
     parameters:
+      # The Pythons the job's nox sessions run on, and only those (the owner, 2026-11-18: "only
+      # targeting 3.15 with nox in the 3.15 jobs", the same for 3.14), named at every use
+      pythons:
+        type: string
       no_output_timeout:
         type: string
         default: 10m
@@ -115,9 +119,9 @@ commands:
 
             uv --version
 
-            # Every interpreter the test sessions run on (download if needed on this executor);
-            # the nox sessions install the project from uv.lock themselves
-            uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>" "<< pipeline.parameters.PYTHON_NEXT_VERSION >>"
+            # The job's Pythons (download if needed on this executor); the nox sessions install
+            # the project from uv.lock themselves
+            uv python install << parameters.pythons >>
 
             # nox at the pinned version, a uv tool (its own venv; the executable in ~/.local/bin),
             # run directly by every later step. Under `uvx` the uvx process stayed alive as nox's
@@ -235,7 +239,7 @@ commands:
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
-            $share = "coverage-data\<< parameters.share >>"
+            $share = "coverage-data/<< parameters.share >>"
             New-Item -ItemType Directory -Force -Path $share | Out-Null
             Move-Item .coverage "$share\.coverage.node-$env:CIRCLE_NODE_INDEX"
       - persist_to_workspace:
@@ -289,12 +293,38 @@ commands:
             export PATH="$HOME/.local/bin:$PATH"
             nox -s performance-test
 
+  # The Bitmappy binary and the wheels, on Python 3.15 (noxfile.BUILD_PYTHONS; the owner,
+  # 2026-11-18: "Switch the builds over to 3.15"). A split job builds on its first machine only:
+  # every step of a job runs on each of its machines, and both built the same thing
   nox-build:
     steps:
       - run:
           name: "Build binary and wheel"
           command: |
+            set -euo pipefail
+            if [ "${CIRCLE_NODE_INDEX:-0}" != "0" ]; then
+              echo "Built on machine 0 only"
+              exit 0
+            fi
             export PATH="$HOME/.local/bin:$PATH"
+            nox -s build
+      - store_artifacts:
+          path: dist
+          destination: dist
+
+  # As nox-build, on Windows
+  nox-build-windows:
+    steps:
+      - run:
+          name: "Build binary and wheel"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            if ($env:CIRCLE_NODE_INDEX -and $env:CIRCLE_NODE_INDEX -ne "0") {
+              Write-Output "Built on machine 0 only"
+              exit 0
+            }
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
             nox -s build
       - store_artifacts:
           path: dist
@@ -328,6 +358,10 @@ commands:
 
   # As install-deps-posix
   install-deps-windows:
+    parameters:
+      # As install-deps-posix
+      pythons:
+        type: string
     steps:
       - run:
           name: "Install uv and Python"
@@ -351,9 +385,8 @@ commands:
             New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' `
               -Name 'LongPathsEnabled' -Value 1 -PropertyType DWORD -Force | Out-Null
 
-            # Every interpreter the test sessions run on; the nox sessions install the project
-            # from uv.lock themselves
-            uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>" "<< pipeline.parameters.PYTHON_NEXT_VERSION >>"
+            # The job's Pythons; the nox sessions install the project from uv.lock themselves
+            uv python install << parameters.pythons >>
 
             # nox at the pinned version, a uv tool run directly, as in install-deps-posix
             uv tool install "nox[uv]==<< pipeline.parameters.NOX_VERSION >>"
@@ -434,16 +467,17 @@ jobs:
             sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config
 
       - restore-uv-cache-posix
-      - install-deps-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_LATEST_VERSION >>
       # Only what differs by platform; format, lint, type checks, docs, security scans and
       # benchmarks give the same answer on every OS and run on macOS (the fastest runner; the
-      # committed SBOM is macOS's, so its drift check runs there)
+      # committed SBOM is macOS's, so its drift check runs there). Its nox sessions are 3.14's
+      # only: the build is 3.15's, in test-python-3-15-linux
       - nox-timer-report
       - nox-test:
           session: test-3.14
       - save-coverage-share-posix:
           share: linux-test-3.14
-      - nox-build
       - save-uv-cache-posix
 
   build-and-test-macos:
@@ -462,7 +496,8 @@ jobs:
       - checkout
 
       - restore-uv-cache-posix
-      - install-deps-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_LATEST_VERSION >> << pipeline.parameters.PYTHON_NEXT_VERSION >>
       - nox-format
       - nox-lint
       - nox-static-analysis
@@ -502,8 +537,10 @@ jobs:
       - checkout
 
       - restore-uv-cache-windows
-      - install-deps-windows
-      # Only what differs by platform, as on Linux; the rest runs on macOS
+      - install-deps-windows:
+          pythons: << pipeline.parameters.PYTHON_LATEST_VERSION >>
+      # Only what differs by platform, as on Linux; the rest runs on macOS. Its nox sessions are
+      # 3.14's only: the build is 3.15's, in test-python-3-15-windows
       # Diagnostic only, as in nox-timer-report
       - run:
           name: "Timer report (diagnostic)"
@@ -517,16 +554,6 @@ jobs:
           session: test-3.14
       - save-coverage-share-windows:
           share: windows-test-3.14
-      - run:
-          name: "Build binary and wheel"
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            nox -s build
-      - store_artifacts:
-          path: dist
-          destination: dist
       - save-uv-cache-windows
 
   # The suite on Python 3.15 (PYTHON_NEXT_VERSION) on Linux and Windows, a job each beside the
@@ -558,11 +585,13 @@ jobs:
             sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config
 
       - restore-uv-cache-posix
-      - install-deps-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_NEXT_VERSION >>
       - nox-test:
           session: test-3.15
       - save-coverage-share-posix:
           share: linux-test-3.15
+      - nox-build
 
   test-python-3-15-windows:
     executor:
@@ -580,11 +609,13 @@ jobs:
       - checkout
 
       - restore-uv-cache-windows
-      - install-deps-windows
+      - install-deps-windows:
+          pythons: << pipeline.parameters.PYTHON_NEXT_VERSION >>
       - nox-test-windows:
           session: test-3.15
       - save-coverage-share-windows:
           share: windows-test-3.15
+      - nox-build-windows
 
   # A split test job's coverage, its machines' data combined, held to the 100% rule
   # (nox -s coverage-combine; tests/circleci_test_split.py). Only coverage is installed
@@ -593,6 +624,11 @@ jobs:
       # The split job's name in coverage-data/ (save-coverage-share-posix)
       share:
         type: string
+      # The split job's Python, and its coverage-combine session (coverage-combine-3.15)
+      pythons:
+        type: string
+      session:
+        type: string
     docker:
       - image: cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>
     resource_class: small
@@ -600,12 +636,13 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
-      - install-deps-posix
+      - install-deps-posix:
+          pythons: << parameters.pythons >>
       - run:
           name: "Combine the machines' coverage and apply the 100% rule"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            nox -s coverage-combine -- "coverage-data/<< parameters.share >>"
+            nox -s << parameters.session >> -- "coverage-data/<< parameters.share >>"
       - store_artifacts:
           path: htmlcov
           destination: coverage-html-<< parameters.share >>
@@ -616,6 +653,10 @@ jobs:
     parameters:
       share:
         type: string
+      pythons:
+        type: string
+      session:
+        type: string
     executor:
       name: win/default
       size: medium
@@ -623,14 +664,15 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
-      - install-deps-windows
+      - install-deps-windows:
+          pythons: << parameters.pythons >>
       - run:
           name: "Combine the machines' coverage and apply the 100% rule"
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            nox -s coverage-combine -- "coverage-data\<< parameters.share >>"
+            nox -s << parameters.session >> -- "coverage-data/<< parameters.share >>"
       - store_artifacts:
           path: htmlcov
           destination: coverage-html-<< parameters.share >>
@@ -659,6 +701,7 @@ jobs:
       # 30m, not the default 10m: the first install on a cold uv cache compiles without printing
       # (build 2862 timed out in the timer report, the first step to install). nox-test keeps 120m
       - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_LATEST_VERSION >> << pipeline.parameters.PYTHON_NEXT_VERSION >>
           no_output_timeout: 30m
       - nox-timer-report:
           no_output_timeout: 30m
@@ -754,7 +797,8 @@ jobs:
       - restore_cache:
           keys:
             - pygame-ce-pyodide-wheel-v1-{{ checksum ".pygame-ce-commit" }}
-      - install-deps-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_LATEST_VERSION >>
       - run:
           name: "Deploy the docs (nox -s docs-deploy -- --no-measure)"
           no_output_timeout: 60m
@@ -788,30 +832,41 @@ jobs:
 workflows:
   build-and-test:
     jobs:
-      - build-and-test-linux
+      # Off: the Python 3.14 jobs of Linux and Windows and their coverage (the owner, 2026-11-18:
+      # "Comment out the python 3.14 CI jobs"). macOS still runs 3.14 and 3.15. The Linux and
+      # Windows builds are 3.15's, in the 3.15 jobs
+      # - build-and-test-linux
       - build-and-test-macos
-      - build-and-test-windows
+      # - build-and-test-windows
       - test-python-3-15-linux
       - test-python-3-15-windows
       # Each split job's coverage, combined
-      - coverage-combine-linux:
-          name: coverage-combine-linux-test-3-14
-          share: linux-test-3.14
-          requires:
-            - build-and-test-linux
+      # - coverage-combine-linux:
+      #     name: coverage-combine-linux-test-3-14
+      #     share: linux-test-3.14
+      #     pythons: << pipeline.parameters.PYTHON_LATEST_VERSION >>
+      #     session: coverage-combine-3.14
+      #     requires:
+      #       - build-and-test-linux
       - coverage-combine-linux:
           name: coverage-combine-linux-test-3-15
           share: linux-test-3.15
+          pythons: << pipeline.parameters.PYTHON_NEXT_VERSION >>
+          session: coverage-combine-3.15
           requires:
             - test-python-3-15-linux
-      - coverage-combine-windows:
-          name: coverage-combine-windows-test-3-14
-          share: windows-test-3.14
-          requires:
-            - build-and-test-windows
+      # - coverage-combine-windows:
+      #     name: coverage-combine-windows-test-3-14
+      #     share: windows-test-3.14
+      #     pythons: << pipeline.parameters.PYTHON_LATEST_VERSION >>
+      #     session: coverage-combine-3.14
+      #     requires:
+      #       - build-and-test-windows
       - coverage-combine-windows:
           name: coverage-combine-windows-test-3-15
           share: windows-test-3.15
+          pythons: << pipeline.parameters.PYTHON_NEXT_VERSION >>
+          session: coverage-combine-3.15
           requires:
             - test-python-3-15-windows
       # Off: the Pis measure replays when the owner pushes, and take no CI jobs

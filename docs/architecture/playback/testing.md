@@ -184,7 +184,7 @@ one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs
   (`junit_family=xunit1`, which the test session adds for a split job).
 - No share reaches the 100% coverage rule alone, so the test session turns it off for a share;
   each machine keeps its `.coverage` in `coverage-data/<job>/`, and a `coverage-combine-*` job
-  combines them and applies the rule (`nox -s coverage-combine`).
+  combines them on the job's Python and applies the rule (`nox -s coverage-combine-3.15`).
 
 ## Memory by test file
 

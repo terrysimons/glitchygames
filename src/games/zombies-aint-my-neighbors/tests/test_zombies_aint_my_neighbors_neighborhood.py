@@ -2154,6 +2154,22 @@ def test_clearing_the_stage_fades_the_loop_and_plays_the_clear(mocker):
     assert loop.call_count == 1
 
 
+def test_a_clear_before_the_loop_started_plays_the_clear_alone_and_the_loop_never(mocker):
+    """Cleared before the loop's first frame: the sting plays, nothing fades, no loop follows."""
+    scene = neighbors_stage(neighbors=(NeighborKind.PIZZA_TEEN,))
+    stage_music = music.StageMusic()
+    stage_music.prepare(scene.scene_manager.audio)
+    loop = mocker.spy(stage_music.loop_sound, 'play')
+    clear = mocker.spy(stage_music.clear_sound, 'play')
+
+    stage_music.play_the_clear(fade=STAGE_CLEAR_FADE_SECONDS)
+    stage_music.start()
+
+    assert clear.call_count == 1
+    assert clear.call_args.kwargs['loop'] is False
+    assert loop.call_count == 0
+
+
 @pytest.mark.parametrize('sound', ['loop_sound', 'clear_sound'])
 def test_the_stage_music_has_no_sound_before_it_is_prepared(sound):
     """Asked for before the stage's setup got them: said so, not a None played."""
