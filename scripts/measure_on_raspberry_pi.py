@@ -100,6 +100,9 @@ RASPBERRY_PI_LOCK = f'{RASPBERRY_PI_CLONE}.lock'
 # How long a run waits for another push's run to let go of the lock before failing the push: a
 # whole measurement on the Pi 4 (the slower) with room to spare
 LOCK_TIMEOUT_SECONDS = 30 * 60
+# The local AI service's control script (ansible/roles/ai_package): the measurement stops the
+# models first, as models running beside it give wrong timings (plans/lucid-circuit-linux.md 8.4)
+AI_SERVICE_CONTROL_SCRIPT = '/opt/glitchygames/ai/bin/ai-service.sh'
 # The branch in that clone that holds what is measured; its checkout is detached from it, as git
 # refuses a push to a checked out branch
 MEASURED_BRANCH = 'refs/heads/to-measure'
@@ -232,8 +235,10 @@ def measure_script(
     Everything it prints goes to standard error; standard output (descriptor 3 once redirected)
     carries only ``measured <status>`` and then the tar of the staged row files of ``code_tree``
     and history rows, written only when the measurement ran and the clone's HEAD is still
-    ``commit``. ``git reset`` before the checkout: rows an earlier run staged stay on disk,
-    untracked, where a forced checkout of a commit without them would delete them. Fetching
+    ``commit``. Once the lock is held, the local AI models are stopped when the Pi has them (a
+    failing stop never blocks the measurement). ``git reset`` before the checkout: rows an earlier
+    run staged stay on disk, untracked, where a forced checkout of a commit without them would
+    delete them. Fetching
     ``origin/main`` keeps the history rows (``measure.rows_to_write``) those of what really
     landed. The measurement runs in a subshell, so a failure (or an ``exit`` in the command)
     still sends the rows it wrote: they are valid measurements.
@@ -270,6 +275,10 @@ if ! flock --nonblock 9; then
 another push is still measuring here; nothing was measured"
     exit {int(LOCK_TIMED_OUT_STATUS)}
   fi
+fi
+if [ -x {AI_SERVICE_CONTROL_SCRIPT} ]; then
+  echo "stopping the local AI models before measuring"
+  {AI_SERVICE_CONTROL_SCRIPT} stop || true
 fi
 cd {shlex.quote(raspberry_pi.clone_directory)}
 git fetch --quiet origin main

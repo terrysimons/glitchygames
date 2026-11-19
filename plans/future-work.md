@@ -712,6 +712,12 @@ only replays; Part 2 Task 1).
   Part 2b) with deliberately ambiguous questions: one with a clear likeliest meaning, which should
   be answered, and one with no clear winner, which should be asked about.
 
+- **Stop the AI at the start of a Pi CI job** (plans/lucid-circuit-linux.md 8.4, 2026-11-18): the pre-push
+  measurement already stops the local AI models after taking its lock (`measure_script`), but no workflow runs
+  the Pi jobs yet (`ansible/raspberry_pi_runner.yml`'s header). When one does, add the same guarded stop
+  (`/opt/glitchygames/ai/bin/ai-service.sh stop || true` when the file is executable) at the start of that job,
+  so its timings and its 1750 MiB test memory guard have the models' memory and cores.
+
 - **Keep the game, the mirror and the AI apart on macOS too** (the owner, 2026-11-18), as
   plans/lucid-circuit-linux.md 6.2 does on Linux (game on the fastest core, mirror on the next, the
   AI on the rest). macOS has no hard CPU affinity: `thread_policy_set` with
