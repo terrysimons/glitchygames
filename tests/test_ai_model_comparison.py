@@ -229,6 +229,9 @@ class FakeChatServer(BaseHTTPRequestHandler):
     bodies: ClassVar[list[dict[str, Any]]] = []
     answers: ClassVar[list[list[dict[str, str]]]] = []
     status: ClassVar[int] = 200
+    # A runaway answer: text without end, until the client hangs up
+    runaway: ClassVar[bool] = False
+    hung_up: ClassVar[bool] = False
 
     def do_POST(self) -> None:
         """Answer one chat request."""
@@ -238,6 +241,9 @@ class FakeChatServer(BaseHTTPRequestHandler):
         self.end_headers()
         if type(self).status != 200:
             self.wfile.write(b'refused')
+            return
+        if type(self).runaway:
+            self._stream_until_hung_up()
             return
         deltas = type(self).answers.pop(0)
         for delta in deltas:
@@ -250,6 +256,17 @@ class FakeChatServer(BaseHTTPRequestHandler):
         }
         self.wfile.write(f'data: {json.dumps(last)}\n\n'.encode())
         self.wfile.write(b'data: [DONE]\n\n')
+
+    def _stream_until_hung_up(self) -> None:
+        """Write text until the client hangs up, as a model that never stops does."""
+        line = json.dumps({'choices': [{'delta': {'content': 'never '}}]})
+        while True:
+            try:
+                self.wfile.write(f'data: {line}\n\n'.encode())
+            # A broken pipe, a reset or (Windows, WinError 10053) an aborted connection
+            except ConnectionError:
+                type(self).hung_up = True
+                return
 
     def log_message(self, format: str, *args: Any) -> None:  # ruff: ignore[builtin-argument-shadowing] - the method's own name for it
         """Say nothing."""
@@ -267,28 +284,65 @@ def test_only_the_streams_last_event_holds_counts():
     assert stream_line_timings(line='data: {"timings": {"prompt_n": 7}}') == {'prompt_n': 7}
 
 
+class FakeChatHTTPServer(ThreadingHTTPServer):
+    """Waits for every request's thread when it closes, so no answer outlives its test.
+
+    ThreadingHTTPServer's request threads are daemons, and ``server_close`` waits only for
+    threads that are not (socketserver's ``_Threads``).
+    """
+
+    daemon_threads = False
+
+
+class RunningChatServer:
+    """A fake chat server serving on its own thread, and how to stop it."""
+
+    def __init__(self) -> None:
+        """Start serving on a free port."""
+        self._server = FakeChatHTTPServer(('127.0.0.1', 0), FakeChatServer)
+        self._thread = Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+        self.target = AskedOf(
+            base_url=f'http://127.0.0.1:{self._server.server_address[1]}',
+            api_key='secret',
+            alias='bonsai-2-4b',
+        )
+
+    def stop(self) -> None:
+        """Stop serving; closing waits for every answer being written to end."""
+        if self._thread.is_alive():
+            self._server.shutdown()
+            self._server.server_close()
+            self._thread.join()
+
+
 @pytest.fixture
-def chat_target():
+def chat_server():
     """Run a fake server.
 
     Yields:
-        How to ask it.
+        The running server.
 
     """
     FakeChatServer.bodies = []
     FakeChatServer.answers = []
     FakeChatServer.status = 200
-    server = ThreadingHTTPServer(('127.0.0.1', 0), FakeChatServer)
-    thread = Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield AskedOf(
-        base_url=f'http://127.0.0.1:{server.server_address[1]}',
-        api_key='secret',
-        alias='bonsai-2-4b',
-    )
-    server.shutdown()
-    server.server_close()
-    thread.join()
+    FakeChatServer.runaway = False
+    FakeChatServer.hung_up = False
+    running = RunningChatServer()
+    yield running
+    running.stop()
+
+
+@pytest.fixture
+def chat_target(chat_server):
+    """How to ask the fake server.
+
+    Returns:
+        Its address, key and model alias.
+
+    """
+    return chat_server.target
 
 
 def test_asking_sends_what_the_console_sends_and_times_the_answer(chat_target):
@@ -315,18 +369,69 @@ def test_asking_sends_what_the_console_sends_and_times_the_answer(chat_target):
     assert body['chat_template_kwargs'] == {'reasoning_effort': 'low'}
 
 
-def test_an_answer_past_the_time_limit_is_stopped_and_fails(chat_target, mocker):
+def test_an_answer_past_the_time_limit_is_stopped_and_fails(chat_server, mocker):
     """A runaway answer can't stall the comparison."""
-    FakeChatServer.answers = [[{'content': 'never'}]]
+    FakeChatServer.runaway = True
     readings = iter([0.0, *[1000.0] * 5])
     mocker.patch('glitchygames.clock.raw_counter_seconds', side_effect=lambda: next(readings))
 
-    answer = ask(target=chat_target, messages=[], time_limit_seconds=1.0)
+    answer = ask(target=chat_server.target, messages=[], time_limit_seconds=1.0)
 
     assert answer.stopped is True
     assert not answer.text
     # It never reached the event holding them
     assert (answer.prompt_tokens, answer.generated_tokens) == (None, None)
+
+
+def test_a_stopped_answer_hangs_up_and_the_server_ends_quietly(chat_server, mocker, capfd):
+    """The server takes the hang-up as the end of its answer: nothing raised, nothing printed.
+
+    A real server sees clients hang up mid-answer. The fake used to raise a broken pipe, which
+    the server printed to stderr from its request thread, a daemon the fixture never waited for;
+    on CircleCI macOS (#221) that write failed on a closed descriptor and pytest failed the
+    test's teardown with it.
+    """
+    FakeChatServer.runaway = True
+    readings = iter([0.0, *[1000.0] * 5])
+    mocker.patch('glitchygames.clock.raw_counter_seconds', side_effect=lambda: next(readings))
+    ask(target=chat_server.target, messages=[], time_limit_seconds=1.0)
+
+    chat_server.stop()
+
+    assert FakeChatServer.hung_up is True
+    assert 'Exception occurred during processing of request' not in capfd.readouterr().err
+
+
+class HungUpWriter:
+    """A response stream whose client has gone: every write raises how the OS says so."""
+
+    def __init__(self, error: type[ConnectionError]) -> None:
+        """Raise error on every write."""
+        self.error = error
+
+    def write(self, data: bytes) -> int:
+        """Refuse the write as a hung-up client's socket does: raise the error given, always."""
+        raise self.error(data[:0])
+
+
+@pytest.mark.parametrize(
+    'error',
+    [BrokenPipeError, ConnectionResetError, ConnectionAbortedError],
+    ids=['macos-linux-broken-pipe', 'reset', 'windows-aborted'],
+)
+def test_every_way_a_client_hangs_up_ends_the_answer_quietly(error):
+    """Each OS reports a hang-up its own way: Windows as WinError 10053, ConnectionAbortedError.
+
+    CircleCI Windows (#225) failed test_a_stopped_answer_hangs_up_and_the_server_ends_quietly
+    when the fake took only broken pipes and resets as the end of its answer.
+    """
+    FakeChatServer.hung_up = False
+    handler = FakeChatServer.__new__(FakeChatServer)
+    handler.wfile = HungUpWriter(error)
+
+    handler._stream_until_hung_up()
+
+    assert FakeChatServer.hung_up is True
 
 
 def test_a_follow_up_is_scored_on_its_last_turn_with_the_first_in_its_history(chat_target):
