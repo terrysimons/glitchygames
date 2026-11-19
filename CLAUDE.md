@@ -94,21 +94,14 @@ with a tool option. Reference: docs/architecture/gameplay_replay.md.
 
 ### Local AI service
 
-Installed by Ansible (`ansible/ai_service.yml`; plans/lucid-circuit.md, Linux in
-plans/lucid-circuit-linux.md), its own project in `services/ai-service/` (own tests, lock file,
-100% coverage) sharing no code with the engine. Games reach it only over a socket (127.0.0.1:23231)
-through `src/glitchygames/ai_link.py` and `ai_host.py`: on by default (`--ai`/`--no-ai`), never
-with `--headless`, in a replay or browser. The backtick key opens the AI console
-(`src/glitchygames/ai_console.py`): read-only, except `/sprite DESCRIPTION`, which adds a generated
-sprite through a recorded spawn event (`events/sprite_spawn.py`).
-- Where it is: `ai_link.service_locations()`, which every module and script follows. A Mac has one
-  folder; Linux has two roots, the programs (`/opt/glitchygames/ai`, the .deb's) and the user's
-  data (`$XDG_DATA_HOME/glitchygames/ai`). `GLITCHYGAMES_AI_INSTALL_ROOT` sets both;
-  `GLITCHYGAMES_AI_PROGRAM_ROOT` and `GLITCHYGAMES_AI_USER_ROOT` each set one and win over it
-  (empty counts as unset). On Linux the game pins itself to its own core once the service starts
-  (`src/glitchygames/cpu_placement.py`, reading the placement setup.sh wrote).
-- The test harness sets `GLITCHYGAMES_AI_INSTALL_ROOT` to nowhere and removes the other two, so
-  nothing a shell exports reaches the real service (`tests/test_ai_service_isolation_guard.py`).
+Installed by Ansible (`ansible/ai_service.yml`; plans/lucid-circuit.md, which links the Linux plan),
+its own project in `services/ai-service/` (own tests, lock file, 100% coverage) sharing no code with
+the engine. Games reach it only over 127.0.0.1:23231 through `src/glitchygames/ai_link.py` (its
+docstring: where the service is, `service_locations()`, and Linux's core pinning) and `ai_host.py`:
+on by default (`--ai`/`--no-ai`), never with `--headless`, in a replay or browser; the harness
+points it at nowhere (`tests/test_ai_service_isolation_guard.py`). The backtick key opens the AI
+console (`ai_console.py`): read-only, except `/sprite DESCRIPTION`, which adds a generated sprite
+through a recorded spawn event (`events/sprite_spawn.py`).
 
 ## Architecture Overview
 

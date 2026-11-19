@@ -20,6 +20,16 @@ The rules:
    an unbounded backlog, and the newest proposal is the one worth having.
 6. The service stops the models when the last session closes, a crashed game's included. Nothing
    here has to, and ``stop`` only closes this game's session.
+
+Where the service is: ``service_locations()``, which every module and script follows
+(plans/lucid-circuit-linux.md, 6.1). A Mac has one folder; Linux has two roots, the programs
+(``/opt/glitchygames/ai``, the .deb's) and the user's data (``$XDG_DATA_HOME/glitchygames/ai``).
+``GLITCHYGAMES_AI_INSTALL_ROOT`` sets both; ``GLITCHYGAMES_AI_PROGRAM_ROOT`` and
+``GLITCHYGAMES_AI_USER_ROOT`` each set one and win over it (empty counts as unset). The test
+harness sets the first to nowhere and removes the other two, so nothing a shell exports reaches the
+real service (tests/test_ai_service_isolation_guard.py). On Linux the game pins itself to its own
+core once the link reports the service started (``src/glitchygames/cpu_placement.py``, reading the
+placement setup.sh wrote).
 """
 
 from __future__ import annotations
