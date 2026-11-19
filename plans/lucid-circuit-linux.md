@@ -1,10 +1,11 @@
 # Lucid Circuit: the local AI service on Linux, and its .deb
 
 - **Date:** 2026-11-18
-- **Status:** Design approved by the owner (2026-11-18), amended the same day (section 12). Being
-  built, subagent-driven, on `feature/ai-service-raspberry-pi`: Tasks 1-3 done and reviewed, Task 4
-  in progress (the plan's progress ledger: `.superpowers/sdd/lucid-circuit-linux-implementation/progress.md`,
-  gitignored). The Pi's power is fixed (27 W supply, 2026-11-18). What is still open: section 13.
+- **Status:** Built; hardware validation pending. Design approved by the owner (2026-11-18),
+  amended the same day (section 12). Built, subagent-driven, on `feature/ai-service-raspberry-pi`
+  (Tasks 1-9: code, Ansible, the `.deb`, tests, docs). Left: Task 10, installing and validating on
+  the real Pi 5 (the owner's; section 8.3), and section 13. The Pi's power is fixed (27 W supply,
+  2026-11-18).
 - **Implementation plan:** [lucid-circuit-linux-implementation.md](lucid-circuit-linux-implementation.md).
 - **Master plan:** [lucid-circuit.md](lucid-circuit.md). This sub-plan widens section 6 (the
   installer) and the Ansible setup from "a Mac" to "a Mac or a Linux machine": 64-bit ARM, built

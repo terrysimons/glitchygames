@@ -733,6 +733,17 @@ only replays; Part 2 Task 1).
   llama-server doesn't slow the GPU work it feeds. Same rule as Linux: one record of the placement
   (`setup.sh`), the engine applying the game's part itself, only for a live run with AI.
 
+- **x86_64 Linux support for the AI service** (plans/lucid-circuit-linux.md 9.2, 2026-11-19): designed for, not
+  supported until an x86_64 host is in the inventory (`linux` group, with its `host_memory_gb`) and has had the
+  Ansible run, the `.deb`'s package tests and an 8.3-style validation (speed, answers, memory, the variant loaded,
+  the game's frame times); its own measured reserved-memory figures if they differ from ARM's; and a check of
+  Bonsai's known AVX-512 crash on load (Prism's `KNOWN_ISSUES.md`, `PQ2_0` files) against the `skylakex` and later
+  variants.
+- **GPU backends for the AI service** (plans/lucid-circuit-linux.md 9.2 step 5, 2026-11-19): Vulkan on capable
+  Linux GPUs, then CUDA (and ROCm), as runtime-loaded llama.cpp backends that load only when their device works, so
+  the CPU path stays as is. Needs its own design: which backends, how the picker counts GPU memory, and how the game
+  and the AI share the GPU.
+
 - **Deferred: choosing 2B's context by free memory** (the owner, 2026-11-07: "we're just going to
   stick with the 2B model for the foreseeable future"). Every run already uses 2B
   (`ai_service_default_bonsai_size`, plans/lucid-circuit.md section 5), at its full context, or
