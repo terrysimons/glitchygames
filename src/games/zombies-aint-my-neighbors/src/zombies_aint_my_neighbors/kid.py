@@ -296,6 +296,8 @@ class Kid(AnimatedSprite):
         self.bounds: pygame.Rect | None = None
         # Whether the current knockout took the last life
         self._last_life = False
+        # Whether the stage cleared while the kid was knocked out: it cheers as it gets up
+        self._cheer_when_up = False
         # The weapon held (feature plan 8): every kid starts with the Channel Changer
         self.weapon = Weapon.CHANNEL_CHANGER
 
@@ -330,9 +332,22 @@ class Kid(AnimatedSprite):
         )
 
     def cheer(self) -> None:
-        """Cheer the stage clear (``cheer``, facing down): still, safe, not firing; not when out."""
-        if self.is_out or self.state is not KidState.ACTIVE:
+        """Cheer the stage clear (``cheer``, facing down): still, safe, not firing; not when out.
+
+        A kid knocked out with lives left finishes its knockout and cheers as it gets up (not
+        standing idle through the rest of the cheer); one knocked out of its last life fades
+        out as before, and a kid already fading or out stays so (neither up nor in a knockout).
+        """
+        if self.state is KidState.ACTIVE:
+            self._start_cheering()
             return
+        if self.state in _KNOCKOUT_STEPS and not (
+            self.state is KidState.KNOCKED_OUT and self._last_life
+        ):
+            self._cheer_when_up = True
+
+    def _start_cheering(self) -> None:
+        """Fists up, facing down, safe and still."""
         self.state = KidState.CHEERING
         self.moving = False
         self.untouchable_seconds = 0.0
@@ -597,7 +612,10 @@ class Kid(AnimatedSprite):
             if self._state_seconds >= seconds - TIME_TOLERANCE:
                 self.state = following
                 self._state_seconds = 0.0
-                if following is KidState.ACTIVE:
+                if following is KidState.ACTIVE and self._cheer_when_up:
+                    # The stage cleared while it was down: it gets up into the cheer
+                    self._start_cheering()
+                elif following is KidState.ACTIVE:
                     self.untouchable_seconds = UNTOUCHABLE_SECONDS
                     self.facing = KidFacing.DOWN
             return

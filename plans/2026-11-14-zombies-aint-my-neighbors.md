@@ -313,12 +313,25 @@ stacked on `feature/zombies-aint-my-neighbors` (PR #215, pushed at fbf506b7, CI 
 66df986e; the owner lands it). Open this branch's PR with `--base feature/zombies-aint-my-neighbors`
 while #215 is open, saying it is stacked; rebase onto `main` once #215 lands.
 
-- [ ] **A kid knocked out as the stage clears doesn't cheer** (deferred Minor in feature plan 7's
+- [x] **A kid knocked out as the stage clears doesn't cheer** (deferred Minor in feature plan 7's
   review, 2026-11-15): it gets back up during the cheer instead. Harmless (the next stage builds
-  new kids) but visible. Triage first: reproduce, name the test gap, a regression test that fails.
-- [ ] **A golden replay that covers the stage clear** (raised by feature plan 7's review): the
-  hand-off from the clear through the STAGE n card to stage 2 is covered by unit tests only, not
-  an end-to-end replay. Recording a golden is a reviewed step (CLAUDE.md: golden replays).
+  new kids) but visible. **FIXED 2026-11-19** (the owner chose: it cheers when it gets up).
+  Cause: the clear calls `Kid.cheer()` once, which acted only on an `ACTIVE` kid, while the
+  knockout kept running through the cheer; a kid knocked out 0.5-1.5 s before the clear got up
+  and stood idle, blinking. Now `cheer()` on a kid down with lives left marks it, and it gets
+  up into the cheer; the last life's knockout still fades out. Knocked out right at the clear,
+  it is still down when the card comes (the knockout's 1.9 s outlasts the cheer's 1.5 s). The
+  test gap: cheering was tested for a kid up and a kid out of lives, never a kid down with lives
+  left. Tests: `test_a_kid_knocked_out_at_the_clear_finishes_its_knockout_then_cheers`,
+  `test_a_kid_out_of_lives_fades_out_through_the_cheer` (kid),
+  `test_a_kid_knocked_out_at_the_clear_cheers_when_it_gets_up` (neighborhood). The goldens
+  replay unchanged. Seen while triaging, not changed: the kid through the gate shows `idle`
+  for the clear's first frame (the clear is decided after the kids are posed).
+- [x] **A golden replay that covers the stage clear** (raised by feature plan 7's review):
+  already done in feature plan 7, after that review: the neighborhood golden clears stage 1
+  into stage 2 (feature plan 7's decision "The stage clear is in the neighborhood golden, not a
+  second golden"), held by `test_the_neighborhood_golden_clears_its_stage_into_stage_2`. This
+  item was copied from the review's finding (2026-11-19).
 - [ ] **The intro and the attract demo** (decisions 6 and 15): a cinematic sprite intro of the
   sleepover and the monsters coming out of the TV (controllers rumble then, decision 15, which
   depends on the browser rumble item above), and the title's recorded attract-mode demo (bundled

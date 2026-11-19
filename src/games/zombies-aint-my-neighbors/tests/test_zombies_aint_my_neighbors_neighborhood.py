@@ -1180,6 +1180,43 @@ def test_after_the_cheer_the_card_brings_the_next_stage_with_the_rescued():
     assert card.kit is scene.kit
 
 
+@pytest.mark.parametrize(
+    ('knocked_out_before_the_clear', 'cheers'),
+    [(0.0, False), (0.5, True), (1.0, True), (1.5, True)],
+)
+def test_a_kid_knocked_out_at_the_clear_cheers_when_it_gets_up(
+    knocked_out_before_the_clear, cheers
+):
+    """P2 is down as Dex clears the stage: it gets up into the cheer, never standing idle.
+
+    The knockout (1.9 s) outlasts the cheer (1.5 s), so a kid knocked out as the stage clears is
+    still down when the card comes; one knocked out earlier gets up during the cheer and cheers.
+    Before the fix it stood idle (feature plan 7's deferred Minor).
+    """
+    roster = JoinRoster.empty().join(device=KEYBOARD).join(device=gamepad(1))
+    scene = neighbors_stage(neighbors=(NeighborKind.PIZZA_TEEN,), roster=roster)
+    clear_the_yard(scene)
+    run(scene, seconds=OPENING_SECONDS + 0.1)
+    dex, other = scene.kids[0], scene.kids[1]
+    # Beside the gate, so keeping the group together leaves Dex at it
+    other.world_x = scene.exit_door.world_x + 96
+    other.world_y = scene.exit_door.world_y + 40
+    other.knock_out(last_life=False)
+    run(scene, seconds=knocked_out_before_the_clear)
+    stand_on(dex, scene.exit_door)
+    dex.world_y += 8
+
+    animations_while_cheering = []
+    while scene.next_scene is None:
+        run(scene, seconds=FRAME_SECONDS)
+        if scene.stage_cleared:
+            animations_while_cheering.append(other.current_animation)
+
+    assert isinstance(scene.next_scene, FeatureCardScene)
+    assert not any(name.startswith('idle') for name in animations_while_cheering)
+    assert (animations_while_cheering[-1] == 'cheer') is cheers
+
+
 def test_a_closed_door_lets_nobody_through():
     """Touching the shut gate does nothing."""
     scene = neighbors_stage()
