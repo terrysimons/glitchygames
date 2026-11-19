@@ -1,5 +1,5 @@
 # The game's sounds, written by zombies_aint_my_neighbors/sound_rig.py (do not edit by
-# hand: change the rig and run it). Feature plan 10.
+# hand: change the rig and run it). Feature plans 10 and 11.
 
 [glitchygames]
 kind = "sounds"
@@ -235,3 +235,262 @@ duration = 0.319149
 low_pass_cutoff = 700.0
 distortion = 0.3
 envelope = { attack = 0.018519, decay = 0.0, sustain_level = 1.0, release = 0.25 }
+
+# A zombie climbing out of a TV: the picture tube thumps (90 falling to 45 Hz) and the
+# screen bursts into static.
+[effects.tv-spawn]
+volume = 0.4
+
+[[effects.tv-spawn.tones]]
+waveform = "sine"
+start_frequency = 90.0
+end_frequency = 45.0
+easing = "ease_in_out_sine"
+offset = 0.0
+duration = 0.251852
+envelope = { attack = 0.004, decay = 0.0, sustain_level = 1.0, release = 0.15 }
+
+[[effects.tv-spawn.tones]]
+waveform = "noise"
+start_frequency = 1000.0
+offset = 0.05
+duration = 0.4
+volume = 1.0
+high_pass_cutoff = 2000.0
+envelope = { attack = 0.02, decay = 0.05, sustain_level = 0.4, release = 0.15 }
+
+# A zap on a TV: a glassy tick and a blip of static.
+[effects.tv-hit]
+volume = 0.3
+
+[[effects.tv-hit.tones]]
+waveform = "sine"
+start_frequency = 2400.0
+offset = 0.0
+duration = 0.03
+volume = 0.5
+envelope = { attack = 0.002, decay = 0.0, sustain_level = 1.0, release = 0.02 }
+
+[[effects.tv-hit.tones]]
+waveform = "noise"
+start_frequency = 1000.0
+offset = 0.0
+duration = 0.1
+volume = 0.5
+high_pass_cutoff = 3000.0
+envelope = { attack = 0.003, decay = 0.03, sustain_level = 0.3, release = 0.05 }
+
+# A TV breaking into its next stage: a crunch of glass, a shard ringing.
+[effects.tv-break]
+volume = 0.4
+
+[[effects.tv-break.tones]]
+waveform = "noise"
+start_frequency = 1000.0
+offset = 0.0
+duration = 0.25
+volume = 0.8
+low_pass_cutoff = 5000.0
+distortion = 2.0
+envelope = { attack = 0.002, decay = 0.08, sustain_level = 0.3, release = 0.12 }
+
+[[effects.tv-break.tones]]
+waveform = "sine"
+start_frequency = 3100.0
+offset = 0.03
+duration = 0.15
+volume = 0.2
+envelope = { attack = 0.003, decay = 0.0, sustain_level = 1.0, release = 0.1 }
+
+# A TV destroyed: the crunch, a low boom (70 falling to 35 Hz) and the tube fizzling
+# out.
+[effects.tv-destroyed]
+volume = 0.5
+
+[[effects.tv-destroyed.tones]]
+waveform = "noise"
+start_frequency = 1000.0
+offset = 0.0
+duration = 0.25
+volume = 0.5
+low_pass_cutoff = 5000.0
+distortion = 2.0
+envelope = { attack = 0.002, decay = 0.08, sustain_level = 0.3, release = 0.12 }
+
+[[effects.tv-destroyed.tones]]
+waveform = "sine"
+start_frequency = 70.0
+end_frequency = 35.0
+easing = "ease_in_out_sine"
+offset = 0.0
+duration = 0.609524
+envelope = { attack = 0.005, decay = 0.0, sustain_level = 1.0, release = 0.35 }
+
+[[effects.tv-destroyed.tones]]
+waveform = "noise"
+start_frequency = 1000.0
+offset = 0.25
+duration = 0.6
+volume = 0.15
+high_pass_cutoff = 4000.0
+envelope = { attack = 0.05, decay = 0.05, sustain_level = 0.3, release = 0.3 }
+
+# A neighbor rescued: three bright notes chirping up (E5, A5, C#6).
+[effects.rescue]
+volume = 0.35
+
+[[effects.rescue.tones]]
+waveform = "triangle"
+start_frequency = 659.26
+offset = 0.0
+duration = 0.09
+volume = 0.8
+envelope = { attack = 0.005, decay = 0.0, sustain_level = 1.0, release = 0.03 }
+
+[[effects.rescue.tones]]
+waveform = "triangle"
+start_frequency = 880.0
+offset = 0.09
+duration = 0.09
+volume = 0.8
+envelope = { attack = 0.005, decay = 0.0, sustain_level = 1.0, release = 0.03 }
+
+[[effects.rescue.tones]]
+waveform = "triangle"
+start_frequency = 1108.73
+offset = 0.18
+duration = 0.12
+volume = 0.8
+envelope = { attack = 0.005, decay = 0.0, sustain_level = 1.0, release = 0.03 }
+
+# A neighbor lost: a wail wavering down from 900 to 420 Hz, then a thud.
+[effects.loss]
+volume = 0.4
+
+[[effects.loss.tones]]
+waveform = "sine"
+start_frequency = 900.0
+end_frequency = 700.0
+easing = "ease_in_out_sine"
+offset = 0.0
+duration = 0.12
+envelope = { attack = 0.01, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.loss.tones]]
+waveform = "sine"
+start_frequency = 700.0
+end_frequency = 760.0
+easing = "ease_in_out_sine"
+offset = 0.12
+duration = 0.079452
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.0 }
+
+[[effects.loss.tones]]
+waveform = "sine"
+start_frequency = 760.0
+end_frequency = 420.0
+easing = "ease_in_out_sine"
+offset = 0.199452
+duration = 0.2
+envelope = { attack = 0.0, decay = 0.0, sustain_level = 1.0, release = 0.06 }
+
+[[effects.loss.tones]]
+waveform = "sine"
+start_frequency = 60.0
+offset = 0.399452
+duration = 0.15
+volume = 0.8
+envelope = { attack = 0.003, decay = 0.0, sustain_level = 1.0, release = 0.1 }
+
+# A kid knocked out: a cartoon bonk, the pitch dropping, and a knock.
+[effects.knockout]
+volume = 0.4
+
+[[effects.knockout.tones]]
+waveform = "sine"
+start_frequency = 700.0
+end_frequency = 170.0
+easing = "ease_in_out_sine"
+offset = 0.0
+duration = 0.17931
+envelope = { attack = 0.002, decay = 0.0, sustain_level = 1.0, release = 0.1 }
+
+[[effects.knockout.tones]]
+waveform = "noise"
+start_frequency = 1000.0
+offset = 0.0
+duration = 0.03
+volume = 0.6
+low_pass_cutoff = 1500.0
+envelope = { attack = 0.001, decay = 0.01, sustain_level = 0.5, release = 0.02 }
+
+# The exit gate swinging open: an iron creak wavering between about 300 and 460 Hz,
+# outlasting the swing a little, as a heavy gate settles.
+[effects.gate]
+volume = 0.35
+
+[[effects.gate.tones]]
+waveform = "sawtooth"
+start_frequency = 300.0
+end_frequency = 420.0
+easing = "ease_in_out_sine"
+offset = 0.0
+duration = 0.119444
+low_pass_cutoff = 1200.0
+distortion = 0.2
+envelope = { attack = 0.03, decay = 0.0, sustain_level = 1.0, release = 0.019048 }
+
+[[effects.gate.tones]]
+waveform = "sawtooth"
+start_frequency = 420.0
+end_frequency = 330.0
+easing = "ease_in_out_sine"
+offset = 0.100396
+duration = 0.101333
+low_pass_cutoff = 1200.0
+distortion = 0.2
+envelope = { attack = 0.019048, decay = 0.0, sustain_level = 1.0, release = 0.021212 }
+
+[[effects.gate.tones]]
+waveform = "sawtooth"
+start_frequency = 330.0
+end_frequency = 460.0
+easing = "ease_in_out_sine"
+offset = 0.180517
+duration = 0.139241
+low_pass_cutoff = 1200.0
+distortion = 0.2
+envelope = { attack = 0.021212, decay = 0.0, sustain_level = 1.0, release = 0.019565 }
+
+[[effects.gate.tones]]
+waveform = "sawtooth"
+start_frequency = 460.0
+end_frequency = 350.0
+easing = "ease_in_out_sine"
+offset = 0.300193
+duration = 0.160494
+low_pass_cutoff = 1200.0
+distortion = 0.2
+envelope = { attack = 0.019565, decay = 0.0, sustain_level = 1.0, release = 0.1 }
+
+# The TV switching off (the game over): the tube whine falling from 1600 to 60 Hz as
+# the picture collapses, and the switch clicking.
+[effects.switch-off]
+volume = 0.35
+
+[[effects.switch-off.tones]]
+waveform = "sine"
+start_frequency = 1600.0
+end_frequency = 60.0
+easing = "ease_in_out_sine"
+offset = 0.0
+duration = 0.550602
+envelope = { attack = 0.002, decay = 0.0, sustain_level = 1.0, release = 0.1 }
+
+[[effects.switch-off.tones]]
+waveform = "noise"
+start_frequency = 1000.0
+offset = 0.55
+duration = 0.02
+volume = 0.5
+envelope = { attack = 0.001, decay = 0.005, sustain_level = 0.5, release = 0.01 }

@@ -43,7 +43,7 @@ PNGs, WAVs or tracker files. The game must be its own thing, not a copy.
 
 | 18 | 2026-11-14 | **A character BOM (bill of materials) before any art**: every sprite character gets its full frame and animation list written and audited before any art is drawn: each character's animations (idle, walk in each facing, attack, hurt, death, and anything special), the frames in each, their timing and loop rule, size, palette and hitbox. The art feature starts only after the owner has seen that audit | owner |
 | 19 | 2026-11-14 | **TV spawners**: monsters (Lawn Zombies, Rabbit-Ears) come out of TV sets left on around the neighborhood, and players destroy the TVs to stop them, through stages of destruction (Claude's proposal: intact, cracked, smashed and sparking, destroyed and smoking; the spawn rate halves at each stage and stops when destroyed) | owner (stages: Claude's proposal) |
-| 17 | 2026-11-14 | The registration files outside the game folder may be edited (root config, test tables, `scripts/`, the browser build). **`src/glitchygames/` is off-limits**, with two approved exceptions: the `MEMBER_LAYERS` line, and the small fix to `collision/detection.py`'s margin (Engine wishlist #11), both on this branch ("everything goes into this branch") | owner |
+| 17 | 2026-11-14 | The registration files outside the game folder may be edited (root config, test tables, `scripts/`, the browser build). **`src/glitchygames/` is off-limits**, with four approved exceptions: the `MEMBER_LAYERS` line, the small fix to `collision/detection.py`'s margin (Engine wishlist #11), the sound engine's `Mix` (`audio/mix.py`, wishlist #3; the owner, 2026-11-18: asked for "your recommendation" between it and a game-local copy of the cache), and a compiled sound keeping its int16 samples only (`Sound.release_float_samples`: this game held 10.7 of its 19.8 MiB of sound in float64 renders on a first launch, `scripts/measure_sound_memory.py`; the owner, 2026-11-18: "yes"), all on this branch ("everything goes into this branch") | owner |
 
 ## Open questions (the owner's)
 
@@ -277,8 +277,9 @@ designs are not.
   duplicate touchable check, an always-true zap check, and the game over's and the effect
   order's None checks, now properties that fail loudly (`GameOverScene.screen_picture`,
   `Neighbor.playing_effect`). The game's test routine now measures its coverage (memory).
-- [ ] **Sound and music** (begun by feature plan 10: the zap, the laser, the groans; the rest
-  below still to come) (the owner, 2026-11-15: "We do need sounds in the game though, we
+- [x] **Sound and music** for level 1 (feature plan 10: the zap, the laser, the groans; feature
+  plan 11, 2026-11-18: every other moment of a stage and the score, its sequencer staged in the
+  game at the owner's word, to move into the engine once the game has landed) (the owner, 2026-11-15: "We do need sounds in the game though, we
   just haven't gotten there yet"): effects for the game's actions (zaps, TV spawns and hits,
   rescues and losses, knockouts, the laser, the gate, the stage clear, the game over) and a
   B-movie score as layered loops, all engine-native (decisions 3 and 11: sound files version 1,
@@ -308,14 +309,16 @@ designs are not.
 ## Engine wishlist (decision 12)
 
 Engine bugs, features and refactors found while building the game. Nothing here is changed in
-the engine on this branch. Bugs also go into BUGS.md and features into plans/future-features.md
+the engine on this branch, except decision 17's approved exceptions. Bugs also go into BUGS.md and features into plans/future-features.md
 when filed; this table links to them.
 
 | # | Found | Kind | What | Filed |
 |---|-------|------|------|-------|
 | 1 | 2026-11-14 | feature | Narration from the engine's own waves (speech synthesis, text to phonemes, a sound-file form) | future-features #90 |
 | 2 | 2026-11-14 | feature | A per-game hook for the browser page (extra page content and scripts). Less pressing now that the input toggle is allowed on the shared page (decision 16) | not yet |
-| 3 | 2026-11-14 | feature | A music sequencer (already roadmap #64, design only); this game works around it with layered looping sounds | future-features #64 |
+| 3 | 2026-11-14 | feature | A music sequencer (already roadmap #64, design only). **Partly built on this branch (decision 17):** the engine's `Mix` (`audio/mix.py`) compiles instrument parts into one sound, cached as every sound is; with `loop_seconds` it is an exact loop (trailing rests kept, release tails folded onto its start), so `play(loop=True)` repeats it in time. That replaced feature plan 11's first workaround (layers restarted from game frames, up to a frame late and later after a hitch). Still open: a sequencer of cues (sections, transitions, tempo), and sample-exact starts (`at_frame`, M2) | future-features #64 |
+| 13 | 2026-11-18 | feature | A sound file cannot name a catalog instrument (only its own `[instruments.*]`), so `SOUNDS` could not declare a score on catalog instruments. **Answered on this branch (decision 17's `Mix`):** `SOUNDS` takes a `Mix` (its type is now `SoundSource`, defined once in `audio/library.py`), so this game declares its score there and the engine builds it while the game starts. A sound file still can't name a catalog instrument | answered by `Mix` |
+| 14 | 2026-11-18 | to consider | A compiled sound keeps its samples twice (float64 and int16) besides the mixer's stereo copy: this game's 16 s stage loop, one mix, holds 9.9 MB (5.6 of it float64; it was 36 MB as five layers), the score 15 MB. Dropping the float copy once compiled (a disk hit already has none) would save over half | not yet |
 | 4 | 2026-11-14 | to verify | Gamepads and rumble in the browser build (SDL under Pyodide) | not yet |
 | 5 | 2026-11-14 | refactor | `MEMBER_LAYERS` in `src/glitchygames/logical_names.py` is a hand-kept copy of the workspace, so adding any game means editing engine source. The engine could derive a package's layer from the installed member's location or its distribution metadata, so new games never touch the engine | not yet |
 | 6 | 2026-11-14 | feature | Scripted sessions (goldens, bundled demos) can't plug a device in mid-session: `ScriptedSessionOptions` has no `plugged_in_at_start=False` (only `install_stand_in_devices` does, `src/glitchygames/input/stand_in_devices.py:251`). Hot-plug joins are tested in unit tests only | not yet |
@@ -358,8 +361,14 @@ Each feature gets its own plan in `plans/`, linked here and linking back to this
    committed (82074978). The stage card builds the coming stage's sprites into a kit, a sprite a frame,
    and hands it to the stage, so no stage pauses to load (the owner's option 2, 2026-11-15).
 10. [The first sounds](2026-11-15-zombies-aint-my-neighbors-10-first-sounds.md): BUILT,
-   uncommitted. The remote's warbly theremin zap, the laser's "wheeee", and
+   committed (7824557e). The remote's warbly theremin zap, the laser's "wheeee", and
    zombies groaning sometimes at a new target (the owner's ask, 2026-11-15), as baked sounds.
+11. [The rest of the sounds, and the score](2026-11-18-zombies-aint-my-neighbors-11-the-rest-of-the-sounds.md):
+   BUILT, uncommitted. An effect for every other moment of a stage (TV spawns and hits, rescues
+   and losses, knockouts, the gate, the switch-off) and a theremin-and-organ score on catalog
+   instruments: the stage loop, the clear and the game over, each compiled into one sound by
+   the engine's new `Mix` and cached as every sound is (`music.py`; the owner, 2026-11-18:
+   "build it, then play the built copy. Same as our other caching layer.").
 
 ## Sources
 

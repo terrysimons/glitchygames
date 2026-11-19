@@ -23,7 +23,8 @@ from glitchygames.sprites import AnimatedSprite
 from glitchygames.tracing import StableSpriteIds
 from tests.input.stand_in_devices import STAND_IN_PAD
 from zombies_aint_my_neighbors import groans as groans_module
-from zombies_aint_my_neighbors.exit_door import OPENING_SECONDS
+from zombies_aint_my_neighbors import music
+from zombies_aint_my_neighbors.exit_door import DOOR_SIZE, OPENING_SECONDS
 from zombies_aint_my_neighbors.feature_card import CARD_SECONDS, FeatureCardScene
 from zombies_aint_my_neighbors.game_over import GameOverScene
 from zombies_aint_my_neighbors.groans import GROAN_REST_SECONDS
@@ -44,6 +45,7 @@ from zombies_aint_my_neighbors.neighborhood import (
     LAWN_COLOUR,
     PAN_WIDTH,
     SCREEN_MARGIN,
+    STAGE_CLEAR_FADE_SECONDS,
     WALK_SPEED,
     YARD_HEIGHT,
     YARD_WIDTH,
@@ -52,15 +54,30 @@ from zombies_aint_my_neighbors.neighborhood import (
 )
 from zombies_aint_my_neighbors.roster import JoinRoster
 from zombies_aint_my_neighbors.run_state import NeighborKind, RunState
-from zombies_aint_my_neighbors.sounds import GROANS, LASER_RISE, LASER_SHINE, ZAP
+from zombies_aint_my_neighbors.sounds import (
+    GATE,
+    GROANS,
+    KNOCKOUT,
+    LASER_RISE,
+    LASER_SHINE,
+    LOSS,
+    RESCUE,
+    TV_BREAK,
+    TV_DESTROYED,
+    TV_HIT,
+    TV_SPAWN,
+    ZAP,
+)
 from zombies_aint_my_neighbors.title import TitleScene
 from zombies_aint_my_neighbors.tv import (
+    HITS_PER_STAGE,
     SPAWN_MINIMUM_SECONDS,
     TV_SIZE,
     ZOMBIES_IN_ALL,
     ZOMBIES_PER_TV,
     Tv,
 )
+from zombies_aint_my_neighbors.tv import STAGES as TV_STAGES
 from zombies_aint_my_neighbors.zap import Zap
 from zombies_aint_my_neighbors.zombie import Zombie
 
@@ -1922,3 +1939,241 @@ def test_an_unplugged_player_who_never_aimed_the_laser_fades_nothing(mocker):
 
         assert 1 not in scene.kids
         assert played.call_count == 0
+
+
+# The rest of the sounds (feature plan 11)
+
+
+def spies(mocker, scene: NeighborhoodScene, *names: str) -> dict:
+    """Spy on the plays of some of the scene's sounds.
+
+    Returns:
+        Each name's spy.
+
+    """
+    return {name: mocker.spy(scene.sounds[name], 'play') for name in names}
+
+
+def pan_of(scene: NeighborhoodScene, *, world_x: float, width: float) -> float:
+    """Return the pan a sound made by something this wide, standing here, should have.
+
+    Returns:
+        The pan.
+
+    """
+    return pan_for(world_x=world_x + width / 2, camera=scene.camera, screen_width=SCREEN_WIDTH)
+
+
+def test_every_zombie_climbing_out_plays_the_spawn_from_its_tv(mocker):
+    """Ten seconds: each TV's first zombie, and a spawn heard from where each TV stands."""
+    scene = neighborhood()
+    spawn = spies(mocker, scene, TV_SPAWN)[TV_SPAWN]
+    pans = {pan_of(scene, world_x=tv.world_x, width=TV_SIZE) for tv in scene.tvs}
+
+    run(scene, seconds=10.0)
+
+    assert spawn.call_count == len(scene.zombies) == len(scene.tvs)
+    assert {call.kwargs['pan'] for call in spawn.call_args_list} == pans
+
+
+def test_a_zap_on_a_tv_plays_only_the_strongest_of_what_it_did(mocker):
+    """Nine zaps: six hits, a break into cracked and one into smashed, then the destruction."""
+    scene = neighborhood()
+    scene.shake = lambda *arguments, **keywords: None
+    _dex, tv = kid_under_a_tv(scene)
+    heard = spies(mocker, scene, TV_HIT, TV_BREAK, TV_DESTROYED)
+    hold_fire(scancodes=(pygame.KSCAN_J,))
+
+    run(scene, seconds=2.5)
+
+    assert tv.is_destroyed
+    assert {name: spy.call_count for name, spy in heard.items()} == {
+        TV_HIT: 6,
+        TV_BREAK: 2,
+        TV_DESTROYED: 1,
+    }
+    pan = pan_of(scene, world_x=tv.world_x, width=TV_SIZE)
+    for spy in heard.values():
+        assert all(call.kwargs['pan'] == pytest.approx(pan) for call in spy.call_args_list)
+
+
+def test_a_rescue_plays_once_from_the_neighbor(mocker):
+    """Dex reaches a neighbor: one rescue heard, from where the neighbor stood."""
+    scene = neighbors_stage()
+    neighbor = scene.neighbors[0]
+    heard = spies(mocker, scene, RESCUE, LOSS)
+    stand_on(scene.kids[0], neighbor)
+
+    run(scene, seconds=0.5)
+
+    assert heard[RESCUE].call_count == 1
+    assert heard[LOSS].call_count == 0
+    assert heard[RESCUE].call_args.kwargs['pan'] == pytest.approx(
+        pan_of(scene, world_x=neighbor.world_x, width=KID_WIDTH)
+    )
+
+
+def test_a_loss_plays_once_from_the_neighbor(mocker):
+    """A zombie reaches a neighbor first: one loss heard, from where the neighbor stood."""
+    scene = neighbors_stage()
+    neighbor = scene.neighbors[0]
+    heard = spies(mocker, scene, RESCUE, LOSS)
+    scene.add_zombie(world_x=neighbor.world_x, world_y=neighbor.world_y)
+
+    run(scene, seconds=0.5)
+
+    assert heard[LOSS].call_count == 1
+    assert heard[RESCUE].call_count == 0
+    assert heard[LOSS].call_args.kwargs['pan'] == pytest.approx(
+        pan_of(scene, world_x=neighbor.world_x, width=KID_WIDTH)
+    )
+
+
+def test_a_knockout_bonks_once_however_long_the_zombie_stays(mocker):
+    """One knockout, one bonk: a zombie still on the kid while it is down bonks no more."""
+    scene = neighborhood()
+    dex = scene.kids[0]
+    knockout = spies(mocker, scene, KNOCKOUT)[KNOCKOUT]
+    zombie = scene.add_zombie(world_x=dex.world_x, world_y=dex.world_y)
+    pan = pan_of(scene, world_x=dex.world_x, width=KID_WIDTH)
+
+    for _ in range(round(KNOCKOUT_SECONDS * 60)):
+        zombie.world_x, zombie.world_y = dex.world_x, dex.world_y
+        run(scene, seconds=FRAME_SECONDS)
+
+    assert knockout.call_count == 1
+    assert knockout.call_args.kwargs['pan'] == pytest.approx(pan)
+
+
+def test_the_gate_creaks_once_as_it_begins_to_open(mocker):
+    """The yard empty and one rescued: one creak, on the frame the gate starts to swing."""
+    scene = neighbors_stage(neighbors=(NeighborKind.PIZZA_TEEN,))
+    gate = spies(mocker, scene, GATE)[GATE]
+    stand_on(scene.kids[0], scene.neighbors[0])
+
+    opened_at = None
+    for _ in range(60):
+        run(scene, seconds=FRAME_SECONDS)
+        if opened_at is None and scene.exit_door.is_open:
+            opened_at = gate.call_count
+
+    assert opened_at == 1
+    assert gate.call_count == 1
+    assert gate.call_args.kwargs['pan'] == pytest.approx(
+        pan_of(scene, world_x=scene.exit_door.world_x, width=DOOR_SIZE)
+    )
+
+
+def test_the_stage_loop_starts_on_the_stages_first_frame_looping_on_the_music_bus(mocker):
+    """One sound, every layer mixed in, looping by itself, on the music bus above the effects."""
+    scene = neighborhood()
+    loop = mocker.spy(scene.music.loop_sound, 'play')
+
+    run(scene, seconds=FRAME_SECONDS)
+
+    assert loop.call_count == 1
+    assert loop.call_args.kwargs == {
+        'volume': music.MUSIC_VOLUME,
+        'bus': music.MUSIC_BUS,
+        'priority': music.MUSIC_PRIORITY,
+        'loop': True,
+    }
+
+
+def test_the_stage_loop_is_exactly_its_bars_long():
+    """16.000 s, every tail folded onto its start, so each repeat lands on the beat."""
+    scene = neighborhood()
+
+    assert scene.music.loop_sound.length == music.LOOP_SECONDS
+
+
+def test_no_cue_of_the_score_clips():
+    """The layers' volumes add up to no more than full scale at any sample."""
+    scene = neighborhood()
+    audio = scene.scene_manager.audio
+
+    peaks = {cue.name: music.cue_sound(audio, cue).peak for cue in music.CUES}
+
+    assert all(peak <= 1.0 for peak in peaks.values()), peaks
+
+
+def without_zombies(scene: NeighborhoodScene) -> None:
+    """Destroy every TV, so no zombie comes: a long run can't end in a game over by chance.
+
+    The tests' random streams are unseeded, so whether zombies reach a kid in 16 s is luck.
+    """
+    for tv in scene.tvs:
+        tv.hits = HITS_PER_STAGE * (len(TV_STAGES) - 1)
+    assert all(tv.is_destroyed for tv in scene.tvs)
+
+
+def test_the_stage_loop_is_started_once_and_repeats_by_itself(mocker):
+    """Past its first boundary, still the one play: the mixer repeats it, not the stage."""
+    scene = neighborhood()
+    without_zombies(scene)
+    loop = mocker.spy(scene.music.loop_sound, 'play')
+
+    run(scene, seconds=music.LOOP_SECONDS + 1.0)
+
+    assert loop.call_count == 1
+
+
+def test_the_stage_asks_for_no_sound_during_play(mocker):
+    """Every sound it plays was got in setup: nothing can compile mid-stage (decision 11)."""
+    scene = busy_yard()
+    asked = mocker.spy(scene.scene_manager.audio, 'sound')
+    hold_fire(scancodes=(pygame.KSCAN_J,), pads_firing=(1, 2, 3))
+
+    run(scene, seconds=20.0)
+
+    assert asked.call_count == 0
+
+
+def through_the_gate(scene: NeighborhoodScene) -> None:
+    """Walk Dex into the open gate (the yard already cleared)."""
+    stand_on(scene.kids[0], scene.exit_door)
+    scene.kids[0].world_y += 8
+
+
+def test_clearing_the_stage_fades_the_loop_and_plays_the_clear(mocker):
+    """Through the gate: the loop fades out, the D major sting plays once, the loop never again."""
+    scene = neighbors_stage(neighbors=(NeighborKind.PIZZA_TEEN,))
+    loop = mocker.spy(scene.music.loop_sound, 'play')
+    clear = mocker.spy(scene.music.clear_sound, 'play')
+    clear_the_yard(scene)
+    playing = loop.spy_return
+    stop = mocker.spy(type(playing), 'stop')
+    through_the_gate(scene)
+
+    run(scene, seconds=CHEER_SECONDS)
+
+    assert scene.stage_cleared
+    assert clear.call_count == 1
+    assert clear.call_args.kwargs['loop'] is False
+    assert stops_of(stop, playing) == [STAGE_CLEAR_FADE_SECONDS]
+    assert loop.call_count == 1
+
+
+def test_a_clear_before_the_loop_started_plays_the_clear_alone_and_the_loop_never(mocker):
+    """Cleared before the loop's first frame: the sting plays, nothing fades, no loop follows."""
+    scene = neighbors_stage(neighbors=(NeighborKind.PIZZA_TEEN,))
+    stage_music = music.StageMusic()
+    stage_music.prepare(scene.scene_manager.audio)
+    loop = mocker.spy(stage_music.loop_sound, 'play')
+    clear = mocker.spy(stage_music.clear_sound, 'play')
+
+    stage_music.play_the_clear(fade=STAGE_CLEAR_FADE_SECONDS)
+    stage_music.start()
+
+    assert clear.call_count == 1
+    assert clear.call_args.kwargs['loop'] is False
+    assert loop.call_count == 0
+
+
+@pytest.mark.parametrize('sound', ['loop_sound', 'clear_sound'])
+def test_the_stage_music_has_no_sound_before_it_is_prepared(sound):
+    """Asked for before the stage's setup got them: said so, not a None played."""
+    stage_music = music.StageMusic()
+
+    with pytest.raises(RuntimeError, match='not prepared'):
+        getattr(stage_music, sound)

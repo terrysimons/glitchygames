@@ -5,6 +5,10 @@ character BOM decision 5, less the villain's laugh until he is drawn. The pictur
 bright line, then to a dot, then goes dark (``SWITCH_OFF_SECONDS``), as an old TV switching off
 does: a screen-space sprite drawn in code each frame (``SwitchOff``). GAME OVER then shows; after
 ``GAME_OVER_SECONDS``, or a joined player's start, the title returns with everyone still joined.
+
+Feature plan 11 (plans/2026-11-18-zombies-aint-my-neighbors-11-the-rest-of-the-sounds.md): the
+tube's whine falls away with the picture (``switch-off``), and the organ's dun, dun, DUNNN
+(``music.GAME_OVER``) plays as the words show.
 """
 
 from __future__ import annotations
@@ -13,10 +17,12 @@ from typing import TYPE_CHECKING, Any, Final, override
 
 import pygame
 
-from zombies_aint_my_neighbors import text
+from zombies_aint_my_neighbors import music, text
 from zombies_aint_my_neighbors.roster_scene import RosterScene
+from zombies_aint_my_neighbors.sounds import SWITCH_OFF, sound_reference
 
 if TYPE_CHECKING:
+    from glitchygames.audio import Sound
     from zombies_aint_my_neighbors.roster import DeviceIdentity, JoinRoster
 
 SWITCH_OFF_SECONDS: Final = 0.6
@@ -93,6 +99,37 @@ class GameOverScene(RosterScene):
         self.background_color = DARK
         self._screen_picture: text.TextPicture | None = None
         self._game_over_text: text.TextPicture | None = None
+        # Its sounds, got in setup, and whether each has played
+        self._switch_off_sound: Sound | None = None
+        self._game_over_music: Sound | None = None
+        self._switched_off = False
+        self._sting_played = False
+
+    @property
+    def switch_off_sound(self) -> Sound:
+        """The tube's whine falling away (after ``setup``).
+
+        Raises:
+            RuntimeError: Before ``setup``.
+
+        """
+        if self._switch_off_sound is None:
+            message = 'the game over is not set up'
+            raise RuntimeError(message)
+        return self._switch_off_sound
+
+    @property
+    def game_over_music(self) -> Sound:
+        """The organ's dun, dun, DUNNN: the game over cue, one sound (after ``setup``).
+
+        Raises:
+            RuntimeError: Before ``setup``.
+
+        """
+        if self._game_over_music is None:
+            message = 'the game over is not set up'
+            raise RuntimeError(message)
+        return self._game_over_music
 
     @property
     def screen_picture(self) -> text.TextPicture:
@@ -122,8 +159,12 @@ class GameOverScene(RosterScene):
 
     @override
     def setup(self) -> None:
-        """Make the switch-off's picture and the words (once: setting up again keeps them)."""
+        """Get the sounds, make the switch-off's picture and the words (once each)."""
         super().setup()
+        if self._switch_off_sound is None:
+            audio = self.scene_manager.audio
+            self._switch_off_sound = audio.sound(sound_reference(SWITCH_OFF))
+            self._game_over_music = music.cue_sound(audio, music.GAME_OVER)
         if self._game_over_text is not None:
             return
         size = (self.screen_width, self.screen_height)
@@ -161,7 +202,14 @@ class GameOverScene(RosterScene):
                 size=(self.screen_width, self.screen_height), seconds=self.game_time
             )
         )
-        self.game_over_text.set_shown(shown=self.game_time >= SWITCH_OFF_SECONDS)
+        words_shown = self.game_time >= SWITCH_OFF_SECONDS
+        self.game_over_text.set_shown(shown=words_shown)
+        if not self._switched_off:
+            self.switch_off_sound.play()
+            self._switched_off = True
+        if words_shown and not self._sting_played:
+            music.play_cue(music.GAME_OVER, self.game_over_music)
+            self._sting_played = True
         if self.game_time >= GAME_OVER_SECONDS and self.next_scene is None:
             self._back_to_the_title()
 

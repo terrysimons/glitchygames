@@ -19,7 +19,22 @@ from typing import TYPE_CHECKING, Final
 
 from pydantic import BaseModel, ConfigDict
 
-from zombies_aint_my_neighbors.sounds import GROANS, LASER_RISE, LASER_SHINE, SOUND_FILE, ZAP
+from zombies_aint_my_neighbors.sounds import (
+    GATE,
+    GROANS,
+    KNOCKOUT,
+    LASER_RISE,
+    LASER_SHINE,
+    LOSS,
+    RESCUE,
+    SOUND_FILE,
+    SWITCH_OFF,
+    TV_BREAK,
+    TV_DESTROYED,
+    TV_HIT,
+    TV_SPAWN,
+    ZAP,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -273,6 +288,272 @@ def _groans() -> tuple[EffectSpec, ...]:
     )
 
 
+# Feature plan 11 (plans/2026-11-18-zombies-aint-my-neighbors-11-the-rest-of-the-sounds.md). Each
+# effect has at most one chain of swoops (a pitch that moves); its other layers hold one pitch, or
+# are noise, so the chain rules above hold for every effect.
+
+
+def _static(  # ruff: ignore[too-many-arguments] - one layer's knobs, all keywords
+    *,
+    duration: float,
+    offset: float = 0.0,
+    volume: float,
+    high_pass: float | None = None,
+    low_pass: float | None = None,
+    distortion: float | None = None,
+    attack: float = 0.003,
+    decay: float = 0.05,
+    sustain_level: float = 0.4,
+    release: float = 0.05,
+) -> ToneSpec:
+    """Return a burst of noise: static, a crunch, a knock or a click.
+
+    Returns:
+        The tone.
+
+    """
+    return ToneSpec(
+        waveform='noise',
+        start_frequency=1000.0,
+        offset=offset,
+        duration=duration,
+        attack=attack,
+        decay=decay,
+        sustain_level=sustain_level,
+        release=release,
+        volume=volume,
+        high_pass_cutoff=high_pass,
+        low_pass_cutoff=low_pass,
+        distortion=distortion,
+    )
+
+
+def _held(  # ruff: ignore[too-many-arguments] - one layer's knobs, all keywords
+    *,
+    pitch: float,
+    duration: float,
+    offset: float = 0.0,
+    volume: float,
+    waveform: str = 'sine',
+    attack: float = 0.003,
+    release: float = 0.05,
+) -> ToneSpec:
+    """Return a tone held at one pitch: a tick, a chirp's note, a thud.
+
+    Returns:
+        The tone.
+
+    """
+    return ToneSpec(
+        waveform=waveform,
+        start_frequency=pitch,
+        offset=offset,
+        duration=duration,
+        attack=attack,
+        release=release,
+        volume=volume,
+    )
+
+
+def _tv_spawn() -> EffectSpec:
+    thump = swoops(pitches=((90, 45),), abouts=(0.25,), fade_in=0.004, fade_out=0.15)
+    return EffectSpec(
+        name=TV_SPAWN,
+        comment=(
+            'A zombie climbing out of a TV: the picture tube thumps (90 falling to 45 Hz) and the',
+            'screen bursts into static.',
+        ),
+        volume=0.4,
+        tones=(
+            *thump,
+            _static(
+                duration=0.4, offset=0.05, volume=1.0, high_pass=2000.0, attack=0.02, release=0.15
+            ),
+        ),
+    )
+
+
+def _tv_hit() -> EffectSpec:
+    return EffectSpec(
+        name=TV_HIT,
+        comment=('A zap on a TV: a glassy tick and a blip of static.',),
+        volume=0.3,
+        tones=(
+            _held(pitch=2400.0, duration=0.03, volume=0.5, attack=0.002, release=0.02),
+            _static(duration=0.1, volume=0.5, high_pass=3000.0, decay=0.03, sustain_level=0.3),
+        ),
+    )
+
+
+def _crunch(*, volume: float) -> ToneSpec:
+    """Return breaking glass: rough, bright noise.
+
+    Returns:
+        The tone.
+
+    """
+    return _static(
+        duration=0.25,
+        volume=volume,
+        low_pass=5000.0,
+        distortion=2.0,
+        attack=0.002,
+        decay=0.08,
+        sustain_level=0.3,
+        release=0.12,
+    )
+
+
+def _tv_break() -> EffectSpec:
+    return EffectSpec(
+        name=TV_BREAK,
+        comment=('A TV breaking into its next stage: a crunch of glass, a shard ringing.',),
+        volume=0.4,
+        tones=(
+            _crunch(volume=0.8),
+            _held(pitch=3100.0, duration=0.15, offset=0.03, volume=0.2, release=0.1),
+        ),
+    )
+
+
+def _tv_destroyed() -> EffectSpec:
+    boom = swoops(pitches=((70, 35),), abouts=(0.6,), fade_in=0.005, fade_out=0.35)
+    return EffectSpec(
+        name=TV_DESTROYED,
+        comment=(
+            'A TV destroyed: the crunch, a low boom (70 falling to 35 Hz) and the tube fizzling',
+            'out.',
+        ),
+        volume=0.5,
+        tones=(
+            _crunch(volume=0.5),
+            *boom,
+            _static(
+                duration=0.6,
+                offset=0.25,
+                volume=0.15,
+                high_pass=4000.0,
+                attack=0.05,
+                sustain_level=0.3,
+                release=0.3,
+            ),
+        ),
+    )
+
+
+def _rescue() -> EffectSpec:
+    # E5, A5 and C#6: an A major arpeggio, up
+    notes = ((659.26, 0.0, 0.09), (880.0, 0.09, 0.09), (1108.73, 0.18, 0.12))
+    return EffectSpec(
+        name=RESCUE,
+        comment=('A neighbor rescued: three bright notes chirping up (E5, A5, C#6).',),
+        volume=0.35,
+        tones=tuple(
+            _held(
+                pitch=pitch,
+                duration=duration,
+                offset=offset,
+                volume=0.8,
+                waveform='triangle',
+                attack=0.005,
+                release=0.03,
+            )
+            for pitch, offset, duration in notes
+        ),
+    )
+
+
+def _loss() -> EffectSpec:
+    wail = swoops(
+        pitches=((900, 700), (700, 760), (760, 420)),
+        abouts=(0.12, 0.08, 0.2),
+        fade_in=0.01,
+        fade_out=0.06,
+    )
+    return EffectSpec(
+        name=LOSS,
+        comment=('A neighbor lost: a wail wavering down from 900 to 420 Hz, then a thud.',),
+        volume=0.4,
+        tones=(
+            *wail,
+            _held(
+                pitch=60.0,
+                duration=0.15,
+                offset=round(chain_seconds(wail), DECIMALS),
+                volume=0.8,
+                release=0.1,
+            ),
+        ),
+    )
+
+
+def _knockout() -> EffectSpec:
+    bonk = swoops(pitches=((700, 170),), abouts=(0.18,), fade_in=0.002, fade_out=0.1)
+    return EffectSpec(
+        name=KNOCKOUT,
+        comment=('A kid knocked out: a cartoon bonk, the pitch dropping, and a knock.',),
+        volume=0.4,
+        tones=(
+            *bonk,
+            _static(
+                duration=0.03,
+                volume=0.6,
+                low_pass=1500.0,
+                attack=0.001,
+                decay=0.01,
+                sustain_level=0.5,
+                release=0.02,
+            ),
+        ),
+    )
+
+
+# The gate's creak: a dark, rough sawtooth, crossfaded as the groans are
+CREAK: Final = Shaping(waveform='sawtooth', low_pass_cutoff=1200.0, distortion=0.2, crossfade=0.02)
+
+
+def _gate() -> EffectSpec:
+    return EffectSpec(
+        name=GATE,
+        comment=(
+            'The exit gate swinging open: an iron creak wavering between about 300 and 460 Hz,',
+            'outlasting the swing a little, as a heavy gate settles.',
+        ),
+        volume=0.35,
+        tones=swoops(
+            pitches=((300, 420), (420, 330), (330, 460), (460, 350)),
+            abouts=(0.12, 0.1, 0.14, 0.16),
+            fade_in=0.03,
+            fade_out=0.1,
+            shaping=CREAK,
+        ),
+    )
+
+
+def _switch_off() -> EffectSpec:
+    whine = swoops(pitches=((1600, 60),), abouts=(0.55,), fade_in=0.002, fade_out=0.1)
+    return EffectSpec(
+        name=SWITCH_OFF,
+        comment=(
+            'The TV switching off (the game over): the tube whine falling from 1600 to 60 Hz as',
+            'the picture collapses, and the switch clicking.',
+        ),
+        volume=0.35,
+        tones=(
+            *whine,
+            _static(
+                duration=0.02,
+                offset=0.55,
+                volume=0.5,
+                attack=0.001,
+                decay=0.005,
+                sustain_level=0.5,
+                release=0.01,
+            ),
+        ),
+    )
+
+
 def effects() -> tuple[EffectSpec, ...]:
     """Return every effect the game plays, in the file's order.
 
@@ -280,7 +561,21 @@ def effects() -> tuple[EffectSpec, ...]:
         The effects.
 
     """
-    return (_zap(), _laser_rise(), _laser_shine(), *_groans())
+    return (
+        _zap(),
+        _laser_rise(),
+        _laser_shine(),
+        *_groans(),
+        _tv_spawn(),
+        _tv_hit(),
+        _tv_break(),
+        _tv_destroyed(),
+        _rescue(),
+        _loss(),
+        _knockout(),
+        _gate(),
+        _switch_off(),
+    )
 
 
 def _number(value: float) -> str:
@@ -322,7 +617,7 @@ def document() -> str:
     """
     lines = [
         "# The game's sounds, written by zombies_aint_my_neighbors/sound_rig.py (do not edit by",
-        '# hand: change the rig and run it). Feature plan 10.',
+        '# hand: change the rig and run it). Feature plans 10 and 11.',
         '',
         '[glitchygames]',
         'kind = "sounds"',
