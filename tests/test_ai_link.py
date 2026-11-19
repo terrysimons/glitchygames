@@ -21,7 +21,9 @@ from glitchygames.ai_link import (
     PROTOCOL_VERSION,
     AiLink,
     LinkState,
+    ServiceLocations,
     create_link,
+    service_locations,
 )
 from glitchygames.host import HostSources
 from tests.ai_service_stand_in import SERVICE_KEY, install
@@ -123,7 +125,9 @@ def started_link(tmp_path):
 
     def make(*, session_url: str, exit_code: int = 0) -> AiLink:
         install(root=tmp_path, exit_code=exit_code)
-        link = AiLink(install_root=tmp_path, session_url=session_url)
+        link = AiLink(
+            locations=ServiceLocations.in_one_folder(root=tmp_path), session_url=session_url
+        )
         links.append(link)
         link.start()
         return link
@@ -158,7 +162,10 @@ def test_start_returns_before_the_service_does(tmp_path):
     """The frame loop never waits: a script that takes a while doesn't hold up start()."""
     release = tmp_path / 'release'
     install(root=tmp_path, exit_code=1, waits_for=release)
-    link = AiLink(install_root=tmp_path, session_url='ws://127.0.0.1:9/v1/session')
+    link = AiLink(
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+        session_url='ws://127.0.0.1:9/v1/session',
+    )
 
     link.start()
 
@@ -198,7 +205,10 @@ def test_a_missing_key_does_not_escape_the_thread(tmp_path):
     """AI failing must never disturb the game: the error stays on the link."""
     install(root=tmp_path)
     (tmp_path / 'config' / 'service-api-key').unlink()
-    link = AiLink(install_root=tmp_path, session_url='ws://127.0.0.1:9/v1/session')
+    link = AiLink(
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+        session_url='ws://127.0.0.1:9/v1/session',
+    )
 
     link.start()
 
@@ -244,7 +254,9 @@ def test_waiting_to_reconnect_uses_the_engines_sleep_or_the_one_given(tmp_path):
     install(root=tmp_path)
     waits = []
     link = AiLink(
-        install_root=tmp_path, session_url='ws://127.0.0.1:9/v1/session', sleep=waits.append
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+        session_url='ws://127.0.0.1:9/v1/session',
+        sleep=waits.append,
     )
 
     link.start()
@@ -268,7 +280,7 @@ def test_stop_closes_the_session_so_the_service_can_count_it(service, started_li
 
 def test_stop_before_start_is_harmless(tmp_path):
     """A run that never reached the game still tears down."""
-    link = AiLink(install_root=tmp_path)
+    link = AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path))
 
     link.stop()
 
@@ -285,7 +297,7 @@ def test_stop_during_a_retry_ends_the_thread(tmp_path):
         link.stop()
 
     link = AiLink(
-        install_root=tmp_path,
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
         session_url='ws://127.0.0.1:9/v1/session',
         sleep=stop_while_waiting,
     )
@@ -323,7 +335,7 @@ def test_a_bad_message_is_dropped_and_the_link_goes_on(service, started_link, ba
 
 def test_the_inbox_keeps_only_the_newest(tmp_path):
     """AI that falls behind drops old proposals, rather than building a backlog."""
-    link = AiLink(install_root=tmp_path)
+    link = AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path))
 
     for number in range(MAXIMUM_INBOX_MESSAGES + 5):
         link._receive(text=json.dumps({'type': 'x', 'number': number}))
@@ -406,7 +418,7 @@ class FakeInnerSources:
 def test_the_ai_doors_are_host_doors(tmp_path):
     """They're a subclass: the frozen host is used, never edited."""
     assert issubclass(AiHostSources, HostSources)
-    link = AiLink(install_root=tmp_path)
+    link = AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path))
     doors = AiHostSources(inner=FakeInnerSources(events=[]), link=link)
     assert doors.link is link
     assert doors.overlay is None
@@ -415,7 +427,7 @@ def test_the_ai_doors_are_host_doors(tmp_path):
 def test_a_proposal_joins_the_batch_after_the_players_events(tmp_path):
     """Proposals follow what really happened, and each arrives once."""
     player = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a, scancode=4, mod=0, unicode='a')
-    link = AiLink(install_root=tmp_path)
+    link = AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path))
     doors = AiHostSources(inner=FakeInnerSources(events=[player]), link=link)
     link._receive(text=json.dumps(KEY_PRESS))
 
@@ -430,7 +442,8 @@ def test_a_quiet_frame_returns_the_host_batch_untouched(tmp_path):
     """With nothing proposed, the batch is the host's own."""
     player = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a, scancode=4, mod=0, unicode='a')
     doors = AiHostSources(
-        inner=FakeInnerSources(events=[player]), link=AiLink(install_root=tmp_path)
+        inner=FakeInnerSources(events=[player]),
+        link=AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path)),
     )
 
     assert doors.pump_events() == [player]
@@ -465,8 +478,122 @@ def test_anything_but_a_valid_key_proposal_is_refused(message):
 
 def test_refused_proposals_never_reach_the_batch(tmp_path):
     """The check is applied on the way in."""
-    link = AiLink(install_root=tmp_path)
+    link = AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path))
     doors = AiHostSources(inner=FakeInnerSources(events=[]), link=link)
     link._receive(text=json.dumps({**KEY_PRESS, 'event_type': pygame.QUIT}))
 
     assert doors.pump_events() == []
+
+
+LINUX_DATA_HOME = Path('/home/player/.local/share')
+
+
+@pytest.fixture
+def no_location_variables(monkeypatch):
+    """Leave the platform to choose: the harness points the install variable nowhere."""
+    for name in (
+        INSTALL_ROOT_ENVIRONMENT_VARIABLE,
+        ai_link.PROGRAM_ROOT_ENVIRONMENT_VARIABLE,
+        ai_link.USER_ROOT_ENVIRONMENT_VARIABLE,
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_service_locations_on_macos_are_one_folder(no_location_variables, mocker):
+    """The Ansible role and the .pkg install into one folder."""
+    mocker.patch.object(ai_link.sys, 'platform', 'darwin')
+
+    locations = service_locations()
+
+    expected = Path.home() / 'Library' / 'Application Support' / 'GlitchyGames' / 'AI'
+    assert locations == ServiceLocations(program_root=expected, user_root=expected)
+
+
+def test_service_locations_on_linux_split_programs_and_user_data(
+    no_location_variables, monkeypatch, mocker
+):
+    """The programs are in /opt; the keys, settings and history are the user's own."""
+    mocker.patch.object(ai_link.sys, 'platform', 'linux')
+    monkeypatch.setenv('XDG_DATA_HOME', str(LINUX_DATA_HOME))
+
+    with_xdg = service_locations()
+
+    monkeypatch.delenv('XDG_DATA_HOME')
+    without_xdg = service_locations()
+    assert with_xdg == ServiceLocations(
+        program_root=Path('/opt/glitchygames/ai'), user_root=LINUX_DATA_HOME / 'glitchygames' / 'ai'
+    )
+    assert without_xdg == ServiceLocations(
+        program_root=Path('/opt/glitchygames/ai'),
+        user_root=Path.home() / '.local' / 'share' / 'glitchygames' / 'ai',
+    )
+
+
+def test_the_install_root_variable_still_sets_both_roots(tmp_path, monkeypatch, mocker):
+    """On any platform, a test's one folder."""
+    mocker.patch.object(ai_link.sys, 'platform', 'win32')
+    monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
+
+    assert service_locations() == ServiceLocations.in_one_folder(root=tmp_path)
+
+
+def test_the_program_and_user_variables_each_set_one_and_win(tmp_path, monkeypatch):
+    """Each variable moves its own root, over the one-folder variable."""
+    monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path / 'one'))
+    monkeypatch.setenv(ai_link.PROGRAM_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path / 'programs'))
+
+    only_programs = service_locations()
+
+    monkeypatch.setenv(ai_link.USER_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path / 'user'))
+    both = service_locations()
+    assert only_programs == ServiceLocations(
+        program_root=tmp_path / 'programs', user_root=tmp_path / 'one'
+    )
+    assert both == ServiceLocations(program_root=tmp_path / 'programs', user_root=tmp_path / 'user')
+
+
+def test_one_variable_alone_completes_a_platform_without_defaults(
+    no_location_variables, tmp_path, monkeypatch, mocker
+):
+    """Both roots named means the platform needs no default."""
+    mocker.patch.object(ai_link.sys, 'platform', 'win32')
+    monkeypatch.setenv(ai_link.PROGRAM_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path / 'programs'))
+    assert service_locations() is None
+
+    monkeypatch.setenv(ai_link.USER_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path / 'user'))
+
+    assert service_locations() == ServiceLocations(
+        program_root=tmp_path / 'programs', user_root=tmp_path / 'user'
+    )
+
+
+@pytest.mark.parametrize('platform', ['win32', 'emscripten'])
+def test_another_platform_has_no_locations_and_no_link(platform, no_location_variables, mocker):
+    """Neither has the service."""
+    mocker.patch.object(ai_link.sys, 'platform', platform)
+
+    assert service_locations() is None
+    assert create_link(options={'ai': True}) is None
+
+
+def test_create_link_needs_the_control_script_and_the_key_in_their_own_roots(tmp_path, monkeypatch):
+    """The script is under the program root only, the key under the user root only."""
+    programs = tmp_path / 'programs'
+    user = tmp_path / 'user'
+    monkeypatch.setenv(ai_link.PROGRAM_ROOT_ENVIRONMENT_VARIABLE, str(programs))
+    monkeypatch.setenv(ai_link.USER_ROOT_ENVIRONMENT_VARIABLE, str(user))
+    install(root=programs)
+    (user / 'config').mkdir(parents=True)
+    assert create_link(options={'ai': True}) is None  # no key in the user root
+
+    (user / 'config' / 'service-api-key').write_text(SERVICE_KEY, encoding='utf-8')
+    link = create_link(options={'ai': True})
+    assert link is not None
+    assert link.locations == ServiceLocations(program_root=programs, user_root=user)
+
+    (programs / 'bin' / 'ai-service.sh').unlink()
+    assert create_link(options={'ai': True}) is None  # no script in the program root
+    (programs / 'bin' / 'ai-service.sh').touch()
+    (user / 'config' / 'service-api-key').unlink()
+    (programs / 'config' / 'service-api-key').write_text(SERVICE_KEY, encoding='utf-8')
+    assert create_link(options={'ai': True}) is None  # a key in the program root does not count

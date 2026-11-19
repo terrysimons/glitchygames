@@ -32,6 +32,7 @@ from scripts.ai_model_comparison import (
 )
 
 from glitchygames.ai_console import SYSTEM_PROMPT
+from glitchygames.ai_link import ServiceLocations
 
 
 def question_with(**fields: Any) -> Question:
@@ -399,7 +400,7 @@ def test_settings_change_only_the_port_and_context(tmp_path):
     directory.mkdir()
 
     write_settings(
-        root=root,
+        locations=ServiceLocations.in_one_folder(root=root),
         configuration=Configuration(size='4b', context=32768),
         port=23239,
         directory=directory,
@@ -433,7 +434,12 @@ def test_a_configuration_may_set_the_prompt_cache(tmp_path):
     directory = tmp_path / 'copy'
     directory.mkdir()
 
-    write_settings(root=root, configuration=configuration, port=23239, directory=directory)
+    write_settings(
+        locations=ServiceLocations.in_one_folder(root=root),
+        configuration=configuration,
+        port=23239,
+        directory=directory,
+    )
 
     assert (directory / f'{label}.env.runtime').read_text(encoding='utf-8') == (
         'AI_PORT=23239\nAI_CONTEXT_SIZE=8192\nAI_CACHE_RAM_MIB=512\n'

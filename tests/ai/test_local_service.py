@@ -12,13 +12,12 @@ import pytest
 from glitchygames import ai_link
 from glitchygames.ai import local_service
 from glitchygames.ai.local_service import (
-    EXIT_NOT_ENOUGH_MEMORY,
     LocalAIClient,
     LocalAIServiceError,
     LocalAIServiceNotInstalledError,
     create_chat_client,
 )
-from glitchygames.ai_link import INSTALL_ROOT_ENVIRONMENT_VARIABLE
+from glitchygames.ai_link import INSTALL_ROOT_ENVIRONMENT_VARIABLE, ServiceLocations
 from tests.ai_service_stand_in import SERVICE_KEY, install
 
 if TYPE_CHECKING:
@@ -97,7 +96,11 @@ def client_for(*, root: Path, base_url: str) -> LocalAIClient:
         The client.
 
     """
-    return LocalAIClient(install_root=root, base_url=base_url, sleep=lambda _seconds: None)
+    return LocalAIClient(
+        locations=ServiceLocations.in_one_folder(root=root),
+        base_url=base_url,
+        sleep=lambda _seconds: None,
+    )
 
 
 def test_a_chat_request_reads_as_every_caller_expects(service, tmp_path):
@@ -163,7 +166,7 @@ def test_a_service_nothing_answers_for_is_started(tmp_path):
 def test_too_little_memory_says_so_and_can_be_retried(service, tmp_path):
     """The script's memory exit becomes a clear error with a retryable status."""
     fake, base_url = service
-    install(root=tmp_path, exit_code=EXIT_NOT_ENOUGH_MEMORY)
+    install(root=tmp_path, exit_code=ai_link.EXIT_NOT_ENOUGH_MEMORY)
     fake.ready_status = HTTPStatus.SERVICE_UNAVAILABLE
 
     with pytest.raises(LocalAIServiceError, match='not enough free memory') as error:
@@ -191,9 +194,9 @@ def test_waiting_uses_the_engines_sleep_by_default(service, tmp_path, mocker):
     fake.not_ready_for = 2
     sleep = mocker.patch('glitchygames.clock.raw_sleep')
 
-    LocalAIClient(install_root=tmp_path, base_url=base_url).create(
-        model='reasoning', messages=MESSAGES
-    )
+    LocalAIClient(
+        locations=ServiceLocations.in_one_folder(root=tmp_path), base_url=base_url
+    ).create(model='reasoning', messages=MESSAGES)
 
     sleep.assert_called_with(local_service.READY_POLL_SECONDS)
 
@@ -251,7 +254,7 @@ def test_the_factory_makes_a_local_client_with_the_timeout(tmp_path, monkeypatch
     client = create_chat_client(timeout_seconds=12.0)
 
     assert isinstance(client, LocalAIClient)
-    assert client.install_root == tmp_path
+    assert client.locations == ServiceLocations.in_one_folder(root=tmp_path)
     assert client.timeout_seconds == 12.0
 
 
@@ -270,9 +273,29 @@ def test_without_the_variable_the_usual_install_is_used(monkeypatch, tmp_path):
     """Out of tests, the client looks where the Ansible role and the package install."""
     install(root=tmp_path)
     monkeypatch.delenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE)
-    monkeypatch.setattr(ai_link, 'DEFAULT_INSTALL_ROOT', tmp_path)
+    monkeypatch.setenv(ai_link.USER_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
+    monkeypatch.setenv(ai_link.PROGRAM_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
 
-    assert LocalAIClient().install_root == tmp_path
+    assert LocalAIClient().locations == ServiceLocations.in_one_folder(root=tmp_path)
+
+
+def test_a_platform_without_the_service_is_not_installed(monkeypatch, mocker):
+    """No locations at all (Windows, a browser) is the same refusal as a missing script."""
+    for name in (
+        INSTALL_ROOT_ENVIRONMENT_VARIABLE,
+        ai_link.PROGRAM_ROOT_ENVIRONMENT_VARIABLE,
+        ai_link.USER_ROOT_ENVIRONMENT_VARIABLE,
+    ):
+        monkeypatch.delenv(name, raising=False)
+    mocker.patch.object(ai_link.sys, 'platform', 'win32')
+
+    with pytest.raises(LocalAIServiceNotInstalledError, match=r'ansible/ai_service\.yml'):
+        LocalAIClient()
+
+
+def test_the_client_reads_the_link_exit_code():
+    """One copy of the control script's exit code: the link's."""
+    assert local_service.EXIT_NOT_ENOUGH_MEMORY is ai_link.EXIT_NOT_ENOUGH_MEMORY
 
 
 def test_a_stream_line_with_nothing_in_it_gives_nothing():
@@ -296,7 +319,7 @@ def test_a_dropped_stream_is_a_service_error(tmp_path, mocker):
     (tmp_path / 'bin' / 'ai-service.sh').touch()
     (tmp_path / 'config').mkdir()
     (tmp_path / 'config' / 'service-api-key').write_text('key', encoding='utf-8')
-    client = local_service.LocalAIClient(install_root=tmp_path)
+    client = local_service.LocalAIClient(locations=ServiceLocations.in_one_folder(root=tmp_path))
     mocker.patch.object(client, '_is_ready', return_value=True)
     failure = local_service.httpx2.ReadError('the connection dropped')
     mocker.patch.object(local_service.httpx2, 'stream', side_effect=failure)

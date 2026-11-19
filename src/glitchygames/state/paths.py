@@ -52,6 +52,30 @@ def validate_app_name(app_name: str) -> None:
         raise ValueError(msg)
 
 
+def platform_data_home() -> Path:
+    """Get the platform's folder for user data, which holds one folder per application.
+
+    Returns:
+        macOS ``~/Library/Application Support``; Windows ``%APPDATA%`` (default
+        ``~/AppData/Roaming``); otherwise ``$XDG_DATA_HOME`` (default ``~/.local/share``).
+
+    """
+    if sys.platform == 'darwin':
+        return Path.home() / 'Library' / 'Application Support'
+
+    if sys.platform.startswith('win'):
+        appdata = os.environ.get('APPDATA')
+        if appdata:
+            return Path(appdata)
+        return Path.home() / 'AppData' / 'Roaming'
+
+    # Linux and other POSIX
+    xdg_data_home = os.environ.get('XDG_DATA_HOME')
+    if xdg_data_home:
+        return Path(xdg_data_home)
+    return Path.home() / '.local' / 'share'
+
+
 def get_save_directory(app_name: str) -> Path:
     """Get the platform-specific save directory for an application.
 
@@ -67,21 +91,7 @@ def get_save_directory(app_name: str) -> Path:
 
     """
     validate_app_name(app_name)
-
-    if sys.platform == 'darwin':
-        return Path.home() / 'Library' / 'Application Support' / app_name
-
-    if sys.platform.startswith('win'):
-        appdata = os.environ.get('APPDATA')
-        if appdata:
-            return Path(appdata) / app_name
-        return Path.home() / 'AppData' / 'Roaming' / app_name
-
-    # Linux and other POSIX
-    xdg_data_home = os.environ.get('XDG_DATA_HOME')
-    if xdg_data_home:
-        return Path(xdg_data_home) / app_name
-    return Path.home() / '.local' / 'share' / app_name
+    return platform_data_home() / app_name
 
 
 def get_cache_directory(app_name: str) -> Path:

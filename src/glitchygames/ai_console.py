@@ -53,7 +53,7 @@ from glitchygames.output_files import write_aside_then_replace
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from glitchygames.ai_link import AiLink
+    from glitchygames.ai_link import AiLink, ServiceLocations
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
 
@@ -278,19 +278,19 @@ class AiConsole:
         self,
         *,
         link: AiLink,
-        install_root: Path,
+        locations: ServiceLocations,
         service_url: str | None = None,
     ) -> None:
         """Prepare the console, closed. Nothing is loaded until it's first drawn or used.
 
         Args:
             link: The game's session with the service: its state, and the models it reported.
-            install_root: Where the service is installed, and where history is kept.
+            locations: Where the service is installed, and where history is kept.
             service_url: Where its REST API listens. None is the client's default.
 
         """
         self.link = link
-        self.install_root = install_root
+        self.locations = locations
         self.service_url = service_url
         self.is_open = False
         self.hidden_scancodes: set[int] = set()
@@ -982,7 +982,7 @@ class AiConsole:
         )
 
         client = LocalAIClient(
-            install_root=self.install_root, base_url=self.service_url or DEFAULT_BASE_URL
+            locations=self.locations, base_url=self.service_url or DEFAULT_BASE_URL
         )
         answer = ''
         for piece in client.stream(
@@ -1078,7 +1078,7 @@ class AiConsole:
         """Return this game's history file, named for its package, so its scenes share it."""
         subject = None if self.scene is None else self.scene.debug_subject
         package = 'unknown' if subject is None else type(subject).__module__.partition('.')[0]
-        return self.install_root / 'history' / f'{package}.jsonl'
+        return self.locations.history_directory / f'{package}.jsonl'
 
     # Applied on the main thread, from self._updates
 

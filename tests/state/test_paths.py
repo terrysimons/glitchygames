@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING
 import pytest
 
 import glitchygames.state.paths as paths_module
-from glitchygames.state.paths import get_cache_directory, get_save_directory, validate_app_name
+from glitchygames.state.paths import (
+    get_cache_directory,
+    get_save_directory,
+    platform_data_home,
+    validate_app_name,
+)
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
@@ -181,3 +186,25 @@ class TestGetCacheDirectory:
     def test_an_invalid_app_name_is_refused_as_for_saves(self) -> None:
         with pytest.raises(ValueError, match='Invalid app_name'):
             get_cache_directory('Invalid Name!')
+
+
+@pytest.mark.parametrize(
+    ('platform', 'environment', 'expected'),
+    [
+        ('darwin', {}, Path.home() / 'Library' / 'Application Support'),
+        ('win32', {'APPDATA': '/appdata'}, Path('/appdata')),
+        ('win32', {}, Path.home() / 'AppData' / 'Roaming'),
+        ('linux', {'XDG_DATA_HOME': '/xdg'}, Path('/xdg')),
+        ('linux', {}, Path.home() / '.local' / 'share'),
+    ],
+    ids=['macos', 'windows-appdata', 'windows-default', 'linux-xdg', 'linux-default'],
+)
+def test_platform_data_home_is_what_saves_used_on_every_platform(
+    platform: str, environment: dict[str, str], expected: Path, mocker: MockerFixture
+) -> None:
+    """The save folder is the data home joined with the app name, as it was before the lift."""
+    mocker.patch.object(paths_module.sys, 'platform', platform)
+    mocker.patch.dict(paths_module.os.environ, environment, clear=True)
+
+    assert platform_data_home() == expected
+    assert get_save_directory('paddleslap') == expected / 'paddleslap'

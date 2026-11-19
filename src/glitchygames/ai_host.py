@@ -80,7 +80,7 @@ class AiHostSources(HostSources):
         """
         super().__init__(inner=inner, overlay=overlay)
         self.link = link
-        self.console = AiConsole(link=link, install_root=link.install_root)
+        self.console = AiConsole(link=link, locations=link.locations)
 
     @override
     def pump_events(self: Self) -> list[pygame.event.Event]:
