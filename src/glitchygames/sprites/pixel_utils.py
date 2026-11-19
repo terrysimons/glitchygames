@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Sequence
+    from collections.abc import Callable, Collection, Iterable, Sequence
 
 import pygame
 
@@ -71,22 +71,67 @@ def convert_pixels_to_rgb_if_possible(
         pixels: List of pixel tuples (RGB or RGBA)
 
     Returns:
-        List of RGB tuples, converting RGBA to RGB if all alphas are opaque
+        List of RGB tuples, converting RGBA to RGB if all alphas are opaque: one tuple per
+        color, shared by every pixel of it (``_one_tuple_per_color``)
 
     """
     # Check if we need alpha
     if not needs_alpha_channel(pixels):
         # Convert RGBA to RGB (every RGBA pixel is opaque: needs_alpha_channel said so)
-        rgb_pixels: list[tuple[int, ...]] = []
-        for pixel in pixels:
-            if len(pixel) == RGBA_COMPONENT_COUNT:
-                r, g, b, _alpha = pixel
-                rgb_pixels.append((r, g, b))
-            else:
-                rgb_pixels.append(pixel)
-        return rgb_pixels
+        return _one_tuple_per_color(pixels, convert=_without_alpha)
     # Keep as RGBA
-    return list(pixels)
+    return _one_tuple_per_color(pixels, convert=tuple)
+
+
+def _without_alpha(pixel: tuple[int, ...]) -> tuple[int, ...]:
+    """Return an RGBA pixel as RGB; an RGB pixel as it is.
+
+    Returns:
+        The pixel without its alpha.
+
+    """
+    if len(pixel) == RGBA_COMPONENT_COUNT:
+        r, g, b, _alpha = pixel
+        return (r, g, b)
+    return tuple(pixel)
+
+
+def _with_alpha(pixel: tuple[int, ...]) -> tuple[int, ...]:
+    """Return an RGB pixel as opaque RGBA (the transparency key too); an RGBA pixel as it is.
+
+    Returns:
+        The pixel with an alpha.
+
+    """
+    if len(pixel) == RGB_COMPONENT_COUNT:
+        r, g, b = pixel
+        return (r, g, b, MAX_COLOR_CHANNEL_VALUE)
+    return tuple(pixel)
+
+
+def _one_tuple_per_color(
+    pixels: Sequence[tuple[int, ...]],
+    *,
+    convert: Callable[[tuple[int, ...]], tuple[int, ...]],
+) -> list[tuple[int, ...]]:
+    """Convert each pixel, building one tuple per distinct color that every pixel of it shares.
+
+    A frame's pixels live as long as the frame: a new tuple per pixel cost about 89 bytes each,
+    746 MiB for a game's sixteen zombies
+    (bugs/2026-11-18-sprite-frames-held-a-tuple-per-pixel.md).
+
+    Returns:
+        The converted pixels, in order.
+
+    """
+    converted: dict[tuple[int, ...], tuple[int, ...]] = {}
+    result: list[tuple[int, ...]] = []
+    for pixel in pixels:
+        shared = converted.get(pixel)
+        if shared is None:
+            shared = converted[pixel] = convert(pixel)
+        result.append(shared)
+    return result
 
 
 def convert_pixels_to_rgba_if_needed(
@@ -98,22 +143,11 @@ def convert_pixels_to_rgba_if_needed(
         pixels: List of pixel tuples (RGB or RGBA)
 
     Returns:
-        List of RGBA tuples
+        List of RGBA tuples, one tuple per color shared by every pixel of it (the transparency
+        key stays opaque, as every RGB color does, for proper handling)
 
     """
-    rgba_pixels: list[tuple[int, ...]] = []
-    for pixel in pixels:
-        if len(pixel) == RGB_COMPONENT_COUNT:
-            r, g, b = pixel
-            if pixel == (255, 0, 255):
-                # Transparency key - keep it opaque for proper handling
-                rgba_pixels.append((r, g, b, 255))
-            else:
-                # Opaque color - set alpha to 255
-                rgba_pixels.append((r, g, b, 255))
-        else:
-            rgba_pixels.append(pixel)
-    return rgba_pixels
+    return _one_tuple_per_color(pixels, convert=_with_alpha)
 
 
 def lookup_pixel_char(

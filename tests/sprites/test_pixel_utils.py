@@ -11,6 +11,7 @@ from glitchygames.sprites.pixel_utils import (
     compute_bounding_box_from_pixels,
     compute_envelope_bounding_box,
     convert_pixels_to_rgb_if_possible,
+    convert_pixels_to_rgba_if_needed,
     create_alpha_surface,
     create_indexed_surface,
     extract_pixel_colors,
@@ -575,3 +576,43 @@ class TestNormalizePixelRows:
         )
         assert palette_key_problems(['a', '❤️', '\x00', 'b']) == (expected,)
         assert palette_key_problems(['a']) == ()
+
+
+def _separate_tuples(color: tuple[int, ...], count: int) -> list[tuple[int, ...]]:
+    """Return count equal tuples, each its own object (as a loader building them one by one)."""
+    return [tuple(channel for channel in color) for _ in range(count)]
+
+
+class TestConvertedPixelsShareOneTuplePerColor:
+    """A frame's pixels hold one tuple per color, not one per pixel.
+
+    A tuple per pixel cost about 89 bytes each: a game building sixteen zombies held 746 MiB of
+    them (bugs/2026-11-18-sprite-frames-held-a-tuple-per-pixel.md).
+    """
+
+    def test_converting_to_rgba_shares_one_tuple_per_color(self):
+        """Equal pixels come back as the same tuple, with alpha added once per color."""
+        pixels = _separate_tuples((1, 2, 3), 4) + _separate_tuples((255, 0, 255), 3)
+
+        result = convert_pixels_to_rgba_if_needed(pixels)
+
+        assert result == [(1, 2, 3, 255)] * 4 + [(255, 0, 255, 255)] * 3
+        assert len({id(pixel) for pixel in result}) == 2
+
+    def test_converting_to_rgb_shares_one_tuple_per_color(self):
+        """Opaque RGBA pixels come back as RGB, one tuple per color."""
+        pixels = _separate_tuples((1, 2, 3, 255), 4) + _separate_tuples((4, 5, 6, 255), 3)
+
+        result = convert_pixels_to_rgb_if_possible(pixels)
+
+        assert result == [(1, 2, 3)] * 4 + [(4, 5, 6)] * 3
+        assert len({id(pixel) for pixel in result}) == 2
+
+    def test_rgba_pixels_already_rgba_share_one_tuple_per_color(self):
+        """Pixels that already carry alpha are kept, one tuple per color."""
+        pixels = _separate_tuples((1, 2, 3, 128), 4)
+
+        result = convert_pixels_to_rgba_if_needed(pixels)
+
+        assert result == [(1, 2, 3, 128)] * 4
+        assert len({id(pixel) for pixel in result}) == 1

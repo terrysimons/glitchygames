@@ -1,0 +1,17 @@
+# Sprite Frames Held a New Tuple for Every Pixel
+
+- **Description**: CircleCI's Linux jobs on #215, #220 and #221 stopped at the test memory guard (1752-1765 MiB of 1750) in `tests/test_every_recording_replays_inside_an_inner_game.py`, the case replaying the two Zombies Ain't My Neighbors recordings side by side. Raising the limit from 1600 to 1750 MiB had not helped. Measured with `scripts/memory_triage.py per-test` (macOS, Python memory only): that case peaked at 1403 MiB within the file's run, 1353 MiB alone.
+- **Status**: Fixed (2026-11-18, branch `fix/sprite-frame-memory`)
+- **Priority**: High (it stopped every branch carrying the zombies game)
+- **Root Cause**: `convert_pixels_to_rgba_if_needed` and `convert_pixels_to_rgb_if_possible` (`src/glitchygames/sprites/pixel_utils.py`) built a new tuple for every pixel, and `AnimatedSprite` keeps the result as each frame's `pixels` for the frame's lifetime. A frame with the transparency key (almost every sprite: magenta makes `needs_alpha_channel` true) took the RGBA path, about 89 bytes per pixel. The zombies feature card builds its zombies ahead of each stage, each loading and converting `zombie.toml` afresh (the engine keeps no cache of loaded sprite files). At the peak, a sampling tracemalloc probe found 746 MiB in 8.8 million tuples at `pixel_utils.py:110` and `:113`.
+- **Test gap**: no test looked at what a loaded frame holds, only at its colors; the memory guard was the only check that saw the cost.
+- **Solution**: both conversions go through `_one_tuple_per_color`: one tuple per distinct color, shared by every pixel of it. The values are unchanged; the list now holds references, 8 bytes per pixel.
+- **Measured**: the zombies pair case alone peaks at 683 MiB instead of 1353 MiB; memory kept after it is 85 MiB both ways (the tuples were transient across the test, not kept).
+- **Tests**: `tests/sprites/test_pixel_utils.py` `TestConvertedPixelsShareOneTuplePerColor` (both conversions, and RGBA input); `tests/sprites/test_animated_sprite.py` `TestLoadedFramesShareOneTuplePerColor`, the conservation property for every loaded frame, animated and static, opaque and with the transparency key: no more distinct pixel objects than distinct colors. All failed for the RGBA path before the fix.
+- **Siblings** (a read-only audit of `src/` and `scripts/`, 2026-11-18; not fixed here):
+  - No sprite file cache: every `AnimatedSprite(filename=...)` reads and parses its file, `SpriteFactory.load_sprite` parses it twice, and each instance builds its own frame surfaces (the zombies `pool.py` measures 27-41 ms per zombie load).
+  - DEBUG logging of large data, which pytest's log capture keeps (about 300 MiB of records at the same peak): `animated.py` `_log_frame_debug_info` (every pixel row of every frame), `_debug_frame_pixel_data` (`str(frame.pixels)` per frame advance), `bitmappy_sprite.py` (the whole raw TOML file, the whole pixel text, one record per row on save).
+  - Per-pixel allocation in transient or editor paths: `SpriteFrame.get_pixel_data`'s fallback (`get_at` per pixel), Bitmappy's `file_io.py`, `film_strip_rendering.py`, `toml_processing.py`.
+- **Reporter**: Claude
+- **Date Reported**: 2026-11-18
+- **Files**: `src/glitchygames/sprites/pixel_utils.py`, `tests/sprites/test_pixel_utils.py`, `tests/sprites/test_animated_sprite.py`

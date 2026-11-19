@@ -4654,3 +4654,42 @@ def test_every_input_handler_of_an_animated_sprite_is_silent():
         handler = getattr(sprite, name)
         parameter_count = handler.__code__.co_argcount - 1
         assert handler(*[event] * parameter_count) is None, name
+
+
+class TestLoadedFramesShareOneTuplePerColor:
+    """Every frame a sprite file loads holds one pixel tuple per color, not one per pixel.
+
+    The conservation property behind bugs/2026-11-18-sprite-frames-held-a-tuple-per-pixel.md:
+    a frame's distinct pixel objects number no more than its distinct colors.
+    """
+
+    MAGENTA_COLOR_TOML = '[colors."m"]\nred = 255\ngreen = 0\nblue = 255\n\n'
+
+    @staticmethod
+    def _load(tmp_path: Path, toml_content: str) -> AnimatedSprite:
+        toml_file = tmp_path / 'shared.toml'
+        toml_file.write_text(toml_content, encoding='utf-8')
+        return AnimatedSprite(str(toml_file))
+
+    @staticmethod
+    def _frames(sprite: AnimatedSprite) -> list[SpriteFrame]:
+        return [frame for frames in sprite._animations.values() for frame in frames]
+
+    @pytest.mark.parametrize(
+        'colors_toml',
+        [TABLE_COLORS_TOML, TABLE_COLORS_TOML + MAGENTA_COLOR_TOML],
+        ids=['opaque', 'with-the-transparent-color'],
+    )
+    @pytest.mark.parametrize('kind', ['animated', 'static'])
+    def test_each_frame_holds_one_tuple_per_color(self, tmp_path, colors_toml, kind):
+        """Opaque frames (RGB) and frames with magenta (RGBA) alike."""
+        rows = 'xxab\nmmab\nxxcd' if 'colors."m"' in colors_toml else 'xxab\nxxab\nxxcd'
+        build = _animated_sprite_toml if kind == 'animated' else _static_sprite_toml
+        sprite = self._load(tmp_path, build(rows, colors_toml))
+
+        frames = self._frames(sprite)
+
+        assert frames
+        for frame in frames:
+            assert len(frame.pixels) == 12
+            assert len({id(pixel) for pixel in frame.pixels}) == len(set(frame.pixels))
