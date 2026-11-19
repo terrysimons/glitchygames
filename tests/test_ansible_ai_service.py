@@ -1850,9 +1850,14 @@ if [ -n "${CURL_FAILS_AFTER_BYTES:-}" ]; then
 fi
 tail -c +"$(( have + 1 ))" "$source" >> "$output"
 """
+# OPENSSL_FAILS makes it fail as a broken openssl would: having written part of its output, or none
 OPENSSL_STUB = """#!/bin/sh
 printf 'openssl %s\\n' "$*" >> "$SERVICE_TOOL_LOG"
 [ "$*" = 'rand -hex 32' ] || exit 2
+case "${OPENSSL_FAILS:-}" in
+    partway) printf '0123'; exit 1 ;;
+    silently) exit 1 ;;
+esac
 echo 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 """
 # Without --all, nproc counts only the cores this process may use, which under the setup unit's own
@@ -2376,6 +2381,73 @@ def test_a_wrong_hash_is_discarded(tmp_path: Path):
     assert not (models / model_file['file']).exists()
     assert not (models / f'{model_file["file"]}.part').exists()
     assert f'{model_file["file"]} had the wrong SHA-256' in result.stdout
+
+
+@needs_a_posix_shell
+def test_a_missing_settings_template_leaves_the_settings_as_they_were(tmp_path: Path):
+    """A package missing service.json.template stops setup; it never empties a good service.json."""
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    first = setup.run()
+    assert first.returncode == 0, first.stdout + first.stderr
+    settings = setup.user_root / 'config' / 'service.json'
+    before = settings.read_bytes()
+    (setup.program_root / 'share' / 'agents' / 'service.json.template').unlink()
+
+    result = setup.run()
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert settings.read_bytes() == before
+    assert 'service.json.template' in result.stdout
+    assert not list(settings.parent.glob('*.new'))
+
+
+@needs_a_posix_shell
+def test_an_unreadable_agent_template_leaves_its_settings_as_they_were(tmp_path: Path):
+    """The agents' settings get the same care: a template that can't be read stops setup."""
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    first = setup.run()
+    assert first.returncode == 0, first.stdout + first.stderr
+    reasoning = setup.service.agent(role='reasoning')['label']
+    settings = setup.user_root / 'config' / f'{reasoning}.env'
+    before = settings.read_bytes()
+    template = setup.program_root / 'share' / 'agents' / f'{reasoning}.env.template'
+    template.chmod(0)
+    try:
+        result = setup.run()
+    finally:
+        template.chmod(0o644)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert settings.read_bytes() == before
+    assert reasoning in result.stdout
+    assert not list(settings.parent.glob(f'{reasoning}.env.*'))
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('failure', ['partway', 'silently'])
+def test_a_failed_key_is_never_left_empty_and_the_next_run_makes_it(tmp_path: Path, failure: str):
+    """A failed openssl leaves no key file at all, so the next run makes one, not an empty file.
+
+    setup.sh makes a key only when there is none, so an empty or partial one would stay for good.
+    """
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    config = setup.user_root / 'config'
+
+    failed = setup.run(extra={'OPENSSL_FAILS': failure})
+
+    assert failed.returncode == 1, failed.stdout + failed.stderr
+    assert not (config / 'worker-api-key').exists()
+    assert not (config / 'service-api-key').exists()
+    assert not list(config.glob('*-api-key*'))
+    assert 'worker-api-key' in failed.stdout
+    retried = setup.run()
+    assert retried.returncode == 0, retried.stdout + retried.stderr
+    for key in ('worker-api-key', 'service-api-key'):
+        assert len((config / key).read_text(encoding='utf-8').strip()) == 64, key
+        assert ((config / key).stat().st_mode & 0o777) == 0o600, key
 
 
 USER_ROOT_CASES = [

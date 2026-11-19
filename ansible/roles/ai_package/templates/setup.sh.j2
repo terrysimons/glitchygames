@@ -170,13 +170,27 @@ if [ "$failed" = true ]; then
     exit 1
 fi
 
+# A key is made only when there is none, so a failed openssl must leave no file at all: an empty or
+# partial key would stay for good. It's written beside its place and moved in only when whole
 for key in worker-api-key service-api-key; do
-    if [ ! -f "$config/$key" ]; then
-        (umask 077 && openssl rand -hex 32 > "$config/$key")
+    [ ! -f "$config/$key" ] || continue
+    if ! (umask 077 && openssl rand -hex 32 > "$config/$key.new") || [ ! -s "$config/$key.new" ]; then
+        rm -f "$config/$key.new"
+        say "could not make $key with openssl; stopping"
+        exit 1
     fi
+    mv "$config/$key.new" "$config/$key"
 done
 
-fill_in json "$share/agents/service.json.template" > "$config/service.json.new"
+# The settings likewise: a template missing from the package, or one that can't be read, stops the
+# run and leaves the settings already there as they were
+service_template="$share/agents/service.json.template"
+if [ ! -f "$service_template" ] \
+    || ! fill_in json "$service_template" > "$config/service.json.new"; then
+    rm -f "$config/service.json.new"
+    say "could not fill in $service_template; stopping"
+    exit 1
+fi
 install_if_changed "$config/service.json.new" "$config/service.json"
 # Each agent's settings, with this machine's thread count in place of the one the package was
 # built with
@@ -187,8 +201,15 @@ for template in "$share"/agents/*.env.template; do
         exit 1
     fi
     label=$(basename "$template" .env.template)
-    fill_in shell "$template" \
-        | sed -e "s|^AI_THREADS=.*|AI_THREADS='$threads'|" > "$config/$label.env.new"
+    # Two steps rather than a pipe, whose status would be sed's alone
+    if ! fill_in shell "$template" > "$config/$label.env.filled" \
+        || ! sed -e "s|^AI_THREADS=.*|AI_THREADS='$threads'|" "$config/$label.env.filled" \
+            > "$config/$label.env.new"; then
+        rm -f "$config/$label.env.filled" "$config/$label.env.new"
+        say "could not fill in the settings for $label; stopping"
+        exit 1
+    fi
+    rm -f "$config/$label.env.filled"
     install_if_changed "$config/$label.env.new" "$config/$label.env"
     install_agent_definition "$label" || exit 1
 done
