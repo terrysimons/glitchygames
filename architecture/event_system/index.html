@@ -861,6 +861,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#the-sprite-spawn-event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The sprite spawn event
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#extending-gameevent-in-your-game" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3490,7 +3501,8 @@ Code inside the <code>glitchygames</code> package must always do so (<code>tests
 <li><strong>Custom event types</strong> — three engine-level event types (<code>FPSEVENT</code>,
   <code>GAMEEVENT</code>, <code>MENUEVENT</code>) allocated by name (<code>named_custom_event_type</code>), plus an
   extensible <code>GAMEEVENT</code> bus for posting arbitrary game-specific events with
-  per-subtype callbacks.</li>
+  per-subtype callbacks. A fourth, <code>SPRITE_SPAWN_EVENT</code>, is the engine's alone (see
+  <a href="#the-sprite-spawn-event">The sprite spawn event</a>).</li>
 <li><strong>An unhandled event safety net</strong> — every <code>on_*_event()</code> has a default stub
   that reports the event as unhandled (a warning once per type, or an
   <code>UnhandledEventError</code> under <code>--no-unhandled-events</code>), and the engine counts
@@ -3714,6 +3726,16 @@ registration raises <code>CustomEventNameTakenError</code>). A type allocated st
 replay in a shifted process cannot move it. It can also collide: <code>pygame.quit()</code> restarts
 pygame's allocation at <code>USEREVENT + 1</code>, so the first raw <code>custom_type()</code> after a quit returns
 FPSEVENT's id. <code>named_custom_event_type</code> skips every id a name already holds.</p>
+<h3 id="the-sprite-spawn-event">The sprite spawn event<a class="headerlink" href="#the-sprite-spawn-event" title="Permanent link">#</a></h3>
+<p><code>SPRITE_SPAWN_EVENT</code> (<code>glitchygames.sprite_spawn</code>, in <code>src/glitchygames/events/sprite_spawn.py</code>)
+carries a sprite's file text and a world point. The <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> console's <code>/sprite DESCRIPTION</code> posts one
+with <code>recording.post_input_event</code> once a generated sprite is ready, so a recording keeps it,
+text and all, and a replay adds the same sprite at the same frame and place with no <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> and no
+saved file. <code>GameEngine.process_events</code> handles it itself, before anything else sees the event:
+it builds a world-space <code>SpawnedSprite</code> (<code>sprites/spawned.py</code>) centered on the point and adds it
+to the active scene's game (<code>debug_subject</code>: under the pause screen, the paused game). It never
+reaches a game's handlers, so every game gets <code>/sprite</code> with no code of its own. Text that
+cannot build a sprite is logged as one warning and adds nothing.</p>
 <p><code>GAMEEVENT</code> is intentionally generic — game code posts events with arbitrary
 payloads via <code>GameEngine.post_game_event()</code>, and can register per-subtype
 callbacks via <code>GameEngine.register_game_event()</code> (a scene reaches both through
@@ -5971,7 +5993,7 @@ the type and returns whether it handled it.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 12, 2026 00:20:18 UTC">November 12, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 16:16:37 UTC">November 19, 2026</span>
   </span>
 
     

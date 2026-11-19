@@ -22364,6 +22364,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#glitchygames.events.sprite_spawn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        sprite_spawn
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="sprite_spawn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.events.sprite_spawn.SpriteSpawn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SpriteSpawn
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.events.sprite_spawn.add_spawned_sprite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_spawned_sprite
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glitchygames.events.sprite_spawn.post_sprite_spawn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        post_sprite_spawn
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#glitchygames.events.system_event_interfaces" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -297185,6 +297235,575 @@ already skips them. The pointer over a sprite without handlers once ended the ga
 </span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-566"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-566" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-566"></a>        <span class="k">return</span> <span class="p">[</span><span class="n">sprites</span><span class="p">[</span><span class="n">index</span><span class="p">]]</span>
 </span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-567"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-567" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-567"></a>
 </span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-568"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-568" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-568"></a>    <span class="k">return</span> <span class="p">[]</span>
+</span></code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="glitchygames.events.sprite_spawn" class="doc doc-heading">
+            <code>sprite_spawn</code>
+
+
+<a href="#glitchygames.events.sprite_spawn" class="headerlink" title="Permanent link">#</a></h2>
+
+    <div class="doc doc-contents ">
+
+        <p>The sprite spawn event: a sprite's file text and a world point, added to the game's scene.</p>
+<p>The <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> console's <code>/sprite</code> posts one with <code>recording.post_input_event</code> once a generated
+sprite is ready (plans/2026-11-17-sprite-command.md). The engine handles it before any scene sees
+it, in every game (<code>GameEngine.process_events</code>), so no game's own handlers meet it and every
+game gets <code>/sprite</code> without code of its own. A recording keeps the event, the sprite's whole
+text included, so a replay adds the same sprite at the same frame and place without the <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> and
+without the saved file.</p>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="glitchygames.events.sprite_spawn.SpriteSpawn" class="doc doc-heading">
+            <code>SpriteSpawn</code>
+
+
+<a href="#glitchygames.events.sprite_spawn.SpriteSpawn" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+        <p>One sprite to add: its file's text, its name, and the world point its center goes at.</p>
+
+
+
+
+
+
+
+
+              <details class="mkdocstrings-source">
+                <summary>Source code in <code>src/glitchygames/events/sprite_spawn.py</code></summary>
+                <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-32">32</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-33">33</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-34">34</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-35">35</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-36">36</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-37">37</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-38">38</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-39">39</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-40">40</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-41">41</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-42">42</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-43">43</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-44">44</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-45">45</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-46">46</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-47">47</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-48">48</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-49">49</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-50">50</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-51">51</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-52">52</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-53">53</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-54">54</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-55">55</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-56">56</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-57">57</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-58">58</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-59">59</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-60">60</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-61">61</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-62">62</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-32"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-32" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-32"></a><span class="k">class</span><span class="w"> </span><span class="nc">SpriteSpawn</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-33"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-33" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-33"></a><span class="w">    </span><span class="sd">"""One sprite to add: its file's text, its name, and the world point its center goes at."""</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-34"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-34" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-34"></a>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-35"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-35" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-35"></a>    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">extra</span><span class="o">=</span><span class="s1">'forbid'</span><span class="p">)</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-36"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-36" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-36"></a>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-37"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-37" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-37"></a>    <span class="n">toml_text</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-38"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-38" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-38"></a>    <span class="n">sprite_name</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-39"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-39" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-39"></a>    <span class="n">world_x</span><span class="p">:</span> <span class="nb">float</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-40"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-40" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-40"></a>    <span class="n">world_y</span><span class="p">:</span> <span class="nb">float</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-41"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-41" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-41"></a>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-42"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-42" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-42"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">to_event</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">Event</span><span class="p">:</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-43"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-43" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-43"></a><span class="w">        </span><span class="sd">"""Return the event that carries this spawn.</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-44"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-44" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-44"></a>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-45"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-45" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-45"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-46"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-46" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-46"></a><span class="sd">            A ``SPRITE_SPAWN_EVENT`` with this spawn's fields as its attributes.</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-47"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-47" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-47"></a>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-48"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-48" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-48"></a><span class="sd">        """</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-49"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-49" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-49"></a>        <span class="k">return</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">Event</span><span class="p">(</span><span class="n">SPRITE_SPAWN_EVENT</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_dump</span><span class="p">())</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-50"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-50" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-50"></a>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-51"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-51" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-51"></a>    <span class="nd">@classmethod</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-52"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-52" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-52"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">from_event</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">Event</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SpriteSpawn</span><span class="p">:</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-53"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-53" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-53"></a><span class="w">        </span><span class="sd">"""Read a spawn back from its event (live, or served by a replay).</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-54"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-54" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-54"></a>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-55"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-55" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-55"></a><span class="sd">        Args:</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-56"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-56" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-56"></a><span class="sd">            event: A ``SPRITE_SPAWN_EVENT``.</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-57"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-57" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-57"></a>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-58"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-58" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-58"></a><span class="sd">        Returns:</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-59"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-59" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-59"></a><span class="sd">            The spawn.</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-60"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-60" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-60"></a>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-61"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-61" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-61"></a><span class="sd">        """</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__span-0-62"><a id="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-62" name="glitchygames.events.sprite_spawn.SpriteSpawn--source--__codelineno-0-62"></a>        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">model_validate</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">dict</span><span class="p">))</span>
+</span></code></pre></div></td></tr></table></div>
+              </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">from_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#glitchygames.events.sprite_spawn.SpriteSpawn.from_event" class="headerlink" title="Permanent link">#</a></h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Read a spawn back from its event (live, or served by a replay).</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>event</code>
+            </td>
+            <td>
+                  <code><span title="pygame.event.Event">Event</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A <code>SPRITE_SPAWN_EVENT</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code&gt;SpriteSpawn&lt;/code&gt; (&lt;code&gt;glitchygames.events.sprite_spawn.SpriteSpawn&lt;/code&gt;)" href="#glitchygames.events.sprite_spawn.SpriteSpawn">SpriteSpawn</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The spawn.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/glitchygames/events/sprite_spawn.py</code></summary>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-51">51</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-52">52</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-53">53</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-54">54</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-55">55</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-56">56</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-57">57</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-58">58</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-59">59</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-60">60</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-61">61</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-62">62</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__span-0-51"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-51" name="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-51"></a><span class="nd">@classmethod</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__span-0-52"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-52" name="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-52"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_event</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">Event</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SpriteSpawn</span><span class="p">:</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__span-0-53"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-53" name="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-53"></a><span class="w">    </span><span class="sd">"""Read a spawn back from its event (live, or served by a replay).</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__span-0-54"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-54" name="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-54"></a>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__span-0-55"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-55" name="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-55"></a><span class="sd">    Args:</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__span-0-56"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-56" name="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-56"></a><span class="sd">        event: A ``SPRITE_SPAWN_EVENT``.</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__span-0-57"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-57" name="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-57"></a>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__span-0-58"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-58" name="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-58"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__span-0-59"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-59" name="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-59"></a><span class="sd">        The spawn.</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__span-0-60"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-60" name="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-60"></a>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__span-0-61"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-61" name="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-61"></a><span class="sd">    """</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__span-0-62"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-62" name="glitchygames.events.sprite_spawn.SpriteSpawn.from_event--source--__codelineno-0-62"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">model_validate</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">dict</span><span class="p">))</span>
+</span></code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">to_event</span><span class="p">()</span></code>
+
+<a href="#glitchygames.events.sprite_spawn.SpriteSpawn.to_event" class="headerlink" title="Permanent link">#</a></h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return the event that carries this spawn.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pygame.event.Event">Event</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A <code>SPRITE_SPAWN_EVENT</code> with this spawn's fields as its attributes.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/glitchygames/events/sprite_spawn.py</code></summary>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-42">42</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-43">43</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-44">44</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-45">45</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-46">46</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-47">47</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-48">48</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-49">49</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__span-0-42"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-42" name="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-42"></a><span class="k">def</span><span class="w"> </span><span class="nf">to_event</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">Event</span><span class="p">:</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__span-0-43"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-43" name="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-43"></a><span class="w">    </span><span class="sd">"""Return the event that carries this spawn.</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__span-0-44"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-44" name="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-44"></a>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__span-0-45"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-45" name="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-45"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__span-0-46"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-46" name="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-46"></a><span class="sd">        A ``SPRITE_SPAWN_EVENT`` with this spawn's fields as its attributes.</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__span-0-47"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-47" name="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-47"></a>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__span-0-48"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-48" name="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-48"></a><span class="sd">    """</span>
+</span><span id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__span-0-49"><a id="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-49" name="glitchygames.events.sprite_spawn.SpriteSpawn.to_event--source--__codelineno-0-49"></a>    <span class="k">return</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">Event</span><span class="p">(</span><span class="n">SPRITE_SPAWN_EVENT</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_dump</span><span class="p">())</span>
+</span></code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="glitchygames.events.sprite_spawn.add_spawned_sprite" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">add_spawned_sprite</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">spawn</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span></code>
+
+<a href="#glitchygames.events.sprite_spawn.add_spawned_sprite" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Build the spawn's sprite and add it to the game's own scene.</p>
+<p>The game's own scene is <code>scene.debug_subject</code>: under the pause screen, the paused game,
+as the <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> console's <code>/inspect</code> describes it. Text that cannot build a sprite is logged as
+one warning line and adds nothing; the game goes on.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>spawn</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code&gt;SpriteSpawn&lt;/code&gt; (&lt;code&gt;glitchygames.events.sprite_spawn.SpriteSpawn&lt;/code&gt;)" href="#glitchygames.events.sprite_spawn.SpriteSpawn">SpriteSpawn</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The sprite to add.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>scene</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code&gt;Scene&lt;/code&gt; (&lt;code&gt;glitchygames.scenes.Scene&lt;/code&gt;)" href="../scenes/#glitchygames.scenes.scene.Scene">Scene</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The active scene.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="glitchygames.sprites.spawned.SpawnedSprite">SpawnedSprite</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The sprite added, or None when its text could not build one.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/glitchygames/events/sprite_spawn.py</code></summary>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-78"> 78</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-79"> 79</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-80"> 80</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-81"> 81</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-82"> 82</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-83"> 83</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-84"> 84</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-85"> 85</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-86"> 86</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-87"> 87</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-88"> 88</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-89"> 89</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-90"> 90</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-91"> 91</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-92"> 92</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-93"> 93</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-94"> 94</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-95"> 95</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-96"> 96</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-97"> 97</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-98"> 98</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-99"> 99</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-100">100</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-101">101</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-102">102</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-103">103</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-104">104</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-78"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-78" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-78"></a><span class="k">def</span><span class="w"> </span><span class="nf">add_spawned_sprite</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">spawn</span><span class="p">:</span> <span class="n">SpriteSpawn</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">Scene</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SpawnedSprite</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-79"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-79" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-79"></a><span class="w">    </span><span class="sd">"""Build the spawn's sprite and add it to the game's own scene.</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-80"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-80" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-80"></a>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-81"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-81" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-81"></a><span class="sd">    The game's own scene is ``scene.debug_subject``: under the pause screen, the paused game,</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-82"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-82" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-82"></a><span class="sd">    as the AI console's ``/inspect`` describes it. Text that cannot build a sprite is logged as</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-83"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-83" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-83"></a><span class="sd">    one warning line and adds nothing; the game goes on.</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-84"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-84" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-84"></a>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-85"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-85" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-85"></a><span class="sd">    Args:</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-86"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-86" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-86"></a><span class="sd">        spawn: The sprite to add.</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-87"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-87" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-87"></a><span class="sd">        scene: The active scene.</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-88"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-88" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-88"></a>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-89"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-89" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-89"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-90"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-90" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-90"></a><span class="sd">        The sprite added, or None when its text could not build one.</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-91"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-91" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-91"></a>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-92"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-92" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-92"></a><span class="sd">    """</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-93"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-93" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-93"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-94"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-94" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-94"></a>        <span class="n">sprite</span> <span class="o">=</span> <span class="n">SpawnedSprite</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-95"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-95" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-95"></a>            <span class="n">text</span><span class="o">=</span><span class="n">spawn</span><span class="o">.</span><span class="n">toml_text</span><span class="p">,</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-96"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-96" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-96"></a>            <span class="n">source_name</span><span class="o">=</span><span class="sa">f</span><span class="s1">'spawned sprite </span><span class="si">{</span><span class="n">spawn</span><span class="o">.</span><span class="n">sprite_name</span><span class="si">!r}</span><span class="s1">'</span><span class="p">,</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-97"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-97" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-97"></a>            <span class="n">center_x</span><span class="o">=</span><span class="n">spawn</span><span class="o">.</span><span class="n">world_x</span><span class="p">,</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-98"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-98" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-98"></a>            <span class="n">center_y</span><span class="o">=</span><span class="n">spawn</span><span class="o">.</span><span class="n">world_y</span><span class="p">,</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-99"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-99" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-99"></a>        <span class="p">)</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-100"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-100" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-100"></a>    <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-101"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-101" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-101"></a>        <span class="n">LOG</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">'Not added: </span><span class="si">%s</span><span class="s1">'</span><span class="p">,</span> <span class="n">error</span><span class="p">)</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-102"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-102" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-102"></a>        <span class="k">return</span> <span class="kc">None</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-103"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-103" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-103"></a>    <span class="n">scene</span><span class="o">.</span><span class="n">debug_subject</span><span class="o">.</span><span class="n">all_sprites</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">sprite</span><span class="p">)</span>
+</span><span id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__span-0-104"><a id="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-104" name="glitchygames.events.sprite_spawn.add_spawned_sprite--source--__codelineno-0-104"></a>    <span class="k">return</span> <span class="n">sprite</span>
+</span></code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="glitchygames.events.sprite_spawn.post_sprite_spawn" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">post_sprite_spawn</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">spawn</span><span class="p">)</span></code>
+
+<a href="#glitchygames.events.sprite_spawn.post_sprite_spawn" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Post a spawn as input from outside the game's logic, so a recording keeps it.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>spawn</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code&gt;SpriteSpawn&lt;/code&gt; (&lt;code&gt;glitchygames.events.sprite_spawn.SpriteSpawn&lt;/code&gt;)" href="#glitchygames.events.sprite_spawn.SpriteSpawn">SpriteSpawn</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The sprite to add.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>What <code>recording.post_input_event</code> returns: whether the event was queued.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/glitchygames/events/sprite_spawn.py</code></summary>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-65">65</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-66">66</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-67">67</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-68">68</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-69">69</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-70">70</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-71">71</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-72">72</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-73">73</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-74">74</a></span>
+<span class="normal"><a href="#glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-75">75</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__span-0-65"><a id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-65" name="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-65"></a><span class="k">def</span><span class="w"> </span><span class="nf">post_sprite_spawn</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">spawn</span><span class="p">:</span> <span class="n">SpriteSpawn</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__span-0-66"><a id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-66" name="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-66"></a><span class="w">    </span><span class="sd">"""Post a spawn as input from outside the game's logic, so a recording keeps it.</span>
+</span><span id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__span-0-67"><a id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-67" name="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-67"></a>
+</span><span id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__span-0-68"><a id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-68" name="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-68"></a><span class="sd">    Args:</span>
+</span><span id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__span-0-69"><a id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-69" name="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-69"></a><span class="sd">        spawn: The sprite to add.</span>
+</span><span id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__span-0-70"><a id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-70" name="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-70"></a>
+</span><span id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__span-0-71"><a id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-71" name="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-71"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__span-0-72"><a id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-72" name="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-72"></a><span class="sd">        What ``recording.post_input_event`` returns: whether the event was queued.</span>
+</span><span id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__span-0-73"><a id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-73" name="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-73"></a>
+</span><span id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__span-0-74"><a id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-74" name="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-74"></a><span class="sd">    """</span>
+</span><span id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__span-0-75"><a id="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-75" name="glitchygames.events.sprite_spawn.post_sprite_spawn--source--__codelineno-0-75"></a>    <span class="k">return</span> <span class="n">recording</span><span class="o">.</span><span class="n">post_input_event</span><span class="p">(</span><span class="n">spawn</span><span class="o">.</span><span class="n">to_event</span><span class="p">())</span>
 </span></code></pre></div></td></tr></table></div>
             </details>
     </div>
