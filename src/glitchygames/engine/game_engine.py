@@ -1505,7 +1505,6 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # Decoupling tracked in https://glitchy-games.atlassian.net/browse/GG-22
         super().__init__()
 
-        self._active_scene: Scene | None = None
         # The signals exit_on_signal is installed for (by start(), and around a wait for child
         # processes: _waiting_for_child_processes, which --audit uses before start() runs)
         self._installed_signal_handlers: list[int] = []
@@ -4403,9 +4402,11 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 continue
 
             # Support scenes processing pygame raw events, bypassing
-            # the glitchygames.engine event processing altogether
-            if hasattr(self._active_scene, 'process_event'):
-                self._active_scene.process_event(pygame_event)  # type: ignore[union-attr] # ty: ignore[not-callable]
+            # the glitchygames.engine event processing altogether. The scene manager's active
+            # scene is the only one: the engine keeps no copy that could go stale
+            raw_event_handler = getattr(self.scene_manager.active_scene, 'process_event', None)
+            if raw_event_handler is not None:
+                raw_event_handler(pygame_event)
                 continue
 
             event = events.HashableEvent.from_pygame(pygame_event)
