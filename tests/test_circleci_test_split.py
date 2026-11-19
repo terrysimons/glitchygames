@@ -233,11 +233,32 @@ def test_the_listing_finds_test_modules_and_golden_replays_where_pytest_looks(tm
         norecursedirs=['build'],
     )
 
-    assert listed == [
+    assert [Path(name).as_posix() for name in listed] == [
         'tests/deep/test_two.py',
         'tests/fixtures/replays/golden.jsonl.gz',
         'tests/test_one.py',
     ]
+
+
+def test_a_kept_file_in_a_folder_runs_named_as_pytest_names_its_tests(pytester, monkeypatch):
+    """The listing names a file as ``item.location[0]`` does: the platform's separators.
+
+    Listed with forward slashes, a file in a folder never matched its tests' Windows location
+    (backslashes), so every collected test looked unlisted and each Windows worker stopped
+    (CircleCI job 3919). The splitter keeps the native name here, as CircleCI's echoes it.
+    """
+    split_environment(monkeypatch)
+    nested = str(Path('folder') / 'test_nested.py')
+    monkeypatch.setattr(circleci_test_split, 'run_circleci_splitter', StandInSplitter(nested))
+    pytester.mkpydir('folder')
+    (pytester.path / 'folder' / 'test_nested.py').write_text(
+        INNER_TESTS['test_kept'], encoding='utf-8'
+    )
+    pytester.makepyfile(test_left_out=INNER_TESTS['test_left_out'])
+
+    result = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS)
+
+    result.assert_outcomes(passed=2)
 
 
 def test_a_file_pytest_was_given_by_name_is_listed_whatever_its_name(tmp_path):

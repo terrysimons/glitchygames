@@ -89,6 +89,14 @@ def _walk(*, directory: Path, norecursedirs: Sequence[str]) -> Iterator[Path]:
             yield entry
 
 
+def _location_name(*, path: Path, root: Path) -> str:
+    # As pytest's Item.location names a file (os.path.relpath from the rootdir): the names
+    # the split lists, keeps and checks collected tests against must be the same strings. A
+    # forward-slash name never matched a Windows location, so every Windows worker stopped
+    # (CircleCI job 3919)
+    return os.path.relpath(path, root)
+
+
 def candidate_test_files(
     *,
     start_paths: Sequence[Path],
@@ -105,7 +113,9 @@ def candidate_test_files(
         norecursedirs: pytest's ``norecursedirs`` patterns (directory names, any depth).
 
     Returns:
-        Each file once, as a path relative to the root, in the order pytest finds them.
+        Each file once, named as pytest names a test's file (``item.location[0]``: relative to
+        the root, with the platform's separators, so backslashes on Windows), in the order
+        pytest finds them.
 
     """
     found: dict[str, None] = {}
@@ -116,7 +126,7 @@ def candidate_test_files(
             files = _walk(directory=start, norecursedirs=norecursedirs)
         for path in files:
             if path == start or _is_test_file(path=path, python_files=python_files):
-                found[path.relative_to(root).as_posix()] = None
+                found[_location_name(path=path, root=root)] = None
     return list(found)
 
 
@@ -240,7 +250,10 @@ def pytest_ignore_collect(collection_path: Path, config: pytest.Config) -> bool 
     if split is None or not collection_path.is_file():
         return None
     listed, kept = split
-    name = collection_path.relative_to(config.rootpath).as_posix()
+    # A path outside the rootdir is never listed under the name pytest would give it here
+    if not collection_path.is_relative_to(config.rootpath):
+        return None
+    name = _location_name(path=collection_path, root=config.rootpath)
     if name in listed and name not in kept:
         return True
     return None

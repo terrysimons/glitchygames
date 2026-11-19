@@ -177,14 +177,15 @@ def test_the_test_split_lists_every_file_that_defines_tests_and_every_golden_rep
     from tests.circleci_test_split import candidate_test_files
 
     roots = collected_test_roots()
-    listed = set(
-        candidate_test_files(
+    listed = {
+        Path(name).as_posix()
+        for name in candidate_test_files(
             start_paths=[PROJECT_ROOT / path for path in PYTEST_SETTINGS['testpaths']],
             root=PROJECT_ROOT,
             python_files=_python_files_patterns(),
             norecursedirs=PYTEST_SETTINGS.get('norecursedirs', []),
         )
-    )
+    }
     defining_tests = {
         test_file.relative_to(PROJECT_ROOT).as_posix()
         for _root, test_file in _test_defining_files(roots=roots)
