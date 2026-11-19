@@ -21,7 +21,7 @@ import nox
 from nox.command import CommandFailed
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Mapping, Sequence
 
 # Use uv as the venv backend so nox sessions get their own isolated venvs
 # managed by uv, without touching the project's .venv.
@@ -42,6 +42,7 @@ _CODE_DIRS = [
     'src/games/clockwork-keep',
     'src/games/paddleslap',
     'src/games/drawing-fire',
+    'src/games/zombies-aint-my-neighbors',
     'src/demos/dt-demo',
     'src/demos/joystick-demo',
     'src/demos/sound-board-demo',
@@ -61,6 +62,7 @@ _SOURCE_PACKAGE_DIRS = [
     'src/games/clockwork-keep/src/clockwork_keep',
     'src/games/paddleslap/src/paddleslap',
     'src/games/drawing-fire/src/drawing_fire',
+    'src/games/zombies-aint-my-neighbors/src/zombies_aint_my_neighbors',
     'src/demos/dt-demo/src/dt_demo',
     'src/demos/joystick-demo/src/joystick_demo',
     'src/demos/sound-board-demo/src/sound_board_demo',
@@ -76,6 +78,7 @@ _MEMBER_DISTRIBUTIONS = [
     'clockwork-keep',
     'paddleslap',
     'drawing-fire',
+    'zombies-aint-my-neighbors',
     'dt-demo',
     'joystick-demo',
     'sound-board-demo',
@@ -209,12 +212,20 @@ def _lint_dead_code(session: nox.Session) -> None:
     session.run('vulture', *_SOURCE_PACKAGE_DIRS, 'vulture_whitelist.py', '--min-confidence=80')
 
 
+# The Python every other session runs on (format, lint, type checks, docs, security, benchmarks,
+# builds, complexity, the timer report): 3.15, the development version (the owner, 2026-11-18:
+# "Switch the builds over to 3.15", "Only 3.15 for macos too", "pin 3.15", "Also upgrade
+# deploy-docs to 3.15"). The tools still target 3.14 (ruff's target-version, the type checkers'
+# python-version), so code stays valid on the browser builds' Pyodide 314
+PINNED_PYTHONS = ['3.15']
+
+
 # ---------------------------------------------------------------------------
 # Aggregate sessions
 # ---------------------------------------------------------------------------
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='format')
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='format')
 def format_all(session: nox.Session) -> None:
     """Run all formatters (code + TOML)."""
     _install_from_lockfile(session)
@@ -222,7 +233,7 @@ def format_all(session: nox.Session) -> None:
     _format_toml(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint')
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='lint')
 def lint_all(session: nox.Session) -> None:
     """Run all linters (code, docs, YAML, TOML, deps, dead code)."""
     _install_from_lockfile(session)
@@ -241,7 +252,7 @@ def lint_all(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='format-code', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='format-code', default=False)
 def format_code(session: nox.Session) -> None:
     """Format Python code with ruff (import sorting + black-style formatting)."""
     _install_from_lockfile(session)
@@ -259,14 +270,14 @@ def format_toml(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-code', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='lint-code', default=False)
 def lint_code(session: nox.Session) -> None:
     """Lint Python code with ruff."""
     _install_from_lockfile(session)
     _lint_code(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-docs', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='lint-docs', default=False)
 def lint_docs(session: nox.Session) -> None:
     """Lint documentation with mkdocs strict build."""
     _install_from_lockfile(session)
@@ -392,7 +403,7 @@ def measure_staged(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='docs-deploy', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='docs-deploy', default=False)
 def docs_deploy(session: nox.Session) -> None:
     """Measure the replays, build the docs strictly and publish them to GitHub Pages.
 
@@ -603,7 +614,7 @@ def docs_serve(session: nox.Session) -> None:
         '--all-packages',
         '--all-extras',
         '--python',
-        '3.14',
+        *PINNED_PYTHONS,
         'mkdocs',
         'serve',
         '--strict',
@@ -647,14 +658,14 @@ def lint_toml(session: nox.Session) -> None:
     _lint_toml(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-dependencies', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='lint-dependencies', default=False)
 def lint_dependencies(session: nox.Session) -> None:
     """Check for dependency issues with deptry."""
     _install_from_lockfile(session)
     _lint_dependencies(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-dead-code', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='lint-dead-code', default=False)
 def lint_dead_code(session: nox.Session) -> None:
     """Detect dead code with vulture."""
     _install_from_lockfile(session)
@@ -676,21 +687,23 @@ def _static_analysis_ty(session: nox.Session) -> None:
     session.run('ty', 'check')
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='static-analysis-basedpyright', default=False)
+@nox.session(
+    python=PINNED_PYTHONS, reuse_venv=False, name='static-analysis-basedpyright', default=False
+)
 def static_analysis_basedpyright(session: nox.Session) -> None:
     """Run static type analysis with basedpyright."""
     _install_from_lockfile(session)
     _static_analysis_basedpyright(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='static-analysis-ty', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='static-analysis-ty', default=False)
 def static_analysis_ty(session: nox.Session) -> None:
     """Run static type analysis with ty (Astral's type checker)."""
     _install_from_lockfile(session)
     _static_analysis_ty(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='static-analysis')
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='static-analysis')
 def static_analysis(session: nox.Session) -> None:
     """Run all static type analysis (basedpyright + ty)."""
     _install_from_lockfile(session)
@@ -727,9 +740,19 @@ def _usable_cpu_count() -> int:
     return max(1, min(cpus, int(quota) // int(period)))
 
 
-@nox.session(python=['3.14'], reuse_venv=False)
+# The Pythons the suite runs on, each its own session (test-3.15, coverage-combine-3.15): 3.15
+# only. Python 3.14 was removed from the tests, CI and every session (the owner, 2026-11-19:
+# "let's get rid of Python 3.14 altogether"); it is still the oldest the code must parse and
+# type-check as (requires-python, ruff's target-version, the type checkers' python-version), as
+# the browser builds' Pyodide 314 runs it. More than one Python here runs them one after the
+# other (two at once would share htmlcov/, test-results/ and the coverage data, and each already
+# uses every core). tests/test_ci_config.py checks what each CircleCI job runs
+TEST_PYTHONS = ('3.15',)
+
+
+@nox.session(python=list(TEST_PYTHONS), reuse_venv=False)
 def test(session: nox.Session) -> None:
-    """Run tests."""
+    """Run the tests on one Python of TEST_PYTHONS (nox -s test runs them all)."""
     # The installed copy is built (not editable), so it has no git checkout: the stamp gives it
     # HEAD's commit, which the replay-metrics tests' child rebaselines record and compare. It is
     # written into the installed copy, never the checkout, so a build running alongside neither
@@ -763,9 +786,83 @@ def test(session: nox.Session) -> None:
     if log_cli_level is not None:
         args.append(f'--log-cli-level={log_cli_level}')
 
+    # A CircleCI job split across machines (GLITCHYGAMES_TEST_SPLIT, tests/circleci_test_split.py)
+    # runs one machine's share: no share reaches the 100% coverage rule, so it is off here and
+    # applied once to every machine's data combined (coverage-combine); and the JUnit report
+    # names each test's file (xunit1), from which CircleCI learns the timings it splits by
+    args.extend(split_share_pytest_arguments(environment=os.environ))
+
     # Run tests with coverage: pytest-cov (pyproject.toml addopts) prints the terminal report
     # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion.
     session.run('pytest', *args)
+
+
+# A machine's share of a split CI job (tests/circleci_test_split.py): its coverage rule off, its
+# JUnit report naming each test's file
+SPLIT_SHARE_PYTEST_ARGUMENTS = ('--cov-fail-under=0', '-o', 'junit_family=xunit1')
+
+
+def split_share_pytest_arguments(*, environment: Mapping[str, str]) -> list[str]:
+    """Return the test session's extra pytest arguments for a split CI job's share, else none.
+
+    Args:
+        environment: The session's environment (GLITCHYGAMES_TEST_SPLIT set: a split job).
+
+    Returns:
+        ``SPLIT_SHARE_PYTEST_ARGUMENTS`` when the split is on, else an empty list (the plugin
+        refuses any value but ``circleci``, so any value set counts here).
+
+    """
+    if environment.get('GLITCHYGAMES_TEST_SPLIT') is None:
+        return []
+    return list(SPLIT_SHARE_PYTEST_ARGUMENTS)
+
+
+# Where a split CI job's machines leave their coverage data (``.coverage.<name>`` files), and
+# the percentage the combined data must reach (pyproject.toml's addopts: --cov-fail-under=100)
+COVERAGE_DATA_DIRECTORY = Path('coverage-data')
+COVERAGE_REQUIRED_PERCENT = 100
+
+
+def locked_version(*, package: str, lock: str) -> str:
+    """Return a package's version as uv.lock pins it.
+
+    Args:
+        package: The package's name, as uv.lock spells it.
+        lock: uv.lock's text.
+
+    Returns:
+        The version.
+
+    Raises:
+        ValueError: If the lock file pins no such package.
+
+    """
+    for entry in tomllib.loads(lock).get('package', []):
+        if entry.get('name') == package:
+            return entry['version']
+    message = f'uv.lock pins no package named {package!r}'
+    raise ValueError(message)
+
+
+@nox.session(python=list(TEST_PYTHONS), reuse_venv=False, name='coverage-combine', default=False)
+def coverage_combine(session: nox.Session) -> None:
+    """Combine a split CI job's coverage data and apply the 100% rule to the whole.
+
+    One session a Python of TEST_PYTHONS (coverage-combine-3.15): a split job's data is combined
+    on the Python it was measured on (the owner, 2026-11-18: "only targeting 3.15 with nox in the
+    3.15 jobs").
+    The data is the machines' ``.coverage.*`` files in ``coverage-data/`` (or the directory
+    given: ``nox -s coverage-combine -- DIRECTORY``). Only coverage is installed, at uv.lock's
+    version; the report reads pyproject.toml's settings and the checkout's source, and writes
+    htmlcov/.
+    """
+    version = locked_version(package='coverage', lock=Path('uv.lock').read_text(encoding='utf-8'))
+    session.install(f'coverage=={version}')
+    directory = session.posargs[0] if session.posargs else str(COVERAGE_DATA_DIRECTORY)
+    session.run('coverage', 'combine', '--keep', directory)
+    session.run('coverage', 'html')
+    session.run('coverage', 'report', f'--fail-under={COVERAGE_REQUIRED_PERCENT}')
 
 
 # pytest-randomly, turned on for a shuffled run (pyproject.toml's addopts block it everywhere
@@ -774,6 +871,21 @@ def test(session: nox.Session) -> None:
 RANDOM_ORDER_PYTEST_ARGUMENTS = ('-p', 'randomly', '--randomly-dont-reset-seed')
 # The seeds pytest-randomly takes (it seeds numpy's generator, whose seeds are 32-bit)
 RANDOM_ORDER_SEED_LIMIT = 2**32
+# Each shuffled run's environment, completed by its Python: a throwaway one from uv.lock with
+# everything the project's .venv has, which it never touches
+SHUFFLED_RUN_ENVIRONMENT = (
+    'uv',
+    'run',
+    '--isolated',
+    '--frozen',
+    '--all-extras',
+    '--all-groups',
+    '--all-packages',
+    '--python',
+)
+# The shuffled run's one Python: the newest of TEST_PYTHONS, 3.15 (the owner, 2026-11-18: "For the
+# pre-commit checks only run python 3.15", "so that we can push more quickly")
+SHUFFLED_RUN_PYTHON = TEST_PYTHONS[-1]
 
 
 @nox.session(venv_backend='none', name='test-random', default=False)
@@ -783,9 +895,12 @@ def test_random(session: nox.Session) -> None:
     Each run shuffles the tests with a new seed (``-- SEED`` reuses one), so a test that passes
     only after, or only before, another fails in some run long before CI's fixed order meets it
     (BUGS.md: a named custom event type took FPSEVENT's id only after a pygame.quit()). It runs
-    in the project's environment (``uv run``, as a developer's ``uv run pytest``) on every core,
-    under the dummy drivers only and without coverage (CI enforces coverage), so it costs a push
-    a few minutes, not a full CI run. A failure names its seed and the command that replays
+    once, on SHUFFLED_RUN_PYTHON (3.15), so a push waits for one run, not one a Python. The run
+    has a throwaway environment
+    from uv.lock (``uv run --isolated --python``), never the project's .venv, so it tests 3.15
+    whatever Python the .venv was synced on. On every core, under the
+    dummy drivers only and without coverage (CI enforces coverage), so it costs a push a few
+    minutes, not a full CI run. A failure names its seed and the command that replays
     that order in one process (``-n 0``: across workers the seed fixes the order but not which
     worker runs which test).
     """
@@ -793,11 +908,10 @@ def test_random(session: nox.Session) -> None:
         seed = int(session.posargs[0])
     else:
         seed = secrets.randbelow(RANDOM_ORDER_SEED_LIMIT)
+    environment = (*SHUFFLED_RUN_ENVIRONMENT, SHUFFLED_RUN_PYTHON)
     try:
         session.run(
-            'uv',
-            'run',
-            '--frozen',
+            *environment,
             'pytest',
             *RANDOM_ORDER_PYTEST_ARGUMENTS,
             f'--randomly-seed={seed}',
@@ -805,14 +919,13 @@ def test_random(session: nox.Session) -> None:
             'auto',
             '--no-cov',
             '--log-cli-level=WARNING',
-            '--junitxml=test-results/junit-random.xml',
+            f'--junitxml=test-results/junit-random-{SHUFFLED_RUN_PYTHON}.xml',
             env={'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'},
             external=True,
         )
     except CommandFailed:
         replay = shlex.join([
-            'uv',
-            'run',
+            *environment,
             'pytest',
             *RANDOM_ORDER_PYTEST_ARGUMENTS,
             f'--randomly-seed={seed}',
@@ -821,10 +934,11 @@ def test_random(session: nox.Session) -> None:
             '--no-cov',
         ])
         session.error(
-            f'A shuffled run failed (seed {seed}): an order-dependent test, or a plain failure. '
-            f'Replay this order in one process: SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy '
-            f'{replay}  (or the same run: nox -s test-random -- {seed}). '
-            f'SKIP=test-random git push skips the check; file what it found in BUGS.md'
+            f'A shuffled run failed on Python {SHUFFLED_RUN_PYTHON} (seed {seed}): an '
+            f'order-dependent test, or a plain failure. Replay this order in one process: '
+            f'SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy {replay}  (or the same run: '
+            f'nox -s test-random -- {seed}). SKIP=test-random git push skips the check; file '
+            f'what it found in BUGS.md'
         )
 
 
@@ -1078,7 +1192,7 @@ def test_linux_x11(session: nox.Session) -> None:
 # where the container's checkout goes and where its test-results/ come back to (git-ignored), the
 # uv cache kept between runs, and where the list of files to copy is mounted
 _CIRCLECI_CONFIG = Path('.circleci/config.yml')
-_CIRCLECI_LINUX_JOB = 'build-and-test-linux'
+_CIRCLECI_LINUX_JOB = 'test-python-3-15-linux'
 _CIRCLECI_DOCKER_RESOURCES = {'small': ('2g', '1'), 'medium': ('4g', '2'), 'large': ('8g', '4')}
 _LINUX_CI_RESULTS = Path('test-results/linux-ci')
 _LINUX_CI_PLATFORM = 'linux/amd64'
@@ -1121,7 +1235,7 @@ def _circleci_parameter(*, configuration: str, name: str) -> str:
 
     Args:
         configuration: The CircleCI configuration's text.
-        name: The parameter, e.g. ``PYTHON_LATEST_VERSION``.
+        name: The parameter, e.g. ``PYTHON_VERSION``.
 
     Returns:
         Its ``default``, without quotes.
@@ -1161,6 +1275,36 @@ def _circleci_job(*, configuration: str, name: str) -> str:
         message = f'{_CIRCLECI_CONFIG} has no job {name}'
         raise ValueError(message)
     return match['body']
+
+
+def _linux_ci_job_packages(*, configuration: str) -> list[str]:
+    """Return the apt packages the Linux job installs, from its own install line.
+
+    Read from the job rather than listed again here, so the Docker reproduction installs exactly
+    what the job does (a second list drifted: hidapi's build packages, CircleCI job 3629).
+
+    Args:
+        configuration: The CircleCI configuration's text.
+
+    Returns:
+        The packages, in the job's order.
+
+    Raises:
+        ValueError: If the job has no ``sudo apt-get install -y`` line.
+
+    """
+    job = _circleci_job(configuration=configuration, name=_CIRCLECI_LINUX_JOB)
+    install = re.search(r'^\s+sudo apt-get install -y (?P<packages>\S.*)$', job, flags=re.MULTILINE)
+    if install is None:
+        message = f'{_CIRCLECI_LINUX_JOB} has no "sudo apt-get install -y" line'
+        raise ValueError(message)
+    return install['packages'].split()
+
+
+# The Linux job's variables test-linux-ci does not pass to its container: the split
+# (tests/circleci_test_split.py) needs CircleCI's machines, and a local run is one machine that
+# runs the whole suite, under pytest's own 100% coverage rule
+LINUX_CI_SESSION_LEAVES_OUT = frozenset({'GLITCHYGAMES_TEST_SPLIT'})
 
 
 def _linux_ci_job_settings(*, configuration: str) -> tuple[str, str, dict[str, str]]:
@@ -1253,12 +1397,18 @@ def _host_checkout(session: nox.Session) -> _HostCheckout:
 
 
 def _linux_ci_script(
-    *, python_version: str, uv_version: str, nox_version: str, checkout: _HostCheckout
+    *,
+    python_versions: Sequence[str],
+    uv_version: str,
+    nox_version: str,
+    apt_packages: Sequence[str],
+    checkout: _HostCheckout,
 ) -> str:
     """Return the container's shell script: the Linux job's steps, then the results copied out.
 
     Args:
-        python_version: ``PYTHON_LATEST_VERSION``.
+        python_versions: The job's Pythons (``PYTHON_VERSION``), installed in that order.
+        apt_packages: The job's apt packages (``_linux_ci_job_packages``).
         uv_version: ``UV_VERSION``.
         nox_version: ``NOX_VERSION``.
         checkout: This checkout's facts (``_host_checkout``).
@@ -1313,25 +1463,33 @@ def _linux_ci_script(
         f'if [ -f {common}/info/exclude ]; then cp {common}/info/exclude .git/info/exclude; fi',
         # "Install Linux system dependencies"
         'sudo apt-get update -qq',
-        'sudo apt-get install -y -qq fontconfig iproute2 lsof > /dev/null',
+        f'sudo apt-get install -y -qq {shlex.join(apt_packages)} > /dev/null',
         # install-deps-posix
         f'curl -LsSf https://astral.sh/uv/{uv_version}/install.sh | sh',
         'export PATH="$HOME/.local/bin:$PATH"',
         'uv --version',
-        f'uv python install "{python_version}"',
+        'uv python install ' + ' '.join(f'"{version}"' for version in python_versions),
         # install-deps-posix installs nox as a uv tool, run directly (no uvx parent process)
         f'uv tool install "nox[uv]=={nox_version}"',
-        # "Install ansible-core (tool)": not a project dependency (ansible/ runs under Ansible's
-        # own Python; the owner, 2026-11-19), pinned as in the job's step
+        # "Install ansible-core (tool)" (the owner, 2026-11-19), pinned as in the job's step
         'uv tool install "ansible-core==2.22.0"',
         # nox-test, then the job's store_test_results (to this checkout's test-results/linux-ci),
         # writable by the host's user whatever its id (a Linux host's is not the container's)
         'status=0',
-        'nox -s test || status=$?',
-        (
-            'if [ -d test-results ]; then cp -r test-results/. /results/; '
-            'else echo "test-linux-ci: the session wrote no test-results/"; fi'
-        ),
+        # Each Python's session, one after the other, as the job's nox-test steps; each one's
+        # results kept under its session's name before the next run writes test-results/ again
+        *[
+            line
+            for python in TEST_PYTHONS
+            for line in (
+                f'nox -s test-{python} || status=1',
+                (
+                    f'if [ -d test-results ]; then mkdir -p /results/test-{python} && '
+                    f'cp -r test-results/. /results/test-{python}/; '
+                    f'else echo "test-linux-ci: test-{python} wrote no test-results/"; fi'
+                ),
+            )
+        ],
         'chmod -R a+rwX /results',
         # The container's peak memory (cgroup v2), all of it: uv's installs, the test run and the
         # page cache, which the kernel reclaims before it kills anything (so it can read 2 GB on
@@ -1346,8 +1504,8 @@ def _linux_ci_script(
 def test_linux_ci(session: nox.Session) -> None:
     """Run the tests as CircleCI's Linux job does, in Docker, with its memory and CPUs.
 
-    Reads the job (``build-and-test-linux``) from .circleci/config.yml: its image
-    (``cimg/python:<PYTHON_LATEST_VERSION>``), its resource class's memory and CPUs (``small``:
+    Reads the job (``test-python-3-15-linux``) from .circleci/config.yml: its image
+    (``cimg/python:<PYTHON_VERSION>``), its resource class's memory and CPUs (``small``:
     2 GB and 1 CPU; the container gets no swap, as the job has none) and its environment
     (``PYTEST_WORKERS=0``: serial; ``GLITCHYGAMES_TEST_RSS_LIMIT_MB``: tests/memory_guard.py),
     plus ``CI=true`` and ``CIRCLECI=true`` as CircleCI sets them.
@@ -1358,9 +1516,10 @@ def test_linux_ci(session: nox.Session) -> None:
     directory, mounted read-only at its own path, so it runs from a worktree too. Its HEAD is this
     checkout's, on its branch, and its remote branches are this checkout's, as fresh as its last
     fetch (CircleCI fetches its own). Then it installs fontconfig, uv and Python at the job's
-    versions, then nox as a uv tool, and runs ``nox -s test``, as the job does. The test results
-    come back to test-results/linux-ci/ (junit.xml). The uv cache is kept in a Docker volume
-    between runs.
+    versions, then nox as a uv tool, and runs each Python's test session (``nox -s test-3.15``),
+    as the job does (on one machine: the job's split is left out). Each one's test results come
+    back to test-results/linux-ci/test-<python>/ (junit.xml). The uv cache is kept in a Docker
+    volume between runs.
     The image is amd64, as CircleCI's machines are (the same wheels; emulated on Apple silicon, so
     slower than CI). Made on macOS; on a Linux host the results are made writable for any user.
     """
@@ -1371,14 +1530,24 @@ def test_linux_ci(session: nox.Session) -> None:
     memory, cpus = _CIRCLECI_DOCKER_RESOURCES[resource_class]
     checkout = _host_checkout(session)
     script = _linux_ci_script(
-        python_version=_circleci_parameter(
-            configuration=configuration, name='PYTHON_LATEST_VERSION'
-        ),
+        python_versions=[
+            _circleci_parameter(configuration=configuration, name=name)
+            for name in ('PYTHON_VERSION',)
+        ],
         uv_version=_circleci_parameter(configuration=configuration, name='UV_VERSION'),
         nox_version=_circleci_parameter(configuration=configuration, name='NOX_VERSION'),
+        apt_packages=_linux_ci_job_packages(configuration=configuration),
         checkout=checkout,
     )
-    environment = {**job_environment, 'CI': 'true', 'CIRCLECI': 'true'}
+    environment = {
+        **{
+            name: value
+            for name, value in job_environment.items()
+            if name not in LINUX_CI_SESSION_LEAVES_OUT
+        },
+        'CI': 'true',
+        'CIRCLECI': 'true',
+    }
     results = _LINUX_CI_RESULTS.resolve()
     shutil.rmtree(results, ignore_errors=True)
     if results.exists():
@@ -2248,7 +2417,7 @@ def browser(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='timer-report', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='timer-report', default=False)
 def timer_report(session: nox.Session) -> None:
     """Report this machine's timer accuracy (diagnostic; always succeeds).
 
@@ -2269,7 +2438,7 @@ _BENCHMARK_PATHS = [
 ]
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='performance-test', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='performance-test', default=False)
 def performance_test(session: nox.Session) -> None:
     """Run performance benchmarks."""
     _install_from_lockfile(session)
@@ -2310,7 +2479,7 @@ def _bandit_scan(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='bandit-scan', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='bandit-scan', default=False)
 def bandit_scan(session: nox.Session) -> None:
     """Run bandit security scan."""
     _install_from_lockfile(session)
@@ -2389,7 +2558,7 @@ def _supply_chain_scan(session: nox.Session) -> None:
         )
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='security-scan', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='security-scan', default=False)
 def security_scan(session: nox.Session) -> None:
     """Run all security scans: bandit, then the syft SBOM, grype CVEs and the license check."""
     _install_from_lockfile(session)
@@ -2480,7 +2649,7 @@ def _build_wheel(session: nox.Session) -> None:
     session.run('uv', 'build', '--all-packages', '--wheel', '--out-dir', 'dist', external=True)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='build-binary', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='build-binary', default=False)
 def build_binary(session: nox.Session) -> None:
     """Build a standalone Bitmappy binary with PyInstaller.
 
@@ -2508,7 +2677,7 @@ def build_wheel(session: nox.Session) -> None:
         _build_wheel(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='build', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='build', default=False)
 def build_all(session: nox.Session) -> None:
     """Build the Bitmappy binary and the wheel of every workspace package.
 
@@ -2526,7 +2695,7 @@ def build_all(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='code-complexity', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='code-complexity', default=False)
 def code_complexity(session: nox.Session) -> None:
     """Analyze code complexity with wily and optionally generate the docs' complexity explorer data.
 

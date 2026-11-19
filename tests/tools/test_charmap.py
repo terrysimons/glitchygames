@@ -1,7 +1,5 @@
 """Tests for charmap tool functionality and coverage."""
 
-import unicodedata
-
 import pytest
 
 from glitchygames.tools import charmap
@@ -94,21 +92,19 @@ class TestCharmapFunctionality:
 class TestIsDefinedNonWhitespacePrintableEdgeCases:
     """Tests for is_defined_non_whitespace_printable with edge cases."""
 
-    def test_undefined_char_returns_false(self):
+    def test_undefined_char_returns_false(self, mocker):
         """A printable character that has no name in unicodedata returns False.
 
-        Python's unicodedata has no names for the Tangut ideographs (U+17000 on), yet
-        str.isprintable() counts them as printable, so unicodedata.name() raises ValueError,
-        which the function turns into False. (A private-use character such as U+E000 is not
-        printable, so it never reaches the name lookup.)
+        Which characters those are depends on the Python's Unicode data. Python 3.14's (Unicode
+        16) names none of the 6,145 Tangut and Khitan ideographs (U+17000 on), though
+        str.isprintable() counts them as printable; Python 3.15's (Unicode 17) names every
+        printable character (counted 2026-11-16). So the case is made the way unicodedata
+        reports it, name() raising ValueError, and the test holds on both. (A private-use
+        character such as U+E000 is not printable, so it never reaches the name lookup.)
         """
-        tangut_ideograph = chr(0x17000)
-        assert tangut_ideograph.isprintable()
-        assert not tangut_ideograph.isspace()
-        with pytest.raises(ValueError, match='no such name'):
-            unicodedata.name(tangut_ideograph)
+        mocker.patch.object(charmap.unicodedata, 'name', side_effect=ValueError('no such name'))
 
-        assert is_defined_non_whitespace_printable(tangut_ideograph) is False
+        assert is_defined_non_whitespace_printable('A') is False
 
     def test_control_char_returns_false(self):
         """Test that a control character returns False (not printable)."""

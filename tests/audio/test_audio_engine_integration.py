@@ -552,6 +552,10 @@ def test_a_games_declared_sounds_are_compiled_before_it_is_built(mocker):
     assert all(game.compiled_at_build)
 
 
+@pytest.mark.frames_vary(
+    reason='the power-on advances by the time its idle work takes compiling, so how far it gets '
+    'differs run to run (frame 12 or 13 differed, of 147 or 148, 2026-11-16)'
+)
 def test_the_declared_sounds_compile_in_the_power_ons_idle_time(mocker):
     """With the power-on playing, its frames' idle work compiles them; the rest before the build."""
     from glitchygames.audio.startup import StartupSounds

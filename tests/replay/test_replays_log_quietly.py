@@ -77,7 +77,7 @@ def test_quiet_level_offenders_lists_the_most_first():
 
 
 def test_the_recordings_are_every_golden_and_bundled_demo():
-    """Six goldens and the ten bundled demos: an empty list would skip the guard, not fail it."""
+    """Eight goldens and the ten bundled demos: an empty list would skip the guard, not fail it."""
     names = sorted(f'{console_script}/{path.name}' for console_script, path in RECORDINGS)
 
     assert names == [
@@ -97,4 +97,6 @@ def test_the_recordings_are_every_golden_and_bundled_demo():
         'paddleslap/golden.jsonl.gz',
         'paddleslap/rally.jsonl.gz',
         'text-input-demo/typing.jsonl.gz',
+        'zombies-aint-my-neighbors/golden-neighborhood.jsonl.gz',
+        'zombies-aint-my-neighbors/golden.jsonl.gz',
     ]

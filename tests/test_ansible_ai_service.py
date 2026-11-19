@@ -29,6 +29,7 @@ from pydantic import BaseModel, ConfigDict
 
 from glitchygames import ai_link, clock
 from glitchygames.process import OutputCapture, run_command
+from tests.ansible_inventory import every_host
 from tests.ansible_rendering import (
     Architecture,
     ansible_variables,
@@ -710,22 +711,6 @@ def group_host_names(*, groups: dict[str, dict[str, Any]], group: str) -> set[st
     return names
 
 
-def host_variable(*, groups: dict[str, dict[str, Any]], host: str, name: str) -> Any:
-    """Read a host's value of a variable: its own, else its nearest group's, else all's.
-
-    Returns:
-        The value, or None if nothing sets it.
-    """
-    holders = [group for group in groups.values() if host in group['hosts']]
-    for holder in holders:
-        if name in holder['hosts'][host]:
-            return holder['hosts'][host][name]
-    for holder in holders:
-        if name in holder['vars']:
-            return holder['vars'][name]
-    return groups['all']['vars'].get(name)
-
-
 def test_every_linux_host_states_its_memory_and_opts_in_at_16_gb():
     """Each Linux host says how much memory it has, and only those with 16 GB or more opt in.
 
@@ -735,19 +720,22 @@ def test_every_linux_host_states_its_memory_and_opts_in_at_16_gb():
     """
     groups = inventory_groups()
     linux_hosts = group_host_names(groups=groups, group='linux')
+    # Each host's variables as Ansible applies them, through every group above it
+    variables = every_host()
 
     assert linux_hosts, 'the inventory has no linux group, or it holds no host'
     assert group_host_names(groups=groups, group='raspberry_pis') <= linux_hosts
     assert groups['raspberry_pis']['vars']['ai_enabled'] is False
     for host in sorted(linux_hosts):
-        memory = host_variable(groups=groups, host=host, name='host_memory_gb')
+        memory = variables[host].get('host_memory_gb')
         assert type(memory) is int, f'{host} states no integer host_memory_gb: {memory!r}'
-        enabled = host_variable(groups=groups, host=host, name='ai_enabled')
+        enabled = variables[host]['ai_enabled']
         assert enabled is (memory >= LINUX_AI_MEMORY_GB), (
             f'{host}: {memory} GB, ai_enabled {enabled}'
         )
-    # The 16 GB Pi 5 is the first Linux host to run the models
-    assert host_variable(groups=groups, host='raspberry-pi-5', name='ai_enabled') is True
+    # The 16 GB Pi 5s are the first Linux hosts to run the models
+    assert variables['raspberry-pi-5-16gb-ubuntu']['ai_enabled'] is True
+    assert variables['raspberry-pi-5-16gb-raspberry-pi-os']['ai_enabled'] is True
     assert groups['all']['vars']['ai_enabled'] is True
 
 
@@ -5497,9 +5485,9 @@ def test_no_include_names_its_file_in_a_free_form_argument_with_an_equals_sign()
 
 
 # Ansible's own parser, for what the rendering tests above can't see (a task Ansible refuses at
-# parse time, a YAML error). ansible-core is not a project dependency (ansible/ runs under
-# Ansible's own Python) and CI installs it as a tool; the test takes the one beside this Python,
-# else any on the PATH, else uvx's cached copy with no network, and skips only when none runs
+# parse time, a YAML error). The dev extra holds ansible-core (since #215) and CI's Linux job also
+# installs it as a tool; the test takes the one beside this Python, else any on the PATH, else
+# uvx's cached copy with no network, and skips only when none runs
 ANSIBLE_TIMEOUT_SECONDS = 120.0
 PLAYBOOKS = sorted(
     path
@@ -5592,9 +5580,8 @@ def ansible_playbook() -> list[str]:
     command = ansible_playbook_command()
     if command is None:
         pytest.skip(
-            'no ansible-playbook runs here: ansible-core is not a project dependency and CI '
-            'installs it as a tool (uv tool install ansible-core==2.22.0); none beside this '
-            'Python or on PATH, and uvx has no cached copy (uvx --from ansible-core '
+            'no ansible-playbook runs here: none beside this Python (the dev extra installs '
+            'ansible-core) or on PATH, and uvx has no cached copy (uvx --from ansible-core '
             'ansible-playbook --version fetches it)'
         )
     return command

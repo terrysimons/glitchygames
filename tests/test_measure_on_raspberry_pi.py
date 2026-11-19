@@ -27,13 +27,13 @@ import threading
 from pathlib import Path
 
 import pytest
-import yaml
 from scripts import measure_on_raspberry_pi
 from scripts.measure_on_raspberry_pi import RaspberryPi
 
 from glitchygames.code_tree import CodeTreePaths, commit_code_tree
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.tools.settings import load_project_settings
+from tests.ansible_inventory import raspberry_pi_hosts
 from tests.test_code_tree import git, write
 
 # The hook and its Pis are POSIX (flock): a platform without fcntl (Windows) skips this module
@@ -232,7 +232,7 @@ def raspberry_pi(repository: Path, tmp_path: Path, stand_in_bin: Path) -> Raspbe
         repository=repository,
         tmp_path=tmp_path,
         stand_in_bin=stand_in_bin,
-        name='raspberry-pi-4',
+        name='raspberry-pi-4-4gb-ubuntu',
         lock_timeout_seconds=STAND_IN_LOCK_TIMEOUT_SECONDS,
     )
 
@@ -249,7 +249,7 @@ def other_raspberry_pi(repository: Path, tmp_path: Path, stand_in_bin: Path) -> 
         repository=repository,
         tmp_path=tmp_path,
         stand_in_bin=stand_in_bin,
-        name='raspberry-pi-5',
+        name='raspberry-pi-5-16gb-ubuntu',
         lock_timeout_seconds=STAND_IN_LOCK_TIMEOUT_SECONDS,
     )
 
@@ -262,7 +262,9 @@ def row(repository: Path) -> str:
         Its path, relative to the repository.
 
     """
-    return row_of(code_tree=code_tree_of(repository=repository), machine='raspberry-pi-4')
+    return row_of(
+        code_tree=code_tree_of(repository=repository), machine='raspberry-pi-4-4gb-ubuntu'
+    )
 
 
 @pytest.fixture
@@ -273,7 +275,9 @@ def other_pi_row(repository: Path) -> str:
         Its path, relative to the repository.
 
     """
-    return row_of(code_tree=code_tree_of(repository=repository), machine='raspberry-pi-5')
+    return row_of(
+        code_tree=code_tree_of(repository=repository), machine='raspberry-pi-5-16gb-ubuntu'
+    )
 
 
 @pytest.fixture
@@ -305,7 +309,7 @@ def unreachable_pi(*, script_runner: tuple[str, ...]) -> RaspberryPi:
 
     """
     return RaspberryPi(
-        name='raspberry-pi-4',
+        name='raspberry-pi-4-4gb-ubuntu',
         script_runner=script_runner,
         clone_url='nowhere',
         clone_directory='nowhere',
@@ -456,8 +460,8 @@ def test_each_line_a_pi_prints_names_the_pi(repository, raspberry_pi, other_rasp
     output = capsys.readouterr().out
 
     assert exit_code == ExitCode.OPTIONS_REFUSED
-    assert 'raspberry-pi-4: measuring here\n' in output
-    assert 'raspberry-pi-5: measuring here\n' in output
+    assert 'raspberry-pi-4-4gb-ubuntu: measuring here\n' in output
+    assert 'raspberry-pi-5-16gb-ubuntu: measuring here\n' in output
 
 
 def test_the_next_push_passes_once_the_rows_are_committed(repository, raspberry_pi, capsys):
@@ -514,7 +518,7 @@ def test_a_failed_measurement_keeps_its_rows_and_fails_with_its_status(
 
     assert exit_code == FAILED_MEASUREMENT_STATUS
     assert staged(repository=repository) == [row]
-    assert 'measuring on raspberry-pi-4 failed (1 rows copied' in capsys.readouterr().err
+    assert 'measuring on raspberry-pi-4-4gb-ubuntu failed (1 rows copied' in capsys.readouterr().err
 
 
 def test_one_pis_failed_measurement_keeps_the_other_pis_rows(
@@ -530,8 +534,8 @@ def test_one_pis_failed_measurement_keeps_the_other_pis_rows(
     errors = capsys.readouterr().err
     assert exit_code == FAILED_MEASUREMENT_STATUS
     assert staged(repository=repository) == [other_pi_row]
-    assert 'measuring on raspberry-pi-4 failed (0 rows copied' in errors
-    assert 'raspberry-pi-5 failed' not in errors
+    assert 'measuring on raspberry-pi-4-4gb-ubuntu failed (0 rows copied' in errors
+    assert 'raspberry-pi-5-16gb-ubuntu failed' not in errors
 
 
 def test_a_pi_that_cannot_be_reached_stops_the_push_and_says_how_to_skip(repository, capsys):
@@ -542,7 +546,7 @@ def test_a_pi_that_cannot_be_reached_stops_the_push_and_says_how_to_skip(reposit
 
     errors = capsys.readouterr().err
     assert exit_code == ExitCode.OPTIONS_REFUSED
-    assert 'could not reach raspberry-pi-4' in errors
+    assert 'could not reach raspberry-pi-4-4gb-ubuntu' in errors
     assert 'SKIP=raspberry-pi-replay-metrics' in errors
 
 
@@ -556,7 +560,7 @@ def test_one_unreachable_pi_stops_the_push_before_any_pi_measures(
 
     errors = capsys.readouterr().err
     assert exit_code == ExitCode.OPTIONS_REFUSED
-    assert 'could not reach raspberry-pi-4;' in errors
+    assert 'could not reach raspberry-pi-4-4gb-ubuntu;' in errors
     assert staged(repository=repository) == []
     # Nothing was pushed to the reachable Pi's clone
     branches = git(repository=other_raspberry_pi.clone_directory, arguments=['branch', '--all'])
@@ -587,7 +591,9 @@ def test_a_failed_copy_is_reported_not_taken_for_no_rows(repository, raspberry_p
         command=f'{raspberry_pi.measure_command}; rm -f {LEDGER}/*-row.json',
     )
 
-    with pytest.raises(RuntimeError, match='copying the rows from raspberry-pi-4 failed'):
+    with pytest.raises(
+        RuntimeError, match='copying the rows from raspberry-pi-4-4gb-ubuntu failed'
+    ):
         measure(repository=repository, raspberry_pis=(loses_its_row,))
     assert staged(repository=repository) == []
 
@@ -601,7 +607,9 @@ def test_one_pis_failed_copy_still_stages_the_other_pis_rows(
         command=f'{raspberry_pi.measure_command}; rm -f {LEDGER}/*-row.json',
     )
 
-    with pytest.raises(RuntimeError, match='copying the rows from raspberry-pi-4 failed'):
+    with pytest.raises(
+        RuntimeError, match='copying the rows from raspberry-pi-4-4gb-ubuntu failed'
+    ):
         measure(repository=repository, raspberry_pis=(loses_its_row, other_raspberry_pi))
     assert staged(repository=repository) == [other_pi_row]
 
@@ -644,7 +652,7 @@ def test_only_the_pushed_trees_rows_and_history_rows_leave_the_pi(repository, ra
     History rows (``history-...``, a recording's earlier runs that landed) name no code tree, and
     the measurement of this tree wrote them: they come back.
     """
-    foreign_row = row_of(code_tree=FOREIGN_TREE, machine='raspberry-pi-4')
+    foreign_row = row_of(code_tree=FOREIGN_TREE, machine='raspberry-pi-4-4gb-ubuntu')
     history_row = f'{LEDGER}/history-raspberry-pi-4-row.json'
     stages_others_too = with_measurement(
         raspberry_pi=raspberry_pi,
@@ -703,14 +711,16 @@ def test_fetching_refuses_any_file_that_is_not_a_row_of_the_pushed_tree(
 ):
     """A Pi sending one file that is not this push's row has none of its rows copied."""
     code_tree = code_tree_of(repository=repository)
-    good_row = row_of(code_tree=code_tree, machine='raspberry-pi-4')
+    good_row = row_of(code_tree=code_tree, machine='raspberry-pi-4-4gb-ubuntu')
     bad_file = f'{LEDGER}/{name.format(tree=code_tree[:12])}'
     archive = archive_of({
         good_row: json.dumps({'code_tree': code_tree}).encode(),
         bad_file: contents.replace('{full_tree}', code_tree).encode(),
     })
 
-    with pytest.raises(RuntimeError, match=f'raspberry-pi-4 sent rows that are not .*{bad_file}'):
+    with pytest.raises(
+        RuntimeError, match=f'raspberry-pi-4-4gb-ubuntu sent rows that are not .*{bad_file}'
+    ):
         measure_on_raspberry_pi._fetch_rows(
             repository=repository,
             raspberry_pi=raspberry_pi,
@@ -741,7 +751,7 @@ def test_fetching_refuses_a_file_outside_the_ledger(repository, raspberry_pi):
 
 def test_staging_refuses_a_row_of_another_tree(repository):
     """The last check before git's index: a row file named for another tree is not staged."""
-    foreign_row = row_of(code_tree=FOREIGN_TREE, machine='raspberry-pi-4')
+    foreign_row = row_of(code_tree=FOREIGN_TREE, machine='raspberry-pi-4-4gb-ubuntu')
     write(repository=repository, relative_path=foreign_row, text='{}\n')
     git(repository=repository, arguments=['reset', '--quiet'])
 
@@ -775,7 +785,10 @@ def test_a_pi_printing_before_the_script_fails_the_hook_rather_than_passing(
 
     with pytest.raises(
         RuntimeError,
-        match="raspberry-pi-4 exited 0 without sending its rows: its output began with 'Welcome",
+        match=(
+            'raspberry-pi-4-4gb-ubuntu exited 0 without sending its rows: '
+            "its output began with 'Welcome"
+        ),
     ):
         measure(repository=repository, raspberry_pis=(chatty,))
     assert staged(repository=repository) == []
@@ -784,8 +797,11 @@ def test_a_pi_printing_before_the_script_fails_the_hook_rather_than_passing(
 @pytest.mark.parametrize(
     ('output', 'expected'),
     [
-        (b'measured soon\n', "raspberry-pi-4 sent a malformed header: b'measured soon'"),
-        (b'measured 0\nnot a tar archive', 'raspberry-pi-4 sent rows that are not a readable'),
+        (b'measured soon\n', "raspberry-pi-4-4gb-ubuntu sent a malformed header: b'measured soon'"),
+        (
+            b'measured 0\nnot a tar archive',
+            'raspberry-pi-4-4gb-ubuntu sent rows that are not a readable',
+        ),
     ],
     ids=['malformed-header', 'unreadable-archive'],
 )
@@ -847,9 +863,12 @@ def test_a_checkout_moved_during_the_measurement_sends_no_rows(repository, raspb
     pushed = git(repository=repository, arguments=['rev-parse', 'HEAD'])
     assert exit_code == measure_on_raspberry_pi.CHECKOUT_MOVED_STATUS
     assert staged(repository=repository) == []
-    assert "raspberry-pi-4: the clone's HEAD is " in captured.out
+    assert "raspberry-pi-4-4gb-ubuntu: the clone's HEAD is " in captured.out
     assert f'not the pushed {pushed}' in captured.out
-    assert 'the checkout on raspberry-pi-4 moved away from the pushed commit' in captured.err
+    assert (
+        'the checkout on raspberry-pi-4-4gb-ubuntu moved away from the pushed commit'
+        in captured.err
+    )
 
 
 def test_a_run_gives_up_on_a_lock_held_too_long_and_measures_nothing(
@@ -874,10 +893,13 @@ def test_a_run_gives_up_on_a_lock_held_too_long_and_measures_nothing(
     assert exit_code == measure_on_raspberry_pi.LOCK_TIMED_OUT_STATUS
     assert not measured.exists()
     assert staged(repository=repository) == []
-    assert captured.out.count('raspberry-pi-4: waiting for the lock') == 1
-    assert f'raspberry-pi-4: gave up waiting for the lock {impatient.lock_file}' in captured.out
+    assert captured.out.count('raspberry-pi-4-4gb-ubuntu: waiting for the lock') == 1
     assert (
-        f'another push is measuring on raspberry-pi-4: gave up waiting for its lock '
+        f'raspberry-pi-4-4gb-ubuntu: gave up waiting for the lock {impatient.lock_file}'
+        in captured.out
+    )
+    assert (
+        f'another push is measuring on raspberry-pi-4-4gb-ubuntu: gave up waiting for its lock '
         f'{impatient.lock_file} after 1 seconds, and measured nothing'
     ) in captured.err
 
@@ -940,32 +962,22 @@ def test_two_pushes_at_once_take_turns_on_a_pi_and_each_gets_only_its_own_rows(
     first_tree = code_tree_of(repository=repository)
     second_tree = code_tree_of(repository=second_repository)
     assert first_tree != second_tree
-    assert staged(repository=repository) == [row_of(code_tree=first_tree, machine='raspberry-pi-4')]
+    assert staged(repository=repository) == [
+        row_of(code_tree=first_tree, machine='raspberry-pi-4-4gb-ubuntu')
+    ]
     assert staged(repository=second_repository) == [
-        row_of(code_tree=second_tree, machine='raspberry-pi-4')
+        row_of(code_tree=second_tree, machine='raspberry-pi-4-4gb-ubuntu')
     ]
-    assert capsys.readouterr().out.count('raspberry-pi-4: waiting for the lock') == 1
-
-
-def raspberry_pi_hosts() -> dict[str, dict[str, str]]:
-    """Return ansible/inventory.yml's Raspberry Pis, with their group's variables.
-
-    Returns:
-        Each host's variables, by host name.
-
-    """
-    inventory_path = measure_on_raspberry_pi.PROJECT_ROOT / 'ansible' / 'inventory.yml'
-    group = yaml.safe_load(inventory_path.read_text(encoding='utf-8'))['all']['children'][
-        'raspberry_pis'
-    ]
-    return {name: {**group['vars'], **host} for name, host in group['hosts'].items()}
+    assert capsys.readouterr().out.count('raspberry-pi-4-4gb-ubuntu: waiting for the lock') == 1
 
 
 def test_the_hook_measures_on_every_pi_in_the_inventory():
     """The hook's Pis are the inventory's raspberry_pis, by name, address and login."""
     hosts = raspberry_pi_hosts()
 
-    assert [each.name for each in measure_on_raspberry_pi.RASPBERRY_PIS] == sorted(hosts)
+    # In the inventory's order: group by group, each group's Pis in natural order (4gb, 8gb,
+    # 16gb; tests/test_ansible_raspberry_pis.py checks each group's)
+    assert [each.name for each in measure_on_raspberry_pi.RASPBERRY_PIS] == list(hosts)
     for each in measure_on_raspberry_pi.RASPBERRY_PIS:
         variables = hosts[each.name]
         login = f'{variables["ansible_user"]}@{variables["ansible_host"]}'

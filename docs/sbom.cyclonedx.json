@@ -399,6 +399,164 @@
       "version": "0.8.0"
     },
     {
+      "cpe": "cpe:2.3:a:python-ansible-core:python-ansible-core:2.22.0:*:*:*:*:*:*:*",
+      "licenses": [
+        {
+          "expression": "GPL-3.0-or-later"
+        }
+      ],
+      "name": "ansible-core",
+      "properties": [
+        {
+          "name": "syft:package:foundBy",
+          "value": "python-package-cataloger"
+        },
+        {
+          "name": "syft:package:language",
+          "value": "python"
+        },
+        {
+          "name": "syft:package:type",
+          "value": "python"
+        },
+        {
+          "name": "syft:package:metadataType",
+          "value": "python-uv-lock-entry"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-ansible-core:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_ansible_core:python-ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_ansible_core:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-ansible:python-ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-ansible:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_ansible:python-ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_ansible:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:ansible-core:python-ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:ansible-core:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:ansible_core:python-ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:ansible_core:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-ansible-core:ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-ansible-core:ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_ansible_core:ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_ansible_core:ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:ansible:python-ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:ansible:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-ansible:ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-ansible:ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_ansible:ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_ansible:ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:python-ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:python_ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:ansible-core:ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:ansible-core:ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:ansible_core:ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:ansible_core:ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:ansible:ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:ansible:ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:ansible-core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:ansible_core:2.22.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:location:0:path",
+          "value": "/uv.lock"
+        }
+      ],
+      "purl": "pkg:pypi/ansible-core@2.22.0",
+      "type": "library",
+      "version": "2.22.0"
+    },
+    {
       "cpe": "cpe:2.3:a:python-anyio:python-anyio:4.16.0:*:*:*:*:*:*:*",
       "licenses": [
         {
@@ -2550,6 +2708,44 @@
       "purl": "pkg:pypi/coverage@7.17.3",
       "type": "library",
       "version": "7.17.3"
+    },
+    {
+      "cpe": "cpe:2.3:a:cryptography.io:cryptography:50.0.2:*:*:*:*:python:*:*",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR BSD-3-Clause"
+        }
+      ],
+      "name": "cryptography",
+      "properties": [
+        {
+          "name": "syft:package:foundBy",
+          "value": "python-package-cataloger"
+        },
+        {
+          "name": "syft:package:language",
+          "value": "python"
+        },
+        {
+          "name": "syft:package:type",
+          "value": "python"
+        },
+        {
+          "name": "syft:package:metadataType",
+          "value": "python-uv-lock-entry"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:cryptography.io:cryptography:50.0.2:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:location:0:path",
+          "value": "/uv.lock"
+        }
+      ],
+      "purl": "pkg:pypi/cryptography@50.0.2",
+      "type": "library",
+      "version": "50.0.2"
     },
     {
       "cpe": "cpe:2.3:a:python-dependency-groups:python-dependency-groups:1.3.2:*:*:*:*:*:*:*",
@@ -13955,6 +14151,86 @@
       "version": "0.13.1"
     },
     {
+      "cpe": "cpe:2.3:a:python-resolvelib:python-resolvelib:1.2.1:*:*:*:*:*:*:*",
+      "licenses": [
+        {
+          "license": {
+            "name": "ISC License"
+          }
+        }
+      ],
+      "name": "resolvelib",
+      "properties": [
+        {
+          "name": "syft:package:foundBy",
+          "value": "python-package-cataloger"
+        },
+        {
+          "name": "syft:package:language",
+          "value": "python"
+        },
+        {
+          "name": "syft:package:type",
+          "value": "python"
+        },
+        {
+          "name": "syft:package:metadataType",
+          "value": "python-uv-lock-entry"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-resolvelib:python_resolvelib:1.2.1:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_resolvelib:python-resolvelib:1.2.1:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_resolvelib:python_resolvelib:1.2.1:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-resolvelib:resolvelib:1.2.1:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_resolvelib:resolvelib:1.2.1:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:resolvelib:python-resolvelib:1.2.1:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:resolvelib:python_resolvelib:1.2.1:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:python-resolvelib:1.2.1:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:python_resolvelib:1.2.1:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:resolvelib:resolvelib:1.2.1:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:resolvelib:1.2.1:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:location:0:path",
+          "value": "/uv.lock"
+        }
+      ],
+      "purl": "pkg:pypi/resolvelib@1.2.1",
+      "type": "library",
+      "version": "1.2.1"
+    },
+    {
       "cpe": "cpe:2.3:a:python-rich:python-rich:15.0.0:*:*:*:*:*:*:*",
       "licenses": [
         {
@@ -17813,6 +18089,287 @@
       "purl": "pkg:pypi/yamllint@1.38.0",
       "type": "library",
       "version": "1.38.0"
+    },
+    {
+      "cpe": "cpe:2.3:a:python-zombies-aint-my-neighbors:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*",
+      "name": "zombies-aint-my-neighbors",
+      "properties": [
+        {
+          "name": "syft:package:foundBy",
+          "value": "python-package-cataloger"
+        },
+        {
+          "name": "syft:package:language",
+          "value": "python"
+        },
+        {
+          "name": "syft:package:type",
+          "value": "python"
+        },
+        {
+          "name": "syft:package:metadataType",
+          "value": "python-uv-lock-entry"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies-aint-my-neighbors:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies_aint_my_neighbors:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies_aint_my_neighbors:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies-aint-my-neighbors:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies-aint-my-neighbors:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies_aint_my_neighbors:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies_aint_my_neighbors:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies-aint-my-neighbors:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies-aint-my-neighbors:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies_aint_my_neighbors:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies_aint_my_neighbors:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies-aint-my:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies-aint-my:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies_aint_my:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies_aint_my:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies-aint:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies-aint:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies_aint:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies_aint:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies-aint-my-neighbors:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies-aint-my-neighbors:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies_aint_my_neighbors:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies_aint_my_neighbors:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies-aint-my:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies-aint-my:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies_aint_my:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies_aint_my:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies-aint-my:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies-aint-my:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies_aint_my:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies_aint_my:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies-aint:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies-aint:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies_aint:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies_aint:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies-aint:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies-aint:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies_aint:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies_aint:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies-aint-my:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies-aint-my:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies_aint_my:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies_aint_my:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-zombies:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_zombies:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:python-zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:python_zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies-aint:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies-aint:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies_aint:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies_aint:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:zombies:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:zombies-aint-my-neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:zombies_aint_my_neighbors:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:location:0:path",
+          "value": "/uv.lock"
+        }
+      ],
+      "purl": "pkg:pypi/zombies-aint-my-neighbors@1.0.0",
+      "type": "library",
+      "version": "1.0.0"
     }
   ],
   "dependencies": [
@@ -17853,20 +18410,7 @@
     },
     {
       "dependsOn": [
-        "pkg:pypi/anyio@4.16.0"
-      ]
-    },
-    {
-      "dependsOn": [
-        "pkg:pypi/anyio@4.16.0",
-        "pkg:pypi/httpcore2@2.16.0",
-        "pkg:pypi/httpx2-jsfetch@1.0",
-        "pkg:pypi/idna@3.20",
-        "pkg:pypi/truststore@0.10.5"
-      ]
-    },
-    {
-      "dependsOn": [
+        "pkg:pypi/ansible-core@2.22.0",
         "pkg:pypi/apng@0.3.4",
         "pkg:pypi/bandit@1.9.4",
         "pkg:pypi/basedpyright@1.40.2",
@@ -17925,7 +18469,22 @@
         "pkg:pypi/vulture@2.16",
         "pkg:pypi/websockets@17.4",
         "pkg:pypi/wily@1.25.0",
-        "pkg:pypi/yamllint@1.38.0"
+        "pkg:pypi/yamllint@1.38.0",
+        "pkg:pypi/zombies-aint-my-neighbors@1.0.0"
+      ]
+    },
+    {
+      "dependsOn": [
+        "pkg:pypi/anyio@4.16.0"
+      ]
+    },
+    {
+      "dependsOn": [
+        "pkg:pypi/anyio@4.16.0",
+        "pkg:pypi/httpcore2@2.16.0",
+        "pkg:pypi/httpx2-jsfetch@1.0",
+        "pkg:pypi/idna@3.20",
+        "pkg:pypi/truststore@0.10.5"
       ]
     },
     {
@@ -18119,6 +18678,15 @@
         "pkg:pypi/coverage@7.17.3",
         "pkg:pypi/pluggy@1.7.0",
         "pkg:pypi/pytest@9.1.1"
+      ]
+    },
+    {
+      "dependsOn": [
+        "pkg:pypi/cryptography@50.0.2",
+        "pkg:pypi/jinja2@3.1.6",
+        "pkg:pypi/packaging@26.3",
+        "pkg:pypi/pyyaml@6.0.3",
+        "pkg:pypi/resolvelib@1.2.1"
       ]
     },
     {

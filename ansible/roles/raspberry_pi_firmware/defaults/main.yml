@@ -1,0 +1,44 @@
+---
+# The clock settings a Pi may set
+# (https://www.raspberrypi.com/documentation/computers/config_txt.html#overclocking-options)
+raspberry_pi_clock_keys:
+  - arm_freq
+  - arm_freq_min
+  - core_freq
+  - core_freq_min
+  - gpu_freq
+  - gpu_freq_min
+  - over_voltage
+  - over_voltage_delta
+  - over_voltage_min
+  - force_turbo
+
+# How each board section's Pi names itself (/proc/device-tree/model)
+raspberry_pi_board_models:
+  pi4: "Raspberry Pi 4 "
+  pi5: "Raspberry Pi 5 "
+
+# The fans each board can have, as the firmware's overlay README describes them (read on the
+# Pis, 2026-11-14): a Pi 5's Active Cooler on its fan header (the base dtparams fan_temp0..3,
+# "Pi5 only"); a Pi 4's fan on a GPIO pin, either switched on and off (the gpio-fan overlay) or
+# driven at four speeds (pwm-gpio-fan); or none
+raspberry_pi_fan_kinds:
+  pi4: [none, gpio-fan, pwm-gpio-fan]
+  pi5: [active-cooler]
+
+# How many levels each kind takes, fewest and most. An Active Cooler with none keeps the
+# firmware's default curve (50, 60, 67.5, 75 C); gpio-fan has one temperature
+raspberry_pi_fan_level_counts:
+  none: [0, 0]
+  active-cooler: [0, 4]
+  gpio-fan: [1, 1]
+  pwm-gpio-fan: [1, 4]
+
+# config.txt as it was before the last change this role made: made when there is none, replaced
+# whenever a run changes config.txt. One fixed name of characters FAT allows (/boot/firmware is
+# vfat; Ansible's own backup option names its copies with a colon, which FAT refuses)
+raspberry_pi_firmware_backup: "{{ raspberry_pi_firmware_config }}.ansible-backup"
+
+# Lines a Pi had typed by hand that its block now holds, as regular expressions over the whole
+# file (Python's, multiline): each is removed before the block is written. None by default
+raspberry_pi_firmware_hand_typed_patterns: []

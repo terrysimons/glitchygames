@@ -99,7 +99,7 @@ def test_cache_none_compiles_on_every_play():
     assert all(each.is_compiled and each.length == sound.length for each in compiled)
     assert not sound.is_compiled
     assert len(accountant.take_frame().audio_work) == 5
-    np.testing.assert_array_equal(compiled[0].samples_float, compiled[1].samples_float)
+    np.testing.assert_array_equal(compiled[0].samples_int16, compiled[1].samples_int16)
 
 
 def test_cache_ram_returns_the_same_sound_for_every_play():
@@ -202,7 +202,8 @@ def test_an_evicted_sound_is_recompiled_in_place_on_its_next_request_and_counted
     _new_process()  # the probe only measured; the library under test starts empty
     library, _ = make_library(memory_limit_bytes=one_sound_bytes + 1)
     first = _request(library, 'C5')
-    before = first.samples_float
+    before = first.samples_int16
+    assert before is not None
     _request(library, 'D5')  # evicts C5
     assert not first.is_compiled
     assert library.statistics().compiles == 2
@@ -211,7 +212,7 @@ def test_an_evicted_sound_is_recompiled_in_place_on_its_next_request_and_counted
 
     assert again is first
     assert library.statistics().compiles == 3
-    np.testing.assert_array_equal(again.samples_float, before)
+    np.testing.assert_array_equal(again.samples_int16, before)
     # A play of an evicted sound recompiles it as well
     _request(library, 'D5')
     assert not first.is_compiled
@@ -388,12 +389,12 @@ def test_parameters_identify_a_request_but_not_a_baked_sound():
     assert library.statistics().compiles == 1
 
 
-def test_retained_bytes_count_both_sample_arrays_and_the_pygame_sound():
-    """The limit counts float samples, int16 samples and the pygame sound's buffer."""
+def test_retained_bytes_count_the_int16_samples_and_the_pygame_sound():
+    """The limit counts the int16 samples and the pygame sound's buffer (no float64 is kept)."""
     start_mixer(frequency=44100, channels=2)
     library, _ = make_library()
     sound = _request(library)
-    samples_only = sound.samples_float.nbytes + sound.samples_int16.nbytes
+    samples_only = sound.samples_int16.nbytes
     assert sound.retained_bytes == samples_only
     assert library.statistics().bytes_held == samples_only
 
@@ -418,7 +419,7 @@ def test_a_recorded_sound_counts_its_pygame_buffer(tmp_path):
 
     sound = library.sound(str(path), scene_sound_directory=None)
 
-    assert sound.retained_bytes == 1000 * (8 + 2 + 2)  # float64, int16, 16-bit mixer buffer
+    assert sound.retained_bytes == 1000 * (2 + 2)  # int16, 16-bit mixer buffer (no float64)
     assert library.statistics().bytes_held == sound.retained_bytes
 
 
@@ -742,7 +743,7 @@ def test_the_process_store_keeps_game_sounds_within_its_limit_least_recently_use
     library, _ = make_library()
     engine_sound = library.engine_sound(PULSE_INSTRUMENT, pitch='A3', length=0.05)
     sounds = [_request(library, pitch) for pitch in ('C5', 'E5', 'G5')]
-    one_sound = sounds[0].samples_int16.nbytes + sounds[0].samples_float.nbytes
+    one_sound = sounds[0].samples_int16.nbytes
     ENGINE_SOUND_CACHE.limit_bytes = one_sound * 2
 
     ENGINE_SOUND_CACHE.compiled(sounds[1].identity_key)  # used, so newer than G5

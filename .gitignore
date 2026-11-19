@@ -52,6 +52,8 @@ test-results/
 .nox/
 .coverage
 .coverage.*
+# A split CI job's machines' coverage data (nox -s coverage-combine)
+coverage-data/
 .cache
 nosetests.xml
 coverage.xml

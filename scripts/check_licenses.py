@@ -126,6 +126,11 @@ EXCEPTIONS: dict[str, str] = {
         'included, under their own terms; PyInstaller itself is never distributed. The owner: '
         '"Pyinstaller, yes exception" (Terry Simons, 2026-10-28)'
     ),
+    'ansible-core': (
+        'GPL-3.0-or-later, the development tool that runs the playbooks in ansible/ '
+        '(ansible-playbook; alone since 2026-11-17, without the community bundle): never '
+        'imported or bundled (the owner: "Yeah dev group"; Terry Simons, 2026-11-16)'
+    ),
 }
 """Per-package exceptions to the allowlist and denylist, each reviewed."""
 

@@ -1,0 +1,401 @@
+[
+  {
+    "name": "HDMI-A-1",
+    "description": "ASUSTek COMPUTER INC ROG XG27UQ L9LMQS167283  (HDMI-A-1)",
+    "make": "ASUSTek COMPUTER INC",
+    "model": "ROG XG27UQ",
+    "serial": "L9LMQS167283 ",
+    "physical_size": {
+      "width": 600,
+      "height": 340
+    },
+    "enabled": true,
+    "modes": [
+      {
+        "width": 3840,
+        "height": 2160,
+        "refresh": 60.000000,
+        "preferred": true,
+        "current": false
+      },
+      {
+        "width": 3840,
+        "height": 2160,
+        "refresh": 60.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 3840,
+        "height": 2160,
+        "refresh": 59.939999,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 3840,
+        "height": 2160,
+        "refresh": 50.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 3840,
+        "height": 2160,
+        "refresh": 30.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 3840,
+        "height": 2160,
+        "refresh": 29.969999,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 3840,
+        "height": 2160,
+        "refresh": 25.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 3840,
+        "height": 2160,
+        "refresh": 24.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 3840,
+        "height": 2160,
+        "refresh": 23.976000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 2560,
+        "height": 1440,
+        "refresh": 119.875999,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 2560,
+        "height": 1440,
+        "refresh": 59.951000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1920,
+        "height": 1080,
+        "refresh": 120.040001,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1920,
+        "height": 1080,
+        "refresh": 120.000000,
+        "preferred": false,
+        "current": true
+      },
+      {
+        "width": 1920,
+        "height": 1080,
+        "refresh": 119.879997,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1920,
+        "height": 1080,
+        "refresh": 60.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1920,
+        "height": 1080,
+        "refresh": 60.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1920,
+        "height": 1080,
+        "refresh": 59.939999,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1920,
+        "height": 1080,
+        "refresh": 50.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1680,
+        "height": 1050,
+        "refresh": 59.882999,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1280,
+        "height": 1024,
+        "refresh": 75.025002,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1280,
+        "height": 1024,
+        "refresh": 60.020000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1440,
+        "height": 900,
+        "refresh": 59.901001,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1280,
+        "height": 960,
+        "refresh": 60.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1152,
+        "height": 864,
+        "refresh": 75.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1280,
+        "height": 720,
+        "refresh": 60.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1280,
+        "height": 720,
+        "refresh": 60.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1280,
+        "height": 720,
+        "refresh": 59.939999,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1280,
+        "height": 720,
+        "refresh": 50.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1440,
+        "height": 576,
+        "refresh": 50.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1440,
+        "height": 576,
+        "refresh": 50.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1024,
+        "height": 768,
+        "refresh": 75.028999,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1024,
+        "height": 768,
+        "refresh": 70.069000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1024,
+        "height": 768,
+        "refresh": 60.004002,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1440,
+        "height": 480,
+        "refresh": 60.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1440,
+        "height": 480,
+        "refresh": 60.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1440,
+        "height": 480,
+        "refresh": 59.939999,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 1440,
+        "height": 480,
+        "refresh": 59.939999,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 800,
+        "height": 600,
+        "refresh": 75.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 800,
+        "height": 600,
+        "refresh": 72.188004,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 800,
+        "height": 600,
+        "refresh": 60.317001,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 800,
+        "height": 600,
+        "refresh": 56.250000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 720,
+        "height": 576,
+        "refresh": 50.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 720,
+        "height": 576,
+        "refresh": 50.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 720,
+        "height": 480,
+        "refresh": 60.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 720,
+        "height": 480,
+        "refresh": 60.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 720,
+        "height": 480,
+        "refresh": 59.939999,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 720,
+        "height": 480,
+        "refresh": 59.939999,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 640,
+        "height": 480,
+        "refresh": 75.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 640,
+        "height": 480,
+        "refresh": 72.808998,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 640,
+        "height": 480,
+        "refresh": 66.667000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 640,
+        "height": 480,
+        "refresh": 60.000000,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 640,
+        "height": 480,
+        "refresh": 59.939999,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 640,
+        "height": 480,
+        "refresh": 59.939999,
+        "preferred": false,
+        "current": false
+      },
+      {
+        "width": 720,
+        "height": 400,
+        "refresh": 70.082001,
+        "preferred": false,
+        "current": false
+      }
+    ],
+    "position": {
+      "x": 0,
+      "y": 0
+    },
+    "transform": "normal",
+    "scale": 1.000000,
+    "adaptive_sync": false
+  }
+]
