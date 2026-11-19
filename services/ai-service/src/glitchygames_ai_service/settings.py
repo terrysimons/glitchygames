@@ -30,6 +30,14 @@ class ModelEntry(BaseModel):
     dimensions: int | None = None
 
 
+class Selection(BaseModel):
+    """The models one ``ai-service.sh start`` started, by alias: its selection file."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    models: tuple[str, ...]
+
+
 class Settings(BaseModel):
     """The service's settings.
 
@@ -41,6 +49,10 @@ class Settings(BaseModel):
         worker_key_file: Holds the token the model servers require.
         control_script: ``ai-service.sh``, which starts and stops the models.
         scalar_file: The local copy of Scalar's script, served by ``/docs``.
+        selection_file: Where ``ai-service.sh start`` names the models it started, as
+            ``{"models": [ALIAS, ...]}``: on a machine whose memory tier runs no embedding
+            model, a reasoning model alone. None, or no file yet, means any one model of each
+            role (plans/lucid-circuit-linux.md, 6.4.1).
         allowed_origins: Browser origins allowed in. Native clients send none.
         shutdown_grace_seconds: How long after the last session closes the models stop.
         maximum_concurrent_requests: Requests served at once; more get a 503.
@@ -58,6 +70,7 @@ class Settings(BaseModel):
     worker_key_file: Path
     control_script: Path
     scalar_file: Path
+    selection_file: Path | None = None
     allowed_origins: tuple[str, ...] = ()
     shutdown_grace_seconds: float = 30.0
     maximum_concurrent_requests: int = 4

@@ -55,6 +55,104 @@ def test_ready_when_a_reasoning_and_an_embedding_model_answer(client, worker):
     assert response.json()['ready'] is True
 
 
+# ai-service.sh writes the models it started to the selection file; a machine whose memory tier
+# has no embedding model starts a reasoning model alone (plans/lucid-circuit-linux.md, 6.4.1)
+def select(settings, *aliases):
+    settings.selection_file.write_text(json.dumps({'models': list(aliases)}), encoding='utf-8')
+
+
+def client_with_models(settings, *models):
+    return TestClient(create_app(settings=settings.model_copy(update={'models': models})))
+
+
+def live_reasoning(port):
+    return ModelEntry(alias='bonsai-2-2b', role=ModelRole.REASONING, port=port)
+
+
+def embedding_at(port):
+    return ModelEntry(
+        alias='qwen3-embedding-0.6b', role=ModelRole.EMBEDDING, port=port, dimensions=DIMENSIONS
+    )
+
+
+def test_ready_with_only_a_reasoning_model_when_the_selection_names_no_embedding_model(
+    settings, worker, running_worker
+):
+    _fake, port = running_worker
+    select(settings, 'bonsai-2-2b')
+
+    with client_with_models(settings, live_reasoning(port), embedding_at(free_port())) as client:
+        response = client.get('/health/ready')
+
+    assert response.status_code == 200
+    assert response.json()['ready'] is True
+
+
+def test_not_ready_when_the_selection_names_an_embedding_model_that_does_not_answer(
+    settings, worker, running_worker
+):
+    _fake, port = running_worker
+    select(settings, 'bonsai-2-2b', 'qwen3-embedding-0.6b')
+
+    with client_with_models(settings, live_reasoning(port), embedding_at(free_port())) as client:
+        response = client.get('/health/ready')
+
+    assert response.status_code == 503
+    assert response.json()['ready'] is False
+
+
+def test_not_ready_until_the_selected_size_answers_whatever_else_does(client, settings, worker):
+    # bonsai-2-27b answers, but the run picked 2B, which doesn't yet
+    select(settings, 'bonsai-2-2b', 'qwen3-embedding-0.6b')
+
+    response = client.get('/health/ready')
+
+    assert response.status_code == 503
+
+
+def test_not_ready_when_the_selection_names_no_reasoning_model(client, settings, worker):
+    select(settings, 'qwen3-embedding-0.6b')
+
+    assert client.get('/health/ready').status_code == 503
+
+
+def test_a_selection_file_that_cannot_be_read_falls_back_to_one_of_each_role(
+    client, settings, worker, caplog
+):
+    settings.selection_file.write_text('not json', encoding='utf-8')
+
+    response = client.get('/health/ready')
+
+    assert response.status_code == 200
+    assert 'selection' in caplog.text
+
+
+def test_embeddings_without_an_embedding_model_say_this_machine_has_none(client, settings, worker):
+    select(settings, 'bonsai-2-27b')
+
+    response = client.post('/v1/embeddings', headers=AUTHORIZED, json={'input': 'a small cat'})
+
+    assert response.status_code == 503
+    assert response.json()['error'] == {
+        'code': 'no_embedding_model',
+        'message': 'this machine has no embedding model',
+    }
+    assert worker.requests == []
+    assert client.app.state.slots.in_use == 0
+
+
+def test_embeddings_on_an_install_with_no_embedding_model_say_so_too(
+    settings, worker, running_worker
+):
+    _fake, port = running_worker
+
+    with client_with_models(settings, live_reasoning(port)) as client:
+        response = client.post('/v1/embeddings', headers=AUTHORIZED, json={'input': 'a'})
+
+    assert response.status_code == 503
+    assert response.json()['error']['code'] == 'no_embedding_model'
+
+
 def test_not_ready_while_models_load(client, worker):
     worker.health_status = 503
 
