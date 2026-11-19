@@ -1,0 +1,41 @@
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+[mem]    57.0 MiB now,   213.2 peak  test_a_recording_replays_inside_a_tile_beside_another_as_it_does_alone[brave-adventurer/golden-classic.jsonl.g
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+[mem]    65.3 MiB now,   187.0 peak  test_a_recording_replays_inside_a_tile_beside_another_as_it_does_alone[brave-adventurer/golden-papyrus.jsonl.g
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+[mem]    66.2 MiB now,    88.0 peak  test_a_recording_replays_inside_a_tile_beside_another_as_it_does_alone[clockwork-keep/golden.jsonl.gz+drawing-
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+[mem]    67.1 MiB now,   122.3 peak  test_a_recording_replays_inside_a_tile_beside_another_as_it_does_alone[drawing-fire/golden.jsonl.gz+mr-muncher
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+[mem]    69.8 MiB now,   140.0 peak  test_a_recording_replays_inside_a_tile_beside_another_as_it_does_alone[mr-muncher/golden.jsonl.gz+paddleslap/g
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
+DEBUG    game.engine:game_engine.py:1990 Successfully loaded 5 modules and failed loading 0 modules.
