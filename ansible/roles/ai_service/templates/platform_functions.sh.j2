@@ -288,9 +288,9 @@ ai_threads() {
     # Every core but the game's and the mirror's, at least one (plans/lucid-circuit-linux.md, 6.2):
     # this machine's count, as the package may have been built on another. Plain nproc counts only
     # the cores this process may use, which under the setup unit's own drop-in are the AI's
-    threads=$(( $(nproc --all) - 2 ))
-    [ "$threads" -ge 1 ] || threads=1
-    echo "$threads"
+    thread_count=$(( $(nproc --all) - 2 ))
+    [ "$thread_count" -ge 1 ] || thread_count=1
+    echo "$thread_count"
 {% else %}
     # Metal does the work
     echo ""

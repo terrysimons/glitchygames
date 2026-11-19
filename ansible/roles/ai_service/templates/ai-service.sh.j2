@@ -177,14 +177,15 @@ write_tier_settings() {
 }
 
 # Names the models a start started, for the API's readiness: name_the_selection BONSAI_SIZE
-# QWEN_SIZE (or none)
+# QWEN_SIZE (or none). Its variable isn't `models`: sh has no locals, and that is the models folder
 name_the_selection() {
-    models="\"$(bonsai_alias "$1")\""
+    selected_aliases="\"$(bonsai_alias "$1")\""
     if [ "$2" != none ]; then
-        models="$models, \"$(qwen_alias "$2")\""
+        selected_aliases="$selected_aliases, \"$(qwen_alias "$2")\""
     fi
     mkdir -p "$config"
-    printf '{"models": [%s]}\n' "$models" > "$selection_file.new" && mv "$selection_file.new" "$selection_file"
+    printf '{"models": [%s]}\n' "$selected_aliases" > "$selection_file.new" \
+        && mv "$selection_file.new" "$selection_file"
 }
 
 # A port held by anything else, another user's service included, is refused before starting

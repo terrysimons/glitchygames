@@ -2144,6 +2144,66 @@ def test_every_rendered_script_passes_sh_n(
         assert (result.returncode, result.stderr) == (0, ''), script.name
 
 
+# A shell script's top-level assignment, and one inside a function (sh has no locals): `name=`,
+# or a for loop's variable
+TOP_LEVEL_ASSIGNMENT = re.compile(r'^(?P<name>[a-z_][a-z0-9_]*)=')
+FUNCTION_START = re.compile(r'^[a-z_][a-z0-9_]*\(\) \{$')
+INDENTED_ASSIGNMENT = re.compile(r'^\s+(?:for (?P<loop>[a-z_][a-z0-9_]*) in\b|(?P<name>[a-z_][a-z0-9_]*)=)')
+
+
+def functions_reassigning_script_wide_variables(*, script: str) -> list[str]:
+    """Name each function that assigns a variable the script sets at its top level.
+
+    sh has no local variables, so a function's `models=` overwrites the script's own (the models
+    folder files_present reads). Functions open with `name() {` and close with `}`, both at the
+    start of a line.
+
+    Returns:
+        `function: variable` for each such assignment.
+    """
+    lines = script.splitlines()
+    script_wide = {
+        match['name'] for line in lines if (match := TOP_LEVEL_ASSIGNMENT.match(line)) is not None
+    }
+    clashes: list[str] = []
+    function: str | None = None
+    for line in lines:
+        if FUNCTION_START.match(line):
+            function = line.split('(', 1)[0]
+        elif line == '}':
+            function = None
+        elif function is not None and (match := INDENTED_ASSIGNMENT.match(line)) is not None:
+            name = match['loop'] or match['name']
+            if name in script_wide:
+                clashes.append(f'{function}: {name}')
+    return clashes
+
+
+def test_a_function_that_overwrites_a_script_wide_variable_is_found():
+    """The check below reads a clash in a function, and leaves a function's own variables alone."""
+    script = 'models="$HOME/models"\nname_it() {\n    models=x\n    own=y\n}\n'
+
+    assert functions_reassigning_script_wide_variables(script=script) == ['name_it: models']
+
+
+@pytest.mark.parametrize(('system', 'architecture'), HOST_PLATFORMS)
+def test_no_function_overwrites_a_script_wide_variable(
+    tmp_path: Path, system: Literal['Darwin', 'Linux'], architecture: Architecture
+):
+    """No function in a rendered script reuses a name the script itself sets, such as `models`."""
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    service.variables['ansible_facts']['architecture'] = architecture
+
+    clashes = {
+        template: functions_reassigning_script_wide_variables(
+            script=service.script(template=template).read_text(encoding='utf-8')
+        )
+        for template in SHELL_TEMPLATES
+    }
+
+    assert clashes == dict.fromkeys(SHELL_TEMPLATES, [])
+
+
 def rendered_units(*, tmp_path: Path) -> dict[str, configparser.ConfigParser]:
     """Render every agent's systemd user unit for Linux and parse it.
 
