@@ -293,3 +293,169 @@ def test_painting_off_the_canvas_does_nothing_and_reading_it_is_transparent():
     assert canvas.grid() == rig.Canvas().grid()
     assert canvas.at(x=-1, y=0) == palettes.TRANSPARENT
     assert canvas.at(x=0, y=rig.HEIGHT) == palettes.TRANSPARENT
+
+
+# Feature plan 12: the intro's sprites, checked against the character BOM's section 7. The
+# expected sizes, animations, frame counts, intervals and loops are copied from the BOM, not read
+# from the rig, so a rig that drifts from the BOM fails here.
+
+# (frames, interval, loop) per animation; a one-frame still has no interval in the BOM (None)
+type IntroAnimations = dict[str, tuple[int, float | None, bool | None]]
+
+BOM_INTRO_BAG: IntroAnimations = {'sit': (2, 0.5, True), 'startled': (2, 0.12, False)}
+# Stem -> (frame size, animations, the most colours besides magenta)
+BOM_INTRO_SPRITES: dict[str, tuple[tuple[int, int], IntroAnimations, int]] = {
+    **{f'intro_bag_{look.name}': ((48, 32), BOM_INTRO_BAG, 15) for look in palettes.KIDS},
+    'intro_tv': (
+        (64, 64),
+        {
+            'show': (4, 0.25, True),
+            'static': (3, 0.08, True),
+            'bulge': (4, 0.12, False),
+            'burst': (4, 0.08, False),
+            'switch-off': (3, 0.08, False),
+        },
+        15,
+    ),
+    'intro_hands': ((64, 64), {'reach': (4, 0.12, False)}, 15),
+    # The BOM says 14, "as in play": the play zombie's palette holds 15 (feature plan 12, a ruling)
+    'intro_zombie': ((64, 64), {'climb-out': (4, 0.12, False)}, 15),
+    'intro_lamp': ((32, 32), {'still': (1, None, None), 'flicker': (2, 0.08, True)}, 15),
+    'intro_snacks': ((32, 32), {'still': (1, None, None)}, 15),
+}
+BOM_INTRO_FRAMES = 46
+
+
+def intro_file(stem: str) -> Path:
+    """Return an intro sprite's committed file.
+
+    Returns:
+        The path, in the package's sprites directory.
+    """
+    return SPRITES_DIRECTORY / f'{stem}.toml'
+
+
+def intro_document(stem: str) -> dict:
+    """Return an intro sprite's committed file, parsed.
+
+    Returns:
+        The TOML document.
+    """
+    return tomllib.loads(intro_file(stem).read_text(encoding='utf-8'))
+
+
+def test_the_intro_bom_totals_46_frames():
+    """The rig draws the BOM's 46 intro frames: 4 x (2 + 2) + 18 + 4 + 4 + 3 + 1."""
+    from zombies_aint_my_neighbors.art import intro_rig
+
+    frames = sum(
+        len(grids)
+        for stem in intro_rig.INTRO_ANIMATIONS
+        for grids in intro_rig.intro_frames(sprite=stem).values()
+    )
+
+    assert set(intro_rig.INTRO_ANIMATIONS) == set(BOM_INTRO_SPRITES)
+    assert frames == BOM_INTRO_FRAMES
+
+
+@pytest.mark.parametrize('stem', BOM_INTRO_SPRITES)
+def test_each_intro_file_holds_every_bom_animation_with_its_timing_and_loop(stem):
+    """Every animation, frame count, interval and loop as the BOM lists them; nothing else."""
+    _, animations, _ = BOM_INTRO_SPRITES[stem]
+    found = {
+        animation['namespace']: (
+            len(animation['frame']),
+            animation['frame_interval'],
+            animation['loop'],
+        )
+        for animation in intro_document(stem)['animation']
+    }
+
+    assert set(found) == set(animations)
+    for name, (frames, interval, loop) in animations.items():
+        assert found[name][0] == frames, name
+        if interval is not None:
+            assert found[name][1:] == (interval, loop), name
+
+
+@pytest.mark.parametrize('stem', BOM_INTRO_SPRITES)
+def test_every_intro_frame_has_its_bom_size_and_keeps_to_its_palette(stem):
+    """Each frame is the BOM's size, and the sprite keeps to its colour budget."""
+    (width, height), _, limit = BOM_INTRO_SPRITES[stem]
+    document = intro_document(stem)
+
+    for animation in document['animation']:
+        for frame in animation['frame']:
+            rows = frame['pixels'].strip('\n').split('\n')
+            assert len(rows) == height, (animation['namespace'], frame['frame_index'])
+            assert {len(row) for row in rows} == {width}, animation['namespace']
+    colours = {
+        (colour['red'], colour['green'], colour['blue']) for colour in document['colors'].values()
+    }
+    assert len(colours - {MAGENTA}) <= limit
+
+
+@pytest.mark.parametrize('stem', BOM_INTRO_SPRITES)
+def test_every_shipped_intro_sprite_passes_the_engines_checks(stem, tmp_path):
+    """The schema, equal rows, tags, and a save keeping timings, hitboxes and pixels."""
+    sprite_file = intro_file(stem)
+
+    sprite_files.check_values_match_the_schema(sprite_file=sprite_file)
+    sprite_files.check_rows_have_equal_lengths(sprite_file=sprite_file)
+    sprite_files.check_sprite_tags_are_well_formed(sprite_file=sprite_file)
+    sprite_files.check_animation_timings_survive_a_save_round_trip(
+        sprite_file=sprite_file, directory=tmp_path
+    )
+    sprite_files.check_pixels_survive_a_save_round_trip(sprite_file=sprite_file, directory=tmp_path)
+
+
+@pytest.mark.parametrize('stem', BOM_INTRO_SPRITES)
+def test_each_intro_sprite_is_an_intro_prop_anchored_at_the_bottom(stem):
+    """Tagged as the intro's, anchored at the bottom, and with no transitions.
+
+    The intro's timeline (feature plan 12) is the only thing that moves one animation to the next.
+    """
+    document = intro_document(stem)
+
+    assert 'intro' in document['sprite']['tags']
+    assert document['sprite']['frame_anchor'] == 'bottom'
+    assert 'transition' not in document
+
+
+def test_building_the_intro_twice_writes_the_same_files(tmp_path):
+    """The rig is deterministic: two builds write the same bytes, the static included."""
+    first = {path.name: path.read_bytes() for path in build.build(directory=tmp_path / 'one')}
+    second = {path.name: path.read_bytes() for path in build.build(directory=tmp_path / 'two')}
+
+    assert {name for name in first if name.startswith('intro_')} == {
+        f'{stem}.toml' for stem in BOM_INTRO_SPRITES
+    }
+    assert first == second
+
+
+def test_the_intro_contact_sheet_has_a_row_per_intro_animation():
+    """One row per sprite and animation (18), each as tall as the tallest intro frame."""
+    rows = sum(len(animations) for _, animations, _ in BOM_INTRO_SPRITES.values())
+
+    sheet = contact_sheet.intro_contact_sheet()
+
+    assert rows == 18
+    assert sheet.get_height() == rows * (64 * contact_sheet.SCALE + contact_sheet.GAP)
+
+
+def test_the_contact_sheet_command_writes_the_intro_sheet(tmp_path):
+    """``... contact_sheet --intro --output PATH`` writes the intro's sheet as a PNG."""
+    output = tmp_path / 'intro.png'
+
+    contact_sheet.main(['--intro', '--output', str(output)])
+
+    assert output.read_bytes()[:8] == b'\x89PNG\r\n\x1a\n'
+
+
+@pytest.mark.parametrize('function', ['intro_frames', 'intro_palette'])
+def test_the_intro_rig_refuses_a_sprite_the_bom_does_not_list(function):
+    """Asking for an intro sprite the BOM never lists raises, naming it."""
+    from zombies_aint_my_neighbors.art import intro_rig
+
+    with pytest.raises(ValueError, match="no intro sprite 'intro_moon'"):
+        getattr(intro_rig, function)(sprite='intro_moon')
