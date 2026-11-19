@@ -72,6 +72,29 @@ fill_in() {
 
 mkdir -p "$models" "$config" "$(log_root)"
 
+# One run at a time for this user: the setup job at a login, the package's postinst and Ansible may
+# start it together, and two runs would write the same .part files. A later run waits for the
+# first, then finds its work done. The lock is a link whose target is the holder's process id,
+# made in one step (ln -s refuses a name that exists), so a run killed outright leaves a lock the
+# next run sees is dead and takes over
+lock="$config/setup.lock"
+said_waiting=false
+until ln -s "$$" "$lock" 2>/dev/null; do
+    holder=$(readlink "$lock" 2>/dev/null) || holder=""
+    if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
+        say "taking over the lock of setup run $holder, which has stopped"
+        rm -f "$lock"
+        continue
+    fi
+    if [ "$said_waiting" = false ]; then
+        say "waiting for setup run ${holder:-?} to finish"
+        said_waiting=true
+    fi
+    sleep 1
+done
+trap 'rm -f "$lock"' EXIT
+trap 'exit 1' HUP INT TERM
+
 if ! machine_can_run_the_service; then
     exit 0
 fi

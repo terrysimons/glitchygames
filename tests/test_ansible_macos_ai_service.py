@@ -24,7 +24,7 @@ import pytest
 import yaml
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames import ai_link
+from glitchygames import ai_link, clock
 from tests.ansible_rendering import (
     ansible_variables,
     render_expression,
@@ -759,6 +759,10 @@ def test_the_linux_runtime_is_staged_for_the_package_not_installed_under_opt(tmp
     assert variables['llama_cpp_install_root'] == (
         f'{tmp_path}/.cache/glitchygames/ai/package/stage/opt/glitchygames/ai'
     )
+    # Named once, by ai_package: its path comparisons keep or delete the runtime by it
+    group_variables = yaml.safe_load((ANSIBLE / 'group_vars' / 'linux.yml').read_text('utf-8'))
+    assert group_variables['llama_cpp_install_root'] == '{{ ai_package_stage_root }}'
+    assert variables['llama_cpp_install_root'] == variables['ai_package_stage_root']
 
 
 LINUX_INSTALL = (
@@ -1042,6 +1046,23 @@ class ServiceHome:
         Returns:
             The finished run.
         """
+        return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - sh and a rendered script, as an argument list
+            ['/bin/sh', str(self.script(template=template)), *arguments],
+            env=self.environment(extra=environment, unset=unset),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+
+    def environment(
+        self, *, extra: dict[str, str] | None = None, unset: tuple[str, ...] = ()
+    ) -> dict[str, str]:
+        """Build a script's environment: this home, its XDG folders and the fake tools first.
+
+        Returns:
+            The variables.
+        """
         run_environment = {
             'HOME': str(self.home),
             'XDG_DATA_HOME': str(self.home / '.local' / 'share'),
@@ -1049,16 +1070,9 @@ class ServiceHome:
             'XDG_STATE_HOME': str(self.home / '.local' / 'state'),
             'PATH': os.pathsep.join([str(self.tools), '/usr/bin', '/bin', '/usr/sbin', '/sbin']),
             'SERVICE_TOOL_LOG': str(self.tool_log),
-            **(environment or {}),
+            **(extra or {}),
         }
-        return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - sh and a rendered script, as an argument list
-            ['/bin/sh', str(self.script(template=template)), *arguments],
-            env={name: value for name, value in run_environment.items() if name not in unset},
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=60,
-        )
+        return {name: value for name, value in run_environment.items() if name not in unset}
 
     def tool_calls(self) -> list[str]:
         """Read every call the fake tools saw.
@@ -1502,9 +1516,11 @@ DOWNLOAD_BASE_URL = 'https://downloads.test'
 RUNTIME_NAME = 'llama.cpp-test'
 # Stands in for curl as setup.sh calls it: serves URL's file from DOWNLOAD_ROOT into --output,
 # appending to what's there with --continue-at -, and with CURL_FAILS_AFTER_BYTES set, writes that
-# many more bytes and fails as a dropped connection does (curl's exit 18, a partial transfer)
+# many more bytes and fails as a dropped connection does (curl's exit 18, a partial transfer).
+# CURL_DELAY_SECONDS makes each download take that long, so two runs can overlap
 CURL_STUB = """#!/bin/sh
 printf 'curl %s\\n' "$*" >> "$SERVICE_TOOL_LOG"
+sleep "${CURL_DELAY_SECONDS:-0}"
 output=""
 url=""
 resume=false
@@ -1643,6 +1659,12 @@ class LinuxSetup:
         for file in settings:
             target = self.program_root / Path(file.destination).relative_to(program_stage)
             target.write_text(staging.rendered(file=file), encoding='utf-8')
+        # The runtime link the settings name the runtime by
+        for file in staging.staged:
+            if file.is_link:
+                link = self.program_root / Path(file.destination).relative_to(program_stage)
+                link.unlink(missing_ok=True)
+                link.symlink_to(file.source)
 
     def set_cores(self, *, count: int, capacities: dict[int, int]) -> None:
         """Make the machine's cores: how many nproc --all counts, and which report a capacity."""
@@ -2196,6 +2218,8 @@ class StagedFile(BaseModel):
     source: str
     destination: str
     variables: dict[str, Any]
+    # A symbolic link at the destination, naming the source (ansible.builtin.file, state link)
+    is_link: bool = False
 
 
 class PackageStaging:
@@ -2204,8 +2228,8 @@ class PackageStaging:
     Ansible's precedence is kept where it decides what a file holds: a block's and a task's own
     variables lose to a fact set earlier (the llama_cpp role's install directory is one), and an
     include's variables win over both. Only the tasks that stage something are run: template,
-    copy, rsync and set_fact, and the imports, includes and blocks around them; a `when` on one
-    of those is evaluated, so one naming a value Ansible would not have fails here too.
+    copy, rsync, a link and set_fact, and the imports, includes and blocks around them; a `when`
+    on one of those is evaluated, so one naming a value Ansible would not have fails here too.
     """
 
     def __init__(
@@ -2215,6 +2239,7 @@ class PackageStaging:
         architecture: Literal['aarch64', 'x86_64'],
         home: Path,
         facts: dict[str, Any] | None = None,
+        runtime_name: str = RUNTIME_NAME,
     ) -> None:
         """Set the facts the roles before ai_package leave: llama.cpp's build, the agents."""
         self.system: Literal['Darwin', 'Linux'] = system
@@ -2224,8 +2249,9 @@ class PackageStaging:
         runtime_root = variables['llama_cpp_install_root']
         self.facts: dict[str, Any] = {
             # Set by the llama_cpp role (set_fact), and by its Linux checks
-            'llama_cpp_install_directory': f'{runtime_root}/runtime/{RUNTIME_NAME}',
+            'llama_cpp_install_directory': f'{runtime_root}/runtime/{runtime_name}',
             'llama_cpp_glibc_version': '2.39',
+            'llama_cpp_libstdcxx_version': '14.1.0',
             # Set by the ai_service role (set_fact)
             'ai_service_agents': run_set_fact_tasks(
                 tasks=role_tasks(role='ai_service'), variables=variables
@@ -2323,6 +2349,7 @@ class PackageStaging:
         return (
             'ansible.builtin.template' in task
             or 'ansible.builtin.copy' in task
+            or task.get('ansible.builtin.file', {}).get('state') == 'link'
             or argv[0] == 'rsync'
         )
 
@@ -2375,6 +2402,18 @@ class PackageStaging:
                     source=render_value(value=command['argv'][-2], variables=variables),
                     destination=render_value(value=command['argv'][-1], variables=variables),
                     variables=variables,
+                )
+            )
+            return
+        link = task.get('ansible.builtin.file')
+        if link:
+            self.staged.append(
+                StagedFile(
+                    task_name=task['name'],
+                    source=render_value(value=link['src'], variables=variables),
+                    destination=render_value(value=link['dest'], variables=variables),
+                    variables=variables,
+                    is_link=True,
                 )
             )
             return
@@ -2494,6 +2533,7 @@ def test_the_linux_package_stages_every_unit_script_and_setting(
         *[f'{program}/share/agents/{label}.env.template' for label in labels],
         f'{program}/share/agents/service.json.template',
         f'{program}/share/notices',
+        f'{program}/runtime/current',
     }
     assert set(destinations) == expected
     assert len(destinations) == len(expected), 'a file is staged twice'
@@ -2538,7 +2578,7 @@ def test_the_linux_settings_name_both_roots_by_their_placeholders(tmp_path: Path
         )
     )
     assert (
-        f"AI_LLAMA_SERVER='{program_placeholder}/runtime/{RUNTIME_NAME}/bin/llama-server'"
+        f"AI_LLAMA_SERVER='{program_placeholder}/runtime/current/bin/llama-server'"
         in reasoning.splitlines()
     )
     assert (
@@ -2556,10 +2596,11 @@ def test_the_linux_settings_name_both_roots_by_their_placeholders(tmp_path: Path
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason=(
-        'bug: the llama_cpp role sets llama_cpp_install_directory with set_fact, which beats '
-        "ai_package's block variables, so the .pkg's settings name the builder's runtime, not "
-        "the player's (the Mac's output is kept unchanged until the owner decides)"
+        'bugs/2026-11-18-mac-package-settings-name-builders-runtime.md: the llama_cpp role '
+        "sets llama_cpp_install_directory with set_fact, which beats ai_package's block "
+        "variables, so the .pkg's settings name the builder's runtime (open: the owner decides)"
     ),
 )
 def test_the_mac_package_settings_name_the_players_runtime(tmp_path: Path):
@@ -2603,12 +2644,12 @@ def test_the_deb_control_follows_the_design(
     architecture: Literal['aarch64', 'x86_64'],
     debian_architecture: str,
 ):
-    """Name, version, the host's architecture, and Depends with the build's glibc floor (6.7)."""
+    """Name, version, the host's architecture, and Depends with the build's glibc and C++ floors."""
     staging = PackageStaging(
         system='Linux',
         architecture=architecture,
         home=tmp_path,
-        facts={'llama_cpp_glibc_version': '2.41'},
+        facts={'llama_cpp_glibc_version': '2.41', 'llama_cpp_libstdcxx_version': '13.2.0'},
     )
 
     control = parse_control(
@@ -2619,8 +2660,8 @@ def test_the_deb_control_follows_the_design(
     assert control['Version'] == role_defaults(role='ai_package')['ai_package_version']
     assert control['Architecture'] == debian_architecture
     assert control['Depends'] == (
-        'libc6 (>= 2.41), libstdc++6, libgcc-s1, systemd, curl, openssl, ca-certificates, '
-        'coreutils, iproute2'
+        'libc6 (>= 2.41), libstdc++6 (>= 13.2.0), libgcc-s1, systemd, curl, openssl, '
+        'ca-certificates, coreutils, iproute2'
     )
     assert control['Description']
     assert control['Maintainer']
@@ -2746,7 +2787,11 @@ SETUP_UNIT = 'ai.glitchygames.setup.service'
 
 @needs_a_posix_shell
 def test_postinst_enables_the_setup_job_and_starts_it_for_the_user_who_ran_sudo(tmp_path: Path):
-    """Enabled for every user, and run now for the owner, so they needn't log in again (6.2)."""
+    """Enabled for every user, and started now for the owner, so they needn't log in again (6.2).
+
+    The start doesn't wait for the download: apt would hold dpkg's lock for gigabytes. It says
+    the download goes on, and how to follow it.
+    """
     scripts = MaintainerScripts(tmp_path=tmp_path)
 
     result = scripts.run(
@@ -2756,8 +2801,10 @@ def test_postinst_enables_the_setup_job_and_starts_it_for_the_user_who_ran_sudo(
     assert result.returncode == 0, result.stdout + result.stderr
     assert scripts.calls() == [
         f'systemctl --global enable {SETUP_UNIT}',
-        f'systemctl --user --machine=alice@ start {SETUP_UNIT}',
+        f'systemctl --user --machine=alice@ start --no-block {SETUP_UNIT}',
     ]
+    assert 'background' in result.stdout
+    assert f'journalctl --user -u {SETUP_UNIT}' in result.stdout
 
 
 @needs_a_posix_shell
@@ -2778,8 +2825,8 @@ def test_postinst_without_sudo_user_skips_the_start(tmp_path: Path, sudo_user: s
 
 
 @needs_a_posix_shell
-def test_postinst_succeeds_when_the_owners_setup_does_not_finish(tmp_path: Path):
-    """A failed download fails the setup job, not the install: it runs again at the next login."""
+def test_postinst_succeeds_when_the_owners_setup_cannot_start(tmp_path: Path):
+    """A user manager that won't take the job fails nothing: it runs at the next login."""
     scripts = MaintainerScripts(tmp_path=tmp_path)
 
     result = scripts.run(
@@ -2808,7 +2855,7 @@ def test_postinst_fails_when_the_setup_job_cannot_be_enabled(tmp_path: Path):
 
 
 @needs_a_posix_shell
-@pytest.mark.parametrize('action', ['abort-upgrade', 'abort-remove', 'abort-deconfigure'])
+@pytest.mark.parametrize('action', ['abort-upgrade', 'abort-deconfigure'])
 def test_postinst_does_nothing_when_dpkg_rolls_back(tmp_path: Path, action: str):
     """Only configure enables and starts: a rollback keeps what the old package set up."""
     scripts = MaintainerScripts(tmp_path=tmp_path)
@@ -2817,6 +2864,24 @@ def test_postinst_does_nothing_when_dpkg_rolls_back(tmp_path: Path, action: str)
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert scripts.calls() == []
+
+
+@needs_a_posix_shell
+def test_a_failed_removal_leaves_the_setup_job_enabled(tmp_path: Path):
+    """A removal's prerm disables the job; if the removal fails, postinst abort-remove enables it.
+
+    The package stays installed, so its setup job must still run at each login.
+    """
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+
+    removal = scripts.run(script='prerm', arguments=['remove'])
+    rollback = scripts.run(script='postinst', arguments=['abort-remove'])
+
+    assert removal.returncode == 0, removal.stderr
+    assert rollback.returncode == 0, rollback.stderr
+    calls = scripts.calls()
+    disabled = calls.index(f'systemctl --global disable {SETUP_UNIT}')
+    assert calls[disabled + 1 :] == [f'systemctl --global enable {SETUP_UNIT}']
 
 
 LOGGED_IN_USERS = '1000 alice no active\n1001 bob yes lingering\n'
@@ -3007,7 +3072,10 @@ def complete_deb_listing(*, staging: PackageStaging) -> list[str]:
     ]
     for file in staging.staged:
         relative = str(Path(file.destination).relative_to(stage))
-        if not relative.startswith('DEBIAN/') and not relative.endswith('notices'):
+        if file.is_link:
+            # As dpkg-deb lists a link
+            paths.append(f'/{relative} -> {file.source}')
+        elif not relative.startswith('DEBIAN/') and not relative.endswith('notices'):
             paths.append(f'/{relative}')
     return [deb_contents_line(path=path) for path in paths]
 
@@ -3031,3 +3099,177 @@ def test_the_package_never_takes_the_models(tmp_path: Path):
     for index, line in enumerate(complete):
         missing = complete[:index] + complete[index + 1 :]
         assert not deb_contents_pass(lines=missing, staging=staging), f'passes without {line}'
+
+
+@needs_a_posix_shell
+def test_an_upgrade_that_renames_the_runtime_keeps_every_users_settings_valid(tmp_path: Path):
+    """Settings name the runtime through runtime/current, which each package points at its build.
+
+    An upgrade to a build of another name (a new llama.cpp tag or options) changes no user's
+    settings, and the path they name then reaches the new llama-server: a user who never logs in
+    again still runs it (Review focus 4).
+    """
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    assert setup.run().returncode == 0
+    reasoning = setup.service.agent(role='reasoning')
+    settings_file = setup.user_root / 'config' / f'{reasoning["label"]}.env'
+    settings_before = settings_file.read_bytes()
+    server = Path(setup.model_settings()[reasoning['label']]['AI_LLAMA_SERVER'])
+    old_runtime = setup.program_root / 'runtime' / RUNTIME_NAME
+    assert server.resolve() == (old_runtime / 'bin' / 'llama-server').resolve()
+    share = setup.program_root / 'share' / 'agents'
+    share_before = {path.name: path.read_text(encoding='utf-8') for path in share.iterdir()}
+
+    # The upgrade, as dpkg leaves it: the new package's build and link, the old build gone
+    upgraded = PackageStaging(
+        system='Linux',
+        architecture='aarch64',
+        home=setup.service.home,
+        runtime_name='llama.cpp-upgraded',
+    )
+    shutil.rmtree(old_runtime)
+    new_runtime = setup.program_root / 'runtime' / 'llama.cpp-upgraded'
+    _write_executable(new_runtime / 'bin' / 'llama-server', LLAMA_SERVER_STUB)
+    (link,) = [file for file in upgraded.staged if file.is_link]
+    assert Path(link.destination).name == 'current'
+    (setup.program_root / 'runtime' / 'current').unlink()
+    (setup.program_root / 'runtime' / 'current').symlink_to(link.source)
+    runner = setup.run(template='run-llama-server.sh.j2', arguments=[reasoning['label']])
+
+    for file in upgraded.staged:
+        if '/share/agents/' in file.destination:
+            assert upgraded.rendered(file=file) == share_before[Path(file.destination).name]
+    assert settings_file.read_bytes() == settings_before
+    assert server.resolve() == (new_runtime / 'bin' / 'llama-server').resolve()
+    assert runner.returncode == 0, runner.stderr
+    assert '--model' in runner.stdout.splitlines(), runner.stdout
+
+
+@needs_a_posix_shell
+def test_two_setup_runs_at_once_never_both_download(tmp_path: Path):
+    """A login's setup job, postinst's and Ansible's may run together: the second waits.
+
+    It then finds the first's work done, so every model file is fetched once and no two runs
+    write the same .part file.
+    """
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    script = setup.service.script(template='setup.sh.j2')
+    environment = setup.service.environment(
+        extra=setup.environment(extra={'CURL_DELAY_SECONDS': '1'})
+    )
+
+    def start() -> subprocess.Popen[str]:
+        return subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] - sh and a rendered script, as an argument list
+            ['/bin/sh', str(script)],
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+    first = start()
+    try:
+        # The first holds the lock once it is downloading
+        for _ in range(600):
+            if any(call.startswith('curl') for call in setup.service.tool_calls()):
+                break
+            clock.raw_sleep(0.05)
+        second = start()
+        second_output, second_errors = second.communicate(timeout=120)
+        first_output, first_errors = first.communicate(timeout=120)
+    finally:
+        first.kill()
+        first.wait(timeout=10)
+
+    assert first.returncode == 0, first_output + first_errors
+    assert second.returncode == 0, second_output + second_errors
+    assert 'waiting for setup run' in second_output
+    downloads = [call for call in setup.service.tool_calls() if call.startswith('curl')]
+    assert len(downloads) == len(setup.selected_model_files()), downloads
+    assert not (setup.user_root / 'config' / 'setup.lock').is_symlink()
+    for model_file in setup.selected_model_files():
+        served = setup.download_path(model_file=model_file).read_bytes()
+        assert (setup.user_root / 'models' / model_file['file']).read_bytes() == served
+
+
+@needs_a_posix_shell
+def test_setup_takes_over_the_lock_of_a_run_that_was_killed(tmp_path: Path):
+    """A run killed outright leaves its lock naming a process that no longer exists."""
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    # A process id that no longer runs
+    gone = subprocess.Popen(['/bin/sh', '-c', 'exit 0'])
+    gone.wait(timeout=10)
+    lock = setup.user_root / 'config' / 'setup.lock'
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.symlink_to(str(gone.pid))
+
+    result = setup.run()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f'taking over the lock of setup run {gone.pid}' in result.stdout
+    assert not lock.is_symlink()
+
+
+def libstdcxx_floor(*, search_output: str, tmp_path: Path) -> str | None:
+    """Run llama_cpp's Linux check and record of the libstdc++ floor on objdump's newest versions.
+
+    Each task sees what Ansible gives it: the registered search result and the role's defaults.
+
+    Returns:
+        The recorded version, or None when the check refuses the build.
+    """
+    variables = ansible_variables(system='Linux', architecture='aarch64', home=tmp_path)
+    variables['llama_cpp_libstdcxx_search'] = {'stdout': search_output, 'rc': 0}
+    check = linux_task(name="Check each is one GCC's ABI list names")['ansible.builtin.assert']
+    for condition in check['that']:
+        if not render_expression(expression='{{ ' + condition + ' }}', variables=variables):
+            return None
+    record = linux_task(name='Record the libstdc++ version')
+    scope = dict(variables)
+    for name, value in record['vars'].items():
+        scope[name] = render_value(value=value, variables=scope)
+    return render_value(
+        value=record['ansible.builtin.set_fact']['llama_cpp_libstdcxx_version'].strip(),
+        variables=scope,
+    )
+
+
+@pytest.mark.parametrize(
+    ('search_output', 'floor'),
+    [
+        ('3.4.33 1.3.15', '14.1.0'),
+        ('3.4.32 1.3.14', '13.2.0'),
+        # GCC 16.1.0 added a CXXABI version and no GLIBCXX one
+        ('3.4.34 1.3.17', '16.1.0'),
+        ('3.4.28 1.3.12', '9.3.0'),
+        ('3.4.30 1.3.9', '12.1.0'),
+    ],
+)
+def test_the_libstdcxx_floor_is_the_newest_gcc_either_version_needs(
+    tmp_path: Path, search_output: str, floor: str
+):
+    """The .deb's libstdc++6 floor is the first GCC whose libstdc++ has both versions."""
+    assert libstdcxx_floor(search_output=search_output, tmp_path=tmp_path) == floor
+
+
+@pytest.mark.parametrize('search_output', ['3.4.35 1.3.15', '3.4.33 1.3.18', '', '3.4.33'])
+def test_a_libstdcxx_version_the_table_lacks_is_refused(tmp_path: Path, search_output: str):
+    """A build newer than the table, or a search that found nothing, never gets a floor."""
+    assert libstdcxx_floor(search_output=search_output, tmp_path=tmp_path) is None
+
+
+def test_the_libstdcxx_tables_follow_gccs_abi_list():
+    """Every symbol version in order, each to a release no older than the one before it."""
+    defaults = role_defaults(role='llama_cpp')
+
+    for table, prefix, last in (
+        (defaults['llama_cpp_glibcxx_releases'], '3.4', 34),
+        (defaults['llama_cpp_cxxabi_releases'], '1.3', 17),
+    ):
+        assert list(table) == [prefix] + [f'{prefix}.{minor}' for minor in range(1, last + 1)]
+        releases = [tuple(int(part) for part in release.split('.')) for release in table.values()]
+        assert all(len(release) == 3 for release in releases)
+        assert releases == sorted(releases)

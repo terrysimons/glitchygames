@@ -134,3 +134,40 @@
     - name: Record the glibc version
       ansible.builtin.set_fact:
         llama_cpp_glibc_version: "{{ llama_cpp_glibc_search.stdout }}"
+
+    # The .deb depends on libstdc++6 at least as new as the GCC whose libstdc++ has the newest
+    # symbol versions the build uses, of both kinds (the tables in defaults say why)
+    - name: Find the newest libstdc++ symbol versions the build needs
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          symbols=$(for file in bin/llama-server bin/*.so* lib/*.so*; do objdump -T "$file"; done)
+          newest() {
+              printf '%s\n' "$symbols" | grep -oE "$1"'(\.[0-9]+)*' | sed "s/^$1/$2/" \
+                  | sort -Vu | tail -n 1
+          }
+          printf '%s %s\n' "$(newest 'GLIBCXX_3\.4' 3.4)" "$(newest 'CXXABI_1\.3' 1.3)"
+        executable: /bin/bash
+        chdir: "{{ llama_cpp_install_directory }}"
+      register: llama_cpp_libstdcxx_search
+      changed_when: false
+
+    - name: Check each is one GCC's ABI list names
+      ansible.builtin.assert:
+        that:
+          - llama_cpp_libstdcxx_search.stdout.split() | length == 2
+          - llama_cpp_libstdcxx_search.stdout.split()[0] in llama_cpp_glibcxx_releases
+          - llama_cpp_libstdcxx_search.stdout.split()[1] in llama_cpp_cxxabi_releases
+        fail_msg: >-
+          The build needs GLIBCXX and CXXABI '{{ llama_cpp_libstdcxx_search.stdout }}': add any
+          newer version to llama_cpp_glibcxx_releases or llama_cpp_cxxabi_releases, from
+          https://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html
+
+    - name: Record the libstdc++ version
+      vars:
+        llama_cpp_glibcxx_gcc: "{{ llama_cpp_glibcxx_releases[llama_cpp_libstdcxx_search.stdout.split()[0]] }}"
+        llama_cpp_cxxabi_gcc: "{{ llama_cpp_cxxabi_releases[llama_cpp_libstdcxx_search.stdout.split()[1]] }}"
+      ansible.builtin.set_fact:
+        llama_cpp_libstdcxx_version: >-
+          {{ llama_cpp_glibcxx_gcc if llama_cpp_glibcxx_gcc is version(llama_cpp_cxxabi_gcc, '>=')
+             else llama_cpp_cxxabi_gcc }}

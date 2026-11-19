@@ -10,8 +10,11 @@ ai_user_root: "{{ ansible_facts['env']['XDG_DATA_HOME'] | default(ai_home ~ '/.l
 ai_cache_root: "{{ ansible_facts['env']['XDG_CACHE_HOME'] | default(ai_home ~ '/.cache', true) }}/glitchygames/ai"
 ai_log_root: "{{ ansible_facts['env']['XDG_STATE_HOME'] | default(ai_home ~ '/.local/state', true) }}/glitchygames/ai/logs"
 # Ansible never installs under /opt itself: it builds into the package's stage, and the .deb
-# installs it, so a run exercises exactly what a player's machine gets
-llama_cpp_install_root: "{{ ai_cache_root }}/package/stage{{ ai_program_root }}"
+# installs it, so a run exercises exactly what a player's machine gets. The stage's program folder
+# is ai_package's (its defaults), named once: ai_package skips copying what is already there and
+# keeps only this build's runtime by comparing paths, so two spellings that drifted apart would
+# delete the build
+llama_cpp_install_root: "{{ ai_package_stage_root }}"
 # Every core but the game's and the mirror's, at least one, the same for both model servers
 # (plans/lucid-circuit-linux.md, 6.5). This is the host Ansible runs on; setup.sh writes each
 # machine's own

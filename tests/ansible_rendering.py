@@ -102,6 +102,38 @@ def _search(value: str, pattern: str) -> bool:
     return re.search(pattern, value) is not None
 
 
+def _version(value: str, other: str, operator: str = 'eq') -> bool:
+    """Ansible's `version` test, for dotted whole numbers (its default `loose` comparison).
+
+    Returns:
+        Whether the value compares with the other as the operator says.
+
+    Raises:
+        ValueError: An operator Ansible's test does not name.
+    """
+    left = tuple(int(part) for part in str(value).split('.'))
+    right = tuple(int(part) for part in str(other).split('.'))
+    comparisons = {
+        '<': left < right,
+        'lt': left < right,
+        '<=': left <= right,
+        'le': left <= right,
+        '>': left > right,
+        'gt': left > right,
+        '>=': left >= right,
+        'ge': left >= right,
+        '==': left == right,
+        '=': left == right,
+        'eq': left == right,
+        '!=': left != right,
+        'ne': left != right,
+    }
+    if operator not in comparisons:
+        message = f'the version test has no operator {operator!r}'
+        raise ValueError(message)
+    return comparisons[operator]
+
+
 def _extract(item: Any, container: Any) -> Any:
     """Ansible's `extract`, as `map('extract', container)` uses it.
 
@@ -156,6 +188,7 @@ def _environment(*, search_directories: list[Path] | None = None) -> jinja2.Envi
     # Ansible's `is search(pattern)`, which `reject('search', pattern)` also uses
     tests: dict[str, Any] = environment.tests
     tests['search'] = _search
+    tests['version'] = _version
     return environment
 
 

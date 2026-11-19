@@ -1,8 +1,9 @@
 #!/bin/sh
 # The .deb's postinst (plans/lucid-circuit-linux.md, 6.2 and 6.7). It enables the setup job for
-# every user, so each user's models, keys and settings appear at their next login, and runs it at
-# once for the user who ran sudo, so the owner needn't log in again. A failed run (no network, a
-# full disk) doesn't fail the install: the job runs again at the next login.
+# every user, so each user's models, keys and settings appear at their next login, and starts it
+# at once for the user who ran sudo, so the owner needn't log in again. The start doesn't wait:
+# the models download in the background, so apt never holds dpkg's lock for gigabytes, and
+# setup.sh's lock keeps a second run (a login, Ansible) from downloading the same files.
 set -u
 
 setup_unit={{ (ai_package_setup_label ~ '.service') | quote }}
@@ -11,22 +12,34 @@ say() {
     echo "{{ ai_package_deb_name }}: $1"
 }
 
-# Only a new install or an upgrade; a rollback (abort-*) keeps what the old version set up
-[ "${1:-}" = configure ] || exit 0
+enable_setup_job() {
+    if ! systemctl --global enable "$setup_unit"; then
+        say "could not enable $setup_unit for every user, so no user would be set up" >&2
+        exit 1
+    fi
+}
 
-if ! systemctl --global enable "$setup_unit"; then
-    say "could not enable $setup_unit for every user, so no user would be set up" >&2
-    exit 1
-fi
+case "${1:-}" in
+    configure) ;;
+    # prerm disabled the job for a removal that then failed: the package stays, so it comes back
+    abort-remove)
+        enable_setup_job
+        exit 0
+        ;;
+    # Any other rollback keeps what the old version set up
+    *) exit 0 ;;
+esac
+
+enable_setup_job
 
 if [ -z "${SUDO_USER:-}" ] || [ "$SUDO_USER" = root ]; then
     say "no user ran sudo, so each user's setup runs at their next login"
     exit 0
 fi
 
-if systemctl --user --machine="$SUDO_USER@" start "$setup_unit"; then
-    say "set up for $SUDO_USER"
+if systemctl --user --machine="$SUDO_USER@" start --no-block "$setup_unit"; then
+    say "setting up for $SUDO_USER; the models download in the background (follow it with: journalctl --user -u $setup_unit -f)"
 else
-    say "the setup for $SUDO_USER did not finish; it runs again at their next login (journalctl --user -u $setup_unit)" >&2
+    say "could not start the setup for $SUDO_USER; it runs at their next login" >&2
 fi
 exit 0

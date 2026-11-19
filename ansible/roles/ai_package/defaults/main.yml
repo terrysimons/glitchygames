@@ -36,6 +36,9 @@ ai_package_setup_label: "{{ ai_service_label_prefix }}.setup"
 # The .deb (plans/lucid-circuit-linux.md, 6.7), built with dpkg-deb from the stage: the programs
 # under ai_program_root, the user units, and Debian's control file and maintainer scripts
 ai_package_deb_name: glitchygames-ai
+# The link in the runtime folder that names this package's build. Every user's settings name the
+# runtime through it, so an upgrade to a build of another name leaves their settings right
+ai_package_runtime_link: current
 # Debian's names for the architectures Ansible reports (plans/lucid-circuit-linux.md, section 4)
 ai_package_deb_architectures:
   aarch64: arm64
@@ -48,12 +51,12 @@ ai_package_deb_control_directory: "{{ ai_package_stage }}/DEBIAN"
 ai_package_units_stage: "{{ ai_package_stage }}/usr/lib/systemd/user"
 ai_package_deb_maintainer: GlitchyGames
 ai_package_deb_homepage: https://glitchygames.ai/
-# What the binaries need from the system: glibc at least as new as the build used (the llama_cpp
-# role reads it from the binaries), the C++ runtime, and the tools the scripts call. iproute2 is
-# ss, which the port check needs: without it every port reads as free
+# What the binaries need from the system: glibc and the C++ runtime at least as new as the build
+# used (the llama_cpp role reads both from the binaries), and the tools the scripts call. iproute2
+# is ss, which the port check needs: without it every port reads as free
 ai_package_deb_depends:
   - libc6 (>= {{ llama_cpp_glibc_version }})
-  - libstdc++6
+  - libstdc++6 (>= {{ llama_cpp_libstdcxx_version }})
   - libgcc-s1
   - systemd
   - curl

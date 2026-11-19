@@ -32,14 +32,22 @@
     label: "{{ item.path | basename }}"
   notify: Build the package
 
+- name: Point the runtime link at this build
+  ansible.builtin.file:
+    src: "{{ ai_package_runtime_name }}"
+    dest: "{{ ai_package_stage_root }}/runtime/{{ ai_package_runtime_link }}"
+    state: link
+  notify: Build the package
+
 # An include's variables, unlike a block's, win over the llama_cpp role's set_fact of the runtime's
-# path, so the settings name the runtime under the program folder's placeholder, not this stage
+# path, so the settings name the runtime by the program folder's placeholder and the link, not
+# this stage or this build
 - name: Stage the service's and each agent's settings, with both roots as placeholders
   ansible.builtin.include_tasks: settings.yml
   vars:
     ai_user_root: "{{ ai_package_user_root_placeholder }}"
     ai_program_root: "{{ ai_package_program_root_placeholder }}"
-    llama_cpp_install_directory: "{{ ai_program_root }}/runtime/{{ ai_package_runtime_name }}"
+    llama_cpp_install_directory: "{{ ai_program_root }}/runtime/{{ ai_package_runtime_link }}"
 
 # One unit file serves every user: %h names the home, and run-llama-server.sh finds the settings
 - name: Stage each agent's user unit
@@ -60,11 +68,15 @@
     mode: "0644"
   notify: Build the package
 
-# The llama_cpp role reads it from the binaries; an empty one would make Depends invalid
-- name: Check the glibc version the build needs was found
+# The llama_cpp role reads them from the binaries; an empty one would make Depends invalid
+- name: Check the glibc and libstdc++ versions the build needs were found
   ansible.builtin.assert:
-    that: llama_cpp_glibc_version is match('[0-9]+[.][0-9]+$')
-    fail_msg: "No glibc version was read from the build: '{{ llama_cpp_glibc_version }}'"
+    that:
+      - llama_cpp_glibc_version is match('[0-9]+[.][0-9]+$')
+      - llama_cpp_libstdcxx_version is match('[0-9]+[.][0-9]+[.][0-9]+$')
+    fail_msg: >-
+      No glibc or libstdc++ version was read from the build: glibc
+      '{{ llama_cpp_glibc_version }}', libstdc++ '{{ llama_cpp_libstdcxx_version }}'
 
 - name: Render the package's control file
   ansible.builtin.template:
@@ -148,6 +160,14 @@
         is search('(?m) [.]' ~ (ai_program_root | regex_escape) ~ '/share/agents/' ~ (item | regex_escape) ~ '[.]env[.]template$')
     fail_msg: "The package lacks the unit or the settings of {{ item }}"
   loop: "{{ (ai_service_agents | map(attribute='label') | list) + [ai_package_setup_label] }}"
+
+- name: Check the runtime link names this build
+  ansible.builtin.assert:
+    that: >-
+      ai_package_deb_contents.stdout is search('(?m) [.]'
+      ~ ((ai_program_root ~ '/runtime/' ~ ai_package_runtime_link) | regex_escape)
+      ~ ' -> ' ~ (ai_package_runtime_name | regex_escape) ~ '$')
+    fail_msg: "The package's runtime/{{ ai_package_runtime_link }} does not name {{ ai_package_runtime_name }}"
 
 # The libraries may be links to versioned names, which the listing shows as "name -> target"
 - name: Check the package holds llama.cpp's libraries and each Bonsai size's license and notice

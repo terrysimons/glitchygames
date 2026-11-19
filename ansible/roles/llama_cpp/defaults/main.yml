@@ -70,3 +70,66 @@ llama_cpp_cpu_variants:
 # loader and vdso, and glibc's, libstdc++ and libgcc, resolved from the system's /lib or /usr/lib
 # (never /usr/local, and never "not found")
 llama_cpp_system_link_pattern: '^\s*(linux-vdso\S* |/lib\S*/ld-linux\S* |(lib(c|m|dl|pthread|rt)\.so|libstdc\+\+\.so|libgcc_s\.so|ld-linux)\S* => /(usr/)?lib)'
+
+# The first GCC release whose libstdc++ has each symbol version, so the .deb can depend on a
+# libstdc++6 at least that new (Debian's and Ubuntu's libstdc++6 is versioned by the GCC release it
+# comes from). From GCC's ABI policy, the symbol versioning list
+# (https://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html, read 2026-11-18). A version the build
+# needs that is missing here is refused: add it from that list. GLIBCXX_3.4.28 came with 9.3.0 and
+# again 10.1.0; GCC 16.1.0 added CXXABI_1.3.17 and no GLIBCXX version, so both kinds are read
+llama_cpp_glibcxx_releases:
+  "3.4": 3.4.0
+  "3.4.1": 3.4.1
+  "3.4.2": 3.4.2
+  "3.4.3": 3.4.3
+  "3.4.4": 4.0.0
+  "3.4.5": 4.0.1
+  "3.4.6": 4.0.2
+  "3.4.7": 4.0.3
+  "3.4.8": 4.1.1
+  "3.4.9": 4.2.0
+  "3.4.10": 4.3.0
+  "3.4.11": 4.4.0
+  "3.4.12": 4.4.1
+  "3.4.13": 4.4.2
+  "3.4.14": 4.5.0
+  "3.4.15": 4.6.0
+  "3.4.16": 4.6.1
+  "3.4.17": 4.7.0
+  "3.4.18": 4.8.0
+  "3.4.19": 4.8.3
+  "3.4.20": 4.9.0
+  "3.4.21": 5.1.0
+  "3.4.22": 6.1.0
+  "3.4.23": 7.1.0
+  "3.4.24": 7.2.0
+  "3.4.25": 8.1.0
+  "3.4.26": 9.1.0
+  "3.4.27": 9.2.0
+  "3.4.28": 9.3.0
+  "3.4.29": 11.1.0
+  "3.4.30": 12.1.0
+  "3.4.31": 13.1.0
+  "3.4.32": 13.2.0
+  "3.4.33": 14.1.0
+  "3.4.34": 15.1.0
+# CXXABI_1.3.16 is RISC-V's only, from 15.1.0
+llama_cpp_cxxabi_releases:
+  "1.3": 3.4.0
+  "1.3.1": 4.0.0
+  "1.3.2": 4.3.0
+  "1.3.3": 4.4.0
+  "1.3.4": 4.5.0
+  "1.3.5": 4.6.0
+  "1.3.6": 4.7.0
+  "1.3.7": 4.8.0
+  "1.3.8": 4.9.0
+  "1.3.9": 5.1.0
+  "1.3.10": 6.1.0
+  "1.3.11": 7.1.0
+  "1.3.12": 9.1.0
+  "1.3.13": 11.1.0
+  "1.3.14": 13.1.0
+  "1.3.15": 14.1.0
+  "1.3.16": 15.1.0
+  "1.3.17": 16.1.0
