@@ -40,16 +40,40 @@ fi
 
 [ -r "$passwd_file" ] || exit 0
 
-# One line per folder; a home with a space in it survives the read
+# du on a huge tree, an autofs or NFS home or a hung mount could hold dpkg, so it is bounded
+# (coreutils' timeout; without it du runs unbounded) and a timeout reads as "size unknown"
+du_seconds=${AI_POSTRM_DU_TIMEOUT_SECONDS:-10}
+bounded_du() {
+    if command -v timeout > /dev/null 2>&1; then
+        timeout "$du_seconds" du -sh -- "$1"
+    else
+        du -sh -- "$1"
+    fi
+}
+
+# The folder as sh reads it back as one word: single-quoted, each ' written as '\''. Root
+# pastes the command, so a home with a space, a ; or a $( ) must not change what it deletes.
+quoted() {
+    printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
+# One line per folder; a home with a space in it survives the read. A home with a newline is
+# skipped (it cannot be told from two lines).
 notice=$(awk -F: -v low="$uid_min" -v high="$uid_max" \
     '$3 ~ /^[0-9]+$/ && $3 + 0 >= low && $3 + 0 <= high { print $1 ":" $6 }' "$passwd_file" 2>/dev/null \
     | while IFS=: read -r user home; do
         [ -n "$home" ] || continue
         for relative in .local/share .cache .local/state; do
             folder="$home_root$home/$relative/glitchygames/ai"
+            if [ -L "$folder" ]; then
+                # [ -d ] and du would follow or not follow it inconsistently, and rm -rf on the
+                # link removes only the link: say what it is and leave the target to the user
+                echo "  $user: $(quoted "$folder") is a symbolic link to $(quoted "$(readlink -- "$folder" 2>/dev/null)"); not followed, no size or delete command given"
+                continue
+            fi
             [ -d "$folder" ] || continue
-            size=$(du -sh "$folder" 2>/dev/null | awk '{ print $1 }')
-            echo "  $user: $folder (${size:-size unknown}); to delete it: rm -rf $folder"
+            size=$(bounded_du "$folder" 2>/dev/null | awk '{ print $1 }')
+            echo "  $user: $(quoted "$folder") (${size:-size unknown}); to delete it: rm -rf -- $(quoted "$folder")"
         done
     done) || exit 0
 

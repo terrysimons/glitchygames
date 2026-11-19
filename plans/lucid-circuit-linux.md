@@ -602,8 +602,9 @@ plists on a Mac, unit files on Linux).
   homes (Debian convention) but, on `remove` and `purge` only, prints a notice per local login-range
   user (`/etc/login.defs` range, 1000-60000 by default) naming each default AI folder that exists,
   its `du -sh` size and the `rm -rf` that deletes it, then that nothing was deleted; silent when no
-  one has data, and it exits 0 whatever happens (proved in a Debian container, Task 13). `/opt/glitchygames/ai/bin/uninstall-user.sh` removes one user's data
-  when they ask, and masks the setup job for that user (`systemctl --user mask`, the user's own
+  one has data, and it exits 0 whatever happens (proved in a Debian container, Task 13). The paths are single-quoted so a pasted
+  command names exactly the folder; a symbolic link is named, not followed; `du` is bounded by
+  `timeout`. `/opt/glitchygames/ai/bin/uninstall-user.sh` removes one user's data when they ask, and masks the setup job for that user (`systemctl --user mask`, the user's own
   override of the `--global` enable), or it would set everything up again at their next login; it
   says how to undo that (`systemctl --user unmask ai.glitchygames.setup.service`), or, when the
   mask fails for want of a user manager, warns that the job will run again at the next login (it

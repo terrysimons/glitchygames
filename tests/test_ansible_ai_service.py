@@ -4256,6 +4256,11 @@ class LeftoverUsers:
         )
         self.login_defs.write_text('# comment\nUID_MIN 1000\nUID_MAX 60000\n', encoding='utf-8')
 
+    def add_user(self, *, name: str, home: str, uid: int) -> None:
+        """Append a login user whose home is /<home> under the fake root."""
+        with self.passwd.open('a', encoding='utf-8') as passwd:
+            passwd.write(f'{name}:x:{uid}:{uid}:{name}:{home}:/bin/sh\n')
+
     def folder(self, *, user: str, kind: Literal['share', 'cache', 'state'], payload: str = 'x'):
         """Create one of a user's default AI folders with a file in it.
 
@@ -4268,7 +4273,9 @@ class LeftoverUsers:
         (folder / 'file').write_text(payload, encoding='utf-8')
         return folder
 
-    def run(self, *, action: str = 'remove') -> subprocess.CompletedProcess[str]:
+    def run(
+        self, *, action: str = 'remove', environment: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         """Run the postrm with the fakes injected.
 
         Returns:
@@ -4281,6 +4288,7 @@ class LeftoverUsers:
                 'AI_POSTRM_PASSWD_FILE': str(self.passwd),
                 'AI_POSTRM_LOGIN_DEFS_FILE': str(self.login_defs),
                 'AI_POSTRM_HOME_ROOT': str(self.homes),
+                **(environment or {}),
             },
         )
 
@@ -4305,9 +4313,9 @@ def test_postrm_names_each_users_leftover_folders_and_deletes_nothing(tmp_path: 
 
     assert result.returncode == 0, result.stderr
     for folder in (share, cache, state):
-        assert f'rm -rf {folder}' in result.stdout
+        assert f"rm -rf -- '{folder}'" in result.stdout
     # du -sh rounds up to whole blocks, so the size is some figure with a unit
-    assert re.search(rf'{re.escape(str(share))} \(\d+(\.\d+)?[BKMG]\)', result.stdout)
+    assert re.search(rf"'{re.escape(str(share))}' \(\d+(\.\d+)?[BKMG]\)", result.stdout)
     assert 'bob' not in result.stdout
     assert str(system_folder) not in result.stdout
     assert 'Nothing was deleted' in result.stdout
@@ -4364,10 +4372,82 @@ def test_postrm_exits_zero_when_du_fails_or_the_files_are_missing(tmp_path: Path
     without_files = users.run()
 
     assert failing_du.returncode == 0, failing_du.stderr
-    assert f'rm -rf {share}' in failing_du.stdout
+    assert f"rm -rf -- '{share}'" in failing_du.stdout
     assert 'size unknown' in failing_du.stdout
     assert without_files.returncode == 0, without_files.stderr
     assert not without_files.stdout
+
+
+@needs_a_posix_shell
+def test_postrm_prints_a_delete_command_that_names_exactly_the_folder(tmp_path: Path):
+    """A home with a space, a ; and a ' pastes into sh as exactly the folder (13.1)."""
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+    users = LeftoverUsers(scripts=scripts, tmp_path=tmp_path)
+    home = "/home/Jo Smith; touch pwned; $(touch pwned2) `touch pwned3` it's"
+    users.add_user(name='jo', home=home, uid=1002)
+    folder = users.homes / home.lstrip('/') / '.local' / 'share' / 'glitchygames' / 'ai'
+    folder.mkdir(parents=True)
+    (folder / 'file').write_text('x', encoding='utf-8')
+    arguments_log = tmp_path / 'rm-arguments'
+    _write_executable(
+        scripts.tools / 'rm',
+        '#!/bin/sh\nfor a in "$@"; do printf "%s\\n" "$a" >> "$ARGUMENTS_LOG"; done\n',
+    )
+
+    result = users.run()
+    command = next(line for line in result.stdout.splitlines() if 'jo:' in line).split(
+        'to delete it: ', 1
+    )[1]
+    pasted = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - pastes the printed command into sh, as root would
+        ['/bin/sh', '-c', command],
+        env={
+            'PATH': f'{scripts.tools}:/usr/bin:/bin',
+            'ARGUMENTS_LOG': str(arguments_log),
+        },
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+
+    assert pasted.returncode == 0, pasted.stderr
+    assert arguments_log.read_text(encoding='utf-8').splitlines() == ['-rf', '--', str(folder)]
+    assert not list(tmp_path.glob('pwned*'))
+
+
+@needs_a_posix_shell
+def test_postrm_names_a_symbolic_link_without_following_it_or_offering_to_delete_it(
+    tmp_path: Path,
+):
+    """Removing a link drops only the link and du does not follow it: say where it points."""
+    users = LeftoverUsers(scripts=MaintainerScripts(tmp_path=tmp_path), tmp_path=tmp_path)
+    target = tmp_path / 'elsewhere'
+    (target / 'models').mkdir(parents=True)
+    link = users.homes / 'home' / 'alice' / '.local' / 'share' / 'glitchygames' / 'ai'
+    link.parent.mkdir(parents=True)
+    link.symlink_to(target)
+
+    result = users.run()
+
+    assert result.returncode == 0, result.stderr
+    assert f"'{link}' is a symbolic link to '{target}'" in result.stdout
+    assert 'not followed' in result.stdout
+    assert 'rm -rf' not in result.stdout
+
+
+@needs_a_posix_shell
+def test_postrm_gives_up_on_a_du_that_hangs(tmp_path: Path):
+    """A hung mount must not hold dpkg: du is bounded, and a timeout reads as size unknown."""
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+    users = LeftoverUsers(scripts=scripts, tmp_path=tmp_path)
+    users.folder(user='alice', kind='share')
+    _write_executable(scripts.tools / 'du', '#!/bin/sh\nsleep 30\n')
+
+    result = users.run(environment={'AI_POSTRM_DU_TIMEOUT_SECONDS': '1'})
+
+    assert result.returncode == 0, result.stderr
+    assert 'size unknown' in result.stdout
 
 
 @needs_a_posix_shell
