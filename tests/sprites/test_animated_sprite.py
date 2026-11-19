@@ -6,6 +6,7 @@ import math
 import shutil
 import tempfile
 import tomllib
+import weakref
 from io import StringIO
 from pathlib import Path
 from typing import cast
@@ -4621,6 +4622,22 @@ def test_an_animated_sprite_carries_the_mouse_and_keyboard_protocols():
     assert issubclass(AnimatedSprite, KeyboardEvents)
 
 
+def groups_holding(sprite: pygame.sprite.Sprite) -> list[pygame.sprite.AbstractGroup]:
+    """Return every living group that holds a sprite, found among all the objects gc tracks.
+
+    ``type()`` never raises: ``isinstance()`` asks an object's ``__class__``, which a dead
+    ``weakref.proxy`` (among gc's objects too) answers with ``ReferenceError``.
+
+    Returns:
+        The groups.
+    """
+    return [
+        candidate
+        for candidate in gc.get_objects()
+        if issubclass(type(candidate), pygame.sprite.AbstractGroup) and candidate.has(sprite)
+    ]
+
+
 def test_an_animated_sprite_joins_only_the_group_it_is_given():
     """No other group holds it, not even one ``groups()`` would not name.
 
@@ -4631,13 +4648,29 @@ def test_an_animated_sprite_joins_only_the_group_it_is_given():
 
     sprite = AnimatedSprite(groups=group)
 
-    groups_holding_it = [
-        candidate
-        for candidate in gc.get_objects()
-        if isinstance(candidate, pygame.sprite.AbstractGroup) and candidate.has(sprite)
-    ]
-    assert groups_holding_it == [group]
+    assert groups_holding(sprite) == [group]
     assert sprite.groups() == [group]
+
+
+def test_the_search_for_groups_passes_over_a_dead_weak_proxy():
+    """A ``weakref.proxy`` whose object is gone is among gc's objects, and is no group.
+
+    ``isinstance()`` on one raises ``ReferenceError`` (it asks the proxy's ``__class__``), so
+    the search above failed whenever an earlier test left one alive (CircleCI, 2026-11-18;
+    PR #224). Test order decided it; this plants one.
+    """
+
+    class Gone:
+        pass
+
+    gone = Gone()
+    dead_proxies = [weakref.proxy(gone)]
+    del gone
+    group = pygame.sprite.LayeredDirty()
+    sprite = AnimatedSprite(groups=group)
+
+    assert groups_holding(sprite) == [group]
+    assert dead_proxies  # kept alive through the search
 
 
 def test_every_input_handler_of_an_animated_sprite_is_silent():

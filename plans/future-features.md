@@ -6364,6 +6364,44 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: TODO (filed 2026-11-14)
 - **Priority**: Medium
 
+### 91. QuickLook for Sound and Music Files — TODO
+- **Description**: QuickLook support on macOS for the engine's sound and music, beside the sprite
+  QuickLook (`src/quicklook`, design `docs/specs/2026-10-29-sprite-quicklook-design.md`): select a
+  sound file in Finder, press space, see and hear what it holds, and get a meaningful Finder
+  thumbnail. Asked for by the owner (2026-11-19: "a set of quicklook plugins for our sound and
+  music"). Not started.
+- **What it would cover** (to settle in its design):
+  1. Sound files (TOML version 1, and version 0 recipe files): the preview lists each sound and
+     instrument, draws each sound's notes (a piano roll), its envelope and its waveform, and
+     plays it; the thumbnail is a waveform. A `.toml` that is neither a sound file nor a sprite
+     keeps today's plain-text preview, and the sprite QuickLook keeps sprites.
+  2. Music: the scores are a `Mix` of instrument parts (`audio/mix.py`; Zombies' score in
+     `music.py`).
+  3. The rendered WAVs (the sound cache's files and the listening WAVs, `audio/listening/`)
+     already preview in QuickLook as audio; nothing to add unless the owner wants the engine's
+     own view of them.
+- **Found while filing (decide in the design)**:
+  - **Hearing a sound needs the engine's renderer**, which is Python
+    (`audio/render.py`, `audio/instruments/`), and a QuickLook extension is a sandboxed Swift
+    process that can't run `uv` or the engine. A Swift copy of the synthesizer would drift from
+    the engine (two implementations mirroring each other: the rule is one shared code path).
+    Options: show the recipe only and play nothing; play a WAV the engine rendered beforehand
+    (the disk sound cache, `<root>/<game package>/sounds/<render version>/`, which the sandbox
+    may not be allowed to read); or have the host app render through the installed engine. The
+    sprite QuickLook faced the same question for drawing and answered it with a Swift reader
+    checked against the engine's own frames (golden tests); a renderer is far larger than a
+    sprite drawer.
+  - **Music has no file to preview today.** A score is Python code building a `Mix`, and a sound
+    file cannot name a catalog instrument (the zombies master plan's wishlist #13), so there is
+    nothing in Finder to press space on. A music QuickLook first needs a file form for a score
+    (a `[mixes.*]` section in a sound file, or its own kind), which is a sound-engine feature of
+    its own.
+  - The sprite QuickLook's thumbnail findings carry over: `qlmanage -t` only uses old generator
+    plug-ins on this macOS, so thumbnails are checked through `QLThumbnailGenerator`
+    (`src/quicklook/tools/make_thumbnails.swift`).
+- **Status**: TODO (filed 2026-11-19)
+- **Priority**: not set (the owner's call)
+
 ## Notes
 
 - All features are currently in planning phase

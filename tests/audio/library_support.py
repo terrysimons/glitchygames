@@ -1,7 +1,10 @@
 """Helpers for the sound library's tests: a library over the current context, WAV files, a mixer."""
 
+from __future__ import annotations
+
 import wave
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pygame
@@ -12,12 +15,15 @@ from glitchygames.audio.library import CacheMode, Sound, SoundLibrary, compile_s
 from glitchygames.audio.pitch import Tuning
 from glitchygames.audio.waves import current_wave_registry
 
+if TYPE_CHECKING:
+    from glitchygames.audio.synth import FloatArray
+
 PULSE_INSTRUMENT = Instrument(wave='square', envelope='pluck')
 FIXTURE_SOUNDS = Path(__file__).parent / 'fixtures' / 'sounds'
 FIXTURES = Path(__file__).parent / 'fixtures'
 
 
-def float_render(sound: Sound) -> np.ndarray:
+def float_render(sound: Sound) -> FloatArray:
     """Return a sound's float64 render: a fresh copy compiled, as an offline render makes one.
 
     A sound the library compiled keeps its int16 samples only (``Sound.release_float_samples``),
