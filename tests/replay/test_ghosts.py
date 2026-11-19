@@ -413,6 +413,26 @@ class TestAppearance:
         assert tuple(flipped.get_at((0, 0)))[:3] == RIGHT_COLOR
         assert tuple(flipped.get_at((1, 0)))[:3] == LEFT_COLOR
 
+    def test_images_from_a_loaded_sprite_leave_its_frames_shared(self):
+        """Drawing a ghost reads the frame without copying it (the ghost copies what it keeps)."""
+        sprite = AnimatedSprite(groups=None)
+        sprite.load_text(
+            text=(
+                '[sprite]\nname = "ghost"\n\n[[animation]]\nnamespace = "walk"\n\n'
+                '[[animation.frame]]\nframe_index = 0\npixels = """\nab\n"""\n\n'
+                '[colors."a"]\nred = 255\ngreen = 0\nblue = 0\n\n'
+                '[colors."b"]\nred = 0\ngreen = 0\nblue = 255\n'
+            ),
+            source_name='ghost.toml',
+        )
+        image_for = images_from_animated_sprite(sprite)
+        appearance = default_appearance(sprite)
+
+        image_for(sample(seconds=0.0, x=0.0, appearance=appearance))
+        image_for(sample(seconds=0.0, x=0.0, appearance=appearance | {'flip_x': True}))
+
+        assert sprite.animation_data['walk'][0].is_sharing
+
 
 class TestGhostRecorder:
     """A supervisor that samples one sprite of one scene, live frames only."""

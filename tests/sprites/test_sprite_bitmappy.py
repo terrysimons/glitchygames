@@ -1,5 +1,7 @@
 """Bitmappy sprite functionality tests."""
 
+import logging
+
 import pygame
 import pytest
 
@@ -477,3 +479,51 @@ class TestFocusableSingletonBitmappySprite:
         assert not sprite.filename
         assert sprite.pixels == []
         assert sprite.focusable
+
+
+def _static_square_text(*, size: int) -> str:
+    """Return a static sprite file, size pixels square, of one color.
+
+    Returns:
+        str: The TOML text.
+
+    """
+    rows = '\n'.join('a' * size for _ in range(size))
+    return (
+        f'[sprite]\nname = "square"\npixels = """\n{rows}\n"""\n\n'
+        '[colors."a"]\nred = 1\ngreen = 2\nblue = 3\n'
+    )
+
+
+class TestDebugLoggingDoesNotGrowWithTheSprite:
+    """Loading and saving at DEBUG log about the sprite, never its text or pixel rows."""
+
+    @staticmethod
+    def _logged_characters(caplog, tmp_path, *, size: int) -> int:
+        """Load the square both ways and deflate it, returning the characters logged.
+
+        Returns:
+            int: The total length of every logged message.
+
+        """
+        sprite_file = tmp_path / f'square{size}.toml'
+        sprite_file.write_text(_static_square_text(size=size), encoding='utf-8')
+        caplog.clear()
+        sprite = BitmappySprite(width=size, height=size)
+        sprite._load_static_toml(str(sprite_file))
+        sprite._inflate_toml(str(sprite_file))
+        sprite.pixels = [(1, 2, 3)] * (size * size)
+        sprite.deflate('toml')
+        return sum(len(record.getMessage()) for record in caplog.records)
+
+    def test_a_large_sprite_logs_no_more_than_a_small_one(self, caplog, tmp_path):
+        """A 64-pixel square logs what a 16-pixel one logs, give or take its numbers.
+
+        Both are past every capped sample a log line takes (BitmappySprite logs 10 pixels).
+        """
+        caplog.set_level(logging.DEBUG)
+
+        small = self._logged_characters(caplog, tmp_path, size=16)
+        large = self._logged_characters(caplog, tmp_path, size=64)
+
+        assert large - small < 64

@@ -4,8 +4,25 @@ import pygame
 import pytest
 
 from glitchygames.sprites import AnimatedSprite, BitmappySprite, SpriteFactory, SpriteFrame
+from glitchygames.sprites import factory as factory_module
+from glitchygames.sprites import sprite_toml as sprite_toml_module
 
 RED = (255, 0, 0)
+
+_COLORS_TOML = (
+    '[colors."a"]\nred = 1\ngreen = 2\nblue = 3\n\n[colors."b"]\nred = 4\ngreen = 5\nblue = 6\n'
+)
+ANIMATED_SPRITE_TOML = (
+    '[sprite]\nname = "square"\n\n[[animation]]\nnamespace = "walk"\n\n'
+    '[[animation.frame]]\nframe_index = 0\npixels = """\nab\n"""\n\n'
+    f'{_COLORS_TOML}'
+)
+# Static pixels in [sprite] and an animation both: the factory refuses it, the loader does not
+MIXED_SPRITE_TOML = (
+    '[sprite]\nname = "mixed"\npixels = """\nab\n"""\n\n[[animation]]\nnamespace = "walk"\n\n'
+    '[[animation.frame]]\nframe_index = 0\npixels = """\nab\n"""\n\n'
+    f'{_COLORS_TOML}'
+)
 GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
 
@@ -223,19 +240,21 @@ class TestSpriteFactory:
         with pytest.raises(FileNotFoundError):
             SpriteFactory.load_sprite(filename='nonexistent.toml')
 
-    def test_load_sprite_mixed_content(self, mocker):
-        """Test loading sprite with mixed content."""
-        mocker.patch(
-            'glitchygames.sprites.SpriteFactory._analyze_file',
-            return_value={
-                'has_sprite_pixels': True,
-                'has_animation_sections': True,
-                'has_frame_sections': False,
-            },
-        )
+    def test_load_sprite_refuses_a_file_that_is_not_toml(self, tmp_path):
+        """Only TOML sprite files load: another format is refused before the file is read."""
+        yaml_file = tmp_path / 'sprite.yaml'
+        yaml_file.write_text('sprite: {}\n', encoding='utf-8')
+
+        with pytest.raises(ValueError, match='Unsupported format: yaml'):
+            SpriteFactory.load_sprite(filename=str(yaml_file))
+
+    def test_load_sprite_mixed_content(self, tmp_path):
+        """A file with static pixels and animations both is refused."""
+        mixed_file = tmp_path / 'mixed.toml'
+        mixed_file.write_text(MIXED_SPRITE_TOML, encoding='utf-8')
 
         with pytest.raises(ValueError, match='Invalid sprite file'):
-            SpriteFactory.load_sprite(filename='mixed.toml')
+            SpriteFactory.load_sprite(filename=str(mixed_file))
 
     def test_sprite_factory_load_sprite_invalid_file(self):
         """Test SpriteFactory load_sprite with invalid file."""
@@ -284,3 +303,49 @@ class TestSpriteFactoryAnalyzeFrameSections:
         )
         result = SpriteFactory._analyze_toml_file(str(sprite_file))
         assert result['has_frame_sections'] is True
+
+
+class TestLoadSpriteParsesOnce:
+    """load_sprite checks a file's content on the parse its load makes, kept with the compile."""
+
+    def test_two_loads_of_a_file_parse_it_once(self, tmp_path, mocker):
+        """The first load parses the file once; the second, from the compile, not at all."""
+        sprite_file = tmp_path / 'square.toml'
+        sprite_file.write_text(ANIMATED_SPRITE_TOML, encoding='utf-8')
+        factory_parses = mocker.spy(factory_module, 'parse_sprite_toml')
+        loader_parses = mocker.spy(sprite_toml_module, 'parse_sprite_toml')
+
+        SpriteFactory.load_sprite(filename=str(sprite_file))
+        SpriteFactory.load_sprite(filename=str(sprite_file))
+
+        assert factory_parses.call_count + loader_parses.call_count == 1
+
+    def test_text_loads_parse_once_too(self, mocker):
+        """load_sprite_from_text checks on the same one parse."""
+        factory_parses = mocker.spy(factory_module, 'parse_sprite_toml')
+        loader_parses = mocker.spy(sprite_toml_module, 'parse_sprite_toml')
+
+        SpriteFactory.load_sprite_from_text(text=ANIMATED_SPRITE_TOML, source_name='square')
+        SpriteFactory.load_sprite_from_text(text=ANIMATED_SPRITE_TOML, source_name='square')
+
+        assert factory_parses.call_count + loader_parses.call_count == 1
+
+    def test_a_file_compiled_without_the_check_is_still_refused(self, tmp_path):
+        """A plain load keeps a mixed file's compile; load_sprite still refuses the file."""
+        mixed_file = tmp_path / 'mixed.toml'
+        mixed_file.write_text(MIXED_SPRITE_TOML, encoding='utf-8')
+        AnimatedSprite(str(mixed_file))
+
+        with pytest.raises(ValueError, match='Invalid sprite file'):
+            SpriteFactory.load_sprite(filename=str(mixed_file))
+
+    def test_a_refused_file_loads_as_a_plain_sprite_afterwards(self, tmp_path):
+        """A refusal keeps nothing: a plain load of the same file still loads it."""
+        mixed_file = tmp_path / 'mixed.toml'
+        mixed_file.write_text(MIXED_SPRITE_TOML, encoding='utf-8')
+        with pytest.raises(ValueError, match='Invalid sprite file'):
+            SpriteFactory.load_sprite(filename=str(mixed_file))
+
+        sprite = AnimatedSprite(str(mixed_file))
+
+        assert list(sprite.animation_data) == ['walk']

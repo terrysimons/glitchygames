@@ -176,8 +176,9 @@ Add the matching branch to `_load_static_only`, which raises for anything but `t
 **Location:** `AnimatedSprite.load` and `AnimatedSprite.save` (`src/glitchygames/sprites/animated.py`)
 
 `load(filename)` takes no format argument; it detects the format itself. `save(filename,
-file_format)` writes a single-frame sprite with `_save_as_static_sprite` and anything else with
-`_save_toml`; add your format to both.
+file_format)` writes `to_text()` (also `sprite_to_text(sprite=...)`) to the file: a single-frame
+sprite in the static layout and anything else with its `[[animation]]` tables; add your format
+there.
 
 ```python
 @override

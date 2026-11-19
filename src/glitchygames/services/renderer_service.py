@@ -73,6 +73,22 @@ class RenderResult:
     error: str | None = None
 
 
+def _surface_to_read(frame: object) -> pygame.Surface | None:
+    """Return a frame's surface for reading: rendering never changes it.
+
+    A loaded SpriteFrame's ``image`` copies its shared surface on the first read, so its
+    ``read_only_image`` is read instead; any other frame-like object gives its ``image``.
+
+    Returns:
+        The surface, or None when the frame has none.
+
+    """
+    read_only_image = getattr(frame, 'read_only_image', None)
+    if read_only_image is not None:
+        return read_only_image
+    return getattr(frame, 'image', None)
+
+
 class RendererService:
     """Service for rendering sprites to PNG format headlessly.
 
@@ -219,7 +235,10 @@ class RendererService:
         LOG.info('Loaded sprite: %sx%s', width, height)
 
         # Render first frame (or current frame)
-        png_bytes, png_base64 = self._render_frame_to_png(current_frame.image, scale)
+        current_surface = _surface_to_read(current_frame)
+        if current_surface is None:
+            return RenderResult(success=False, error='Failed to get sprite frame')
+        png_bytes, png_base64 = self._render_frame_to_png(current_surface, scale)
 
         # Get frame count - use get_total_frame_count() method on AnimatedSprite
         frame_count = 1
@@ -324,11 +343,11 @@ class RendererService:
         if has_frame_manager:
             frame = sprite.get_current_frame()
             if frame:
-                frame_surface = frame.image
+                frame_surface = _surface_to_read(frame)
 
         # Second try: direct access to sprite_frame.image
         if frame_surface is None and hasattr(sprite_frame, 'image'):
-            frame_surface = sprite_frame.image
+            frame_surface = _surface_to_read(sprite_frame)
 
         return frame_surface
 
