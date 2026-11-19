@@ -22,6 +22,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+import jinja2
 import pytest
 import yaml
 from pydantic import BaseModel, ConfigDict
@@ -29,7 +30,9 @@ from pydantic import BaseModel, ConfigDict
 from glitchygames import ai_link, clock
 from glitchygames.process import OutputCapture, run_command
 from tests.ansible_rendering import (
+    Architecture,
     ansible_variables,
+    host_architecture,
     render_expression,
     render_template,
     render_value,
@@ -226,7 +229,7 @@ def test_the_sidecar_pins_its_python_and_its_docs_script():
 @pytest.mark.parametrize(
     ('system', 'architecture', 'expected_target'),
     [
-        ('Darwin', 'aarch64', 'macos-aarch64-none'),
+        ('Darwin', 'arm64', 'macos-aarch64-none'),
         ('Linux', 'aarch64', 'linux-aarch64-gnu'),
         ('Linux', 'x86_64', 'linux-x86_64-gnu'),
     ],
@@ -234,7 +237,7 @@ def test_the_sidecar_pins_its_python_and_its_docs_script():
 def test_the_sidecar_build_matches_the_platform(
     tmp_path: Path,
     system: Literal['Darwin', 'Linux'],
-    architecture: Literal['aarch64', 'x86_64'],
+    architecture: Architecture,
     expected_target: str,
 ):
     """python-build-standalone names its builds by platform and architecture (section 4)."""
@@ -249,7 +252,7 @@ def test_the_sidecar_installs_into_the_package_stage_on_linux_and_the_program_fo
     tmp_path: Path,
 ):
     """Ansible never installs under /opt: Linux builds into the stage the .deb is made from."""
-    mac = ansible_variables(system='Darwin', architecture='aarch64', home=tmp_path)
+    mac = ansible_variables(system='Darwin', architecture='arm64', home=tmp_path)
     linux = ansible_variables(system='Linux', architecture='aarch64', home=tmp_path)
     stage = f'{tmp_path}/.cache/glitchygames/ai/package/stage/opt/glitchygames/ai'
 
@@ -304,7 +307,9 @@ def sidecar_check_passes(
         if task.get('name') == task_name
     ]
     install_directory = SIDECAR_LINUX_INSTALL if system == 'Linux' else SIDECAR_MAC_INSTALL
-    variables = ansible_variables(system=system, architecture='aarch64', home=tmp_path)
+    variables = ansible_variables(
+        system=system, architecture=host_architecture(system=system), home=tmp_path
+    )
     variables['ai_sidecar_install_directory'] = install_directory
     variables['item'] = {
         'item': f'{install_directory}/{file_name}',
@@ -779,7 +784,7 @@ def role_tasks(*, role: str, file_name: str = 'main.yml') -> list[dict[str, Any]
 def rendered_options(
     *,
     system: Literal['Darwin', 'Linux'],
-    architecture: Literal['aarch64', 'x86_64'],
+    architecture: Architecture,
     tmp_path: Path,
 ) -> dict[str, str]:
     """Render the options the platform's llama_cpp task file works out.
@@ -822,7 +827,7 @@ def test_no_role_names_the_old_install_root():
 
 def test_the_mac_roots_are_one_folder_and_unchanged(tmp_path: Path):
     """The Mac keeps its single folder, so nothing already installed moves."""
-    variables = ansible_variables(system='Darwin', architecture='aarch64', home=tmp_path)
+    variables = ansible_variables(system='Darwin', architecture='arm64', home=tmp_path)
     folder = str(tmp_path / MAC_ROOT_NAME)
 
     assert variables['ai_program_root'] == folder
@@ -923,7 +928,7 @@ def test_every_architecture_has_its_variant_list():
 
 def test_the_mac_llama_cpp_options_are_unchanged(tmp_path: Path):
     """The Mac's static Metal build is as it was before the split."""
-    options = rendered_options(system='Darwin', architecture='aarch64', tmp_path=tmp_path)
+    options = rendered_options(system='Darwin', architecture='arm64', tmp_path=tmp_path)
 
     assert options == {
         'CMAKE_BUILD_TYPE': 'Release',
@@ -1000,6 +1005,86 @@ def linux_assertion_holds(*, task_name: str, extra: dict[str, Any], tmp_path: Pa
     template = tmp_path / 'assertion.j2'
     template.write_text('{{ (' + expression.strip() + ') }}', encoding='utf-8')
     return render_template(path=template, variables=variables) == 'True'
+
+
+def mac_apple_silicon_assertion_holds(*, variables: dict[str, Any]) -> bool:
+    """Evaluate the Mac llama_cpp role's Apple Silicon assert, every line of its `that`.
+
+    Returns:
+        Whether Ansible's assert would pass on a host with these variables' facts.
+    """
+    (task,) = [
+        task
+        for task in walk_tasks(tasks=role_tasks(role='llama_cpp', file_name='macos.yml'))
+        if task.get('name') == 'Refuse anything but an Apple Silicon Mac'
+    ]
+    conditions: list[str] = task['ansible.builtin.assert']['that']
+    return all(
+        render_expression(expression='{{ ' + condition + ' }}', variables=variables) is True
+        for condition in conditions
+    )
+
+
+def test_the_mac_apple_silicon_assert_passes_with_the_helpers_facts(tmp_path: Path):
+    """The helper's Darwin facts are a real Apple Silicon Mac's, which reports arm64, not aarch64.
+
+    Facts that a real Mac never reports would let a test pass while the play refuses every Mac.
+    """
+    mac = ansible_variables(system='Darwin', architecture='arm64', home=tmp_path)
+    intel = ansible_variables(system='Darwin', architecture='arm64', home=tmp_path)
+    intel['ansible_facts']['architecture'] = 'x86_64'
+
+    assert mac['ansible_facts']['architecture'] == 'arm64'
+    assert mac_apple_silicon_assertion_holds(variables=mac)
+    assert not mac_apple_silicon_assertion_holds(variables=intel)
+
+
+@pytest.mark.parametrize(
+    ('system', 'architecture'), [('Darwin', 'aarch64'), ('Darwin', 'x86_64'), ('Linux', 'arm64')]
+)
+def test_the_helper_refuses_facts_no_real_host_reports(
+    tmp_path: Path, system: Literal['Darwin', 'Linux'], architecture: Architecture
+):
+    """A Mac reports arm64; Linux reports aarch64 or x86_64 (ansible-core's setup module)."""
+    with pytest.raises(ValueError, match='reports'):
+        ansible_variables(system=system, architecture=architecture, home=tmp_path)
+
+
+def test_the_helper_fails_on_an_undefined_variable_as_ansible_would(tmp_path: Path):
+    """A value naming a variable nobody defines fails where it is used, not as its own text.
+
+    Ansible templates a variable when a task uses it, so one that can't be resolved on this
+    platform is harmless until then, and an error from then on.
+    """
+    variables = ansible_variables(
+        system='Linux',
+        architecture='aarch64',
+        home=tmp_path,
+        overrides={
+            'probe_naming_nothing': 'before {{ no_such_variable }} after',
+            'probe_missing_key': "{{ {'aarch64': 1}['riscv64'] }}",
+        },
+    )
+
+    with pytest.raises(jinja2.UndefinedError, match='no_such_variable'):
+        render_value(value='{{ probe_naming_nothing }}', variables=variables)
+    with pytest.raises(jinja2.UndefinedError):
+        render_value(value='{{ probe_missing_key }}', variables=variables)
+    with pytest.raises(jinja2.UndefinedError, match='no_such_variable'):
+        render_value(value='a task naming {{ no_such_variable }}', variables=variables)
+    with pytest.raises(jinja2.UndefinedError):
+        render_expression(expression="{{ {'aarch64': 1}['riscv64'] }}", variables=variables)
+
+
+def test_the_helper_refuses_variables_that_never_settle(tmp_path: Path):
+    """References that never stop changing are an error, not the last pass's half-rendered text."""
+    with pytest.raises(RuntimeError, match='probe_'):
+        ansible_variables(
+            system='Linux',
+            architecture='aarch64',
+            home=tmp_path,
+            overrides={'probe_first': '{{ probe_second }}', 'probe_second': '{{ probe_first }}'},
+        )
 
 
 LDD_TASK = "Check that they link only glibc, libstdc++, libgcc and the runtime's own libraries"
@@ -1107,6 +1192,12 @@ PACKAGE_TEMPLATES = ROLES / 'ai_package' / 'templates'
 SHELL_TEMPLATES = ['ai-service.sh.j2', 'run-llama-server.sh.j2', 'uninstall.sh.j2', 'setup.sh.j2']
 SYSTEMS: list[Literal['Darwin', 'Linux']] = ['Darwin', 'Linux']
 ARCHITECTURES: list[Literal['aarch64', 'x86_64']] = ['aarch64', 'x86_64']
+# Every system with each architecture it reports
+HOST_PLATFORMS: list[tuple[Literal['Darwin', 'Linux'], Architecture]] = [
+    ('Darwin', 'arm64'),
+    ('Linux', 'aarch64'),
+    ('Linux', 'x86_64'),
+]
 # The inventory's macos value; Linux's is in group_vars/linux.yml
 MAC_GPU_LAYERS = 99
 # What runs in place of launchd's, systemd's and the package database's tools: each call is
@@ -1179,7 +1270,9 @@ class ServiceHome:
         self.tool_log = tools / 'calls.log'
         home.mkdir(parents=True, exist_ok=True)
         tools.mkdir(parents=True, exist_ok=True)
-        self.variables = ansible_variables(system=system, architecture='aarch64', home=home)
+        self.variables = ansible_variables(
+            system=system, architecture=host_architecture(system=system), home=home
+        )
         self.variables['llama_cpp_install_directory'] = str(tools / 'runtime')
         if system == 'Darwin':
             self.variables['llama_cpp_gpu_layers'] = MAC_GPU_LAYERS
@@ -1499,10 +1592,9 @@ def test_every_script_runs_from_a_home_with_spaces(
 
 
 @needs_a_posix_shell
-@pytest.mark.parametrize('system', SYSTEMS)
-@pytest.mark.parametrize('architecture', ARCHITECTURES)
+@pytest.mark.parametrize(('system', 'architecture'), HOST_PLATFORMS)
 def test_every_rendered_script_passes_sh_n(
-    tmp_path: Path, system: Literal['Darwin', 'Linux'], architecture: Literal['aarch64', 'x86_64']
+    tmp_path: Path, system: Literal['Darwin', 'Linux'], architecture: Architecture
 ):
     """Each shell template, and each agent's settings (which a script sources), parses as sh."""
     service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
@@ -1595,7 +1687,7 @@ def test_run_llama_server_passes_threads_only_when_set(
 
 def test_the_threads_setting_is_empty_on_a_mac_and_leaves_two_cores_on_linux(tmp_path: Path):
     """Linux's is the host's CPU count less two, at least one; setup.sh writes each machine's."""
-    mac = ansible_variables(system='Darwin', architecture='aarch64', home=tmp_path)
+    mac = ansible_variables(system='Darwin', architecture='arm64', home=tmp_path)
     linux = ansible_variables(system='Linux', architecture='aarch64', home=tmp_path)
 
     assert not mac['ai_service_threads']
@@ -2490,14 +2582,14 @@ class PackageStaging:
         self,
         *,
         system: Literal['Darwin', 'Linux'],
-        architecture: Literal['aarch64', 'x86_64'],
+        architecture: Architecture,
         home: Path,
         facts: dict[str, Any] | None = None,
         runtime_name: str = RUNTIME_NAME,
     ) -> None:
         """Set the facts the roles before ai_package leave: llama.cpp's build, the agents."""
         self.system: Literal['Darwin', 'Linux'] = system
-        self.architecture: Literal['aarch64', 'x86_64'] = architecture
+        self.architecture: Architecture = architecture
         self.home = home
         variables = ansible_variables(system=system, architecture=architecture, home=home)
         runtime_root = variables['llama_cpp_install_root']
@@ -2763,7 +2855,7 @@ def test_the_mac_package_stage_is_unchanged_but_for_the_runtime_link(tmp_path: P
     The one is runtime/current, which the settings name the runtime through
     (bugs/2026-11-18-mac-package-settings-name-builders-runtime.md).
     """
-    staging = PackageStaging(system='Darwin', architecture='aarch64', home=tmp_path)
+    staging = PackageStaging(system='Darwin', architecture='arm64', home=tmp_path)
 
     assert staging.relative_destinations() == sorted([
         *MAC_STAGED_BEFORE_THE_DEB,
@@ -2874,7 +2966,7 @@ def test_the_mac_package_settings_name_the_players_runtime(tmp_path: Path):
     the .pkg named the builder's runtime
     (bugs/2026-11-18-mac-package-settings-name-builders-runtime.md).
     """
-    staging = PackageStaging(system='Darwin', architecture='aarch64', home=tmp_path)
+    staging = PackageStaging(system='Darwin', architecture='arm64', home=tmp_path)
     placeholder = role_defaults(role='ai_package')['ai_package_home_placeholder']
 
     reasoning = staging.rendered(
@@ -2931,14 +3023,14 @@ def install_mac_runtime(*, staging: PackageStaging, home: Path, runtime_name: st
 def test_a_mac_upgrade_that_renames_the_runtime_keeps_the_settings_valid(tmp_path: Path):
     """The .pkg's settings name runtime/current, so a renamed build needs no new settings."""
     home = tmp_path / 'Users' / 'player'
-    before = PackageStaging(system='Darwin', architecture='aarch64', home=tmp_path / 'builder')
+    before = PackageStaging(system='Darwin', architecture='arm64', home=tmp_path / 'builder')
     old_server = install_mac_runtime(staging=before, home=home, runtime_name=RUNTIME_NAME)
     settings_before = players_llama_server(staging=before, home=home)
     assert settings_before.resolve() == old_server.resolve()
 
     after = PackageStaging(
         system='Darwin',
-        architecture='aarch64',
+        architecture='arm64',
         home=tmp_path / 'builder',
         runtime_name='llama.cpp-upgraded',
     )

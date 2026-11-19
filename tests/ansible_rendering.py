@@ -22,6 +22,11 @@ if TYPE_CHECKING:
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ANSIBLE_DIRECTORY = PROJECT_ROOT / 'ansible'
 MAXIMUM_RESOLUTION_PASSES = 20
+# What ansible-core's setup module reports as `architecture` (and `machine`) on each system: an
+# Apple Silicon Mac says arm64, 64-bit ARM Linux aarch64
+type MacArchitecture = Literal['arm64']
+type LinuxArchitecture = Literal['aarch64', 'x86_64']
+type Architecture = MacArchitecture | LinuxArchitecture
 
 
 def _combine(base: dict[str, Any], *others: dict[str, Any]) -> dict[str, Any]:
@@ -45,13 +50,26 @@ def _dict2items(mapping: dict[str, Any]) -> list[dict[str, Any]]:
     return [{'key': key, 'value': value} for key, value in mapping.items()]
 
 
+def _fail_on_undefined(value: Any) -> Any:
+    """Let JSON encoding of an undefined value fail as Ansible's does: as an undefined variable.
+
+    Raises:
+        TypeError: The value is something else JSON can't encode.
+    """
+    if isinstance(value, jinja2.Undefined):
+        # A StrictUndefined raises UndefinedError, naming what was missing, as soon as it's used
+        str(value)
+    message = f'Object of type {type(value).__name__} is not JSON serializable'
+    raise TypeError(message)
+
+
 def _to_json(value: Any, *, sort_keys: bool = False) -> str:
     """Ansible's `to_json`, which separates with a comma and a space like Python's default.
 
     Returns:
         The JSON text.
     """
-    return json.dumps(value, sort_keys=sort_keys)
+    return json.dumps(value, sort_keys=sort_keys, default=_fail_on_undefined)
 
 
 def _to_nice_json(value: Any, *, indent: int = 4, sort_keys: bool = True) -> str:
@@ -60,7 +78,7 @@ def _to_nice_json(value: Any, *, indent: int = 4, sort_keys: bool = True) -> str
     Returns:
         The indented JSON text.
     """
-    return json.dumps(value, indent=indent, sort_keys=sort_keys)
+    return json.dumps(value, indent=indent, sort_keys=sort_keys, default=_fail_on_undefined)
 
 
 def _hash(value: str, algorithm: str = 'sha1') -> str:
@@ -195,68 +213,147 @@ def _environment(*, search_directories: list[Path] | None = None) -> jinja2.Envi
 def _resolve_string(
     *, text: str, variables: dict[str, Any], environment: jinja2.Environment
 ) -> Any:
-    """Render the Jinja in a string, leaving one that names a missing variable as it is.
+    """Render the Jinja in a string, as Ansible templates a value when it is used.
+
+    A string naming a variable, key or attribute nobody defined raises Jinja's UndefinedError,
+    as Ansible's templating fails.
 
     Returns:
         The rendered text, or, when the string is one expression, its value: Ansible keeps a lone
         expression's type, so a number stays a number and a list a list.
     """
-    if '{{' not in text and '{%' not in text:
+    if not _holds_jinja(value=text):
         return text
     lone_expression = re.fullmatch(r'\s*\{\{(?:(?!\{\{|\}\}).)*\}\}\s*', text, flags=re.DOTALL)
-    try:
-        if lone_expression:
-            inner = text.strip().removeprefix('{{').removesuffix('}}')
-            rendered = environment.from_string('{{ (' + inner + ') | to_json }}').render(variables)
-            return json.loads(rendered)
-        return environment.from_string(text).render(variables)
-    except jinja2.UndefinedError:
-        return text
+    if lone_expression:
+        inner = text.strip().removeprefix('{{').removesuffix('}}')
+        rendered = environment.from_string('{{ (' + inner + ') | to_json }}').render(variables)
+        return json.loads(rendered)
+    return environment.from_string(text).render(variables)
 
 
-def _resolve(*, value: Any, variables: dict[str, Any], environment: jinja2.Environment) -> Any:
+def _holds_jinja(*, value: Any) -> bool:
+    """Whether a value, or anything inside it, still has Jinja to render.
+
+    Returns:
+        True when some string in it holds an expression or a statement.
+    """
+    if isinstance(value, str):
+        return '{{' in value or '{%' in value
+    if isinstance(value, dict):
+        return any(_holds_jinja(value=item) for item in value.values())
+    if isinstance(value, list):
+        return any(_holds_jinja(value=item) for item in value)
+    return False
+
+
+def _resolve(
+    *,
+    value: Any,
+    variables: dict[str, Any],
+    environment: jinja2.Environment,
+    leave_undefined: bool = False,
+) -> Any:
     """Render the Jinja inside a value.
+
+    Args:
+        value: A string, or a dict or list holding them.
+        variables: What the Jinja may name.
+        environment: The Jinja to render with.
+        leave_undefined: Leave a string that names something undefined as it is, rather than
+            raising: one pass of resolving the variables among themselves, where a later pass or
+            the final check deals with it.
 
     Returns:
         The value with every resolvable reference replaced.
+
+    Raises:
+        jinja2.UndefinedError: A string names something undefined, and leave_undefined is False.
     """
     if isinstance(value, str):
-        return _resolve_string(text=value, variables=variables, environment=environment)
+        try:
+            return _resolve_string(text=value, variables=variables, environment=environment)
+        except jinja2.UndefinedError:
+            if leave_undefined:
+                return value
+            raise
     if isinstance(value, dict):
         return {
-            key: _resolve(value=item, variables=variables, environment=environment)
+            key: _resolve(
+                value=item,
+                variables=variables,
+                environment=environment,
+                leave_undefined=leave_undefined,
+            )
             for key, item in value.items()
         }
     if isinstance(value, list):
         return [
-            _resolve(value=item, variables=variables, environment=environment) for item in value
+            _resolve(
+                value=item,
+                variables=variables,
+                environment=environment,
+                leave_undefined=leave_undefined,
+            )
+            for item in value
         ]
     return value
+
+
+def _check_architecture(*, system: Literal['Darwin', 'Linux'], architecture: Architecture) -> None:
+    """Refuse facts no real host reports, so no test can pass on a machine that doesn't exist.
+
+    Raises:
+        ValueError: The architecture isn't one the system reports.
+    """
+    reported: dict[str, tuple[str, ...]] = {'Darwin': ('arm64',), 'Linux': ('aarch64', 'x86_64')}
+    if architecture not in reported[system]:
+        message = (
+            f'{system} reports architecture {" or ".join(reported[system])}, not {architecture}'
+        )
+        raise ValueError(message)
+
+
+def host_architecture(*, system: Literal['Darwin', 'Linux']) -> Architecture:
+    """The architecture a test's host of this system reports: an Apple Silicon Mac, or a Pi.
+
+    Returns:
+        arm64 for Darwin, aarch64 for Linux.
+    """
+    return 'arm64' if system == 'Darwin' else 'aarch64'
 
 
 def ansible_variables(
     *,
     system: Literal['Darwin', 'Linux'],
-    architecture: Literal['aarch64', 'x86_64'],
+    architecture: Architecture,
     home: Path,
     overrides: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Every role's defaults plus the platform's group variables, with a host's facts.
 
-    The facts are `system`, `architecture`, `user_dir` (the home) and `processor_vcpus`, and the
-    environment is empty, so the XDG folders take their defaults. References between variables
-    are resolved until nothing changes.
+    The facts are `system`, `architecture` (and `machine`, which reads the same on both systems),
+    `user_dir` (the home) and `processor_vcpus`, and the environment is empty, so the XDG folders
+    take their defaults. References between variables are resolved until nothing changes. A
+    variable that names something undefined on this host (another platform's key, a fact it lacks)
+    becomes an undefined value that fails wherever a test or template uses it, as Ansible fails
+    only when a task uses it.
 
     Args:
         system: The host's `ansible_facts['system']`.
-        architecture: The host's `ansible_facts['architecture']`.
+        architecture: The host's `ansible_facts['architecture']`, as that system reports it:
+            arm64 on a Mac, aarch64 or x86_64 on Linux.
         home: The host user's home.
         overrides: Values set before references are resolved, as a task's `vars` would be, so
             every variable built from one follows it.
 
     Returns:
         The variables, as a playbook run on that host would see them.
+
+    Raises:
+        RuntimeError: The references never settle.
     """
+    _check_architecture(system=system, architecture=architecture)
     variables: dict[str, Any] = {}
     for defaults in sorted((ANSIBLE_DIRECTORY / 'roles').glob('*/defaults/main.yml')):
         variables.update(yaml.safe_load(defaults.read_text(encoding='utf-8')) or {})
@@ -269,7 +366,7 @@ def ansible_variables(
     variables.update(overrides or {})
     variables['ansible_facts'] = {
         'system': system,
-        'machine': 'arm64' if system == 'Darwin' else architecture,
+        'machine': architecture,
         'architecture': architecture,
         'user_dir': str(home),
         'processor_vcpus': 4,
@@ -277,10 +374,31 @@ def ansible_variables(
     }
     environment = _environment()
     for _ in range(MAXIMUM_RESOLUTION_PASSES):
-        resolved = _resolve(value=variables, variables=variables, environment=environment)
+        resolved = _resolve(
+            value=variables, variables=variables, environment=environment, leave_undefined=True
+        )
         if resolved == variables:
             break
         variables = resolved
+    else:
+        unsettled = sorted(name for name, value in variables.items() if _holds_jinja(value=value))
+        message = f'still changing after {MAXIMUM_RESOLUTION_PASSES} passes: {", ".join(unsettled)}'
+        raise RuntimeError(message)
+    unsettled: list[str] = []
+    for name, value in list(variables.items()):
+        if not _holds_jinja(value=value):
+            continue
+        try:
+            _resolve(value=value, variables=variables, environment=environment)
+        except jinja2.UndefinedError as error:
+            variables[name] = jinja2.StrictUndefined(hint=f'{name} names {error.message}')
+        else:
+            # It renders, yet still holds Jinja: it refers to itself, which Ansible refuses as a
+            # recursive loop
+            unsettled.append(name)
+    if unsettled:
+        message = f'these refer to themselves and never resolve: {", ".join(sorted(unsettled))}'
+        raise RuntimeError(message)
     return variables
 
 
