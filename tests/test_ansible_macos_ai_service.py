@@ -421,19 +421,31 @@ def test_a_file_that_is_not_a_dynamic_object_is_skipped_and_said_so_not_failed(
         for task in walk_tasks(tasks=role_tasks(role='ai_sidecar'))
         if task.get('name') == task_name
     ]
+    registered_name = task['register']
     variables = ansible_variables(system='Linux', architecture='aarch64', home=tmp_path)
+    variables['ai_sidecar_install_directory'] = SIDECAR_LINUX_INSTALL
+    main_binary = f'{SIDECAR_LINUX_INSTALL}/python/bin/python3.14'
+    variables['ai_sidecar_main_binary'] = main_binary
 
-    def fails(*, result: dict[str, Any]) -> bool:
+    def fails(*, result: dict[str, Any], item: str) -> bool:
+        # Only what Ansible provides: the registered name holds this item's result, and `item`
         return (
             render_expression(
-                expression=task['failed_when'], variables={**variables, 'result': result}
+                expression=task['failed_when'],
+                variables={**variables, registered_name: result, 'item': item},
             )
             is True
         )
 
-    assert not fails(result={'rc': 1, 'stdout': '', 'stderr': not_an_object_output})
-    assert not fails(result={'rc': 0, 'stdout': not_an_object_output, 'stderr': ''})
-    assert fails(result={'rc': 1, 'stdout': '', 'stderr': 'No such file or directory'})
+    data_file = f'{SIDECAR_LINUX_INSTALL}/site/x/data.so'
+    assert not fails(result={'rc': 1, 'stdout': '', 'stderr': not_an_object_output}, item=data_file)
+    assert not fails(result={'rc': 0, 'stdout': not_an_object_output, 'stderr': ''}, item=data_file)
+    assert fails(
+        result={'rc': 1, 'stdout': '', 'stderr': 'No such file or directory'}, item=data_file
+    )
+    # The main binary is never skipped
+    assert fails(result={'rc': 1, 'stdout': '', 'stderr': not_an_object_output}, item=main_binary)
+    assert fails(result={'rc': 0, 'stdout': not_an_object_output, 'stderr': ''}, item=main_binary)
     (say,) = [
         task
         for task in walk_tasks(tasks=role_tasks(role='ai_sidecar'))

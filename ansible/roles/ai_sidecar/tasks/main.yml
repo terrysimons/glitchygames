@@ -189,11 +189,14 @@
   when: ansible_facts['system'] == 'Darwin'
   ansible.builtin.command:
     argv: [otool, -L, "{{ item }}"]
-  loop: "{{ [ai_sidecar_install_directory ~ '/python/bin/python3.14'] + (ai_sidecar_libraries.files | map(attribute='path') | list) }}"
+  loop: "{{ [ai_sidecar_main_binary] + (ai_sidecar_libraries.files | map(attribute='path') | list) }}"
   register: ai_sidecar_otool_output
   changed_when: false
+  # In a loop, the registered name holds the item's own result here. Only a data file named *.so may
+  # be skipped: the main binary must be a real object, or the sidecar is not one
   failed_when: >-
-    result.rc != 0 and not ((result.stdout ~ result.stderr) is search(ai_sidecar_not_an_object_pattern))
+    (ai_sidecar_otool_output.rc != 0 and not ((ai_sidecar_otool_output.stdout ~ ai_sidecar_otool_output.stderr) is search(ai_sidecar_not_an_object_pattern)))
+    or (item == ai_sidecar_main_binary and ((ai_sidecar_otool_output.stdout ~ ai_sidecar_otool_output.stderr) is search(ai_sidecar_not_an_object_pattern)))
 
 - name: Check that the sidecar links only its own libraries and the system frameworks
   when: ansible_facts['system'] == 'Darwin' and not ((item.stdout ~ item.stderr) is search(ai_sidecar_not_an_object_pattern))
@@ -215,11 +218,14 @@
   when: ansible_facts['system'] == 'Linux'
   ansible.builtin.command:
     argv: [ldd, "{{ item }}"]
-  loop: "{{ [ai_sidecar_install_directory ~ '/python/bin/python3.14'] + (ai_sidecar_libraries.files | map(attribute='path') | list) }}"
+  loop: "{{ [ai_sidecar_main_binary] + (ai_sidecar_libraries.files | map(attribute='path') | list) }}"
   register: ai_sidecar_ldd_output
   changed_when: false
+  # In a loop, the registered name holds the item's own result here. Only a data file named *.so may
+  # be skipped: the main binary must be a real object, or the sidecar is not one
   failed_when: >-
-    result.rc != 0 and not ((result.stdout ~ result.stderr) is search(ai_sidecar_not_an_object_pattern))
+    (ai_sidecar_ldd_output.rc != 0 and not ((ai_sidecar_ldd_output.stdout ~ ai_sidecar_ldd_output.stderr) is search(ai_sidecar_not_an_object_pattern)))
+    or (item == ai_sidecar_main_binary and ((ai_sidecar_ldd_output.stdout ~ ai_sidecar_ldd_output.stderr) is search(ai_sidecar_not_an_object_pattern)))
 
 - name: Check that the sidecar links only its own libraries and the system libc
   when: ansible_facts['system'] == 'Linux' and not ((item.stdout ~ item.stderr) is search(ai_sidecar_not_an_object_pattern))
