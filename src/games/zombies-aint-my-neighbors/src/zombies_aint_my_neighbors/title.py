@@ -68,6 +68,9 @@ class TitleScene(RosterScene):
     """Zombies Ain't My Neighbors' title screen."""
 
     NAME = "Zombies Ain't My Neighbors"
+    # The attract demo (feature plan 13) replays as an inner game: the engine sets its sound
+    # channels aside when it is built for a run starting here (Scene.INNER_GAMES)
+    INNER_GAMES = 1
     VERSION = '1.0'
 
     @override
