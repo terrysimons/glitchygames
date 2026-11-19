@@ -32,8 +32,8 @@ uv python pin 3.15.2   # optional: develop on 3.15 (.python-version is ignored: 
 
 Two Pythons are supported and tested: 3.14, the oldest (the browser builds' Pyodide runs it, so
 `requires-python`, ruff's and the type checkers' targets stay there), and 3.15, the development
-version. `nox -s test` and the pre-push shuffled run test both, each in its own environment, and
-so does CircleCI on every OS: macOS in one job; Linux and Windows with 3.15 in a job of its own
+version. `nox -s test` tests both, each in its own environment (the pre-push shuffled run tests
+3.15 only, so a push is quicker), and so does CircleCI on every OS: macOS in one job; Linux and Windows with 3.15 in a job of its own
 (`test-python-3-15-*`), each job split across two machines (`parallelism: 2`), as one Python
 alone ran past CircleCI's one-hour job limit on Linux (`noxfile.TEST_PYTHONS`,
 `PYTHON_NEXT_VERSION`). A split job's machines each run a share (`GLITCHYGAMES_TEST_SPLIT`,
@@ -58,7 +58,7 @@ basedpyright                # pyrightconfig.json
 
 Nox (`nox -l` lists all; each session's docstring explains it):
 - `format`, `lint` (aggregates), `static-analysis` (basedpyright + ty), `test` (`test-3.14`
-  then `test-3.15`; `-s test-3.15` runs one), `test-random` (shuffled order on both Pythons, the
+  then `test-3.15`; `-s test-3.15` runs one), `test-random` (shuffled order on 3.15 only, the
   pre-push hook; `-- SEED` repeats one), `performance-test`
 - `compare-drivers` (N-way driver matrix, 4 workers per run, `-- --workers auto` for every
   core; pre-push runs `-- --drivers native --fail-on-difference --workers auto

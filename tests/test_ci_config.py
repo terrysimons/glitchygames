@@ -1059,11 +1059,11 @@ def test_the_shuffled_run_reorders_only_on_the_dummy_drivers():
         }
 
 
-def test_the_shuffled_run_tests_every_python_with_one_seed():
-    """Each Python the suite supports, in order, with the same seed on each.
+def test_the_shuffled_run_tests_only_the_development_python():
+    """One run, on 3.15, the development version: the newest of the Pythons the suite supports.
 
-    The owner: "We should test both". Each run has its own environment, so a .venv synced on 3.15
-    still tests 3.14 at every push.
+    The owner, 2026-11-18: "For the pre-commit checks only run python 3.15", "so that we can push
+    more quickly. The pipeline can catch 3.14 breakage" (nox -s test and CircleCI still run both).
     """
     import noxfile
 
@@ -1071,9 +1071,10 @@ def test_the_shuffled_run_tests_every_python_with_one_seed():
     noxfile.test_random(session)
 
     python_at = len(SHUFFLED_RUN_ENVIRONMENT)
-    assert [command[python_at] for command in session.commands] == list(noxfile.TEST_PYTHONS)
-    assert noxfile.TEST_PYTHONS == ('3.14', '3.15')
-    assert all('--randomly-seed=12345' in command for command in session.commands)
+    pythons = [command[python_at] for command in session.commands]
+    assert pythons == ['3.15']
+    assert noxfile.TEST_PYTHONS[-1] == noxfile.SHUFFLED_RUN_PYTHON
+    assert '--randomly-seed=12345' in session.commands[0]
 
 
 def test_a_shuffled_run_picks_a_new_seed_each_time():
@@ -1110,8 +1111,8 @@ def test_a_failed_shuffled_run_names_its_seed_and_how_to_replay_it(mocker):
 
     message = str(failure.value)
     assert 'seed 777' in message
-    assert 'Python 3.14' in message
-    assert '--python 3.14 pytest' in message
+    assert 'Python 3.15' in message
+    assert '--python 3.15 pytest' in message
     assert '--randomly-seed=777 -n 0' in message
     assert 'nox -s test-random -- 777' in message
 

@@ -868,6 +868,10 @@ SHUFFLED_RUN_ENVIRONMENT = (
     '--all-packages',
     '--python',
 )
+# The shuffled run's one Python: 3.15, the development version, the newest of TEST_PYTHONS (the
+# owner, 2026-11-18: "For the pre-commit checks only run python 3.15", "so that we can push more
+# quickly. The pipeline can catch 3.14 breakage": nox -s test and CircleCI still run both)
+SHUFFLED_RUN_PYTHON = TEST_PYTHONS[-1]
 
 
 @nox.session(venv_backend='none', name='test-random', default=False)
@@ -877,12 +881,12 @@ def test_random(session: nox.Session) -> None:
     Each run shuffles the tests with a new seed (``-- SEED`` reuses one), so a test that passes
     only after, or only before, another fails in some run long before CI's fixed order meets it
     (BUGS.md: a named custom event type took FPSEVENT's id only after a pygame.quit()). It runs
-    once on each Python of TEST_PYTHONS, explicitly: 3.14 (the browser builds') and then 3.15,
-    with the same seed (the owner, 2026-11-16: "We should test both"). Each run has a throwaway
-    environment from uv.lock (``uv run --isolated --python``), never the project's .venv: a .venv
-    synced on 3.15 would otherwise leave 3.14 untested at every push. On every core, under the
+    once, on SHUFFLED_RUN_PYTHON (3.15, the development version), so a push waits for one run, not
+    one a Python; 3.14 is left to nox -s test and CircleCI. The run has a throwaway environment
+    from uv.lock (``uv run --isolated --python``), never the project's .venv, so it tests 3.15
+    whatever Python the .venv was synced on. On every core, under the
     dummy drivers only and without coverage (CI enforces coverage), so it costs a push a few
-    minutes a Python, not a full CI run. A failure names its seed and the command that replays
+    minutes, not a full CI run. A failure names its seed and the command that replays
     that order in one process (``-n 0``: across workers the seed fixes the order but not which
     worker runs which test).
     """
@@ -890,39 +894,38 @@ def test_random(session: nox.Session) -> None:
         seed = int(session.posargs[0])
     else:
         seed = secrets.randbelow(RANDOM_ORDER_SEED_LIMIT)
-    for python in TEST_PYTHONS:
-        environment = (*SHUFFLED_RUN_ENVIRONMENT, python)
-        try:
-            session.run(
-                *environment,
-                'pytest',
-                *RANDOM_ORDER_PYTEST_ARGUMENTS,
-                f'--randomly-seed={seed}',
-                '-n',
-                'auto',
-                '--no-cov',
-                '--log-cli-level=WARNING',
-                f'--junitxml=test-results/junit-random-{python}.xml',
-                env={'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'},
-                external=True,
-            )
-        except CommandFailed:
-            replay = shlex.join([
-                *environment,
-                'pytest',
-                *RANDOM_ORDER_PYTEST_ARGUMENTS,
-                f'--randomly-seed={seed}',
-                '-n',
-                '0',
-                '--no-cov',
-            ])
-            session.error(
-                f'A shuffled run failed on Python {python} (seed {seed}): an order-dependent '
-                f'test, or a plain failure. Replay this order in one process: '
-                f'SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy {replay}  (or the same runs: '
-                f'nox -s test-random -- {seed}). SKIP=test-random git push skips the check; file '
-                f'what it found in BUGS.md'
-            )
+    environment = (*SHUFFLED_RUN_ENVIRONMENT, SHUFFLED_RUN_PYTHON)
+    try:
+        session.run(
+            *environment,
+            'pytest',
+            *RANDOM_ORDER_PYTEST_ARGUMENTS,
+            f'--randomly-seed={seed}',
+            '-n',
+            'auto',
+            '--no-cov',
+            '--log-cli-level=WARNING',
+            f'--junitxml=test-results/junit-random-{SHUFFLED_RUN_PYTHON}.xml',
+            env={'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'},
+            external=True,
+        )
+    except CommandFailed:
+        replay = shlex.join([
+            *environment,
+            'pytest',
+            *RANDOM_ORDER_PYTEST_ARGUMENTS,
+            f'--randomly-seed={seed}',
+            '-n',
+            '0',
+            '--no-cov',
+        ])
+        session.error(
+            f'A shuffled run failed on Python {SHUFFLED_RUN_PYTHON} (seed {seed}): an '
+            f'order-dependent test, or a plain failure. Replay this order in one process: '
+            f'SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy {replay}  (or the same run: '
+            f'nox -s test-random -- {seed}). SKIP=test-random git push skips the check; file '
+            f'what it found in BUGS.md'
+        )
 
 
 # The Linux X11 test image and the X server it draws on (XQuartz's display :0, over TCP)
