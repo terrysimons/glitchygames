@@ -23,6 +23,18 @@ LASER_RISE: Final = 'laser-rise'
 LASER_SHINE: Final = 'laser-shine'
 # A zombie's moans, one picked at random when it groans
 GROANS: Final = ('groan-1', 'groan-2', 'groan-3')
+# Feature plan 11 (plans/2026-11-18-zombies-aint-my-neighbors-11-the-rest-of-the-sounds.md):
+# a zombie climbing out of a TV, and what a zap does to a TV, from the least to the most
+TV_SPAWN: Final = 'tv-spawn'
+TV_HIT: Final = 'tv-hit'
+TV_BREAK: Final = 'tv-break'
+TV_DESTROYED: Final = 'tv-destroyed'
+# A neighbor rescued or lost, a kid knocked out, the gate opening, and the TV switching off
+RESCUE: Final = 'rescue'
+LOSS: Final = 'loss'
+KNOCKOUT: Final = 'knockout'
+GATE: Final = 'gate'
+SWITCH_OFF: Final = 'switch-off'
 
 
 def sound_reference(name: str) -> str:
@@ -40,6 +52,19 @@ def sound_reference(name: str) -> str:
 
 
 # Every sound, as the engine's SOUNDS takes them
-SOUND_REFERENCES: Final = tuple(
-    sound_reference(name) for name in (ZAP, LASER_RISE, LASER_SHINE, *GROANS)
+EVERY_SOUND: Final = (
+    ZAP,
+    LASER_RISE,
+    LASER_SHINE,
+    *GROANS,
+    TV_SPAWN,
+    TV_HIT,
+    TV_BREAK,
+    TV_DESTROYED,
+    RESCUE,
+    LOSS,
+    KNOCKOUT,
+    GATE,
+    SWITCH_OFF,
 )
+SOUND_REFERENCES: Final = tuple(sound_reference(name) for name in EVERY_SOUND)

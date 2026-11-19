@@ -27,15 +27,19 @@ pixel-art editor (Bitmappy), example games, and exact gameplay recording and rep
 uv sync --all-extras --all-groups --all-packages   # everything development uses
 direnv allow        # optional: .envrc syncs on entry; on macOS installs PulseAudio, syft, grype
 uv sync --upgrade --all-extras --all-groups --all-packages   # deliberate upgrade; review uv.lock
-uv python pin 3.15.2   # optional: develop on 3.15 (.python-version is ignored: this checkout only)
+uv python pin 3.15.2   # optional: pin this checkout's Python (.python-version is ignored)
 ```
 
-Two Pythons are supported and tested: 3.14, the oldest (the browser builds' Pyodide runs it, so
-`requires-python`, ruff's and the type checkers' targets stay there), and 3.15, the development
-version. `nox -s test` and the pre-push shuffled run test both, each in its own environment, and
-so does CircleCI on every OS: macOS in one job, Linux and Windows with 3.15 in a job of its own
-(`test-python-3-15-*`), as one Python alone takes them close to CircleCI's one-hour job limit
-(`noxfile.TEST_PYTHONS`, `PYTHON_NEXT_VERSION`).
+Everything runs on Python 3.15: the tests (`noxfile.TEST_PYTHONS`), every other nox session
+(`noxfile.PINNED_PYTHONS`), the pre-push hooks and CircleCI (`PYTHON_VERSION`;
+`test-python-3-15-macos`, `-linux`, `-windows`). Python 3.14 was removed (the owner, 2026-11-19);
+it stays only the oldest the code must parse and type-check as (`requires-python`, ruff's
+`target-version`, the type checkers' python version), because the browser builds' Pyodide 314 runs
+it: nothing tests on 3.14, so keep to what 3.14 has. Move those to 3.15 when a Pyodide on 3.15
+ships. Each Linux and Windows job is split across two machines (`parallelism: 2`), as the suite
+alone ran past CircleCI's one-hour job limit on Linux. A split job's machines each run a share
+(`GLITCHYGAMES_TEST_SPLIT`, `tests/circleci_test_split.py`), and a `coverage-combine-*` job holds
+their coverage, combined, to 100%.
 
 The packages are not on PyPI yet: outside the repository, `uv build --all-packages` and install
 from `dist/` (extras: `games`, `apps`, `templates` for cookiecutter).
@@ -54,9 +58,8 @@ basedpyright                # pyrightconfig.json
 ```
 
 Nox (`nox -l` lists all; each session's docstring explains it):
-- `format`, `lint` (aggregates), `static-analysis` (basedpyright + ty), `test` (`test-3.14`
-  then `test-3.15`; `-s test-3.15` runs one), `test-random` (shuffled order on both Pythons, the
-  pre-push hook; `-- SEED` repeats one), `performance-test`
+- `format`, `lint` (aggregates), `static-analysis` (basedpyright + ty), `test`
+  (`test-3.15`), `test-random` (shuffled order, the pre-push hook; `-- SEED` repeats one), `performance-test`
 - `compare-drivers` (N-way driver matrix, 4 workers per run, `-- --workers auto` for every
   core; pre-push runs `-- --drivers native --fail-on-difference --workers auto
   --skip-when-frames-cannot-change`, skipped when every pushed path is docs, plans or CI config;
@@ -67,6 +70,8 @@ Nox (`nox -l` lists all; each session's docstring explains it):
   the regenerated SBOM with any `uv.lock` change; exceptions in `.grype.yaml` and
   `scripts/check_licenses.py` are the owner's)
 - `build`, `build-wheel`, `build-binary` (stamp the commit into `_build_info.json` around the build)
+- `coverage-combine-3.15` (a split CI job's machines' coverage data, `coverage-data/` or
+  `-- DIRECTORY`, combined on the job's Python and held to 100%; installs only uv.lock's coverage)
 - `docs-serve` (isolated env; refuses a taken address), `docs-deploy` (CircleCI runs it after
   every merge to main; refused unless HEAD is on origin/main), `code-complexity`
 
@@ -199,8 +204,10 @@ git, a git archive, or a build stamp; held by every recorded run.
 `docs/specs/2026-11-02-sound-engine-*`):
 - `scene_manager.audio.sound(source, ...)` returns a compiled `Sound`; `Sound.play(...)` returns
   a `SoundHandle`. Request sounds in `setup()`: a gameplay compile is counted and logged.
-- Sources: a short name looked up in the scene's `SOUND_DIRECTORY`, a path (`file.toml#name`) or
-  an `Instrument`. Sound files are TOML version 1 (v0 still loads).
+- Sources: a short name looked up in the scene's `SOUND_DIRECTORY`, a path (`file.toml#name`), an
+  `Instrument`, or a `Mix` (instrument parts compiled into one sound, cached as one; with
+  `loop_seconds` an exact loop for `play(loop=True)`: `audio/mix.py`). Sound files are TOML
+  version 1 (v0 still loads).
 - Voice ends follow played time (the served `dt`), never the device, so replays match.
 - Mixer: 44100 Hz, signed 16-bit, stereo, 512-sample buffer.
 - Instrument catalog (`audio/instruments/`): `instruments.get(name)` returns an `Instrument`
@@ -323,6 +330,9 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
   `@pytest.mark.black_frame_expected(reason=...)`). Assert untouched pixels with
   `canvas_color_at(x=..., y=...)`, never as black.
 - Sprite-file checks: call `glitchygames.testing.sprite_files`' `check_*` functions; don't copy them.
+- `GLITCHYGAMES_TEST_SPLIT=circleci` (set by the split CI jobs, never locally: it needs
+  CircleCI's `circleci tests split` and `CIRCLE_NODE_*`) runs one machine's share of the
+  collected test files, with the share's coverage rule off (`tests/circleci_test_split.py`).
 - Coverage is 100% with no configured exclusions; a deliberate defensive line carries
   `# pragma: no cover` with its reason.
 - Run the linters after modifying files.
@@ -332,7 +342,8 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
 
 ## Code Style
 
-Python 3.14 and 3.15 (code must run on 3.14: lint and type checks target it), ruff (100-character
+Python 3.15 (code must still parse and type-check as 3.14: lint and type checks target it, for
+the browser builds' Pyodide), ruff (100-character
 lines, import order), Google-style docstrings, basedpyright and ty. Data classes are pydantic
 models. Bugs: one file each in `bugs/` (`YYYY-MM-DD-short-slug.md`); the older numbered entries are
 in BUGS.md.

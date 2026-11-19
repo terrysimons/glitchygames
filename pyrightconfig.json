@@ -19,6 +19,7 @@
   "exclude": ["**/__pycache__"],
   "stubPath": "typings",
   "defineConstant": { "DEBUG": true },
+  // The browser builds' Python (Pyodide 314): see requires-python in pyproject.toml
   "pythonVersion": "3.14",
   "pythonPlatform": "All",
 

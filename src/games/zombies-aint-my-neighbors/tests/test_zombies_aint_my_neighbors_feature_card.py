@@ -451,3 +451,29 @@ def test_the_card_builds_nothing_once_the_stage_has_begun():
     support.tick_to(card, seconds=0.5)
 
     assert len(card.kit.storage.sprites()) == left
+
+
+# The score is built while the game starts, never on the card (feature plan 11)
+
+
+def compiles(card: FeatureCardScene) -> int:
+    """Return how many sounds the card's audio engine has compiled so far.
+
+    Returns:
+        The count.
+
+    """
+    return card.scene_manager.audio.accountant.compile_count
+
+
+def test_the_card_compiles_no_sound_from_start_to_end():
+    """Four players' card shown to its end: the score was built while the game started."""
+    roster = JoinRoster.empty().join(device=KEYBOARD)
+    for instance_id in (1, 2, 3):
+        roster = roster.join(device=gamepad(instance_id))
+    card = card_for(roster)
+
+    support.tick_to(card, seconds=CARD_SECONDS - 0.1)
+
+    assert card.next_scene is None
+    assert compiles(card) == 0

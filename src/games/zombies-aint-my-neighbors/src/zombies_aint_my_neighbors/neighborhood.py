@@ -36,6 +36,11 @@ one was saved, the exit door opens; a kid through it clears the stage, everyone 
 for ``CHEER_SECONDS`` while the yard stands still, and the card brings the next stage with only
 the neighbors saved. Nobody saved, or every player out, is the game over.
 
+Feature plan 11 (plans/2026-11-18-zombies-aint-my-neighbors-11-the-rest-of-the-sounds.md): every
+moment of the stage has its sound, panned by where it happens, and the score's stage loop (one
+sound, an exact loop) starts on the first frame and repeats by itself. Clearing the stage fades it
+and plays the clear.
+
 Built from options alone, as a recording's first scene is, the keyboard plays P1.
 """
 
@@ -51,6 +56,7 @@ from glitchygames.camera import Camera2D
 from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.input.state import current_input
 from glitchygames.randomness import random_stream
+from zombies_aint_my_neighbors import music
 from zombies_aint_my_neighbors.art.palettes import KIDS
 from zombies_aint_my_neighbors.controls import DEFAULT_DEADZONE, player_direction, player_firing
 from zombies_aint_my_neighbors.exit_door import DOOR_SIZE, ExitDoor
@@ -75,9 +81,18 @@ from zombies_aint_my_neighbors.roster_scene import (
 )
 from zombies_aint_my_neighbors.run_state import NeighborKind, RunState, as_run
 from zombies_aint_my_neighbors.sounds import (
+    EVERY_SOUND,
+    GATE,
     GROANS,
+    KNOCKOUT,
     LASER_RISE,
     LASER_SHINE,
+    LOSS,
+    RESCUE,
+    TV_BREAK,
+    TV_DESTROYED,
+    TV_HIT,
+    TV_SPAWN,
     ZAP,
     sound_reference,
 )
@@ -213,6 +228,14 @@ def _clamp(value: float, *, low: float, high: float) -> float:
 PAN_WIDTH: Final = 0.6
 # How long a laser's sound takes to fade when it stops (the dot out, or a tap that never lit)
 LASER_FADE_SECONDS: Final = 0.06
+# How long the stage's loop takes to fade out when the stage is cleared (feature plan 11)
+STAGE_CLEAR_FADE_SECONDS: Final = 0.3
+# What a zap on a TV sounds like, by what it did (feature plan 11): only the strongest plays
+TV_HIT_SOUNDS: Final[Mapping[TvHit, str]] = {
+    TvHit.HIT: TV_HIT,
+    TvHit.BROKE: TV_BREAK,
+    TvHit.DESTROYED: TV_DESTROYED,
+}
 
 
 def pan_for(*, world_x: float, camera: Camera2D, screen_width: int) -> float:
@@ -315,6 +338,8 @@ class NeighborhoodScene(RosterScene):
         self._lasers_heard: dict[int, tuple[bool, bool]] = {}
         # When zombies last groaned, for the rule that they groan only sometimes
         self.groan_timer = GroanTimer()
+        # The score (feature plan 11): the stage loop and the clear
+        self.music = music.StageMusic()
         # The sprites built ahead on the stage card (feature plan 9): every sprite comes from it
         self.kit = kit if kit is not None else SpriteKit()
         self.mirror_cache = self.kit.mirror_cache
@@ -477,10 +502,8 @@ class NeighborhoodScene(RosterScene):
         super().setup()
         if not self.sounds:
             audio = self.scene_manager.audio
-            self.sounds = {
-                name: audio.sound(sound_reference(name))
-                for name in (ZAP, LASER_RISE, LASER_SHINE, *GROANS)
-            }
+            self.sounds = {name: audio.sound(sound_reference(name)) for name in EVERY_SOUND}
+            self.music.prepare(audio)
         if self._yard_drawn:
             return
         self.camera.add_background_layer(
@@ -558,15 +581,21 @@ class NeighborhoodScene(RosterScene):
         if self.groan_timer.should_groan(zombie=zombie, now=self.game_time, roll=stream.random):
             self.sounds[stream.choice(GROANS)].play(pan=self._pan_at(zombie))
 
-    def _pan_at(self, sprite: Kid | Zombie) -> float:
-        """Return the pan of a sound a kid or zombie makes, by its middle across the screen.
+    def _pan_at(
+        self, sprite: Kid | Zombie | Neighbor | Tv | ExitDoor, *, width: float = KID_WIDTH
+    ) -> float:
+        """Return the pan of a sound something makes, by its middle across the screen.
+
+        Args:
+            sprite: What makes the sound.
+            width: Its frame's width (a kid's, a zombie's and a neighbor's by default).
 
         Returns:
             The pan.
 
         """
         return pan_for(
-            world_x=sprite.world_x + KID_WIDTH / 2,
+            world_x=sprite.world_x + width / 2,
             camera=self.camera,
             screen_width=self.screen_width,
         )
@@ -634,8 +663,15 @@ class NeighborhoodScene(RosterScene):
         self._run_zaps(dt)
         self._run_neighbors(dt)
         self._end_the_stage_when_done()
+        self._start_the_loop()
         self._sound_the_lasers()
         self._show_hud()
+
+    def _start_the_loop(self) -> None:
+        """Start the stage loop on the stage's first frame (never once the stage has ended)."""
+        if self.stage_cleared or self.next_scene is not None:
+            return
+        self.music.start()
 
     def _sound_the_lasers(self) -> None:
         """Start, pan and stop each kid's laser sounds by what its laser does now (plan 10).
@@ -681,6 +717,7 @@ class NeighborhoodScene(RosterScene):
                 if neighbor.is_standing and touching(kid, neighbor) and neighbor.rescue():
                     self.rescued.append(neighbor.kind)
                     self._order_effect(neighbor)
+                    self.sounds[RESCUE].play(pan=self._pan_at(neighbor))
 
     def _run_neighbors(self, dt: float) -> None:
         """Let each neighbor see the zombies, pose it, and let go of those whose effect ended."""
@@ -703,7 +740,9 @@ class NeighborhoodScene(RosterScene):
         if not self.rescued:
             self.next_scene = GameOverScene(options=self.options, roster=self.roster)
             return
-        self.exit_door.open()
+        if not self.exit_door.is_open:
+            self.exit_door.open()
+            self.sounds[GATE].play(pan=self._pan_at(self.exit_door, width=DOOR_SIZE))
         if self.exit_door.is_passable and any(
             kid.state is KidState.ACTIVE and touching(kid, self.exit_door)
             for kid in self.kids.values()
@@ -711,6 +750,7 @@ class NeighborhoodScene(RosterScene):
             self.stage_cleared = True
             for kid in self.kids.values():
                 kid.cheer()
+            self.music.play_the_clear(fade=STAGE_CLEAR_FADE_SECONDS)
 
     def _run_with_held_weapons(self) -> RunState:
         """Return the run with the weapon each kid holds now (a free slot keeps the run's).
@@ -752,6 +792,7 @@ class NeighborhoodScene(RosterScene):
             if tv.tick_spawning(dt=dt, allowed=allowed):
                 world_x, world_y = tv.spawn_point()
                 self.add_zombie(world_x=world_x, world_y=world_y, home=tv)
+                self.sounds[TV_SPAWN].play(pan=self._pan_at(tv, width=TV_SIZE))
             tv.dt_tick(dt)
 
     def _run_zombies(self, dt: float) -> None:
@@ -771,11 +812,13 @@ class NeighborhoodScene(RosterScene):
                 ):
                     self.run = self.run.lose_life(slot_index=slot_index)
                     zombie.grab()
+                    self.sounds[KNOCKOUT].play(pan=self._pan_at(kid))
             if not zombie.is_dying:
                 for neighbor in self.neighbors:
                     if neighbor.is_standing and touching(zombie, neighbor) and neighbor.lose():
                         zombie.grab()
                         self._order_effect(neighbor)
+                        self.sounds[LOSS].play(pan=self._pan_at(neighbor))
             zombie.dt_tick(dt)
             # A zombie whose fade ended this frame has left its groups: no layer to change
             if not zombie.is_gone:
@@ -802,7 +845,11 @@ class NeighborhoodScene(RosterScene):
             zap.strike()
             if isinstance(struck, Zombie):
                 self._zombie_zapped(struck)
-            elif struck.zap() is TvHit.DESTROYED:
+                continue
+            # Only standing TVs are struck, so the zap always hits
+            hit = struck.zap()
+            self.sounds[TV_HIT_SOUNDS[hit]].play(pan=self._pan_at(struck, width=TV_SIZE))
+            if hit is TvHit.DESTROYED:
                 self._tv_destroyed(slot_index=self.zap_owners[zap])
         for zap in [zap for zap in self.zaps if zap.state is ZapState.GONE]:
             self.zaps.remove(zap)
