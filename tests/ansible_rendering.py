@@ -101,14 +101,42 @@ def _bool(value: Any) -> bool:
     return bool(value)
 
 
-def _regex_search(value: str, pattern: str) -> str | None:
-    """Ansible's `regex_search`.
+def _regex_search(
+    value: str, pattern: str, *groups: str, ignorecase: bool = False, multiline: bool = False
+) -> str | list[str] | None:
+    r"""Ansible's `regex_search`, with its group arguments and its two flags.
+
+    A group is named as '\1' or '\g<name>'. Ansible's templating keeps a backslash in a
+    single-quoted Jinja string as written, where plain Jinja reads '\1' as the character with code 1
+    (checked with ansible-core 2.19.11, which picks group 1 from '\1' in smoke_test.yml), so that
+    character also names group 1 here.
 
     Returns:
-        The first match, or None.
+        The first match, or with groups the list of those groups' text; None when nothing matches.
+
+    Raises:
+        ValueError: A group argument Ansible's filter refuses ("Unknown argument").
     """
-    found = re.search(pattern, value)
-    return found.group(0) if found else None
+    wanted: list[int | str] = []
+    for group in groups:
+        named = re.fullmatch(r'\\g<(\S+)>', group)
+        numbered = re.fullmatch(r'\\(\d+)', group)
+        if named:
+            wanted.append(named.group(1))
+        elif numbered:
+            wanted.append(int(numbered.group(1)))
+        elif len(group) == 1 and 1 <= ord(group) <= 9:
+            wanted.append(ord(group))
+        else:
+            message = f'regex_search: unknown argument {group!r}'
+            raise ValueError(message)
+    flags = (re.IGNORECASE if ignorecase else 0) | (re.MULTILINE if multiline else 0)
+    found = re.search(pattern, value, flags)
+    if found is None:
+        return None
+    if not wanted:
+        return found.group(0)
+    return [found.group(group) for group in wanted]
 
 
 def _search(value: str, pattern: str) -> bool:

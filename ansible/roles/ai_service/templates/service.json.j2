@@ -10,5 +10,6 @@
   "worker_key_file": {{ ai_service_api_key_file | to_json }},
   "control_script": {{ ai_service_control | to_json }},
   "scalar_file": {{ (ai_sidecar_directory ~ '/scalar.js') | to_json }},
+  "selection_file": {{ (ai_service_config_directory ~ '/' ~ ai_service_selection_file_name) | to_json }},
   "shutdown_grace_seconds": {{ ai_service_shutdown_grace_seconds }}
 }

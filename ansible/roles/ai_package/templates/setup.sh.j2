@@ -22,6 +22,8 @@ set -u
 {{ platform.install_agent_definition() }}
 {{ platform.place_the_cores() }}
 {{ platform.tell_the_units_the_user_root() }}
+{{ platform.remove_the_user_root_drop_in() }}
+{{ platform.memory_tier() }}
 {{ platform.reload_agent_definitions() }}
 {{ platform.check_the_service_managers_data_home() }}
 {{ platform.finish_setup_job() }}
@@ -97,11 +99,17 @@ if ! machine_can_run_the_service; then
 fi
 
 memory_mb=$(total_memory_mb)
+# The memory tier decides whether a Qwen runs beside Bonsai (plans/lucid-circuit-linux.md, 6.4.1);
+# below the smallest nothing can run, so nothing is downloaded
+if ! memory_tier "$memory_mb"; then
+    say "memory ${memory_mb} MB is below every memory tier (the smallest starts at {{ ai_service_memory_tiers[0].minimum_memory_mb }} MB): the local AI can't run on this machine, so nothing is downloaded"
+    exit 0
+fi
 bonsai_size=""
 {% for tier in ai_service_bonsai_tiers %}
 if [ "$memory_mb" -ge {{ tier.minimum_memory_mb }} ]; then bonsai_size={{ tier.size }}; fi
 {% endfor %}
-qwen_size={{ ai_service_qwen_size }}
+qwen_size=$tier_qwen
 
 # The default size (empty: the one memory allows), then a choice the user made, which stays
 bonsai_override={{ ai_service_default_bonsai_size | quote }}
@@ -109,7 +117,20 @@ if [ -f "$config/selection.env" ]; then
     . "$config/selection.env"
 fi
 [ -z "$bonsai_override" ] || bonsai_size=$bonsai_override
-say "memory ${memory_mb} MB: downloading Bonsai $bonsai_size, Qwen $qwen_size"
+if [ "$qwen_size" = none ]; then
+    say "memory ${memory_mb} MB: downloading Bonsai $bonsai_size alone (this memory tier runs no Qwen)"
+else
+    say "memory ${memory_mb} MB: downloading Bonsai $bonsai_size, Qwen $qwen_size"
+fi
+
+# is_qwen_unit LABEL: whether a unit is a Qwen model's, whose settings and drop-ins a machine whose
+# tier runs no Qwen goes without
+is_qwen_unit() {
+    case "$1" in
+        {{ ai_service_label_prefix }}.qwen3-embedding-*) return 0 ;;
+    esac
+    return 1
+}
 
 # fetch FILE REPOSITORY REVISION BYTES SHA256: into FILE.part, resuming one an earlier run left,
 # and to FILE only once its SHA-256 matches
@@ -161,6 +182,7 @@ case "$qwen_size" in
         fetch {{ model.model.file }} {{ model.repository }} {{ model.revision }} {{ model.model.bytes }} {{ model.model.sha256 }} || failed=true
         ;;
 {% endfor %}
+    none) ;;
     *)
         say "unknown Qwen size $qwen_size"
         failed=true
@@ -202,6 +224,9 @@ for template in "$share"/agents/*.env.template; do
         exit 1
     fi
     label=$(basename "$template" .env.template)
+    if [ "$qwen_size" = none ] && is_qwen_unit "$label"; then
+        continue
+    fi
     # Two steps rather than a pipe, whose status would be sed's alone
     if ! fill_in shell "$template" > "$config/$label.env.filled" \
         || ! sed -e "s|^AI_THREADS=.*|AI_THREADS='$threads'|" "$config/$label.env.filled" \
@@ -215,15 +240,30 @@ for template in "$share"/agents/*.env.template; do
     install_agent_definition "$label" || exit 1
 done
 
-{% set ai_units = (ai_service_agents | map(attribute='label') | list + [ai_package_setup_label]) | join(' ') %}
-# Every AI unit shares the AI's cores: each model's, the API's and this setup job's
-if ! place_the_cores {{ ai_units }}; then
+# Each model's unit and the API's, leaving out a Qwen this machine's tier doesn't run
+agent_units=""
+for label in {{ ai_service_agents | map(attribute='label') | join(' ') }}; do
+    if [ "$qwen_size" = none ] && is_qwen_unit "$label"; then
+        continue
+    fi
+    agent_units="$agent_units $label"
+done
+# Every AI unit shares the AI's cores: those and this setup job. The labels hold no spaces, so the
+# list splits into them
+if ! place_the_cores $agent_units {{ ai_package_setup_label }}; then
     say "could not write the CPU placement; stopping"
     exit 1
 fi
-# And every one is told this user's folder, which its runner reads its settings from
-if ! tell_the_units_the_user_root {{ ai_units }}; then
+# And each agent's unit is told this user's folder, which its runner reads its settings from. Not
+# this setup job's: it works the folder out at each run, and a drop-in naming it would keep a later
+# XDG_DATA_HOME change from reaching the job run at login (the controller's ruling, 2026-11-19), so
+# one an earlier setup wrote goes
+if ! tell_the_units_the_user_root $agent_units; then
     say "could not tell the AI's units where $user_root is; stopping"
+    exit 1
+fi
+if ! remove_the_user_root_drop_in {{ ai_package_setup_label }}; then
+    say "could not remove the setup job's old drop-in; stopping"
     exit 1
 fi
 reload_agent_definitions

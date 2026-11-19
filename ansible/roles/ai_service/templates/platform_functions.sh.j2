@@ -8,7 +8,8 @@ script imports this with context (the host's facts) and writes out the functions
 start_agent_process and forget_every_agent call user_root, so a script with either writes it too.
 The functions only setup.sh uses (from machine_can_run_the_service down) also call its say,
 sed_literal and install_if_changed, and install_agent_definition, place_the_cores and
-tell_the_units_the_user_root call program_root and user_root.
+tell_the_units_the_user_root call program_root and user_root. memory_tier is the one shared function
+that tests no platform, kept here so its two users render it from one copy.
 #}
 
 {#- Where systemd reads a user's own unit files and drop-ins, as shell text #}
@@ -244,6 +245,25 @@ forget_package() {
 }
 {% endmacro %}
 
+{% macro memory_tier() %}
+# The memory tier a machine's total memory puts it in (plans/lucid-circuit-linux.md, 6.4.1):
+# memory_tier TOTAL_MB sets tier_context, tier_cache_ram_mib and tier_qwen (a Qwen size, or none),
+# or returns 1 below the smallest. The same on every platform: here so setup.sh and ai-service.sh
+# share one copy of ai_service_memory_tiers
+memory_tier() {
+    tier_found=1
+{% for tier in ai_service_memory_tiers %}
+    if [ "$1" -ge {{ tier.minimum_memory_mb }} ]; then
+        tier_context={{ tier.bonsai_context_size }}
+        tier_cache_ram_mib={{ tier.bonsai_cache_ram_mib }}
+        tier_qwen={{ tier.qwen | quote }}
+        tier_found=0
+    fi
+{% endfor %}
+    return "$tier_found"
+}
+{% endmacro %}
+
 {% macro machine_can_run_the_service() %}
 # Whether this machine can run the service at all; says why not
 machine_can_run_the_service() {
@@ -386,6 +406,21 @@ tell_the_units_the_user_root() {
         install_if_changed "$drop_in_directory/user-root.conf.new" \
             "$drop_in_directory/user-root.conf"
     done
+{% else %}
+    # A launchd agent's plist names its folder
+    :
+{% endif %}
+    return 0
+}
+{% endmacro %}
+
+{% macro remove_the_user_root_drop_in() %}
+# Removes the drop-in naming the user's folder from a unit that must work its folder out itself,
+# and the unit's drop-in folder once nothing else is in it: remove_the_user_root_drop_in LABEL
+remove_the_user_root_drop_in() {
+{% if ansible_facts['system'] == 'Linux' %}
+    rm -f "{{ user_units_directory() }}/$1.service.d/user-root.conf" || return 1
+    rmdir "{{ user_units_directory() }}/$1.service.d" 2>/dev/null
 {% else %}
     # A launchd agent's plist names its folder
     :

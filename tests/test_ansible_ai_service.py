@@ -197,12 +197,138 @@ def test_no_model_starts_at_login():
 
 
 def test_every_size_has_a_reserved_memory_figure():
-    """The script that picks a size has to know what each one costs."""
+    """The script that picks a size has to know what each one costs, at every tier's context."""
     models = role_defaults(role='ai_models')
     service = role_defaults(role='ai_service')
+    contexts = {tier['bonsai_context_size'] for tier in service['ai_service_memory_tiers']}
 
-    assert set(models['ai_models_bonsai']) == set(service['ai_service_bonsai_reserved_mib'])
+    assert set(service['ai_service_bonsai_reserved_mib']) == contexts
+    for context in contexts:
+        reserved = service['ai_service_bonsai_reserved_mib'][context]
+        assert set(models['ai_models_bonsai']) == set(reserved), context
     assert set(models['ai_models_qwen']) == set(service['ai_service_qwen_reserved_mib'])
+
+
+def linux_variables(*, home: Path = Path('/home/player')) -> dict[str, Any]:
+    """The variables a Pi's playbook run sees, references resolved.
+
+    Returns:
+        The variables.
+    """
+    return ansible_variables(system='Linux', architecture='aarch64', home=home)
+
+
+def test_the_memory_tiers_hold_together():
+    """Smallest first; more memory never gets a smaller context or cache; every row is runnable.
+
+    The largest tier's context and cache are the agents' settings' (what ai_validate checks), the
+    owner's 2026-11-18 decisions are the rows (6.4.1), and every Qwen a tier names has a reserved
+    figure, a port and a download.
+    """
+    variables = linux_variables()
+    tiers = variables['ai_service_memory_tiers']
+    minimums = [tier['minimum_memory_mb'] for tier in tiers]
+    contexts = [tier['bonsai_context_size'] for tier in tiers]
+    caches = [tier['bonsai_cache_ram_mib'] for tier in tiers]
+
+    assert minimums[0] > 0, 'below the smallest tier nothing runs, so it cannot start at zero'
+    assert minimums == sorted(set(minimums))
+    assert contexts == sorted(contexts)
+    assert caches == sorted(caches)
+    assert tiers[-1]['bonsai_context_size'] == variables['ai_service_bonsai_context_size']
+    assert tiers[-1]['bonsai_cache_ram_mib'] == variables['ai_service_bonsai_cache_ram_mib']
+    for tier in tiers:
+        assert set(tier) == {
+            'minimum_memory_mb',
+            'bonsai_context_size',
+            'bonsai_cache_ram_mib',
+            'qwen',
+        }
+        reserved = variables['ai_service_bonsai_reserved_mib'][tier['bonsai_context_size']]
+        assert set(reserved) == set(variables['ai_models_bonsai']), tier
+        if tier['qwen'] != 'none':
+            assert tier['qwen'] in variables['ai_service_qwen_reserved_mib'], tier
+            assert tier['qwen'] in variables['ai_service_qwen_ports'], tier
+            assert tier['qwen'] in variables['ai_models_qwen_sizes'], tier
+    assert [
+        (tier['bonsai_context_size'], tier['bonsai_cache_ram_mib'], tier['qwen']) for tier in tiers
+    ] == [
+        (32768, 512, 'none'),
+        (32768, 1024, '0.6b'),
+        (131072, 4096, '0.6b'),
+    ]
+    assert variables['ai_service_game_reserve_mib'] == 768
+
+
+# The total memory real machines report (sources in the tier table's comment, ai_service's
+# defaults), and the tier each must land in: the smallest's minimum, the next, or none
+REAL_MEMORY_READINGS = [
+    pytest.param(2048, None, id='a 2 GB board, at most'),
+    pytest.param(3793, 3072, id='Pi 4 4 GB'),
+    pytest.param(7782, 6144, id='Pi 4 8 GB'),
+    pytest.param(8052, 6144, id='Pi 5 8 GB'),
+    pytest.param(8192, 6144, id='8 GB Mac'),
+    pytest.param(16179, 12288, id='Pi 5 16 GB'),
+    pytest.param(16384, 12288, id='16 GB Mac'),
+]
+# How far a reading must sit from either edge of its tier: a firmware or kernel update that keeps a
+# little more memory must not drop a machine a tier
+TIER_EDGE_MARGIN_MB = 700
+
+
+@pytest.mark.parametrize(('memory_mb', 'expected_minimum'), REAL_MEMORY_READINGS)
+def test_every_real_machine_lands_in_its_tier_with_margin(
+    memory_mb: int, expected_minimum: int | None
+):
+    """MemTotal reads less than the board's size; the minimums sit below it, far from each edge."""
+    minimums = [tier['minimum_memory_mb'] for tier in linux_variables()['ai_service_memory_tiers']]
+    edges = [0, *minimums, sys.maxsize]
+
+    landed = max((minimum for minimum in minimums if minimum <= memory_mb), default=None)
+
+    assert landed == expected_minimum
+    floor = landed or 0
+    ceiling = edges[edges.index(floor) + 1] if landed is not None else minimums[0]
+    if landed is not None:
+        assert memory_mb - floor >= TIER_EDGE_MARGIN_MB
+    assert ceiling - memory_mb >= TIER_EDGE_MARGIN_MB
+
+
+# The Mac's measured reserved figures at the full 262,144 context with an f16 cache (M4 Max,
+# b12167, 2026-11-06), and each size's KV cache per token at f16 from its base model's config.json:
+# full-attention layers x KV heads x head size x keys and values x 2 bytes
+MEASURED_BONSAI_RESERVED_MIB = {'2b': 4816, '4b': 11185, '9b': 12312, '27b': 25486}
+BONSAI_KV_BYTES_PER_TOKEN = {
+    '2b': 6 * 2 * 256 * 2 * 2,
+    '4b': 8 * 4 * 256 * 2 * 2,
+    '9b': 8 * 4 * 256 * 2 * 2,
+    '27b': 16 * 4 * 256 * 2 * 2,
+}
+MEASURED_CONTEXT = 262144
+# q8_0 keeps 32 values in 34 bytes, where f16 takes 64
+Q8_0_OF_F16 = 34 / 64
+
+
+def test_every_reserved_figure_is_the_measured_one_with_the_tiers_cache():
+    """The estimates: measured less the f16 cache at 262K, plus a q8_0 cache at the tier's context.
+
+    The 2B's are the design's (6.5): 2,560 MiB at 128K, 1,948 at 32K. Provisional until measured.
+    """
+    reserved = role_defaults(role='ai_service')['ai_service_bonsai_reserved_mib']
+    mebibyte = 1024 * 1024
+
+    for context, sizes in reserved.items():
+        for size, figure in sizes.items():
+            per_token = BONSAI_KV_BYTES_PER_TOKEN[size]
+            expected = (
+                MEASURED_BONSAI_RESERVED_MIB[size]
+                - per_token * MEASURED_CONTEXT / mebibyte
+                + per_token * context * Q8_0_OF_F16 / mebibyte
+            )
+            assert figure == round(expected), (context, size)
+    assert reserved[131072]['2b'] == 2560
+    assert reserved[32768]['2b'] == 1948
+    assert role_defaults(role='ai_service')['ai_service_qwen_reserved_mib']['0.6b'] == 1464
 
 
 def test_the_api_port_is_its_own_and_clear_of_other_services():
@@ -1201,7 +1327,8 @@ HOST_PLATFORMS: list[tuple[Literal['Darwin', 'Linux'], Architecture]] = [
 # The inventory's macos value; Linux's is in group_vars/linux.yml
 MAC_GPU_LAYERS = 99
 # What runs in place of launchd's, systemd's and the package database's tools: each call is
-# recorded, asking whether an agent runs says no, and systemd's user manager reports the
+# recorded, asking whether an agent runs says yes only for a label in RUNNING_LABELS (systemctl
+# is-active LABEL.service, launchctl print gui/UID/LABEL), and systemd's user manager reports the
 # environment in SERVICE_MANAGER_ENVIRONMENT. A call naming SERVICE_TOOL_FAILS_ON among its
 # arguments fails, as one with no user manager to reach does. A test never reaches the real service
 SERVICE_TOOL_STUB = """#!/bin/sh
@@ -1214,7 +1341,14 @@ case " $* " in
 esac
 for argument in "$@"; do
     case "$argument" in
-        is-active|print) exit 3 ;;
+        is-active|print)
+            for label in ${RUNNING_LABELS:-}; do
+                case " $* " in
+                    *" $label.service "*|*"/$label "*) exit 0 ;;
+                esac
+            done
+            exit 3
+            ;;
         show-environment) printf '%s' "${SERVICE_MANAGER_ENVIRONMENT:-}"; exit 0 ;;
     esac
 done
@@ -1499,11 +1633,19 @@ def parse_key_values(*, output: str) -> dict[str, str]:
     ('environment', 'expected'),
     [
         ({'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '9216'}, {'bonsai': '2b', 'qwen': '0.6b'}),
-        ({'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '6144'}, {'reason': 'nothing-fits'}),
-        ({'AI_MEMORY_MB': '8192', 'AI_AVAILABLE_MB': '6144'}, {'reason': 'nothing-fits'}),
+        # 2,560 + 1,464 + 768 for the game is 4,792
+        ({'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '4791'}, {'reason': 'nothing-fits'}),
+        ({'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '4792'}, {'bonsai': '2b', 'qwen': '0.6b'}),
+        # 1,948 + 1,464 + 768 is 4,180 on the 8 GB tier
+        ({'AI_MEMORY_MB': '8192', 'AI_AVAILABLE_MB': '4179'}, {'reason': 'nothing-fits'}),
+        # A size chosen by hand still has to fit: 27B at 128K reserves 13,454
+        (
+            {'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '9216', 'AI_BONSAI_SIZE': '27b'},
+            {'reason': 'nothing-fits'},
+        ),
         (
             {'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '9216', 'AI_BONSAI_SIZE': '4b'},
-            {'reason': 'nothing-fits'},
+            {'bonsai': '4b', 'qwen': '0.6b'},
         ),
     ],
 )
@@ -1525,6 +1667,259 @@ def test_the_picker_chooses_the_same_on_both_platforms(
     assert values['memory_mb'] == environment['AI_MEMORY_MB']
     assert values['free_mb'] == environment['AI_AVAILABLE_MB']
     assert service.tool_calls() == []
+
+
+# Each case: total and free memory, then what the start prints, the Bonsai context and prompt cache
+# written to its .env.runtime (or none, when nothing starts) and whether Qwen starts
+class TierCase(BaseModel):
+    """One machine's memory, and what a start must do on it.
+
+    Attributes:
+        memory: The faked total and free memory.
+        printed: What the start must print, among its other lines.
+        runtime: The Bonsai context and prompt cache written to its .env.runtime, or None when
+            nothing starts.
+        qwen_starts: Whether Qwen is started.
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    memory: dict[str, str]
+    printed: dict[str, str]
+    runtime: tuple[str, str] | None
+    qwen_starts: bool
+
+
+TIER_CASES = [
+    pytest.param(
+        TierCase(
+            memory={'AI_MEMORY_MB': '16179', 'AI_AVAILABLE_MB': '9216'},
+            printed={
+                'bonsai': '2b',
+                'qwen': '0.6b',
+                'bonsai_context': '131072',
+                'bonsai_cache_ram_mib': '4096',
+            },
+            runtime=('131072', '4096'),
+            qwen_starts=True,
+        ),
+        id='16 GB Pi, 9 GB free',
+    ),
+    pytest.param(
+        TierCase(
+            memory={'AI_MEMORY_MB': '7800', 'AI_AVAILABLE_MB': '5632'},
+            printed={
+                'bonsai': '2b',
+                'qwen': '0.6b',
+                'bonsai_context': '32768',
+                'bonsai_cache_ram_mib': '1024',
+            },
+            runtime=('32768', '1024'),
+            qwen_starts=True,
+        ),
+        id='8 GB, 5.5 GB free',
+    ),
+    # Bonsai alone at 32K needs 1,948 + 768 = 2,716 free: about the 2.8 GB a 4 GB Pi with a
+    # desktop has (6.4.1)
+    pytest.param(
+        TierCase(
+            memory={'AI_MEMORY_MB': '3800', 'AI_AVAILABLE_MB': '2867'},
+            printed={
+                'bonsai': '2b',
+                'qwen': 'none',
+                'bonsai_context': '32768',
+                'bonsai_cache_ram_mib': '512',
+            },
+            runtime=('32768', '512'),
+            qwen_starts=False,
+        ),
+        id='4 GB, 2.8 GB free',
+    ),
+    # 2.6 GB free is short of the 2,716 the 4 GB tier needs
+    pytest.param(
+        TierCase(
+            memory={'AI_MEMORY_MB': '3800', 'AI_AVAILABLE_MB': '2662'},
+            printed={'reason': 'nothing-fits'},
+            runtime=None,
+            qwen_starts=False,
+        ),
+        id='4 GB, 2.6 GB free',
+    ),
+    pytest.param(
+        TierCase(
+            memory={'AI_MEMORY_MB': '1900', 'AI_AVAILABLE_MB': '1500'},
+            printed={'reason': 'memory-below-every-tier'},
+            runtime=None,
+            qwen_starts=False,
+        ),
+        id='2 GB',
+    ),
+    # The 16 GB tier's models don't fit what's free, and a smaller tier is never taken instead:
+    # the tier is the machine's, by total memory
+    pytest.param(
+        TierCase(
+            memory={'AI_MEMORY_MB': '16179', 'AI_AVAILABLE_MB': '4000'},
+            printed={'reason': 'nothing-fits'},
+            runtime=None,
+            qwen_starts=False,
+        ),
+        id='16 GB, 4 GB free',
+    ),
+]
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+@pytest.mark.parametrize('case', TIER_CASES)
+def test_the_picker_chooses_the_tier_by_total_memory(
+    tmp_path: Path, system: Literal['Darwin', 'Linux'], case: TierCase
+):
+    """The tier is chosen by total memory, then what's free decides whether its models fit (6.4.1).
+
+    The real rendered script runs with only the memory faked: the tier's context and prompt cache
+    land in Bonsai's .env.runtime, which its runner reads, and Qwen starts only when the tier names
+    one. The models it started are named for the API, which is ready without an embedding model on
+    a machine that runs none.
+    """
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    _write_executable(service.tools / 'ss', SS_STUB)
+    _write_executable(service.tools / 'lsof', LSOF_STUB)
+    service.download_every_model()
+    bonsai = service.agent(role='reasoning')
+    qwen = service.agent(role='embedding')
+    runtime_file = service.config / f'{bonsai["label"]}.env.runtime'
+
+    result = service.run(template='ai-service.sh.j2', arguments=['start'], environment=case.memory)
+
+    values = parse_key_values(output=result.stdout)
+    assert case.printed.items() <= values.items(), result.stdout + result.stderr
+    assert result.returncode == (0 if 'bonsai' in case.printed else 3)
+    started = [
+        call
+        for call in service.tool_calls()
+        if call.split()[1:3] == ['--user', 'start'] or call.split()[1:2] == ['bootstrap']
+    ]
+    assert any(bonsai['label'] in call for call in started) is ('bonsai' in case.printed)
+    assert any(qwen['label'] in call for call in started) is case.qwen_starts
+    selection = service.config / 'selected-models.json'
+    if case.runtime is None:
+        assert not runtime_file.exists()
+        assert started == []
+        assert not selection.exists()
+        return
+    context, cache_ram = case.runtime
+    assert runtime_file.read_text(encoding='utf-8') == (
+        f'AI_CONTEXT_SIZE={context}\nAI_CACHE_RAM_MIB={cache_ram}\n'
+    )
+    expected_models = [bonsai['alias'], *([qwen['alias']] if case.qwen_starts else [])]
+    assert json.loads(selection.read_text(encoding='utf-8')) == {'models': expected_models}
+    arguments = service.llama_server_arguments(role='reasoning')
+    assert arguments[arguments.index('--ctx-size') + 1] == context
+    assert arguments[arguments.index('--cache-ram') + 1] == cache_ram
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+def test_the_tiers_settings_keep_the_users_own_runtime_overrides(
+    tmp_path: Path, system: Literal['Darwin', 'Linux']
+):
+    """.env.runtime is also where a user changes one model's settings (AI_SLEEP_IDLE_SECONDS).
+
+    The start owns only the context and the prompt cache in it: it replaces those and keeps the
+    rest, so a tier never undoes a user's own setting.
+    """
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    _write_executable(service.tools / 'ss', SS_STUB)
+    _write_executable(service.tools / 'lsof', LSOF_STUB)
+    service.download_every_model()
+    bonsai = service.agent(role='reasoning')
+    runtime_file = service.config / f'{bonsai["label"]}.env.runtime'
+    service.config.mkdir(parents=True, exist_ok=True)
+    runtime_file.write_text(
+        'AI_SLEEP_IDLE_SECONDS=60\nAI_CONTEXT_SIZE=262144\nAI_CACHE_RAM_MIB=8192\n',
+        encoding='utf-8',
+    )
+
+    result = service.run(
+        template='ai-service.sh.j2',
+        arguments=['start'],
+        environment={'AI_MEMORY_MB': '7800', 'AI_AVAILABLE_MB': '5632'},
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert runtime_file.read_text(encoding='utf-8') == (
+        'AI_SLEEP_IDLE_SECONDS=60\nAI_CONTEXT_SIZE=32768\nAI_CACHE_RAM_MIB=1024\n'
+    )
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+def test_a_second_start_on_a_bonsai_only_machine_keeps_what_runs(
+    tmp_path: Path, system: Literal['Darwin', 'Linux']
+):
+    """A second game finds Bonsai running with no Qwen, which is all its tier runs.
+
+    Measuring again would see the memory Bonsai holds as used and refuse (exit 3) while the
+    models are there: the start reports what runs and only makes sure the API is up.
+    """
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    _write_executable(service.tools / 'ss', SS_STUB)
+    _write_executable(service.tools / 'lsof', LSOF_STUB)
+    service.download_every_model()
+    bonsai = service.agent(role='reasoning')
+
+    result = service.run(
+        template='ai-service.sh.j2',
+        arguments=['start'],
+        environment={
+            'AI_MEMORY_MB': '3800',
+            'AI_AVAILABLE_MB': '800',
+            'RUNNING_LABELS': bonsai['label'],
+        },
+    )
+
+    values = parse_key_values(output=result.stdout)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (values['bonsai'], values['qwen']) == ('2b', 'none')
+    started = [
+        call
+        for call in service.tool_calls()
+        if call.split()[1:3] == ['--user', 'start'] or call.split()[1:2] == ['bootstrap']
+    ]
+    assert len(started) == 1
+    assert service.variables['ai_service_api_label'] in started[0]
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+def test_a_stop_forgets_the_selection(tmp_path: Path, system: Literal['Darwin', 'Linux']):
+    """Once the models stop, no file still names them for the API."""
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    _write_executable(service.tools / 'ss', SS_STUB)
+    _write_executable(service.tools / 'lsof', LSOF_STUB)
+    service.download_every_model()
+    memory = {'AI_MEMORY_MB': '16179', 'AI_AVAILABLE_MB': '9216'}
+    assert (
+        service.run(template='ai-service.sh.j2', arguments=['start'], environment=memory).returncode
+        == 0
+    )
+    assert (service.config / 'selected-models.json').exists()
+
+    stopped = service.run(template='ai-service.sh.j2', arguments=['stop'])
+
+    assert stopped.returncode == 0, stopped.stderr
+    assert not (service.config / 'selected-models.json').exists()
+
+
+def test_the_api_reads_the_selection_the_picker_writes(tmp_path: Path):
+    """service.json names the file ai-service.sh writes, in the config folder."""
+    service = ServiceHome(system='Linux', home=tmp_path / 'home', tools=tmp_path / 'tools')
+    rendered = render_template(
+        path=TEMPLATES / 'service.json.j2',
+        variables=service.variables | {'ai_service_agents': service.agents()},
+    )
+
+    assert json.loads(rendered)['selection_file'] == str(service.config / 'selected-models.json')
 
 
 @needs_a_posix_shell
@@ -2091,6 +2486,14 @@ class LinuxSetup:
             self.service.variables['ai_package_setup_label'],
         ]
 
+    def agent_unit_labels(self) -> list[str]:
+        """Name every AI unit told the user's folder: each model's and the API's, not setup's.
+
+        Returns:
+            The units' labels.
+        """
+        return [agent['label'] for agent in self.service.agents()]
+
     def model_settings(self, *, user_root: Path | None = None) -> dict[str, dict[str, str]]:
         """Read each model agent's settings as sh would, by their labels.
 
@@ -2332,10 +2735,15 @@ def test_setup_gives_the_game_the_mirror_and_the_ai_their_own_cores(
         assert not placement_file.exists()
         for label in setup.ai_unit_labels():
             assert not setup.drop_in(label=label).exists(), label
-            # Only the drop-in naming the user's folder, which every unit needs
+        # Only the drop-in naming the user's folder, which every agent's unit needs, and nothing
+        # for the setup job, which works its folder out itself
+        for label in setup.agent_unit_labels():
             assert sorted(path.name for path in setup.drop_in(label=label).parent.iterdir()) == [
                 'user-root.conf'
             ], label
+        assert not setup.drop_in(
+            label=setup.service.variables['ai_package_setup_label']
+        ).parent.exists()
         return
     for label in setup.ai_unit_labels():
         unit = configparser.ConfigParser(interpolation=None, strict=True)
@@ -2508,13 +2916,83 @@ def test_every_ai_unit_is_told_the_user_root_however_odd_the_home(tmp_path: Path
 
     assert result.returncode == 0, result.stdout + result.stderr
     for label in setup.ai_unit_labels():
+        assert setup.drop_in(label=label).exists() is (core_count > 1), label
+    for label in setup.agent_unit_labels():
         assert systemd_environment(drop_in=setup.user_root_drop_in(label=label)) == {
             'GLITCHYGAMES_AI_USER_ROOT': str(setup.user_root)
         }, label
-        assert setup.drop_in(label=label).exists() is (core_count > 1), label
     started = setup.run(template='ai-service.sh.j2', arguments=['start'])
     assert started.returncode == 0, started.stdout + started.stderr
     assert not [call for call in setup.service.tool_calls() if 'set-environment' in call]
+
+
+@needs_a_posix_shell
+def test_the_setup_job_has_no_user_root_drop_in(tmp_path: Path):
+    """The setup job works its folder out at each run, so no drop-in may fix it at login.
+
+    With one, a later XDG_DATA_HOME change would be ignored by the job run at login, which would set
+    up the old folder (the controller's ruling, 2026-11-19). Every other AI unit keeps its drop-in,
+    and one an earlier setup wrote for the job goes, as does its folder when nothing else is in it.
+    """
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=1, capacities={})
+    setup_label = setup.service.variables['ai_package_setup_label']
+    stale = setup.user_root_drop_in(label=setup_label)
+    stale.parent.mkdir(parents=True)
+    stale.write_text('[Service]\nEnvironment="GLITCHYGAMES_AI_USER_ROOT=/old"\n', encoding='utf-8')
+
+    result = setup.run()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not stale.parent.exists()
+    assert setup_label not in setup.agent_unit_labels()
+    for label in setup.agent_unit_labels():
+        assert setup.user_root_drop_in(label=label).is_file(), label
+
+
+@needs_a_posix_shell
+def test_setup_downloads_no_qwen_on_a_bonsai_only_machine(tmp_path: Path):
+    """A 4 GB machine's tier runs Bonsai alone: no Qwen download, settings or unit drop-ins.
+
+    Its first game then starts Bonsai alone, from what setup left.
+    """
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    memory = {'AI_MEMORY_MB': '3800', 'AI_AVAILABLE_MB': '2867'}
+    qwen = setup.service.agent(role='embedding')
+    bonsai = setup.service.variables['ai_models_bonsai']['2b']
+
+    result = setup.run(extra=memory)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'setup: done' in result.stdout.splitlines()
+    downloads = [call for call in setup.service.tool_calls() if call.startswith('curl')]
+    assert len(downloads) == 2, downloads
+    assert any(bonsai['model']['file'] in call for call in downloads)
+    assert any(bonsai['vision']['file'] in call for call in downloads)
+    assert not (setup.user_root / 'models' / qwen['model_file']).exists()
+    config = setup.user_root / 'config'
+    assert not (config / f'{qwen["label"]}.env').exists()
+    assert not setup.drop_in(label=qwen['label']).parent.exists()
+    assert (config / f'{setup.service.agent(role="reasoning")["label"]}.env').is_file()
+    started = setup.run(template='ai-service.sh.j2', arguments=['start'], extra=memory)
+    assert started.returncode == 0, started.stdout + started.stderr
+    assert parse_key_values(output=started.stdout)['qwen'] == 'none'
+
+
+@needs_a_posix_shell
+def test_setup_downloads_nothing_below_every_memory_tier(tmp_path: Path):
+    """A 2 GB machine can run nothing, so setup downloads nothing, says why, and isn't done."""
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+
+    result = setup.run(extra={'AI_MEMORY_MB': '1900'})
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'below' in result.stdout
+    assert 'setup: done' not in result.stdout.splitlines()
+    assert not [call for call in setup.service.tool_calls() if call.startswith('curl')]
+    assert not list((setup.user_root / 'config').glob('*.env'))
 
 
 USER_ROOT_CASES = [
@@ -2604,7 +3082,7 @@ def test_the_engine_and_the_scripts_agree_on_the_user_root(
     assert started.returncode == 0, started.stdout + started.stderr
     calls = setup.service.tool_calls()
     assert not [call for call in calls if 'environment' in call and 'show-environment' not in call]
-    for label in setup.ai_unit_labels():
+    for label in setup.agent_unit_labels():
         assert systemd_environment(drop_in=setup.user_root_drop_in(label=label)) == {
             'GLITCHYGAMES_AI_USER_ROOT': str(engine_root)
         }, label
@@ -4446,6 +4924,109 @@ def smoke_test_module(*, mocker: MockerFixture) -> Any:
     module = importlib.util.module_from_spec(specification)
     specification.loader.exec_module(module)
     return module
+
+
+def api_smoke_test_module(*, mocker: MockerFixture) -> Any:
+    """Load the API's smoke test as a module, writing no bytecode beside it.
+
+    Returns:
+        The module.
+
+    Raises:
+        ImportError: Python can't make a module of the file.
+    """
+    mocker.patch.object(sys, 'dont_write_bytecode', new=True)
+    path = ROLES / 'ai_service' / 'files' / 'api_smoke_test.py'
+    specification = importlib.util.spec_from_file_location('api_smoke_test', path)
+    if specification is None or specification.loader is None:
+        message = f'cannot load {path}'
+        raise ImportError(message)
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
+# What the service's /v1/embeddings answers (services/ai-service, app.py): vectors from its
+# embedding model, or, on a machine whose memory tier runs none, its 503
+EMBEDDING_ANSWER = {'data': [{'embedding': [0.25] * 8}], 'model': 'qwen3-embedding-0.6b'}
+NO_EMBEDDING_MODEL_ANSWER = {
+    'error': {'code': 'no_embedding_model', 'message': 'this machine has no embedding model'}
+}
+
+
+@pytest.mark.parametrize(
+    ('expects_model', 'status', 'body', 'passes'),
+    [
+        pytest.param(True, 200, EMBEDDING_ANSWER, True, id='expected and answered'),
+        pytest.param(True, 503, NO_EMBEDDING_MODEL_ANSWER, False, id='expected but missing'),
+        pytest.param(False, 503, NO_EMBEDDING_MODEL_ANSWER, True, id='none and said so'),
+        pytest.param(False, 200, EMBEDDING_ANSWER, False, id='none but answered'),
+    ],
+)
+def test_the_api_smoke_test_checks_embeddings_as_the_tier_says(
+    mocker: MockerFixture, *, expects_model: bool, status: int, body: dict[str, Any], passes: bool
+):
+    """A Bonsai-only machine must refuse embeddings clearly; any other must answer them."""
+    smoke_test = api_smoke_test_module(mocker=mocker)
+    seen: list[str] = []
+
+    def answer(request: Any) -> Any:
+        seen.append(request.url.path)
+        return smoke_test.httpx2.Response(status, json=body)
+
+    client = smoke_test.httpx2.Client(
+        base_url='http://127.0.0.1:23231', transport=smoke_test.httpx2.MockTransport(answer)
+    )
+
+    problems = smoke_test.check_embeddings(
+        client=client, headers={'Authorization': 'Bearer key'}, embedding_model=expects_model
+    )
+
+    assert seen == ['/v1/embeddings']
+    assert (problems == []) is passes, problems
+
+
+SMOKE_TEST_PICK_TASK = 'Read which sizes it picked'
+API_SMOKE_TEST_TASK = 'Use the API as a game would'
+
+
+@pytest.mark.parametrize(
+    ('started', 'expected_labels', 'flag'),
+    [
+        pytest.param(
+            'memory_mb=16179\nbonsai=2b\nqwen=0.6b\n',
+            [
+                'ai.glitchygames.bonsai-2-2b.llama-cpp',
+                'ai.glitchygames.qwen3-embedding-0.6b.llama-cpp',
+            ],
+            '--embedding-model',
+            id='with Qwen',
+        ),
+        pytest.param(
+            'memory_mb=3800\nbonsai=2b\nqwen=none\n',
+            ['ai.glitchygames.bonsai-2-2b.llama-cpp'],
+            '--no-embedding-model',
+            id='Bonsai alone',
+        ),
+    ],
+)
+def test_the_smoke_test_checks_only_the_models_the_tier_started(
+    tmp_path: Path, started: str, expected_labels: list[str], flag: str
+):
+    """A Bonsai-only start is checked as one model, and the API as having no embedding model."""
+    variables = linux_variables(home=tmp_path)
+    scope = variables | {'ai_service_started': registered_command(rc=0, stdout=started)}
+    tasks = role_tasks(role='ai_service', file_name='smoke_test.yml')
+
+    facts = run_set_fact_tasks(
+        tasks=[task for task in tasks if task.get('name') == SMOKE_TEST_PICK_TASK], variables=scope
+    )
+    api_check = named_task(role='ai_service', file_name='smoke_test.yml', name=API_SMOKE_TEST_TASK)
+    argv = render_value(value=api_check['ansible.builtin.command']['argv'], variables=facts)
+
+    assert [label.strip() for label in facts['ai_service_running_labels']] == expected_labels
+    # Always one of the two: the check never guesses which kind of machine it is on
+    assert argv[-1] == flag
 
 
 # /proc/PID/status as Linux writes it (proc_pid_status(5)): one "Name:<tab>value" per line, memory

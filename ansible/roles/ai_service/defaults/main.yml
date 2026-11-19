@@ -17,14 +17,41 @@ ai_service_default_bonsai_size: "2b"
 ai_service_bonsai_size: ""
 ai_service_qwen_size: "0.6b"
 
-# What each size reserves at the full context, from llama.cpp's reported buffers on an M4 Max at
-# b12167 (2026-11-06): the
-# ai_validate role's log, with mapped weights. Qwen's 4B and 8B aren't downloaded by default and
-# weren't measured, so theirs are the file's size plus the 0.6B's non-weight buffers
-ai_service_bonsai_reserved_mib: {"2b": 4816, "4b": 11185, "9b": 12312, "27b": 25486}
-ai_service_qwen_reserved_mib: {"0.6b": 1884, "4b": 5200, "8b": 8800}
-# Memory left free for the game and the system
-ai_service_game_reserve_mib: 2048
+# What a machine runs by its total memory (the owner, 2026-11-18; plans/lucid-circuit-linux.md,
+# 6.4.1), smallest first, on every system, the Mac included: Bonsai's context and prompt cache, and
+# the Qwen size beside it, or none. Whichever Bonsai size runs (the tiers above, or one chosen by
+# hand) takes the memory tier's context and cache. Below the smallest, nothing runs.
+# The minimums sit below each nominal size, as the total a machine reports is less than its board's
+# (Linux's MemTotal leaves out what the firmware and kernel keep; a Mac's hw.memsize is the whole
+# size, 8,192 MiB on an 8 GB Mac). Real readings, each at least 700 MiB clear of its tier's edges
+# (the readings and their sources: plans/lucid-circuit-linux.md, 6.4.1; checked by
+# tests/test_ansible_ai_service.py, REAL_MEMORY_READINGS): 4 GB boards about 3,793 MiB; 8 GB boards
+# 7,782 to 8,052, an 8 GB Mac 8,192; 16 GB, the owner's board 16,179 (measured 2026-11-18), a Mac
+# 16,384. A 2 GB board (under 2,048) gets nothing: Bonsai alone holds 1.3 GB at load
+ai_service_memory_tiers:
+  - {minimum_memory_mb: 3072, bonsai_context_size: 32768, bonsai_cache_ram_mib: 512, qwen: "none"}
+  - {minimum_memory_mb: 6144, bonsai_context_size: 32768, bonsai_cache_ram_mib: 1024,
+     qwen: "{{ ai_service_qwen_size }}"}
+  - {minimum_memory_mb: 12288, bonsai_context_size: 131072, bonsai_cache_ram_mib: 4096,
+     qwen: "{{ ai_service_qwen_size }}"}
+
+# What each Bonsai size reserves, by the context its memory tier runs, and each Qwen size at its
+# fixed 8,192. Estimates, all provisional until measured at q8_0 (the Pi in section 8.3, the Mac with
+# --tags ai_validate): the M4 Max's measured figures at b12167 (2026-11-06, ai_validate's log, with
+# mapped weights, at the full 262,144 context and an f16 cache) less that KV cache, plus the KV cache
+# at the tier's context in q8_0 (34 bytes per 32 values). Per token at f16, from each base model's
+# config.json (full-attention layers x KV heads x head size 256 x keys and values x 2 bytes):
+# Qwen3.5-2B 6 x 2, 12 KiB; 4B and 9B 8 x 4, 32 KiB; 27B 16 x 4, 64 KiB. So the 2B's 4,816 less
+# 3,072 is 1,744, plus 816 at 128K (2,560) or 204 at 32K (1,948): plans/lucid-circuit-linux.md, 6.5.
+# Qwen's 0.6B: 1,884 less the 420 MiB q8_0 saves at 8,192; its 4B and 8B weren't measured either
+# (the file's size plus the 0.6B's non-weight buffers), so less the same 420
+ai_service_bonsai_reserved_mib:
+  131072: {"2b": 2560, "4b": 5169, "9b": 6296, "27b": 13454}
+  32768: {"2b": 1948, "4b": 3537, "9b": 4664, "27b": 10190}
+ai_service_qwen_reserved_mib: {"0.6b": 1464, "4b": 4780, "8b": 8380}
+# Memory left free for the game and the system (the owner, 2026-11-19): provisional until one figure
+# is measured from every game's peak on the Pi; Bitmappy idles at about 262 MiB there (6.4.1)
+ai_service_game_reserve_mib: 768
 
 # A model unloads after this long without a request, and reloads on the next one: 27B fell to 158 MiB,
 # and answered an image question 4.5 s later (measured 2026-11-06). The owner's default is 30 minutes.
@@ -52,6 +79,9 @@ ai_package_identifier: ai.glitchygames.service
 # https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B-gguf/blob/main/KNOWN_ISSUES.md
 # Prism suggests a 24 GiB prompt cache for single-user use; this is lower because a game shares the
 # same memory
+# The context and prompt cache in each agent's settings, which ai_validate also checks with: the
+# largest memory tier's. ai-service.sh writes the running machine's tier over them, in Bonsai's
+# config/LABEL.env.runtime, at each start
 ai_service_bonsai_context_size: 131072
 ai_service_bonsai_output_limit: -1
 ai_service_bonsai_cache_ram_mib: 4096
@@ -108,6 +138,9 @@ ai_service_launch_agents_directory: "{{ ai_home }}/Library/LaunchAgents"
 ai_service_agents_directory: "{{ ai_program_root }}/agents"
 # Only the service holds the workers' key. Games and tools use the service's
 ai_service_api_key_file: "{{ ai_service_config_directory }}/worker-api-key"
+# Where ai-service.sh names the models each start started, in the config folder, for the API's
+# readiness: a machine whose memory tier runs no Qwen is ready with Bonsai alone
+ai_service_selection_file_name: selected-models.json
 ai_service_service_key_file: "{{ ai_service_config_directory }}/service-api-key"
 ai_service_api_label: "{{ ai_service_label_prefix }}.api"
 ai_service_runner: "{{ ai_service_bin_directory }}/run-llama-server.sh"

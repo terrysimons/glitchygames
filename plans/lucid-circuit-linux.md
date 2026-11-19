@@ -333,15 +333,49 @@ The tiers (`ai_service_bonsai_tiers`) and reserved figures stay shared. Linux ge
 `group_vars/linux.yml`; until then the Mac's figures stand, marked provisional. Memory decides, not
 the machine: a 4 GB board installs the service and gets "not enough memory" at each game start, as
 a small Mac does; the inventory's `ai_enabled` only spares such a host the download. 6.4.1's
-tiers, which the owner has decided, change that for 8 GB and 4 GB machines once they are built
-(plans/future-work.md, AI); until then the rule above stands.
+tiers, built in Task 11, change that for 8 GB and 4 GB machines: the reserved figures are per tier
+(by context), and a machine below the smallest tier gets nothing at all, downloads included.
 
-#### 6.4.1 Smaller-memory machines: the tiers (decided, not built)
+#### 6.4.1 Smaller-memory machines: the tiers (decided, built)
 
 Raised by the owner, 2026-11-18: what could run on machines with less memory, for speed and
-features. The tiers below are decided (the owner, 2026-11-18; section 12), and building them is
-not part of this branch: plans/future-work.md (AI) tracks it. What is still open is marked so
-below: whether more than Bonsai fits on 4 GB, the game's reserve, and the Pi 4's speed.
+features. The tiers below are decided (the owner, 2026-11-18; section 12) and built in this branch
+(plan Task 11, 2026-11-19; the owner moved them in from plans/future-work.md). What is still open
+is marked so below: whether more than Bonsai fits on 4 GB, the measured reserved figures, and the
+Pi 4's speed.
+
+**As built (Task 11).** `ai_service_memory_tiers` in ai_service's defaults, shared by every system,
+the Mac included: 3,072 MiB and up, Bonsai at 32,768 with a 512 MiB prompt cache and no Qwen;
+6,144, 32,768 and 1,024 with Qwen; 12,288, 131,072 and 4,096 with Qwen. Below 3,072 nothing runs
+(`ai-service.sh` exits 3, `reason=memory-below-every-tier`, and `setup.sh` downloads nothing). The
+picker takes the tier by total memory, then fits the largest allowed Bonsai size whose reserved
+figure at the tier's context (`ai_service_bonsai_reserved_mib`, by context, then size), the tier's
+Qwen and `ai_service_game_reserve_mib` (768, the owner, 2026-11-19, provisional) into what's free;
+a smaller tier is never taken instead. A size chosen by hand runs at the memory tier's context and
+cache too (the conservative reading, the implementer's). The start writes the tier's
+`AI_CONTEXT_SIZE` and `AI_CACHE_RAM_MIB` into Bonsai's `config/<label>.env.runtime`, keeping any
+other line a user put there, starts Qwen only when the tier names one, and names the models it
+started in `config/selected-models.json`, which the API reads for `/health/ready` (ready when each
+named model answers, a reasoning model among them) and `/v1/embeddings` (503
+`no_embedding_model`, "this machine has no embedding model", where none runs). A second start that
+finds Bonsai running on a tier with no Qwen keeps it rather than measuring again. The reserved
+figures are estimates (the Mac's measured f16 figures at 262K, less that cache, plus a q8_0 cache at
+the tier's context; per-token sizes from each base model's `config.json`: Qwen3.5-2B 12 KiB, 4B and
+9B 32 KiB, 27B 64 KiB at f16): 2B 2,560 MiB at 128K and 1,948 at 32K, 4B 5,169 and 3,537, 9B 6,296
+and 4,664, 27B 13,454 and 10,190, Qwen 0.6B 1,464 (4B 4,780, 8B 8,380, unmeasured); all provisional
+until 8.3 and `ai_validate` measure them. With these, a 4 GB machine needs 2,716 MiB free for
+Bonsai alone (1,948 + 768): about the 2.8 GB a 4 GB Pi with a desktop has, so it starts with little
+to spare, and not at 2.6 GB.
+
+**The thresholds against real readings** (each at least 700 MiB clear of its tier's edges; checked
+by `tests/test_ansible_ai_service.py`, `REAL_MEMORY_READINGS`): a 4 GB Pi 4, 3,793 MiB (`free -m`,
+RaspberryTips, "How to Check RAM Usage on Raspberry Pi"); an 8 GB Pi 5, 8,052 MiB (`MemTotal`
+8,245,616 kB, Umbrel community forum, "Pi 5 (8GB) won't use more then 4GB"); an 8 GB Pi 4 about
+7,782 MiB (7.6 GB under 64-bit Raspberry Pi OS, Tom's Hardware, "Raspberry Pi 4 (8GB) Tested");
+an 8 GB Mac 8,192 (`hw.memsize` is the whole memory); the owner's 16 GB Pi 5, 16,179 MiB (8.1); a
+16 GB Mac 16,384. No 4 GB Pi 5 reading was found; a Pi 5 keeps less memory back than a Pi 4 (its
+8 GB reads 8,052 against the Pi 4's 7,782), so it reads above the Pi 4's 3,793. A 2 GB board reads
+under 2,048 and gets nothing.
 
 **The context's memory is what's too big, not the model.** Of the 2B's 4,816 MiB reserved on the
 Mac, the weights are 0.55 GB (`Ternary-Bonsai-2-2B-Q2_0.gguf`) and the vision projector 0.36 GB;
@@ -388,11 +422,11 @@ the 2026-11-18 Pi measurements):
 - **Fallback if neither is enough: turn-taking (the owner, 2026-11-18).** Bonsai and Qwen loaded
   one at a time, peak the larger of the two; built when something embeds. Bonsai alone stays the
   4 GB decision until a run proves more fits.
-- **The game's reserve decides whether the small tiers fit.** `ai_service_game_reserve_mib` (2,048)
-  predates any measurement; Bitmappy idles at about 262 MiB on the Pi (2026-11-18, with its `uv`
-  wrapper). With 2,048 the 4 GB tier needs about 3.6 GB free against about 2.8 GB on a 4 GB Pi
-  with a desktop, so it would never start. Open: measure every game's peak memory and set the
-  reserve from it.
+- **The game's reserve decides whether the small tiers fit.** `ai_service_game_reserve_mib` was
+  2,048, before any measurement; Bitmappy idles at about 262 MiB on the Pi (2026-11-18, with its
+  `uv` wrapper). With 2,048 the 4 GB tier needed about 3.6 GB free against about 2.8 GB on a 4 GB
+  Pi with a desktop, so it would never start. Now 768 (the owner, 2026-11-19), provisional. Open:
+  measure every game's peak memory and set the reserve from it.
 - **Pi 4 (Cortex-A72, no dot product, `armv8.0_1`):** unmeasured; the designer estimates 2.5-3.5
   tokens a second for answers, 40-70 s for a short question. The inventory's 4 GB Pi 4 runs the
   same benchmark (`BONSAI_CONTEXT=32768`).
@@ -961,7 +995,7 @@ review findings deferred during the build are in the progress ledger (lines star
 | Question | Where it stands | Recommendation |
 |---|---|---|
 | Can a 4 GB machine run everything (Bonsai with vision, plus Qwen)? | The first capped run passed but didn't count the model files (13.3); two reruns are ready on the Pi, deferred by the owner (2026-11-19, "We'll rerun later"): the honest baseline, then with `QWEN_NO_REPACK=1 QWEN_SLEEP_SECONDS=30` | Decide from the reruns: everything with Qwen on `--no-repack` and a short sleep if run 2 holds; Bonsai alone otherwise, turn-taking the recorded fallback |
-| The game's memory reserve (`ai_service_game_reserve_mib`, 2,048, a guess) | Bitmappy idles at about 262 MiB; with 2,048 the 4 GB tier never starts. The owner asked what figure would make 4 GB work: none does with a desktop for "everything" (about 3.3 GB needed against 2.8 GB free) until the reruns show the levers | Measure every game's peak on the Pi (a busy scene, sound loaded), one figure for every machine |
+| The game's memory reserve (`ai_service_game_reserve_mib`, 768 since 2026-11-19, provisional; was 2,048, a guess) | Bitmappy idles at about 262 MiB; with 2,048 the 4 GB tier never started. The owner asked what figure would make 4 GB work: none does with a desktop for "everything" (about 3.3 GB needed against 2.8 GB free) until the reruns show the levers | Measure every game's peak on the Pi (a busy scene, sound loaded), one figure for every machine |
 | Install `iproute2` (and `lsof`) in the CircleCI Linux image | CircleCI has neither `ss` nor `lsof`, so the real-socket port test runs nowhere in CI; a stub-driven test covers the logic everywhere | Yes, so the real tool is exercised too; a CI change |
 | The Pi's speed bar (go/no-go, 8.3) | 15-25 s for a short question at about 5-7.5 tokens a second; prompt reading about 10 tokens a second, so a 1,000-token prompt waits 80-95 s unless the prompt cache holds it | The owner's; measure the console's real prompt lengths first |
 | The game stays pinned to its core if the service stops later in the run (STOPPED, or a crash it doesn't recover from); it pins only once the service starts (final review) | Open | Restore the saved mask when the link reaches STOPPED |
