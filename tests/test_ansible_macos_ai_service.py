@@ -573,7 +573,7 @@ def test_the_cpu_variant_modules_are_checked_and_installed_in_bin(tmp_path: Path
 
 
 def test_the_run_time_check_needs_the_cpu_variant_to_load_from_bin(tmp_path: Path):
-    """The proof a variant loads is llama-server's log line naming a module in the runtime's bin/."""
+    """A variant loads when llama-server's log line names a module in the runtime's bin/."""
 
     def holds(output: str) -> bool:
         return linux_assertion_holds(
