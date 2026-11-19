@@ -937,13 +937,20 @@ def test_the_linux_job_installs_what_hidapis_source_build_needs():
 
 
 def test_every_linux_job_installs_the_linux_jobs_system_packages():
-    """Every Linux test job installs exactly the Linux job's packages, so a new one can't drift."""
+    """Every Linux test job installs exactly the Linux job's packages, so a new one can't drift.
+
+    Since CI runs 3.15 only (2026-11-19) the Linux job is the only Linux test job, so today it is
+    compared with itself: the test guards a second Linux test job added later (another Python,
+    another image). The Linux job must be one of the test jobs it finds, so it never passes on
+    an empty list.
+    """
     import noxfile
 
     linux_jobs = jobs_that_run_tests(platform_marker=LINUX_IMAGE_MARKER)
     expected = noxfile._linux_ci_job_packages(
         configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     )
+    assert noxfile._CIRCLECI_LINUX_JOB in linux_jobs
     for name, job in linux_jobs.items():
         install = re.search(
             r'^\s+sudo apt-get install -y (?P<packages>\S.*)$', job, flags=re.MULTILINE
