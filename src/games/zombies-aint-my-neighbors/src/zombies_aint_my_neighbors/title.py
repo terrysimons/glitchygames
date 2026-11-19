@@ -16,7 +16,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any, Final, override
 
-from zombies_aint_my_neighbors import text
+from zombies_aint_my_neighbors import launch_showing, text
 from zombies_aint_my_neighbors.roster import MAXIMUM_PLAYERS, PLAYER_COLOURS, DeviceKind
 from zombies_aint_my_neighbors.roster_scene import RosterScene
 from zombies_aint_my_neighbors.run_state import RunState, as_run
@@ -70,6 +70,7 @@ class TitleScene(RosterScene):
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
         roster: JoinRoster | dict[str, Any] | None = None,
         run: RunState | dict[str, Any] | None = None,
+        opening: bool = True,
     ) -> None:
         """Make the title screen.
 
@@ -80,10 +81,17 @@ class TitleScene(RosterScene):
                 it back), or None for nobody.
             run: A run to go back to (Back on a later stage's card; feature plan 7): a run,
                 its JSON form, or None, when the next start begins a new run.
+            opening: Whether this is the title the engine builds at launch, which hands over to
+                the intro on its first frame wherever the CRT power-on would play (feature plan
+                12). Every other place that builds a title passes False (the intro's end, a
+                card's Back, the last player leaving a stage, the game over).
 
         """
         super().__init__(options=options, groups=groups, roster=roster)
         self.run = None if run is None else as_run(run)
+        self.opening = opening
+        # The opening title asks once, on its first frame, whether the intro opens the launch
+        self._launch_asked = False
         self.slot_pictures: tuple[text.TextPicture, ...] = ()
         # Per slot: the unjoined image, and the joined image for each kind of device
         self._unjoined_images: tuple[pygame.Surface, ...] = ()
@@ -91,15 +99,18 @@ class TitleScene(RosterScene):
 
     @override
     def replay_arguments(self) -> dict[str, Any]:
-        """Rebuild this title as it began: the roster, and the run it keeps, if any.
+        """Rebuild this title as it began: the roster, the run it keeps, and whether it opens.
 
         Returns:
-            Both, as JSON reads them back (no run key when it keeps none).
+            Them, as JSON reads them back (no run key when it keeps none, no opening key for the
+            opening title, so recordings made before feature plan 12 read the same).
 
         """
         arguments = super().replay_arguments()
         if self.run is not None:
             arguments['run'] = self.run.model_dump(mode='json')
+        if not self.opening:
+            arguments['opening'] = False
         return arguments
 
     @classmethod
@@ -179,6 +190,20 @@ class TitleScene(RosterScene):
         """
         super().dt_tick(dt)
         self._pose_slots()
+        self._open_with_the_intro()
+
+    def _open_with_the_intro(self) -> None:
+        """On the opening title's first frame, hand over to the intro if the launch shows it."""
+        if not self.opening or self._launch_asked:
+            return
+        self._launch_asked = True
+        if launch_showing.launch_showing_allowed(
+            options=self.options, video_driver=launch_showing.current_video_driver()
+        ):
+            # Imported here: the intro returns to a title in turn
+            from zombies_aint_my_neighbors.intro import IntroScene, IntroShowing
+
+            self.next_scene = IntroScene(options=self.options, showing=IntroShowing.LAUNCH)
 
     @override
     def _press_start(self, *, device: DeviceIdentity) -> None:

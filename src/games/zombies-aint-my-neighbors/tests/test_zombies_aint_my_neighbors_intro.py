@@ -175,6 +175,7 @@ def test_the_intro_fires_its_timeline_and_hands_over_to_the_title():
 
     assert scene.fired == INTRO_TIMELINE
     assert isinstance(scene.next_scene, TitleScene)
+    assert not scene.next_scene.opening
 
 
 def test_at_six_seconds_the_tv_bursts_the_kids_start_and_the_screen_shakes(mocker):
@@ -273,6 +274,7 @@ def test_a_key_or_button_skips_at_any_moment(press, at_seconds):
     press(scene)
 
     assert isinstance(scene.next_scene, TitleScene)
+    assert not scene.next_scene.opening
 
 
 def test_the_pause_key_skips_like_any_other():
@@ -285,6 +287,7 @@ def test_the_pause_key_skips_like_any_other():
     scene.on_key_down_event(key_down(pygame.K_p))
 
     assert isinstance(scene.next_scene, TitleScene)
+    assert not scene.next_scene.opening
 
 
 def test_key_releases_and_stick_moves_do_not_skip():
@@ -323,6 +326,7 @@ def test_a_hitch_across_the_burst_fires_each_cue_once_and_hands_over_once(mocker
     assert scene.fired == INTRO_TIMELINE
     shake.assert_called_once()
     assert isinstance(scene.next_scene, TitleScene)
+    assert not scene.next_scene.opening
 
 
 def test_a_pad_plugged_in_or_out_during_the_intro_changes_nothing(mocker):

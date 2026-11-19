@@ -267,7 +267,7 @@ class IntroScene(PadTolerantScene):
         # Imported here: the title builds the intro in turn
         from zombies_aint_my_neighbors.title import TitleScene
 
-        self.next_scene = TitleScene(options=self.options)
+        self.next_scene = TitleScene(options=self.options, opening=False)
 
     @override
     def on_key_down_event(self, event: KeyEvent) -> None:

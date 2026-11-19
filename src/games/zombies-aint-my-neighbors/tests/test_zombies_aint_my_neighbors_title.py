@@ -415,3 +415,90 @@ def test_pausing_and_resuming_keeps_every_connected_player():
         rendered(title)
 
         assert joined_devices(title) == [gamepad(STAND_IN_PAD.instance_id), None, None, None]
+
+
+# The launch showing (feature plan 12, task 4): the opening title hands over to the intro on its
+# first frame wherever the CRT power-on would play. The test harness turns the power-on off for
+# every run (tests/sdl_defaults.py), so these pass --crt-power-on auto, which wins over it, and
+# stand in a real video driver for the dummy one.
+LAUNCH_OPTIONS = {'input_mode': 'auto', 'no_unhandled_events': True, 'crt_power_on': 'auto'}
+
+
+def launching_title(mocker: MockerFixture, *, driver: str = 'cocoa', **options: Any) -> TitleScene:
+    """Return an opening title as it starts on a driver someone can see, set up.
+
+    Returns:
+        The scene.
+    """
+    mocker.patch(
+        'zombies_aint_my_neighbors.launch_showing.current_video_driver', return_value=driver
+    )
+    title = TitleScene(options={**LAUNCH_OPTIONS, **options})
+    title.setup()
+    return title
+
+
+def test_the_opening_title_hands_over_to_the_intro_at_launch(mocker: MockerFixture):
+    """On its first frame the opening title starts the intro, showing at launch."""
+    from zombies_aint_my_neighbors.intro import IntroScene, IntroShowing
+
+    title = launching_title(mocker)
+
+    tick_to(title, seconds=FRAME_SECONDS)
+
+    assert isinstance(title.next_scene, IntroScene)
+    assert title.next_scene.showing is IntroShowing.LAUNCH
+
+
+def test_the_launch_showing_plays_at_every_launch(mocker: MockerFixture):
+    """Two launches in turn: each opening title starts the intro (nothing remembers the first)."""
+    from zombies_aint_my_neighbors.intro import IntroScene
+
+    for _ in range(2):
+        title = launching_title(mocker)
+        tick_to(title, seconds=FRAME_SECONDS)
+        assert isinstance(title.next_scene, IntroScene)
+
+
+@pytest.mark.parametrize(
+    ('driver', 'options'),
+    [
+        ('dummy', {}),
+        ('cocoa', {'replay_trace': 'run.jsonl.gz'}),
+        ('cocoa', {'record_trace': 'run.jsonl.gz'}),
+        ('cocoa', {'audit': ['run.jsonl.gz']}),
+        ('cocoa', {'rebaseline': 'new.jsonl.gz'}),
+        ('cocoa', {'crt_power_on': 'off'}),
+    ],
+    ids=['dummy-driver', 'replay', 'record', 'audit', 'rebaseline', 'power-on-off'],
+)
+def test_the_launch_showing_is_skipped_where_the_power_on_is(
+    mocker: MockerFixture, driver: str, options: dict[str, Any]
+):
+    """Where the CRT power-on would not play, the opening title stays the title."""
+    title = launching_title(mocker, driver=driver, **options)
+
+    tick_to(title, seconds=1.0)
+
+    assert title.next_scene is None
+
+
+def test_a_title_that_is_not_the_opening_one_never_plays_the_intro(mocker: MockerFixture):
+    """A title built after the launch (opening=False) stays the title, and replays as one."""
+    mocker.patch(
+        'zombies_aint_my_neighbors.launch_showing.current_video_driver', return_value='cocoa'
+    )
+    title = TitleScene(options=dict(LAUNCH_OPTIONS), opening=False)
+    title.setup()
+
+    tick_to(title, seconds=1.0)
+
+    assert title.next_scene is None
+    assert title.replay_arguments()['opening'] is False
+    assert TitleScene(options=dict(LAUNCH_OPTIONS), **title.replay_arguments()).opening is False
+
+
+def test_the_opening_title_replays_with_no_opening_key(scene):
+    """The opening title's replay arguments are what they were before feature plan 12."""
+    assert 'opening' not in scene.replay_arguments()
+    assert scene.opening is True

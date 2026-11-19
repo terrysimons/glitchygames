@@ -953,4 +953,4 @@ class NeighborhoodScene(RosterScene):
             # Imported here: the title leads, through the card, to the neighborhood
             from zombies_aint_my_neighbors.title import TitleScene
 
-            self.next_scene = TitleScene(options=self.options, roster=self.roster)
+            self.next_scene = TitleScene(options=self.options, roster=self.roster, opening=False)

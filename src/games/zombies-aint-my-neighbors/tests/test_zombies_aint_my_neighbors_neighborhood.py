@@ -358,6 +358,7 @@ def test_unplugging_the_last_player_returns_to_the_title():
         support.unplug_the_pad(engine)
 
         assert isinstance(scene.next_scene, TitleScene)
+        assert not scene.next_scene.opening
 
 
 @pytest.mark.parametrize('key', [pygame.K_p, pygame.K_RETURN])

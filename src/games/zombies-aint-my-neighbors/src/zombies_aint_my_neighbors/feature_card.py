@@ -241,7 +241,9 @@ class FeatureCardScene(RosterScene):
         # Between stages the title keeps the run, so Back can't dodge the shrinking pool (the
         # owner, 2026-11-15); before stage 1 it holds none, and its next start begins afresh
         kept_run = self.run if self.run.stage > 1 else None
-        self.next_scene = TitleScene(options=self.options, roster=self.roster, run=kept_run)
+        self.next_scene = TitleScene(
+            options=self.options, roster=self.roster, run=kept_run, opening=False
+        )
 
     def _pose_players(self) -> None:
         """Show each joined player's label and hide the free slots'."""
