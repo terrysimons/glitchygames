@@ -325,17 +325,31 @@ The designer's estimate is about 0.4 GB at 32K; the real per-token figure comes 
 log in 8.3 (step 5). On the Pi (8.1), Bonsai held 4,154 MiB at load, so roughly 3.2 GB beyond the
 weights and projector at 262K, which agrees with the estimate's scale.
 
-**The proposal: the same models everywhere, with the context sized by memory.** A context tier
-beside `ai_service_bonsai_tiers`, chosen by the same picker:
+**Tiers by total memory, chosen by the same picker as the sizes**, all at the q8_0 cache of 6.5
+(KV cache from the models' configs: Bonsai 6.4 KiB a token at q8_0, Qwen 59.5 KiB; the rest from
+the 2026-11-18 Pi measurements):
 
-| Machine | Bonsai context | Qwen context | Reserved (estimate, to be measured) |
-|---|---|---|---|
-| 16 GB and up | 131,072 (the default from 6.5) | 8,192 | about 3.9 GB in use |
-| 8 GB | 32,768 | 8,192 | about 3.3 GB in use |
+| Memory | Bonsai context | Qwen | Prompt cache cap | KV cache, both | Models in use | Status |
+|---|---|---|---|---|---|---|
+| 16 GB and up | 131,072 | 8,192 | 4,096 MiB | 1,292 MiB | about 3.9 GB | the owner, 2026-11-18 |
+| 8 GB | 32,768 | 8,192 | about 1,024 MiB | 680 MiB | about 3.3 GB | proposed |
+| 4 GB | 32,768 | none | about 512 MiB | 204 MiB | about 1.6 GB | the owner, 2026-11-18 |
+| 2 GB, 1 GB | nothing | nothing | | | | Bonsai alone holds 1.3 GB at load |
 
-Both at the q8_0 cache of 6.5. With the game's 2,048 MiB the 8 GB row needs about 5.4 GB free,
-against roughly 5.5-6.5 GB on an 8 GB Pi with a desktop: tight but workable. At 128K the picker
-would need about 6.1 GB, borderline there.
+- **4 GB: Bonsai alone (the owner, 2026-11-18).** No embedding model on these machines: the
+  picker's "Bonsai only" becomes a result in its own right, `setup.sh` downloads no Qwen, the API
+  reports ready with only a reasoning model when the tier has no embedding model (today
+  `/health/ready` wants both, `app.py`), and `/v1/embeddings` answers with a clear "this machine has
+  no embedding model" error. Nothing in the engine embeds today (only the sprite catalog exports
+  text for it), so games lose nothing yet.
+- **The game's reserve decides whether the small tiers fit.** `ai_service_game_reserve_mib` (2,048)
+  predates any measurement; Bitmappy idles at about 262 MiB on the Pi (2026-11-18, with its `uv`
+  wrapper). With 2,048 the 4 GB tier needs about 3.6 GB free against about 2.8 GB on a 4 GB Pi
+  with a desktop, so it would never start. Open: measure every game's peak memory and set the
+  reserve from it.
+- **Pi 4 (Cortex-A72, no dot product, `armv8.0_1`):** unmeasured; the designer estimates 2.5-3.5
+  tokens a second for answers, 40-70 s for a short question. The inventory's 4 GB Pi 4 runs the
+  same benchmark (`BONSAI_CONTEXT=32768`).
 
 **Qwen keeps 8,192 on every machine (the owner, 2026-11-18).** Qwen's context is the longest text
 one embedding request takes, not a history: it reads each text in one pass, and a longer one is
@@ -846,5 +860,6 @@ changes for x86_64.
 | KV cache q8_0 for every model (Bonsai and Qwen) on every system, the Mac included (6.5) | The owner, 2026-11-18 |
 | Bonsai's context 128K (131,072) on every system, down from the model's whole 262K (6.5) | The owner, 2026-11-18 |
 | Qwen's context stays 8,192 on every machine, the 8 GB tier included (6.4.1) | The owner, 2026-11-18 |
+| 16 GB and up: Bonsai 128K with Qwen; 4 GB: Bonsai alone at 32K, no Qwen (6.4.1) | The owner, 2026-11-18 |
 | Qwen's agent passes `--flash-attn on`, which a quantized V cache needs (6.5) | Designer's call |
 | Smaller-memory machines: context tiers proposed, smaller models listed; open (6.4.1) | Raised by the owner, 2026-11-18; not decided |
