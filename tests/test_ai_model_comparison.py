@@ -263,7 +263,8 @@ class FakeChatServer(BaseHTTPRequestHandler):
         while True:
             try:
                 self.wfile.write(f'data: {line}\n\n'.encode())
-            except BrokenPipeError, ConnectionResetError:
+            # A broken pipe, a reset or (Windows, WinError 10053) an aborted connection
+            except ConnectionError:
                 type(self).hung_up = True
                 return
 
@@ -399,6 +400,38 @@ def test_a_stopped_answer_hangs_up_and_the_server_ends_quietly(chat_server, mock
 
     assert FakeChatServer.hung_up is True
     assert 'Exception occurred during processing of request' not in capfd.readouterr().err
+
+
+class HungUpWriter:
+    """A response stream whose client has gone: every write raises how the OS says so."""
+
+    def __init__(self, error: type[ConnectionError]) -> None:
+        """Raise error on every write."""
+        self.error = error
+
+    def write(self, data: bytes) -> int:
+        """Refuse the write as a hung-up client's socket does: raise the error given, always."""
+        raise self.error(data[:0])
+
+
+@pytest.mark.parametrize(
+    'error',
+    [BrokenPipeError, ConnectionResetError, ConnectionAbortedError],
+    ids=['macos-linux-broken-pipe', 'reset', 'windows-aborted'],
+)
+def test_every_way_a_client_hangs_up_ends_the_answer_quietly(error):
+    """Each OS reports a hang-up its own way: Windows as WinError 10053, ConnectionAbortedError.
+
+    CircleCI Windows (#225) failed test_a_stopped_answer_hangs_up_and_the_server_ends_quietly
+    when the fake took only broken pipes and resets as the end of its answer.
+    """
+    FakeChatServer.hung_up = False
+    handler = FakeChatServer.__new__(FakeChatServer)
+    handler.wfile = HungUpWriter(error)
+
+    handler._stream_until_hung_up()
+
+    assert FakeChatServer.hung_up is True
 
 
 def test_a_follow_up_is_scored_on_its_last_turn_with_the_first_in_its_history(chat_target):
