@@ -698,7 +698,7 @@ class AIManager:
                     # toml_pixel_block escapes each row and drops the parsed trailing newline:
                     # the closing quotes' line ends the last row, and keeping it too would add a
                     # blank line per rewrite (BUGS.md #110 item 7)
-                    f'pixels = {toml_pixel_block(frame["pixels"])}',
+                    f'pixels = {toml_pixel_block(frame["pixels"].removesuffix(chr(10)) + chr(10))}',
                     '',
                 ])
         return lines
@@ -733,7 +733,8 @@ class AIManager:
             if 'pixels' in sprite_data:
                 # Escaped rows, the closing quotes' line ending the last (see
                 # _format_animation_sections)
-                lines.append(f'pixels = {toml_pixel_block(sprite_data["pixels"])}')
+                pixel_text = sprite_data['pixels'].removesuffix('\n') + '\n'
+                lines.append(f'pixels = {toml_pixel_block(pixel_text)}')
             lines.append('')
 
         # Add animation sections

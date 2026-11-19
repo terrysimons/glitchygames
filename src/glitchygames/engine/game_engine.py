@@ -65,6 +65,7 @@ from glitchygames.events.joystick import JoystickEventManager
 from glitchygames.events.keyboard import KeyboardEventManager
 from glitchygames.events.midi import MidiEventManager
 from glitchygames.events.mouse import MouseEventManager
+from glitchygames.events.sprite_spawn import SPRITE_SPAWN_EVENT, SpriteSpawn, add_spawned_sprite
 from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
 from glitchygames.exit_codes import BUG_REPORT_HINT, ExitCode
@@ -4394,6 +4395,12 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 continue
             dispatched_event_count += 1
 
+            # The engine's own: a sprite /sprite made (events/sprite_spawn.py), for every game,
+            # raw-event scenes included, and never handed to a game's handlers
+            if pygame_event.type == SPRITE_SPAWN_EVENT:
+                self.process_sprite_spawn_event(pygame_event)
+                continue
+
             # Support scenes processing pygame raw events, bypassing
             # the glitchygames.engine event processing altogether. The scene manager's active
             # scene is the only one: the engine keeps no copy that could go stale
@@ -4897,6 +4904,23 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 pass
 
         return False
+
+    def process_sprite_spawn_event(self: Self, event: pygame.event.Event) -> None:
+        """Add the sprite a spawn event carries to the active scene's game (events/sprite_spawn.py).
+
+        With no scene yet there is nowhere to add it: it is logged and dropped.
+
+        Args:
+            event: A ``SPRITE_SPAWN_EVENT``.
+
+        """
+        spawn = SpriteSpawn.from_event(event)
+        # The scene manager's: GameEngine._active_scene is never assigned in a run
+        active_scene = self.scene_manager.active_scene
+        if active_scene is None:
+            LOG.warning('Spawned sprite %r not added: no scene yet', spawn.sprite_name)
+            return
+        add_spawned_sprite(spawn=spawn, scene=active_scene)
 
     def process_unimplemented_event(self: Self, event: events.HashableEvent) -> None:
         """Process an unimplemented event.

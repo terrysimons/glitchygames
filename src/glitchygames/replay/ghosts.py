@@ -259,7 +259,8 @@ def images_from_animated_sprite(source: AnimatedSprite) -> Callable[[GhostSample
         """
         appearance = sample.appearance
         frames = source.frames[str(appearance['animation'])]
-        image = frames[int(appearance['frame'])].image
+        # Read, never copied: the GhostSprite copies what it keeps (SpriteFrame.read_only_image)
+        image = frames[int(appearance['frame'])].read_only_image
         if appearance.get('flip_x', False):
             return pygame.transform.flip(image, flip_x=True, flip_y=False)
         return image

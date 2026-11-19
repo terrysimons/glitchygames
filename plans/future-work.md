@@ -1494,6 +1494,11 @@ Loading and memory:
 
 ## Sprite color profiles and a glyph generator (the owner, 2026-11-16)
 
+Being built: the approved master plan is `plans/2026-11-17-sprite-color-profiles.md`, on
+`feature/sprite-color-profiles` (what ships first, the converter and the AI's tools, and in what
+order). Part 1, sprites as text, is done (2026-11-17); what it left is in the master plan's
+Follow-ups. This entry keeps the full tables it refers to.
+
 Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversation:
 
 - **Two separate settings: a profile (how many colors one sprite may use) and a color space
@@ -1711,9 +1716,22 @@ discussing it found and decided:
   still serve their recorded `dt`; the cost is twice the game work and no smoothing of uneven
   frames. The measurements decide whether that alone fixes the hitching before the fixed
   simulation is paid for.
+- **The pacer's wait also serves the AI** (2026-11-17): `--ai-stepping idle` services the AI's
+  network during that wait instead of only at the frame's fixed point. Designed, with valid uses
+  for `frame` and `idle`, in `plans/2026-11-17-sprite-color-profiles.md`, "Follow-ups"; built with
+  this pacer work.
 
 ## Code quality
 
+- **Bitmappy's AI sprites load from text, not a temp file** (shared sprite frames review,
+  2026-11-19). `ai_manager._detect_and_load_ai_sprite` writes the model's TOML to a temp file and
+  loads it with `SpriteFactory.load_sprite`; `load_sprite_from_text` gives the same sprite and
+  check from the text itself. A content check without a load is `sprite_toml.analyze_sprite_content`
+  with `is_one_sprite` (pygame-free); `SpriteFactory._analyze_file` only wraps it for a file.
+- **Bitmappy's film strip clears magenta a pixel at a time on every redraw** (shared sprite frames
+  review, 2026-11-19). `film_strip_rendering.convert_magenta_to_transparent` calls `get_at` and
+  `set_at` for each pixel of each thumbnail each time the strip renders: editor time, not memory.
+  A colorkey or `pygame.transform.threshold` does it in one call.
 - **Test-suite memory on the Linux CI job: the structural options** (the owner's call;
   bugs/2026-11-17-linux-test-memory-guard-stops.md). #218 brought the peak to 1341-1350 MiB of
   1600; what is left grows from 503 to 859 MiB over 274 files, spread thin. In order of

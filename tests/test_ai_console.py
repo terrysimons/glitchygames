@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import types
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Event, Thread
@@ -13,6 +14,7 @@ import pygame
 import pytest
 
 from glitchygames import ai_console, clock
+from glitchygames.ai.local_service import DEFAULT_BASE_URL
 from glitchygames.ai_console import (
     MAXIMUM_DESCRIBED_SPRITES,
     MAXIMUM_HISTORY_RECORDS,
@@ -32,10 +34,16 @@ from glitchygames.ai_host import AiHostSources
 from glitchygames.ai_link import AiLink, LinkState
 from glitchygames.clipboard import ClipboardUnavailableError
 from glitchygames.debug.overlay import load_debug_font
+from glitchygames.events.sprite_spawn import SPRITE_SPAWN_EVENT, SpriteSpawn
 from glitchygames.input.state import InputSnapshot
 from glitchygames.scenes import Scene
+from glitchygames.services import SpriteGenerationService
+from glitchygames.services.config import ServiceConfig
+from glitchygames.sprites.spawned import SpawnedSprite
 from glitchygames.testing.keys import qwerty_scancode
 from tests.ai_service_stand_in import install
+from tests.services.stand_in_ai_client import FakeAIClient
+from tests.services.test_sprite_generation_service import VALID_STATIC_TOML
 from tests.test_ai_link import FakeInnerSources
 
 # Every install here can run its control script, on Windows too (tests/ai_service_stand_in.py)
@@ -1719,3 +1727,345 @@ class TestTheDoors:
 
         assert doors.console.scene is scene
         assert doors.frames_ended == 1
+
+
+# /sprite (plans/2026-11-17-sprite-command.md, Task 3): the sprite service answers through a
+# stand-in for its chat client, built from the client's contract as the service's own tests do
+GLINT_TOML = VALID_STATIC_TOML.replace('name = "heart"', 'name = "glint"')
+
+
+class HeldSpriteClient(FakeAIClient):
+    """Answers each request in turn from ``replies``, each only once ``hold`` is set."""
+
+    def __init__(self, *, replies: list[object]) -> None:
+        """Answer ``replies`` in order, held until released."""
+        super().__init__(reply=None)
+        self.replies = list(replies)
+        self.hold = Event()
+        self.hold.set()
+
+    def _create(self, **request):
+        self.requests.append(request)
+        reply = self.replies[min(len(self.requests), len(self.replies)) - 1]
+        self.hold.wait(timeout=WAIT_SECONDS)
+        if isinstance(reply, Exception):
+            raise reply
+        message = types.SimpleNamespace(content=reply)
+        return types.SimpleNamespace(choices=[types.SimpleNamespace(message=message)])
+
+
+def sprite_console(*, tmp_path, scene, replies: list[object]) -> AiConsole:
+    """Build an open, connected console whose sprite service answers ``replies``.
+
+    Returns:
+        The console, saving under ``tmp_path / 'sprites'``, with ``scene`` as its scene.
+
+    """
+    install(root=tmp_path)
+    link = AiLink(install_root=tmp_path)
+    link.state = LinkState.CONNECTED
+    service = SpriteGenerationService(ServiceConfig(ai_model='model-x'))
+    service._client = HeldSpriteClient(replies=replies)
+    built = AiConsole(
+        link=link,
+        install_root=tmp_path,
+        sprite_service=service,
+        sprites_folder=tmp_path / 'sprites',
+    )
+    built.scene = scene
+    press(built, GRAVE)
+    pygame.event.clear(eventtype=SPRITE_SPAWN_EVENT)
+    return built
+
+
+def held_client(console: AiConsole) -> HeldSpriteClient:
+    """Return the console's stand-in sprite client.
+
+    Returns:
+        The client.
+
+    """
+    assert console._sprite_service is not None
+    client = console._sprite_service._client
+    assert isinstance(client, HeldSpriteClient)
+    return client
+
+
+def posted_spawns() -> list[SpriteSpawn]:
+    """Take the spawn events posted so far off pygame's queue.
+
+    Returns:
+        Their spawns, in order.
+
+    """
+    return [SpriteSpawn.from_event(event) for event in pygame.event.get(SPRITE_SPAWN_EVENT)]
+
+
+def test_sprite_saves_under_the_games_package_and_posts_the_spawn(tmp_path, scene):
+    """The file, then one spawn with its text at the center of the camera's view."""
+    scene.camera.world_x, scene.camera.world_y = 300.0, 40.0
+    console = sprite_console(tmp_path=tmp_path, scene=scene, replies=[VALID_STATIC_TOML])
+
+    enter(console, '/sprite a red heart')
+    shown = wait_for(console, 'heart.toml')
+
+    assert '#1 heart added' in shown
+    assert (tmp_path / 'sprites' / 'heart.toml').read_text(encoding='utf-8') == VALID_STATIC_TOML
+    camera = scene.camera
+    assert posted_spawns() == [
+        SpriteSpawn(
+            toml_text=VALID_STATIC_TOML,
+            sprite_name='heart',
+            world_x=camera.world_x + camera.screen_width / 2,
+            world_y=camera.world_y + camera.screen_height / 2,
+        )
+    ]
+    assert console.running is None
+
+
+def test_sprite_never_waits_on_the_frame(tmp_path, scene):
+    """While the service works, the frame goes on and the console says it is generating."""
+    console = sprite_console(tmp_path=tmp_path, scene=scene, replies=[VALID_STATIC_TOML])
+    held_client(console).hold.clear()
+
+    enter(console, '/sprite a red heart')
+
+    assert '#1 generating a red heart...' in transcript(console)
+    assert console.running is not None
+    held_client(console).hold.set()
+    wait_for(console, 'heart.toml')
+
+
+def test_sprite_refuses_an_empty_description(tmp_path, scene):
+    """The usage, and nothing starts."""
+    console = sprite_console(tmp_path=tmp_path, scene=scene, replies=[VALID_STATIC_TOML])
+
+    enter(console, '/sprite')
+
+    assert '/sprite DESCRIPTION' in transcript(console)
+    assert console.running is None
+
+
+def test_sprite_refuses_while_a_request_runs(tmp_path, scene):
+    """One request at a time, /ask's and /sprite's alike."""
+    console = sprite_console(tmp_path=tmp_path, scene=scene, replies=[VALID_STATIC_TOML])
+    held_client(console).hold.clear()
+
+    enter(console, '/sprite a red heart')
+    enter(console, '/sprite another')
+
+    assert '#1 is still running: /cancel to stop it' in transcript(console)
+    held_client(console).hold.set()
+    wait_for(console, 'heart.toml')
+
+
+def test_sprite_refuses_with_no_scene(tmp_path):
+    """Nowhere to put it, as /inspect says."""
+    console = sprite_console(tmp_path=tmp_path, scene=None, replies=[VALID_STATIC_TOML])
+
+    enter(console, '/sprite a red heart')
+
+    assert 'No scene yet' in transcript(console)
+    assert console.running is None
+
+
+def test_a_cancelled_sprite_spawns_nothing(tmp_path, scene):
+    """Its late result, arriving while the next request runs, is dropped and saves nothing."""
+    console = sprite_console(
+        tmp_path=tmp_path, scene=scene, replies=[VALID_STATIC_TOML, GLINT_TOML]
+    )
+    client = held_client(console)
+    client.hold.clear()
+    enter(console, '/sprite a red heart')
+    deadline = clock.raw_counter_seconds() + WAIT_SECONDS
+    while not client.requests and clock.raw_counter_seconds() < deadline:
+        clock.raw_sleep(0.01)
+    enter(console, '/cancel')
+    enter(console, '/sprite a glint')
+
+    client.hold.set()
+    wait_for(console, 'glint.toml')
+
+    assert [spawn.sprite_name for spawn in posted_spawns()] == ['glint']
+    assert not (tmp_path / 'sprites' / 'heart.toml').exists()
+    assert console.running is None
+
+
+def test_a_sprite_that_cannot_be_saved_still_appears(tmp_path, scene):
+    """The console says why it was not saved; the spawn is posted all the same."""
+    console = sprite_console(tmp_path=tmp_path, scene=scene, replies=[VALID_STATIC_TOML])
+    # The sprites folder under a file: unwritable on every platform, for every user
+    (tmp_path / 'sprites').write_text('a file, not a folder', encoding='utf-8')
+
+    enter(console, '/sprite a red heart')
+    wait_for(console, 'not saved')
+
+    assert [spawn.sprite_name for spawn in posted_spawns()] == ['heart']
+
+
+def test_a_failed_generation_posts_nothing(tmp_path, scene):
+    """The service's own error, and no spawn."""
+    console = sprite_console(tmp_path=tmp_path, scene=scene, replies=['no sprite here'])
+
+    enter(console, '/sprite a red heart')
+    wait_for(console, '#1 failed')
+
+    assert posted_spawns() == []
+    assert console.running is None
+
+
+def test_a_sprite_whose_text_does_not_build_posts_nothing(tmp_path, scene, mocker):
+    """A generation that succeeds with text the sprite loader refuses spawns nothing."""
+    mocker.patch.object(SpawnedSprite, 'from_text', side_effect=ValueError('mixed content'))
+    console = sprite_console(tmp_path=tmp_path, scene=scene, replies=[VALID_STATIC_TOML])
+
+    enter(console, '/sprite a red heart')
+    shown = wait_for(console, '#1 failed')
+
+    assert 'mixed content' in shown
+    assert posted_spawns() == []
+    assert not (tmp_path / 'sprites').exists()
+
+
+def test_an_unreachable_service_is_named(tmp_path, scene):
+    """The AI service's address, and that it cannot be reached."""
+    console = sprite_console(
+        tmp_path=tmp_path, scene=scene, replies=[ConnectionError('connection refused')]
+    )
+
+    enter(console, '/sprite a red heart')
+    shown = wait_for(console, '#1 failed')
+
+    assert 'cannot be reached' in shown
+    assert DEFAULT_BASE_URL in shown
+    assert posted_spawns() == []
+
+
+def test_help_lists_sprite(console):
+    """/help names /sprite and what it does."""
+    enter(console, '/help')
+
+    assert '/sprite DESCRIPTION' in transcript(console)
+
+
+class NowhereScene(Scene):
+    """A game whose package the import system cannot find: there is no folder to save in."""
+
+
+NowhereScene.__module__ = 'no_such_package_anywhere.game'
+
+
+def test_a_result_queued_before_its_cancel_spawns_nothing(tmp_path, scene):
+    """A result already handed to the main thread when /cancel ran is dropped there."""
+    console = sprite_console(tmp_path=tmp_path, scene=scene, replies=[VALID_STATIC_TOML])
+    late = ai_console.AiRequest(number=9, question='late', started_seconds=0.0)
+
+    console._sprite_generated(late, VALID_STATIC_TOML, 'heart')
+
+    assert posted_spawns() == []
+    assert not (tmp_path / 'sprites').exists()
+
+
+def test_a_sprite_arriving_after_the_scene_went_spawns_nothing(tmp_path, scene):
+    """Nowhere to add it: the request fails, saying so."""
+    console = sprite_console(tmp_path=tmp_path, scene=scene, replies=[VALID_STATIC_TOML])
+    held_client(console).hold.clear()
+    enter(console, '/sprite a red heart')
+    console.scene = None
+
+    held_client(console).hold.set()
+    shown = wait_for(console, '#1 failed')
+
+    assert 'no scene' in shown
+    assert posted_spawns() == []
+
+
+def test_the_sprite_service_is_built_when_first_used(tmp_path, scene, mocker):
+    """A console given no sprite service builds one, through the local service's client."""
+    client = HeldSpriteClient(replies=[VALID_STATIC_TOML])
+    mocker.patch('glitchygames.ai.local_service.create_chat_client', return_value=client)
+    console = sprite_console(tmp_path=tmp_path, scene=scene, replies=[])
+    console._sprite_service = None
+
+    enter(console, '/sprite a red heart')
+    wait_for(console, 'heart.toml')
+
+    assert console._sprite_service is not None
+    assert len(client.requests) == 1
+
+
+def test_a_game_with_no_folder_says_the_sprite_was_not_saved(tmp_path):
+    """The sprite is added; the console names the game whose folder could not be found."""
+    console = sprite_console(
+        tmp_path=tmp_path, scene=NowhereScene(options={}), replies=[VALID_STATIC_TOML]
+    )
+    console.sprites_folder = None
+
+    enter(console, '/sprite a red heart')
+    shown = wait_for(console, 'not saved')
+
+    assert "'no_such_package_anywhere' has no folder" in shown
+    assert [spawn.sprite_name for spawn in posted_spawns()] == ['heart']
+
+
+def test_a_sprite_whose_name_is_not_text_fails_naming_the_field(tmp_path, scene):
+    """A number for a name fails the request, naming the field; the frame and console go on.
+
+    The sprite schema refuses it at load (sprites/sprite_file_schema.py).
+    """
+    console = sprite_console(
+        tmp_path=tmp_path,
+        scene=scene,
+        replies=[VALID_STATIC_TOML.replace('name = "heart"', 'name = 5')],
+    )
+
+    enter(console, '/sprite a red heart')
+    shown = wait_for(console, '#1 failed')
+
+    assert 'sprite.name' in shown
+    assert posted_spawns() == []
+    assert not (tmp_path / 'sprites').exists()
+    assert console.running is None
+
+
+def test_an_unexpected_worker_failure_ends_the_sprite_request(tmp_path, scene, mocker):
+    """Whatever the worker raises, the request fails and the next one can start."""
+    console = sprite_console(tmp_path=tmp_path, scene=scene, replies=[VALID_STATIC_TOML])
+    assert console._sprite_service is not None
+    mocker.patch.object(
+        console._sprite_service, 'generate_sprite', side_effect=RuntimeError('the service broke')
+    )
+
+    enter(console, '/sprite a red heart')
+    shown = wait_for(console, '#1 failed')
+
+    assert 'the service broke' in shown
+    assert console.running is None
+    assert posted_spawns() == []
+
+
+def test_cancelling_a_sprite_says_the_generation_runs_on(tmp_path, scene):
+    """/cancel frees the console and drops the result; the service's work is not stopped."""
+    console = sprite_console(tmp_path=tmp_path, scene=scene, replies=[VALID_STATIC_TOML])
+    held_client(console).hold.clear()
+    enter(console, '/sprite a red heart')
+
+    enter(console, '/cancel')
+
+    assert 'the AI service finishes it' in transcript(console)
+    held_client(console).hold.set()
+
+
+def test_a_sprite_named_like_a_path_is_saved_in_the_sprites_folder(tmp_path, scene):
+    """The model's name never steers the file out of the game's sprites folder."""
+    console = sprite_console(
+        tmp_path=tmp_path,
+        scene=scene,
+        replies=[VALID_STATIC_TOML.replace('name = "heart"', 'name = "../../evil"')],
+    )
+
+    enter(console, '/sprite a red heart')
+    wait_for(console, 'evil.toml')
+
+    assert [path.name for path in (tmp_path / 'sprites').iterdir()] == ['evil.toml']
+    assert not (tmp_path.parent / 'evil.toml').exists()
