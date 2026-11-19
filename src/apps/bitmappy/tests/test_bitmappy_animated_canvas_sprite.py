@@ -1329,6 +1329,35 @@ class TestFromFile:
         assert canvas.current_animation == 'blink'
         assert canvas.rect.size == (16, 16)
 
+    def test_the_editor_edits_a_copy_of_a_sprite_a_game_loaded(self, tmp_path):
+        """A game's sprite of the same file keeps sharing, unchanged, while the editor draws.
+
+        Sprites loaded from one text share its frames (glitchygames/sprites/compiled_sprites.py);
+        the editor's in-place pixel writes reach its own copies only.
+        """
+        sprite_path = tmp_path / 'blinker.toml'
+        sprite_path.write_text(ANIMATED_SPRITE_TOML)
+        game_sprite = AnimatedSprite(str(sprite_path))
+        game_frame = game_sprite.animation_data['blink'][0]
+        game_bytes = pygame.image.tobytes(game_frame.read_only_image, 'RGBA')
+        game_pixels = list(game_frame.read_only_pixels)
+        canvas = AnimatedCanvasSprite.from_file(
+            str(sprite_path),
+            pixels_across=2,
+            pixels_tall=2,
+            pixel_width=8,
+            pixel_height=8,
+        )
+
+        canvas._cache_drag_frame()
+        canvas._update_drag_frame_pixel(0, RED_RGBA)
+        canvas._sync_all_frames_pixel_data()
+
+        assert canvas.animated_sprite.animation_data['blink'][0].pixels[0] == RED_RGBA
+        assert game_frame.is_sharing
+        assert list(game_frame.read_only_pixels) == game_pixels
+        assert pygame.image.tobytes(game_frame.read_only_image, 'RGBA') == game_bytes
+
     def test_file_without_frames_is_refused(self, mocker):
         """A loaded object without frames raises ValueError."""
         mocker.patch(
