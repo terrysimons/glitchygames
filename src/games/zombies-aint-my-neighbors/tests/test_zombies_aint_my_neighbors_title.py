@@ -747,3 +747,71 @@ def test_a_pad_start_held_after_a_skip_never_joins(press):
     press(title)
 
     assert joined_devices(title)[0] == gamepad(1)
+
+
+def test_a_recorded_run_that_idles_into_the_demo_replays(tmp_path, mocker):
+    """A recorded run that idles into the attract demo and back replays matching.
+
+    The run starts on the title and goes through the intro into the demo and back to the title;
+    its replay matches, the demo inside it included (feature plan 13, Review focus 4).
+
+    The idle wait, the intro and the demo are shortened (patched) so the round trip takes about
+    a hundred frames: 0.3 s idle, an intro of 0.2 s, and the shipped demo's first 40 frames.
+    """
+    import gzip
+
+    from tests.world.test_frame_integration import running_scene, step
+    from zombies_aint_my_neighbors import attract, intro, title
+    from zombies_aint_my_neighbors.intro_timeline import CueKind, IntroCue
+
+    shipped = attract.attract_demo_path()
+    assert shipped is not None
+    with gzip.open(shipped, 'rt', encoding='utf-8') as recording:
+        lines = recording.read().splitlines()
+    short_demo = tmp_path / 'short.jsonl.gz'
+    with gzip.open(short_demo, 'wt', encoding='utf-8') as recording:
+        recording.write('\n'.join(lines[:41]) + '\n')
+    mocker.patch.object(title, 'IDLE_SECONDS', 0.3)
+    mocker.patch.object(
+        intro,
+        'INTRO_TIMELINE',
+        (
+            IntroCue(at_seconds=0.0, kind=CueKind.OVAL_FADE_IN),
+            IntroCue(at_seconds=0.2, kind=CueKind.END),
+        ),
+    )
+    mocker.patch.object(attract, 'attract_demo_path', return_value=short_demo)
+    frames = 120
+    session = tmp_path / 'idle.jsonl.gz'
+
+    with running_scene(TitleScene) as manager:
+        engine = manager.game_engine
+        assert engine is not None
+        engine.start_trace_recording(path=session)
+        seen = []
+        for _ in range(frames):
+            step(manager, frames=1)
+            seen.append(type(manager.active_scene).__name__)
+        engine.stop_trace_recording()
+        # As quitting does: the active scene is cleaned up, so the demo playing is finished
+        manager.terminate()
+    # The loop, round once and into its second round: title, intro, demo, title, intro, ...
+    assert [name for name, _ in itertools.groupby(seen)][:5] == [
+        'TitleScene',
+        'IntroScene',
+        'AttractScene',
+        'TitleScene',
+        'IntroScene',
+    ]
+
+    with running_scene(
+        TitleScene, extra_arguments=['--replay-trace', str(session), '--headless']
+    ) as manager:
+        engine = manager.game_engine
+        assert engine is not None
+        replay_sources = engine.replay_sources
+        assert replay_sources is not None
+        step(manager, frames=frames)
+        replay_sources.finish_run()
+        assert replay_sources.result.divergence is None
+        manager.terminate()

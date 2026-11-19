@@ -164,10 +164,10 @@ def connected_pads(mocker, count: int) -> list:
 
 
 def test_the_intro_fires_its_timeline_and_hands_over_to_the_title():
-    """Run to the end: every cue fired once, in order, then the title."""
+    """At launch, run to the end: every cue fired once, in order, then the title."""
     from zombies_aint_my_neighbors.title import TitleScene
 
-    scene = intro()
+    scene = intro(IntroShowing.LAUNCH)
     run(scene, seconds=INTRO_SECONDS - 0.1)
     assert scene.next_scene is None
 
@@ -176,6 +176,30 @@ def test_the_intro_fires_its_timeline_and_hands_over_to_the_title():
     assert scene.fired == INTRO_TIMELINE
     assert isinstance(scene.next_scene, TitleScene)
     assert not scene.next_scene.opening
+
+
+def test_the_loop_intro_ends_into_the_demo():
+    """In the idle loop, the intro's end hands over to the attract demo (feature plan 13)."""
+    from zombies_aint_my_neighbors.attract import AttractScene
+
+    scene = intro(IntroShowing.LOOP)
+    run(scene, seconds=INTRO_SECONDS + 0.1)
+
+    assert scene.fired == INTRO_TIMELINE
+    assert isinstance(scene.next_scene, AttractScene)
+
+
+def test_a_skip_from_the_loop_intro_goes_to_the_title_not_the_demo():
+    """A press during the loop's intro is someone wanting to play: straight to the title."""
+    from zombies_aint_my_neighbors.title import TitleScene
+
+    scene = intro(IntroShowing.LOOP)
+    run(scene, seconds=1.0)
+
+    scene.on_key_down_event(key_down(pygame.K_SPACE))
+
+    assert isinstance(scene.next_scene, TitleScene)
+    assert scene.next_scene.replay_arguments().get('awaiting_release') is True
 
 
 def test_at_six_seconds_the_tv_bursts_the_kids_start_and_the_screen_shakes(mocker):
@@ -277,6 +301,26 @@ def test_a_key_or_button_skips_at_any_moment(press, at_seconds):
     assert not scene.next_scene.opening
 
 
+@pytest.mark.parametrize('press', SKIPS.values(), ids=SKIPS.keys())
+def test_a_press_on_the_hand_over_frame_still_returns_to_the_title(press):
+    """A press on the frame the loop's intro hands over to the demo still gets the title.
+
+    The intro hands over in a frame's logic; the frame's events come after it, so a press then
+    must still win: the title follows, waiting for the release, and the demo never starts.
+    """
+    from zombies_aint_my_neighbors.attract import AttractScene
+    from zombies_aint_my_neighbors.title import TitleScene
+
+    scene = intro(IntroShowing.LOOP)
+    run(scene, seconds=INTRO_SECONDS + 0.01)
+    assert isinstance(scene.next_scene, AttractScene)
+
+    press(scene)
+
+    assert isinstance(scene.next_scene, TitleScene)
+    assert scene.next_scene.replay_arguments().get('awaiting_release') is True
+
+
 def test_the_pause_key_skips_like_any_other():
     """P pauses a stage, but the intro has no pause: it skips, as every key does."""
     from zombies_aint_my_neighbors.title import TitleScene
@@ -314,7 +358,7 @@ def test_a_hitch_across_the_burst_fires_each_cue_once_and_hands_over_once(mocker
     """A 7-second frame (0.5 to 7.5 s) fires each cue it crosses once; the end follows at 8 s."""
     from zombies_aint_my_neighbors.title import TitleScene
 
-    scene = intro()
+    scene = intro(IntroShowing.LAUNCH)
     shake = mocker.patch.object(scene, 'shake')
     run(scene, seconds=0.5)
 
@@ -395,8 +439,8 @@ def test_a_zero_length_first_frame_fires_nothing_and_shows_no_oval():
 
 
 def test_a_press_after_the_hand_over_builds_no_second_title():
-    """The intro has ended: a press then keeps the title it already handed over to."""
-    scene = intro()
+    """The launch intro has ended: a press then keeps the title it already handed over to."""
+    scene = intro(IntroShowing.LAUNCH)
     run(scene, seconds=INTRO_SECONDS + 0.1)
     title = scene.next_scene
 
