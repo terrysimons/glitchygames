@@ -5634,9 +5634,9 @@ def test_no_include_names_its_file_in_a_free_form_argument_with_an_equals_sign()
 
 
 # Ansible's own parser, for what the rendering tests above can't see (a task Ansible refuses at
-# parse time, a YAML error). The dev extra holds ansible-core (since #215) and CI's Linux job also
-# installs it as a tool; the test takes the one beside this Python, else any on the PATH, else
-# uvx's cached copy with no network, and skips only when none runs
+# parse time, a YAML error). The dev extra holds ansible-core (since #215; CI installs no other
+# copy, the owner, 2026-11-19); the test takes the one beside this Python, else any on the PATH,
+# else uvx's cached copy with no network, and skips only when none runs
 ANSIBLE_TIMEOUT_SECONDS = 120.0
 PLAYBOOKS = sorted(
     path

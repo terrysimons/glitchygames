@@ -648,7 +648,7 @@ recorded, not built). Every system, the Mac included: the tier settings are shar
 
 ---
 
-### Task 12: CI runs the Ansible checks (the owner, 2026-11-19; built as route B)
+### Task 12: CI runs the Ansible checks (the owner, 2026-11-19; built as route B, superseded by main's dev extra)
 
 The first plan made `ansible-core` a development dependency group (`pyproject.toml`, `uv.lock`, the
 SBOM). The owner chose route B instead the same day (design section 12): Ansible as a `uv` tool of
@@ -675,10 +675,14 @@ tests/test_ci_config.py, tests/test_ansible_ai_service.py (the syntax checks' fi
   (uv.lock: 2.22.0; its license exception in `scripts/check_licenses.py`, the owner, 2026-11-16).
   Every nox test session installs every extra, so each job's session has ansible-playbook beside
   its Python and the checks run on macOS and the Pis too (Windows: Ansible has no Windows control
-  node, so the fixture skips there). The tool step is then a second install of the same version;
-  whether to keep it is open (design 13.1).
-- [ ] Show the two test groups no longer skip on Linux: the CircleCI run after the owner pushes
-  (not run here: `test-linux-ci` needs Docker's amd64 emulation and the whole suite).
+  node, so the fixture skips there). The tool step is then a second install of the same version.
+- [x] Route B superseded by main's dev extra (the owner, 2026-11-19; design 12): the tool step,
+  its `test-linux-ci` mirror and the pin half of the drift test are removed. The drift test now
+  holds that the job's packages include iproute2 and lsof and that neither file installs
+  ansible-core as a uv tool.
+- [x] Show the two test groups no longer skip on Linux: `uv run nox -s test-linux-ci` in Docker
+  (arm64 on the Mac, the Linux image's own Ubuntu) ran them from the dev extra, with the tool
+  step gone (owner-decisions wave, 2026-11-19).
 
 ---
 

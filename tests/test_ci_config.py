@@ -322,25 +322,22 @@ def test_circleci_installs_uv_at_its_pinned_version():
 
 
 def test_the_linux_ci_session_installs_what_the_linux_job_installs():
-    """The Linux job installs the port tools and ansible-core, and test-linux-ci does the same.
+    """The Linux job installs the port tools, and test-linux-ci does the same; neither ansible-core.
 
-    The apt packages test-linux-ci reads from the job (``_linux_ci_job_packages``); the
-    ansible-core pin is written out in both files, so a bump in one would leave the Docker run
-    testing something CircleCI no longer runs. iproute2 (ss) and lsof: without the platform's
-    port tool the real-socket port test in tests/test_ansible_ai_service.py skips.
+    The apt packages test-linux-ci reads from the job (``_linux_ci_job_packages``). iproute2 (ss)
+    and lsof: without the platform's port tool the real-socket port test in
+    tests/test_ansible_ai_service.py skips. ansible-core comes from uv.lock's dev extra (main's
+    #215), which the syntax checks there run first; a separate ``uv tool install`` was a second
+    copy nothing ran, removed (the owner, 2026-11-19; plans/lucid-circuit-linux.md, 12).
     """
     import noxfile
 
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
-    job = circleci_job_texts()[noxfile._CIRCLECI_LINUX_JOB]
     noxfile_source = (PROJECT_ROOT / 'noxfile.py').read_text(encoding='utf-8')
 
-    job_pins = re.findall(r'uv tool install "(ansible-core==[0-9.]+)"', job)
-    session_pins = re.findall(r'uv tool install "(ansible-core==[0-9.]+)"', noxfile_source)
-
     assert {'iproute2', 'lsof'} <= set(noxfile._linux_ci_job_packages(configuration=configuration))
-    assert len(job_pins) == 1, job_pins
-    assert session_pins == job_pins
+    assert re.findall(r'uv tool install "?ansible', configuration) == []
+    assert re.findall(r'uv tool install "?ansible', noxfile_source) == []
 
 
 class RecordingSession:

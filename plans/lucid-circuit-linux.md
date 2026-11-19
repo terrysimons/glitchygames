@@ -990,7 +990,7 @@ changes for x86_64.
 | ~~`ansible-core` becomes a development dependency so CI runs the Ansible syntax checks~~ (superseded the same day by the route B row below: a `uv` tool, not a project dependency); `iproute2` and `lsof` in the CircleCI Linux image (plan Task 12) | The owner, 2026-11-19 |
 | Uninstalling keeps `history/` (no change) | The owner, 2026-11-19 |
 | Other users' data after `apt remove`: the package prints a notice naming each folder, its size and the delete command; it never deletes another user's data (plan Task 13) | The owner, 2026-11-19 |
-| Ansible in CI (route B): installed as a separate `uv` tool (`ansible-core==2.22.0`, pinned in the CI config), not a project dependency, so the license policy stays without an exception. Built (plan Task 12). Since merged with main, whose #215 had already put `ansible-core>=2.22.0` in the `dev` extra and group with a license exception (the owner, 2026-11-16, "Yeah dev group"): every test session now has it from `uv.lock`, so the tool is a second install of the same version; whether to keep it is the owner's (13.1) | The owner, 2026-11-19 |
+| Ansible in CI (route B): installed as a separate `uv` tool (`ansible-core==2.22.0`, pinned in the CI config), not a project dependency, so the license policy stays without an exception. Built (plan Task 12). Since merged with main, whose #215 had already put `ansible-core>=2.22.0` in the `dev` extra and group with a license exception (the owner, 2026-11-16, "Yeah dev group"): every test session now has it from `uv.lock`, so the tool is a second install of the same version. Superseded by the row below: the tool is dropped | The owner, 2026-11-19 |
 | The Pi's speed (15-25 s for a short question) is acceptable: go | The owner, 2026-11-19 |
 | Keep the per-line `jinja2-autoescape-false` suppression in `tests/ansible_rendering.py` (autoescape would corrupt shell templates) | The owner, 2026-11-18 |
 | Accept slower embeddings on 4 GB machines for Qwen's `--no-repack` (13.1) | The owner, 2026-11-18 |
@@ -1003,6 +1003,7 @@ changes for x86_64.
 | The `.deb` depends on `libstdc++6 (>=` the release its GLIBCXX/CXXABI symbols need`)`, read from the build like the glibc floor (Task 6 review) | Designer's call |
 | Fix, in this branch, the Mac `.pkg` naming the builder's runtime instead of the player's (`bugs/2026-11-18-mac-package-settings-name-builders-runtime.md`) | The owner, 2026-11-19 |
 | The `.deb`'s Maintainer: `GlitchyGames <terry.simons@gmail.com>` | The owner, 2026-11-19 |
+| CI installs no separate ansible-core: the Linux job's `uv tool install "ansible-core==2.22.0"` step, its `test-linux-ci` mirror and the pin half of their drift test are removed; `uv.lock`'s `dev` extra (main's #215) is the one install, which the syntax checks already ran first. The check that the Linux image installs `iproute2` and `lsof` stays (13.1, plan Task 12) | The owner, 2026-11-19 |
 
 ## 13. Open questions, pending measurements, and facts to keep (2026-11-18)
 
@@ -1020,7 +1021,6 @@ review findings deferred during the build are in the progress ledger (lines star
 | The game stays pinned to its core if the service stops later in the run (STOPPED, or a crash it doesn't recover from); it pins only once the service starts (final review) | Open | Restore the saved mask when the link reaches STOPPED |
 | Should uninstalling remove history too? `uninstall.sh` keeps `history/` even with `--remove-models`, so the user folder is never fully removed (Task 4 review) | Open | `--remove-models` (or a new `--all`) also removes history |
 | Count the prompt cache (`--cache-ram`, up to 512 MiB on 4 GB, 1,024 on 8 GB, 4,096 on 16 GB) in the memory fit? Today the fit leaves it out, so a 4 GB machine can run out of memory late in a long session as the cache fills; counting it fits every tier only with the Pi's measured Linux figures (Bonsai 32K 1,277 MiB, 128K ~1,905; Qwen 1,717) in `group_vars/linux.yml` instead of the Mac-derived ones (Task 11 review). The margin it eats has shrunk since: the game reserve fell from 2,048 to 768 MiB, Qwen's reserved figure fell (1,464 at q8_0), and a running model is credited at 0 even after its idle sleep unloads it, so its memory may be claimed again; the uncounted cache (512 MiB on 4 GB, against the 2,716 MiB Bonsai alone needs) is a larger share of what's left (second final review) | Open: the owner, 2026-11-19, "TBD" | Count it, with the Pi's measured figures on Linux |
-| Keep CI's `uv tool install "ansible-core==2.22.0"` now that main's `dev` extra holds ansible-core (12, route B)? The test sessions install it from `uv.lock` on every OS, and the syntax checks take the one beside the session's Python first, so the tool is not what they run | Open (raised by the merge with main, second final review fixes) | Drop the tool step, its `test-linux-ci` mirror and their drift test: one install path, `uv.lock`'s |
 | Another session's request: merge GitHub's `feature/zombies-aint-my-neighbors` into the local one and push (CI split `dc70fe4a`, for #215/#220/#221) | Declined by this session: not its branch, 29 uncommitted files of another session's sound work in that worktree, and pushes need the owner's own ask | The owner, or the session owning that branch |
 
 Resolved since (kept for the history):
@@ -1028,7 +1028,8 @@ Resolved since (kept for the history):
 | Question | Resolution |
 |---|---|
 | Install `iproute2` (and `lsof`) in the CircleCI Linux image: CircleCI had neither `ss` nor `lsof`, so the real-socket port test ran nowhere in CI | Done (plan Task 12): `test-python-3-15-linux` installs both, on each of its split machines |
-| Add `ansible-core` as a development dependency group, so CI runs the Ansible `--syntax-check` tests | The owner chose route B (12): a `uv` tool in CI, not a project dependency; built (plan Task 12). Main's #215 has since added it to the `dev` extra and group anyway (the open row above) |
+| Add `ansible-core` as a development dependency group, so CI runs the Ansible `--syntax-check` tests | The owner chose route B (12): a `uv` tool in CI, not a project dependency; built (plan Task 12). Main's #215 has since added it to the `dev` extra and group anyway |
+| Keep CI's `uv tool install "ansible-core==2.22.0"` now that main's `dev` extra holds ansible-core (12, route B)? The test sessions install it from `uv.lock` on every OS, and the syntax checks take the one beside the session's Python first, so the tool is not what they run (raised by the merge with main) | Dropped: the step, its `test-linux-ci` mirror and the pin half of the drift test (the owner, 2026-11-19; 12) |
 
 ### 13.2 Measurements still to make
 

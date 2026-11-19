@@ -568,17 +568,6 @@ jobs:
       - restore-uv-cache-posix
       - install-deps-posix:
           pythons: << pipeline.parameters.PYTHON_VERSION >>
-      # ansible-core as a tool of its own (the owner, 2026-11-19), pinned here and mirrored by
-      # nox -s test-linux-ci (tests/test_ci_config.py). The tests/test_ansible_ai_service.py
-      # syntax checks take the one beside the test session's Python first: since #215 the dev
-      # extra holds ansible-core too, so that one is uv.lock's (plans/lucid-circuit-linux.md, 13.1)
-      - run:
-          name: "Install ansible-core (tool)"
-          command: |
-            set -euo pipefail
-            export PATH="$HOME/.local/bin:$PATH"
-            uv tool install "ansible-core==2.22.0"
-            ansible-playbook --version
       - nox-test:
           session: test-3.15
       - save-coverage-share-posix:
