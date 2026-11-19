@@ -594,7 +594,10 @@ playbook. Nothing here depends on the architecture.
   evidence.
 - **`ai_service` smoke test:** unchanged in what it asks; it already starts through
   `ai-service.sh`.
-- **`ai_uninstall`:** on Linux `apt remove glitchygames-ai`, then `uninstall-user.sh` for the owner.
+- **`ai_uninstall`:** on Linux `uninstall-user.sh` for the owner first, then `apt remove
+  glitchygames-ai` (the package holds `uninstall-user.sh`, so the reverse order the first draft
+  gave would remove the uninstaller before it ran; found by Task 7, 2026-11-19). Other users'
+  units are stopped by prerm; their data stays in their homes (13.1 asks what to do about it).
 
 ## 7. Tests, named as behaviours
 
@@ -915,6 +918,8 @@ review findings deferred during the build are in the progress ledger (lines star
 | Install `iproute2` (and `lsof`) in the CircleCI Linux image | CircleCI has neither `ss` nor `lsof`, so the real-socket port test runs nowhere in CI; a stub-driven test covers the logic everywhere | Yes, so the real tool is exercised too; a CI change |
 | The Pi's speed bar (go/no-go, 8.3) | 15-25 s for a short question at about 5-7.5 tokens a second; prompt reading about 10 tokens a second, so a 1,000-token prompt waits 80-95 s unless the prompt cache holds it | The owner's; measure the console's real prompt lengths first |
 | Should uninstalling remove history too? `uninstall.sh` keeps `history/` even with `--remove-models`, so the user folder is never fully removed (Task 4 review) | Open | `--remove-models` (or a new `--all`) also removes history |
+| Other users' data after `apt remove` (their settings, keys and models stay, and their `uninstall-user.sh` goes with the package; Task 7 review) | Open | A postrm notice naming the leftover folders; never delete another user's data unasked |
+| Add `ansible-core` as a development dependency group, so CI runs the Ansible `--syntax-check` tests (today they skip: Ansible isn't a project dependency) | Open | Yes: it is the only way the check guards every push (cost: `uv.lock`, SBOM, license check) |
 | Another session's request: merge GitHub's `feature/zombies-aint-my-neighbors` into the local one and push (CI split `dc70fe4a`, for #215/#220/#221) | Declined by this session: not its branch, 29 uncommitted files of another session's sound work in that worktree, and pushes need the owner's own ask | The owner, or the session owning that branch |
 
 ### 13.2 Measurements still to make

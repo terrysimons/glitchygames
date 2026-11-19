@@ -578,7 +578,8 @@ test in the task named.
 Not code. On the 16 GB Ubuntu Pi 5, once `vcgencmd get_throttled` stays `0x0` under a full
 benchmark:
 
-- [ ] `uv run --extra dev ansible-playbook -i ansible/inventory.yml ansible/ai_service.yml -K --limit <16 GB Pi host>`; expected: the `.deb` builds,
+- [ ] `ansible-playbook -i ansible/inventory.yml ansible/ai_service.yml -K --limit <16 GB Pi host>`,
+  with the owner's Ansible (ansible-core isn't a project dependency; see the design's 13.1); expected: the `.deb` builds,
   installs, `setup.sh` completes, the smoke test answers.
 - [ ] `uv run nox -s deb-package -- <the .deb copied from the Pi>`.
 - [ ] `THREADS=1,2,3,4 scripts/raspberry_pi_llama_cpp/benchmark_llama_cpp.sh ~/ai-spike cpu`;
