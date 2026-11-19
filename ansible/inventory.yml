@@ -7,26 +7,144 @@ all:
   children:
     # The Raspberry Pis (ansible/raspberry_pi_runner.yml sets each up): CircleCI machine runners
     # whose jobs no workflow runs, and the machines the pre-push hook measures replays on.
-    # scripts/measure_on_raspberry_pi.py lists each host by name (its tests check the two agree)
+    # scripts/measure_on_raspberry_pi.py lists each host by name (its tests check the two agree).
+    # Grouped by OS: what differs between OSes (clocking today) is done per group
     raspberry_pis:
       vars:
         ansible_user: terry
         ansible_python_interpreter: /usr/bin/python3
         # A Raspberry Pi has neither the memory nor the GPU for the models
         ai_enabled: false
-      hosts:
-        raspberry-pi-4:
-          ansible_host: 172.23.23.155
-          raspberry_pi_hostname: rpi4-ubuntu-2610
-          # .circleci/config.yml's build-and-test-raspberry-pi-4 names this (tests/test_ci_config.py)
-          raspberry_pi_resource_class: terrysimons/raspberry-pi-4
-          raspberry_pi_description: Raspberry Pi 4 with a real display
-        raspberry-pi-5:
-          ansible_host: 172.23.23.161
-          raspberry_pi_hostname: rpi5-ubuntu-2604
-          # .circleci/config.yml's build-and-test-raspberry-pi-5 names this (tests/test_ci_config.py)
-          raspberry_pi_resource_class: terrysimons/raspberry-pi-5
-          raspberry_pi_description: Raspberry Pi 5 (16 GB) with a real display
+        # The runner's display: 1920x1080 at 120 Hz, the standard 1080p120 timing both boards offer
+        # (a Pi 5 also offers 120.04, a Pi 4 doesn't), so all three drive the display alike; the
+        # highest rate at that size if 120 isn't offered (the owner, 2026-11-14)
+        raspberry_pi_display_mode:
+          width: 1920
+          height: 1080
+          refresh_rates: [120.0]
+      children:
+        # Each Pi names the release it runs (raspberry_pi_os_release), its board section in
+        # config.txt (raspberry_pi_board), its clock (stock, or raspberry_pi_overclock_settings
+        # among the firmware role's raspberry_pi_clock_keys) and its fan (raspberry_pi_fan: its
+        # kind, its GPIO pin, and levels in Celsius; an Active Cooler with no levels keeps the
+        # firmware's default curve). Tests: tests/test_ansible_raspberry_pis.py
+        raspberry_pis_ubuntu:
+          vars:
+            raspberry_pi_os: ubuntu
+            # How Ansible reports it, and the releases this playbook supports
+            raspberry_pi_os_distribution: Ubuntu
+            raspberry_pi_os_release_fact: distribution_version
+            raspberry_pi_os_supported_releases: ["26.04", "26.10"]
+            # Ubuntu's firmware config (the boot partition is mounted at /boot/firmware)
+            raspberry_pi_firmware_config: /boot/firmware/config.txt
+          hosts:
+            raspberry-pi-4-4gb-ubuntu:
+              ansible_host: 172.23.23.155
+              raspberry_pi_hostname: rpi4-ubuntu-2610
+              # .circleci/config.yml's build-and-test-raspberry-pi-4-4gb-ubuntu names this
+              # (tests/test_ci_config.py)
+              raspberry_pi_resource_class: terrysimons/raspberry-pi-4-4gb-ubuntu
+              raspberry_pi_description: Raspberry Pi 4 with a real display
+              raspberry_pi_os_release: "26.10"
+              raspberry_pi_board: pi4
+              # Stock: 1800 MHz (read 2026-11-14)
+              raspberry_pi_overclock_enabled: false
+              raspberry_pi_overclock_settings: {}
+              # No fan yet; it has throttled under load (get_throttled 0xe0000, 2026-11-14)
+              raspberry_pi_fan:
+                kind: none
+              # The cooling as a whole, in the requirements page's words (it may add a reading)
+              raspberry_pi_cooling: None added
+            # The owner's third Pi (2026-11-14): a Raspberry Pi 5 with 8 GB, on Ubuntu 26.10
+            raspberry-pi-5-8gb-ubuntu:
+              ansible_host: 172.23.23.140
+              raspberry_pi_hostname: rpi5-8gb-ubuntu-2610
+              # .circleci/config.yml's build-and-test-raspberry-pi-5-8gb-ubuntu names this
+              # (tests/test_ci_config.py)
+              raspberry_pi_resource_class: terrysimons/raspberry-pi-5-8gb-ubuntu
+              raspberry_pi_description: Raspberry Pi 5 (8 GB) with a real display
+              raspberry_pi_os_release: "26.10"
+              raspberry_pi_board: pi5
+              # Stock: 2400 MHz (read 2026-11-14)
+              raspberry_pi_overclock_enabled: false
+              raspberry_pi_overclock_settings: {}
+              # The Active Cooler (the official cooled case) on the firmware's default curve
+              raspberry_pi_fan:
+                kind: active-cooler
+                levels: []
+              raspberry_pi_cooling: Active cooling; the official cooled case
+            raspberry-pi-5-16gb-ubuntu:
+              ansible_host: 172.23.23.161
+              raspberry_pi_hostname: rpi5-ubuntu-2604
+              # .circleci/config.yml's build-and-test-raspberry-pi-5-16gb-ubuntu names this
+              # (tests/test_ci_config.py)
+              raspberry_pi_resource_class: terrysimons/raspberry-pi-5-16gb-ubuntu
+              raspberry_pi_description: Raspberry Pi 5 (16 GB, overclocked to 3.0 GHz) with a real display
+              raspberry_pi_os_release: "26.04"
+              raspberry_pi_board: pi5
+              # Overclocked by hand to 3000 MHz at over_voltage 6 (read 2026-11-14). The GPU's
+              # 1100 MHz was typed gpu_fre, so the firmware never applied it; fixed here (the
+              # owner, 2026-11-14: "Fix the typo")
+              raspberry_pi_overclock_enabled: true
+              raspberry_pi_overclock_settings:
+                arm_freq: 3000
+                gpu_freq: 1100
+                over_voltage: 6
+              # Its [pi5] section as typed by hand, which the block above replaces (already removed
+              # by the first run, 2026-11-14; kept so a run on a restored config.txt still works)
+              raspberry_pi_firmware_hand_typed_patterns:
+                - '^\[pi5\]\narm_freq=3000\ngpu_fre=1100\nover_voltage=6\n\n'
+              # The Active Cooler on the firmware's default curve, until a measurement under
+              # load says the overclock needs more (the owner, 2026-11-14)
+              raspberry_pi_fan:
+                kind: active-cooler
+                levels: []
+              # It boots from an NVMe SSD in a case that is itself a heat sink (read 2026-11-14)
+              raspberry_pi_cooling: Active cooling; the NVMe case is a large heat sink
+        # Raspberry Pi OS 64-bit, Trixie (the owner, 2026-11-14). Its Pis name the same host
+        # variables as an Ubuntu Pi
+        raspberry_pis_raspberry_pi_os:
+          vars:
+            raspberry_pi_os: raspberry_pi_os
+            # It keeps Debian's os-release (Trixie is Debian 13); /etc/rpi-issue tells it apart
+            raspberry_pi_os_distribution: Debian
+            raspberry_pi_os_release_fact: distribution_major_version
+            raspberry_pi_os_supported_releases: ["13"]
+            raspberry_pi_os_marker_file: /etc/rpi-issue
+            raspberry_pi_firmware_config: /boot/firmware/config.txt
+          hosts:
+            # The first Raspberry Pi OS Pi (2026-11-16): the 16 GB Pi 5 in the NVMe heat-sink
+            # case, set up as the Ubuntu 16 GB Pi is (the owner: "the same sorts of corallary
+            # settings that the Ubuntu system had"; plans/2026-11-04-raspberry-pi-ci-runner.md)
+            raspberry-pi-5-16gb-raspberry-pi-os:
+              # Its address is a DHCP lease (wlan0, read 2026-11-16), so it is reached by its
+              # mDNS name, which the hostname below keeps
+              ansible_host: glitchygames-pi5-16gb-raspberrypios.local
+              # Its hostname as it came: the playbook names each host, and any other name would
+              # change the mDNS name it is reached by
+              raspberry_pi_hostname: glitchygames-pi5-16gb-raspberrypios
+              # .circleci/config.yml's build-and-test-raspberry-pi-5-16gb-raspberry-pi-os names
+              # this (tests/test_ci_config.py)
+              raspberry_pi_resource_class: terrysimons/raspberry-pi-5-16gb-raspberry-pi-os
+              raspberry_pi_description: Raspberry Pi 5 (16 GB, overclocked to 3.0 GHz) on Raspberry Pi OS with a real display
+              raspberry_pi_os_release: "13"
+              raspberry_pi_board: pi5
+              # The Ubuntu 16 GB Pi's overclock (stock until now: read 2026-11-16). Values found
+              # stable on that Pi's chip: prove them on this one under load after the first boot
+              raspberry_pi_overclock_enabled: true
+              raspberry_pi_overclock_settings:
+                arm_freq: 3000
+                gpu_freq: 1100
+                over_voltage: 6
+              # Its Active Cooler (a PWM fan, read 2026-11-16) on the firmware's default curve
+              raspberry_pi_fan:
+                kind: active-cooler
+                levels: []
+              # It boots from an NVMe SSD in a case that is itself a heat sink (read 2026-11-16)
+              raspberry_pi_cooling: Active cooling; the NVMe case is a large heat sink
+              # Raspberry Pi OS's firmware boots it with cgroup_disable=memory, so its runner's
+              # MemoryMax is not enforced; its boot arguments are left alone for now (a to-do:
+              # plans/future-work.md, "The Raspberry Pi OS Pi's memory cgroup")
     macos:
       vars:
         # llama.cpp's Metal options:

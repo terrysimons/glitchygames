@@ -8,13 +8,34 @@ import pygame
 
 from glitchygames.audio.accounting import AudioAccountant
 from glitchygames.audio.instrument import Instrument
-from glitchygames.audio.library import CacheMode, SoundLibrary
+from glitchygames.audio.library import CacheMode, Sound, SoundLibrary, compile_sound
 from glitchygames.audio.pitch import Tuning
 from glitchygames.audio.waves import current_wave_registry
 
 PULSE_INSTRUMENT = Instrument(wave='square', envelope='pluck')
 FIXTURE_SOUNDS = Path(__file__).parent / 'fixtures' / 'sounds'
 FIXTURES = Path(__file__).parent / 'fixtures'
+
+
+def float_render(sound: Sound) -> np.ndarray:
+    """Return a sound's float64 render: a fresh copy compiled, as an offline render makes one.
+
+    A sound the library compiled keeps its int16 samples only (``Sound.release_float_samples``),
+    so a test that compares float samples renders them here.
+
+    Returns:
+        Mono float64 samples at the sound's rate.
+
+    Raises:
+        AssertionError: When the copy compiled no float samples.
+
+    """
+    copy = sound.fresh_copy()
+    compile_sound(copy)
+    if copy.samples_float is None:
+        message = f'{sound.name}: compiled no float samples'
+        raise AssertionError(message)
+    return copy.samples_float
 
 
 def make_library(

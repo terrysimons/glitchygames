@@ -49,6 +49,7 @@ from .pixel_utils import (
     opaque_surface,
     palette_key_problems,
 )
+from .root_sprite import RootSprite
 from .sprite_file_schema import validate_sprite_file
 from .tags import TAGS_KEY, normalize_sprite_tags
 
@@ -334,7 +335,7 @@ ERR_TOO_MANY_COLORS = 'Too many colors (max {})'
 TRANSPARENT_MAGENTA = (*MAGENTA_TRANSPARENCY_KEY, 0)
 
 
-class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruff: ignore[too-many-public-methods]
+class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-many-public-methods]
     """A prototype Sprite Animation class with proper dirty sprite integration."""
 
     log = LOG
@@ -659,12 +660,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Initialize the Sprite Animation prototype."""
-        super().__init__()
-
-        # Initialize pygame.sprite.DirtySprite
-        if groups is None:
-            groups = pygame.sprite.LayeredDirty()
-        pygame.sprite.DirtySprite.__init__(self, groups)
+        # A RootSprite (its mouse and keyboard handlers), in the given group, or a group of its
+        # own when None
+        super().__init__(groups=groups)
 
         # Animation state
         self.name = 'animated_sprite'  # Default name
@@ -2749,6 +2747,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         return surface
 
+    @override
     def update_nested_sprites(self: Self) -> None:
         """Update nested sprites (required by SpriteInterface)."""
         # AnimatedSprite doesn't have nested sprites, so this is a no-op

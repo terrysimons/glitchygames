@@ -1,0 +1,6 @@
+---
+# The runner's desktop session: its user logged in at boot, and a display that never sleeps or
+# locks (a sleeping output stops presenting frames; a locked session measures nothing). Each OS
+# does this its own way, so each has its own file, chosen by the group's raspberry_pi_os.
+- name: Set up the desktop the way this Pi's OS does it
+  ansible.builtin.include_tasks: "{{ raspberry_pi_os }}.yml"

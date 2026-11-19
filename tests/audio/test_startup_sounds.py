@@ -11,6 +11,8 @@ import pytest
 
 from glitchygames.audio.effects import Effect, Tone
 from glitchygames.audio.engine import AudioEngine
+from glitchygames.audio.instrument import Instrument
+from glitchygames.audio.mix import Mix, MixPart
 from glitchygames.audio.startup import StartupSounds
 from glitchygames.audio.synth import Envelope, Waveform
 from glitchygames.audio.voices import ChannelPartition
@@ -139,3 +141,23 @@ def test_a_slice_of_no_real_length_still_compiles_one(seconds):
     startup.compile_for(seconds)
 
     assert len(audio.requested) == 1
+
+
+def test_a_declared_mix_is_built_at_start_and_never_again():
+    """A score declared as mixes is built before the game's first frame; its requests build none."""
+    mix = Mix(
+        name='score',
+        parts=(MixPart(instrument=Instrument(wave='sine'), notes='A4:0.5 C5:0.5', volume=0.5),),
+        loop_seconds=1.0,
+    )
+    audio = AudioEngine(partition=NO_CHANNELS)
+    startup = StartupSounds(audio=audio, sources=(mix,))
+
+    startup.finish()
+    built = audio.sounds.statistics().compiles
+    requested = audio.sound(mix)
+
+    assert built == 1
+    assert requested.is_compiled
+    assert requested.length == 1.0
+    assert audio.sounds.statistics().compiles == built

@@ -1,8 +1,9 @@
 """Audio module for GlitchyGames.
 
 Provides the sound engine (``scene_manager.audio``, an ``AudioEngine``: one-call sounds from
-names, paths and instruments, with pitches, waves and noise), controller audio I/O (microphone +
-speaker), text-to-speech, and a push-to-talk AI voice assistant for game controllers.
+names, paths, instruments and mixes of instrument parts, with pitches, waves and noise),
+controller audio I/O (microphone + speaker), text-to-speech, and a push-to-talk AI voice
+assistant for game controllers.
 
 Usage:
     coin = self.scene_manager.audio.sound('coin')   # in setup(): compiled once, cached
@@ -40,6 +41,7 @@ from glitchygames.audio.library import CacheMode, Sound
 from glitchygames.audio.live import LiveAudio
 from glitchygames.audio.live_controls import Parameter, Route
 from glitchygames.audio.live_instrument import LiveSoundHandle
+from glitchygames.audio.mix import Mix, MixPart
 from glitchygames.audio.offline import OfflineEvent, RenderReport, render_to_file
 from glitchygames.audio.pitch import Hz, Midi, Note, PitchTable, Scale, Tuning
 from glitchygames.audio.synth import Envelope, Waveform
@@ -78,6 +80,8 @@ __all__ = [
     'LiveSoundHandle',
     'MacOSTTS',
     'Midi',
+    'Mix',
+    'MixPart',
     'MixerBusyError',
     'Noise',
     'Note',

@@ -1,0 +1,5 @@
+---
+- name: Update the desktop defaults
+  ansible.builtin.command:
+    cmd: dconf update
+  changed_when: true

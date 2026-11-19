@@ -3,9 +3,9 @@
 A root test that discovers members (their golden replays, bundled demos and console scripts)
 must assert it found each one it expects, so it can never pass on zero, and so a lost or extra
 recording fails. These are read from the repository on 2026-10-26 and edited deliberately when a
-game, golden, demo or console script is added or removed: ``EXPECTED_GOLDENS`` (the six goldens
-by ``(distribution, file name)``), ``EXPECTED_GAME_CONSOLE_SCRIPTS`` (the five games-layer
-console scripts), ``EXPECTED_ALL_CONSOLE_SCRIPTS`` (the ten members' console scripts: the
+game, golden, demo or console script is added or removed: ``EXPECTED_GOLDENS`` (the eight goldens
+by ``(distribution, file name)``), ``EXPECTED_GAME_CONSOLE_SCRIPTS`` (the six games-layer
+console scripts), ``EXPECTED_ALL_CONSOLE_SCRIPTS`` (the eleven members' console scripts: the
 games, the demos and Bitmappy) and ``EXPECTED_BUNDLED_DEMOS`` (by ``(package, name)``).
 
 What is read from the workspace (scripts/workspace_packages.py) to compare with them is in
@@ -47,7 +47,8 @@ MAXIMUM_DEMO_BYTES = 256 * 1024
 # Task D5)
 MEMBER_PACKAGES = tuple(MEMBER_LAYERS)
 # The goldens, by (games-layer distribution, file name), written out by hand: every games-layer
-# member holds at least one, Brave Adventurer one per game (5 games, 6 goldens)
+# member holds at least one; Brave Adventurer one per game, and Zombies Ain't My Neighbors one for
+# its title and one for its neighborhood (6 games, 8 goldens)
 EXPECTED_GOLDENS = frozenset({
     ('brave-adventurer', 'golden-classic.jsonl.gz'),
     ('brave-adventurer', 'golden-papyrus.jsonl.gz'),
@@ -55,6 +56,8 @@ EXPECTED_GOLDENS = frozenset({
     ('drawing-fire', 'golden.jsonl.gz'),
     ('mr-muncher', 'golden.jsonl.gz'),
     ('paddleslap', 'golden.jsonl.gz'),
+    ('zombies-aint-my-neighbors', 'golden.jsonl.gz'),
+    ('zombies-aint-my-neighbors', 'golden-neighborhood.jsonl.gz'),
 })
 # The games-layer members' console scripts, written out by hand (one per game member: Brave
 # Adventurer's launcher starts both its games)
@@ -64,8 +67,9 @@ EXPECTED_GAME_CONSOLE_SCRIPTS = frozenset({
     'drawing-fire',
     'mr-muncher',
     'paddleslap',
+    'zombies-aint-my-neighbors',
 })
-# Every member's console script, written out by hand: the five games, the four demos and Bitmappy
+# Every member's console script, written out by hand: the six games, the four demos and Bitmappy
 EXPECTED_ALL_CONSOLE_SCRIPTS = frozenset({
     'bitmappy',
     'brave-adventurer',
@@ -77,4 +81,5 @@ EXPECTED_ALL_CONSOLE_SCRIPTS = frozenset({
     'paddleslap',
     'sound-board-demo',
     'text-input-demo',
+    'zombies-aint-my-neighbors',
 })

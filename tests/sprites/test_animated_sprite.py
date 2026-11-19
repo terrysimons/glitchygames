@@ -1,5 +1,6 @@
 """Tests for animated sprite functionality."""
 
+import gc
 import logging
 import math
 import shutil
@@ -19,6 +20,7 @@ from scripts.sprite_stack import (
 import glitchygames.sprites
 import glitchygames.sprites.frame as frame_module
 from glitchygames.display_mode import set_display_mode
+from glitchygames.events import HashableEvent, KeyboardEvents, MouseEvents
 from glitchygames.sprites import (
     AnimatedSpriteInterface,
     BitmappySprite,
@@ -46,6 +48,7 @@ from glitchygames.sprites.pixel_utils import (
     needs_alpha_channel,
     normalize_pixel_for_color_map,
 )
+from glitchygames.sprites.root_sprite import RootSprite
 
 # The engine's own sprite test data (Bitmappy keeps its sprite library)
 SPRITE_FIXTURES_DIRECTORY = Path(__file__).resolve().parents[1] / 'fixtures' / 'sprites'
@@ -4610,3 +4613,47 @@ class TestOnePixelRowRule:
             / 'src/apps/bitmappy/src/bitmappy/resources/sprites/small_heart.toml'
         )
         assert AnimatedSprite(str(sprite_file)).pixel_row_repairs == []
+
+
+# The input protocols (2026-11-15): an AnimatedSprite is a RootSprite, as every sprite is
+
+
+def test_an_animated_sprite_carries_the_mouse_and_keyboard_protocols():
+    """It is a RootSprite, so the dispatchers can call any mouse or keyboard handler on it."""
+    assert issubclass(AnimatedSprite, RootSprite)
+    assert issubclass(AnimatedSprite, MouseEvents)
+    assert issubclass(AnimatedSprite, KeyboardEvents)
+
+
+def test_an_animated_sprite_joins_only_the_group_it_is_given():
+    """No other group holds it, not even one ``groups()`` would not name.
+
+    A second group would keep it alive after its scene removed it
+    (tests/replay/test_removed_sprites_are_freed.py).
+    """
+    group = pygame.sprite.LayeredDirty()
+
+    sprite = AnimatedSprite(groups=group)
+
+    groups_holding_it = [
+        candidate
+        for candidate in gc.get_objects()
+        if isinstance(candidate, pygame.sprite.AbstractGroup) and candidate.has(sprite)
+    ]
+    assert groups_holding_it == [group]
+    assert sprite.groups() == [group]
+
+
+def test_every_input_handler_of_an_animated_sprite_is_silent():
+    """Each mouse and keyboard handler accepts its event and does nothing.
+
+    None raises, even where unhandled events raise (``--no-unhandled-events``, on in every test).
+    """
+    sprite = AnimatedSprite(groups=pygame.sprite.LayeredDirty())
+    event = HashableEvent(pygame.MOUSEMOTION, pos=(0, 0), rel=(0, 0), buttons=(0, 0, 0))
+    handler_names = sorted(MouseEvents.__abstractmethods__ | KeyboardEvents.__abstractmethods__)
+
+    for name in handler_names:
+        handler = getattr(sprite, name)
+        parameter_count = handler.__code__.co_argcount - 1
+        assert handler(*[event] * parameter_count) is None, name

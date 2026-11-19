@@ -1,0 +1,30 @@
+---
+# Every Pi play starts here (ansible/raspberry_pi_runner.yml), so no play changes a Pi whose OS
+# isn't the one its inventory group is for. The groups (ansible/inventory.yml) say how Ansible
+# reports their OS (raspberry_pi_os_distribution, raspberry_pi_os_release_fact) and which
+# releases they support; each host says which release it runs.
+- name: Refuse a Pi whose OS is not the one the inventory names
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['distribution'] == raspberry_pi_os_distribution
+      - ansible_facts[raspberry_pi_os_release_fact] == raspberry_pi_os_release
+      - raspberry_pi_os_release in raspberry_pi_os_supported_releases
+    fail_msg: >-
+      {{ inventory_hostname }} runs {{ ansible_facts['distribution'] }}
+      {{ ansible_facts[raspberry_pi_os_release_fact] }}, but the inventory names
+      {{ raspberry_pi_os_distribution }} {{ raspberry_pi_os_release }} (its group supports
+      {{ raspberry_pi_os_supported_releases | join(', ') }})
+
+# Raspberry Pi OS keeps Debian's os-release, so its facts alone match plain Debian too
+- name: Read whether this is Raspberry Pi OS
+  ansible.builtin.stat:
+    path: "{{ raspberry_pi_os_marker_file }}"
+  register: raspberry_pi_os_marker
+  when: raspberry_pi_os_marker_file is defined
+
+- name: Refuse a Debian that isn't Raspberry Pi OS
+  ansible.builtin.assert:
+    that:
+      - raspberry_pi_os_marker.stat.exists
+    fail_msg: "{{ inventory_hostname }} has no {{ raspberry_pi_os_marker_file }}: not Raspberry Pi OS"
+  when: raspberry_pi_os_marker_file is defined
