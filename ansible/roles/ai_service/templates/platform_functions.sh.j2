@@ -391,3 +391,21 @@ finish_setup_job() {
     return 0
 }
 {% endmacro %}
+
+{% macro setup_lock_path() %}
+# Where setup.sh's lock lives: a folder a restart empties, so a lock a power cut left behind can't
+# outlive the boot and name a process id something else now has. The user's runtime folder on
+# Linux (the user manager and a login session set it); the per-user temporary folder on a Mac
+setup_lock_path() {
+{% if ansible_facts['system'] == 'Linux' %}
+    if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -d "$XDG_RUNTIME_DIR" ]; then
+        echo "$XDG_RUNTIME_DIR/glitchygames-ai-setup.lock"
+    else
+        # No session (a cron job, su without a login): /tmp, which systemd empties at boot
+        echo "${TMPDIR:-/tmp}/glitchygames-ai-setup-$(id -u).lock"
+    fi
+{% else %}
+    echo "${TMPDIR:-/tmp}/glitchygames-ai-setup-$(id -u).lock"
+{% endif %}
+}
+{% endmacro %}

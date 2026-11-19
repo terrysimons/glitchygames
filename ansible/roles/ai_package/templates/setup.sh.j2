@@ -24,6 +24,7 @@ set -u
 {{ platform.reload_agent_definitions() }}
 {{ platform.check_the_service_managers_data_home() }}
 {{ platform.finish_setup_job() }}
+{{ platform.setup_lock_path() }}
 
 say() {
     echo "setup: $1"
@@ -74,25 +75,41 @@ mkdir -p "$models" "$config" "$(log_root)"
 
 # One run at a time for this user: the setup job at a login, the package's postinst and Ansible may
 # start it together, and two runs would write the same .part files. A later run waits for the
-# first, then finds its work done. The lock is a link whose target is the holder's process id,
-# made in one step (ln -s refuses a name that exists), so a run killed outright leaves a lock the
-# next run sees is dead and takes over
-lock="$config/setup.lock"
+# first, then finds its work done. The lock is a link naming the holder's process id, made in one
+# step (ln -s refuses a name that exists), in a folder a restart empties (setup_lock_path). A
+# holder that no longer runs, or that is this run itself (an id reused since), is stale: a fresh
+# link is renamed over it, so a live lock made meanwhile is never deleted, only replaced
+lock=$(setup_lock_path)
 said_waiting=false
-until ln -s "$$" "$lock" 2>/dev/null; do
-    holder=$(readlink "$lock" 2>/dev/null) || holder=""
-    if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
+until ln -s "pid-$$" "$lock" 2>/dev/null; do
+    if ! holder=$(readlink "$lock" 2>/dev/null); then
+        if [ -e "$lock" ]; then
+            say "$lock is not a setup lock; stopping"
+            exit 1
+        fi
+        # Released between the two calls
+        continue
+    fi
+    holder=${holder#pid-}
+    if [ "$holder" = "$$" ] || ! kill -0 "$holder" 2>/dev/null; then
         say "taking over the lock of setup run $holder, which has stopped"
-        rm -f "$lock"
+        rm -f "$lock.$$"
+        if ! { ln -s "pid-$$" "$lock.$$" && mv -f "$lock.$$" "$lock"; }; then
+            rm -f "$lock.$$"
+            say "could not take over the lock at $lock; stopping"
+            exit 1
+        fi
+        [ "$(readlink "$lock" 2>/dev/null)" = "pid-$$" ] && break
         continue
     fi
     if [ "$said_waiting" = false ]; then
-        say "waiting for setup run ${holder:-?} to finish"
+        say "waiting for setup run $holder to finish"
         said_waiting=true
     fi
     sleep 1
 done
-trap 'rm -f "$lock"' EXIT
+# Only this run's own lock: one that replaced it is another run's
+trap '[ "$(readlink "$lock" 2>/dev/null)" = "pid-$$" ] && rm -f "$lock"' EXIT
 trap 'exit 1' HUP INT TERM
 
 if ! machine_can_run_the_service; then
