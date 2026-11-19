@@ -12,6 +12,7 @@ import importlib
 import pygame
 import pytest
 
+from zombies_aint_my_neighbors import music
 from zombies_aint_my_neighbors.game_over import (
     GAME_OVER_SECONDS,
     SWITCH_OFF_SECONDS,
@@ -100,9 +101,11 @@ def test_a_joined_players_start_returns_to_the_title_at_once():
     assert isinstance(scene.next_scene, TitleScene)
 
 
-@pytest.mark.parametrize('picture', ['game_over_text', 'screen_picture'])
+@pytest.mark.parametrize(
+    'picture', ['game_over_text', 'screen_picture', 'switch_off_sound', 'game_over_music']
+)
 def test_the_pictures_cannot_be_read_before_setup(picture):
-    """The words and the switch-off exist once the scene is set up: sooner is a bug, said."""
+    """The words, the switch-off and its sound exist once the scene is set up: sooner is a bug."""
     scene = GameOverScene(options=dict(OPTIONS), roster=JoinRoster.empty().join(device=KEYBOARD))
 
     with pytest.raises(RuntimeError, match='not set up'):
@@ -128,3 +131,50 @@ def test_an_unjoined_pads_start_does_nothing():
     support.controller_start(scene, instance_id=9)
 
     assert scene.next_scene is None
+
+
+# Its sounds (feature plan 11)
+
+
+def test_the_switch_off_sounds_once_as_the_picture_collapses(mocker):
+    """The tube's falling whine on the first frame, centred, and never again."""
+    scene = game_over()
+    switch_off = mocker.spy(scene.switch_off_sound, 'play')
+
+    support.tick_to(scene, seconds=1.0 / 60.0)
+    assert switch_off.call_count == 1
+    support.tick_to(scene, seconds=GAME_OVER_SECONDS - 0.05)
+
+    assert switch_off.call_count == 1
+    assert switch_off.call_args.kwargs == {}
+
+
+def test_the_sting_plays_once_as_game_over_shows(mocker):
+    """Dun, dun, DUNNN: one sound, every layer mixed in, on the frame the words appear, once."""
+    scene = game_over()
+    sting = mocker.spy(scene.game_over_music, 'play')
+
+    support.tick_to(scene, seconds=SWITCH_OFF_SECONDS - 0.05)
+    assert sting.call_count == 0
+    support.tick_to(scene, seconds=SWITCH_OFF_SECONDS + 0.02)
+    assert scene.game_over_text.visible
+    support.tick_to(scene, seconds=GAME_OVER_SECONDS - 0.05)
+
+    assert sting.call_count == 1
+    assert sting.call_args.kwargs == {
+        'volume': music.MUSIC_VOLUME,
+        'bus': music.MUSIC_BUS,
+        'priority': music.MUSIC_PRIORITY,
+        'loop': False,
+    }
+
+
+def test_setting_up_again_after_a_pause_keeps_its_sounds():
+    """A pause's return sets the scene up again: the same sounds, nothing asked for twice."""
+    scene = game_over()
+    switch_off, sting = scene.switch_off_sound, scene.game_over_music
+
+    scene.setup()
+
+    assert scene.switch_off_sound is switch_off
+    assert scene.game_over_music is sting

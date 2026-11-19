@@ -20,6 +20,7 @@ yard to be rescued: a kid's touch rescues one and a zombie's loses one. Each kid
 When every neighbor is rescued or lost and at least one was rescued, a gate opens in the top
 hedge; a kid through it clears the stage, and the next stage brings back only the neighbors
 rescued. Every life lost, or a stage with nobody rescued, and the TV switches off: game over.
+Every moment of a stage has its sound, and a theremin-and-organ score plays under it.
 The design, its decisions and
 the engine wishlist are in the master plan, `plans/2026-11-14-zombies-aint-my-neighbors.md`.
 
@@ -171,9 +172,45 @@ edit the file by hand: change the rig and run
   second of any groan, so a crowd does not moan in chorus. The rolls come from the named stream
   `zombies_aint_my_neighbors.zombie-groans`, so a replay repeats them.
 
+- **The TVs:** a picture-tube thump and a burst of static as a zombie climbs out; a zap plays only
+  the strongest of what it did: a glassy tick (a hit), a crunch of glass (a break into the next
+  stage), or the crunch with a low boom and a fizzle (destroyed).
+- **The neighbors:** three bright notes chirping up when one is rescued; a falling wail and a thud
+  when one is lost.
+- **A knockout:** a cartoon bonk, once per knockout.
+- **The gate:** an iron creak as it begins to swing open.
+- **The game over:** the tube's whine falling away as the picture collapses, and a click.
+
 The engine has no vibrato in a baked sound yet (milestone M4), so each warble is a chain of swoops,
 each lasting a whole number of its own cycles so the chain is one unbroken wave. Each sound pans by
 its source's place across the screen (-0.6 at the left edge, 0.6 at the right).
+
+## The score
+
+The music (`music.py`) is played on catalog instruments: a theremin, a theatre organ in two voices,
+a pizzicato double bass and timpani. A **cue** is layers played together, each one instrument
+playing one melody, every layer exactly as long as its cue.
+
+- **The stage loop** (`music.STAGE`): D minor, 120 beats a minute, eight bars (16 s), from the
+  stage's first frame.
+- **The stage clear** (`music.STAGE_CLEAR`): the loop fades out over 0.3 s and the band lands on
+  D major for the 1.5 s cheer.
+- **The game over** (`music.GAME_OVER`): the organ's dun, dun, DUNNN as GAME OVER shows.
+
+Each cue is one sound, an engine [mix](../architecture/sound.md#mixes) (`music.cue_mix`): its
+layers rendered and added at their volumes, cached as every sound is, so it is built once and
+read from the disk cache on later launches. The stage loop is a looping mix, exactly 16.000 s with
+every tail folded onto its start, played once with `loop=True`: the mixer repeats it sample for
+sample, on one channel. Every cue plays on the `music` bus at priority 80, so a storm of zaps
+never steals it.
+
+The score's mixes (`music.SCORE`) are declared with the effects in `SOUNDS`, so the engine builds
+them while the game starts, during the CRT power-on; the stage and the game over then find them
+built. Measured 2026-11-18 on the development Mac: the stage loop builds in 188 ms (on the first
+launch, holding back one frame of the power-on; later launches read it from the disk cache, and
+where the power-on is skipped it is built before the first scene), the stings in 21 and 43 ms;
+the score holds about 15 MB (9.9 MB of it the loop: float and int16 samples and the mixer's
+stereo copy), and its loudest peak is 0.79, so nothing clips.
 
 ## The join roster
 
