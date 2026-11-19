@@ -244,7 +244,12 @@ class SpriteFrame:
 
     @property
     def pixels(self) -> list[tuple[int, ...]]:
-        """The frame's pixels as a list of its own: shared ones are copied on this first read."""
+        """The frame's pixels as a list of its own: shared ones are copied on this first read.
+
+        Always a list the caller may change in place: pixels given as a tuple (as a compile's
+        templates hold them) read back as an equal list, the frame's own, so a write in place
+        never reaches pixels another frame may share.
+        """
         if self._pixels_are_shared or not isinstance(self._pixels, list):
             self._pixels = list(self._pixels)
             self._pixels_are_shared = False

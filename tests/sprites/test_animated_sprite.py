@@ -4729,6 +4729,19 @@ def _shared_frame_pair() -> tuple[SpriteFrame, SpriteFrame, SpriteFrame]:
 class TestSpriteFrameCopyOnWrite:
     """A frame sharing a compile's surface and pixels copies them on their first public read."""
 
+    def test_pixels_given_as_a_tuple_read_back_as_a_list_of_the_frames_own(self):
+        """The public pixels are always a list the caller may change in place, never the tuple."""
+        frame = SpriteFrame(pygame.Surface((2, 1)))
+        given = ((1, 2, 3), (4, 5, 6))
+        frame.pixels = given
+
+        pixels = frame.pixels
+        pixels[0] = (9, 9, 9)
+
+        assert isinstance(pixels, list)
+        assert frame.pixels is pixels
+        assert given == ((1, 2, 3), (4, 5, 6))
+
     def test_a_sharing_frame_copies_its_surface_on_first_read(self):
         """The copy is the frame's own from then on; the other frame still shares."""
         template, first, second = _shared_frame_pair()

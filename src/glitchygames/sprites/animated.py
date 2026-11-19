@@ -597,8 +597,6 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         # the index alone would keep the old animation's frame 0 image
         self._last_drawn_frame: tuple[str, int] | None = None
         self._surface_cache: dict[str, pygame.Surface] = {}
-        # The compile this sprite's frames share, or None for a sprite not loaded from text
-        self._compiled_sprite: CompiledSprite | None = None
 
         # Initialize with default surface
         self._gg_image = pygame.Surface((32, 32))
@@ -1482,7 +1480,6 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         self._pixel_rows_source = compiled.pixel_rows_source
         self._color_map = dict(compiled.color_map)
         self._color_order = list(compiled.color_order)
-        self._compiled_sprite = compiled
         # The sprite that compiled drew its own surfaces while loading; it draws the shared ones
         self.clear_surface_cache()
         # The compile's own load logged the skipped transitions and the missing animations once
