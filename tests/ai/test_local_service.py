@@ -163,6 +163,25 @@ def test_a_service_nothing_answers_for_is_started(tmp_path):
     assert calls.read_text(encoding='utf-8').strip() == 'start'
 
 
+def test_the_control_script_gets_the_same_environment_as_from_the_link(tmp_path, monkeypatch):
+    """One environment for every caller of ai-service.sh: the folders and the user's bus."""
+    record = tmp_path / 'environment'
+    install(root=tmp_path, exit_code=1, environment_record=record)
+    for name in ai_link.CONTROL_SCRIPT_ENVIRONMENT_VARIABLES:
+        monkeypatch.setenv(name, f'/set/for/{name}')
+
+    with pytest.raises(LocalAIServiceError, match='would not start'):
+        client_for(root=tmp_path, base_url='http://127.0.0.1:9').create(
+            model='reasoning', messages=MESSAGES
+        )
+
+    lines = record.read_text(encoding='utf-8').splitlines()
+    recorded = dict(line.split('=', 1) for line in lines if '=' in line)
+    expected = ai_link.control_script_environment()
+    assert set(ai_link.CONTROL_SCRIPT_ENVIRONMENT_VARIABLES) <= expected.keys()
+    assert {name: recorded.get(name) for name in expected} == expected
+
+
 def test_too_little_memory_says_so_and_can_be_retried(service, tmp_path):
     """The script's memory exit becomes a clear error with a retryable status."""
     fake, base_url = service

@@ -158,6 +158,64 @@ def test_the_control_script_starts_the_service_as_the_link_starts(service, start
     assert (tmp_path / 'control-calls').read_text(encoding='utf-8').strip() == 'start'
 
 
+# What ai-service.sh needs from the game's environment on Linux: the folders that choose the
+# user's data (the engine's rule, which the script follows) and the way to systemd's user manager
+FORWARDED_TO_THE_CONTROL_SCRIPT = {
+    'XDG_DATA_HOME': '/home/player/data',
+    ai_link.USER_ROOT_ENVIRONMENT_VARIABLE: '/home/player/ai',
+    ai_link.PROGRAM_ROOT_ENVIRONMENT_VARIABLE: '/opt/elsewhere',
+    INSTALL_ROOT_ENVIRONMENT_VARIABLE: '/srv/one-folder',
+    'XDG_RUNTIME_DIR': '/run/user/1000',
+    'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus',
+}
+
+
+def recorded_environment(*, record: Path) -> dict[str, str]:
+    """Read the environment a stand-in control script recorded.
+
+    Returns:
+        Each variable's value, by name.
+
+    """
+    lines = record.read_text(encoding='utf-8').splitlines()
+    return dict(line.split('=', 1) for line in lines if '=' in line)
+
+
+@pytest.mark.parametrize('variables_set', [True, False], ids=['set', 'unset'])
+def test_the_control_script_gets_the_folders_and_the_user_bus_and_nothing_else(
+    variables_set, tmp_path, monkeypatch
+):
+    """The script finds the user's folder as the engine does, and can reach systemctl --user.
+
+    Without XDG_RUNTIME_DIR or DBUS_SESSION_BUS_ADDRESS, systemctl --user can't find the user's
+    bus (systemd 257: "$DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR not defined"). Anything
+    else in the game's environment stays behind, and a variable that isn't set isn't invented.
+    """
+    record = tmp_path / 'environment'
+    install(root=tmp_path, environment_record=record)
+    for name, value in FORWARDED_TO_THE_CONTROL_SCRIPT.items():
+        if variables_set:
+            monkeypatch.setenv(name, value)
+        else:
+            monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv('GLITCHYGAMES_UNRELATED_SETTING', 'stays with the game')
+    link = AiLink(
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+        session_url='ws://127.0.0.1:9/v1/session',
+    )
+    try:
+        link.start()
+        assert wait_until(lambda: link.state is LinkState.RECONNECTING)
+    finally:
+        link.stop()
+
+    environment = recorded_environment(record=record)
+    for name, value in FORWARDED_TO_THE_CONTROL_SCRIPT.items():
+        assert environment.get(name) == (value if variables_set else None), name
+    assert environment['HOME'] == str(Path.home())
+    assert 'GLITCHYGAMES_UNRELATED_SETTING' not in environment
+
+
 def test_start_returns_before_the_service_does(tmp_path):
     """The frame loop never waits: a script that takes a while doesn't hold up start()."""
     release = tmp_path / 'release'

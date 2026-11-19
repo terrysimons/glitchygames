@@ -12,6 +12,12 @@ ai_package_distribution: "{{ ai_package_directory }}/distribution.xml"
 
 # Written into plists and settings, and replaced with the player's home when they install
 ai_package_home_placeholder: __GLITCHYGAMES_HOME__
+# The Linux package's settings name the user's folder and the program folder by these, as each
+# user's folder follows their own XDG_DATA_HOME or GLITCHYGAMES_AI_USER_ROOT: setup.sh fills them
+# in (plans/lucid-circuit-linux.md, 6.3). The # makes the quote filter single-quote any path that
+# holds one, so setup.sh can escape the folder it puts there for a single-quoted shell word
+ai_package_user_root_placeholder: "#GLITCHYGAMES_USER_ROOT#"
+ai_package_program_root_placeholder: "#GLITCHYGAMES_PROGRAM_ROOT#"
 
 # A player's Mac gets the model the setup picks, not every size: 13.93 GB is a lot to take from a
 # small disk (plans/lucid-circuit.md, section 10, question 6). They can ask for another later

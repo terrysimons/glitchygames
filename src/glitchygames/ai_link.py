@@ -55,6 +55,18 @@ PROGRAM_ROOT_ENVIRONMENT_VARIABLE = 'GLITCHYGAMES_AI_PROGRAM_ROOT'
 USER_ROOT_ENVIRONMENT_VARIABLE = 'GLITCHYGAMES_AI_USER_ROOT'
 # Where the Linux package puts the programs; the user's data is under platform_data_home()
 LINUX_PROGRAM_ROOT = Path('/opt/glitchygames/ai')
+# What the control script gets of the game's environment beyond HOME and PATH, each only when set:
+# the variables that choose the service's folders, so the script resolves the same user folder as
+# service_locations, and the two that lead systemctl --user to the user manager's bus, without
+# which it can't start a unit (plans/lucid-circuit-linux.md, 6.2)
+CONTROL_SCRIPT_ENVIRONMENT_VARIABLES = (
+    'XDG_DATA_HOME',
+    USER_ROOT_ENVIRONMENT_VARIABLE,
+    PROGRAM_ROOT_ENVIRONMENT_VARIABLE,
+    INSTALL_ROOT_ENVIRONMENT_VARIABLE,
+    'XDG_RUNTIME_DIR',
+    'DBUS_SESSION_BUS_ADDRESS',
+)
 DEFAULT_SESSION_URL = 'ws://127.0.0.1:23231/v1/session'
 
 # Bumped with the service's own PROTOCOL_VERSION when the messages change incompatibly
@@ -138,6 +150,22 @@ def service_locations() -> ServiceLocations | None:
     if program_root is None or user_root is None:
         return None
     return ServiceLocations(program_root=program_root, user_root=user_root)
+
+
+def control_script_environment() -> dict[str, str]:
+    """Build the environment every caller runs the control script with.
+
+    Returns:
+        HOME, a fixed PATH, and each of CONTROL_SCRIPT_ENVIRONMENT_VARIABLES that is set here.
+
+    """
+    environment = {'HOME': str(Path.home()), 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'}
+    environment.update({
+        name: os.environ[name]
+        for name in CONTROL_SCRIPT_ENVIRONMENT_VARIABLES
+        if name in os.environ
+    })
+    return environment
 
 
 class LinkState(StrEnum):
@@ -233,7 +261,7 @@ class AiLink:
         """
         result = process.run_command(
             command=[str(self.locations.control_script), 'start'],
-            environment={'HOME': str(Path.home()), 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'},
+            environment=control_script_environment(),
             timeout_seconds=START_TIMEOUT_SECONDS,
             capture_output=process.OutputCapture.TOGETHER,
         )

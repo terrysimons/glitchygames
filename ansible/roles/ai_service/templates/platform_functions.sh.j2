@@ -6,17 +6,49 @@ script imports this with context (the host's facts) and writes out the functions
   {% import 'platform_functions.sh.j2' as platform with context %}
   {{ platform.user_root() }}
 start_agent_process and forget_every_agent call user_root, so a script with either writes it too.
+The functions only setup.sh uses (from machine_can_run_the_service down) also call its say,
+sed_literal and install_if_changed, and install_agent_definition and place_the_cores call
+program_root and user_root.
 #}
 
+{#- Where systemd reads a user's own unit files and drop-ins, as shell text #}
+{% macro user_units_directory() %}${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user{% endmacro %}
+
 {% macro user_root() %}
-# The folder holding the user's models, settings and keys: the engine's rule
-# (src/glitchygames/ai_link.py, service_locations). On a Mac the programs live in it too
+# The folder holding the user's models, settings and keys, by the engine's rule
+# (src/glitchygames/ai_link.py, service_locations): GLITCHYGAMES_AI_USER_ROOT, then
+# GLITCHYGAMES_AI_INSTALL_ROOT, then the platform's. On a Mac the programs live in it too. A systemd
+# unit can't see a shell's variables, so ai-service.sh hands this folder to the user manager
 user_root() {
+    if [ -n "${GLITCHYGAMES_AI_USER_ROOT:-}" ]; then
+        echo "$GLITCHYGAMES_AI_USER_ROOT"
+    elif [ -n "${GLITCHYGAMES_AI_INSTALL_ROOT:-}" ]; then
+        echo "$GLITCHYGAMES_AI_INSTALL_ROOT"
+    else
 {% if ansible_facts['system'] == 'Linux' %}
-    echo "${XDG_DATA_HOME:-$HOME/.local/share}/glitchygames/ai"
+        echo "${XDG_DATA_HOME:-$HOME/.local/share}/glitchygames/ai"
 {% else %}
-    echo "$HOME/Library/Application Support/GlitchyGames/AI"
+        echo "$HOME/Library/Application Support/GlitchyGames/AI"
 {% endif %}
+    fi
+}
+{% endmacro %}
+
+{% macro program_root() %}
+# The folder holding the programs and the package's templates, by the engine's rule:
+# GLITCHYGAMES_AI_PROGRAM_ROOT, then GLITCHYGAMES_AI_INSTALL_ROOT, then the platform's
+program_root() {
+    if [ -n "${GLITCHYGAMES_AI_PROGRAM_ROOT:-}" ]; then
+        echo "$GLITCHYGAMES_AI_PROGRAM_ROOT"
+    elif [ -n "${GLITCHYGAMES_AI_INSTALL_ROOT:-}" ]; then
+        echo "$GLITCHYGAMES_AI_INSTALL_ROOT"
+    else
+{% if ansible_facts['system'] == 'Linux' %}
+        echo {{ ai_program_root | quote }}
+{% else %}
+        echo "$HOME/Library/Application Support/GlitchyGames/AI"
+{% endif %}
+    fi
 }
 {% endmacro %}
 
@@ -87,6 +119,9 @@ agent_is_running() {
 # Starts an agent, which then runs until stopped: start_agent_process LABEL
 start_agent_process() {
 {% if ansible_facts['system'] == 'Linux' %}
+    # The unit's run-llama-server.sh then finds the folder this script resolved, whatever the
+    # user manager's own XDG_DATA_HOME
+    systemctl --user set-environment "GLITCHYGAMES_AI_USER_ROOT=$(user_root)" || return 1
     systemctl --user start "$1.service"
 {% else %}
     # The plists live in the program folder and not in ~/Library/LaunchAgents, because launchd
@@ -141,8 +176,16 @@ sha256_of() {
 # Stops every agent this service may have and forgets it, running or not
 forget_every_agent() {
 {% if ansible_facts['system'] == 'Linux' %}
-    # The unit files are the package's, and dpkg removes them
+    # The unit files are the package's, and dpkg removes them. What setup.sh wrote for this user
+    # goes: each unit's CPU placement drop-in, and the folder handed to the user manager
     systemctl --user stop '{{ ai_service_label_prefix }}.*.service' 2>/dev/null
+    for drop_in in "{{ user_units_directory() }}"/{{ ai_service_label_prefix }}.*.service.d/cpu-placement.conf; do
+        [ -e "$drop_in" ] || continue
+        rm -f "$drop_in"
+        rmdir "$(dirname "$drop_in")" 2>/dev/null
+    done
+    systemctl --user unset-environment GLITCHYGAMES_AI_USER_ROOT 2>/dev/null
+    systemctl --user daemon-reload 2>/dev/null
 {% else %}
     # The models' agents, and the package's setup job or anything an older install left in
     # LaunchAgents
@@ -166,6 +209,184 @@ forget_package() {
     :
 {% else %}
     pkgutil --volume "$HOME" --forget {{ ai_package_identifier }} >/dev/null 2>&1
+{% endif %}
+    return 0
+}
+{% endmacro %}
+
+{% macro machine_can_run_the_service() %}
+# Whether this machine can run the service at all; says why not
+machine_can_run_the_service() {
+{% if ansible_facts['system'] == 'Linux' %}
+    # Every CPU can (plans/lucid-circuit-linux.md, 6.5), and dpkg refuses a package built for
+    # another architecture
+    return 0
+{% else %}
+    # A Mac with no Metal-capable GPU can't run this; the package already refuses Intel, so this is
+    # for a copy moved by hand
+    [ "$(uname -m)" = arm64 ] && return 0
+    say "this needs Apple Silicon; stopping"
+    return 1
+{% endif %}
+}
+{% endmacro %}
+
+{% macro ai_threads() %}
+# llama.cpp's thread count for this machine, or nothing for llama.cpp's own choice
+ai_threads() {
+{% if ansible_facts['system'] == 'Linux' %}
+    # Every core but the game's and the mirror's, at least one (plans/lucid-circuit-linux.md, 6.2):
+    # this machine's count, as the package may have been built on another. Plain nproc counts only
+    # the cores this process may use, which under the setup unit's own drop-in are the AI's
+    threads=$(( $(nproc --all) - 2 ))
+    [ "$threads" -ge 1 ] || threads=1
+    echo "$threads"
+{% else %}
+    # Metal does the work
+    echo ""
+{% endif %}
+}
+{% endmacro %}
+
+{% macro install_agent_definition() %}
+# Readies the service manager's definition of one agent for this user: install_agent_definition LABEL
+install_agent_definition() {
+{% if ansible_facts['system'] == 'Linux' %}
+    # The unit is the package's, in /usr/lib/systemd/user, and names the home as %h
+    return 0
+{% else %}
+    agents="$(program_root)/agents"
+    mkdir -p "$agents"
+    # The plist is XML, so its home needs & escaped for XML as well
+    xml_home=$(printf '%s' "$HOME" | sed -e 's/&/\&amp;/g')
+    sed -e "s|{{ ai_package_home_placeholder }}|$(sed_literal "$xml_home")|g" \
+        "$(program_root)/share/agents/$1.plist.template" > "$agents/$1.plist.new"
+    if ! plutil -lint "$agents/$1.plist.new" >/dev/null; then
+        rm -f "$agents/$1.plist.new"
+        say "the plist for $1 came out invalid; stopping"
+        return 1
+    fi
+    install_if_changed "$agents/$1.plist.new" "$agents/$1.plist"
+{% endif %}
+}
+{% endmacro %}
+
+{% macro place_the_cores() %}
+# Puts the game, its mirror and everything AI on cores of their own (plans/lucid-circuit-linux.md,
+# 6.2): place_the_cores AI_UNIT_LABEL... Writes each AI unit's CPUAffinity drop-in and
+# config/cpu-placement.json, which the engine and the mirror read, or removes both where there is
+# nothing to place
+place_the_cores() {
+{% if ansible_facts['system'] == 'Linux' %}
+    core_count=$(nproc --all)
+    placement="$(user_root)/config/cpu-placement.json"
+    if [ "$core_count" -lt 2 ]; then
+        rm -f "$placement"
+        for label in "$@"; do
+            rm -f "{{ user_units_directory() }}/$label.service.d/cpu-placement.conf"
+            rmdir "{{ user_units_directory() }}/$label.service.d" 2>/dev/null
+        done
+        return 0
+    fi
+    # Fastest first by cpu_capacity, ties by number: big.LITTLE chips often number their little
+    # cores first. By number alone unless every core reports one, as none may, and a partial list
+    # can't rank the rest
+    ranking=""
+    every_core_reports=true
+    core=0
+    while [ "$core" -lt "$core_count" ]; do
+        capacity_file="${AI_SYSFS_CPU_ROOT:-/sys/devices/system/cpu}/cpu$core/cpu_capacity"
+        if [ -r "$capacity_file" ]; then
+            capacity=$(cat "$capacity_file")
+        else
+            capacity=0
+            every_core_reports=false
+        fi
+        ranking="$ranking$capacity $core
+"
+        core=$(( core + 1 ))
+    done
+    if [ "$every_core_reports" = true ]; then
+        ranked=$(printf '%s' "$ranking" | sort -k 1,1nr -k 2,2n | cut -d ' ' -f 2)
+    else
+        ranked=$(printf '%s' "$ranking" | cut -d ' ' -f 2)
+    fi
+    game=$(printf '%s\n' "$ranked" | sed -n 1p)
+    mirror=$(printf '%s\n' "$ranked" | sed -n 2p)
+    # The AI takes the rest; with two cores the mirror shares the AI's core rather than the game's,
+    # as the game is the one a person watches
+    if [ "$core_count" -eq 2 ]; then
+        ai=$mirror
+    else
+        ai=$(printf '%s\n' "$ranked" | sed 1,2d | sort -n | tr '\n' ' ' | sed 's/ *$//')
+    fi
+    printf '{"game": [%s], "mirror": [%s], "ai": [%s]}\n' \
+        "$game" "$mirror" "$(echo "$ai" | sed 's/ /, /g')" > "$placement.new" || return 1
+    install_if_changed "$placement.new" "$placement"
+    for label in "$@"; do
+        drop_in_directory="{{ user_units_directory() }}/$label.service.d"
+        mkdir -p "$drop_in_directory" || return 1
+        # An affinity mask, which needs no cgroup controller: user services get no cpuset
+        printf '[Service]\nCPUAffinity=%s\n' "$ai" > "$drop_in_directory/cpu-placement.conf.new" \
+            || return 1
+        install_if_changed "$drop_in_directory/cpu-placement.conf.new" \
+            "$drop_in_directory/cpu-placement.conf"
+    done
+{% else %}
+    # launchd sets no CPU affinity, so a Mac places nothing
+    return 0
+{% endif %}
+}
+{% endmacro %}
+
+{% macro reload_agent_definitions() %}
+# Has the service manager read the agents' definitions again
+reload_agent_definitions() {
+{% if ansible_facts['system'] == 'Linux' %}
+    # For the CPU placement drop-ins. With no user manager to reach, it reads them when it starts
+    if ! systemctl --user daemon-reload; then
+        say "warning: could not reach systemd's user manager; it reads the CPU placement when it starts"
+    fi
+{% else %}
+    # launchd reads each plist when ai-service.sh bootstraps it
+    :
+{% endif %}
+    return 0
+}
+{% endmacro %}
+
+{% macro check_the_service_managers_data_home() %}
+# Says when the service manager would choose another user folder than this run did
+check_the_service_managers_data_home() {
+{% if ansible_facts['system'] == 'Linux' %}
+    # ai-service.sh hands the user manager its folder before each start, so this matters only to a
+    # unit started some other way. Ansible, over SSH, may run this with another XDG_DATA_HOME
+    if ! manager_environment=$(systemctl --user show-environment 2>/dev/null); then
+        say "warning: could not ask systemd's user manager for its environment"
+        return 0
+    fi
+    manager_data_home=$(printf '%s\n' "$manager_environment" | sed -n 's/^XDG_DATA_HOME=//p')
+    if [ "$manager_data_home" != "${XDG_DATA_HOME:-}" ]; then
+        say "warning: systemd's user manager has XDG_DATA_HOME=${manager_data_home:-(unset)} and this run ${XDG_DATA_HOME:-(unset)}, so a unit not started by ai-service.sh would look for the models elsewhere"
+    fi
+{% else %}
+    # A launchd agent's plist names its folder
+    :
+{% endif %}
+    return 0
+}
+{% endmacro %}
+
+{% macro finish_setup_job() %}
+# Ends the setup job's run
+finish_setup_job() {
+{% if ansible_facts['system'] == 'Linux' %}
+    # The package's setup unit runs this at every login, which then finds everything in place
+    :
+{% else %}
+    # This job has finished its one run. Removing its own plist keeps it from running at every login
+    rm -f "$HOME/Library/LaunchAgents/{{ ai_package_setup_label }}.plist"
+    launchctl bootout "gui/$(id -u)/{{ ai_package_setup_label }}" 2>/dev/null
 {% endif %}
     return 0
 }

@@ -7,10 +7,12 @@ model a host can never get.
 
 import configparser
 import contextlib
+import hashlib
 import itertools
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs the service's rendered scripts under sh
@@ -20,7 +22,9 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import pytest
 import yaml
+from pydantic import BaseModel, ConfigDict
 
+from glitchygames import ai_link
 from tests.ansible_rendering import (
     ansible_variables,
     render_expression,
@@ -30,6 +34,8 @@ from tests.ansible_rendering import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+    from pytest_mock import MockerFixture
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ANSIBLE = PROJECT_ROOT / 'ansible'
@@ -624,18 +630,21 @@ def test_the_run_time_variant_step_logs_at_the_verbosity_that_shows_the_backend_
 
 # The service's scripts, run as rendered for each platform (plans/lucid-circuit-linux.md, 5.3)
 TEMPLATES = ROLES / 'ai_service' / 'templates'
-SHELL_TEMPLATES = ['ai-service.sh.j2', 'run-llama-server.sh.j2', 'uninstall.sh.j2']
+PACKAGE_TEMPLATES = ROLES / 'ai_package' / 'templates'
+SHELL_TEMPLATES = ['ai-service.sh.j2', 'run-llama-server.sh.j2', 'uninstall.sh.j2', 'setup.sh.j2']
 SYSTEMS: list[Literal['Darwin', 'Linux']] = ['Darwin', 'Linux']
 ARCHITECTURES: list[Literal['aarch64', 'x86_64']] = ['aarch64', 'x86_64']
 # The inventory's macos value; Linux's is in group_vars/linux.yml
 MAC_GPU_LAYERS = 99
 # What runs in place of launchd's, systemd's and the package database's tools: each call is
-# recorded, and asking whether an agent runs says no. A test never reaches the real service
+# recorded, asking whether an agent runs says no, and systemd's user manager reports the
+# environment in SERVICE_MANAGER_ENVIRONMENT. A test never reaches the real service
 SERVICE_TOOL_STUB = """#!/bin/sh
 printf '%s %s\\n' "$(basename "$0")" "$*" >> "$SERVICE_TOOL_LOG"
 for argument in "$@"; do
     case "$argument" in
         is-active|print) exit 3 ;;
+        show-environment) printf '%s' "${SERVICE_MANAGER_ENVIRONMENT:-}"; exit 0 ;;
     esac
 done
 exit 0
@@ -717,43 +726,54 @@ class ServiceHome:
         return Path(self.variables['ai_service_config_directory'])
 
     def script(self, *, template: str) -> Path:
-        """Render one of the service's shell templates into the tools folder.
+        """Render a service shell template, or the package's setup, into the tools folder.
 
         Returns:
             The rendered script.
         """
+        source = TEMPLATES / template
+        if not source.exists():
+            source = PACKAGE_TEMPLATES / template
         rendered = self.tools / template.removesuffix('.j2')
         rendered.write_text(
-            render_template(path=TEMPLATES / template, variables=self.variables),
+            render_template(
+                path=source, variables=self.variables | {'ai_service_agents': self.agents()}
+            ),
             encoding='utf-8',
         )
         return rendered
 
     def run(
-        self, *, template: str, arguments: list[str], environment: dict[str, str] | None = None
+        self,
+        *,
+        template: str,
+        arguments: list[str],
+        environment: dict[str, str] | None = None,
+        unset: tuple[str, ...] = (),
     ) -> subprocess.CompletedProcess[str]:
         """Run a rendered script with this home, its XDG folders and the fake tools first.
+
+        Args:
+            template: The template's file name.
+            arguments: The script's arguments.
+            environment: Variables added to the run's environment, or replacing its own.
+            unset: Variables left out of the run's environment.
 
         Returns:
             The finished run.
         """
+        run_environment = {
+            'HOME': str(self.home),
+            'XDG_DATA_HOME': str(self.home / '.local' / 'share'),
+            'XDG_CACHE_HOME': str(self.home / '.cache'),
+            'XDG_STATE_HOME': str(self.home / '.local' / 'state'),
+            'PATH': os.pathsep.join([str(self.tools), '/usr/bin', '/bin', '/usr/sbin', '/sbin']),
+            'SERVICE_TOOL_LOG': str(self.tool_log),
+            **(environment or {}),
+        }
         return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - sh and a rendered script, as an argument list
             ['/bin/sh', str(self.script(template=template)), *arguments],
-            env={
-                'HOME': str(self.home),
-                'XDG_DATA_HOME': str(self.home / '.local' / 'share'),
-                'XDG_CACHE_HOME': str(self.home / '.cache'),
-                'XDG_STATE_HOME': str(self.home / '.local' / 'state'),
-                'PATH': os.pathsep.join([
-                    str(self.tools),
-                    '/usr/bin',
-                    '/bin',
-                    '/usr/sbin',
-                    '/sbin',
-                ]),
-                'SERVICE_TOOL_LOG': str(self.tool_log),
-                **(environment or {}),
-            },
+            env={name: value for name, value in run_environment.items() if name not in unset},
             capture_output=True,
             text=True,
             check=False,
@@ -1193,3 +1213,710 @@ def test_a_port_the_port_tool_reports_held_stops_the_start(
         assert result.returncode == 0, result.stdout + result.stderr
         assert 'reason=' not in result.stdout
         assert len(starts) == 3, calls
+
+
+# setup.sh, the one per-user path on Linux (plans/lucid-circuit-linux.md, 6.2 and 6.3), run as
+# rendered with the package's share folder staged under tmp_path and fake downloads and cores
+DOWNLOAD_BASE_URL = 'https://downloads.test'
+# The runtime folder's name in a staged package; any name does, as nothing here builds one
+RUNTIME_NAME = 'llama.cpp-test'
+# Stands in for curl as setup.sh calls it: serves URL's file from DOWNLOAD_ROOT into --output,
+# appending to what's there with --continue-at -, and with CURL_FAILS_AFTER_BYTES set, writes that
+# many more bytes and fails as a dropped connection does (curl's exit 18, a partial transfer)
+CURL_STUB = """#!/bin/sh
+printf 'curl %s\\n' "$*" >> "$SERVICE_TOOL_LOG"
+output=""
+url=""
+resume=false
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --output) output=$2; shift ;;
+        --continue-at) [ "$2" = - ] && resume=true; shift ;;
+        --connect-timeout|--speed-time|--speed-limit|--retry|--retry-delay) shift ;;
+        --*) ;;
+        *) url=$1 ;;
+    esac
+    shift
+done
+source="$DOWNLOAD_ROOT/${url#"$DOWNLOAD_BASE_URL"/}"
+[ -f "$source" ] || exit 22
+have=0
+if [ "$resume" = true ] && [ -f "$output" ]; then
+    have=$(wc -c < "$output")
+else
+    : > "$output"
+fi
+if [ -n "${CURL_FAILS_AFTER_BYTES:-}" ]; then
+    tail -c +"$(( have + 1 ))" "$source" | head -c "$CURL_FAILS_AFTER_BYTES" >> "$output"
+    exit 18
+fi
+tail -c +"$(( have + 1 ))" "$source" >> "$output"
+"""
+OPENSSL_STUB = """#!/bin/sh
+printf 'openssl %s\\n' "$*" >> "$SERVICE_TOOL_LOG"
+[ "$*" = 'rand -hex 32' ] || exit 2
+echo 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+"""
+# Without --all, nproc counts only the cores this process may use, which under the setup unit's own
+# CPUAffinity drop-in are the AI's: the stub answers 1 then, so a script counting that way fails
+NPROC_STUB = """#!/bin/sh
+if [ "${1:-}" = --all ]; then
+    echo "$NPROC_ALL"
+else
+    echo 1
+fi
+"""
+
+
+class LinuxSetup:
+    """A Linux user's machine as setup.sh finds it at login, with everything outside faked."""
+
+    def __init__(self, *, tmp_path: Path, home: Path | None = None) -> None:
+        """Stage the package's share folder, serve the selected models, and stub the tools."""
+        self.service = ServiceHome(
+            system='Linux', home=home or tmp_path / 'home', tools=tmp_path / 'tools'
+        )
+        self.program_root = tmp_path / 'opt' / 'glitchygames' / 'ai'
+        self.downloads = tmp_path / 'downloads'
+        self.cpu_root = tmp_path / 'sys' / 'devices' / 'system' / 'cpu'
+        self.core_count = 4
+        for tool, stub in (
+            ('curl', CURL_STUB),
+            ('openssl', OPENSSL_STUB),
+            ('nproc', NPROC_STUB),
+            ('ss', SS_STUB),
+            ('lsof', LSOF_STUB),
+        ):
+            _write_executable(self.service.tools / tool, stub)
+        _write_executable(
+            self.program_root / 'runtime' / RUNTIME_NAME / 'bin' / 'llama-server',
+            LLAMA_SERVER_STUB,
+        )
+        self.service.variables['ai_models_base_url'] = DOWNLOAD_BASE_URL
+        self.service.variables['ai_models_free_margin_bytes'] = 0
+        for model_file in self.selected_model_files():
+            self.serve(model_file=model_file, content=f'{model_file["file"]}\n'.encode())
+        self.stage_share()
+
+    def selected_model_files(self) -> list[dict[str, Any]]:
+        """Name the files the default selection downloads: Bonsai 2B, its vision file, Qwen 0.6B.
+
+        Returns:
+            Each file's entry in the variables (its name, bytes and SHA-256), changed in place
+            when a test serves other bytes.
+        """
+        bonsai = self.service.variables['ai_models_bonsai']['2b']
+        qwen = self.service.variables['ai_models_qwen']['0.6b']
+        return [bonsai['model'], bonsai['vision'], qwen['model']]
+
+    def download_path(self, *, model_file: dict[str, Any]) -> Path:
+        """Find where the fake download server keeps a model file.
+
+        Returns:
+            The file under the download root, at the path its pinned URL names.
+
+        Raises:
+            LookupError: The file is in no pinned model.
+        """
+        for model in (
+            *self.service.variables['ai_models_bonsai'].values(),
+            *self.service.variables['ai_models_qwen'].values(),
+        ):
+            if model_file in (model['model'], model.get('vision')):
+                return (
+                    self.downloads
+                    / model['repository']
+                    / 'resolve'
+                    / model['revision']
+                    / model_file['file']
+                )
+        message = f'{model_file["file"]} is no pinned model'
+        raise LookupError(message)
+
+    def serve(self, *, model_file: dict[str, Any], content: bytes, pinned: bool = True) -> None:
+        """Serve a model file's bytes, pinning their size and SHA-256 unless told not to."""
+        path = self.download_path(model_file=model_file)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        if pinned:
+            model_file['bytes'] = len(content)
+            model_file['sha256'] = hashlib.sha256(content).hexdigest()
+
+    def stage_share(self) -> None:
+        """Stage share/agents as the Linux package carries it: settings with root placeholders.
+
+        The package is built on one machine and installed on many, so its settings name the
+        user's folder and the program folder by placeholders (ai_package's defaults), which
+        setup.sh fills in for each user.
+        """
+        package = role_defaults(role='ai_package')
+        program_placeholder = package['ai_package_program_root_placeholder']
+        variables = ansible_variables(
+            system='Linux',
+            architecture='aarch64',
+            home=self.service.home,
+            overrides={
+                'ai_user_root': package['ai_package_user_root_placeholder'],
+                'ai_program_root': program_placeholder,
+            },
+        )
+        variables['llama_cpp_install_directory'] = f'{program_placeholder}/runtime/{RUNTIME_NAME}'
+        agents = run_set_fact_tasks(tasks=role_tasks(role='ai_service'), variables=variables)[
+            'ai_service_agents'
+        ]
+        share = self.program_root / 'share' / 'agents'
+        share.mkdir(parents=True, exist_ok=True)
+        (share / 'service.json.template').write_text(
+            render_template(
+                path=TEMPLATES / 'service.json.j2',
+                variables=variables | {'ai_service_agents': agents},
+            ),
+            encoding='utf-8',
+        )
+        for agent in agents:
+            (share / f'{agent["label"]}.env.template').write_text(
+                render_template(
+                    path=TEMPLATES / 'agent.env.j2', variables=variables | {'agent': agent}
+                ),
+                encoding='utf-8',
+            )
+
+    def set_cores(self, *, count: int, capacities: dict[int, int]) -> None:
+        """Make the machine's cores: how many nproc --all counts, and which report a capacity."""
+        self.core_count = count
+        shutil.rmtree(self.cpu_root, ignore_errors=True)
+        for core in range(count):
+            (self.cpu_root / f'cpu{core}').mkdir(parents=True)
+            if core in capacities:
+                (self.cpu_root / f'cpu{core}' / 'cpu_capacity').write_text(
+                    f'{capacities[core]}\n', encoding='utf-8'
+                )
+
+    def environment(self, *, extra: dict[str, str] | None = None) -> dict[str, str]:
+        """Build what setup.sh's run needs beyond the home: the package, the fakes, the memory.
+
+        Returns:
+            The variables.
+        """
+        return {
+            'GLITCHYGAMES_AI_PROGRAM_ROOT': str(self.program_root),
+            'AI_SYSFS_CPU_ROOT': str(self.cpu_root),
+            'NPROC_ALL': str(self.core_count),
+            'AI_MEMORY_MB': '16384',
+            'AI_AVAILABLE_MB': '9216',
+            'DOWNLOAD_ROOT': str(self.downloads),
+            'DOWNLOAD_BASE_URL': DOWNLOAD_BASE_URL,
+            **(extra or {}),
+        }
+
+    def run(
+        self,
+        *,
+        template: str = 'setup.sh.j2',
+        arguments: list[str] | None = None,
+        extra: dict[str, str] | None = None,
+        unset: tuple[str, ...] = (),
+    ) -> subprocess.CompletedProcess[str]:
+        """Run setup.sh, or another of the service's scripts, as rendered for Linux.
+
+        Returns:
+            The finished run.
+        """
+        return self.service.run(
+            template=template,
+            arguments=arguments or [],
+            environment=self.environment(extra=extra),
+            unset=unset,
+        )
+
+    @property
+    def user_root(self) -> Path:
+        """The user's folder when no variable moves it: the XDG data home's."""
+        return self.service.home / '.local' / 'share' / 'glitchygames' / 'ai'
+
+    def drop_in(self, *, label: str) -> Path:
+        """Name an AI unit's CPU placement drop-in.
+
+        Returns:
+            The drop-in's path, in the user's systemd folder.
+        """
+        return (
+            self.service.home
+            / '.config'
+            / 'systemd'
+            / 'user'
+            / f'{label}.service.d'
+            / 'cpu-placement.conf'
+        )
+
+    def ai_unit_labels(self) -> list[str]:
+        """Name every AI unit: each model's, the API's and the setup job's.
+
+        Returns:
+            The units' labels.
+        """
+        return [
+            *[agent['label'] for agent in self.service.agents()],
+            self.service.variables['ai_package_setup_label'],
+        ]
+
+    def model_settings(self, *, user_root: Path | None = None) -> dict[str, dict[str, str]]:
+        """Read each model agent's settings as sh would, by their labels.
+
+        Returns:
+            Each model agent's settings.
+        """
+        config = (user_root or self.user_root) / 'config'
+        settings = {}
+        for agent in self.service.agents():
+            if agent['role'] == 'api':
+                continue
+            text = (config / f'{agent["label"]}.env').read_text(encoding='utf-8')
+            settings[agent['label']] = {
+                name: shlex.split(value)[0] if shlex.split(value) else ''
+                for name, value in (
+                    line.split('=', 1) for line in text.splitlines() if re.match(r'[A-Z_]+=', line)
+                )
+            }
+        return settings
+
+
+def test_setup_carries_every_pinned_model(tmp_path: Path):
+    """The rendered Linux setup.sh holds each downloaded size's revision and SHA-256 (section 7)."""
+    service = ServiceHome(system='Linux', home=tmp_path / 'home', tools=tmp_path / 'tools')
+    variables = service.variables
+
+    setup = service.script(template='setup.sh.j2').read_text(encoding='utf-8')
+
+    for size in variables['ai_models_bonsai_sizes']:
+        model = variables['ai_models_bonsai'][size]
+        assert model['revision'] in setup, size
+        assert model['model']['sha256'] in setup, size
+        assert model['vision']['sha256'] in setup, size
+    for size in variables['ai_models_qwen_sizes']:
+        model = variables['ai_models_qwen'][size]
+        assert model['revision'] in setup, size
+        assert model['model']['sha256'] in setup, size
+
+
+def file_times(*, root: Path) -> dict[Path, int]:
+    """Read the modification time of every file under a folder.
+
+    Returns:
+        Each file's time in nanoseconds, by its path.
+    """
+    return {path: path.stat().st_mtime_ns for path in sorted(root.rglob('*')) if path.is_file()}
+
+
+@needs_a_posix_shell
+def test_setup_on_linux_leaves_a_working_user_root(tmp_path: Path):
+    """Models, keys (0600), settings and placement in place, and a second run changes nothing.
+
+    The home has a space, quotes and an ampersand, which every setting must carry whole: the
+    runner reads the settings setup.sh wrote and finds the model in them, and service.json parses.
+    """
+    setup = LinuxSetup(tmp_path=tmp_path, home=tmp_path / 'a home & more' / 'player\'s "den"')
+    setup.set_cores(count=4, capacities={})
+
+    first = setup.run()
+
+    assert first.returncode == 0, first.stdout + first.stderr
+    models = setup.user_root / 'models'
+    for model_file in setup.selected_model_files():
+        served = setup.download_path(model_file=model_file).read_bytes()
+        assert (models / model_file['file']).read_bytes() == served
+    assert not list(models.glob('*.part'))
+    config = setup.user_root / 'config'
+    for key in ('worker-api-key', 'service-api-key'):
+        assert ((config / key).stat().st_mode & 0o777) == 0o600, key
+    service_settings = json.loads((config / 'service.json').read_text(encoding='utf-8'))
+    assert service_settings['worker_key_file'] == str(config / 'worker-api-key')
+    assert service_settings['service_key_file'] == str(config / 'service-api-key')
+    assert service_settings['control_script'] == str(setup.program_root / 'bin' / 'ai-service.sh')
+    for agent in setup.service.agents():
+        assert (config / f'{agent["label"]}.env').is_file(), agent['label']
+    reasoning = setup.service.agent(role='reasoning')
+    runner = setup.run(template='run-llama-server.sh.j2', arguments=[reasoning['label']])
+    arguments = runner.stdout.splitlines()
+    assert runner.returncode == 0, runner.stderr
+    assert arguments[arguments.index('--model') + 1] == str(models / reasoning['model_file'])
+    assert arguments[arguments.index('--mmproj') + 1] == str(models / reasoning['vision_file'])
+    # Every file setup.sh wrote is set back in time, so a rewrite shows however coarse the clock
+    every_file = file_times(root=setup.service.home)
+    for path in every_file:
+        os.utime(path, ns=(1_000_000_000, 1_000_000_000))
+    before = file_times(root=setup.service.home)
+
+    second = setup.run()
+
+    assert second.returncode == 0, second.stdout + second.stderr
+    assert file_times(root=setup.service.home) == before
+    downloads = [call for call in setup.service.tool_calls() if call.startswith('curl')]
+    assert len(downloads) == len(setup.selected_model_files()), 'the second run downloaded'
+
+
+class PlacementRow(BaseModel):
+    """One machine of section 6.2's table, and where setup.sh must place each part on it."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    cores: int
+    # By core; a core missing here reports no cpu_capacity
+    capacities: dict[int, int]
+    threads: int
+    # The AI units' CPUAffinity=, and the placement file's lists; None: nothing placed
+    affinity: str | None
+    game: list[int] | None
+    mirror: list[int] | None
+    ai: list[int] | None
+
+
+PLACEMENT_ROWS = [
+    PlacementRow(
+        cores=4,
+        capacities=dict.fromkeys(range(4), 1024),
+        threads=2,
+        affinity='2 3',
+        game=[0],
+        mirror=[1],
+        ai=[2, 3],
+    ),
+    PlacementRow(
+        cores=4, capacities={}, threads=2, affinity='2 3', game=[0], mirror=[1], ai=[2, 3]
+    ),
+    PlacementRow(
+        cores=8,
+        capacities=dict.fromkeys(range(8), 1024),
+        threads=6,
+        affinity='2 3 4 5 6 7',
+        game=[0],
+        mirror=[1],
+        ai=[2, 3, 4, 5, 6, 7],
+    ),
+    # RK3588-style: the little cores numbered first
+    PlacementRow(
+        cores=8,
+        capacities={**dict.fromkeys(range(4), 446), **dict.fromkeys(range(4, 8), 1024)},
+        threads=6,
+        affinity='0 1 2 3 6 7',
+        game=[4],
+        mirror=[5],
+        ai=[0, 1, 2, 3, 6, 7],
+    ),
+    # Three tiers: core 7 fastest, 4-6 big, 0-3 little
+    PlacementRow(
+        cores=8,
+        capacities={**dict.fromkeys(range(4), 325), **dict.fromkeys(range(4, 7), 870), 7: 1024},
+        threads=6,
+        affinity='0 1 2 3 5 6',
+        game=[7],
+        mirror=[4],
+        ai=[0, 1, 2, 3, 5, 6],
+    ),
+    # The big cores numbered first
+    PlacementRow(
+        cores=8,
+        capacities={**dict.fromkeys(range(4), 1024), **dict.fromkeys(range(4, 8), 446)},
+        threads=6,
+        affinity='2 3 4 5 6 7',
+        game=[0],
+        mirror=[1],
+        ai=[2, 3, 4, 5, 6, 7],
+    ),
+    # Only cores 0-1 report a capacity: ranked by number, though core 1 reports the higher
+    PlacementRow(
+        cores=4,
+        capacities={0: 446, 1: 1024},
+        threads=2,
+        affinity='2 3',
+        game=[0],
+        mirror=[1],
+        ai=[2, 3],
+    ),
+    PlacementRow(
+        cores=3,
+        capacities=dict.fromkeys(range(3), 1024),
+        threads=1,
+        affinity='2',
+        game=[0],
+        mirror=[1],
+        ai=[2],
+    ),
+    # Two cores: the mirror shares the AI's core, not the game's
+    PlacementRow(
+        cores=2,
+        capacities={0: 446, 1: 1024},
+        threads=1,
+        affinity='0',
+        game=[1],
+        mirror=[0],
+        ai=[0],
+    ),
+    PlacementRow(
+        cores=1, capacities={0: 1024}, threads=1, affinity=None, game=None, mirror=None, ai=None
+    ),
+]
+PLACEMENT_ROW_NAMES = [
+    '4-alike',
+    '4-no-capacities',
+    '8-alike',
+    '8-rk3588-little-first',
+    '8-three-tiers',
+    '8-big-first',
+    '4-only-some-report',
+    '3-alike',
+    '2-cores',
+    '1-core',
+]
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('row', PLACEMENT_ROWS, ids=PLACEMENT_ROW_NAMES)
+def test_setup_gives_the_game_the_mirror_and_the_ai_their_own_cores(
+    tmp_path: Path, row: PlacementRow
+):
+    """The game on the fastest core, the mirror on the next, everything AI on the rest (6.2).
+
+    Ranked by cpu_capacity, ties by number, and by number alone unless every core reports one.
+    Every AI unit (both model units, the API, setup) gets the same drop-in. Where one core
+    leaves nothing to place, an earlier placement is removed.
+    """
+    setup = LinuxSetup(tmp_path=tmp_path)
+    placement_file = setup.user_root / 'config' / 'cpu-placement.json'
+    if row.affinity is None:
+        setup.set_cores(count=4, capacities={})
+        earlier = setup.run()
+        assert earlier.returncode == 0, earlier.stdout + earlier.stderr
+        assert placement_file.exists()
+        assert all(setup.drop_in(label=label).exists() for label in setup.ai_unit_labels())
+    setup.set_cores(count=row.cores, capacities=row.capacities)
+
+    result = setup.run()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    for label, settings in setup.model_settings().items():
+        assert settings['AI_THREADS'] == str(row.threads), label
+    assert 'systemctl --user daemon-reload' in setup.service.tool_calls()
+    if row.affinity is None:
+        assert not placement_file.exists()
+        for label in setup.ai_unit_labels():
+            assert not setup.drop_in(label=label).exists(), label
+            assert not setup.drop_in(label=label).parent.exists(), label
+        return
+    for label in setup.ai_unit_labels():
+        unit = configparser.ConfigParser(interpolation=None, strict=True)
+        unit.optionxform = str  # ty: ignore[invalid-assignment] - keep systemd's key case
+        unit.read_string(setup.drop_in(label=label).read_text(encoding='utf-8'))
+        assert unit.sections() == ['Service'], label
+        assert dict(unit['Service']) == {'CPUAffinity': row.affinity}, label
+    placement = json.loads(placement_file.read_text(encoding='utf-8'))
+    assert placement == {'game': row.game, 'mirror': row.mirror, 'ai': row.ai}
+    assert [int(core) for core in row.affinity.split()] == placement['ai']
+    # The invariants, on every row
+    assert not set(placement['game']) & set(placement['ai'])
+    named = {*placement['game'], *placement['mirror'], *placement['ai']}
+    assert all(0 <= core < row.cores for core in named)
+    assert named == set(range(row.cores))
+    game_capacity = row.capacities.get(placement['game'][0])
+    if game_capacity is not None:
+        assert all(row.capacities.get(core, 0) <= game_capacity for core in placement['ai'])
+
+
+@needs_a_posix_shell
+def test_a_failed_download_leaves_no_model_and_retries(tmp_path: Path):
+    """Exit 1 with only the .part kept; the next run resumes it and completes (Review focus 3)."""
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    model_file = setup.selected_model_files()[0]
+    models = setup.user_root / 'models'
+
+    failed = setup.run(extra={'CURL_FAILS_AFTER_BYTES': '5'})
+
+    assert failed.returncode == 1, failed.stdout + failed.stderr
+    assert not (models / model_file['file']).exists()
+    served = setup.download_path(model_file=model_file).read_bytes()
+    assert (models / f'{model_file["file"]}.part').read_bytes() == served[:5]
+
+    retried = setup.run()
+
+    assert retried.returncode == 0, retried.stdout + retried.stderr
+    assert (models / model_file['file']).read_bytes() == served
+    assert not (models / f'{model_file["file"]}.part').exists()
+    resumed = [
+        call
+        for call in setup.service.tool_calls()
+        if call.startswith('curl') and call.endswith(model_file['file'])
+    ]
+    assert '--continue-at -' in resumed[-1]
+
+
+@needs_a_posix_shell
+def test_a_wrong_hash_is_discarded(tmp_path: Path):
+    """A download whose bytes don't match the pin leaves neither the model nor its .part."""
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    model_file = setup.selected_model_files()[0]
+    setup.serve(model_file=model_file, content=b'not the pinned bytes\n', pinned=False)
+    models = setup.user_root / 'models'
+
+    result = setup.run()
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert not (models / model_file['file']).exists()
+    assert not (models / f'{model_file["file"]}.part').exists()
+    assert f'{model_file["file"]} had the wrong SHA-256' in result.stdout
+
+
+USER_ROOT_CASES = [
+    pytest.param({}, id='xdg-unset'),
+    pytest.param({'XDG_DATA_HOME': 'xdg data'}, id='xdg-set'),
+    pytest.param(
+        {'XDG_DATA_HOME': 'xdg data', 'GLITCHYGAMES_AI_USER_ROOT': 'user root'}, id='user-root'
+    ),
+    pytest.param(
+        {'XDG_DATA_HOME': 'xdg data', 'GLITCHYGAMES_AI_INSTALL_ROOT': 'one folder'},
+        id='install-root',
+    ),
+    pytest.param(
+        {
+            'XDG_DATA_HOME': 'xdg data',
+            'GLITCHYGAMES_AI_INSTALL_ROOT': 'one folder',
+            'GLITCHYGAMES_AI_USER_ROOT': 'user root',
+        },
+        id='user-root-over-install-root',
+    ),
+]
+USER_ROOT_VARIABLES = (
+    'XDG_DATA_HOME',
+    'GLITCHYGAMES_AI_USER_ROOT',
+    'GLITCHYGAMES_AI_INSTALL_ROOT',
+)
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('folders', USER_ROOT_CASES)
+def test_the_engine_and_the_scripts_agree_on_the_user_root(
+    tmp_path: Path,
+    folders: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+):
+    """One rule for the user's folder (Review focus 1): the engine's, in every script.
+
+    setup.sh fills that folder; ai-service.sh hands it to systemd's user manager before it
+    starts a unit, which can't see the shell's variables; and run-llama-server.sh, as the unit
+    starts it with only the manager's environment, reads its settings from there.
+    """
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    variables = {name: str(tmp_path / folder) for name, folder in folders.items()}
+    mocker.patch.object(ai_link.sys, 'platform', 'linux')
+    monkeypatch.setenv('HOME', str(setup.service.home))
+    for name in (*USER_ROOT_VARIABLES, ai_link.PROGRAM_ROOT_ENVIRONMENT_VARIABLE):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in variables.items():
+        monkeypatch.setenv(name, value)
+    locations = ai_link.service_locations()
+    assert locations is not None
+    engine_root = locations.user_root
+    unset = tuple(name for name in USER_ROOT_VARIABLES if name not in variables)
+
+    filled = setup.run(extra=variables, unset=unset)
+    started = setup.run(
+        template='ai-service.sh.j2', arguments=['start'], extra=variables, unset=unset
+    )
+
+    assert filled.returncode == 0, filled.stdout + filled.stderr
+    assert (engine_root / 'config' / 'service.json').is_file()
+    assert (engine_root / 'models' / setup.selected_model_files()[0]['file']).is_file()
+    assert started.returncode == 0, started.stdout + started.stderr
+    calls = setup.service.tool_calls()
+    handed_over = f'systemctl --user set-environment GLITCHYGAMES_AI_USER_ROOT={engine_root}'
+    first_start = next(index for index, call in enumerate(calls) if ' --user start ' in call)
+    assert handed_over in calls[:first_start], calls
+    # The unit's run: HOME and what the manager was handed, none of the shell's own folders
+    reasoning = setup.service.agent(role='reasoning')
+    unit_run = setup.service.run(
+        template='run-llama-server.sh.j2',
+        arguments=[reasoning['label']],
+        environment={'GLITCHYGAMES_AI_USER_ROOT': str(engine_root)},
+        unset=('XDG_DATA_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME'),
+    )
+    arguments = unit_run.stdout.splitlines()
+    assert unit_run.returncode == 0, unit_run.stderr
+    assert arguments[arguments.index('--model') + 1] == str(
+        engine_root / 'models' / reasoning['model_file']
+    )
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize(
+    ('manager_data_home', 'own_data_home', 'expected'),
+    [
+        pytest.param('elsewhere', 'xdg data', 'warned', id='different'),
+        pytest.param('xdg data', 'xdg data', 'silent', id='same'),
+        pytest.param(None, None, 'silent', id='both-unset'),
+        pytest.param(None, 'xdg data', 'warned', id='only-this-run-sets-it'),
+    ],
+)
+def test_setup_warns_when_systemd_sees_another_data_home(
+    tmp_path: Path,
+    manager_data_home: str | None,
+    own_data_home: str | None,
+    expected: Literal['warned', 'silent'],
+):
+    """A unit started other than through ai-service.sh would look in the manager's folder."""
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    manager_environment = f'HOME={setup.service.home}\nLANG=C.UTF-8\n'
+    if manager_data_home is not None:
+        manager_environment += f'XDG_DATA_HOME={tmp_path / manager_data_home}\n'
+    extra = {'SERVICE_MANAGER_ENVIRONMENT': manager_environment}
+    if own_data_home is not None:
+        extra['XDG_DATA_HOME'] = str(tmp_path / own_data_home)
+
+    result = setup.run(extra=extra, unset=() if own_data_home else ('XDG_DATA_HOME',))
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    warnings = [line for line in result.stdout.splitlines() if 'XDG_DATA_HOME' in line]
+    assert bool(warnings) is (expected == 'warned'), result.stdout
+    assert 'systemctl --user show-environment' in setup.service.tool_calls()
+
+
+@needs_a_posix_shell
+def test_the_user_uninstaller_stops_the_units_and_removes_what_setup_wrote(tmp_path: Path):
+    """uninstall.sh, which the package installs as uninstall-user.sh too (6.1, 6.9).
+
+    It stops the user's units, then removes their settings, keys, CPU placement, cache and logs;
+    the models stay unless asked for, and then the whole user folder goes.
+    """
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    assert setup.run().returncode == 0
+    cache = setup.service.home / '.cache' / 'glitchygames' / 'ai'
+    logs = setup.service.home / '.local' / 'state' / 'glitchygames' / 'ai' / 'logs'
+    for folder in (cache, logs):
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / 'left.txt').write_text('written by the service\n', encoding='utf-8')
+    neighbour = setup.service.home / '.config' / 'systemd' / 'user' / 'kept.service'
+    neighbour.write_text('[Service]\n', encoding='utf-8')
+
+    kept_models = setup.run(template='uninstall.sh.j2')
+
+    assert kept_models.returncode == 0, kept_models.stdout + kept_models.stderr
+    calls = setup.service.tool_calls()
+    stopped = calls.index('systemctl --user stop ai.glitchygames.*.service')
+    # systemd forgets the removed drop-ins only when it reloads
+    assert 'systemctl --user daemon-reload' in calls[stopped:]
+    assert not (setup.user_root / 'config').exists()
+    assert not cache.exists()
+    assert not logs.exists()
+    for label in setup.ai_unit_labels():
+        assert not setup.drop_in(label=label).parent.exists(), label
+    assert neighbour.exists()
+    assert (setup.user_root / 'models').is_dir()
+
+    removed = setup.run(template='uninstall.sh.j2', arguments=['--remove-models'])
+
+    assert removed.returncode == 0, removed.stdout + removed.stderr
+    assert not setup.user_root.exists()

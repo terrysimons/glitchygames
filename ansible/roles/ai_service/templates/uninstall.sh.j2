@@ -1,6 +1,9 @@
 #!/bin/sh
 # Removes the local AI service for this user: uninstall.sh [--remove-models]
-# Models stay unless asked for, since they're large and slow to download again.
+# Models stay unless asked for, since they're large and slow to download again. The Linux package
+# installs this as uninstall-user.sh, the counterpart of setup.sh: it stops the user's units and
+# removes what setup.sh wrote, and the package's own files are dpkg's (plans/lucid-circuit-linux.md,
+# 6.1 and 6.9).
 set -u
 
 {% import 'platform_functions.sh.j2' as platform with context %}
@@ -39,6 +42,6 @@ rmdir "$(dirname "$user_root")" 2>/dev/null
 
 echo "Removed the GlitchyGames local AI service."
 if [ "$remove_models" = false ] && [ -d "$user_root/models" ]; then
-    echo "The models are still in $user_root/models (uninstall.sh --remove-models removes them)."
+    echo "The models are still in $user_root/models ($(basename "$0") --remove-models removes them)."
 fi
 exit 0

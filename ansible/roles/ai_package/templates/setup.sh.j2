@@ -1,33 +1,82 @@
 #!/bin/sh
-# Finishes an install on a player's Mac, run once by launchd after the package installs: it downloads
-# the models this Mac can run and readies the agents, starting nothing, since bin/ai-service.sh starts
-# them when a game loads. Rendered by ansible/roles/ai_package from the same variables the Ansible
-# install uses, so the model list, the memory tiers and the agents can't drift apart. It's safe to run
-# again: nothing is redone if it's already right.
+# Readies one user's part of the local AI service: the models this machine can run, the two keys,
+# the settings, and on Linux which cores each part runs on. It starts nothing, since
+# bin/ai-service.sh starts the models when a game loads. On a Mac launchd runs it once after the
+# package installs; on Linux the package's setup unit runs it at every login, and Ansible runs it
+# for the owner (plans/lucid-circuit-linux.md, 6.3). Rendered by ansible/roles/ai_package from the
+# same variables the Ansible install uses, so the model list, the memory tiers and the agents can't
+# drift apart. It's safe to run again: nothing already right is redone or rewritten.
+# Exits 0 when done, and 1 on a failure the next run retries, such as a download.
 set -u
 
-install_root="$HOME/Library/Application Support/GlitchyGames/AI"
-models="$install_root/models"
-config="$install_root/config"
-share="$install_root/share"
-agents="$install_root/agents"
-launch_agents="$HOME/Library/LaunchAgents"
-domain="gui/$(id -u)"
-
-mkdir -p "$models" "$config" "$agents" "$launch_agents" "$HOME/Library/Logs/GlitchyGames/AI"
+{# The playbook's folder is on the template module's search path, so this reaches the other role's
+   file without a copy (ansible-core's plugins/action/template.py adds the loader's base directory) #}
+{% import 'roles/ai_service/templates/platform_functions.sh.j2' as platform with context %}
+{{ platform.user_root() }}
+{{ platform.program_root() }}
+{{ platform.log_root() }}
+{{ platform.total_memory_mb() }}
+{{ platform.sha256_of() }}
+{{ platform.machine_can_run_the_service() }}
+{{ platform.ai_threads() }}
+{{ platform.install_agent_definition() }}
+{{ platform.place_the_cores() }}
+{{ platform.reload_agent_definitions() }}
+{{ platform.check_the_service_managers_data_home() }}
+{{ platform.finish_setup_job() }}
 
 say() {
     echo "setup: $1"
 }
 
-# A Mac with no Metal-capable GPU can't run this; the package already refuses Intel, so this is for
-# a copy moved by hand
-if [ "$(uname -m)" != "arm64" ]; then
-    say "this needs Apple Silicon; stopping"
+# install_if_changed NEW TARGET: NEW takes TARGET's place only when they differ, so a run with
+# nothing to do leaves every file as it was
+install_if_changed() {
+    if cmp -s "$1" "$2"; then
+        rm -f "$1"
+    else
+        mv "$1" "$2"
+    fi
+}
+
+# Text that sed's replacement takes literally
+sed_literal() {
+    printf '%s' "$1" | sed -e 's/[&|\\]/\\&/g'
+}
+
+# escaped_for KIND TEXT: TEXT for inside a single-quoted shell word (KIND shell) or a JSON string
+# (KIND json), as sed's replacement takes it literally
+escaped_for() {
+    case "$1" in
+        shell) text=$(printf '%s' "$2" | sed -e "s/'/'\\\\''/g") ;;
+        json) text=$(printf '%s' "$2" | sed -e 's/[\\"]/\\&/g') ;;
+    esac
+    sed_literal "$text"
+}
+
+user_root=$(user_root)
+program_root=$(program_root)
+models="$user_root/models"
+config="$user_root/config"
+share="$program_root/share"
+
+# fill_in KIND TEMPLATE: the package's template with this user's folders and home in place of its
+# placeholders, each escaped for the KIND of file it lands in (escaped_for). None of the
+# placeholders holds a character sed treats specially
+fill_in() {
+    sed -e "s|{{ ai_package_user_root_placeholder }}|$(escaped_for "$1" "$user_root")|g" \
+        -e "s|{{ ai_package_program_root_placeholder }}|$(escaped_for "$1" "$program_root")|g" \
+        -e "s|{{ ai_package_home_placeholder }}|$(escaped_for "$1" "$HOME")|g" \
+        "$2"
+}
+
+mkdir -p "$models" "$config" "$(log_root)"
+
+if ! machine_can_run_the_service; then
     exit 0
 fi
 
-memory_mb=$(( $(sysctl -n hw.memsize) / 1048576 ))
+memory_mb=$(total_memory_mb)
 bonsai_size=""
 {% for tier in ai_service_bonsai_tiers %}
 if [ "$memory_mb" -ge {{ tier.minimum_memory_mb }} ]; then bonsai_size={{ tier.size }}; fi
@@ -42,13 +91,14 @@ fi
 [ -z "$bonsai_override" ] || bonsai_size=$bonsai_override
 say "memory ${memory_mb} MB: downloading Bonsai $bonsai_size, Qwen $qwen_size"
 
-# fetch FILE REPOSITORY REVISION BYTES SHA256
+# fetch FILE REPOSITORY REVISION BYTES SHA256: into FILE.part, resuming one an earlier run left,
+# and to FILE only once its SHA-256 matches
 fetch() {
     file=$1
     url="{{ ai_models_base_url }}/$2/resolve/$3/$1"
     bytes=$4
     sha256=$5
-    if [ -f "$models/$file" ] && [ "$(shasum -a 256 "$models/$file" | cut -d' ' -f1)" = "$sha256" ]; then
+    if [ -f "$models/$file" ] && [ "$(sha256_of "$models/$file")" = "$sha256" ]; then
         return 0
     fi
     available_kb=$(df -k "$models" | tail -1 | awk '{print $4}')
@@ -64,7 +114,7 @@ fetch() {
         say "could not download $file; it resumes on the next run"
         return 1
     fi
-    if [ "$(shasum -a 256 "$models/$file.part" | cut -d' ' -f1)" != "$sha256" ]; then
+    if [ "$(sha256_of "$models/$file.part")" != "$sha256" ]; then
         rm -f "$models/$file.part"
         say "$file had the wrong SHA-256 and was discarded"
         return 1
@@ -107,28 +157,31 @@ for key in worker-api-key service-api-key; do
     fi
 done
 
-# The placeholder has no characters sed treats specially, and | can't appear in a macOS home path
-# that launchd would accept here without being escaped first
-escaped_home=$(printf '%s' "$HOME" | sed -e 's/[&|\\]/\\&/g')
-sed -e "s|{{ ai_package_home_placeholder }}|$escaped_home|g" \
-    "$share/agents/service.json.template" > "$config/service.json"
-for template in "$share"/agents/*.plist.template; do
-    label=$(basename "$template" .plist.template)
-    sed -e "s|{{ ai_package_home_placeholder }}|$escaped_home|g" \
-        "$share/agents/$label.env.template" > "$config/$label.env"
-    # The plist is XML, so its home needs & escaped for XML as well
-    xml_home=$(printf '%s' "$escaped_home" | sed -e 's/\\&/\\\&amp;/g')
-    sed -e "s|{{ ai_package_home_placeholder }}|$xml_home|g" "$template" > "$agents/$label.plist.new"
-    if ! plutil -lint "$agents/$label.plist.new" >/dev/null; then
-        rm -f "$agents/$label.plist.new"
-        say "the plist for $label came out invalid; stopping"
+fill_in json "$share/agents/service.json.template" > "$config/service.json.new"
+install_if_changed "$config/service.json.new" "$config/service.json"
+# Each agent's settings, with this machine's thread count in place of the one the package was
+# built with
+threads=$(ai_threads)
+for template in "$share"/agents/*.env.template; do
+    if [ ! -f "$template" ]; then
+        say "no agent settings in $share/agents; stopping"
         exit 1
     fi
-    mv "$agents/$label.plist.new" "$agents/$label.plist"
+    label=$(basename "$template" .env.template)
+    fill_in shell "$template" \
+        | sed -e "s|^AI_THREADS=.*|AI_THREADS='$threads'|" > "$config/$label.env.new"
+    install_if_changed "$config/$label.env.new" "$config/$label.env"
+    install_agent_definition "$label" || exit 1
 done
 
+# Every AI unit shares the AI's cores: each model's, the API's and this setup job's
+if ! place_the_cores {{ (ai_service_agents | map(attribute='label') | list + [ai_package_setup_label]) | join(' ') }}; then
+    say "could not write the CPU placement; stopping"
+    exit 1
+fi
+reload_agent_definitions
+check_the_service_managers_data_home
+
 say "done"
-# This job has finished its one run. Removing its own plist keeps it from running at every login
-rm -f "$launch_agents/{{ ai_package_setup_label }}.plist"
-launchctl bootout "$domain/{{ ai_package_setup_label }}" 2>/dev/null
+finish_setup_job
 exit 0

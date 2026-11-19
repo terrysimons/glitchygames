@@ -120,12 +120,11 @@ def _zip(first: Any, *others: Any) -> list[tuple[Any, ...]]:
     return list(zip(first, *others, strict=False))
 
 
-def _environment(*, search_directory: Path | None = None) -> jinja2.Environment:
+def _environment(*, search_directories: list[Path] | None = None) -> jinja2.Environment:
     """Build Jinja with the Ansible filters the roles use.
 
     Args:
-        search_directory: Where `{% include %}` finds a template; Ansible's template module
-            searches the rendered template's own folder the same way.
+        search_directories: Where `{% include %}` and `{% import %}` find a template, in order.
 
     Returns:
         The environment.
@@ -135,7 +134,7 @@ def _environment(*, search_directory: Path | None = None) -> jinja2.Environment:
         keep_trailing_newline=True,
         # The template module's default: a block tag's own line break is dropped
         trim_blocks=True,
-        loader=jinja2.FileSystemLoader(search_directory) if search_directory else None,
+        loader=jinja2.FileSystemLoader(search_directories) if search_directories else None,
     )
     filters: dict[str, Callable[..., Any]] = {
         # Ansible's quotes any value as its text
@@ -207,12 +206,20 @@ def ansible_variables(
     system: Literal['Darwin', 'Linux'],
     architecture: Literal['aarch64', 'x86_64'],
     home: Path,
+    overrides: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Every role's defaults plus the platform's group variables, with a host's facts.
 
     The facts are `system`, `architecture`, `user_dir` (the home) and `processor_vcpus`, and the
     environment is empty, so the XDG folders take their defaults. References between variables
     are resolved until nothing changes.
+
+    Args:
+        system: The host's `ansible_facts['system']`.
+        architecture: The host's `ansible_facts['architecture']`.
+        home: The host user's home.
+        overrides: Values set before references are resolved, as a task's `vars` would be, so
+            every variable built from one follows it.
 
     Returns:
         The variables, as a playbook run on that host would see them.
@@ -226,6 +233,7 @@ def ansible_variables(
             (ANSIBLE_DIRECTORY / 'group_vars' / f'{group}.yml').read_text(encoding='utf-8')
         ),
     )
+    variables.update(overrides or {})
     variables['ansible_facts'] = {
         'system': system,
         'machine': 'arm64' if system == 'Darwin' else architecture,
@@ -244,12 +252,16 @@ def ansible_variables(
 
 
 def render_template(*, path: Path, variables: dict[str, Any]) -> str:
-    """Render one Jinja file with the variables, finding what it includes beside it.
+    """Render one Jinja file with the variables, finding what it includes as Ansible does.
+
+    Ansible's template module searches the rendered template's own folder and the playbook's
+    folder (its loader's base directory, here ansible/), so one role's template can import
+    another's by its path from there (ansible-core 2.20, plugins/action/template.py).
 
     Returns:
         The rendered text.
     """
-    environment = _environment(search_directory=path.parent)
+    environment = _environment(search_directories=[path.parent, ANSIBLE_DIRECTORY])
     # As the template module does: an included template's last line break is dropped, and the
     # rendered file keeps its own
     environment.keep_trailing_newline = False

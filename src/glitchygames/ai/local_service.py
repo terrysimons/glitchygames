@@ -16,14 +16,18 @@ import json
 import logging
 import sys
 from http import HTTPStatus
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 import httpx2
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock, process
-from glitchygames.ai_link import EXIT_NOT_ENOUGH_MEMORY, ServiceLocations, service_locations
+from glitchygames.ai_link import (
+    EXIT_NOT_ENOUGH_MEMORY,
+    ServiceLocations,
+    control_script_environment,
+    service_locations,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
@@ -342,7 +346,7 @@ class LocalAIClient:
         LOG.info('Starting the local AI service')
         result = process.run_command(
             command=[str(self.control_script), 'start'],
-            environment={'HOME': str(Path.home()), 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'},
+            environment=control_script_environment(),
             timeout_seconds=START_TIMEOUT_SECONDS,
             capture_output=process.OutputCapture.TOGETHER,
         )
