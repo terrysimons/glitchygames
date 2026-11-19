@@ -306,6 +306,38 @@ designs are not.
   calls the Gamepad API's `vibrationActuator`, since `src/glitchygames/` is off-limits. The
   intro's rumble (decision 15) depends on the answer, so check it before the intro is built.
 
+### What is left of level 1 (written 2026-11-19, before the context was cleared)
+
+Branch `feature/zombies-finish-level-1` (worktree `../glitchygames-zombies-finish-level-1`),
+stacked on `feature/zombies-aint-my-neighbors` (PR #215, pushed at fbf506b7, CI green on
+66df986e; the owner lands it). Open this branch's PR with `--base feature/zombies-aint-my-neighbors`
+while #215 is open, saying it is stacked; rebase onto `main` once #215 lands.
+
+- [ ] **A kid knocked out as the stage clears doesn't cheer** (deferred Minor in feature plan 7's
+  review, 2026-11-15): it gets back up during the cheer instead. Harmless (the next stage builds
+  new kids) but visible. Triage first: reproduce, name the test gap, a regression test that fails.
+- [ ] **A golden replay that covers the stage clear** (raised by feature plan 7's review): the
+  hand-off from the clear through the STAGE n card to stage 2 is covered by unit tests only, not
+  an end-to-end replay. Recording a golden is a reviewed step (CLAUDE.md: golden replays).
+- [ ] **The intro and the attract demo** (decisions 6 and 15): a cinematic sprite intro of the
+  sleepover and the monsters coming out of the TV (controllers rumble then, decision 15, which
+  depends on the browser rumble item above), and the title's recorded attract-mode demo (bundled
+  demos). Each needs its own feature plan (12 and on).
+- [ ] **Listen to the score and the effects, and watch a real launch** (feature plan 11): nobody
+  has listened to the finished score, and the CRT power-on frame that builds it on a first launch
+  has only been measured, not watched (`scripts/measure_sound_start.py`).
+- [ ] **A flaky engine test, on this branch only**:
+  `tests/sprites/test_animated_sprite.py::test_an_animated_sprite_joins_only_the_group_it_is_given`.
+  Another session's diagnosis (2026-11-18, not reproduced here): `isinstance()` raises
+  `ReferenceError` on a dead `weakref.proxy` it meets in `gc.get_objects()`, and test order
+  decides whether one exists; its proposed fix is `issubclass(type(candidate),
+  pygame.sprite.AbstractGroup)` (`type()` never raises). CircleCI's bot opened PR #224 for it on
+  the wrong base (`main`). Reproduce first, regression test, then sweep for the same
+  `isinstance` over `gc.get_objects()` elsewhere.
+- Engine and CI follow-ups found 2026-11-19 are in `plans/future-work.md` (Developer
+  environment, and the sound library): `sound-render` compiling twice, a CI test that compares a
+  job with itself, the Linux job's 7 minutes of headroom, and the test helper's type.
+
 ## Engine wishlist (decision 12)
 
 Engine bugs, features and refactors found while building the game. Nothing here is changed in

@@ -1136,6 +1136,29 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   `python-version` and pyrightconfig.json's `pythonVersion` to 3.15, and the generated SBOM's
   supported environments (`scripts/generate_sbom.py`).
 
+- **Small follow-ups from the int16 sounds and the 3.15-only CI (found 2026-11-19):**
+  1. **`glitchygames sound-render` compiles every sound twice.** `replay/tools/sound_tools.py`
+     (around line 118) gets the sound from a `CacheMode.RAM` library, which now keeps int16
+     samples only (`Sound.release_float_samples`), so `render_to_file` compiles a fresh copy for
+     the float samples (`offline._samples_at`): the first compile is wasted. Fix: the tool's
+     library uses `CacheMode.NONE` (it resolves the source and checks it, but compiles nothing),
+     so `render_to_file` compiles once. Then a compile-time failure (`SoundRenderError`,
+     `SoundAssetError`) surfaces in `render_to_file`, so catch it there too and exit
+     `UNUSABLE_INPUT` with its message, as the lookup's failures do. Tests first: the tool
+     compiles a sound exactly once (a spy on `compile_sound`; two calls today), the WAV equals
+     the compiled int16 samples, a sound that fails only while compiling exits `UNUSABLE_INPUT`.
+  2. **A CI test compares a job with itself.** `tests/test_ci_config.py::
+     test_every_linux_job_installs_the_linux_jobs_system_packages` checks each Linux test job's
+     apt line against the Linux job's, and there is one Linux test job now. Say that it guards a
+     second Linux job added later, or fold it into `test_the_linux_job_installs_what_hidapis_
+     source_build_needs`.
+  3. **The Linux job's headroom.** `test-python-3-15-linux` took 53m 22s of CircleCI's 60 on
+     66df986e, split across two machines; machine 0 also builds after its tests (`nox-build`,
+     guarded to machine 0). Find which machine is slow (CircleCI's step timings); if it is the
+     build, move it to machine 1 or a job of its own.
+  4. `tests/audio/library_support.float_render` is annotated `np.ndarray`; the engine's
+     `FloatArray` is exact.
+
 - Dropbox syncing test artefacts made the suite run in 10 minutes instead of 46 s. If Dropbox stays
   on, mark `test-results/`, `.coverage*`, `.venv` and cache directories as ignored
   (`xattr -w com.dropbox.ignored 1 <path>`).
