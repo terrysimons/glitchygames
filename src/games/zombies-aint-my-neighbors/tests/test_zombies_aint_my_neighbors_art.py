@@ -450,3 +450,12 @@ def test_the_contact_sheet_command_writes_the_intro_sheet(tmp_path):
     contact_sheet.main(['--intro', '--output', str(output)])
 
     assert output.read_bytes()[:8] == b'\x89PNG\r\n\x1a\n'
+
+
+@pytest.mark.parametrize('function', ['intro_frames', 'intro_palette'])
+def test_the_intro_rig_refuses_a_sprite_the_bom_does_not_list(function):
+    """Asking for an intro sprite the BOM never lists raises, naming it."""
+    from zombies_aint_my_neighbors.art import intro_rig
+
+    with pytest.raises(ValueError, match="no intro sprite 'intro_moon'"):
+        getattr(intro_rig, function)(sprite='intro_moon')

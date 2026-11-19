@@ -246,7 +246,8 @@ class IntroScene(PadTolerantScene):
             self.shake(INTRO_BURST_SHAKE, targets=ShakeTarget.SCREEN)
         elif cue.kind is CueKind.RUMBLE:
             self._rumble()
-        elif cue.kind is CueKind.END:
+        else:
+            # CueKind.END, the one kind left
             self._to_the_title()
 
     def _rumble(self) -> None:

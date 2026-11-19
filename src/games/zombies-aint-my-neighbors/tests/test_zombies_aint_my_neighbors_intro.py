@@ -370,3 +370,36 @@ def test_the_intro_replays_as_it_began(showing):
     rebuilt = IntroScene(options=dict(OPTIONS), **scene.replay_arguments())
 
     assert rebuilt.showing is showing
+
+
+def test_setting_the_intro_up_again_keeps_its_sprites():
+    """A second setup (a pause's return) stages nothing twice: the same sprites, no more."""
+    scene = intro()
+    actors = dict(scene.actors)
+    sprite_count = len(scene.all_sprites)
+
+    scene.setup()
+
+    assert scene.actors == actors
+    assert len(scene.all_sprites) == sprite_count
+
+
+def test_a_zero_length_first_frame_fires_nothing_and_shows_no_oval():
+    """A frame that takes no time crosses no cue: nothing starts, the oval has not begun."""
+    scene = intro()
+
+    scene.dt_tick(0.0)
+
+    assert scene.fired == ()
+    assert support.rendered(scene).get_at((0, 0))[:3] != OVAL_COLOUR
+
+
+def test_a_press_after_the_hand_over_builds_no_second_title():
+    """The intro has ended: a press then keeps the title it already handed over to."""
+    scene = intro()
+    run(scene, seconds=INTRO_SECONDS + 0.1)
+    title = scene.next_scene
+
+    scene.on_key_down_event(key_down(pygame.K_SPACE))
+
+    assert scene.next_scene is title

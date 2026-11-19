@@ -93,15 +93,19 @@ class TitleScene(RosterScene):
                 the intro on its first frame wherever the CRT power-on would play (feature plan
                 12). Every other place that builds a title passes False (the intro's end, a
                 card's Back, the last player leaving a stage, the game over).
-            awaiting_release: Whether every press is ignored until a frame holds no key and no
-                pad button (the title the intro hands back: the press that skipped it, still
-                held or repeating, must not join anyone).
+            awaiting_release: Whether the keys and pad buttons held as it opens are ignored, each
+                until it is seen up (the title the intro hands back: the press that skipped it,
+                still held or repeating, must not join anyone).
 
         """
         super().__init__(options=options, groups=groups, roster=roster)
         self.run = None if run is None else as_run(run)
         self.opening = opening
         self.awaiting_release = awaiting_release
+        # What was held when the title opened, awaiting release: keys by scancode, and pad
+        # buttons by (layer, instance id, button); each is dropped once it is seen up (None until
+        # the title's first frame reads them)
+        self._held_at_the_start: set[tuple[str, int, int]] | None = None
         # When the title last saw a press or a join (the idle count starts from it)
         self._last_activity_seconds = 0.0
         # The opening title asks once, on its first frame, whether the intro opens the launch
@@ -216,17 +220,40 @@ class TitleScene(RosterScene):
         self._loop_to_the_intro()
 
     def _wait_for_release(self) -> None:
-        """Stop ignoring presses on the first frame that holds no key and no pad button."""
+        """Note what is held as the title opens, and forget each held input once it is up.
+
+        Only those inputs are ignored, each until it is seen up (the press that skipped the
+        intro, held or repeating); every other key and button counts at once, so one input held
+        for good (a latched toggle) never locks anyone else out (the final review's I1).
+        """
         if not self.awaiting_release:
             return
         snapshot = current_input()
-        held_buttons = any(
-            any(buttons)
-            for layer in (snapshot.device_buttons, snapshot.controller_buttons)
-            for buttons in layer.values()
-        )
-        if not snapshot.pressed_scancodes and not held_buttons:
+        held_now = {('key', scancode, 0) for scancode in snapshot.pressed_scancodes}
+        for layer, buttons_by_device in (
+            ('joystick', snapshot.device_buttons),
+            ('controller', snapshot.controller_buttons),
+        ):
+            held_now |= {
+                (layer, instance_id, button)
+                for instance_id, buttons in buttons_by_device.items()
+                for button, down in enumerate(buttons)
+                if down
+            }
+        if self._held_at_the_start is None:
+            self._held_at_the_start = held_now
+        else:
+            self._held_at_the_start &= held_now
+        if not self._held_at_the_start:
             self.awaiting_release = False
+
+    def _still_held(self, held_input: tuple[str, int, int]) -> bool:
+        """Return whether a press is of an input held since the title opened (so it is ignored).
+
+        Returns:
+            True while that input has not been seen up.
+        """
+        return self.awaiting_release and held_input in (self._held_at_the_start or set())
 
     def _loop_to_the_intro(self) -> None:
         """Idle long enough, nobody joined and no run: hand over to the intro, unattended."""
@@ -248,38 +275,38 @@ class TitleScene(RosterScene):
 
     @override
     def on_key_down_event(self, event: KeyEvent) -> None:
-        """Any key is activity; while awaiting release no key does anything else.
+        """Any key is activity; one held since the title opened does nothing else yet.
 
         Args:
             event: The key press.
 
         """
         self._note_activity()
-        if not self.awaiting_release:
+        if not self._still_held(('key', event.scancode, 0)):
             super().on_key_down_event(event)
 
     @override
     def on_controller_button_down_event(self, event: ControllerButtonEvent) -> None:
-        """Any pad button is activity; while awaiting release none does anything else.
+        """Any pad button is activity; one held since the title opened does nothing else yet.
 
         Args:
             event: The button press.
 
         """
         self._note_activity()
-        if not self.awaiting_release:
+        if not self._still_held(('controller', event.instance_id, event.button)):
             super().on_controller_button_down_event(event)
 
     @override
     def on_joy_button_down_event(self, event: JoyButtonEvent) -> None:
-        """Any joystick-layer button is activity; while awaiting release none does else.
+        """Any joystick-layer button is activity; one held since the title opened does nothing.
 
         Args:
             event: The button press.
 
         """
         self._note_activity()
-        if not self.awaiting_release:
+        if not self._still_held(('joystick', event.instance_id, event.button)):
             super().on_joy_button_down_event(event)
 
     def _open_with_the_intro(self) -> None:
