@@ -331,13 +331,16 @@ The tiers (`ai_service_bonsai_tiers`) and reserved figures stay shared. Linux ge
 `ai_service_bonsai_reserved_mib` and `ai_service_qwen_reserved_mib` once 8.3 runs, in
 `group_vars/linux.yml`; until then the Mac's figures stand, marked provisional. Memory decides, not
 the machine: a 4 GB board installs the service and gets "not enough memory" at each game start, as
-a small Mac does; the inventory's `ai_enabled` only spares such a host the download. 6.4.1 proposes
-changing that for 8 GB machines; until the owner decides, the rule above stands.
+a small Mac does; the inventory's `ai_enabled` only spares such a host the download. 6.4.1's
+tiers, which the owner has decided, change that for 8 GB and 4 GB machines once they are built
+(plans/future-work.md, AI); until then the rule above stands.
 
-#### 6.4.1 Open: smaller-memory machines (not decided)
+#### 6.4.1 Smaller-memory machines: the tiers (decided, not built)
 
 Raised by the owner, 2026-11-18: what could run on machines with less memory, for speed and
-features. Not part of this branch's build until the owner decides.
+features. The tiers below are decided (the owner, 2026-11-18; section 12), and building them is
+not part of this branch: plans/future-work.md (AI) tracks it. What is still open is marked so
+below: whether more than Bonsai fits on 4 GB, the game's reserve, and the Pi 4's speed.
 
 **The context's memory is what's too big, not the model.** Of the 2B's 4,816 MiB reserved on the
 Mac, the weights are 0.55 GB (`Ternary-Bonsai-2-2B-Q2_0.gguf`) and the vision projector 0.36 GB;

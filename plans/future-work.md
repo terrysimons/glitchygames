@@ -739,6 +739,18 @@ only replays; Part 2 Task 1).
   the game's frame times); its own measured reserved-memory figures if they differ from ARM's; and a check of
   Bonsai's known AVX-512 crash on load (Prism's `KNOWN_ISSUES.md`, `PQ2_0` files) against the `skylakex` and later
   variants.
+- **Memory tiers for the AI service** (the owner's decision, plans/lucid-circuit-linux.md 6.4.1
+  and 12, 2026-11-18; decided, not built). The picker chooses a tier by total memory: 16 GB and up,
+  Bonsai at 128K (131,072) with Qwen at 8K (8,192); 8 GB, Bonsai at 32K (32,768) with Qwen at 8K
+  and `ai_service_bonsai_cache_ram_mib` about 1,024 (a 4 GB prompt cache would push it into swap;
+  check first whether the reserved figure includes a full prompt cache); 4 GB, Bonsai alone at 32K,
+  with turn-taking (one model loaded at a time) the fallback if a measured run shows more doesn't
+  fit. With it: `setup.sh` downloads no Qwen on a Bonsai-only machine; the API reports ready
+  without an embedding model when the tier has none (today `/health/ready` wants both, `app.py`);
+  `/v1/embeddings` answers with a clear "this machine has no embedding model" error; and the
+  reserved figures become per tier (context), not only per model size, measured on the Pi (8.3).
+  Open beside it (6.4.1): the game's reserve (`ai_service_game_reserve_mib`, 2,048, unmeasured)
+  decides whether the small tiers ever start.
 - **GPU backends for the AI service** (plans/lucid-circuit-linux.md 9.2 step 5, 2026-11-19): Vulkan on capable
   Linux GPUs, then CUDA (and ROCm), as runtime-loaded llama.cpp backends that load only when their device works, so
   the CPU path stays as is. Needs its own design: which backends, how the picker counts GPU memory, and how the game
