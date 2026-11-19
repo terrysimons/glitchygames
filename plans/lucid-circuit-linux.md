@@ -894,6 +894,11 @@ changes for x86_64.
 | Keep the per-line `jinja2-autoescape-false` suppression in `tests/ansible_rendering.py` (autoescape would corrupt shell templates) | The owner, 2026-11-18 |
 | Accept slower embeddings on 4 GB machines for Qwen's `--no-repack` (13.1) | The owner, 2026-11-18 |
 | The CPU variant modules beside `llama-server` in `bin/`, not `lib/` (6.5) | Designer's call, from the b12167 source |
+| Settings name a stable `runtime/current` link both packages ship, so an upgrade that renames the runtime folder changes no user's settings (Task 6 review) | Designer's call |
+| `setup.sh` takes a per-user lock in a folder a restart empties (`$XDG_RUNTIME_DIR`, the Mac's `$TMPDIR`); the `.deb`'s postinst starts the owner's setup with `--no-block`, so apt never waits on the model download (Task 6 review) | Designer's call |
+| The `.deb` depends on `libstdc++6 (>=` the release its GLIBCXX/CXXABI symbols need`)`, read from the build like the glibc floor (Task 6 review) | Designer's call |
+| Fix, in this branch, the Mac `.pkg` naming the builder's runtime instead of the player's (`bugs/2026-11-18-mac-package-settings-name-builders-runtime.md`) | The owner, 2026-11-19 |
+| The `.deb`'s Maintainer: `GlitchyGames <terry.simons@gmail.com>` | The owner, 2026-11-19 |
 
 ## 13. Open questions, pending measurements, and facts to keep (2026-11-18)
 
@@ -905,10 +910,11 @@ review findings deferred during the build are in the progress ledger (lines star
 
 | Question | Where it stands | Recommendation |
 |---|---|---|
-| Can a 4 GB machine run everything (Bonsai with vision, plus Qwen)? | The first capped run passed but didn't count the model files (13.3); two reruns are ready on the Pi: the honest baseline, then with `QWEN_NO_REPACK=1 QWEN_SLEEP_SECONDS=30` | Decide from the reruns: everything with Qwen on `--no-repack` and a short sleep if run 2 holds; Bonsai alone otherwise, turn-taking the recorded fallback |
+| Can a 4 GB machine run everything (Bonsai with vision, plus Qwen)? | The first capped run passed but didn't count the model files (13.3); two reruns are ready on the Pi, deferred by the owner (2026-11-19, "We'll rerun later"): the honest baseline, then with `QWEN_NO_REPACK=1 QWEN_SLEEP_SECONDS=30` | Decide from the reruns: everything with Qwen on `--no-repack` and a short sleep if run 2 holds; Bonsai alone otherwise, turn-taking the recorded fallback |
 | The game's memory reserve (`ai_service_game_reserve_mib`, 2,048, a guess) | Bitmappy idles at about 262 MiB; with 2,048 the 4 GB tier never starts. The owner asked what figure would make 4 GB work: none does with a desktop for "everything" (about 3.3 GB needed against 2.8 GB free) until the reruns show the levers | Measure every game's peak on the Pi (a busy scene, sound loaded), one figure for every machine |
 | Install `iproute2` (and `lsof`) in the CircleCI Linux image | CircleCI has neither `ss` nor `lsof`, so the real-socket port test runs nowhere in CI; a stub-driven test covers the logic everywhere | Yes, so the real tool is exercised too; a CI change |
 | The Pi's speed bar (go/no-go, 8.3) | 15-25 s for a short question at about 5-7.5 tokens a second; prompt reading about 10 tokens a second, so a 1,000-token prompt waits 80-95 s unless the prompt cache holds it | The owner's; measure the console's real prompt lengths first |
+| Should uninstalling remove history too? `uninstall.sh` keeps `history/` even with `--remove-models`, so the user folder is never fully removed (Task 4 review) | Open | `--remove-models` (or a new `--all`) also removes history |
 | Another session's request: merge GitHub's `feature/zombies-aint-my-neighbors` into the local one and push (CI split `dc70fe4a`, for #215/#220/#221) | Declined by this session: not its branch, 29 uncommitted files of another session's sound work in that worktree, and pushes need the owner's own ask | The owner, or the session owning that branch |
 
 ### 13.2 Measurements still to make
