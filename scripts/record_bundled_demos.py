@@ -76,6 +76,8 @@ from scripts.demo_inputs import (
     JOYSTICK_DEMO_FRAME_COUNT,
     MR_MUNCHER_DEMO_FRAME_COUNT,
     TEXT_INPUT_DEMO_FRAME_COUNT,
+    ZOMBIES_DEMO_FRAME_COUNT,
+    ZOMBIES_DEMO_PADS,
 )
 
 if TYPE_CHECKING:
@@ -196,6 +198,16 @@ DEMO_RECIPES: dict[str, DemoRecipe] = {
         frame_count=TEXT_INPUT_DEMO_FRAME_COUNT,
         package='text_input_demo',
         name='typing.jsonl.gz',
+    ),
+    # The attract demo (feature plan 13): four kids clear stage 1; P2 to P4 are stand-in pads
+    'zombies_aint_my_neighbors_four_kids': DemoRecipe(
+        scene='zombies_aint_my_neighbors.demo_neighborhood:DemoNeighborhoodScene',
+        script='scripts.demo_inputs:zombies_demo_script',
+        frame_count=ZOMBIES_DEMO_FRAME_COUNT,
+        package='zombies_aint_my_neighbors',
+        name='neighborhood_four_kids.jsonl.gz',
+        polled_input=True,
+        stand_in_devices=ZOMBIES_DEMO_PADS,
     ),
 }
 

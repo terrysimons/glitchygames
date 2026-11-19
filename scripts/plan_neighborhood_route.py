@@ -17,8 +17,11 @@ when the committed route no longer matches this plan, or the golden no longer re
 
 The attract demo (feature plan 13) is planned here too, on the same stepping path: four kids,
 moving as a group (the group's screen span holds them together), clear stage 1 under the same
-seed until one reaches the open gate and all four cheer (``plan_demo``; ``--demo`` prints it for
-``scripts.demo_inputs.ZOMBIES_DEMO_ROUTES``). Its test is
+seed until one reaches the open gate and all four cheer (``plan_demo``; ``--demo`` prints the
+frame count for ``scripts.demo_inputs.ZOMBIES_DEMO_FRAME_COUNT``). The demo itself is steered
+live by the same steering (``demo_steering``, through
+``scripts.demo_inputs.ZombiesDemoSteering``), so the recording follows the game at its real frame
+times; the plan estimates its length. Its test is
 src/games/zombies-aint-my-neighbors/tests/test_zombies_aint_my_neighbors_demo_route.py.
 
 Usage:
@@ -216,11 +219,13 @@ def _snapshot(
     )
 
 
-def _step_stage(scene: NeighborhoodScene, *, snapshot: InputSnapshot) -> None:
+def _step_stage(
+    scene: NeighborhoodScene, *, snapshot: InputSnapshot, frame_seconds: float = FRAME_SECONDS
+) -> None:
     """Play one frame of the stage on this input: the one stepping path both plans share."""
     set_current_input(snapshot=snapshot)
-    scene.advance_game_time(seconds=FRAME_SECONDS)
-    scene.dt_tick(FRAME_SECONDS)
+    scene.advance_game_time(seconds=frame_seconds)
+    scene.dt_tick(frame_seconds)
 
 
 def _a_zombie_is_lured(scene: NeighborhoodScene) -> bool:
@@ -321,6 +326,16 @@ DEMO_KEYS_X: Final = {-1: 'A', 1: 'D'}
 DEMO_KEYS_Y: Final = {-1: 'W', 1: 'S'}
 # The slot that hunts TVs before it rescues
 TV_HUNTER_SLOT: Final = 3
+# The demo's first frame with input (the scripted-session recorder refuses input before frame 0)
+FIRST_DEMO_INPUT_FRAME: Final = 1
+# The demo is recorded live (scripts.demo_inputs.ZombiesDemoSteering steers from the running
+# scene), so its plan only estimates it, as the recording runs: frames at the engine's default
+# pace (60.01 a second; the recording keeps each frame's real time), and input posted before a
+# frame first moving the kids on the frame after (the frame's events are handled after its logic)
+DEMO_FRAME_SECONDS: Final = 1.0 / 60.01
+# The demo ends this many frames into the cheer: half of it, so a few frames' difference between
+# the plan and a recording neither cuts the clear off nor shows the STAGE 2 card
+DEMO_FRAMES_INTO_THE_CHEER: Final = 45
 # The TV hunter goes for a TV this close to the group's middle (farther, the group's span would
 # hold it back)
 TV_HUNT_REACH: Final = 200.0
@@ -354,7 +369,8 @@ class DemoPlan(BaseModel):
         routes: One route a slot, in slot order (P1 the keyboard, P2 to P4 the stand-in pads).
         cleared_at: The frame the stage cleared on (a kid at the open gate).
         card_at: The frame the STAGE 2 card was made on, after the cheer.
-        recording_frames: The frames to record: up to the card, which is never shown.
+        recording_frames: The frames to record: the clear and half the cheer (the card is
+            never shown).
         rescued: Neighbors rescued.
         televisions_destroyed: TVs destroyed.
         zombies_zapped: Zombies zapped.
@@ -395,7 +411,7 @@ def _toward(*, kid_x: float, kid_y: float, target_x: float, target_y: float) -> 
     return (axis(target_x - kid_x), axis(target_y - kid_y))
 
 
-def _demo_steering(scene: NeighborhoodScene) -> dict[int, tuple[int, int]]:
+def demo_steering(scene: NeighborhoodScene) -> dict[int, tuple[int, int]]:
     """Return each kid's direction this frame (every kid holds fire throughout).
 
     The kids move as a group, as the group's screen span makes them: all head for the standing
@@ -522,15 +538,16 @@ def plan_demo(*, seed: int = RANDOM_SEED) -> DemoPlan:
     dying_before: set[int] = set()
     zombies_zapped = 0
     cleared_at: int | None = None
+    # What the frame before decided: posted before that frame, it moves the kids on this one
+    posted = _demo_snapshot(steering={}, fire=False, pad_ids=DEMO_PAD_INSTANCE_IDS)
     for frame in range(FRAME_LIMIT):
-        playing = not scene.stage_cleared
-        steering = _demo_steering(scene) if playing else {}
+        # No input on frame 0: a scripted session can't post any before it
+        playing = frame >= FIRST_DEMO_INPUT_FRAME and not scene.stage_cleared
+        steering = demo_steering(scene) if playing else {}
         for slot in slots:
             held[slot].append((steering.get(slot, (0, 0)), playing))
-        _step_stage(
-            scene,
-            snapshot=_demo_snapshot(steering=steering, fire=playing, pad_ids=DEMO_PAD_INSTANCE_IDS),
-        )
+        _step_stage(scene, snapshot=posted, frame_seconds=DEMO_FRAME_SECONDS)
+        posted = _demo_snapshot(steering=steering, fire=playing, pad_ids=DEMO_PAD_INSTANCE_IDS)
         fired.update(scene.zap_owners.values())
         dying_now = {id(zombie) for zombie in scene.zombies if zombie.is_dying}
         zombies_zapped += len(dying_now - dying_before)
@@ -545,7 +562,7 @@ def plan_demo(*, seed: int = RANDOM_SEED) -> DemoPlan:
                 routes=tuple(_demo_stretches(held[slot]) for slot in slots),
                 cleared_at=cleared_at,
                 card_at=frame,
-                recording_frames=frame,
+                recording_frames=cleared_at + DEMO_FRAMES_INTO_THE_CHEER,
                 rescued=len(scene.rescued),
                 televisions_destroyed=sum(tv.is_destroyed for tv in scene.tvs),
                 zombies_zapped=zombies_zapped,
@@ -562,18 +579,8 @@ def plan_demo(*, seed: int = RANDOM_SEED) -> DemoPlan:
 
 
 def _print_demo_plan() -> None:  # pragma: no cover - run by hand; plan_demo is tested
-    """Print the attract demo's routes as Python, with what the run showed."""
+    """Print the attract demo's frame count to record, with what the plan's run showed."""
     plan = plan_demo()
-    print('ZOMBIES_DEMO_ROUTES: tuple[tuple[KidStretch, ...], ...] = (')  # ruff: ignore[print]
-    for route in plan.routes:
-        print('    (')  # ruff: ignore[print]
-        for stretch in route:
-            print(  # ruff: ignore[print]
-                f'        KidStretch(direction={stretch.direction}, fire={stretch.fire}, '
-                f'first_frame={stretch.first_frame}, end_frame={stretch.end_frame}),'
-            )
-        print('    ),')  # ruff: ignore[print]
-    print(')')  # ruff: ignore[print]
     print(f'ZOMBIES_DEMO_FRAME_COUNT = {plan.recording_frames}')  # ruff: ignore[print]
     print(  # ruff: ignore[print]
         f'# cleared at frame {plan.cleared_at}, the card at {plan.card_at}; '
