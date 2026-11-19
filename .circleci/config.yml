@@ -295,16 +295,20 @@ commands:
             nox -s performance-test
 
   # The Bitmappy binary and the wheels, on Python 3.15 (noxfile.BUILD_PYTHONS; the owner,
-  # 2026-11-18: "Switch the builds over to 3.15"). A split job builds on its first machine only:
-  # every step of a job runs on each of its machines, and both built the same thing
+  # 2026-11-18: "Switch the builds over to 3.15"). A job builds on its last machine only: every
+  # step of a job runs on each of its machines, and both built the same thing. The last, so a
+  # split job (Linux, Windows) builds on machine 1, beside the share of tests that leaves it
+  # time (the owner, 2026-11-19: machine 0 also built, 53 of Linux's 60 minutes), and an
+  # unsplit job (macOS) on its only machine (tests/test_ci_config.py)
   nox-build:
     steps:
       - run:
           name: "Build binary and wheel"
           command: |
             set -euo pipefail
-            if [ "${CIRCLE_NODE_INDEX:-0}" != "0" ]; then
-              echo "Built on machine 0 only"
+            last_machine=$(( ${CIRCLE_NODE_TOTAL:-1} - 1 ))
+            if [ "${CIRCLE_NODE_INDEX:-0}" != "$last_machine" ]; then
+              echo "Built on machine $last_machine only"
               exit 0
             fi
             export PATH="$HOME/.local/bin:$PATH"
@@ -321,8 +325,10 @@ commands:
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
-            if ($env:CIRCLE_NODE_INDEX -and $env:CIRCLE_NODE_INDEX -ne "0") {
-              Write-Output "Built on machine 0 only"
+            $total = if ($env:CIRCLE_NODE_TOTAL) { [int]$env:CIRCLE_NODE_TOTAL } else { 1 }
+            $index = if ($env:CIRCLE_NODE_INDEX) { [int]$env:CIRCLE_NODE_INDEX } else { 0 }
+            if ($index -ne $total - 1) {
+              Write-Output "Built on machine $($total - 1) only"
               exit 0
             }
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
@@ -492,18 +498,72 @@ jobs:
     steps:
       - checkout
 
+      # apt's package lists and the packages it downloaded, kept between jobs, so an Ubuntu mirror
+      # outage cannot stop the job: jobs 3822 and 3827 (2026-11-19) died here when apt-get update
+      # could not reach archive.ubuntu.com or security.ubuntu.com for 7+ minutes, and every later
+      # step failed with "nox: command not found". The owner, 2026-11-19 ("Yeah, 226"): cache them,
+      # install from the cache, and fall back to the mirror. Retries alone were turned down (apt
+      # gives up within about a minute), and so was an image of our own (too heavy for these
+      # packages). The key holds the image, the architecture and every package the step installs:
+      # change the install line and change the key with it (tests/test_ci_config.py). It ends with
+      # this ISO week, as CircleCI never overwrites a key: a key that never changed would keep the
+      # first job's lists until the mirror dropped a version they name, and then every job would
+      # need the mirror again and none could save fresher lists. A new week's first job restores
+      # last week's cache (the fallback key) and saves its own. Only the very first job, with no
+      # cache under any week, needs the mirror; bump v1 to start afresh
+      - run:
+          name: "Name this week's apt cache"
+          command: |
+            mkdir -p test-results
+            date +%G-%V > test-results/apt-cache-week
+
+      - restore_cache:
+          keys:
+            - apt-v1-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-{{ checksum "test-results/apt-cache-week" }}
+            - apt-v1-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-
+
       - run:
           name: "Install Linux system dependencies"
           command: |
             set -euo pipefail
-            sudo apt-get update
-            # fontconfig: the suite's text tests. pkg-config, libudev-dev, libusb-1.0-0-dev:
-            # hidapi's source build on Python 3.15, which has no manylinux wheel for it (job
-            # 3629); the Raspberry Pis install the same. iproute2 (ss) and lsof: the real-socket
-            # port test (tests/test_ansible_ai_service.py) skips without the platform's port
-            # tool. Each split machine is its own container, so each installs them. nox -s
-            # test-linux-ci reads this line
-            sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config iproute2 lsof
+            # apt keeps its lists and downloaded packages in ~/apt-cache, which the cache saves
+            # (the image's docker-clean deletes packages from /var/cache/apt/archives only, and
+            # its apt keeps none unless told to), and retries each download
+            mkdir -p "$HOME/apt-cache/lists/partial" "$HOME/apt-cache/archives/partial"
+            printf '%s\n' \
+              "Dir::State::Lists \"$HOME/apt-cache/lists\";" \
+              "Dir::Cache::Archives \"$HOME/apt-cache/archives\";" \
+              "APT::Keep-Downloaded-Packages \"true\";" \
+              "Binary::apt::APT::Keep-Downloaded-Packages \"true\";" \
+              "Acquire::Retries \"5\";" \
+              "Acquire::http::Timeout \"30\";" \
+              | sudo tee /etc/apt/apt.conf.d/80glitchygames-apt-cache > /dev/null
+            install_packages() {
+              # fontconfig: the suite's text tests. pkg-config, libudev-dev, libusb-1.0-0-dev:
+              # hidapi's source build on Python 3.15, which has no manylinux wheel for it (job
+              # 3629); the Raspberry Pis install the same. iproute2 (ss) and lsof: the real-socket
+              # port test (tests/test_ansible_ai_service.py) skips without the platform's port
+              # tool. Each split machine is its own container, so each installs them. nox -s
+              # test-linux-ci reads this line
+              sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config iproute2 lsof
+            }
+            # From the restored lists and packages, with no mirror; with none restored (a new
+            # key) or a stale cache, update from the mirror and install again, then drop the
+            # packages the fresh lists no longer name, so the cache keeps no outdated ones
+            if ! install_packages; then
+              echo "Installing from the apt cache failed: updating from the mirror" >&2
+              sudo apt-get update
+              install_packages
+              sudo apt-get autoclean
+            fi
+            # apt leaves root-owned files (partial/ is root or _apt, mode 700): the cache saves
+            # them as this user
+            sudo chown -R "$(id -u):$(id -g)" "$HOME/apt-cache"
+
+      - save_cache:
+          key: apt-v1-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-{{ checksum "test-results/apt-cache-week" }}
+          paths:
+            - ~/apt-cache
 
       - restore-uv-cache-posix
       - install-deps-posix:

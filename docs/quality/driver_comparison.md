@@ -193,8 +193,11 @@ untracked ones that are not ignored, uncommitted changes included, never an igno
 host's caches, Hypothesis's database) and no submodule's contents (CircleCI's checkout has none).
 Its `.git` is cloned from the repository's git directory, mounted read-only at its own path, so
 the session runs from a worktree too; HEAD is this checkout's, on its branch, and the remote
-branches are this checkout's, as fresh as its last fetch. It installs fontconfig, uv and Python at
-the job's versions, then nox as a uv tool, and runs `nox -s test` as the job does. Its
+branches are this checkout's, as fresh as its last fetch. It installs the job's system packages
+(read from the job's one `sudo apt-get install -y` line), uv and Python at the job's versions, then
+nox as a uv tool, and runs `nox -s test` as the job does. The packages come from Ubuntu's mirror:
+the job's own apt cache, which lets CircleCI's job install them during a mirror outage, lives in
+CircleCI and is not used here. Its
 `test-results/` (junit.xml) come back to `test-results/linux-ci/`. The memory guard's summary line names the peak it saw (the
 container's memory less its page cache, what the kernel's 2 GB kill counts), and the last line
 the container's raw peak (the page cache included, so near 2 GB even on a healthy run). It takes

@@ -88,6 +88,7 @@ def test_after_four_seconds_the_title_returns_with_everyone_joined():
     support.tick_to(scene, seconds=GAME_OVER_SECONDS + 0.05)
 
     assert isinstance(scene.next_scene, TitleScene)
+    assert not scene.next_scene.opening
     assert scene.next_scene.roster == scene.roster
 
 
@@ -99,6 +100,7 @@ def test_a_joined_players_start_returns_to_the_title_at_once():
     support.press_key(scene, pygame.K_RETURN)
 
     assert isinstance(scene.next_scene, TitleScene)
+    assert not scene.next_scene.opening
 
 
 @pytest.mark.parametrize(

@@ -1,4 +1,4 @@
-"""The AI console: a read-only conversation with the local AI, around any game.
+"""The AI console: a conversation with the local AI, around any game, that changes nothing but one.
 
 It belongs to the AI's host layer (``glitchygames/ai_host.py``), so a game needs nothing to have
 it, and a run without AI never imports this. The ` key opens and closes it, by the character or by
@@ -6,11 +6,15 @@ its US position (left of 1), so a layout without the key still has one. No game 
 
 The rules:
 
-1. Read-only. ``/ask`` and ``/inspect`` read the scene and print text. Nothing here changes the
-   game.
-2. Never in a recording. These doors sit beneath the recorder, so the keys typed here are hidden
-   from the recorder as they are from the game, and the console is drawn with the doors' overlay,
-   which is never in a screenshot or a trace. A recording of a run that used it replays without it.
+1. Read-only, but for one command. ``/ask`` and ``/inspect`` read the scene and print text.
+   The exception is ``/sprite``, which adds one sprite to the game's scene, and only through a
+   recorded spawn event (``events/sprite_spawn.py``; the engine adds it). Nothing else here
+   changes the game.
+2. Never in a recording, but for the spawn. These doors sit beneath the recorder, so the keys
+   typed here are hidden from the recorder as they are from the game, and the console is drawn
+   with the doors' overlay, which is never in a screenshot or a trace. ``/sprite``'s spawn event
+   goes above the recorder on purpose (``recording.post_input_event``), so a recording of a run
+   that used it replays with the sprite, and without the console, the AI or the saved file.
 3. Typing never moves the player. While it's open every key goes here, from both the events and the
    polled snapshot. A key the game saw pressed gets its release as the console opens, and a key
    still held as it closes stays hidden until it's released, so the game never sees half a press.
@@ -21,9 +25,10 @@ The rules:
    setting and never changes it.
 4. It doesn't pause the game. Pausing belongs to the game, so pause it first if that matters: the
    console works over the pause screen, and inspects the paused game.
-5. The frame never waits. Requests, the model's stream, the history file and the system clipboard
-   (which can mean running another program) all live on a worker thread, which hands updates to
-   the main thread through a deque. With the console closed and nothing to say, ``filter_events``
+5. The frame never waits. Requests, the model's stream, generating a sprite and saving it, the
+   history file and the system clipboard (which can mean running another program) all live on a
+   worker thread, which hands updates to the main thread through a deque. The main thread only
+   posts a sprite's spawn. With the console closed and nothing to say, ``filter_events``
    is one truth test and a loop over the batch's keys, and nothing is drawn.
 """
 
@@ -56,6 +61,7 @@ if TYPE_CHECKING:
     from glitchygames.ai_link import AiLink, ServiceLocations
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
+    from glitchygames.services.sprite_generation_service import SpriteGenerationService
 
 LOG = logging.getLogger('game.ai_console')
 
@@ -151,6 +157,8 @@ class AiRequest:
     reasoning_pieces: int = 0
     answer_pieces: int = 0
     line: TranscriptLine | None = None
+    # A /sprite request: its service call has no stream to close, so /cancel only drops it
+    makes_sprite: bool = False
     # Set by the main thread, read by the worker, which stops reading the stream when it can
     cancelled: threading.Event = dataclasses.field(default_factory=threading.Event)
 
@@ -280,6 +288,8 @@ class AiConsole:
         link: AiLink,
         locations: ServiceLocations,
         service_url: str | None = None,
+        sprite_service: SpriteGenerationService | None = None,
+        sprites_folder: Path | None = None,
     ) -> None:
         """Prepare the console, closed. Nothing is loaded until it's first drawn or used.
 
@@ -287,11 +297,16 @@ class AiConsole:
             link: The game's session with the service: its state, and the models it reported.
             locations: Where the service is installed, and where history is kept.
             service_url: Where its REST API listens. None is the client's default.
+            sprite_service: Generates ``/sprite``'s sprites. None: built on first use.
+            sprites_folder: Where ``/sprite`` saves. None: the running game's package's
+                ``sprites`` folder (``sprites.saved_sprites.game_sprites_folder``).
 
         """
         self.link = link
         self.locations = locations
         self.service_url = service_url
+        self.sprites_folder = sprites_folder
+        self._sprite_service = sprite_service
         self.is_open = False
         self.hidden_scancodes: set[int] = set()
         self.input_text = ''
@@ -336,6 +351,12 @@ class AiConsole:
                     usage='/ask QUESTION',
                     summary='ask the AI about what is on screen (or just type the question)',
                     run=self._ask,
+                ),
+                ConsoleCommand(
+                    name='sprite',
+                    usage='/sprite DESCRIPTION',
+                    summary="make a sprite, save it in the game's sprites folder, and add it",
+                    run=self._sprite,
                 ),
                 ConsoleCommand(
                     name='inspect',
@@ -421,7 +442,7 @@ class AiConsole:
             pygame.K_LEFT: lambda: self._move_cursor(self._previous_word_start()),
             pygame.K_RIGHT: lambda: self._move_cursor(self._next_word_end()),
         }
-        self._add_line(text='AI console: read-only. /help lists commands. Esc or ` closes.')
+        self._add_line(text='AI console. /help lists commands. Esc or ` closes.')
 
     # The doors' side: called on the main thread, every frame
 
@@ -878,24 +899,36 @@ class AiConsole:
             return
         self.running.cancelled.set()
         self.requests_cancelled += 1
-        self._add_line(text=f'#{self.running.number} cancelled', color=NOTE_COLOR)
+        cancelled = f'#{self.running.number} cancelled'
+        if self.running.makes_sprite:
+            cancelled += ': the AI service finishes it, and the sprite is dropped'
+        self._add_line(text=cancelled, color=NOTE_COLOR)
         self.running = None
 
-    def _ask(self, question: str) -> None:
-        """Start a question on the worker, with the scene as it is right now."""
-        if not question:
-            self._add_line(text='/ask QUESTION', color=NOTE_COLOR)
-        elif self.running is not None:
-            self._add_line(
-                text=f'#{self.running.number} is still running: /cancel to stop it',
-                color=ERROR_COLOR,
-            )
-        elif self.link.state in {
+    def _start_refusal(self) -> str | None:
+        """Say why no request can start now: one at a time, and only with an AI this run.
+
+        Returns:
+            The reason, or None when a request can start.
+
+        """
+        if self.running is not None:
+            return f'#{self.running.number} is still running: /cancel to stop it'
+        if self.link.state in {
             LinkState.NOT_ENOUGH_MEMORY,
             LinkState.UNAVAILABLE,
             LinkState.REFUSED,
         }:
-            self._add_line(text=f'No AI this run: {self.link.state.value}', color=ERROR_COLOR)
+            return f'No AI this run: {self.link.state.value}'
+        return None
+
+    def _ask(self, question: str) -> None:
+        """Start a question on the worker, with the scene as it is right now."""
+        refusal = self._start_refusal()
+        if not question:
+            self._add_line(text='/ask QUESTION', color=NOTE_COLOR)
+        elif refusal is not None:
+            self._add_line(text=refusal, color=ERROR_COLOR)
         else:
             self.requests_made += 1
             request = AiRequest(
@@ -915,6 +948,73 @@ class AiConsole:
                 {'role': 'user', 'content': question},
             ]
             self._on_worker(work=partial(self._run_request, request, messages))
+
+    def _sprite(self, description: str) -> None:
+        """Start generating a sprite on the worker; it is added when it arrives (rule 1)."""
+        refusal = self._start_refusal()
+        if not description:
+            self._add_line(text='/sprite DESCRIPTION', color=NOTE_COLOR)
+        elif refusal is not None:
+            self._add_line(text=refusal, color=ERROR_COLOR)
+        elif self.scene is None:
+            self._add_line(text='No scene yet', color=ERROR_COLOR)
+        else:
+            self.requests_made += 1
+            request = AiRequest(
+                number=self.requests_made,
+                question=description,
+                started_seconds=clock.raw_counter_seconds(),
+                makes_sprite=True,
+            )
+            self.running = request
+            request.line = self._add_line(
+                text=f'#{request.number} generating {description}...', color=NOTE_COLOR
+            )
+            self._on_worker(work=partial(self._generate_sprite, request))
+
+    def _sprite_generated(self, request: AiRequest, toml_text: str, sprite_name: str) -> None:
+        """Post the sprite's spawn at the center of the camera's view, then save it on the worker.
+
+        Text the sprite loader refuses spawns nothing and is not saved: a recording never
+        carries a spawn that cannot build.
+        """
+        from glitchygames.events.sprite_spawn import SpriteSpawn, post_sprite_spawn
+        from glitchygames.replay.tools.identity import game_package
+        from glitchygames.sprites.saved_sprites import sprite_file_name
+        from glitchygames.sprites.spawned import SpawnedSprite
+
+        if request is not self.running:
+            return
+        if self.scene is None:
+            self._failed(request, 'no scene to add it to')
+            return
+        game = self.scene.debug_subject
+        try:
+            SpawnedSprite.from_text(
+                text=toml_text, source_name=f'#{request.number}', center_x=0.0, center_y=0.0
+            )
+        except ValueError as error:
+            self._failed(request, str(error))
+            return
+        camera = game.camera
+        post_sprite_spawn(
+            spawn=SpriteSpawn(
+                toml_text=toml_text,
+                sprite_name=sprite_name,
+                world_x=camera.world_x + camera.screen_width / 2,
+                world_y=camera.world_y + camera.screen_height / 2,
+            )
+        )
+        self.running = None
+        self._set_request_line(
+            request=request, text=f'#{request.number} {sprite_name} added', color=ANSWER_COLOR
+        )
+        file_stem = sprite_file_name(sprite_name=sprite_name, description=request.question)
+        self._on_worker(
+            work=partial(
+                self._save_generated_sprite, request, toml_text, file_stem, game_package(game=game)
+            )
+        )
 
     def _history(self, argument: str) -> None:
         """Print or forget this game's past questions, reading the file on the worker."""
@@ -948,6 +1048,58 @@ class AiConsole:
                 self._updates.append(partial(self._add_line, text=str(error), color=ERROR_COLOR))
 
         threading.Thread(target=guarded, name='ai-console', daemon=True).start()
+
+    def _generate_sprite(self, request: AiRequest) -> None:
+        """Ask the sprite service for the sprite; hand the main thread its text or why not."""
+        # Imported here, on this thread: a run that makes no sprite never loads them
+        from glitchygames.ai.local_service import DEFAULT_BASE_URL
+        from glitchygames.services import SpriteGenerationService
+        from glitchygames.services.exceptions import AIProviderError
+
+        try:
+            if self._sprite_service is None:
+                self._sprite_service = SpriteGenerationService()
+            result = self._sprite_service.generate_sprite(prompt=request.question)
+        except AIProviderError as error:
+            reason = f'the AI service at {DEFAULT_BASE_URL} cannot be reached ({error})'
+            self._updates.append(partial(self._failed, request, reason))
+            return
+        # Anything else must still end the request, or every later one is refused as running
+        except Exception as error:
+            LOG.exception('Generating a sprite failed')
+            self._updates.append(partial(self._failed, request, str(error)))
+            return
+        if request.cancelled.is_set():
+            return
+        if not result.success or not result.toml_content:
+            reason = result.error or 'the service gave no sprite'
+            self._updates.append(partial(self._failed, request, reason))
+            return
+        sprite_name = result.sprite_name or request.question
+        self._updates.append(
+            partial(self._sprite_generated, request, result.toml_content, sprite_name)
+        )
+
+    def _save_generated_sprite(
+        self, request: AiRequest, toml_text: str, file_stem: str, package: str
+    ) -> None:
+        """Save a sprite that was added; say where, or why it was not saved."""
+        from glitchygames.sprites.saved_sprites import game_sprites_folder, save_sprite
+
+        folder = self.sprites_folder or game_sprites_folder(package=package)
+        if folder is None:
+            text = f'#{request.number} not saved: the game {package!r} has no folder'
+            self._updates.append(partial(self._add_line, text=text, color=ERROR_COLOR))
+            return
+        try:
+            path = save_sprite(toml_text=toml_text, file_stem=file_stem, sprites_folder=folder)
+        except OSError as error:
+            text = f'#{request.number} not saved: {error}'
+            self._updates.append(partial(self._add_line, text=text, color=ERROR_COLOR))
+            return
+        self._updates.append(
+            partial(self._add_line, text=f'#{request.number} saved {path}', color=NOTE_COLOR)
+        )
 
     def _run_request(self, request: AiRequest, messages: list[dict[str, str]]) -> None:
         """Stream one answer to the main thread, then keep a record of it."""

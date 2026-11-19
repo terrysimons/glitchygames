@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from glitchygames.sprites import SpriteFactory
+from glitchygames.sprites import SpriteFactory, sprite_file_schema, sprite_toml
 from glitchygames.sprites.sprite_file_schema import SpriteFileError, validate_sprite_file
 
 if TYPE_CHECKING:
@@ -210,3 +210,35 @@ def test_a_static_sprite_whose_color_is_text_is_refused_at_load(tmp_path: Path):
 
     with pytest.raises(SpriteFileError, match=r'dot\.toml.*red'):
         SpriteFactory.load_sprite(filename=str(sprite_file))
+
+
+def schema_keys(model: type[sprite_file_schema.BaseModel]) -> frozenset[str]:
+    """Return the keys a schema section accepts, as a file spells them (aliases included).
+
+    Returns:
+        The keys.
+
+    """
+    return frozenset(field.alias or name for name, field in model.model_fields.items())
+
+
+@pytest.mark.parametrize(
+    ('model', 'writer_keys'),
+    [
+        (sprite_file_schema.SpriteFile, sprite_toml.DOCUMENT_KEYS),
+        (sprite_file_schema.Sprite, sprite_toml.SPRITE_KEYS),
+        (sprite_file_schema.Hitbox, frozenset(sprite_toml.HITBOX_KEYS)),
+        (sprite_file_schema.Animation, sprite_toml.ANIMATION_KEYS),
+        (sprite_file_schema.Frame, sprite_toml.FRAME_KEYS),
+        (sprite_file_schema.Color, sprite_toml.COLOR_KEYS),
+    ],
+    ids=['document', 'sprite', 'hitbox', 'animation', 'frame', 'color'],
+)
+def test_the_schema_accepts_exactly_the_keys_the_writer_writes(model, writer_keys):
+    """Each section's keys are the writer's (sprite_toml.py), so a written file always loads.
+
+    Both ways: a key the writer writes but the schema refuses makes a file nothing can load
+    (``profile`` and ``color_space``, 2026-11-18); one the schema accepts but the writer refuses
+    makes a loaded sprite unsavable.
+    """
+    assert schema_keys(model) == writer_keys

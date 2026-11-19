@@ -122,6 +122,7 @@ def test_backspace_on_the_card_goes_back_to_the_title_with_everyone_joined():
     support.press_key(card, pygame.K_BACKSPACE)
 
     assert isinstance(card.next_scene, TitleScene)
+    assert not card.next_scene.opening
     assert card.next_scene.roster == roster
 
 
@@ -144,6 +145,7 @@ def test_a_pads_back_button_on_the_card_goes_back_to_the_title(layer):
         )
 
     assert isinstance(card.next_scene, TitleScene)
+    assert not card.next_scene.opening
 
 
 def test_other_keys_on_the_card_do_nothing():
@@ -195,6 +197,7 @@ def test_unplugging_the_last_player_on_the_card_returns_to_the_title():
         support.unplug_the_pad(engine)
 
         assert isinstance(card.next_scene, TitleScene)
+        assert not card.next_scene.opening
         assert card.next_scene.roster == JoinRoster.empty()
 
 
@@ -285,6 +288,7 @@ def test_the_card_returns_to_the_title_when_its_last_pad_left_during_a_pause():
 
         assert support.joined_devices(card) == [None, None, None, None]
         assert isinstance(card.next_scene, TitleScene)
+        assert not card.next_scene.opening
 
 
 # The card between stages (feature plan 7)

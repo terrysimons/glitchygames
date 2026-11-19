@@ -839,6 +839,8 @@ class TestPixelRowsSurviveTomlEscapes:
 
     def test_toml_pixel_block_escapes(self):
         """Each row is escaped like a basic string, and the newlines between rows stay real."""
-        assert toml_pixel_block('a\\b\n"c') == '"""\na\\\\b\n\\"c\n"""'
+        assert toml_pixel_block('a\\b\n"c\n') == '"""\na\\\\b\n\\"c\n"""'
+        # The text is written as given: no final line break is added
+        assert toml_pixel_block('a\\b\n"c') == '"""\na\\\\b\n\\"c"""'
         assert toml_pixel_block('ab\n') == '"""\nab\n"""'
-        assert tomllib.loads(f'pixels = {toml_pixel_block("a\\\nb")}')['pixels'] == 'a\\\nb\n'
+        assert tomllib.loads(f'pixels = {toml_pixel_block("a\\\nb")}')['pixels'] == 'a\\\nb'

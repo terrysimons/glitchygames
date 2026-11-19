@@ -149,6 +149,16 @@ blue = 0
         assert is_animated is True
         assert frame_count == 2
 
+    @pytest.mark.parametrize('name_value', ['5', 'true', '["a", "b"]', '""', '"   "'])
+    def test_a_name_that_is_not_text_is_no_name(self, name_value):
+        """The model's name is a sprite's name only when it is text with something in it."""
+        service = SpriteGenerationService()
+        toml_content = f'[sprite]\nname = {name_value}\npixels = "#"\n'
+
+        name, _is_animated, _frame_count = service._extract_sprite_metadata(toml_content)
+
+        assert name is None
+
     def test_extract_sprite_metadata_invalid_toml(self):
         """Test metadata extraction with invalid TOML."""
         service = SpriteGenerationService()

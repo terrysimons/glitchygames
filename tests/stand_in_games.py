@@ -28,6 +28,9 @@ so the engine's tests import no workspace member and run no member's code:
     ``live_voice_on_frame`` its scene starts a live instrument (``audio.sound(Instrument(...,
     live=True)).start()``, as Mr. Muncher's projector does) and keeps its handle as
     ``live_voice``;
+  - **a sprite spawn**, only in ``write_spawning_stand_in_game``'s: on its ``spawn_on_frame``
+    its scene posts a spawn of ``STAND_IN_SPAWNED_TEXT`` at ``STAND_IN_SPAWN_POINT``
+    (``events.sprite_spawn.post_sprite_spawn``), as the AI console's ``/sprite`` does;
   - **its layer**, only when ``layer`` is given: its package registers itself in
     ``glitchygames.logical_names.MEMBER_LAYERS`` when imported, so its logical names are
     layered (``games.<package>:<Scene>``) as a member's are. Only the child processes that run
@@ -273,12 +276,23 @@ def write_stand_in_recording(*, path: Path, frame_count: int) -> None:
     )
 
 
-class StandInSounds(BaseModel):
-    """The sounds a stand-in game's scene makes, each on one frame (None: never).
+# What a spawning stand-in posts (write_spawning_stand_in_game): a four-by-two sprite's text, and
+# the world point its center goes at
+STAND_IN_SPAWNED_TEXT = (
+    '[sprite]\nname = "bar"\npixels = """\n####\n####\n"""\n\n'
+    '[colors."#"]\nred = 0\ngreen = 0\nblue = 255\n'
+)
+STAND_IN_SPAWN_POINT = (20.0, 10.0)
+
+
+class StandInFrameActions(BaseModel):
+    """What a stand-in game's scene does beyond moving, each on one frame (None: never).
 
     Attributes:
         chime_on_frame: The frame its scene plays a plain ``Sound.play()`` chime on.
         live_voice_on_frame: The frame its scene creates and starts a live synth voice on.
+        spawn_on_frame: The frame its scene posts a sprite spawn on, as the AI console's
+            ``/sprite`` does (``STAND_IN_SPAWNED_TEXT`` centered at ``STAND_IN_SPAWN_POINT``).
 
     """
 
@@ -286,6 +300,7 @@ class StandInSounds(BaseModel):
 
     chime_on_frame: int | None = None
     live_voice_on_frame: int | None = None
+    spawn_on_frame: int | None = None
 
 
 def stand_in_game_source(
@@ -294,19 +309,21 @@ def stand_in_game_source(
     scene_name: str,
     frames_before_quit: int,
     layer: str | None,
-    sounds: StandInSounds | None = None,
+    frame_actions: StandInFrameActions | None = None,
 ) -> str:
     """Return a stand-in game package's ``__init__.py`` (the facts in this module's docstring).
 
-    The chime's and the live voice's lines are written only when their frame is given, so a
-    plain stand-in's source has neither (nor their mixer reads each frame).
+    The chime's, the live voice's and the spawn's lines are written only when their frame is
+    given, so a plain stand-in's source has none of them (nor their mixer reads each frame).
 
     Returns:
         The source.
 
     """
-    chime_on_frame = None if sounds is None else sounds.chime_on_frame
-    live_voice_on_frame = None if sounds is None else sounds.live_voice_on_frame
+    actions = frame_actions or StandInFrameActions()
+    chime_on_frame = actions.chime_on_frame
+    live_voice_on_frame = actions.live_voice_on_frame
+    spawn_on_frame = actions.spawn_on_frame
     sound_constants = ''
     sound_attributes = ''
     sound_lines = ''
@@ -337,6 +354,26 @@ def stand_in_game_source(
     live_voice_import = (
         '' if live_voice_on_frame is None else 'from glitchygames.audio import Instrument\n'
     )
+    if spawn_on_frame is not None:
+        sound_constants += (
+            f'SPAWN_ON_FRAME = {spawn_on_frame!r}\n'
+            f'SPAWNED_TEXT = {STAND_IN_SPAWNED_TEXT!r}\n'
+            f'SPAWN_POINT = {STAND_IN_SPAWN_POINT!r}\n'
+        )
+        sound_lines += (
+            '        if self.frames == SPAWN_ON_FRAME:\n'
+            '            post_sprite_spawn(\n'
+            '                spawn=SpriteSpawn(\n'
+            '                    toml_text=SPAWNED_TEXT,\n'
+            '                    sprite_name="bar",\n'
+            '                    world_x=SPAWN_POINT[0],\n'
+            '                    world_y=SPAWN_POINT[1],\n'
+            '                )\n'
+            '            )\n'
+        )
+        live_voice_import += (
+            'from glitchygames.events.sprite_spawn import SpriteSpawn, post_sprite_spawn\n'
+        )
     layer_registration = (
         ''
         if layer is None
@@ -436,6 +473,38 @@ def write_stand_in_game(
     )
 
 
+def write_spawning_stand_in_game(
+    *, directory: Path, package: str, spawn_on_frame: int
+) -> StandInGame:
+    """Write a stand-in game whose scene posts a sprite spawn on one frame, as ``/sprite`` does.
+
+    Otherwise it is ``write_stand_in_game``'s with the defaults (no layer, its console script
+    named after its package).
+
+    Args:
+        directory: The install directory (it holds the package and the dist-info).
+        package: The import package's name.
+        spawn_on_frame: The frame its scene posts the spawn on.
+
+    Returns:
+        The stand-in game.
+
+    """
+    return install_stand_in_game(
+        directory=directory,
+        package=package,
+        console_script=None,
+        source=stand_in_game_source(
+            package=package,
+            scene_name=stand_in_scene_name(package=package),
+            frames_before_quit=STAND_IN_GAME_FRAMES,
+            layer=None,
+            frame_actions=StandInFrameActions(spawn_on_frame=spawn_on_frame),
+        ),
+        layer=None,
+    )
+
+
 def write_chiming_stand_in_game(
     *, directory: Path, package: str, chime_on_frame: int
 ) -> StandInGame:
@@ -462,7 +531,7 @@ def write_chiming_stand_in_game(
             scene_name=stand_in_scene_name(package=package),
             frames_before_quit=STAND_IN_GAME_FRAMES,
             layer=None,
-            sounds=StandInSounds(chime_on_frame=chime_on_frame),
+            frame_actions=StandInFrameActions(chime_on_frame=chime_on_frame),
         ),
         layer=None,
     )
@@ -495,7 +564,7 @@ def write_live_voice_stand_in_game(
             scene_name=stand_in_scene_name(package=package),
             frames_before_quit=STAND_IN_GAME_FRAMES,
             layer=None,
-            sounds=StandInSounds(live_voice_on_frame=live_voice_on_frame),
+            frame_actions=StandInFrameActions(live_voice_on_frame=live_voice_on_frame),
         ),
         layer=None,
     )

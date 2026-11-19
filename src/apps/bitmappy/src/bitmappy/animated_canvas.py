@@ -984,13 +984,16 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             frame: The frame object with pixels and _image attributes.
 
         """
-        if not (hasattr(frame, 'pixels') and hasattr(frame, '_image') and frame._image is not None):  # type: ignore[reportPrivateUsage]
+        if not (hasattr(frame, 'pixels') and hasattr(frame, 'image')):
             return
 
-        width, height = frame._image.get_size()  # type: ignore[reportPrivateUsage]
+        # image, not _image: a frame sharing a compiled sprite's surface copies it first, so the
+        # edit reaches this frame only (glitchygames/sprites/compiled_sprites.py)
+        image = frame.image
+        width, height = image.get_size()
         for i, pixel in enumerate(frame.pixels):
             if i < width * height:
-                frame._image.set_at((i % width, i // width), pixel)  # type: ignore[reportPrivateUsage]
+                image.set_at((i % width, i // width), pixel)
 
         # Clear stale flag since image is now up to date
         if hasattr(frame, '_image_stale'):
@@ -1752,7 +1755,8 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         animated_sprite.copy_sprite_metadata_from(self.animated_sprite)
 
         # Update the sprite's image to match the frame
-        animated_sprite.image = frame.image.copy()
+        # One copy: frame.image would copy a shared surface before this copy did
+        animated_sprite.image = frame.read_only_image.copy()
         animated_sprite.rect = animated_sprite.image.get_rect()
 
         # Save using the animated sprite's save method

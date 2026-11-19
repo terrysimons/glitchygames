@@ -51,6 +51,7 @@ from glitchygames.performance.adaptive_clamping import PERFORMANCE_MANAGERS_SLOT
 from glitchygames.recording import reset_internal_post_tracking
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites.bitmappy_sprite import SINGLETONS_SLOT
+from glitchygames.sprites.compiled_sprites import ENGINE_SPRITE_CACHE
 from glitchygames.sprites.sprite import SPRITE_COUNTERS_SLOT
 from glitchygames.user_files import install_user_files
 from tests.ai_service_stand_in import CONTROL_SCRIPT_NAME, python_twin
@@ -483,6 +484,26 @@ def empty_engine_sound_cache():
 
 
 @pytest.fixture(autouse=True)
+def empty_engine_sprite_cache():
+    """Start and end each test with an empty process cache of compiled sprites.
+
+    A sprite file's text compiles once per process (glitchygames.sprites.compiled_sprites
+    ``ENGINE_SPRITE_CACHE``): without this, whether a test's load compiles would depend on which
+    test ran before it on the worker. A test that leaves a compile changed fails: a compile is
+    never written after it is made, so a change is a path writing around a frame's copy-on-write.
+    """
+    ENGINE_SPRITE_CACHE.clear()
+    yield
+    changed = ENGINE_SPRITE_CACHE.changed_entries()
+    ENGINE_SPRITE_CACHE.clear()
+    if changed:
+        pytest.fail(
+            'A shared sprite compile was written into (its frames are shared by every sprite '
+            f'loaded from the same text; write through SpriteFrame.image or .pixels): {changed}'
+        )
+
+
+@pytest.fixture(autouse=True)
 def restore_game_engine_class_state(mocker):
     """Restore the GameEngine class attributes that engine code writes, after each test.
 
@@ -793,6 +814,7 @@ def engine_service_resets(
     in_process_clipboard,
     restore_game_engine_class_state,
     empty_engine_sound_cache,
+    empty_engine_sprite_cache,
 ):
     """Group the resets of the engine's other installed state, for the leak check.
 
@@ -801,6 +823,7 @@ def engine_service_resets(
         in_process_clipboard: Requested only to be torn down after the leak check.
         restore_game_engine_class_state: Requested only to be torn down after the leak check.
         empty_engine_sound_cache: Requested only to be torn down after the leak check.
+        empty_engine_sprite_cache: Requested only to be torn down after the leak check.
 
     """
 

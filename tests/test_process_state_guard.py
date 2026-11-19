@@ -896,6 +896,12 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             "game's too, so an Arcade tile's restart compiles nothing; CLAUDE.md)."
         ),
     },
+    'sprites/compiled_sprites.py': {
+        'ENGINE_SPRITE_CACHE': (
+            'R17: compiled, read-only sprite frames by text and source, one cache per process by '
+            'design (the owner, 2026-11-18, "like we did with sounds"; CLAUDE.md).'
+        ),
+    },
     'audio/pitch.py': {
         '_warned_hertz_values': (
             'S20: not yet per context: the out-of-range frequencies already warned about, so a '
@@ -1006,6 +1012,9 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             'S13: a recursion guard, empty between calls, so empty whenever a context switch can '
             'happen.'
         ),
+    },
+    'events/sprite_spawn.py': {
+        'SPRITE_SPAWN_EVENT': EVENT_TYPE_TABLE,
     },
     'events/midi.py': {'MIDI_MODULE': "R5: an import's result, the same in every context."},
     'fonts/font_manager.py': {
