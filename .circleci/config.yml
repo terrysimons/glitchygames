@@ -522,7 +522,15 @@ jobs:
             set -euo pipefail
             # apt keeps its lists and downloaded packages in ~/apt-cache, which the cache saves
             # (the image's docker-clean deletes packages from /var/cache/apt/archives only, and
-            # its apt keeps none unless told to), and retries each download
+            # its apt keeps none unless told to), and retries each download. It reads only the
+            # main component of Ubuntu's own sources: our packages are all in main (and a main
+            # package depends only on main), so it fetches about 4 MB of lists instead of 27, and
+            # the image's Docker, git PPA and git-lfs sources, which we install nothing from,
+            # cannot slow or fail it (the owner, 2026-11-19: "only check for updates for
+            # particular packages"; apt's lists come whole per source, never per package). The
+            # copy keeps each source's URIs, suites and key, so either architecture's mirror works
+            sudo sed 's/^Components:.*/Components: main/' /etc/apt/sources.list.d/ubuntu.sources \
+              | sudo tee /etc/apt/glitchygames-ubuntu-main.sources > /dev/null
             mkdir -p "$HOME/apt-cache/lists/partial" "$HOME/apt-cache/archives/partial"
             printf '%s\n' \
               "Dir::State::Lists \"$HOME/apt-cache/lists\";" \
@@ -531,6 +539,8 @@ jobs:
               "Binary::apt::APT::Keep-Downloaded-Packages \"true\";" \
               "Acquire::Retries \"5\";" \
               "Acquire::http::Timeout \"30\";" \
+              "Dir::Etc::SourceList \"/etc/apt/glitchygames-ubuntu-main.sources\";" \
+              "Dir::Etc::SourceParts \"/nonexistent-glitchygames-sources.d\";" \
               | sudo tee /etc/apt/apt.conf.d/80glitchygames-apt-cache > /dev/null
             install_packages() {
               # fontconfig: the suite's text tests. pkg-config, libudev-dev, libusb-1.0-0-dev:
@@ -571,8 +581,13 @@ jobs:
             # packages; with none restored (a new key) or a stale cache, the fallback updates
             # until the mirror answers and installs again. After any refresh, autoclean drops
             # the packages the fresh lists no longer name, so the cache saved keeps none
+            # The first refresh gives up within a minute, with apt's retries off, so an outage
+            # costs a job a minute at most before the cache installs (in the outage of
+            # 2026-11-19 one update kept trying for 7+ minutes). Stopping apt is safe: it moves
+            # an index into place only once it is whole
             refreshed=false
-            if sudo apt-get update -o APT::Update::Error-Mode=any; then
+            if sudo timeout 60 apt-get update -o APT::Update::Error-Mode=any -o Acquire::Retries=0
+            then
               refreshed=true
             else
               echo "Refreshing from the mirror failed: installing from the apt cache" >&2

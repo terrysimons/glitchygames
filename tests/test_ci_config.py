@@ -945,6 +945,24 @@ APT_CACHE_WEEK_FILE = 'test-results/apt-cache-week'
 # no-output limit for a step that sets none: the waits between attempts stay under it
 APT_UPDATE_ATTEMPTS = 5
 CIRCLECI_DEFAULT_NO_OUTPUT_SECONDS = 600
+# The Ubuntu sources file of CircleCI's image (cimg/python:3.15.2, amd64): the step derives
+# the main-only sources apt reads from it
+UBUNTU_SOURCES = (
+    'Types: deb\n'
+    'URIs: http://archive.ubuntu.com/ubuntu/\n'
+    'Suites: resolute resolute-updates resolute-backports\n'
+    'Components: main universe restricted multiverse\n'
+    'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n'
+    '\n'
+    'Types: deb\n'
+    'URIs: http://security.ubuntu.com/ubuntu/\n'
+    'Suites: resolute-security\n'
+    'Components: main universe restricted multiverse\n'
+    'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n'
+)
+# The apt settings file the step writes, and the sources file it points apt at
+APT_SETTINGS_PATH = Path('etc/apt/apt.conf.d/80glitchygames-apt-cache')
+APT_MAIN_SOURCES_PATH = Path('etc/apt/glitchygames-ubuntu-main.sources')
 
 
 def linux_job_steps() -> list[Any]:
@@ -1097,6 +1115,8 @@ class AptScriptRun(BaseModel):
     calls: tuple[str, ...]
     # Each wait the script slept, in seconds, in order
     sleeps: tuple[float, ...]
+    # Each time limit a command ran under (timeout's seconds), in order
+    timeouts: tuple[float, ...]
     output: str
 
     @property
@@ -1120,7 +1140,10 @@ def run_apt_install_script(
     the first failed_updates attempts fail. A failed update exits 100 only when given
     ``APT::Update::Error-Mode=any``, as apt 3.2 on the job's image does; without it apt exits 0
     after a failed fetch. sudo runs its command as this user, except that ``tee`` writes into
-    tmp_path instead of /etc. sleep records its seconds and returns at once.
+    tmp_path instead of /etc: every argument under /etc/ is taken under tmp_path, where the
+    image's Ubuntu sources file (UBUNTU_SOURCES, amd64's, as CircleCI's machines are) is
+    written first. sleep records its seconds and returns at once; timeout records its seconds
+    and runs its command.
 
     Returns:
         AptScriptRun: The script's status, apt's calls, the waits and the output.
@@ -1130,10 +1153,24 @@ def run_apt_install_script(
     stand_ins.mkdir()
     calls = tmp_path / 'apt-calls.txt'
     sleeps = tmp_path / 'sleeps.txt'
+    timeouts = tmp_path / 'timeouts.txt'
+    image_sources = tmp_path / 'etc' / 'apt' / 'sources.list.d' / 'ubuntu.sources'
+    image_sources.parent.mkdir(parents=True)
+    image_sources.write_text(UBUNTU_SOURCES, encoding='utf-8')
     (stand_ins / 'sudo').write_text(
         '#!/bin/bash\n'
-        'if [ "$1" = tee ]; then shift; cat > "$STAND_IN_ROOT/$(basename "$1")"; exit; fi\n'
-        'exec "$@"\n',
+        'arguments=()\n'
+        'for argument in "$@"; do\n'
+        '  case "$argument" in\n'
+        '    /etc/*) argument="$STAND_IN_ROOT$argument"; mkdir -p "$(dirname "$argument")" ;;\n'
+        '  esac\n'
+        '  arguments+=("$argument")\n'
+        'done\n'
+        'exec "${arguments[@]}"\n',
+        encoding='utf-8',
+    )
+    (stand_ins / 'timeout').write_text(
+        '#!/bin/bash\necho "$1" >> "$TIMEOUTS"\nshift\nexec "$@"\n',
         encoding='utf-8',
     )
     (stand_ins / 'apt-get').write_text(
@@ -1172,6 +1209,7 @@ def run_apt_install_script(
             'STAND_IN_ROOT': str(tmp_path),
             'APT_CALLS': str(calls),
             'SLEEPS': str(sleeps),
+            'TIMEOUTS': str(timeouts),
             'CACHE_HIT': '1' if cache_hit else '0',
             'MIRROR_UP': '1' if mirror_up else '0',
             'FAILED_UPDATES': str(failed_updates),
@@ -1184,6 +1222,9 @@ def run_apt_install_script(
         calls=tuple(calls.read_text(encoding='utf-8').splitlines()) if calls.exists() else (),
         sleeps=tuple(float(line) for line in sleeps.read_text(encoding='utf-8').split())
         if sleeps.exists()
+        else (),
+        timeouts=tuple(float(line) for line in timeouts.read_text(encoding='utf-8').split())
+        if timeouts.exists()
         else (),
         output=result.stdout or '',
     )
@@ -1216,6 +1257,41 @@ def test_a_failed_refresh_installs_from_the_cache(tmp_path):
 
     assert (run.status, run.commands) == (0, ['update', 'install'])
     assert 'Refreshing from the mirror failed' in run.output
+
+
+@apt_script_needs_bash
+def test_the_first_refresh_gives_up_within_a_minute_and_never_retries(tmp_path):
+    """An outage costs a job at most a minute before the cache installs (the owner, 2026-11-19).
+
+    The first update runs under a time limit with apt's retries off: in the outage of
+    2026-11-19 one update kept trying for 7+ minutes.
+    """
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=True, mirror_up=False)
+
+    first_update = next(call for call in run.calls if call.startswith('update'))
+    assert 'Acquire::Retries=0' in first_update
+    assert len(run.timeouts) == 1
+    assert run.timeouts[0] <= 60
+
+
+@apt_script_needs_bash
+def test_apt_reads_only_the_main_component_of_ubuntus_own_sources(tmp_path):
+    """Our packages are all in Ubuntu's main: apt fetches nothing else (about 4 MB, not 27).
+
+    The image's Docker, git PPA and git-lfs sources and Ubuntu's other components are left
+    out, so neither their outages nor their size reach the step. The main-only file keeps
+    each source's URIs, suites and key, so amd64's and arm64's mirrors both work.
+    """
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=True, mirror_up=True)
+    settings = (tmp_path / APT_SETTINGS_PATH).read_text(encoding='utf-8')
+    main_sources = (tmp_path / APT_MAIN_SOURCES_PATH).read_text(encoding='utf-8')
+
+    assert run.status == 0
+    assert f'Dir::Etc::SourceList "/{APT_MAIN_SOURCES_PATH}";' in settings
+    assert re.search(r'Dir::Etc::SourceParts "/nonexistent[^"]*";', settings)
+    assert main_sources == UBUNTU_SOURCES.replace(
+        'Components: main universe restricted multiverse', 'Components: main'
+    )
 
 
 @apt_script_needs_bash
