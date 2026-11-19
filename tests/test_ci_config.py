@@ -178,6 +178,28 @@ def test_circleci_installs_uv_at_its_pinned_version():
     }
 
 
+def test_the_linux_ci_session_installs_what_the_linux_job_installs():
+    """noxfile.test_linux_ci mirrors the Linux job's apt packages and ansible-core pin.
+
+    The two are written out in both files, so a bump in one would leave the Docker run testing
+    something CircleCI no longer runs. ansible-core is a tool, not a project dependency.
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    job = configuration[configuration.index('\n  build-and-test-linux:\n') :]
+    job = job[: job.index('\n  build-and-test-macos:\n')]
+    noxfile_source = (PROJECT_ROOT / 'noxfile.py').read_text(encoding='utf-8')
+
+    job_packages = re.findall(r'apt-get install -y ([a-z0-9 .+-]+)$', job, flags=re.MULTILINE)
+    session_packages = re.findall(r'apt-get install -y -qq ([a-z0-9 .+-]+?) >', noxfile_source)
+    job_pins = re.findall(r'uv tool install "(ansible-core==[0-9.]+)"', job)
+    session_pins = re.findall(r'uv tool install "(ansible-core==[0-9.]+)"', noxfile_source)
+
+    assert len(job_packages) == 1, job_packages
+    assert len(job_pins) == 1, job_pins
+    assert session_packages == job_packages
+    assert session_pins == job_pins
+
+
 class RecordingSession:
     """Stands in for a nox session: records every command, runs nothing."""
 

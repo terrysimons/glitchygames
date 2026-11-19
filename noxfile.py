@@ -1321,7 +1321,8 @@ def _linux_ci_script(
         f'uv python install "{python_version}"',
         # install-deps-posix installs nox as a uv tool, run directly (no uvx parent process)
         f'uv tool install "nox[uv]=={nox_version}"',
-        # "Install ansible-core (tool)": not a project dependency (the owner, 2026-11-19)
+        # "Install ansible-core (tool)": not a project dependency (ansible/ runs under Ansible's
+        # own Python; the owner, 2026-11-19), pinned as in the job's step
         'uv tool install "ansible-core==2.22.0"',
         # nox-test, then the job's store_test_results (to this checkout's test-results/linux-ci),
         # writable by the host's user whatever its id (a Linux host's is not the container's)
