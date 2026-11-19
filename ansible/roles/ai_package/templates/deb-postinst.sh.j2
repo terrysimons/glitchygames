@@ -1,0 +1,32 @@
+#!/bin/sh
+# The .deb's postinst (plans/lucid-circuit-linux.md, 6.2 and 6.7). It enables the setup job for
+# every user, so each user's models, keys and settings appear at their next login, and runs it at
+# once for the user who ran sudo, so the owner needn't log in again. A failed run (no network, a
+# full disk) doesn't fail the install: the job runs again at the next login.
+set -u
+
+setup_unit={{ (ai_package_setup_label ~ '.service') | quote }}
+
+say() {
+    echo "{{ ai_package_deb_name }}: $1"
+}
+
+# Only a new install or an upgrade; a rollback (abort-*) keeps what the old version set up
+[ "${1:-}" = configure ] || exit 0
+
+if ! systemctl --global enable "$setup_unit"; then
+    say "could not enable $setup_unit for every user, so no user would be set up" >&2
+    exit 1
+fi
+
+if [ -z "${SUDO_USER:-}" ] || [ "$SUDO_USER" = root ]; then
+    say "no user ran sudo, so each user's setup runs at their next login"
+    exit 0
+fi
+
+if systemctl --user --machine="$SUDO_USER@" start "$setup_unit"; then
+    say "set up for $SUDO_USER"
+else
+    say "the setup for $SUDO_USER did not finish; it runs again at their next login (journalctl --user -u $setup_unit)" >&2
+fi
+exit 0

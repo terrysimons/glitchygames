@@ -454,11 +454,22 @@ def test_a_file_that_is_not_a_dynamic_object_is_skipped_and_said_so_not_failed(
     assert 'not a dynamic object' in say['ansible.builtin.debug']['msg']
 
 
+def test_the_sidecar_check_writes_no_bytecode_into_the_install():
+    """On Linux the install is the .deb's stage, so bytecode its check wrote would ship."""
+    (task,) = [
+        task
+        for task in walk_tasks(tasks=role_tasks(role='ai_sidecar'))
+        if task.get('name') == 'Check the sidecar uses nothing outside itself'
+    ]
+
+    assert task['environment']['PYTHONDONTWRITEBYTECODE'] == '1'
+
+
 def test_packaging_reads_the_sidecar_from_where_ansible_built_it():
     """On Linux the runtime path does not exist until the .deb is installed."""
     (task,) = [
         task
-        for task in walk_tasks(tasks=role_tasks(role='ai_package'))
+        for task in walk_tasks(tasks=role_tasks(role='ai_package', file_name='stage.yml'))
         if task.get('name') == 'Stage the sidecar'
     ]
     argv = task['ansible.builtin.command']['argv']
@@ -521,13 +532,6 @@ def test_a_plist_holds_no_shell_script():
 
     assert '&' not in plist
     assert '/bin/sh' not in plist
-
-
-def test_the_package_never_takes_the_models():
-    """The package stays small, and the check for a model in its payload stays."""
-    tasks = (ROLES / 'ai_package' / 'tasks' / 'main.yml').read_text(encoding='utf-8')
-
-    assert r"is not search('\.gguf')" in tasks
 
 
 def test_the_ai_service_is_on_by_default_and_off_on_the_raspberry_pis():
@@ -1619,43 +1623,26 @@ class LinuxSetup:
             model_file['sha256'] = hashlib.sha256(content).hexdigest()
 
     def stage_share(self) -> None:
-        """Stage share/agents as the Linux package carries it: settings with root placeholders.
+        """Stage share/agents as ai_package stages it for the .deb: settings with placeholders.
 
         The package is built on one machine and installed on many, so its settings name the
         user's folder and the program folder by placeholders (ai_package's defaults), which
-        setup.sh fills in for each user.
+        setup.sh fills in for each user. The files come from the role's own tasks
+        (PackageStaging), so setup.sh is tested against what the package really holds.
         """
-        package = role_defaults(role='ai_package')
-        program_placeholder = package['ai_package_program_root_placeholder']
-        variables = ansible_variables(
-            system='Linux',
-            architecture='aarch64',
-            home=self.service.home,
-            overrides={
-                'ai_user_root': package['ai_package_user_root_placeholder'],
-                'ai_program_root': program_placeholder,
-            },
+        staging = PackageStaging(system='Linux', architecture='aarch64', home=self.service.home)
+        program_stage = Path(
+            ansible_variables(system='Linux', architecture='aarch64', home=self.service.home)[
+                'ai_package_stage_root'
+            ]
         )
-        variables['llama_cpp_install_directory'] = f'{program_placeholder}/runtime/{RUNTIME_NAME}'
-        agents = run_set_fact_tasks(tasks=role_tasks(role='ai_service'), variables=variables)[
-            'ai_service_agents'
-        ]
         share = self.program_root / 'share' / 'agents'
         share.mkdir(parents=True, exist_ok=True)
-        (share / 'service.json.template').write_text(
-            render_template(
-                path=TEMPLATES / 'service.json.j2',
-                variables=variables | {'ai_service_agents': agents},
-            ),
-            encoding='utf-8',
-        )
-        for agent in agents:
-            (share / f'{agent["label"]}.env.template').write_text(
-                render_template(
-                    path=TEMPLATES / 'agent.env.j2', variables=variables | {'agent': agent}
-                ),
-                encoding='utf-8',
-            )
+        settings = [file for file in staging.staged if '/share/agents/' in file.destination]
+        assert settings, 'the package stages no settings'
+        for file in settings:
+            target = self.program_root / Path(file.destination).relative_to(program_stage)
+            target.write_text(staging.rendered(file=file), encoding='utf-8')
 
     def set_cores(self, *, count: int, capacities: dict[int, int]) -> None:
         """Make the machine's cores: how many nproc --all counts, and which report a capacity."""
@@ -2196,3 +2183,851 @@ def test_the_user_uninstaller_stops_the_units_and_removes_what_setup_wrote(tmp_p
 
     assert removed.returncode == 0, removed.stdout + removed.stderr
     assert not setup.user_root.exists()
+
+
+# The package: ai_package's tasks, walked as Ansible runs them on one host, give every file the
+# package stages and the variables each was rendered with (plans/lucid-circuit-linux.md, 6.7)
+class StagedFile(BaseModel):
+    """One file or folder an ai_package task puts in the package's stage or scripts."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    task_name: str
+    source: str
+    destination: str
+    variables: dict[str, Any]
+
+
+class PackageStaging:
+    """Walk ai_package's task files for one host, as Ansible would run them, recording each copy.
+
+    Ansible's precedence is kept where it decides what a file holds: a block's and a task's own
+    variables lose to a fact set earlier (the llama_cpp role's install directory is one), and an
+    include's variables win over both. Only the tasks that stage something are run: template,
+    copy, rsync and set_fact, and the imports, includes and blocks around them; a `when` on one
+    of those is evaluated, so one naming a value Ansible would not have fails here too.
+    """
+
+    def __init__(
+        self,
+        *,
+        system: Literal['Darwin', 'Linux'],
+        architecture: Literal['aarch64', 'x86_64'],
+        home: Path,
+        facts: dict[str, Any] | None = None,
+    ) -> None:
+        """Set the facts the roles before ai_package leave: llama.cpp's build, the agents."""
+        self.system: Literal['Darwin', 'Linux'] = system
+        self.architecture: Literal['aarch64', 'x86_64'] = architecture
+        self.home = home
+        variables = ansible_variables(system=system, architecture=architecture, home=home)
+        runtime_root = variables['llama_cpp_install_root']
+        self.facts: dict[str, Any] = {
+            # Set by the llama_cpp role (set_fact), and by its Linux checks
+            'llama_cpp_install_directory': f'{runtime_root}/runtime/{RUNTIME_NAME}',
+            'llama_cpp_glibc_version': '2.39',
+            # Set by the ai_service role (set_fact)
+            'ai_service_agents': run_set_fact_tasks(
+                tasks=role_tasks(role='ai_service'), variables=variables
+            )['ai_service_agents'],
+            # The inventory's macos value (Linux's is a group variable)
+            **({'llama_cpp_gpu_layers': MAC_GPU_LAYERS} if system == 'Darwin' else {}),
+            **(facts or {}),
+        }
+        self.staged: list[StagedFile] = []
+        self._walk(file_name='main.yml', block_variables={}, include_variables={})
+
+    def scope(
+        self,
+        *,
+        block_variables: dict[str, Any],
+        include_variables: dict[str, Any],
+        extra: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Work out the variables one task sees, by Ansible's precedence.
+
+        Returns:
+            The variables, every reference resolved.
+        """
+        return ansible_variables(
+            system=self.system,
+            architecture=self.architecture,
+            home=self.home,
+            overrides={
+                'playbook_dir': str(ANSIBLE),
+                **block_variables,
+                **self.facts,
+                **include_variables,
+                **(extra or {}),
+            },
+        )
+
+    def _condition_holds(self, *, task: dict[str, Any], variables: dict[str, Any]) -> bool:
+        conditions = task.get('when', [])
+        for condition in [conditions] if isinstance(conditions, str) else conditions:
+            if not render_expression(expression='{{ ' + condition + ' }}', variables=variables):
+                return False
+        return True
+
+    def _walk(
+        self,
+        *,
+        file_name: str,
+        block_variables: dict[str, Any],
+        include_variables: dict[str, Any],
+    ) -> None:
+        for task in role_tasks(role='ai_package', file_name=file_name):
+            self._run(
+                task=task, block_variables=block_variables, include_variables=include_variables
+            )
+
+    def _run(
+        self,
+        *,
+        task: dict[str, Any],
+        block_variables: dict[str, Any],
+        include_variables: dict[str, Any],
+    ) -> None:
+        # A task's own variables rank with a block's: both lose to a fact
+        own_variables = {**block_variables, **task.get('vars', {})}
+        nests = any(
+            key in task
+            for key in ('block', 'ansible.builtin.import_tasks', 'ansible.builtin.include_tasks')
+        )
+        if not (nests or self._stages(task=task) or 'ansible.builtin.set_fact' in task):
+            return
+        variables = self.scope(block_variables=own_variables, include_variables=include_variables)
+        if not self._condition_holds(task=task, variables=variables):
+            return
+        if nests:
+            self._descend(
+                task=task,
+                block_variables=block_variables,
+                include_variables=include_variables,
+                variables=variables,
+            )
+        elif 'ansible.builtin.set_fact' in task:
+            for name, expression in task['ansible.builtin.set_fact'].items():
+                self.facts[name] = render_value(value=expression, variables=variables)
+        else:
+            self._stage(
+                task=task,
+                own_variables=own_variables,
+                include_variables=include_variables,
+                variables=variables,
+            )
+
+    @staticmethod
+    def _stages(*, task: dict[str, Any]) -> bool:
+        argv = task.get('ansible.builtin.command', {}).get('argv', [None])
+        return (
+            'ansible.builtin.template' in task
+            or 'ansible.builtin.copy' in task
+            or argv[0] == 'rsync'
+        )
+
+    def _descend(
+        self,
+        *,
+        task: dict[str, Any],
+        block_variables: dict[str, Any],
+        include_variables: dict[str, Any],
+        variables: dict[str, Any],
+    ) -> None:
+        own_variables = {**block_variables, **task.get('vars', {})}
+        include = task.get('ansible.builtin.include_tasks')
+        if 'block' in task:
+            for child in task['block']:
+                self._run(
+                    task=child,
+                    block_variables=own_variables,
+                    include_variables=include_variables,
+                )
+        elif 'ansible.builtin.import_tasks' in task:
+            # Static: its variables apply to each task as the task's own
+            self._walk(
+                file_name=task['ansible.builtin.import_tasks'],
+                block_variables=own_variables,
+                include_variables=include_variables,
+            )
+        elif include:
+            file_name = include if isinstance(include, str) else include['file']
+            self._walk(
+                file_name=render_value(value=file_name, variables=variables),
+                block_variables=block_variables,
+                # An include's variables win over facts
+                include_variables={**include_variables, **task.get('vars', {})},
+            )
+
+    def _stage(
+        self,
+        *,
+        task: dict[str, Any],
+        own_variables: dict[str, Any],
+        include_variables: dict[str, Any],
+        variables: dict[str, Any],
+    ) -> None:
+        command = task.get('ansible.builtin.command')
+        if command:
+            self.staged.append(
+                StagedFile(
+                    task_name=task['name'],
+                    source=render_value(value=command['argv'][-2], variables=variables),
+                    destination=render_value(value=command['argv'][-1], variables=variables),
+                    variables=variables,
+                )
+            )
+            return
+        module = task.get('ansible.builtin.template') or task['ansible.builtin.copy']
+        loop_variable = task.get('loop_control', {}).get('loop_var', 'item')
+        items = render_value(value=task['loop'], variables=variables) if 'loop' in task else [None]
+        for item in items:
+            item_variables = (
+                variables
+                if item is None
+                else self.scope(
+                    block_variables=own_variables,
+                    include_variables=include_variables,
+                    extra={loop_variable: item},
+                )
+            )
+            self.staged.append(
+                StagedFile(
+                    task_name=task['name'],
+                    source=render_value(value=module['src'], variables=item_variables),
+                    destination=render_value(value=module['dest'], variables=item_variables),
+                    variables=item_variables,
+                )
+            )
+
+    def relative_destinations(self) -> list[str]:
+        """Name every staged file by its path under the package folder.
+
+        Returns:
+            The paths, sorted.
+        """
+        package = ansible_variables(
+            system=self.system, architecture=self.architecture, home=self.home
+        )['ai_package_directory']
+        return sorted(str(Path(file.destination).relative_to(package)) for file in self.staged)
+
+    def rendered(self, *, file: StagedFile) -> str:
+        """Render a staged template as its task does.
+
+        Returns:
+            The text the task writes.
+        """
+        source = Path(file.source)
+        if not source.is_absolute():
+            source = PACKAGE_TEMPLATES / source
+        return render_template(path=source, variables=file.variables)
+
+
+# What the Mac's ai_package staged before the .deb shared its tasks (captured from the role at
+# 6cd0b28b by PackageStaging): the .pkg's contents must not change
+MAC_STAGED_BEFORE_THE_DEB = [
+    'distribution.xml',
+    'scripts/postinstall',
+    f'stage/{MAC_ROOT_NAME}/bin/ai-service.sh',
+    f'stage/{MAC_ROOT_NAME}/bin/run-llama-server.sh',
+    f'stage/{MAC_ROOT_NAME}/bin/setup.sh',
+    f'stage/{MAC_ROOT_NAME}/bin/uninstall.sh',
+    f'stage/{MAC_ROOT_NAME}/runtime/{RUNTIME_NAME}/bin/llama-server',
+    f'stage/{MAC_ROOT_NAME}/runtime/{RUNTIME_NAME}/notices/llama.cpp-LICENSE',
+    f'stage/{MAC_ROOT_NAME}/share/agents/ai.glitchygames.api.env.template',
+    f'stage/{MAC_ROOT_NAME}/share/agents/ai.glitchygames.api.plist.template',
+    f'stage/{MAC_ROOT_NAME}/share/agents/ai.glitchygames.bonsai-2-27b.llama-cpp.env.template',
+    f'stage/{MAC_ROOT_NAME}/share/agents/ai.glitchygames.bonsai-2-27b.llama-cpp.plist.template',
+    f'stage/{MAC_ROOT_NAME}/share/agents/ai.glitchygames.bonsai-2-2b.llama-cpp.env.template',
+    f'stage/{MAC_ROOT_NAME}/share/agents/ai.glitchygames.bonsai-2-2b.llama-cpp.plist.template',
+    f'stage/{MAC_ROOT_NAME}/share/agents/ai.glitchygames.bonsai-2-4b.llama-cpp.env.template',
+    f'stage/{MAC_ROOT_NAME}/share/agents/ai.glitchygames.bonsai-2-4b.llama-cpp.plist.template',
+    f'stage/{MAC_ROOT_NAME}/share/agents/ai.glitchygames.bonsai-2-9b.llama-cpp.env.template',
+    f'stage/{MAC_ROOT_NAME}/share/agents/ai.glitchygames.bonsai-2-9b.llama-cpp.plist.template',
+    f'stage/{MAC_ROOT_NAME}/share/agents/ai.glitchygames.qwen3-embedding-0.6b.llama-cpp.env.template',
+    f'stage/{MAC_ROOT_NAME}/share/agents/ai.glitchygames.qwen3-embedding-0.6b.llama-cpp.plist.template',
+    f'stage/{MAC_ROOT_NAME}/share/agents/service.json.template',
+    f'stage/{MAC_ROOT_NAME}/share/notices',
+    f'stage/{MAC_ROOT_NAME}/sidecar',
+]
+
+
+def test_the_mac_package_stage_is_unchanged(tmp_path: Path):
+    """Sharing the staging with the .deb leaves the .pkg's files as they were."""
+    staging = PackageStaging(system='Darwin', architecture='aarch64', home=tmp_path)
+
+    assert staging.relative_destinations() == MAC_STAGED_BEFORE_THE_DEB
+
+
+def staged_file(*, staging: PackageStaging, relative: str) -> StagedFile:
+    """Find the one staged file at a path under the package folder.
+
+    Returns:
+        The staged file.
+    """
+    (found,) = [file for file in staging.staged if file.destination.endswith(f'/{relative}')]
+    return found
+
+
+@pytest.mark.parametrize('architecture', ARCHITECTURES)
+def test_the_linux_package_stages_every_unit_script_and_setting(
+    tmp_path: Path, architecture: Literal['aarch64', 'x86_64']
+):
+    """The .deb holds the units, the scripts (one uninstaller), the settings and Debian's files.
+
+    The runtime and the sidecar are built straight into the stage (Tasks 2 and 5), so nothing
+    copies them onto themselves.
+    """
+    staging = PackageStaging(system='Linux', architecture=architecture, home=tmp_path)
+    destinations = staging.relative_destinations()
+    labels = [agent['label'] for agent in staging.facts['ai_service_agents']]
+    program = 'stage/opt/glitchygames/ai'
+
+    expected = {
+        'stage/DEBIAN/control',
+        'stage/DEBIAN/postinst',
+        'stage/DEBIAN/prerm',
+        'stage/DEBIAN/postrm',
+        'stage/usr/lib/systemd/user/ai.glitchygames.setup.service',
+        *[f'stage/usr/lib/systemd/user/{label}.service' for label in labels],
+        *[f'{program}/bin/{script}' for script in LINUX_PACKAGE_SCRIPTS],
+        *[f'{program}/share/agents/{label}.env.template' for label in labels],
+        f'{program}/share/agents/service.json.template',
+        f'{program}/share/notices',
+    }
+    assert set(destinations) == expected
+    assert len(destinations) == len(expected), 'a file is staged twice'
+    assert not [file for file in staging.staged if file.source.rstrip('/') == file.destination]
+
+
+# The Linux package's bin/: setup.sh's counterpart is uninstall-user.sh, its one uninstaller
+LINUX_PACKAGE_SCRIPTS = ['ai-service.sh', 'run-llama-server.sh', 'setup.sh', 'uninstall-user.sh']
+
+
+def test_the_linux_uninstaller_is_the_users_one(tmp_path: Path):
+    """uninstall-user.sh is uninstall.sh as rendered for Linux: one uninstaller (Task 4)."""
+    staging = PackageStaging(system='Linux', architecture='aarch64', home=tmp_path)
+
+    uninstaller = staged_file(staging=staging, relative='bin/uninstall-user.sh')
+
+    assert Path(uninstaller.source).name == 'uninstall.sh.j2'
+
+
+def test_the_linux_settings_name_both_roots_by_their_placeholders(tmp_path: Path):
+    """Every setting names the user's folder and the program folder as placeholders.
+
+    setup.sh fills them in for each user (6.3). The llama.cpp runtime's path is a fact the
+    llama_cpp role set, which a block's variables would lose to, so a package built that way
+    would name the builder's stage.
+    """
+    staging = PackageStaging(system='Linux', architecture='aarch64', home=tmp_path)
+    package = role_defaults(role='ai_package')
+    user_placeholder = package['ai_package_user_root_placeholder']
+    program_placeholder = package['ai_package_program_root_placeholder']
+    settings = [file for file in staging.staged if '/share/agents/' in file.destination]
+
+    assert settings
+    for file in settings:
+        text = staging.rendered(file=file)
+        assert str(tmp_path) not in text, file.destination
+        assert '/opt/glitchygames/ai' not in text, file.destination
+    reasoning = staging.rendered(
+        file=staged_file(
+            staging=staging,
+            relative='share/agents/ai.glitchygames.bonsai-2-2b.llama-cpp.env.template',
+        )
+    )
+    assert (
+        f"AI_LLAMA_SERVER='{program_placeholder}/runtime/{RUNTIME_NAME}/bin/llama-server'"
+        in reasoning.splitlines()
+    )
+    assert (
+        f"AI_MODEL_FILE='{user_placeholder}/models/Ternary-Bonsai-2-2B-Q2_0.gguf'"
+        in reasoning.splitlines()
+    )
+    service = json.loads(
+        staging.rendered(
+            file=staged_file(staging=staging, relative='share/agents/service.json.template')
+        )
+    )
+    assert service['control_script'] == f'{program_placeholder}/bin/ai-service.sh'
+    assert service['worker_key_file'] == f'{user_placeholder}/config/worker-api-key'
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        'bug: the llama_cpp role sets llama_cpp_install_directory with set_fact, which beats '
+        "ai_package's block variables, so the .pkg's settings name the builder's runtime, not "
+        "the player's (the Mac's output is kept unchanged until the owner decides)"
+    ),
+)
+def test_the_mac_package_settings_name_the_players_runtime(tmp_path: Path):
+    """A player's Mac runs the runtime under their own home: the setting names the placeholder."""
+    staging = PackageStaging(system='Darwin', architecture='aarch64', home=tmp_path)
+    placeholder = role_defaults(role='ai_package')['ai_package_home_placeholder']
+
+    reasoning = staging.rendered(
+        file=staged_file(
+            staging=staging,
+            relative='share/agents/ai.glitchygames.bonsai-2-2b.llama-cpp.env.template',
+        )
+    )
+
+    server = next(line for line in reasoning.splitlines() if line.startswith('AI_LLAMA_SERVER='))
+    assert server.startswith(f"AI_LLAMA_SERVER='{placeholder}/"), server
+
+
+def parse_control(*, text: str) -> dict[str, str]:
+    """Read a Debian control file's fields (one paragraph; a continuation line joins its field).
+
+    Returns:
+        Each field's value.
+    """
+    fields: dict[str, str] = {}
+    name = ''
+    for line in text.splitlines():
+        if line.startswith(' '):
+            fields[name] += '\n' + line
+        else:
+            name, value = line.split(':', 1)
+            fields[name] = value.strip()
+    return fields
+
+
+@pytest.mark.parametrize(
+    ('architecture', 'debian_architecture'), [('aarch64', 'arm64'), ('x86_64', 'amd64')]
+)
+def test_the_deb_control_follows_the_design(
+    tmp_path: Path,
+    architecture: Literal['aarch64', 'x86_64'],
+    debian_architecture: str,
+):
+    """Name, version, the host's architecture, and Depends with the build's glibc floor (6.7)."""
+    staging = PackageStaging(
+        system='Linux',
+        architecture=architecture,
+        home=tmp_path,
+        facts={'llama_cpp_glibc_version': '2.41'},
+    )
+
+    control = parse_control(
+        text=staging.rendered(file=staged_file(staging=staging, relative='DEBIAN/control'))
+    )
+
+    assert control['Package'] == 'glitchygames-ai'
+    assert control['Version'] == role_defaults(role='ai_package')['ai_package_version']
+    assert control['Architecture'] == debian_architecture
+    assert control['Depends'] == (
+        'libc6 (>= 2.41), libstdc++6, libgcc-s1, systemd, curl, openssl, ca-certificates, '
+        'coreutils, iproute2'
+    )
+    assert control['Description']
+    assert control['Maintainer']
+
+
+@pytest.mark.parametrize(
+    ('architecture', 'debian_architecture'), [('aarch64', 'arm64'), ('x86_64', 'amd64')]
+)
+def test_the_deb_is_named_by_version_and_architecture(
+    tmp_path: Path, architecture: Literal['aarch64', 'x86_64'], debian_architecture: str
+):
+    """glitchygames-ai_<version>_<architecture>.deb, in the package folder under the cache."""
+    variables = ansible_variables(system='Linux', architecture=architecture, home=tmp_path)
+
+    assert variables['ai_package_deb_output'] == (
+        f'{tmp_path}/.cache/glitchygames/ai/package/'
+        f'glitchygames-ai_{variables["ai_package_version"]}_{debian_architecture}.deb'
+    )
+
+
+def test_the_setup_unit_is_the_only_one_enabled(tmp_path: Path):
+    """The setup job runs setup.sh at every login; no other unit has an [Install] section."""
+    staging = PackageStaging(system='Linux', architecture='aarch64', home=tmp_path)
+    units = {}
+    for file in staging.staged:
+        if '/usr/lib/systemd/user/' in file.destination:
+            unit = configparser.ConfigParser(interpolation=None, strict=True)
+            unit.optionxform = str  # ty: ignore[invalid-assignment] - keep systemd's key case
+            unit.read_string(staging.rendered(file=file))
+            units[Path(file.destination).name] = unit
+
+    setup = units.pop('ai.glitchygames.setup.service')
+
+    assert setup['Service']['Type'] == 'oneshot'
+    assert setup['Service']['ExecStart'] == '/opt/glitchygames/ai/bin/setup.sh'
+    assert setup['Install']['WantedBy'] == 'default.target'
+    assert units, 'no agent unit staged'
+    for name, unit in units.items():
+        assert not unit.has_section('Install'), name
+
+
+# Stand in for systemctl and loginctl in the maintainer scripts: each call is recorded; systemctl
+# fails when its arguments contain SYSTEMCTL_FAILS_ON, and loginctl answers only list-users
+# --no-legend, with LOGINCTL_USERS (a failure when it is unset, as with no logind)
+MAINTAINER_SYSTEMCTL_STUB = """#!/bin/sh
+printf 'systemctl %s\\n' "$*" >> "$SERVICE_TOOL_LOG"
+case " $* " in
+    *" ${SYSTEMCTL_FAILS_ON:-no such argument} "*) exit 1 ;;
+esac
+exit 0
+"""
+LOGINCTL_STUB = """#!/bin/sh
+printf 'loginctl %s\\n' "$*" >> "$SERVICE_TOOL_LOG"
+if [ "$*" != 'list-users --no-legend' ]; then
+    echo "unexpected: loginctl $*" >> "$SERVICE_TOOL_LOG"
+    exit 2
+fi
+[ -n "${LOGINCTL_USERS+set}" ] || exit 1
+printf '%s' "$LOGINCTL_USERS"
+"""
+MAINTAINER_SCRIPTS = ['postinst', 'prerm', 'postrm']
+
+
+class MaintainerScripts:
+    """The .deb's maintainer scripts as rendered for Linux, with systemctl and loginctl faked."""
+
+    def __init__(self, *, tmp_path: Path, architecture: Literal['aarch64', 'x86_64'] = 'aarch64'):
+        """Render the scripts with the program folder under tmp_path, and write the fakes."""
+        self.program_root = tmp_path / 'opt' / 'glitchygames' / 'ai'
+        self.home = tmp_path / 'home'
+        self.tools = tmp_path / 'tools'
+        self.tool_log = self.tools / 'calls.log'
+        self.home.mkdir(parents=True)
+        _write_executable(self.tools / 'systemctl', MAINTAINER_SYSTEMCTL_STUB)
+        _write_executable(self.tools / 'loginctl', LOGINCTL_STUB)
+        self.tool_log.write_text('', encoding='utf-8')
+        staging = PackageStaging(
+            system='Linux',
+            architecture=architecture,
+            home=self.home,
+            facts={'ai_program_root': str(self.program_root)},
+        )
+        self.scripts = {name: self.tools / name for name in MAINTAINER_SCRIPTS}
+        for name, path in self.scripts.items():
+            path.write_text(
+                staging.rendered(file=staged_file(staging=staging, relative=f'DEBIAN/{name}')),
+                encoding='utf-8',
+            )
+
+    def run(
+        self, *, script: str, arguments: list[str], environment: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        """Run one maintainer script as dpkg would, with the fakes first on PATH.
+
+        Returns:
+            The finished run.
+        """
+        return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - sh and a rendered script, as an argument list
+            ['/bin/sh', str(self.scripts[script]), *arguments],
+            env={
+                'HOME': str(self.home),
+                'PATH': os.pathsep.join([str(self.tools), '/usr/bin', '/bin']),
+                'SERVICE_TOOL_LOG': str(self.tool_log),
+                **(environment or {}),
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+
+    def calls(self) -> list[str]:
+        """Read every call the fakes saw.
+
+        Returns:
+            One line per call.
+        """
+        return self.tool_log.read_text(encoding='utf-8').splitlines()
+
+
+SETUP_UNIT = 'ai.glitchygames.setup.service'
+
+
+@needs_a_posix_shell
+def test_postinst_enables_the_setup_job_and_starts_it_for_the_user_who_ran_sudo(tmp_path: Path):
+    """Enabled for every user, and run now for the owner, so they needn't log in again (6.2)."""
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+
+    result = scripts.run(
+        script='postinst', arguments=['configure', ''], environment={'SUDO_USER': 'alice'}
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert scripts.calls() == [
+        f'systemctl --global enable {SETUP_UNIT}',
+        f'systemctl --user --machine=alice@ start {SETUP_UNIT}',
+    ]
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('sudo_user', [None, '', 'root'])
+def test_postinst_without_sudo_user_skips_the_start(tmp_path: Path, sudo_user: str | None):
+    """A root login or an unattended install starts nothing, says so, and succeeds (6.2)."""
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+
+    result = scripts.run(
+        script='postinst',
+        arguments=['configure', ''],
+        environment={} if sudo_user is None else {'SUDO_USER': sudo_user},
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert scripts.calls() == [f'systemctl --global enable {SETUP_UNIT}']
+    assert 'next login' in result.stdout
+
+
+@needs_a_posix_shell
+def test_postinst_succeeds_when_the_owners_setup_does_not_finish(tmp_path: Path):
+    """A failed download fails the setup job, not the install: it runs again at the next login."""
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+
+    result = scripts.run(
+        script='postinst',
+        arguments=['configure', ''],
+        environment={'SUDO_USER': 'alice', 'SYSTEMCTL_FAILS_ON': 'start'},
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'next login' in result.stdout + result.stderr
+
+
+@needs_a_posix_shell
+def test_postinst_fails_when_the_setup_job_cannot_be_enabled(tmp_path: Path):
+    """Without the enable no user would ever be set up, so the install says it failed."""
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+
+    result = scripts.run(
+        script='postinst',
+        arguments=['configure', ''],
+        environment={'SUDO_USER': 'alice', 'SYSTEMCTL_FAILS_ON': 'enable'},
+    )
+
+    assert result.returncode != 0
+    assert scripts.calls() == [f'systemctl --global enable {SETUP_UNIT}']
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('action', ['abort-upgrade', 'abort-remove', 'abort-deconfigure'])
+def test_postinst_does_nothing_when_dpkg_rolls_back(tmp_path: Path, action: str):
+    """Only configure enables and starts: a rollback keeps what the old package set up."""
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+
+    result = scripts.run(script='postinst', arguments=[action], environment={'SUDO_USER': 'a'})
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert scripts.calls() == []
+
+
+LOGGED_IN_USERS = '1000 alice no active\n1001 bob yes lingering\n'
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('action', ['upgrade', 'remove', 'failed-upgrade', 'deconfigure'])
+def test_prerm_stops_every_logged_in_users_units(tmp_path: Path, action: str):
+    """Every running ai.glitchygames.* unit of every user stops before the programs change.
+
+    Review focus 4: an upgrade replaces the binaries under running models. Only a removal
+    disables the setup job; an upgrade keeps it for the new version.
+    """
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+
+    result = scripts.run(
+        script='prerm', arguments=[action, '0.2.0'], environment={'LOGINCTL_USERS': LOGGED_IN_USERS}
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    expected = [
+        'loginctl list-users --no-legend',
+        'systemctl --user --machine=alice@ stop ai.glitchygames.*',
+        'systemctl --user --machine=bob@ stop ai.glitchygames.*',
+    ]
+    if action == 'remove':
+        expected.append(f'systemctl --global disable {SETUP_UNIT}')
+    assert scripts.calls() == expected
+
+
+@needs_a_posix_shell
+def test_prerm_succeeds_without_logind_and_when_a_stop_fails(tmp_path: Path):
+    """A container with no logind, or a user's manager that won't answer, never blocks dpkg."""
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+
+    without_logind = scripts.run(script='prerm', arguments=['upgrade', '0.2.0'])
+    failed_stop = scripts.run(
+        script='prerm',
+        arguments=['remove'],
+        environment={'LOGINCTL_USERS': LOGGED_IN_USERS, 'SYSTEMCTL_FAILS_ON': 'stop'},
+    )
+
+    assert without_logind.returncode == 0, without_logind.stderr
+    assert 'no unit was stopped' in without_logind.stderr
+    assert failed_stop.returncode == 0, failed_stop.stderr
+    assert "could not stop alice's" in failed_stop.stderr
+    assert f'systemctl --global disable {SETUP_UNIT}' in scripts.calls()
+
+
+@needs_a_posix_shell
+def test_prerm_removes_the_bytecode_python_wrote_in_the_program_folder(tmp_path: Path):
+    """Python run as root writes __pycache__ beside the sidecar, which dpkg doesn't know of.
+
+    Left there, dpkg -r would leave /opt/glitchygames/ai behind. Nothing else is touched.
+    """
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+    package = scripts.program_root / 'sidecar' / 'site' / 'glitchygames_ai_service'
+    package.mkdir(parents=True)
+    (package / 'app.py').write_text('', encoding='utf-8')
+    (package / '__pycache__').mkdir()
+    (package / '__pycache__' / 'app.cpython-314.pyc').write_bytes(b'')
+    (scripts.program_root / 'sidecar' / '__pycache__').mkdir()
+
+    result = scripts.run(script='prerm', arguments=['remove'])
+
+    assert result.returncode == 0, result.stderr
+    assert not list(scripts.program_root.rglob('__pycache__'))
+    assert (package / 'app.py').is_file()
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('action', ['remove', 'purge', 'upgrade', 'abort-install'])
+def test_postrm_touches_no_home(tmp_path: Path, action: str):
+    """Each user's models, keys and settings stay until they run uninstall-user.sh (6.7)."""
+    scripts = MaintainerScripts(tmp_path=tmp_path)
+    user_root = scripts.home / '.local' / 'share' / 'glitchygames' / 'ai'
+    for relative in ('models/model.gguf', 'config/worker-api-key', 'history/console.jsonl'):
+        (user_root / relative).parent.mkdir(parents=True, exist_ok=True)
+        (user_root / relative).write_text(relative, encoding='utf-8')
+    before = {path: path.read_bytes() for path in scripts.home.rglob('*') if path.is_file()}
+
+    result = scripts.run(script='postrm', arguments=[action])
+
+    assert result.returncode == 0, result.stderr
+    assert {path: path.read_bytes() for path in scripts.home.rglob('*') if path.is_file()} == before
+    assert scripts.calls() == []
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('architecture', ARCHITECTURES)
+def test_every_maintainer_script_passes_sh_n(
+    tmp_path: Path, architecture: Literal['aarch64', 'x86_64']
+):
+    """postinst, prerm and postrm parse as sh, as the service's scripts do."""
+    scripts = MaintainerScripts(tmp_path=tmp_path, architecture=architecture)
+
+    for name, script in scripts.scripts.items():
+        result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - sh -n on a rendered file, as an argument list
+            ['/bin/sh', '-n', str(script)], capture_output=True, text=True, check=False, timeout=60
+        )
+        assert (result.returncode, result.stderr) == (0, ''), name
+        assert script.read_text(encoding='utf-8').startswith('#!/bin/sh\n'), name
+
+
+def deb_contents_line(*, path: str) -> str:
+    """Write one line as `dpkg-deb --contents` prints a file.
+
+    Returns:
+        The line.
+    """
+    return f'-rwxr-xr-x root/root     12345 2026-11-18 10:00 .{path}'
+
+
+def linux_contents_checks() -> list[dict[str, Any]]:
+    """Find linux.yml's checks of the built .deb's contents.
+
+    Returns:
+        The assert tasks that read the registered listing.
+    """
+    return [
+        task
+        for task in walk_tasks(tasks=role_tasks(role='ai_package', file_name='linux.yml'))
+        if 'ansible.builtin.assert' in task
+        and 'ai_package_deb_contents' in json.dumps(task['ansible.builtin.assert'])
+    ]
+
+
+def deb_contents_pass(*, lines: list[str], staging: PackageStaging) -> bool:
+    """Run linux.yml's contents checks on a `dpkg-deb --contents` listing, as Ansible would.
+
+    Each check sees what Ansible gives it: the registered listing, the facts the role set and,
+    in a loop, the loop's item.
+
+    Returns:
+        Whether every check passes.
+    """
+    variables = staging.scope(
+        block_variables={},
+        include_variables={},
+        extra={
+            'ai_package_deb_contents': {
+                'stdout': '\n'.join(lines),
+                'stdout_lines': lines,
+                'rc': 0,
+            }
+        },
+    )
+    checks = linux_contents_checks()
+    assert checks, 'linux.yml checks nothing of the .deb'
+    for task in checks:
+        conditions = task['ansible.builtin.assert']['that']
+        items = render_value(value=task['loop'], variables=variables) if 'loop' in task else [None]
+        for item in items:
+            scope = variables if item is None else variables | {'item': item}
+            for condition in [conditions] if isinstance(conditions, str) else conditions:
+                if not render_expression(expression='{{ ' + condition + ' }}', variables=scope):
+                    return False
+    return True
+
+
+def complete_deb_listing(*, staging: PackageStaging) -> list[str]:
+    """List what a complete .deb holds, as the role would build it on that host.
+
+    Returns:
+        One `dpkg-deb --contents` line per file.
+    """
+    program = '/opt/glitchygames/ai'
+    runtime = f'{program}/runtime/{RUNTIME_NAME}'
+    paths = [
+        f'{runtime}/bin/llama-server',
+        *[
+            f'{runtime}/bin/libggml-cpu-{variant}.so'
+            for variant in staging.scope(block_variables={}, include_variables={})[
+                'llama_cpp_cpu_variants'
+            ][staging.architecture]
+        ],
+        f'{runtime}/lib/libllama.so',
+        f'{runtime}/lib/libggml-base.so',
+        f'{runtime}/notices/llama.cpp-LICENSE',
+        f'{program}/sidecar/python/bin/python3.14',
+        f'{program}/sidecar/site/glitchygames_ai_service/app.py',
+        f'{program}/sidecar/scalar.js',
+        f'{program}/share/notices/2b/LICENSE',
+        f'{program}/share/notices/2b/NOTICE.txt',
+    ]
+    stage = ansible_variables(system='Linux', architecture=staging.architecture, home=staging.home)[
+        'ai_package_stage'
+    ]
+    for file in staging.staged:
+        relative = str(Path(file.destination).relative_to(stage))
+        if not relative.startswith('DEBIAN/') and not relative.endswith('notices'):
+            paths.append(f'/{relative}')
+    return [deb_contents_line(path=path) for path in paths]
+
+
+def test_the_package_never_takes_the_models(tmp_path: Path):
+    """Both packages stay small, and the .deb's check of its contents passes only a whole one.
+
+    The .deb holds llama-server, every CPU variant for the architecture, its libraries, the
+    sidecar, the licenses and every unit and script, and no model (6.7).
+    """
+    mac_tasks = (ROLES / 'ai_package' / 'tasks' / 'macos.yml').read_text(encoding='utf-8')
+    staging = PackageStaging(system='Linux', architecture='aarch64', home=tmp_path)
+    complete = complete_deb_listing(staging=staging)
+
+    assert r"is not search('\.gguf')" in mac_tasks
+    assert deb_contents_pass(lines=complete, staging=staging)
+    assert not deb_contents_pass(
+        lines=[*complete, deb_contents_line(path='/opt/glitchygames/ai/models/x.gguf')],
+        staging=staging,
+    )
+    for index, line in enumerate(complete):
+        missing = complete[:index] + complete[index + 1 :]
+        assert not deb_contents_pass(lines=missing, staging=staging), f'passes without {line}'

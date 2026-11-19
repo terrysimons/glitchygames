@@ -1,0 +1,170 @@
+---
+# Linux's .deb (plans/lucid-circuit-linux.md, 6.7): the user units, Debian's control file and
+# maintainer scripts, and dpkg-deb (the handler). llama.cpp and the sidecar are already in the
+# stage, built there by their roles, so a change to either is found by its files' times
+- name: Name where the runtime installs
+  ansible.builtin.set_fact:
+    ai_package_installed_runtime: "{{ ai_program_root }}/runtime/{{ ai_package_runtime_name }}"
+
+- name: Make the folders for Debian's files and the user units
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ ai_package_deb_control_directory }}"
+    - "{{ ai_package_units_stage }}"
+
+# A new llama.cpp tag or option builds beside the old one in the stage, and the package must hold
+# only the build its settings name
+- name: Find the runtimes in the stage
+  ansible.builtin.find:
+    paths: "{{ ai_package_stage_root }}/runtime"
+    file_type: directory
+  register: ai_package_staged_runtimes
+
+- name: Leave only this build's runtime in the package
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ ai_package_staged_runtimes.files | rejectattr('path', 'equalto', llama_cpp_install_directory) | list }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  notify: Build the package
+
+# An include's variables, unlike a block's, win over the llama_cpp role's set_fact of the runtime's
+# path, so the settings name the runtime under the program folder's placeholder, not this stage
+- name: Stage the service's and each agent's settings, with both roots as placeholders
+  ansible.builtin.include_tasks: settings.yml
+  vars:
+    ai_user_root: "{{ ai_package_user_root_placeholder }}"
+    ai_program_root: "{{ ai_package_program_root_placeholder }}"
+    llama_cpp_install_directory: "{{ ai_program_root }}/runtime/{{ ai_package_runtime_name }}"
+
+# One unit file serves every user: %h names the home, and run-llama-server.sh finds the settings
+- name: Stage each agent's user unit
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/roles/ai_service/templates/agent.service.j2"
+    dest: "{{ ai_package_units_stage }}/{{ agent.label }}.service"
+    mode: "0644"
+  loop: "{{ ai_service_agents }}"
+  loop_control:
+    loop_var: agent
+    label: "{{ agent.label }}"
+  notify: Build the package
+
+- name: Stage the setup job's user unit
+  ansible.builtin.template:
+    src: setup.service.j2
+    dest: "{{ ai_package_units_stage }}/{{ ai_package_setup_label }}.service"
+    mode: "0644"
+  notify: Build the package
+
+# The llama_cpp role reads it from the binaries; an empty one would make Depends invalid
+- name: Check the glibc version the build needs was found
+  ansible.builtin.assert:
+    that: llama_cpp_glibc_version is match('[0-9]+[.][0-9]+$')
+    fail_msg: "No glibc version was read from the build: '{{ llama_cpp_glibc_version }}'"
+
+- name: Render the package's control file
+  ansible.builtin.template:
+    src: deb-control.j2
+    dest: "{{ ai_package_deb_control_directory }}/control"
+    mode: "0644"
+  notify: Build the package
+
+- name: Render the maintainer scripts
+  ansible.builtin.template:
+    src: "deb-{{ item }}.sh.j2"
+    dest: "{{ ai_package_deb_control_directory }}/{{ item }}"
+    mode: "0755"
+    validate: sh -n %s
+  loop: [postinst, prerm, postrm]
+  notify: Build the package
+
+- name: Look for the package
+  ansible.builtin.stat:
+    path: "{{ ai_package_deb_output }}"
+    get_checksum: false
+  register: ai_package_existing_deb
+
+- name: Ask for a build if there's no package yet
+  ansible.builtin.command:
+    argv: ["true"]
+  when: not ai_package_existing_deb.stat.exists
+  changed_when: true
+  notify: Build the package
+
+# The runtime and the sidecar change in place, so their files' times say so; a removed file
+# changes its folder's time
+- name: Ask for a build if anything in the stage is newer than the package
+  ansible.builtin.command:
+    argv: [find, "{{ ai_package_stage }}", -newer, "{{ ai_package_deb_output }}", -print, -quit]
+  register: ai_package_newer_than_deb
+  when: ai_package_existing_deb.stat.exists
+  changed_when: ai_package_newer_than_deb.stdout | length > 0
+  notify: Build the package
+
+- name: Build it now if anything changed
+  ansible.builtin.meta: flush_handlers
+
+- name: List what's in the package
+  ansible.builtin.command:
+    argv: [dpkg-deb, --contents, "{{ ai_package_deb_output }}"]
+  register: ai_package_deb_contents
+  changed_when: false
+
+- name: Check the package holds the server, the sidecar, the licenses and the scripts
+  ansible.builtin.assert:
+    that: ai_package_deb_contents.stdout is search('(?m) [.]' ~ (item | regex_escape) ~ '$')
+    fail_msg: "The package lacks {{ item }}"
+  loop:
+    - "{{ ai_package_installed_runtime }}/bin/llama-server"
+    - "{{ ai_package_installed_runtime }}/notices/llama.cpp-LICENSE"
+    - "{{ ai_program_root }}/sidecar/python/bin/python3.14"
+    - "{{ ai_program_root }}/sidecar/site/glitchygames_ai_service/app.py"
+    - "{{ ai_program_root }}/sidecar/scalar.js"
+    - "{{ ai_program_root }}/bin/setup.sh"
+    - "{{ ai_program_root }}/bin/ai-service.sh"
+    - "{{ ai_program_root }}/bin/run-llama-server.sh"
+    - "{{ ai_program_root }}/bin/{{ ai_package_uninstaller_name }}"
+    - "{{ ai_program_root }}/share/agents/service.json.template"
+
+- name: Check the package holds every CPU variant for this architecture
+  ansible.builtin.assert:
+    that: >-
+      ai_package_deb_contents.stdout
+      is search('(?m) [.]' ~ ((ai_package_installed_runtime ~ '/bin/libggml-cpu-' ~ item ~ '.so') | regex_escape) ~ '$')
+    fail_msg: "The package lacks the {{ item }} CPU variant"
+  loop: "{{ llama_cpp_cpu_variants[ansible_facts['architecture']] }}"
+
+- name: Check the package holds every unit and every agent's settings
+  ansible.builtin.assert:
+    that:
+      - ai_package_deb_contents.stdout is search('(?m) [.]/usr/lib/systemd/user/' ~ (item | regex_escape) ~ '[.]service$')
+      - >-
+        item == ai_package_setup_label
+        or ai_package_deb_contents.stdout
+        is search('(?m) [.]' ~ (ai_program_root | regex_escape) ~ '/share/agents/' ~ (item | regex_escape) ~ '[.]env[.]template$')
+    fail_msg: "The package lacks the unit or the settings of {{ item }}"
+  loop: "{{ (ai_service_agents | map(attribute='label') | list) + [ai_package_setup_label] }}"
+
+# The libraries may be links to versioned names, which the listing shows as "name -> target"
+- name: Check the package holds llama.cpp's libraries and each Bonsai size's license and notice
+  ansible.builtin.assert:
+    that: ai_package_deb_contents.stdout is search('(?m) [.]' ~ item)
+    fail_msg: "The package has nothing matching {{ item }}"
+  loop:
+    - "{{ ai_package_installed_runtime | regex_escape }}/lib/libllama[.]so"
+    - "{{ ai_package_installed_runtime | regex_escape }}/lib/libggml-base[.]so"
+    - "{{ ai_program_root | regex_escape }}/share/notices/[^/]+/LICENSE$"
+    - "{{ ai_program_root | regex_escape }}/share/notices/[^/]+/NOTICE[.]txt$"
+
+- name: Check the package holds no model
+  ansible.builtin.assert:
+    that: ai_package_deb_contents.stdout is not search('[.]gguf')
+    fail_msg: "{{ ai_package_deb_contents.stdout }}"
+
+- name: Say where the package is
+  ansible.builtin.debug:
+    msg: "{{ ai_package_deb_output }}"

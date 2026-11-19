@@ -1,0 +1,77 @@
+---
+# The staging both packages share. The Mac's runtime and sidecar are copied in from the program
+# folder; Linux's are already in the stage, where the llama_cpp and ai_sidecar roles built them, as
+# nothing but the .deb installs under /opt (plans/lucid-circuit-linux.md, 6.1)
+- name: Find the installed build, and fix where the agents' files stage
+  ansible.builtin.set_fact:
+    ai_package_runtime_name: "{{ llama_cpp_install_directory | basename }}"
+    # Resolved now: the platform's settings render with the roots set to placeholders, which
+    # would move this path too
+    ai_package_agents_stage: "{{ ai_package_stage_root }}/share/agents"
+
+- name: Start from an empty stage when the build changed
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ ai_package_stage_root }}/bin"
+    - "{{ ai_package_stage_root }}/share/agents"
+    - "{{ ai_package_stage_root }}/runtime/{{ ai_package_runtime_name }}/bin"
+    - "{{ ai_package_stage_root }}/runtime/{{ ai_package_runtime_name }}/notices"
+
+- name: Stage llama-server
+  ansible.builtin.copy:
+    src: "{{ llama_cpp_install_directory }}/bin/llama-server"
+    dest: "{{ ai_package_stage_root }}/runtime/{{ ai_package_runtime_name }}/bin/llama-server"
+    mode: "0755"
+  when: llama_cpp_install_directory != ai_package_stage_root ~ '/runtime/' ~ ai_package_runtime_name
+  notify: Build the package
+
+- name: Stage llama.cpp's license
+  ansible.builtin.copy:
+    src: "{{ llama_cpp_install_directory }}/notices/llama.cpp-LICENSE"
+    dest: "{{ ai_package_stage_root }}/runtime/{{ ai_package_runtime_name }}/notices/llama.cpp-LICENSE"
+    mode: "0644"
+  when: llama_cpp_install_directory != ai_package_stage_root ~ '/runtime/' ~ ai_package_runtime_name
+  notify: Build the package
+
+# The service's own Python and packages, using nothing outside themselves
+- name: Stage the sidecar
+  ansible.builtin.command:
+    argv:
+      - rsync
+      - -a
+      - --delete
+      - --itemize-changes
+      - --exclude=__pycache__/
+      # Where Ansible built it, not where the installed package will put it
+      - "{{ ai_sidecar_install_directory }}/"
+      - "{{ ai_package_stage_root }}/sidecar/"
+  register: ai_package_sidecar_stage
+  changed_when: ai_package_sidecar_stage.stdout | length > 0
+  when: ai_sidecar_install_directory != ai_package_stage_root ~ '/sidecar'
+  notify: Build the package
+
+# Apache-2.0: the license and notice travel with the software that downloads the weights
+- name: Stage each Bonsai size's license and notice
+  ansible.builtin.copy:
+    src: "{{ ai_models_directory }}/notices/"
+    dest: "{{ ai_package_stage_root }}/share/notices/"
+    mode: preserve
+  notify: Build the package
+
+- name: Stage the scripts the agents and player use
+  ansible.builtin.template:
+    src: "{{ item.source }}"
+    dest: "{{ ai_package_stage_root }}/bin/{{ item.name }}"
+    mode: "0755"
+    validate: sh -n %s
+  loop:
+    - {source: "{{ playbook_dir }}/roles/ai_service/templates/run-llama-server.sh.j2", name: run-llama-server.sh}
+    - {source: "{{ playbook_dir }}/roles/ai_service/templates/ai-service.sh.j2", name: ai-service.sh}
+    - {source: "{{ playbook_dir }}/roles/ai_service/templates/uninstall.sh.j2", name: "{{ ai_package_uninstaller_name }}"}
+    - {source: setup.sh.j2, name: setup.sh}
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Build the package

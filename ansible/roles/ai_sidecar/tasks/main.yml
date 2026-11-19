@@ -175,6 +175,8 @@
       - "{{ ai_sidecar_install_directory }}"
   environment:
     PYTHONPATH: "{{ ai_sidecar_install_directory }}/site"
+    # On Linux the install directory is the .deb's stage: bytecode written here would ship
+    PYTHONDONTWRITEBYTECODE: "1"
   changed_when: false
 
 - name: Find the binary and the libraries the sidecar loads

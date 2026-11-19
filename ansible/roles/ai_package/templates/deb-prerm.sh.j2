@@ -1,0 +1,30 @@
+#!/bin/sh
+# The .deb's prerm (plans/lucid-circuit-linux.md, 6.7). Before dpkg replaces or removes the
+# programs, every logged-in user's running ai.glitchygames.* units stop, so no model runs from
+# files an upgrade replaces; the next game start runs the new ones. A removal also disables the
+# setup job. Nothing here may block dpkg, so every failure is said and passed over.
+set -u
+
+say() {
+    echo "{{ ai_package_deb_name }}: $1" >&2
+}
+
+if users=$(loginctl list-users --no-legend); then
+    # Each line is the user's id, then their name
+    for user in $(printf '%s\n' "$users" | awk '{ print $2 }'); do
+        systemctl --user --machine="$user@" stop '{{ ai_service_label_prefix }}.*' \
+            || say "could not stop $user's {{ ai_service_label_prefix }} units"
+    done
+else
+    say "could not list the logged-in users, so no unit was stopped"
+fi
+
+if [ "${1:-}" = remove ]; then
+    systemctl --global disable {{ (ai_package_setup_label ~ '.service') | quote }} \
+        || say "could not disable the setup job"
+fi
+
+# Python run as root (an administrator's check) writes bytecode beside the sidecar, which dpkg
+# doesn't know of and would leave behind
+find {{ ai_program_root | quote }} -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null
+exit 0

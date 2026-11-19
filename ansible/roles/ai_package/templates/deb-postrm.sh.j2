@@ -1,0 +1,7 @@
+#!/bin/sh
+# The .deb's postrm (plans/lucid-circuit-linux.md, 6.7). By Debian's convention a package removes
+# nothing in any home, purged or not: each user's models, keys, settings and history stay until
+# they run {{ ai_service_bin_directory }}/{{ ai_package_uninstaller_name }} before the removal, or
+# remove the folders themselves. dpkg removes the package's own files.
+set -u
+exit 0
