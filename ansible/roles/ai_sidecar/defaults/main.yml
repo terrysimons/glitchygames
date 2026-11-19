@@ -2,10 +2,23 @@
 # The AI service's own Python, in a plain folder: a venv stops working when moved, as it points at its
 # Python by absolute path, and every player's home differs (plans/lucid-circuit.md, section 4)
 ai_sidecar_python_version: "3.14.8"
-ai_sidecar_python_build: "cpython-{{ ai_sidecar_python_version }}-macos-aarch64-none"
+# python-build-standalone names a build by platform and architecture
+# (plans/lucid-circuit-linux.md, sections 4 and 6.6). The Mac's is always aarch64 (its architecture
+# fact reads arm64 or aarch64); on Linux an architecture missing here is refused, not guessed
+ai_sidecar_linux_python_targets:
+  aarch64: linux-aarch64-gnu
+  x86_64: linux-x86_64-gnu
+ai_sidecar_python_target: >-
+  {{ 'macos-aarch64-none' if ansible_facts['system'] == 'Darwin'
+     else ai_sidecar_linux_python_targets[ansible_facts['architecture']] }}
+ai_sidecar_python_build: "cpython-{{ ai_sidecar_python_version }}-{{ ai_sidecar_python_target }}"
 
 ai_sidecar_project: "{{ playbook_dir }}/../services/ai-service"
+# Where the installed service runs it from
 ai_sidecar_directory: "{{ ai_program_root }}/sidecar"
+# Where Ansible builds and checks it: the same place on a Mac, and the package's stage on Linux, as
+# nothing but the .deb installs under /opt
+ai_sidecar_install_directory: "{{ llama_cpp_install_root }}/sidecar"
 ai_sidecar_build_directory: "{{ ai_cache_root }}/sidecar-build"
 
 # Served by /docs from this file, so the docs need no network. MIT:
@@ -14,3 +27,12 @@ ai_sidecar_scalar_version: "1.77.0"
 ai_sidecar_scalar_sha256: 4f387c930903fe6b63b3497ebf02ca65005d52016c72dcc8bfc44ac662986cb3
 ai_sidecar_scalar_url: >-
   https://cdn.jsdelivr.net/npm/@scalar/api-reference@{{ ai_sidecar_scalar_version }}/dist/browser/standalone.js
+
+# What ldd may list for the sidecar's binary and extension modules (as llama_cpp_system_link_pattern
+# does for llama.cpp): the loader and vdso, and glibc's libraries, libstdc++ and libgcc from the
+# system's /lib or /usr/lib (never /usr/local, never "not found"). The sidecar's own libraries are
+# allowed by their path under the install directory
+ai_sidecar_linux_system_link_pattern: '^\s*(linux-vdso\S* |/lib\S*/ld-linux\S* |(lib(c|m|dl|pthread|rt|util|resolv)\.so|libstdc\+\+\.so|libgcc_s\.so|ld-linux)\S* => /(usr/)?lib)'
+# What otool -L may list: the system's libraries and frameworks, and the sidecar's own by their
+# @rpath or @loader_path
+ai_sidecar_macos_system_link_pattern: '^\s+(/usr/lib/|/System/Library/|@rpath/|@loader_path/|@executable_path/)'

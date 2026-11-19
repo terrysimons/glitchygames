@@ -220,6 +220,159 @@ def test_the_sidecar_pins_its_python_and_its_docs_script():
     assert '@{{ ai_sidecar_scalar_version }}' in defaults['ai_sidecar_scalar_url']
 
 
+@pytest.mark.parametrize(
+    ('system', 'architecture', 'expected_target'),
+    [
+        ('Darwin', 'aarch64', 'macos-aarch64-none'),
+        ('Linux', 'aarch64', 'linux-aarch64-gnu'),
+        ('Linux', 'x86_64', 'linux-x86_64-gnu'),
+    ],
+)
+def test_the_sidecar_build_matches_the_platform(
+    tmp_path: Path,
+    system: Literal['Darwin', 'Linux'],
+    architecture: Literal['aarch64', 'x86_64'],
+    expected_target: str,
+):
+    """python-build-standalone names its builds by platform and architecture (section 4)."""
+    variables = ansible_variables(system=system, architecture=architecture, home=tmp_path)
+
+    assert variables['ai_sidecar_python_build'] == (
+        f'cpython-{variables["ai_sidecar_python_version"]}-{expected_target}'
+    )
+
+
+def test_the_sidecar_installs_into_the_package_stage_on_linux_and_the_program_folder_on_a_mac(
+    tmp_path: Path,
+):
+    """Ansible never installs under /opt: Linux builds into the stage the .deb is made from."""
+    mac = ansible_variables(system='Darwin', architecture='aarch64', home=tmp_path)
+    linux = ansible_variables(system='Linux', architecture='aarch64', home=tmp_path)
+    stage = f'{tmp_path}/.cache/glitchygames/ai/package/stage/opt/glitchygames/ai'
+
+    assert mac['ai_sidecar_install_directory'] == mac['ai_sidecar_directory']
+    assert linux['ai_sidecar_install_directory'] == f'{stage}/sidecar'
+    # What the installed service runs from stays the player's path
+    assert linux['ai_sidecar_directory'] == '/opt/glitchygames/ai/sidecar'
+
+
+SIDECAR_LDD_TASK = 'Check that the sidecar links only its own libraries and the system libc'
+SIDECAR_OTOOL_TASK = 'Check that the sidecar links only its own libraries and the system frameworks'
+SIDECAR_LINUX_INSTALL = '/home/pi/.cache/glitchygames/ai/package/stage/opt/glitchygames/ai/sidecar'
+SIDECAR_MAC_INSTALL = '/Users/player/Library/Application Support/GlitchyGames/AI/sidecar'
+GOOD_SIDECAR_LDD_LINES = [
+    '\tlinux-vdso.so.1 (0x0000ffff9a1f0000)',
+    f'\tlibpython3.14.so => {SIDECAR_LINUX_INSTALL}/python/bin/../lib/libpython3.14.so (0x1)',
+    f'\tlibpydantic.so => {SIDECAR_LINUX_INSTALL}/site/pydantic_core.libs/libx-1a2b.so (0x2)',
+    '\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000ffff99500000)',
+    '\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000ffff99400000)',
+    '\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000ffff99200000)',
+    '\t/lib/ld-linux-aarch64.so.1 (0x0000ffff9a1f3000)',
+]
+GOOD_SIDECAR_OTOOL_LINES = [
+    '/x/python/bin/python3.14:',
+    '\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compat 150)',
+    '\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)',
+    '\t@rpath/libpython3.14.dylib (compatibility version 3.14.0, current version 3.14.0)',
+    '\t@loader_path/../lib/libz.dylib (compatibility version 1.0.0)',
+]
+
+
+def sidecar_check_passes(
+    *,
+    task_name: str,
+    lines: list[str],
+    system: Literal['Darwin', 'Linux'],
+    install_directory: str,
+    tmp_path: Path,
+) -> bool:
+    """Run one of the sidecar role's link assertions on sample `ldd` or `otool -L` output.
+
+    Returns:
+        Whether the assertion passes.
+    """
+    (task,) = [
+        task
+        for task in walk_tasks(tasks=role_tasks(role='ai_sidecar'))
+        if task.get('name') == task_name
+    ]
+    variables = ansible_variables(system=system, architecture='aarch64', home=tmp_path)
+    variables['ai_sidecar_install_directory'] = install_directory
+    variables['item'] = {'stdout_lines': lines}
+    template = tmp_path / 'assertion.j2'
+    template.write_text(
+        '{{ (' + task['ansible.builtin.assert']['that'].strip() + ') }}', encoding='utf-8'
+    )
+    return render_template(path=template, variables=variables) == 'True'
+
+
+def test_the_sidecar_ldd_check_accepts_its_own_and_libc_links_including_unnormalised_paths(
+    tmp_path: Path,
+):
+    """Glibc's ldd prints an RPATH hit as <sidecar>/python/bin/../lib/..., which must pass."""
+    assert sidecar_check_passes(
+        task_name=SIDECAR_LDD_TASK,
+        lines=GOOD_SIDECAR_LDD_LINES,
+        system='Linux',
+        install_directory=SIDECAR_LINUX_INSTALL,
+        tmp_path=tmp_path,
+    )
+
+
+@pytest.mark.parametrize(
+    'bad_line',
+    [
+        '\tlibffi.so.8 => not found',
+        '\tlibm.so.6 => /usr/local/lib/libm.so.6 (0x0000ffff99600000)',
+        '\tlibssl.so.3 => /lib/aarch64-linux-gnu/libssl.so.3 (0x0000ffff99600000)',
+        '\tlibpydantic.so => /home/pi/other/site/libpydantic.so (0x2)',
+        f'\tlibevil.so => {SIDECAR_LINUX_INSTALL}-other/lib/libevil.so (0x2)',
+    ],
+)
+def test_the_sidecar_ldd_check_refuses_a_missing_foreign_or_usr_local_library(
+    tmp_path: Path, bad_line: str
+):
+    """Anything a player's machine may lack, or that is not the sidecar's own, fails."""
+    assert not sidecar_check_passes(
+        task_name=SIDECAR_LDD_TASK,
+        lines=[*GOOD_SIDECAR_LDD_LINES, bad_line],
+        system='Linux',
+        install_directory=SIDECAR_LINUX_INSTALL,
+        tmp_path=tmp_path,
+    )
+
+
+def test_the_sidecar_otool_check_accepts_system_and_own_libraries(tmp_path: Path):
+    """The Mac's check lets through /usr/lib, /System and the sidecar's own @rpath libraries."""
+    assert sidecar_check_passes(
+        task_name=SIDECAR_OTOOL_TASK,
+        lines=GOOD_SIDECAR_OTOOL_LINES,
+        system='Darwin',
+        install_directory=SIDECAR_MAC_INSTALL,
+        tmp_path=tmp_path,
+    )
+
+
+@pytest.mark.parametrize(
+    'bad_line',
+    [
+        '\t/opt/homebrew/opt/openssl@3/lib/libssl.3.dylib (compatibility version 3.0.0)',
+        '\t/usr/local/lib/libz.dylib (compatibility version 1.0.0)',
+    ],
+)
+def test_the_sidecar_otool_check_refuses_a_homebrew_or_usr_local_library(
+    tmp_path: Path, bad_line: str
+):
+    """A library a player's Mac may not have fails the build."""
+    assert not sidecar_check_passes(
+        task_name=SIDECAR_OTOOL_TASK,
+        lines=[*GOOD_SIDECAR_OTOOL_LINES, bad_line],
+        system='Darwin',
+        install_directory=SIDECAR_MAC_INSTALL,
+        tmp_path=tmp_path,
+    )
+
+
 def test_the_engine_never_imports_the_service():
     """The engine reaches the service only over a socket, so a game runs with it absent."""
     engine = PROJECT_ROOT / 'src' / 'glitchygames'

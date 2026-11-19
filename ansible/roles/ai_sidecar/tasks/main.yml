@@ -126,7 +126,7 @@
 
 - name: Make the sidecar directory
   ansible.builtin.file:
-    path: "{{ ai_sidecar_directory }}/site"
+    path: "{{ ai_sidecar_install_directory }}/site"
     state: directory
     mode: "0755"
 
@@ -143,7 +143,7 @@
       - --exclude=site/glitchygames_ai_service/
       - --exclude=__pycache__/
       - "{{ ai_sidecar_build }}/"
-      - "{{ ai_sidecar_directory }}/"
+      - "{{ ai_sidecar_install_directory }}/"
   register: ai_sidecar_synced
   changed_when: ai_sidecar_synced.stdout | length > 0
 
@@ -157,14 +157,14 @@
       - --itemize-changes
       - --exclude=__pycache__/
       - "{{ ai_sidecar_project }}/src/glitchygames_ai_service/"
-      - "{{ ai_sidecar_directory }}/site/glitchygames_ai_service/"
+      - "{{ ai_sidecar_install_directory }}/site/glitchygames_ai_service/"
   register: ai_sidecar_code_synced
   changed_when: ai_sidecar_code_synced.stdout | length > 0
 
 - name: Check the sidecar uses nothing outside itself
   ansible.builtin.command:
     argv:
-      - "{{ ai_sidecar_directory }}/python/bin/python3.14"
+      - "{{ ai_sidecar_install_directory }}/python/bin/python3.14"
       - -c
       - >-
         import sys, os, fastapi, glitchygames_ai_service;
@@ -172,7 +172,57 @@
         paths = [sys.base_prefix, os.__file__, fastapi.__file__, glitchygames_ai_service.__file__];
         outside = [path for path in paths if not os.path.realpath(path).startswith(root)];
         sys.exit(str(outside) if outside else 0)
-      - "{{ ai_sidecar_directory }}"
+      - "{{ ai_sidecar_install_directory }}"
   environment:
-    PYTHONPATH: "{{ ai_sidecar_directory }}/site"
+    PYTHONPATH: "{{ ai_sidecar_install_directory }}/site"
   changed_when: false
+
+- name: Find the binary and the libraries the sidecar loads
+  ansible.builtin.find:
+    paths: ["{{ ai_sidecar_install_directory }}/python", "{{ ai_sidecar_install_directory }}/site"]
+    patterns: ["*.so", "*.so.*", "*.dylib"]
+    recurse: true
+  register: ai_sidecar_libraries
+
+# A Mac's check: what otool -L lists must be the system's, or the sidecar's own
+- name: List what the sidecar links on a Mac
+  when: ansible_facts['system'] == 'Darwin'
+  ansible.builtin.command:
+    argv: [otool, -L, "{{ item }}"]
+  loop: "{{ [ai_sidecar_install_directory ~ '/python/bin/python3.14'] + (ai_sidecar_libraries.files | map(attribute='path') | list) }}"
+  register: ai_sidecar_otool_output
+  changed_when: false
+
+- name: Check that the sidecar links only its own libraries and the system frameworks
+  when: ansible_facts['system'] == 'Darwin'
+  ansible.builtin.assert:
+    that: >-
+      item.stdout_lines[1:]
+      | reject('search', ai_sidecar_macos_system_link_pattern)
+      | list | length == 0
+    fail_msg: "{{ item.item }} links {{ item.stdout }}"
+  loop: "{{ ai_sidecar_otool_output.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+# A Linux check: ldd prints a library found through an RPATH as <sidecar>/python/bin/../lib/...,
+# unnormalised, so the sidecar's own libraries are matched by their prefix
+- name: List what the sidecar links on Linux
+  when: ansible_facts['system'] == 'Linux'
+  ansible.builtin.command:
+    argv: [ldd, "{{ item }}"]
+  loop: "{{ [ai_sidecar_install_directory ~ '/python/bin/python3.14'] + (ai_sidecar_libraries.files | map(attribute='path') | list) }}"
+  register: ai_sidecar_ldd_output
+  changed_when: false
+
+- name: Check that the sidecar links only its own libraries and the system libc
+  when: ansible_facts['system'] == 'Linux'
+  ansible.builtin.assert:
+    that: >-
+      item.stdout_lines
+      | reject('search', ai_sidecar_linux_system_link_pattern ~ '|=> ' ~ (ai_sidecar_install_directory | regex_escape) ~ '/(python|site)/')
+      | list | length == 0
+    fail_msg: "{{ item.item }} links {{ item.stdout }}"
+  loop: "{{ ai_sidecar_ldd_output.results }}"
+  loop_control:
+    label: "{{ item.item }}"
