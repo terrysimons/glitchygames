@@ -4059,3 +4059,136 @@ def test_no_include_names_its_file_in_a_free_form_argument_with_an_equals_sign()
     ]
 
     assert free_form == []
+
+
+# Ansible's own parser, for what the rendering tests above can't see (a task Ansible refuses at
+# parse time, a YAML error). ansible-core isn't one of this project's dependencies: the playbooks
+# run through `uvx --from ansible-core` (their headers), so the test takes an installed
+# ansible-playbook, else uvx's cached copy with no network, and skips only when neither runs
+ANSIBLE_TIMEOUT_SECONDS = 120.0
+PLAYBOOKS = sorted(
+    path
+    for path in ANSIBLE.glob('*.yml')
+    # The inventory is the one top-level YAML file that isn't a playbook
+    if path.name != 'inventory.yml'
+)
+
+
+def ansible_playbook_command() -> list[str] | None:
+    """Find an ansible-playbook that runs, preferring one installed beside this Python.
+
+    Returns:
+        The command's first words, or None if no ansible-playbook runs here.
+    """
+    candidates: list[list[str]] = [
+        [str(Path(sys.executable).parent / 'ansible-playbook')],
+        ['ansible-playbook'],
+    ]
+    uvx = shutil.which('uvx')
+    if uvx:
+        candidates.append([uvx, '--offline', '--from', 'ansible-core', 'ansible-playbook'])
+    for candidate in candidates:
+        if not (Path(candidate[0]).is_file() or shutil.which(candidate[0])):
+            continue
+        try:
+            completed = run_command(
+                command=[*candidate, '--version'],
+                environment=os.environ,
+                timeout_seconds=ANSIBLE_TIMEOUT_SECONDS,
+                capture_output=OutputCapture.TOGETHER,
+            )
+        except OSError, subprocess.TimeoutExpired:
+            continue
+        # A version shim (pyenv's) exits 0 without running anything
+        if completed.returncode == 0 and 'ansible-playbook [core' in completed.stdout:
+            return candidate
+    return None
+
+
+def syntax_check(*, command: list[str], playbook: Path) -> subprocess.CompletedProcess[str]:
+    """Run ansible-playbook --syntax-check on a playbook with the repository's inventory.
+
+    Returns:
+        The finished run, its output together.
+    """
+    return run_command(
+        command=[*command, '-i', str(ANSIBLE / 'inventory.yml'), str(playbook), '--syntax-check'],
+        environment=os.environ | {'ANSIBLE_NOCOLOR': '1'},
+        timeout_seconds=ANSIBLE_TIMEOUT_SECONDS,
+        capture_output=OutputCapture.TOGETHER,
+        working_directory=PROJECT_ROOT,
+    )
+
+
+def every_role_file_imported(*, directory: Path) -> Path:
+    """Write a playbook that imports every role's task and handler file statically.
+
+    --syntax-check follows a static import but not an include, and the roles reach most of their
+    files by include (the platform's file, a loop's), so this makes Ansible parse each one.
+
+    Returns:
+        The playbook.
+    """
+    play = {
+        'name': "Parse every role's task and handler files",
+        'hosts': 'localhost',
+        'gather_facts': False,
+        'tasks': [
+            {'name': str(path.relative_to(ROLES)), 'ansible.builtin.import_tasks': str(path)}
+            for path in sorted(ROLES.glob('*/tasks/*.yml'))
+        ],
+        'handlers': [
+            {'name': str(path.relative_to(ROLES)), 'ansible.builtin.import_tasks': str(path)}
+            for path in sorted(ROLES.glob('*/handlers/*.yml'))
+        ],
+    }
+    playbook = directory / 'every_role_file.yml'
+    playbook.write_text(yaml.safe_dump([play], sort_keys=False), encoding='utf-8')
+    return playbook
+
+
+@pytest.fixture
+def ansible_playbook() -> list[str]:
+    """The ansible-playbook to run, or a skip saying why there is none.
+
+    Returns:
+        The command's first words.
+    """
+    command = ansible_playbook_command()
+    if command is None:
+        pytest.skip(
+            'no ansible-playbook runs here: none beside this Python or on PATH, and uvx has no '
+            'cached ansible-core (uvx --from ansible-core ansible-playbook --version fetches it)'
+        )
+    return command
+
+
+def test_there_are_playbooks_to_check():
+    """The syntax check below is parametrized by the playbooks found: an empty list checks none."""
+    assert {path.name for path in PLAYBOOKS} >= {'ai_service.yml', 'raspberry_pi_runner.yml'}
+
+
+@pytest.mark.parametrize('playbook', PLAYBOOKS, ids=[path.name for path in PLAYBOOKS])
+def test_every_playbook_passes_ansibles_syntax_check(ansible_playbook: list[str], playbook: Path):
+    """Ansible's parser accepts each playbook as written, with the repository's inventory."""
+    completed = syntax_check(command=ansible_playbook, playbook=playbook)
+
+    assert completed.returncode == 0, completed.stdout
+    assert f'playbook: {playbook}' in completed.stdout
+
+
+def test_every_role_task_file_passes_ansibles_syntax_check(
+    ansible_playbook: list[str], tmp_path: Path
+):
+    """Each role file reached by an include, which the playbooks' own check never opens, parses.
+
+    Caught here, and by nothing in the rendering tests: a YAML error, an unknown module or
+    keyword, and a free-form include whose `==` Ansible reads as options.
+    """
+    playbook = every_role_file_imported(directory=tmp_path)
+
+    completed = syntax_check(command=ansible_playbook, playbook=playbook)
+
+    assert completed.returncode == 0, completed.stdout
+    imported = yaml.safe_load(playbook.read_text(encoding='utf-8'))[0]['tasks']
+    assert len(imported) == len(list(ROLES.glob('*/tasks/*.yml'))) > 0
