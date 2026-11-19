@@ -460,3 +460,131 @@ def test_the_linux_runtime_is_staged_for_the_package_not_installed_under_opt(tmp
     assert variables['llama_cpp_install_root'] == (
         f'{tmp_path}/.cache/glitchygames/ai/package/stage/opt/glitchygames/ai'
     )
+
+
+LINUX_INSTALL = (
+    '/home/pi/.cache/glitchygames/ai/package/stage/opt/glitchygames/ai/runtime/llama.cpp-b12167-abc'
+)
+GOOD_LDD_LINES = [
+    '\tlinux-vdso.so.1 (0x0000ffff9a1f0000)',
+    f'\tlibllama.so => {LINUX_INSTALL}/bin/../lib/libllama.so (0x0000ffff99a00000)',
+    f'\tlibggml-base.so => {LINUX_INSTALL}/lib/libggml-base.so (0x0000ffff99900000)',
+    f'\tlibggml-cpu-armv8.2_2.so => {LINUX_INSTALL}/bin/libggml-cpu-armv8.2_2.so (0x0000ffff998)',
+    '\tlibstdc++.so.6 => /lib/aarch64-linux-gnu/libstdc++.so.6 (0x0000ffff99600000)',
+    '\tlibm.so.6 => /usr/lib/x86_64-linux-gnu/libm.so.6 (0x0000ffff99500000)',
+    '\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000ffff99400000)',
+    '\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000ffff99200000)',
+    '\t/lib/ld-linux-aarch64.so.1 (0x0000ffff9a1f3000)',
+]
+GOOD_LOAD_LINE = (
+    f'load_backend: loaded CPU backend from {LINUX_INSTALL}/bin/libggml-cpu-armv8.2_2.so'
+)
+
+
+def linux_task(*, name: str) -> dict[str, Any]:
+    """Find one of linux.yml's tasks by name.
+
+    Returns:
+        The task.
+    """
+    (task,) = [
+        task
+        for task in walk_tasks(tasks=role_tasks(role='llama_cpp', file_name='linux.yml'))
+        if task.get('name') == name
+    ]
+    return task
+
+
+def linux_assertion_holds(*, task_name: str, extra: dict[str, Any], tmp_path: Path) -> bool:
+    """Evaluate a linux.yml assert task's `that` expression with sample command output.
+
+    Returns:
+        Whether the assertion passes.
+    """
+    expression = linux_task(name=task_name)['ansible.builtin.assert']['that']
+    variables = ansible_variables(system='Linux', architecture='aarch64', home=tmp_path)
+    variables['llama_cpp_install_directory'] = LINUX_INSTALL
+    variables.update(extra)
+    template = tmp_path / 'assertion.j2'
+    template.write_text('{{ (' + expression.strip() + ') }}', encoding='utf-8')
+    return render_template(path=template, variables=variables) == 'True'
+
+
+LDD_TASK = "Check that they link only glibc, libstdc++, libgcc and the runtime's own libraries"
+LOAD_TASK = 'Check that it loaded a CPU variant from its own bin/'
+
+
+def ldd_passes(*, lines: list[str], tmp_path: Path) -> bool:
+    """Run the ldd assertion on sample `ldd` output.
+
+    Returns:
+        Whether the assertion passes.
+    """
+    return linux_assertion_holds(
+        task_name=LDD_TASK, extra={'item': {'stdout_lines': lines}}, tmp_path=tmp_path
+    )
+
+
+def test_the_ldd_check_accepts_a_real_builds_links_including_unnormalised_rpath_paths(
+    tmp_path: Path,
+):
+    """Glibc's ldd prints an RPATH hit as <runtime>/bin/../lib/..., which must pass."""
+    assert ldd_passes(lines=GOOD_LDD_LINES, tmp_path=tmp_path)
+
+
+@pytest.mark.parametrize(
+    'bad_line',
+    [
+        '\tlibstdc++.so.6 => not found',
+        '\tlibstdc++.so.6 => /usr/local/lib/libstdc++.so.6 (0x0000ffff99600000)',
+        '\tlibssl.so.3 => /lib/aarch64-linux-gnu/libssl.so.3 (0x0000ffff99600000)',
+        '\tlibvulkan.so.1 => /lib/aarch64-linux-gnu/libvulkan.so.1 (0x0000ffff99600000)',
+        '\tlibllama.so => not found',
+        '\tlibllama.so => /usr/local/lib/libllama.so (0x0000ffff99600000)',
+    ],
+)
+def test_the_ldd_check_refuses_a_missing_foreign_or_usr_local_library(
+    tmp_path: Path, bad_line: str
+):
+    """Anything a player's machine may lack fails the build."""
+    assert not ldd_passes(lines=[*GOOD_LDD_LINES, bad_line], tmp_path=tmp_path)
+
+
+def test_the_cpu_variant_modules_are_checked_and_installed_in_bin(tmp_path: Path):
+    """llama-server looks for its variants beside itself, never along the RPATH (b12167)."""
+    stat = linux_task(name='Check that every CPU variant for this architecture was built')
+    variables = ansible_variables(system='Linux', architecture='aarch64', home=tmp_path)
+    variables['llama_cpp_install_directory'] = LINUX_INSTALL
+    variables['item'] = 'armv8.2_2'
+    template = tmp_path / 'path.j2'
+    template.write_text(stat['ansible.builtin.stat']['path'], encoding='utf-8')
+    installs = [
+        task
+        for task in role_tasks(role='llama_cpp', file_name='linux.yml')
+        if task.get('name') == 'Install the CPU variant modules beside the binary'
+    ]
+
+    assert render_template(path=template, variables=variables) == (
+        f'{LINUX_INSTALL}/bin/libggml-cpu-armv8.2_2.so'
+    )
+    assert installs[0]['ansible.builtin.command']['argv'][-1] == (
+        '{{ llama_cpp_install_directory }}/bin/'
+    )
+
+
+def test_the_run_time_check_needs_the_cpu_variant_to_load_from_bin(tmp_path: Path):
+    """The proof a variant loads is llama-server's log line naming a module in the runtime's bin/."""
+
+    def holds(output: str) -> bool:
+        return linux_assertion_holds(
+            task_name=LOAD_TASK,
+            extra={'llama_cpp_devices': {'stdout': '', 'stderr': output}},
+            tmp_path=tmp_path,
+        )
+
+    assert holds(f'ggml_backend: x\n{GOOD_LOAD_LINE}\nAvailable devices:')
+    assert not holds('Available devices:')
+    assert not holds('load_backend: loaded CPU backend from /usr/local/bin/libggml-cpu-x64.so')
+    assert not holds(
+        f'load_backend: loaded CPU backend from {LINUX_INSTALL}/lib/libggml-cpu-x64.so'
+    )

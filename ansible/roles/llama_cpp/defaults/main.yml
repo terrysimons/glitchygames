@@ -34,7 +34,7 @@ llama_cpp_cmake_options: {}
 # CPU variant of its architecture (llama_cpp_cpu_variants) and llama-server loads the best one the
 # CPU supports when it starts, so nothing here names a CPU, and GGML_CPU_ARM_ARCH, which
 # GGML_CPU_ALL_VARIANTS refuses, is never set. The shared libraries sit in the runtime's lib/, found
-# by the $ORIGIN-relative RPATH (the last two options). Options at the pinned tag:
+# by the $ORIGIN-relative RPATH (the last two options); the CPU variant modules sit in bin/. Options at the pinned tag:
 # https://github.com/ggml-org/llama.cpp/blob/b12167/ggml/CMakeLists.txt
 llama_cpp_linux_cmake_options:
   GGML_NATIVE: "OFF"
@@ -66,7 +66,7 @@ llama_cpp_cpu_variants:
     - alderlake
     - sapphirerapids
 
-# What ldd may list for the Linux build's binary and libraries: glibc's, libstdc++ and libgcc
-llama_cpp_allowed_link_pattern: '^\s*(linux-vdso|/lib.*/ld-linux|lib(c|m|dl|pthread|rt)\.so|libstdc\+\+\.so|libgcc_s\.so)'
-
-llama_cpp_source_directory: "{{ ai_cache_root }}/llama.cpp/source-{{ llama_cpp_tag }}"
+# What ldd may list for the Linux build's binary and libraries, besides the runtime's own: the
+# loader and vdso, and glibc's, libstdc++ and libgcc, resolved from the system's /lib or /usr/lib
+# (never /usr/local, and never "not found")
+llama_cpp_system_link_pattern: '^\s*(linux-vdso\S* |/lib\S*/ld-linux\S* |(lib(c|m|dl|pthread|rt)\.so|libstdc\+\+\.so|libgcc_s\.so|ld-linux)\S* => /(usr/)?lib)'

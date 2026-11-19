@@ -28,14 +28,30 @@
              | combine(llama_cpp_cmake_options) }}
         llama_cpp_install_subdirectories: [bin, lib, notices]
 
-# The shared libraries sit in the runtime's lib/, which the binary's RPATH finds. They go in before
-# the binary, whose presence is what says this build is installed
-- name: Install the shared libraries
+# With GGML_BACKEND_DL, llama-server finds its CPU variant modules only in its own directory
+# (ggml/src/ggml-backend-reg.cpp at b12167: GGML_BACKEND_DIR, the executable's directory, then the
+# current one; never an RPATH), so they sit in bin/ beside it, as llama.cpp installs them. The other
+# shared libraries sit in lib/, and the RPATH ($ORIGIN/../lib) finds those for the binary and the
+# modules alike. All before the binary, whose presence is what says this build is installed
+- name: Install the CPU variant modules beside the binary
   when: llama_cpp_phase == 'install'
   ansible.builtin.command:
     argv:
       - rsync
       - --archive
+      - --include=libggml-cpu-*.so
+      - --exclude=*
+      - "{{ llama_cpp_build_directory }}/bin/"
+      - "{{ llama_cpp_install_directory }}/bin/"
+  changed_when: true
+
+- name: Install the other shared libraries
+  when: llama_cpp_phase == 'install'
+  ansible.builtin.command:
+    argv:
+      - rsync
+      - --archive
+      - --exclude=libggml-cpu-*.so
       - --include=lib*.so*
       - --exclude=*
       - "{{ llama_cpp_build_directory }}/bin/"
@@ -45,9 +61,9 @@
 - name: Check the Linux build
   when: llama_cpp_phase == 'verify'
   block:
-    - name: Find the libraries beside the binary
+    - name: Find the libraries and the CPU variant modules
       ansible.builtin.find:
-        paths: "{{ llama_cpp_install_directory }}/lib"
+        paths: ["{{ llama_cpp_install_directory }}/lib", "{{ llama_cpp_install_directory }}/bin"]
         patterns: ["*.so", "*.so.*"]
       register: llama_cpp_libraries
 
@@ -59,12 +75,13 @@
       changed_when: false
 
     # Anything else (Vulkan, OpenSSL, /usr/local, "not found") is a library the player's machine
-    # may not have, and the .deb declares only libc6 and libstdc++
-    - name: Check that they link only glibc, libstdc++, libgcc and the runtime's own lib/
+    # may not have, and the .deb declares only libc6 and libstdc++. ldd prints a library found
+    # through the RPATH as <runtime>/bin/../lib/..., unnormalised, so that form is allowed too
+    - name: Check that they link only glibc, libstdc++, libgcc and the runtime's own libraries
       ansible.builtin.assert:
         that: >-
           item.stdout_lines
-          | reject('search', llama_cpp_allowed_link_pattern ~ '|=> ' ~ (llama_cpp_install_directory ~ '/lib/') | regex_escape)
+          | reject('search', llama_cpp_system_link_pattern ~ '|=> ' ~ (llama_cpp_install_directory | regex_escape) ~ '/(bin/[.][.]/)?(lib|bin)/')
           | list | length == 0
         fail_msg: "{{ item.item }} links {{ item.stdout }}"
       loop: "{{ llama_cpp_linked_libraries.results }}"
@@ -73,17 +90,31 @@
 
     - name: Check that every CPU variant for this architecture was built
       ansible.builtin.stat:
-        path: "{{ llama_cpp_install_directory }}/lib/libggml-cpu-{{ item }}.so"
+        path: "{{ llama_cpp_install_directory }}/bin/libggml-cpu-{{ item }}.so"
       loop: "{{ llama_cpp_cpu_variants[ansible_facts['architecture']] }}"
       register: llama_cpp_variant_libraries
 
     - name: Refuse a build missing a variant
       ansible.builtin.assert:
         that: item.stat.exists
-        fail_msg: "libggml-cpu-{{ item.item }}.so was not built"
+        fail_msg: "bin/libggml-cpu-{{ item.item }}.so was not built"
       loop: "{{ llama_cpp_variant_libraries.results }}"
       loop_control:
         label: "{{ item.item }}"
+
+    # The run-time proof that a variant loads: llama-server logs the module it picked
+    - name: Run llama-server to see which CPU variant it loads
+      ansible.builtin.command:
+        argv: ["{{ llama_cpp_install_directory }}/bin/llama-server", --list-devices]
+      register: llama_cpp_devices
+      changed_when: false
+
+    - name: Check that it loaded a CPU variant from its own bin/
+      ansible.builtin.assert:
+        that: >-
+          (llama_cpp_devices.stdout ~ llama_cpp_devices.stderr)
+          is search('load_backend: loaded CPU backend from ' ~ (llama_cpp_install_directory | regex_escape) ~ '/bin/libggml-cpu-[^ ]+[.]so')
+        fail_msg: "{{ llama_cpp_devices.stdout }} {{ llama_cpp_devices.stderr }}"
 
     # The .deb depends on libc6 at least this new
     - name: Find the newest glibc the build needs

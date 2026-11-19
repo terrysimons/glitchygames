@@ -112,10 +112,13 @@ def _environment() -> jinja2.Environment:
         'dict2items': _dict2items,
         'bool': _bool,
         'regex_search': _regex_search,
+        'regex_escape': re.escape,
         'basename': lambda path: Path(path).name,
     }
     for name, function in filters.items():
         environment.filters[name] = function
+    # Ansible's `is search(pattern)`, which `reject('search', pattern)` also uses
+    environment.tests['search'] = lambda value, pattern: re.search(pattern, value) is not None
     return environment
 
 
