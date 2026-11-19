@@ -938,7 +938,7 @@ def test_the_linux_job_installs_what_hidapis_source_build_needs():
 
 
 APT_INSTALL_STEP_NAME = 'Install Linux system dependencies'
-APT_CACHE_KEY_PREFIX = 'apt-v1-'
+APT_CACHE_KEY_PREFIX = 'apt-v2-'
 # The file a step writes this ISO week to, whose checksum ends the apt cache's key (git-ignored)
 APT_CACHE_WEEK_FILE = 'test-results/apt-cache-week'
 # How many times the fallback runs apt-get update before the step fails, and CircleCI's

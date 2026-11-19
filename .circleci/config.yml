@@ -510,7 +510,8 @@ jobs:
       # first job's lists until the mirror dropped a version they name, and then every job would
       # need the mirror again and none could save fresher lists. A new week's first job restores
       # last week's cache (the fallback key) and saves its own. Only the very first job, with no
-      # cache under any week, needs the mirror; bump v1 to start afresh
+      # cache under any week, needs the mirror; bump the version to start afresh. v2: apt reads
+      # only Ubuntu's main (7.3 MB, not 44), and an existing week's v1 key kept the old cache
       - run:
           name: "Name this week's apt cache"
           command: |
@@ -519,8 +520,8 @@ jobs:
 
       - restore_cache:
           keys:
-            - apt-v1-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-{{ checksum "test-results/apt-cache-week" }}
-            - apt-v1-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-
+            - apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-{{ checksum "test-results/apt-cache-week" }}
+            - apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-
 
       - run:
           name: "Install Linux system dependencies"
@@ -612,7 +613,7 @@ jobs:
             sudo chown -R "$(id -u):$(id -g)" "$HOME/apt-cache"
 
       - save_cache:
-          key: apt-v1-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-{{ checksum "test-results/apt-cache-week" }}
+          key: apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-{{ checksum "test-results/apt-cache-week" }}
           paths:
             - ~/apt-cache
 
