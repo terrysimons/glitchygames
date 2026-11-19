@@ -1159,6 +1159,26 @@ def test_a_kid_through_the_open_door_clears_the_stage_and_cheers():
     assert (zombie.world_x, zombie.world_y) == where
 
 
+def test_the_kids_cheer_on_the_frame_the_stage_clears():
+    """The clear's frame already shows the cheer: the kids are posed again after the gate.
+
+    The kids are posed before the gate is checked, so the kid through it showed its walk for
+    the clear's first frame (seen triaging the knocked-out kid's cheer, 2026-11-19).
+    """
+    scene = neighbors_stage(neighbors=(NeighborKind.PIZZA_TEEN,))
+    clear_the_yard(scene)
+    run(scene, seconds=OPENING_SECONDS + 0.1)
+    dex = scene.kids[0]
+    stand_on(dex, scene.exit_door)
+    dex.world_y += 8
+
+    while not scene.stage_cleared:
+        run(scene, seconds=FRAME_SECONDS)
+
+    assert dex.current_animation == 'cheer'
+    assert dex.current_frame == 0
+
+
 def test_after_the_cheer_the_card_brings_the_next_stage_with_the_rescued():
     """1.5 s of cheering, then the card for stage 2 carrying only the neighbors saved."""
     scene = neighbors_stage(neighbors=(NeighborKind.PIZZA_TEEN, NeighborKind.LAWN_CHAIR_READER))

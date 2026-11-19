@@ -750,6 +750,10 @@ class NeighborhoodScene(RosterScene):
             self.stage_cleared = True
             for kid in self.kids.values():
                 kid.cheer()
+                # Posed again (no time passes): the kids were posed before the gate was checked,
+                # so the cheer shows on this frame, not the next
+                kid.dt_tick(0.0)
+                self._order_kid(kid)
             self.music.play_the_clear(fade=STAGE_CLEAR_FADE_SECONDS)
 
     def _run_with_held_weapons(self) -> RunState:

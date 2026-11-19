@@ -325,8 +325,13 @@ while #215 is open, saying it is stacked; rebase onto `main` once #215 lands.
   left. Tests: `test_a_kid_knocked_out_at_the_clear_finishes_its_knockout_then_cheers`,
   `test_a_kid_out_of_lives_fades_out_through_the_cheer` (kid),
   `test_a_kid_knocked_out_at_the_clear_cheers_when_it_gets_up` (neighborhood). The goldens
-  replay unchanged. Seen while triaging, not changed: the kid through the gate shows `idle`
-  for the clear's first frame (the clear is decided after the kids are posed).
+  replay unchanged. Seen while triaging, and fixed after (the owner, 2026-11-19): the kid
+  through the gate showed `idle` for the clear's first frame, because the clear is decided after
+  the kids are posed; the clear now poses them again (`dt_tick(0.0)`), so the cheer shows on
+  that frame (`test_the_kids_cheer_on_the_frame_the_stage_clears`, failed first). The
+  neighborhood golden sees it: at frame 1772, the clear's frame, the remote
+  (`ChannelChanger#0`) is now hidden (the kid cheers instead of holding its shot pose), so the
+  replay diverges there until the golden is re-recorded (a reviewed step).
 - [x] **A golden replay that covers the stage clear** (raised by feature plan 7's review):
   already done in feature plan 7, after that review: the neighborhood golden clears stage 1
   into stage 2 (feature plan 7's decision "The stage clear is in the neighborhood golden, not a
