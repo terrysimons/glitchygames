@@ -38,11 +38,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
-    from glitchygames.audio.effects import Effect
-    from glitchygames.audio.instrument import Instrument
-    from glitchygames.audio.library import CacheStatistics
+    from glitchygames.audio.library import CacheStatistics, SoundSource
 
-    type SoundSource = str | Instrument | Effect
 
 DEFAULT_RUNS = 7
 SOUND_CACHE_ROOT_VARIABLE = 'GLITCHYGAMES_SOUND_CACHE_ROOT'

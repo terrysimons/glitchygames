@@ -68,6 +68,7 @@ from glitchygames.audio.assets import (
 from glitchygames.audio.effects import Effect
 from glitchygames.audio.exceptions import AudioUnavailableError, SoundAssetError, SoundRenderError
 from glitchygames.audio.instrument import UNPITCHED_REFERENCE_HZ, Instrument, build_spec
+from glitchygames.audio.mix import Mix, MixedPart, MixRecipe
 from glitchygames.audio.pitch import resolve_pitch
 from glitchygames.audio.render import render_sound, rendered_frame_count
 from glitchygames.audio.spec import (
@@ -95,6 +96,10 @@ if TYPE_CHECKING:
 log: logging.Logger = logging.getLogger('game.audio.library')
 
 Int16Array = npt.NDArray[np.int16]
+
+# What ``sound()`` takes, and a game declares in ``Scene.SOUNDS``: a short name or a path, an
+# instrument, an effect, or a mix (instrument parts compiled into one sound)
+type SoundSource = str | Instrument | Effect | Mix
 DEFAULT_MEMORY_LIMIT_BYTES: Final[int] = 256 * 1024 * 1024
 GENERATED_NAME_PREFIX: Final[str] = 'instrument'
 GENERATED_NAME_DIGITS: Final[int] = 8
@@ -279,7 +284,7 @@ class SoundRequest:
     """One set of ``sound()`` arguments, as the library resolves them.
 
     Attributes:
-        source: A short name, a path, or an ``Instrument``.
+        source: A short name, a path, an ``Instrument``, an ``Effect`` or a ``Mix``.
         scene_sound_directory: The scene's sound directory, or None.
         package_root: The game package's directory, or None.
         pitch: A pitch, or None.
@@ -290,7 +295,7 @@ class SoundRequest:
         parameters: Parameters (a live sound refuses them: ``start`` takes its), or None.
     """
 
-    source: str | Instrument | Effect
+    source: SoundSource
     scene_sound_directory: Path | None
     package_root: Path | None = None
     pitch: PitchLike | None = None
@@ -353,8 +358,9 @@ class LiveStarter(Protocol):
 class Sound:
     """A sound the library compiled (or, under cache ``none``, will compile at each play).
 
-    Exactly one of ``spec`` (a version 1 sound or an instrument), ``effect`` (version 0) and
-    ``recorded_file`` says how it is compiled. ``length``, ``peak`` and ``sample_rate`` are what a
+    Exactly one of ``spec`` (a version 1 sound or an instrument), ``effect`` (version 0),
+    ``recorded_file`` and ``mix`` (instrument parts compiled into one sound, ``audio/mix.py``) says
+    how it is compiled. ``length``, ``peak`` and ``sample_rate`` are what a
     game may read of it, the same under either cache (see the module docstring): a sound got from
     the library gives all three (under ``none`` the ones not derived come from one compile on
     their first read), and ``release()`` keeps them. A sound neither compiled nor got from a
@@ -373,6 +379,7 @@ class Sound:
         spec: The spec of a version 1 sound, or None.
         effect: The version 0 recipe, or None.
         recorded_file: The WAV/OGG path of a recorded sound, or None.
+        mix: The resolved parts of a mix, or None.
         samples_float: Mono float64 samples, or None until compiled.
         samples_int16: The same as signed 16-bit PCM, or None until compiled.
     """
@@ -387,6 +394,7 @@ class Sound:
         spec: SoundSpec | None = None,
         effect: Effect | None = None,
         recorded_file: Path | None = None,
+        mix: MixRecipe | None = None,
         live_instrument: Instrument | None = None,
         live_frequency: float | None = None,
     ) -> None:
@@ -400,6 +408,7 @@ class Sound:
             spec: The spec of a version 1 sound.
             effect: The version 0 recipe.
             recorded_file: A recorded sound's file.
+            mix: A mix's resolved parts.
             live_instrument: A live sound's instrument.
             live_frequency: The pitch in hertz a live sound starts at.
         """
@@ -411,6 +420,7 @@ class Sound:
         self.spec = spec
         self.effect = effect
         self.recorded_file = recorded_file
+        self.mix = mix
         self.is_live = spec.live if spec is not None else False
         self.live_instrument = live_instrument
         self.live_frequency = live_frequency
@@ -659,6 +669,7 @@ class Sound:
             spec=spec,
             effect=self.effect,
             recorded_file=self.recorded_file,
+            mix=None if self.mix is None else self.mix.at_rate(rate),
         )
 
     def install(
@@ -761,6 +772,8 @@ def _compiled_frame_count(sound: Sound) -> int:
     """
     if sound.spec is not None:
         return rendered_frame_count(sound.spec)
+    if sound.mix is not None:
+        return sound.mix.frame_count()
     assert sound.effect is not None
     return sound.effect.frame_count(sample_rate=sound.sample_rate)
 
@@ -927,7 +940,7 @@ class SoundLibrary:
 
     def sound(  # ruff: ignore[too-many-arguments] - impl spec 8
         self,
-        source: str | Instrument | Effect,
+        source: SoundSource,
         *,
         scene_sound_directory: Path | None,
         package_root: Path | None = None,
@@ -942,11 +955,13 @@ class SoundLibrary:
 
         Arguments given here replace the sound file entry's own: a ``pitch``, ``notes`` or
         ``chord`` replaces all three of the entry's, ``length`` replaces its length, and
-        ``transpose`` is added to its transpose. A recorded or version 0 sound takes none of them.
+        ``transpose`` is added to its transpose. A recorded or version 0 sound, or a mix, takes
+        none of them.
 
         Args:
             source: A short name, a path (``'sounds/pickups.toml#coin'``, ``'sounds/slap.wav'``;
-                relative to ``package_root``), or an ``Instrument``.
+                relative to ``package_root``), an ``Instrument``, or a ``Mix`` (instrument parts
+                compiled into one sound, cached as one).
             scene_sound_directory: Where short names are looked up, or None.
             package_root: The game package's directory (paths and file references stay inside it).
             pitch: A pitch.
@@ -1080,6 +1095,8 @@ class SoundLibrary:
             length = rendered_frame_count(sound.spec) / compile_rate
         elif sound.effect is not None:
             length = sound.effect.frame_count(sample_rate=compile_rate) / compile_rate
+        elif sound.mix is not None:
+            length = sound.mix.frame_count() / compile_rate
         else:
             length = None
         sound.describe_lazily(
@@ -1223,6 +1240,8 @@ class SoundLibrary:
             source_key: object = ('instrument', source)
         elif isinstance(source, Effect):
             source_key = ('effect', source)
+        elif isinstance(source, Mix):
+            source_key = ('mix', source)
         else:
             source_key = ('name', source, request.scene_sound_directory, request.package_root)
         memo_key = (
@@ -1270,6 +1289,10 @@ class SoundLibrary:
                 defaults=PlaybackDefaults(),
                 sample_rate=sample_rate,
                 tuning=tuning,
+            )
+        if isinstance(request.source, Mix):
+            return self._mix_sound(
+                request.source, request=request, sample_rate=sample_rate, tuning=tuning
             )
         entry = (
             _effect_entry(request.source)
@@ -1321,6 +1344,61 @@ class SoundLibrary:
             sample_rate=sample_rate,
             tuning=tuning,
             entry=entry,
+        )
+
+    def _mix_sound(
+        self, mix: Mix, *, request: SoundRequest, sample_rate: int, tuning: Tuning
+    ) -> Sound:
+        """Build the sound of a mix: each part's spec at this rate and tuning (``audio/mix.py``).
+
+        Each part is named ``<mix name>-part-<index>``, so its seed is the same in every process.
+        The key is a digest of the parts' own keys (which hold the render version, numpy and the
+        platform), their volumes, the loop and the rate.
+
+        Returns:
+            The uncompiled sound.
+
+        Raises:
+            ValueError: When the request gives a pitch, notes, chord, length or transpose.
+            SoundRenderError: For a live instrument among the parts.
+        """
+        if _names_identity(request):
+            message = f'{mix.name!r} is a mix: its parts carry their notes'
+            raise ValueError(message)
+        parts: list[MixedPart] = []
+        for index, part in enumerate(mix.parts):
+            spec = build_spec(
+                part.instrument,
+                name=f'{mix.name}-part-{index}',
+                pitch=None,
+                notes=part.notes,
+                chord=None,
+                length=None,
+                transpose=0.0,
+                tuning=tuning,
+                sample_rate=sample_rate,
+                playback_defaults=PlaybackDefaults(),
+            )
+            if spec.live:
+                message = (
+                    f'{mix.name!r}: part {index} is a live instrument, which has no samples to mix'
+                )
+                raise SoundRenderError(message)
+            parts.append(MixedPart(spec=spec, volume=part.volume))
+        recipe = MixRecipe(
+            parts=tuple(parts), loop_seconds=mix.loop_seconds, sample_rate=sample_rate
+        )
+        return Sound(
+            name=mix.name,
+            identity_key=_digest({
+                'mix': mix.name,
+                'parts': [[identity_key(part.spec), part.volume] for part in recipe.parts],
+                'loop_seconds': mix.loop_seconds,
+                'sample_rate': sample_rate,
+            }),
+            sample_rate=sample_rate,
+            playback_defaults=PlaybackDefaults(),
+            mix=recipe,
         )
 
     def _instrument_sound(  # ruff: ignore[too-many-arguments] - one construction site
@@ -1531,7 +1609,8 @@ def compile_sound(sound: Sound) -> None:
     """Compile a sound into itself: the one compile path (the library's, and offline renders').
 
     A version 1 sound or instrument renders its spec, a version 0 recipe renders through today's
-    renderer, and a recorded file is decoded. Nothing is timed or counted here: that is the
+    renderer, a mix renders and adds its parts (``MixRecipe.render``), and a recorded file is
+    decoded. Nothing is timed or counted here: that is the
     caller's (``SoundLibrary._compile``).
 
     Args:
@@ -1545,6 +1624,14 @@ def compile_sound(sound: Sound) -> None:
             samples_float=rendered.samples,
             samples_int16=to_pcm16(rendered.samples),
             peak=rendered.peak,
+            sample_rate=sound.sample_rate,
+        )
+    elif sound.mix is not None:
+        mixed = sound.mix.render()
+        sound.install(
+            samples_float=np.clip(mixed, -1.0, 1.0),
+            samples_int16=to_pcm16(mixed),
+            peak=float(np.max(np.abs(mixed))),
             sample_rate=sound.sample_rate,
         )
     else:

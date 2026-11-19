@@ -62,10 +62,7 @@ from glitchygames.audio.spec import AUDIO_RENDER_VERSION
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from glitchygames.audio.effects import Effect
-    from glitchygames.audio.instrument import Instrument
-
-    type SoundSource = str | Instrument | Effect
+    from glitchygames.audio.library import SoundSource
 
 
 class CachedFolder(BaseModel):

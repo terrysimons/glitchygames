@@ -204,8 +204,10 @@ git, a git archive, or a build stamp; held by every recorded run.
 `docs/specs/2026-11-02-sound-engine-*`):
 - `scene_manager.audio.sound(source, ...)` returns a compiled `Sound`; `Sound.play(...)` returns
   a `SoundHandle`. Request sounds in `setup()`: a gameplay compile is counted and logged.
-- Sources: a short name looked up in the scene's `SOUND_DIRECTORY`, a path (`file.toml#name`) or
-  an `Instrument`. Sound files are TOML version 1 (v0 still loads).
+- Sources: a short name looked up in the scene's `SOUND_DIRECTORY`, a path (`file.toml#name`), an
+  `Instrument`, or a `Mix` (instrument parts compiled into one sound, cached as one; with
+  `loop_seconds` an exact loop for `play(loop=True)`: `audio/mix.py`). Sound files are TOML
+  version 1 (v0 still loads).
 - Voice ends follow played time (the served `dt`), never the device, so replays match.
 - Mixer: 44100 Hz, signed 16-bit, stereo, 512-sample buffer.
 - Instrument catalog (`audio/instruments/`): `instruments.get(name)` returns an `Instrument`

@@ -32,12 +32,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from glitchygames.audio.effects import Effect
     from glitchygames.audio.engine import AudioEngine
-    from glitchygames.audio.instrument import Instrument
+    from glitchygames.audio.library import SoundSource
     from glitchygames.engine_context import EngineContext
 
-    type SoundSource = str | Instrument | Effect
 
 TILE_COUNT = 10
 MEGABYTE = 1024 * 1024
