@@ -4,11 +4,13 @@
 # its layers went (Metal), on Linux its resident memory, the threads used and the CPU variant
 # llama.cpp loaded (plans/lucid-circuit-linux.md, 6.9). It's slow and changes nothing, so it only
 # runs when asked: --tags ai_validate
-# Each check runs llama-server with the service's own arguments (ai_service_llama_server_arguments,
-# which run-llama-server.sh passes too), so it checks what the service runs. Only the port differs,
-# clear of the agents', and --verbose, for the log the check reads. Each $NAME in the list is
-# looked up in ai_validate_settings, the value agent.env.j2 writes for that size, and anything else
-# stays as written
+# Each check runs llama-server with the service's own argument list
+# (ai_service_llama_server_arguments, which run-llama-server.sh passes too). Each $NAME in the list
+# is looked up in ai_validate_settings, the value agent.env.j2 writes for that size, and anything
+# else stays as written. So it differs from what the service runs in the port (clear of the
+# agents'), --verbose (for the log the check reads), and Bonsai's context and prompt cache: always
+# agent.env's, the largest tier's (131072 and 4096 MiB), never the LABEL.env.tier a smaller memory
+# tier's start writes (plans/lucid-circuit-linux.md, 13.2)
 - name: Describe each Bonsai size's check
   vars:
     ai_validate_port: "{{ ai_service_bonsai_ports[item] + ai_validate_port_offset }}"

@@ -4,9 +4,9 @@
 # in a plist's XML makes the whole plist invalid. Settings, from the config folder, each later file
 # beating the earlier: LABEL.env (Ansible's or setup.sh's), LABEL.env.tier if it exists (this
 # machine's memory tier, written by ai-service.sh at each start), then LABEL.env.runtime if it
-# exists (the user's own overrides, which nothing else writes). The folder is the user's unless named: a systemd unit can't know
-# the user's XDG folders, and scripts/ai_model_comparison.py names a folder of its own, to run a
-# size with changed settings beside the installed agent.
+# exists (the user's own overrides, which nothing else writes). The folder is the user's unless
+# named: a systemd unit can't know the user's XDG folders, and scripts/ai_model_comparison.py
+# names a folder of its own, to run a size with changed settings beside the installed agent.
 set -u
 
 {% import 'platform_functions.sh.j2' as platform with context %}
