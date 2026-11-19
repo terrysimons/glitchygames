@@ -320,7 +320,7 @@ scope.)
 
 ### 6.4 The picker and memory
 
-`select_sizes` is unchanged. Only its inputs differ:
+Its inputs on each platform:
 
 - total: `MemTotal` from `/proc/meminfo` (the Mac: `hw.memsize`);
 - free now: `MemAvailable` (the Mac: `kern.memorystatus_level` as a percentage of total);
@@ -356,11 +356,18 @@ cache too (the conservative reading, the implementer's). The start writes the ti
 `AI_CONTEXT_SIZE` and `AI_CACHE_RAM_MIB` into Bonsai's own `config/<label>.env.tier` (the
 controller's ruling, fix round 1): the runner reads `<label>.env`, then `.env.tier`, then the
 user's `.env.runtime`, which the start never writes, so a user's own setting wins; `.env.tier` stays
-after a stop, so a model started by hand still gets the tier's context. Models already running stay
+after a stop, so a model started by hand still gets the tier's context. Its limits: it is written
+only for the Bonsai size the last start started, so another size started by hand (outside
+`ai-service.sh start`) runs at `<label>.env`'s context, the largest tier's, unless an earlier start
+wrote that size's file; and it survives a change of hardware (a card moved to a machine with
+different memory, or memory added) until the next start through the picker rewrites it, so a model
+started by hand in between runs at the old machine's tier. Models already running stay
 and count as fitting: only a model not yet running is checked against what's free, a running Bonsai
 size is kept, and with Bonsai running a Qwen that doesn't fit is refused by name
 (`reason=qwen-<size>-does-not-fit`), never "nothing fits". The start then starts Qwen only when the
-tier names one, and names the models it started in `config/selected-models.json`, which the API reads for `/health/ready` (ready when each
+tier names one, and names the models it started in `config/selected-models.json`, which the API finds beside its
+`service.json` by name (`settings.SELECTION_FILE_NAME`, never a key in `service.json`, so settings
+written before Task 11 find it too: second final review), for `/health/ready` (ready when each
 named model answers, a reasoning model among them) and `/v1/embeddings` (503
 `no_embedding_model`, "this machine has no embedding model", where none runs). The reserved
 figures are estimates (the Mac's measured f16 figures at 262K, less that cache, plus a q8_0 cache at
@@ -980,10 +987,10 @@ changes for x86_64.
 | The memory tiers are built in this branch (plan Task 11), not later | The owner, 2026-11-19 |
 | `ai_service_game_reserve_mib` 768, provisional until one figure is measured from every game's peak on the Pi | The owner, 2026-11-19 |
 | The nine per-line ruff suppressions the build added (subprocess calls in tests) | Approved by the owner, 2026-11-19 |
-| `ansible-core` becomes a development dependency so CI runs the Ansible syntax checks; `iproute2` and `lsof` in the CircleCI Linux image (plan Task 12) | The owner, 2026-11-19 |
+| ~~`ansible-core` becomes a development dependency so CI runs the Ansible syntax checks~~ (superseded the same day by the route B row below: a `uv` tool, not a project dependency); `iproute2` and `lsof` in the CircleCI Linux image (plan Task 12) | The owner, 2026-11-19 |
 | Uninstalling keeps `history/` (no change) | The owner, 2026-11-19 |
 | Other users' data after `apt remove`: the package prints a notice naming each folder, its size and the delete command; it never deletes another user's data (plan Task 13) | The owner, 2026-11-19 |
-| Ansible in CI: installed as a separate `uv` tool (`ansible-core==2.22.0`, pinned in the CI config), not a project dependency, so the license policy stays without an exception | The owner, 2026-11-19 |
+| Ansible in CI (route B): installed as a separate `uv` tool (`ansible-core==2.22.0`, pinned in the CI config), not a project dependency, so the license policy stays without an exception. Built (plan Task 12). Since merged with main, whose #215 had already put `ansible-core>=2.22.0` in the `dev` extra and group with a license exception (the owner, 2026-11-16, "Yeah dev group"): every test session now has it from `uv.lock`, so the tool is a second install of the same version; whether to keep it is the owner's (13.1) | The owner, 2026-11-19 |
 | The Pi's speed (15-25 s for a short question) is acceptable: go | The owner, 2026-11-19 |
 | Keep the per-line `jinja2-autoescape-false` suppression in `tests/ansible_rendering.py` (autoescape would corrupt shell templates) | The owner, 2026-11-18 |
 | Accept slower embeddings on 4 GB machines for Qwen's `--no-repack` (13.1) | The owner, 2026-11-18 |
@@ -1009,13 +1016,19 @@ review findings deferred during the build are in the progress ledger (lines star
 |---|---|---|
 | Can a 4 GB machine run everything (Bonsai with vision, plus Qwen)? | The first capped run passed but didn't count the model files (13.3); two reruns are ready on the Pi, deferred by the owner (2026-11-19, "We'll rerun later"): the honest baseline, then with `QWEN_NO_REPACK=1 QWEN_SLEEP_SECONDS=30` | Decide from the reruns: everything with Qwen on `--no-repack` and a short sleep if run 2 holds; Bonsai alone otherwise, turn-taking the recorded fallback |
 | The game's memory reserve (`ai_service_game_reserve_mib`, 768 since 2026-11-19, provisional; was 2,048, a guess) | Bitmappy idles at about 262 MiB; with 2,048 the 4 GB tier never started. The owner asked what figure would make 4 GB work: none does with a desktop for "everything" (about 3.3 GB needed against 2.8 GB free) until the reruns show the levers | Measure every game's peak on the Pi (a busy scene, sound loaded), one figure for every machine |
-| Install `iproute2` (and `lsof`) in the CircleCI Linux image | CircleCI has neither `ss` nor `lsof`, so the real-socket port test runs nowhere in CI; a stub-driven test covers the logic everywhere | Yes, so the real tool is exercised too; a CI change |
 | The Pi's speed bar (go/no-go, 8.3) | 15-25 s for a short question at about 5-7.5 tokens a second; prompt reading about 10 tokens a second, so a 1,000-token prompt waits 80-95 s unless the prompt cache holds it | The owner's; measure the console's real prompt lengths first |
 | The game stays pinned to its core if the service stops later in the run (STOPPED, or a crash it doesn't recover from); it pins only once the service starts (final review) | Open | Restore the saved mask when the link reaches STOPPED |
 | Should uninstalling remove history too? `uninstall.sh` keeps `history/` even with `--remove-models`, so the user folder is never fully removed (Task 4 review) | Open | `--remove-models` (or a new `--all`) also removes history |
-| Count the prompt cache (`--cache-ram`, up to 512 MiB on 4 GB, 1,024 on 8 GB, 4,096 on 16 GB) in the memory fit? Today the fit leaves it out, so a 4 GB machine can run out of memory late in a long session as the cache fills; counting it fits every tier only with the Pi's measured Linux figures (Bonsai 32K 1,277 MiB, 128K ~1,905; Qwen 1,717) in `group_vars/linux.yml` instead of the Mac-derived ones (Task 11 review) | Open: the owner, 2026-11-19, "TBD" | Count it, with the Pi's measured figures on Linux |
-| Add `ansible-core` as a development dependency group, so CI runs the Ansible `--syntax-check` tests (today they skip: Ansible isn't a project dependency) | Open | Yes: it is the only way the check guards every push (cost: `uv.lock`, SBOM, license check) |
+| Count the prompt cache (`--cache-ram`, up to 512 MiB on 4 GB, 1,024 on 8 GB, 4,096 on 16 GB) in the memory fit? Today the fit leaves it out, so a 4 GB machine can run out of memory late in a long session as the cache fills; counting it fits every tier only with the Pi's measured Linux figures (Bonsai 32K 1,277 MiB, 128K ~1,905; Qwen 1,717) in `group_vars/linux.yml` instead of the Mac-derived ones (Task 11 review). The margin it eats has shrunk since: the game reserve fell from 2,048 to 768 MiB, Qwen's reserved figure fell (1,464 at q8_0), and a running model is credited at 0 even after its idle sleep unloads it, so its memory may be claimed again; the uncounted cache (512 MiB on 4 GB, against the 2,716 MiB Bonsai alone needs) is a larger share of what's left (second final review) | Open: the owner, 2026-11-19, "TBD" | Count it, with the Pi's measured figures on Linux |
+| Keep CI's `uv tool install "ansible-core==2.22.0"` now that main's `dev` extra holds ansible-core (12, route B)? The test sessions install it from `uv.lock` on every OS, and the syntax checks take the one beside the session's Python first, so the tool is not what they run | Open (raised by the merge with main, second final review fixes) | Drop the tool step, its `test-linux-ci` mirror and their drift test: one install path, `uv.lock`'s |
 | Another session's request: merge GitHub's `feature/zombies-aint-my-neighbors` into the local one and push (CI split `dc70fe4a`, for #215/#220/#221) | Declined by this session: not its branch, 29 uncommitted files of another session's sound work in that worktree, and pushes need the owner's own ask | The owner, or the session owning that branch |
+
+Resolved since (kept for the history):
+
+| Question | Resolution |
+|---|---|
+| Install `iproute2` (and `lsof`) in the CircleCI Linux image: CircleCI had neither `ss` nor `lsof`, so the real-socket port test ran nowhere in CI | Done (plan Task 12): `test-python-3-15-linux` installs both, on each of its split machines |
+| Add `ansible-core` as a development dependency group, so CI runs the Ansible `--syntax-check` tests | The owner chose route B (12): a `uv` tool in CI, not a project dependency; built (plan Task 12). Main's #215 has since added it to the `dev` extra and group anyway (the open row above) |
 
 ### 13.2 Measurements still to make
 
@@ -1029,6 +1042,11 @@ review findings deferred during the build are in the progress ledger (lines star
 - **Reserved figures at q8_0 and 128K**, every size, on the Mac (`--tags ai_validate`) and on Linux,
   replacing the f16/262K ones; then recheck `ai_service_bonsai_tiers` (every Bonsai size now
   reserves about half, so a 16 GB Mac could hold the 9B).
+- **The 32K tiers' reserved figures**: `ai_validate` runs every size at `agent.env`'s context and
+  cache only, the largest tier's (131,072 and 4,096 MiB), never a smaller tier's `.env.tier`, so
+  the 32K figures (`ai_service_bonsai_reserved_mib[32768]`) are estimates no run measures. They
+  need a per-tier measurement: `ai_validate` at each tier's context and cache, or the 4 GB reruns'
+  readings at 32K and 512 MiB (second final review).
 - **The Pi 4** (4 GB in the inventory): only estimated (2.5-3.5 tokens a second, no dot product,
   `armv8.0_1`); the same build and benchmark scripts run there.
 - **The first Ansible install on the Pi** (plan Task 10): capture the real `ldd` output of
