@@ -21,3 +21,14 @@ llama_cpp_install_root: "{{ ai_package_stage_root }}"
 ai_service_threads: "{{ [1, ansible_facts['processor_vcpus'] - 2] | max }}"
 # No GPU backend in the Linux build: every layer runs on the CPU
 llama_cpp_gpu_layers: 0
+# What the models reserve on Linux, where the memory fit counts them (ai_service's defaults hold
+# the Mac-derived estimates and say how they were made). Measured on the 16 GB Pi 5 at q8_0
+# (plans/lucid-circuit-linux.md, 8.1 and 13.3; 2026-11-18): Bonsai 2B at 32K held 1,277 MiB at
+# load, Qwen 0.6B 1,717. 2B at 128K, about 1,905 (the design's 13.1 figure), is derived from the
+# 32K reading, not measured: the KV cache alone grows by 612 MiB from 32K to 128K, which gives
+# 1,889, so 1,905 keeps 16 MiB in hand. The sizes the Pi hasn't run keep the defaults' estimates. Counting them with the prompt cache at its cap fits every tier on its smallest real
+# machine, which the Mac-derived figures do not on a 4 GB Pi with a desktop (the owner, 2026-11-19)
+ai_service_bonsai_reserved_mib:
+  131072: {"2b": 1905, "4b": 5169, "9b": 6296, "27b": 13454}
+  32768: {"2b": 1277, "4b": 3537, "9b": 4664, "27b": 10190}
+ai_service_qwen_reserved_mib: {"0.6b": 1717, "4b": 4780, "8b": 8380}

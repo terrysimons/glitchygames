@@ -79,7 +79,9 @@ files_present() {
 # Physical memory says what a machine can ever run, and free memory what it can run now. Total
 # memory picks the memory tier (memory_tier): Bonsai's context and prompt cache, and the Qwen beside
 # it or none. Then the largest Bonsai size the size tiers allow whose reserved figure at that
-# context, with the tier's Qwen and the game's reserve, fits in what's free. A smaller memory tier
+# context, with its prompt cache at the tier's cap (--cache-ram fills as a session goes on: counted
+# full, on every platform, the owner, 2026-11-19), the tier's Qwen and the game's reserve, fits in
+# what's free. A smaller memory tier
 # is never taken instead: the tier is the machine's. Overrides (AI_MEMORY_MB, AI_AVAILABLE_MB) are
 # for testing the choice, and selection.env for a user who picks a size by hand. The default size
 # (ai_service_default_bonsai_size; empty: the largest that fits) gives way to selection.env, and
@@ -136,7 +138,7 @@ select_sizes() {
         if [ -z "$bonsai_override" ] && [ "$memory_mb" -lt "$minimum_mb" ]; then
             continue
         fi
-        bonsai_needed_mb=$reserved_mb
+        bonsai_needed_mb=$(( reserved_mb + tier_cache_ram_mib ))
         if [ "$size" = "$bonsai_running" ]; then
             bonsai_needed_mb=0
         fi

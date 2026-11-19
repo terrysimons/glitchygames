@@ -619,6 +619,12 @@ recorded, not built). Every system, the Mac included: the tier settings are shar
 - Reserved figures per tier, estimates until the Pi measures them (Task 10): Bonsai at 128K about
   2,560 MiB, at 32K about 1,948 MiB; Qwen 0.6b about 1,464 MiB (the design's §6.5 table). The Mac's
   larger Bonsai sizes keep their per-size figures scaled the same way, marked provisional.
+- Owner-decisions wave (the owner, 2026-11-19): the fit counts Bonsai's prompt cache at the tier's
+  cap on every platform (`select_sizes` adds `tier_cache_ram_mib` to Bonsai's reserved figure when
+  it isn't running), and `group_vars/linux.yml` holds the Pi's measured figures (Bonsai 2B 1,277
+  at 32K, about 1,905 at 128K; Qwen 0.6B 1,717; design §6.4, §13.3); the Mac keeps the defaults'.
+  Tests: `test_the_fit_counts_the_prompt_cache_at_its_cap` (each tier's edge, both platforms, 1 MiB
+  short refused) and `test_the_linux_fit_uses_the_pis_measured_figures`.
 - `ai_service_game_reserve_mib`: 768 (the owner, 2026-11-19, provisional until one figure is
   measured from every game's peak on the Pi).
 - setup.sh: on a machine whose tier has no Qwen, it downloads no Qwen model and writes no Qwen
@@ -734,6 +740,8 @@ benchmark:
   game running, `taskset -cp` on each of its threads (`/proc/<pid>/task`) gives `0`.
 - [ ] Replace the provisional Linux reserved-memory figures (Bonsai's and Qwen's) in
   `group_vars/linux.yml` with ones measured at the q8_0 cache; the owner sets the go/no-go bar (§8.3).
+  (Since 2026-11-19 it holds the 2026-11-18 q8_0 readings for 2B at 32K and Qwen 0.6B, and a
+  derived 2B at 128K: measure 128K, and the 2B after a long session, to replace those.)
 - [ ] On the Mac: `--tags ai_validate` with the q8_0 cache, every Bonsai size and Qwen; replace
   `ai_service_bonsai_reserved_mib` and `ai_service_qwen_reserved_mib` with the new figures and check `ai_service_bonsai_tiers`
   against them; the three smoke answers right; speed against the f16 figures (§6.5).

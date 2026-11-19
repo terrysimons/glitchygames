@@ -1656,18 +1656,21 @@ def parse_key_values(*, output: str) -> dict[str, str]:
     ('environment', 'expected'),
     [
         ({'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '9216'}, {'bonsai': '2b', 'qwen': '0.6b'}),
-        # 2,560 + 1,464 + 768 for the game is 4,792
-        ({'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '4791'}, {'reason': 'nothing-fits'}),
-        ({'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '4792'}, {'bonsai': '2b', 'qwen': '0.6b'}),
-        # 1,948 + 1,464 + 768 is 4,180 on the 8 GB tier
-        ({'AI_MEMORY_MB': '8192', 'AI_AVAILABLE_MB': '4179'}, {'reason': 'nothing-fits'}),
+        # The exact edges differ by platform since the Linux fit uses the Pi's measured figures
+        # (test_the_fit_counts_the_prompt_cache_at_its_cap): 16 GB needs 8,486 on Linux and 8,888
+        # on a Mac, so 1 MiB under the smaller is refused on both
+        ({'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '8485'}, {'reason': 'nothing-fits'}),
+        # The 8 GB tier needs 4,786 on Linux and 5,204 on a Mac
+        ({'AI_MEMORY_MB': '8192', 'AI_AVAILABLE_MB': '4785'}, {'reason': 'nothing-fits'}),
         # A size chosen by hand still has to fit: 27B at 128K reserves 13,454
         (
             {'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '9216', 'AI_BONSAI_SIZE': '27b'},
             {'reason': 'nothing-fits'},
         ),
+        # 4B at 128K: 5,169 + Qwen (1,717 on Linux, 1,464 on a Mac) + the 4,096 cache + 768 is
+        # 11,750 at most
         (
-            {'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '9216', 'AI_BONSAI_SIZE': '4b'},
+            {'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '11750', 'AI_BONSAI_SIZE': '4b'},
             {'bonsai': '4b', 'qwen': '0.6b'},
         ),
     ],
@@ -1678,7 +1681,10 @@ def test_the_picker_chooses_the_same_on_both_platforms(
     environment: dict[str, str],
     expected: dict[str, str],
 ):
-    """One choice on every platform: only how memory is read differs (section 6.4)."""
+    """One picker on every platform: how memory is read and the reserved figures differ (6.4).
+
+    The cases sit clear of both platforms' edges, so each picks the same.
+    """
     service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
     service.download_every_model()
 
@@ -1694,6 +1700,96 @@ def test_the_picker_chooses_the_same_on_both_platforms(
     assert [call for call in service.tool_calls() if not any(ask in call for ask in asks)] == []
 
 
+def test_the_linux_fit_uses_the_pis_measured_figures():
+    """Linux reserves what the Pi measured at q8_0; the Mac keeps its own (the owner, 2026-11-19).
+
+    Bonsai 2B at 32K held 1,277 MiB at load and Qwen 0.6B 1,717 (plans/lucid-circuit-linux.md, 8.1
+    and 13.3); 2B at 128K, about 1,905, is derived from that reading. The sizes the Pi never ran
+    keep the Mac-derived estimates.
+    """
+    linux = linux_variables()
+    mac = ansible_variables(system='Darwin', architecture='arm64', home=Path('/Users/player'))
+
+    assert linux['ai_service_bonsai_reserved_mib'][32768]['2b'] == 1277
+    assert linux['ai_service_bonsai_reserved_mib'][131072]['2b'] == 1905
+    assert linux['ai_service_qwen_reserved_mib']['0.6b'] == 1717
+    assert mac['ai_service_bonsai_reserved_mib'][32768]['2b'] == 1948
+    assert mac['ai_service_bonsai_reserved_mib'][131072]['2b'] == 2560
+    assert mac['ai_service_qwen_reserved_mib']['0.6b'] == 1464
+    for context in (32768, 131072):
+        for size in ('4b', '9b', '27b'):
+            assert (
+                linux['ai_service_bonsai_reserved_mib'][context][size]
+                == mac['ai_service_bonsai_reserved_mib'][context][size]
+            ), (context, size)
+    for size in ('4b', '8b'):
+        assert (
+            linux['ai_service_qwen_reserved_mib'][size] == mac['ai_service_qwen_reserved_mib'][size]
+        )
+
+
+class CacheFitCase(BaseModel):
+    """A machine where Bonsai's prompt cache, counted at its tier's cap, decides the fit.
+
+    Attributes:
+        system: The platform, whose reserved figures the fit uses.
+        memory_mb: The faked total memory, which picks the tier.
+        needed_mb: Bonsai's reserved figure, the tier's Qwen, the tier's prompt cache cap and the
+            game's 768, written out as the sum the case checks.
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    system: Literal['Darwin', 'Linux']
+    memory_mb: int
+    needed_mb: int
+
+
+CACHE_FIT_CASES = [
+    # 1,277 + 512 + 768; without the cache, 2,045 would fit in 2,556
+    pytest.param(CacheFitCase(system='Linux', memory_mb=3793, needed_mb=2557), id='Pi 4 4 GB'),
+    # 1,277 + 1,717 + 1,024 + 768
+    pytest.param(CacheFitCase(system='Linux', memory_mb=7782, needed_mb=4786), id='Pi 4 8 GB'),
+    # 1,905 + 1,717 + 4,096 + 768
+    pytest.param(CacheFitCase(system='Linux', memory_mb=16179, needed_mb=8486), id='Pi 5 16 GB'),
+    # 1,948 + 1,464 + 1,024 + 768
+    pytest.param(CacheFitCase(system='Darwin', memory_mb=8192, needed_mb=5204), id='8 GB Mac'),
+    # 2,560 + 1,464 + 4,096 (the Mac's ai_service_bonsai_cache_ram_mib, its tier's cap) + 768
+    pytest.param(CacheFitCase(system='Darwin', memory_mb=16384, needed_mb=8888), id='16 GB Mac'),
+]
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('case', CACHE_FIT_CASES)
+def test_the_fit_counts_the_prompt_cache_at_its_cap(tmp_path: Path, case: CacheFitCase):
+    """1 MiB short of the models, the cache cap and the game's reserve is refused; exactly it fits.
+
+    The owner, 2026-11-19: Bonsai's --cache-ram is counted at its tier's cap on every platform, by
+    the same picker that counts the models (plans/lucid-circuit-linux.md, 6.4.1).
+    """
+    service = ServiceHome(system=case.system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    service.download_every_model()
+    memory = str(case.memory_mb)
+
+    short = service.run(
+        template='ai-service.sh.j2',
+        arguments=['select'],
+        environment={'AI_MEMORY_MB': memory, 'AI_AVAILABLE_MB': str(case.needed_mb - 1)},
+    )
+    enough = service.run(
+        template='ai-service.sh.j2',
+        arguments=['select'],
+        environment={'AI_MEMORY_MB': memory, 'AI_AVAILABLE_MB': str(case.needed_mb)},
+    )
+
+    assert (short.returncode, parse_key_values(output=short.stdout).get('reason')) == (
+        3,
+        'nothing-fits',
+    ), short.stdout + short.stderr
+    assert enough.returncode == 0, enough.stdout + enough.stderr
+    assert parse_key_values(output=enough.stdout)['bonsai'] == '2b'
+
+
 # Each case: total and free memory, then what the start prints, the Bonsai context and prompt cache
 # written to its .env.tier (or none, when nothing starts) and whether Qwen starts
 class TierCase(BaseModel):
@@ -1705,6 +1801,7 @@ class TierCase(BaseModel):
         runtime: The Bonsai context and prompt cache written to its .env.tier, or None when
             nothing starts.
         qwen_starts: Whether Qwen is started.
+        systems: The platforms the case runs on.
     """
 
     model_config = ConfigDict(frozen=True, extra='forbid')
@@ -1713,6 +1810,7 @@ class TierCase(BaseModel):
     printed: dict[str, str]
     runtime: tuple[str, str] | None
     qwen_starts: bool
+    systems: tuple[Literal['Darwin', 'Linux'], ...] = ('Darwin', 'Linux')
 
 
 TIER_CASES = [
@@ -1744,8 +1842,8 @@ TIER_CASES = [
         ),
         id='8 GB, 5.5 GB free',
     ),
-    # Bonsai alone at 32K needs 1,948 + 768 = 2,716 free: about the 2.8 GB a 4 GB Pi with a
-    # desktop has (6.4.1)
+    # Bonsai alone at 32K on Linux needs 1,277 + its 512 MiB cache + 768 = 2,557 free: within the
+    # 2.8 GB a 4 GB Pi with a desktop has (6.4.1). Linux only: no Apple-silicon Mac has 4 GB
     pytest.param(
         TierCase(
             memory={'AI_MEMORY_MB': '3800', 'AI_AVAILABLE_MB': '2867'},
@@ -1757,18 +1855,20 @@ TIER_CASES = [
             },
             runtime=('32768', '512'),
             qwen_starts=False,
+            systems=('Linux',),
         ),
         id='4 GB, 2.8 GB free',
     ),
-    # 2.6 GB free is short of the 2,716 the 4 GB tier needs
+    # 2.5 GB free is short of the 2,557 the 4 GB tier needs on Linux
     pytest.param(
         TierCase(
-            memory={'AI_MEMORY_MB': '3800', 'AI_AVAILABLE_MB': '2662'},
+            memory={'AI_MEMORY_MB': '3800', 'AI_AVAILABLE_MB': '2500'},
             printed={'reason': 'nothing-fits'},
             runtime=None,
             qwen_starts=False,
+            systems=('Linux',),
         ),
-        id='4 GB, 2.6 GB free',
+        id='4 GB, 2.5 GB free',
     ),
     pytest.param(
         TierCase(
@@ -1793,9 +1893,16 @@ TIER_CASES = [
 ]
 
 
+# Each tier case on each platform it names
+TIER_RUNS = [
+    pytest.param(system, param.values[0], id=f'{param.id}-{system}')
+    for param in TIER_CASES
+    for system in param.values[0].systems
+]
+
+
 @needs_a_posix_shell
-@pytest.mark.parametrize('system', SYSTEMS)
-@pytest.mark.parametrize('case', TIER_CASES)
+@pytest.mark.parametrize(('system', 'case'), TIER_RUNS)
 def test_the_picker_chooses_the_tier_by_total_memory(
     tmp_path: Path, system: Literal['Darwin', 'Linux'], case: TierCase
 ):
@@ -1915,13 +2022,14 @@ class RunningCase(BaseModel):
     started_roles: tuple[str, ...]
 
 
-# A running model stays and counts as fitting, and only a model not yet running is checked against
-# what's free. 8 GB tier: Qwen 0.6b reserves 1,464, the game 768
+# A running model stays and counts as fitting (its prompt cache with it), and only a model not yet
+# running is checked against what's free. 8 GB tier: Qwen 0.6b reserves 1,717 on Linux and 1,464
+# on a Mac, the game 768
 RUNNING_CASES = [
-    # Game 1's start brought Bonsai up and Qwen isn't up yet (or failed): 2,300 free leaves 1,532
+    # Game 1's start brought Bonsai up and Qwen isn't up yet (or failed): 2,600 free leaves 1,832
     pytest.param(
         RunningCase(
-            memory={'AI_MEMORY_MB': '7800', 'AI_AVAILABLE_MB': '2300'},
+            memory={'AI_MEMORY_MB': '7800', 'AI_AVAILABLE_MB': '2600'},
             running=('reasoning',),
             printed={'bonsai': '2b', 'qwen': '0.6b'},
             exit_code=0,
@@ -1929,7 +2037,7 @@ RUNNING_CASES = [
         ),
         id='8 GB, Bonsai running, Qwen fits',
     ),
-    # 2,000 free leaves 1,232, short of Qwen's 1,464: refused, naming Qwen, starting nothing
+    # 2,000 free leaves 1,232, short of Qwen on both: refused, naming Qwen, starting nothing
     pytest.param(
         RunningCase(
             memory={'AI_MEMORY_MB': '7800', 'AI_AVAILABLE_MB': '2000'},

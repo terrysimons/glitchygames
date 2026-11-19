@@ -44,7 +44,9 @@ ai_service_memory_tiers:
 # Qwen3.5-2B 6 x 2, 12 KiB; 4B and 9B 8 x 4, 32 KiB; 27B 16 x 4, 64 KiB. So the 2B's 4,816 less
 # 3,072 is 1,744, plus 816 at 128K (2,560) or 204 at 32K (1,948): plans/lucid-circuit-linux.md, 6.5.
 # Qwen's 0.6B: 1,884 less the 420 MiB q8_0 saves at 8,192; its 4B and 8B weren't measured either
-# (the file's size plus the 0.6B's non-weight buffers), so less the same 420
+# (the file's size plus the 0.6B's non-weight buffers), so less the same 420. These are the Mac's:
+# group_vars/linux.yml gives Linux the Pi's measured figures. bin/ai-service.sh counts Bonsai's
+# with its prompt cache at the memory tier's cap (bonsai_cache_ram_mib) on every platform
 ai_service_bonsai_reserved_mib:
   131072: {"2b": 2560, "4b": 5169, "9b": 6296, "27b": 13454}
   32768: {"2b": 1948, "4b": 3537, "9b": 4664, "27b": 10190}
