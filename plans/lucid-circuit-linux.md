@@ -186,11 +186,12 @@ and records the mapping in the plan.
 Each launchd agent becomes a systemd user unit with the same label as its name
 (`ai.glitchygames.bonsai-2-2b.llama-cpp.service`,
 `ai.glitchygames.qwen3-embedding-0.6b.llama-cpp.service`, `ai.glitchygames.api.service`):
-`Type=simple`, `ExecStart=` the same `run-llama-server.sh CONFIG LABEL`, `Restart=on-failure` (an
-exit 0 from `refuse` stops it, as `SuccessfulExit=false` does on a Mac), `RestartSec=10`. **No
-`[Install]` section**: nothing starts at login; `ai-service.sh` starts them with
-`systemctl --user start` and stops them with `systemctl --user stop`. The unit names `%h` for the
-home, so one unit file serves every user.
+`Type=simple`, `ExecStart=` `run-llama-server.sh LABEL` (the label alone, where a Mac's plist also
+names the config folder: the runner finds the user's settings itself, as the next paragraph
+says), `Restart=on-failure` (an exit 0 from `refuse` stops it, as `SuccessfulExit=false` does on
+a Mac), `RestartSec=10`. **No `[Install]` section**: nothing starts at login; `ai-service.sh`
+starts them with `systemctl --user start` and stops them with `systemctl --user stop`. The unit
+names `%h` for the home, so one unit file serves every user.
 
 **How a unit finds the user's folder.** A unit sees only the user manager's environment, never the
 shell's, so `setup.sh` writes each AI unit (each model's, the API's and the setup job's) a drop-in,
@@ -930,7 +931,10 @@ changes for x86_64.
 | Accept slower embeddings on 4 GB machines for Qwen's `--no-repack` (13.1) | The owner, 2026-11-18 |
 | The CPU variant modules beside `llama-server` in `bin/`, not `lib/` (6.5) | Designer's call, from the b12167 source |
 | Settings name a stable `runtime/current` link both packages ship, so an upgrade that renames the runtime folder changes no user's settings (Task 6 review) | Designer's call |
-| `setup.sh` takes a per-user lock in a folder a restart empties (`$XDG_RUNTIME_DIR`, the Mac's `$TMPDIR`); the `.deb`'s postinst starts the owner's setup with `--no-block`, so apt never waits on the model download (Task 6 review) | Designer's call |
+| `setup.sh` takes a per-user lock: a kernel-held lock (`flock` on Linux, `lockf` on the Mac) on `config/setup.lock` in the user root it guards, freed however its holder ends, so no stale lock and no folder that depends on the environment; it replaced the first lock in `$XDG_RUNTIME_DIR` or the Mac's `$TMPDIR` (Task 6 review, round 3). The `.deb`'s postinst starts the owner's setup with `--no-block`, so apt never waits on the model download (Task 6 review) | Designer's call, the lock's place the controller's ruling |
+| The game pins itself only once its link reports the service started (`CONNECTED`); a refused or failed start never pins (6.2) | Controller's ruling on the final review, 2026-11-19 |
+| Each AI unit's drop-in names the user's folder (`Environment=GLITCHYGAMES_AI_USER_ROOT`), replacing `systemctl --user set-environment` (6.2) | Controller's ruling on the final review, 2026-11-19 |
+| `uninstall-user.sh` masks the setup job for its user; the postinst unmasks it for the user who installs again (6.7) | Final review, 2026-11-19; the unmask the implementer's call |
 | The `.deb` depends on `libstdc++6 (>=` the release its GLIBCXX/CXXABI symbols need`)`, read from the build like the glibc floor (Task 6 review) | Designer's call |
 | Fix, in this branch, the Mac `.pkg` naming the builder's runtime instead of the player's (`bugs/2026-11-18-mac-package-settings-name-builders-runtime.md`) | The owner, 2026-11-19 |
 | The `.deb`'s Maintainer: `GlitchyGames <terry.simons@gmail.com>` | The owner, 2026-11-19 |
