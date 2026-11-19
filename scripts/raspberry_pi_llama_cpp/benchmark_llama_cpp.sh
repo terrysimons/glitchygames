@@ -3,7 +3,7 @@
 # models and settings (ansible/roles/ai_models and ai_service defaults: keep them equal):
 #   [AI_CORES=N[,N...]|none] [GAME=NAME] [THREADS=N[,N...]] [DEPTHS=N[,N...]] \
 #       [CACHE_TYPE_K=T[,T...]] [CACHE_TYPE_V=T[,T...]] [BONSAI_CONTEXT=N] [QWEN_CONTEXT=N] \
-#       [MEMORY_LIMIT=SIZE] benchmark_llama_cpp.sh [WORK_ROOT] [CONFIGURATION...]
+#       [MEMORY_LIMIT=SIZE] [QWEN_SLEEP_SECONDS=N] benchmark_llama_cpp.sh [WORK_ROOT] [CONFIGURATION...]
 # MEMORY_LIMIT (such as 2500M) runs this script, and so both servers, in a systemd user scope
 # with that much memory and no swap (MemoryMax, MemorySwapMax=0; the user manager is handed the
 # memory controller), to stand in for a smaller Pi on a bigger one: what a 4 GB Pi with a desktop
@@ -11,7 +11,13 @@
 # kernel drops and re-reads model pages as a small Pi would. With it, once both servers are up,
 # they take turns (Bonsai answers, Qwen embeds, an image, again), each step timed with the
 # servers' major page faults (model pages read back from disk) and the scope's memory, peak and
-# out-of-memory kills. The game named with GAME stays outside the limit.
+# out-of-memory kills. The game named with GAME stays outside the limit. Before the servers start,
+# the model files are dropped from the page cache, so their pages are read inside the limit and
+# count against it (the kernel charges a cached page to whichever cgroup first read it).
+# QWEN_SLEEP_SECONDS gives the Qwen server --sleep-idle-seconds N, so it unloads after N idle
+# seconds (the service's own setting), and the turns wait that long after each embedding before
+# Bonsai's next answer: the scope's memory then shows Bonsai alone, and the next embedding
+# includes Qwen's reload.
 # WORK_ROOT defaults to ~/ai-spike; with no configurations it measures each llama.cpp-*-* folder
 # there that holds a build. Cores are placed as the service places them
 # (plans/lucid-circuit-linux.md 6.2: ranked by cpu_capacity, the game on the first, the mirror on
@@ -229,6 +235,11 @@ if [ -n "${MEMORY_LIMIT:-}" ]; then
     say "memory limit: $(cat "$cgroup/memory.max") bytes, swap $(cat "$cgroup/memory.swap.max") (the servers and this script; the game outside)"
 fi
 say "models on: $(findmnt -no SOURCE --target "$models")"
+qwen_sleep=${QWEN_SLEEP_SECONDS:-}
+if [ -n "$qwen_sleep" ] && ! [[ "$qwen_sleep" =~ ^[1-9][0-9]*$ ]]; then
+    echo "QWEN_SLEEP_SECONDS must be a whole number of seconds, such as 30" >&2
+    exit 64
+fi
 say "load before: $(cut -d' ' -f1-3 /proc/loadavg)"
 say "configurations: ${configurations[*]}"
 say "cores: AI ${ai_cores:-not pinned}; the service would place game ${game_cores:-none}, AI $(awk '$1 == "ai" {print $2}' <<< "$placement")"
@@ -310,6 +321,10 @@ for configuration in "${configurations[@]}"; do
     done
     say "   after: [$(thermal_state)]"
 
+    if [ -n "${MEMORY_LIMIT:-}" ]; then
+        say "-- model files out of the page cache, so the limit counts them"
+        python3 "$helper" evict "$models/$bonsai_file" "$models/$vision_file" "$models/$qwen_file" | tee -a "$summary"
+    fi
     phase "$configuration-bonsai-server"
     say "-- Bonsai 2B server, $server_settings  [$(thermal_state)]"
     "$bin/llama-server" --host 127.0.0.1 --port "$bonsai_port" \
@@ -338,6 +353,7 @@ for configuration in "${configurations[@]}"; do
         --threads "$server_threads" \
         --parallel 1 --no-webui --embedding --pooling last \
         --ctx-size "$qwen_context" --ubatch-size "$qwen_context" --flash-attn on \
+        ${qwen_sleep:+--sleep-idle-seconds "$qwen_sleep"} \
         --cache-type-k "$cache_type_k" --cache-type-v "$cache_type_v" --log-verbosity 4 \
         > "$results/$configuration-qwen.log" 2>&1 &
     qwen=$!
@@ -361,7 +377,12 @@ for configuration in "${configurations[@]}"; do
                     sum) ask turns-sum 391 '{"messages":[{"role":"user","content":"What is 17 times 23? Reply with the number only."}]}' ;;
                     fact) ask turns-fact canberra '{"messages":[{"role":"user","content":"What is the capital of Australia? One word."}]}' ;;
                     image) ask turns-image blue "{\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What two colours are in this image, left then right? Answer in a few words.\"},{\"type\":\"image_url\",\"image_url\":{\"url\":\"data:image/png;base64,$image\"}}]}]}" ;;
-                    embed) say "  embed: $(embed)" ;;
+                    embed)
+                        say "  embed: $(embed)"
+                        if [ -n "$qwen_sleep" ]; then
+                            sleep $(( qwen_sleep + 5 ))
+                            say "    after Qwen's $qwen_sleep s idle: Qwen $(resident "$qwen"); $(scope_memory)"
+                        fi ;;
                 esac
                 say "    pages read back: Bonsai $(faults_since "$bonsai" "$bonsai_faults"), Qwen $(faults_since "$qwen" "$qwen_faults"); $(scope_memory)"
                 kill -0 "$bonsai" 2>/dev/null || { say "  Bonsai is gone (killed)"; break; }

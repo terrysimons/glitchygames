@@ -9,6 +9,7 @@ script that calls it:
     python3 summarize_llama_cpp_results.py image
     python3 summarize_llama_cpp_results.py power POWER_CSV
     python3 summarize_llama_cpp_results.py placement [CPU_ROOT]
+    python3 summarize_llama_cpp_results.py evict FILE...
 
 Each prints one or more lines, and a reply it can't read becomes a line saying so, never a crash,
 so one bad configuration doesn't end the run.
@@ -20,6 +21,7 @@ import base64
 import csv
 import json
 import math
+import os
 import struct
 import sys
 import zlib
@@ -273,6 +275,37 @@ def cpu_placement(*, cpu_root: Path) -> dict[str, list[int]]:
     return {'game': [ranked[0]], 'mirror': [ranked[1]], 'ai': ai}
 
 
+def evict_from_page_cache(*, paths: list[Path]) -> list[str]:
+    """Ask the kernel to drop each file's cached pages, so the next reader faults them in afresh.
+
+    A memory-limited run needs this: the kernel charges a cached page to the cgroup that first read
+    it, so model files an earlier, unlimited run read would never count against the limit.
+    ``POSIX_FADV_DONTNEED`` needs no root; pages another process still maps stay.
+
+    Args:
+        paths: The files.
+
+    Returns:
+        One line per file.
+
+    """
+    if sys.platform != 'linux':
+        return [f'  not evicted: posix_fadvise is Linux only (this is {sys.platform})']
+    lines: list[str] = []
+    for path in paths:
+        try:
+            descriptor = os.open(path, os.O_RDONLY)
+        except OSError as error:
+            lines.append(f'  {path.name}: not evicted ({error})')
+            continue
+        try:
+            os.posix_fadvise(descriptor, 0, 0, os.POSIX_FADV_DONTNEED)
+        finally:
+            os.close(descriptor)
+        lines.append(f'  {path.name}: dropped from the page cache')
+    return lines
+
+
 def main(arguments: list[str]) -> int:
     """Print the summary the first argument asks for.
 
@@ -297,6 +330,9 @@ def main(arguments: list[str]) -> int:
             sys.stdout.write(two_colour_image() + '\n')
         case ['power', samples_path]:
             sys.stdout.write('\n'.join(summarize_power(samples_path=Path(samples_path))) + '\n')
+        case ['evict', *files] if files:
+            lines = evict_from_page_cache(paths=[Path(file) for file in files])
+            sys.stdout.write('\n'.join(lines) + '\n')
         case ['placement', *rest] if len(rest) <= 1:
             # One line per part, such as "ai 2,3", for the shell to read; nothing for one core
             placement = cpu_placement(cpu_root=Path(rest[0] if rest else '/sys/devices/system/cpu'))
