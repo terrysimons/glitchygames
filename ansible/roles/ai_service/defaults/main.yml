@@ -55,7 +55,8 @@ ai_service_game_reserve_mib: 768
 
 # A model unloads after this long without a request, and reloads on the next one: 27B fell to 158 MiB,
 # and answered an image question 4.5 s later (measured 2026-11-06). The owner's default is 30 minutes.
-# One model can differ, with AI_SLEEP_IDLE_SECONDS in its config/LABEL.env.runtime
+# One model can differ, with AI_SLEEP_IDLE_SECONDS in its config/LABEL.env.runtime (the user's file,
+# read last; agent.env.j2's header names each settings file)
 ai_service_sleep_idle_seconds: 1800
 
 # What games and tools use. The ports below it are private to the service
@@ -80,8 +81,9 @@ ai_package_identifier: ai.glitchygames.service
 # Prism suggests a 24 GiB prompt cache for single-user use; this is lower because a game shares the
 # same memory
 # The context and prompt cache in each agent's settings, which ai_validate also checks with: the
-# largest memory tier's. ai-service.sh writes the running machine's tier over them, in Bonsai's
-# config/LABEL.env.runtime, at each start
+# largest memory tier's. ai-service.sh writes the running machine's tier over them at each start, in
+# Bonsai's config/LABEL.env.tier, which the runner reads after LABEL.env and before the user's own
+# LABEL.env.runtime, so a user's setting there still wins
 ai_service_bonsai_context_size: 131072
 ai_service_bonsai_output_limit: -1
 ai_service_bonsai_cache_ram_mib: 4096

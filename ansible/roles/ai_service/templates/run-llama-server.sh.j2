@@ -1,8 +1,10 @@
 #!/bin/sh
 # Starts one llama-server, or the API, for one agent: run-llama-server.sh [CONFIG_DIRECTORY] LABEL.
 # launchd and systemd both run it. This is a file and not a script inside the plist, because a raw &
-# in a plist's XML makes the whole plist invalid. Settings: LABEL.env in the config folder, then
-# LABEL.env.runtime if it exists. The folder is the user's unless named: a systemd unit can't know
+# in a plist's XML makes the whole plist invalid. Settings, from the config folder, each later file
+# beating the earlier: LABEL.env (Ansible's or setup.sh's), LABEL.env.tier if it exists (this
+# machine's memory tier, written by ai-service.sh at each start), then LABEL.env.runtime if it
+# exists (the user's own overrides, which nothing else writes). The folder is the user's unless named: a systemd unit can't know
 # the user's XDG folders, and scripts/ai_model_comparison.py names a folder of its own, to run a
 # size with changed settings beside the installed agent.
 set -u
@@ -19,6 +21,9 @@ else
 fi
 
 . "$config_directory/$label.env"
+if [ -f "$config_directory/$label.env.tier" ]; then
+    . "$config_directory/$label.env.tier"
+fi
 if [ -f "$config_directory/$label.env.runtime" ]; then
     . "$config_directory/$label.env.runtime"
 fi

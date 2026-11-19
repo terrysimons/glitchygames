@@ -353,12 +353,16 @@ figure at the tier's context (`ai_service_bonsai_reserved_mib`, by context, then
 Qwen and `ai_service_game_reserve_mib` (768, the owner, 2026-11-19, provisional) into what's free;
 a smaller tier is never taken instead. A size chosen by hand runs at the memory tier's context and
 cache too (the conservative reading, the implementer's). The start writes the tier's
-`AI_CONTEXT_SIZE` and `AI_CACHE_RAM_MIB` into Bonsai's `config/<label>.env.runtime`, keeping any
-other line a user put there, starts Qwen only when the tier names one, and names the models it
-started in `config/selected-models.json`, which the API reads for `/health/ready` (ready when each
+`AI_CONTEXT_SIZE` and `AI_CACHE_RAM_MIB` into Bonsai's own `config/<label>.env.tier` (the
+controller's ruling, fix round 1): the runner reads `<label>.env`, then `.env.tier`, then the
+user's `.env.runtime`, which the start never writes, so a user's own setting wins; `.env.tier` stays
+after a stop, so a model started by hand still gets the tier's context. Models already running stay
+and count as fitting: only a model not yet running is checked against what's free, a running Bonsai
+size is kept, and with Bonsai running a Qwen that doesn't fit is refused by name
+(`reason=qwen-<size>-does-not-fit`), never "nothing fits". The start then starts Qwen only when the
+tier names one, and names the models it started in `config/selected-models.json`, which the API reads for `/health/ready` (ready when each
 named model answers, a reasoning model among them) and `/v1/embeddings` (503
-`no_embedding_model`, "this machine has no embedding model", where none runs). A second start that
-finds Bonsai running on a tier with no Qwen keeps it rather than measuring again. The reserved
+`no_embedding_model`, "this machine has no embedding model", where none runs). The reserved
 figures are estimates (the Mac's measured f16 figures at 262K, less that cache, plus a q8_0 cache at
 the tier's context; per-token sizes from each base model's `config.json`: Qwen3.5-2B 12 KiB, 4B and
 9B 32 KiB, 27B 64 KiB at f16): 2B 2,560 MiB at 128K and 1,948 at 32K, 4B 5,169 and 3,537, 9B 6,296

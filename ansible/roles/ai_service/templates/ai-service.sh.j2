@@ -84,7 +84,11 @@ files_present() {
 # for testing the choice, and selection.env for a user who picks a size by hand. The default size
 # (ai_service_default_bonsai_size; empty: the largest that fits) gives way to selection.env, and
 # AI_BONSAI_SIZE beats both for one run: a size that isn't downloaded, or doesn't fit, still gets
-# nothing. A size chosen by hand runs at the memory tier's context and cache too
+# nothing. A size chosen by hand runs at the memory tier's context and cache too.
+# Models already running stay and count as fitting, as what's free already leaves out what they
+# hold: a running Bonsai size is kept, whatever the default, and only a model not yet running is
+# checked against what's free. So a second game's start, while the first's models load or after one
+# of them failed, starts only what's missing, or refuses naming it, and never stops a running one
 select_sizes() {
     memory_mb=$(total_memory_mb)
     free_mb=$(available_memory_mb)
@@ -98,22 +102,28 @@ select_sizes() {
         return 3
     fi
 
+    bonsai_running=$(running_size "$bonsai_sizes" bonsai_label)
+    qwen_running=$(running_size "$qwen_sizes" qwen_label)
+
     bonsai_size=""
     bonsai_override={{ ai_service_default_bonsai_size | quote }}
     if [ -f "$config/selection.env" ]; then
         . "$config/selection.env"
     fi
     bonsai_override=${AI_BONSAI_SIZE:-$bonsai_override}
+    if [ -n "$bonsai_running" ]; then
+        bonsai_override=$bonsai_running
+    fi
 
-    qwen_size=$tier_qwen
-    qwen_reserved_mb=0
-    if [ "$qwen_size" != none ]; then
+    qwen_size=${qwen_running:-$tier_qwen}
+    qwen_needed_mb=0
+    if [ "$qwen_size" != none ] && [ -z "$qwen_running" ]; then
         qwen_facts "$qwen_size"
         if ! files_present; then
             echo "reason=qwen-$qwen_size-not-downloaded"
             return 3
         fi
-        qwen_reserved_mb=$reserved_mb
+        qwen_needed_mb=$reserved_mb
     fi
 
     # Largest first, so the first that fits wins
@@ -126,7 +136,12 @@ select_sizes() {
         if [ -z "$bonsai_override" ] && [ "$memory_mb" -lt "$minimum_mb" ]; then
             continue
         fi
-        if [ $(( reserved_mb + qwen_reserved_mb )) -le "$budget_mb" ]; then
+        bonsai_needed_mb=$reserved_mb
+        if [ "$size" = "$bonsai_running" ]; then
+            bonsai_needed_mb=0
+        fi
+        needed_mb=$(( bonsai_needed_mb + qwen_needed_mb ))
+        if [ "$needed_mb" -eq 0 ] || [ "$needed_mb" -le "$budget_mb" ]; then
             bonsai_size=$size
             break
         fi
@@ -135,6 +150,11 @@ select_sizes() {
     echo "memory_mb=$memory_mb"
     echo "free_mb=$free_mb"
     echo "budget_mb=$budget_mb"
+    if [ -z "$bonsai_size" ] && [ -n "$bonsai_running" ]; then
+        # The running Bonsai always fits, so what doesn't is the Qwen beside it
+        echo "reason=qwen-$qwen_size-does-not-fit"
+        return 3
+    fi
     if [ -z "$bonsai_size" ]; then
         echo "reason=nothing-fits"
         return 3
@@ -146,19 +166,14 @@ select_sizes() {
     return 0
 }
 
-# Bonsai's context and prompt cache for this machine's tier, in the agent's .env.runtime, which its
-# runner reads after its .env: set_bonsai_runtime LABEL CONTEXT CACHE_RAM_MIB. Only those two lines
-# are this script's; anything else there (AI_SLEEP_IDLE_SECONDS, say) is the user's and stays
-set_bonsai_runtime() {
-    runtime="$config/$1.env.runtime"
+# Bonsai's context and prompt cache for this machine's tier, in the agent's own LABEL.env.tier:
+# write_tier_settings LABEL CONTEXT CACHE_RAM_MIB. Its runner reads LABEL.env, then this, then the
+# user's LABEL.env.runtime, which this script never writes, so a user's own setting wins. It stays
+# after a stop: a model started by hand then still runs at the tier's context
+write_tier_settings() {
     mkdir -p "$config"
-    {
-        if [ -f "$runtime" ]; then
-            grep -v -e '^AI_CONTEXT_SIZE=' -e '^AI_CACHE_RAM_MIB=' "$runtime"
-        fi
-        echo "AI_CONTEXT_SIZE=$2"
-        echo "AI_CACHE_RAM_MIB=$3"
-    } > "$runtime.new" && mv "$runtime.new" "$runtime"
+    printf 'AI_CONTEXT_SIZE=%s\nAI_CACHE_RAM_MIB=%s\n' "$2" "$3" > "$config/$1.env.tier.new" \
+        && mv "$config/$1.env.tier.new" "$config/$1.env.tier"
 }
 
 # Names the models a start started, for the API's readiness: name_the_selection BONSAI_SIZE
@@ -228,20 +243,8 @@ case "${1:-}" in
         select_sizes
         ;;
     start)
-        # Another game may already have started them: everything its tier runs, which is Bonsai
-        # alone on a tier with no Qwen. Measuring again would see less free memory, as those models
-        # are holding it, and could stop a size that game is using
-        bonsai_running=$(running_size "$bonsai_sizes" bonsai_label)
-        qwen_running=$(running_size "$qwen_sizes" qwen_label)
-        tier_qwen=""
-        memory_tier "$(total_memory_mb)"
-        if [ -n "$bonsai_running" ] && { [ -n "$qwen_running" ] || [ "$tier_qwen" = none ]; }; then
-            echo "bonsai=$bonsai_running"
-            echo "qwen=${qwen_running:-none}"
-            name_the_selection "$bonsai_running" "${qwen_running:-none}"
-            start_agent "$api_label" "$api_port" || exit $?
-            exit 0
-        fi
+        # Another game may already have started some of them: select_sizes keeps those and counts
+        # them as fitting, and start_agent leaves a running agent as it is
         selection=$(select_sizes)
         result=$?
         echo "$selection"
@@ -250,7 +253,7 @@ case "${1:-}" in
         qwen_size=$(echo "$selection" | sed -n 's/^qwen=//p')
         bonsai_context=$(echo "$selection" | sed -n 's/^bonsai_context=//p')
         bonsai_cache_ram_mib=$(echo "$selection" | sed -n 's/^bonsai_cache_ram_mib=//p')
-        set_bonsai_runtime "$(bonsai_label "$bonsai_size")" "$bonsai_context" "$bonsai_cache_ram_mib"
+        write_tier_settings "$(bonsai_label "$bonsai_size")" "$bonsai_context" "$bonsai_cache_ram_mib"
         bonsai_facts "$bonsai_size" "$bonsai_context"
         start_agent "$(bonsai_label "$bonsai_size")" "$port" || exit $?
         if [ "$qwen_size" != none ]; then

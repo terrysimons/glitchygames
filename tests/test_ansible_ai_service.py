@@ -1666,18 +1666,20 @@ def test_the_picker_chooses_the_same_on_both_platforms(
     assert result.returncode == (0 if 'bonsai' in expected else 3)
     assert values['memory_mb'] == environment['AI_MEMORY_MB']
     assert values['free_mb'] == environment['AI_AVAILABLE_MB']
-    assert service.tool_calls() == []
+    # select starts nothing: it only asks which models already run, as those count as fitting
+    asks = ('is-active', ' print ')
+    assert [call for call in service.tool_calls() if not any(ask in call for ask in asks)] == []
 
 
 # Each case: total and free memory, then what the start prints, the Bonsai context and prompt cache
-# written to its .env.runtime (or none, when nothing starts) and whether Qwen starts
+# written to its .env.tier (or none, when nothing starts) and whether Qwen starts
 class TierCase(BaseModel):
     """One machine's memory, and what a start must do on it.
 
     Attributes:
         memory: The faked total and free memory.
         printed: What the start must print, among its other lines.
-        runtime: The Bonsai context and prompt cache written to its .env.runtime, or None when
+        runtime: The Bonsai context and prompt cache written to its .env.tier, or None when
             nothing starts.
         qwen_starts: Whether Qwen is started.
     """
@@ -1777,9 +1779,10 @@ def test_the_picker_chooses_the_tier_by_total_memory(
     """The tier is chosen by total memory, then what's free decides whether its models fit (6.4.1).
 
     The real rendered script runs with only the memory faked: the tier's context and prompt cache
-    land in Bonsai's .env.runtime, which its runner reads, and Qwen starts only when the tier names
-    one. The models it started are named for the API, which is ready without an embedding model on
-    a machine that runs none.
+    land in Bonsai's .env.tier, which its runner reads after .env and before the user's own
+    .env.runtime (never written by the start), and Qwen starts only when the tier names one. The
+    models it started are named for the API, which is ready without an embedding model on a machine
+    that runs none.
     """
     service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
     _write_executable(service.tools / 'ss', SS_STUB)
@@ -1787,6 +1790,7 @@ def test_the_picker_chooses_the_tier_by_total_memory(
     service.download_every_model()
     bonsai = service.agent(role='reasoning')
     qwen = service.agent(role='embedding')
+    tier_file = service.config / f'{bonsai["label"]}.env.tier'
     runtime_file = service.config / f'{bonsai["label"]}.env.runtime'
 
     result = service.run(template='ai-service.sh.j2', arguments=['start'], environment=case.memory)
@@ -1802,13 +1806,14 @@ def test_the_picker_chooses_the_tier_by_total_memory(
     assert any(bonsai['label'] in call for call in started) is ('bonsai' in case.printed)
     assert any(qwen['label'] in call for call in started) is case.qwen_starts
     selection = service.config / 'selected-models.json'
+    assert not runtime_file.exists()
     if case.runtime is None:
-        assert not runtime_file.exists()
+        assert not tier_file.exists()
         assert started == []
         assert not selection.exists()
         return
     context, cache_ram = case.runtime
-    assert runtime_file.read_text(encoding='utf-8') == (
+    assert tier_file.read_text(encoding='utf-8') == (
         f'AI_CONTEXT_SIZE={context}\nAI_CACHE_RAM_MIB={cache_ram}\n'
     )
     expected_models = [bonsai['alias'], *([qwen['alias']] if case.qwen_starts else [])]
@@ -1823,10 +1828,10 @@ def test_the_picker_chooses_the_tier_by_total_memory(
 def test_the_tiers_settings_keep_the_users_own_runtime_overrides(
     tmp_path: Path, system: Literal['Darwin', 'Linux']
 ):
-    """.env.runtime is also where a user changes one model's settings (AI_SLEEP_IDLE_SECONDS).
+    """.env.runtime is the user's (agent.env.j2's header says so), and what it sets wins.
 
-    The start owns only the context and the prompt cache in it: it replaces those and keeps the
-    rest, so a tier never undoes a user's own setting.
+    The tier's context and cache go in .env.tier, which the runner reads before .env.runtime, so a
+    user's own AI_CONTEXT_SIZE beats the tier's and the start never rewrites the user's file.
     """
     service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
     _write_executable(service.tools / 'ss', SS_STUB)
@@ -1835,10 +1840,8 @@ def test_the_tiers_settings_keep_the_users_own_runtime_overrides(
     bonsai = service.agent(role='reasoning')
     runtime_file = service.config / f'{bonsai["label"]}.env.runtime'
     service.config.mkdir(parents=True, exist_ok=True)
-    runtime_file.write_text(
-        'AI_SLEEP_IDLE_SECONDS=60\nAI_CONTEXT_SIZE=262144\nAI_CACHE_RAM_MIB=8192\n',
-        encoding='utf-8',
-    )
+    users_own = 'AI_SLEEP_IDLE_SECONDS=60\nAI_CONTEXT_SIZE=262144\nAI_CACHE_RAM_MIB=8192\n'
+    runtime_file.write_text(users_own, encoding='utf-8')
 
     result = service.run(
         template='ai-service.sh.j2',
@@ -1847,9 +1850,147 @@ def test_the_tiers_settings_keep_the_users_own_runtime_overrides(
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert runtime_file.read_text(encoding='utf-8') == (
-        'AI_SLEEP_IDLE_SECONDS=60\nAI_CONTEXT_SIZE=32768\nAI_CACHE_RAM_MIB=1024\n'
+    assert runtime_file.read_text(encoding='utf-8') == users_own
+    tier_file = service.config / f'{bonsai["label"]}.env.tier'
+    assert tier_file.read_text(encoding='utf-8') == 'AI_CONTEXT_SIZE=32768\nAI_CACHE_RAM_MIB=1024\n'
+    arguments = service.llama_server_arguments(role='reasoning')
+    assert arguments[arguments.index('--ctx-size') + 1] == '262144'
+    assert arguments[arguments.index('--cache-ram') + 1] == '8192'
+    assert arguments[arguments.index('--sleep-idle-seconds') + 1] == '60'
+
+
+def starts_in(*, service: ServiceHome) -> list[str]:
+    """The agent starts the service manager's stub saw.
+
+    Returns:
+        Each systemctl --user start or launchctl bootstrap call.
+    """
+    return [
+        call
+        for call in service.tool_calls()
+        if call.split()[1:3] == ['--user', 'start'] or call.split()[1:2] == ['bootstrap']
+    ]
+
+
+class RunningCase(BaseModel):
+    """A start while some models already run, and what it must do.
+
+    Attributes:
+        memory: The faked total and free memory.
+        running: The roles whose agents already run.
+        printed: What the start must print, among its other lines.
+        exit_code: The start's exit code.
+        started_roles: The roles whose agents the start starts.
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    memory: dict[str, str]
+    running: tuple[str, ...]
+    printed: dict[str, str]
+    exit_code: int
+    started_roles: tuple[str, ...]
+
+
+# A running model stays and counts as fitting, and only a model not yet running is checked against
+# what's free. 8 GB tier: Qwen 0.6b reserves 1,464, the game 768
+RUNNING_CASES = [
+    # Game 1's start brought Bonsai up and Qwen isn't up yet (or failed): 2,300 free leaves 1,532
+    pytest.param(
+        RunningCase(
+            memory={'AI_MEMORY_MB': '7800', 'AI_AVAILABLE_MB': '2300'},
+            running=('reasoning',),
+            printed={'bonsai': '2b', 'qwen': '0.6b'},
+            exit_code=0,
+            started_roles=('embedding', 'api'),
+        ),
+        id='8 GB, Bonsai running, Qwen fits',
+    ),
+    # 2,000 free leaves 1,232, short of Qwen's 1,464: refused, naming Qwen, starting nothing
+    pytest.param(
+        RunningCase(
+            memory={'AI_MEMORY_MB': '7800', 'AI_AVAILABLE_MB': '2000'},
+            running=('reasoning',),
+            printed={'reason': 'qwen-0.6b-does-not-fit'},
+            exit_code=3,
+            started_roles=(),
+        ),
+        id='8 GB, Bonsai running, Qwen does not fit',
+    ),
+    # Both running: nothing to check, however little is free
+    pytest.param(
+        RunningCase(
+            memory={'AI_MEMORY_MB': '16179', 'AI_AVAILABLE_MB': '500'},
+            running=('reasoning', 'embedding'),
+            printed={'bonsai': '2b', 'qwen': '0.6b'},
+            exit_code=0,
+            started_roles=('api',),
+        ),
+        id='16 GB, both running',
+    ),
+]
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+@pytest.mark.parametrize('case', RUNNING_CASES)
+def test_a_start_counts_running_models_as_fitting(
+    tmp_path: Path, system: Literal['Darwin', 'Linux'], case: RunningCase
+):
+    """A second start never refuses because of memory a running model holds (fix round 1).
+
+    The free figure already leaves out what the running models hold, so measuring as if nothing ran
+    refused a start with Bonsai up (8 GB, 5.5 GB free: Bonsai up leaves about 3.6 GB, and 3.6 less
+    0.75 is short of 1,948 + 1,464), exit 3 while Bonsai was running.
+    """
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    _write_executable(service.tools / 'ss', SS_STUB)
+    _write_executable(service.tools / 'lsof', LSOF_STUB)
+    service.download_every_model()
+    labels = {role: service.agent(role=role)['label'] for role in ('reasoning', 'embedding', 'api')}
+
+    result = service.run(
+        template='ai-service.sh.j2',
+        arguments=['start'],
+        environment={
+            **case.memory,
+            'RUNNING_LABELS': ' '.join(labels[role] for role in case.running),
+        },
     )
+
+    values = parse_key_values(output=result.stdout)
+    assert case.printed.items() <= values.items(), result.stdout + result.stderr
+    assert values.get('reason') != 'nothing-fits'
+    assert result.returncode == case.exit_code
+    started = starts_in(service=service)
+    started_roles = [
+        role for role, label in labels.items() if any(label in call for call in started)
+    ]
+    assert sorted(started_roles) == sorted(case.started_roles)
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+def test_a_running_bonsai_size_is_kept_not_replaced(
+    tmp_path: Path, system: Literal['Darwin', 'Linux']
+):
+    """Another game's 4B keeps running: the start doesn't pick 2B, the default, beside it."""
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    _write_executable(service.tools / 'ss', SS_STUB)
+    _write_executable(service.tools / 'lsof', LSOF_STUB)
+    service.download_every_model()
+    four_b = 'ai.glitchygames.bonsai-2-4b.llama-cpp'
+    assert four_b in [agent['label'] for agent in service.agents()]
+
+    result = service.run(
+        template='ai-service.sh.j2',
+        arguments=['start'],
+        environment={'AI_MEMORY_MB': '16179', 'AI_AVAILABLE_MB': '3000', 'RUNNING_LABELS': four_b},
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert parse_key_values(output=result.stdout)['bonsai'] == '4b'
+    assert not [call for call in starts_in(service=service) if 'bonsai-2-2b' in call]
 
 
 @needs_a_posix_shell
