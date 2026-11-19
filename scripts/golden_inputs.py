@@ -544,6 +544,133 @@ def drawing_fire_script() -> InputScript:
 # unchanged.
 
 
+def zombies_aint_my_neighbors_script() -> InputScript:
+    """Zombies Ain't My Neighbors: slot 1 blinks once, then the keyboard joins as P1.
+
+    Enter joins the keyboard after one full blink cycle (the title's BLINK_SECONDS shown, then
+    hidden), so the recording holds slot 1 blinking before it joins; the script's frames then
+    run on while the three free slots blink. Keyboard only: no golden session has a gamepad
+    (tests/replay/golden_replay_controls.py).
+
+    Returns:
+        The input script.
+
+    """
+    from zombies_aint_my_neighbors.title import BLINK_SECONDS
+
+    join_frame = round(2 * BLINK_SECONDS / FRAME_SECONDS)
+    script = InputScript()
+    script.tap(join_frame, pygame.K_RETURN, held_frames=2)
+    return script
+
+
+# The keys the neighborhood golden holds, by name (``NEIGHBORHOOD_KEYS``)
+type HeldStretch = tuple[tuple[str, ...], int, int]
+NEIGHBORHOOD_KEYS: dict[str, int] = {
+    'W': pygame.K_w,
+    'A': pygame.K_a,
+    'S': pygame.K_s,
+    'D': pygame.K_d,
+    'UP': pygame.K_UP,
+    'DOWN': pygame.K_DOWN,
+    'LEFT': pygame.K_LEFT,
+    'RIGHT': pygame.K_RIGHT,
+    'J': pygame.K_j,
+    'K': pygame.K_k,
+    'RSHIFT': pygame.K_RSHIFT,
+}
+# The neighborhood golden's opening: (keys held, first frame, frame after the last). WASD round a
+# square, the arrows round another, W and D together for a diagonal; then the Channel Changer
+# (feature plan 6): up-left firing J, to the top-left TV, Right Shift until it is destroyed
+# (frame 658), then up to rescue the Lawn-Chair Reader (frame 744, feature plan 7); then the
+# laser pointer (feature plan 8): D turns Dex toward the zombie coming along the top of the yard,
+# K switches to the laser pointer, J holds it through its warm-up into a lit dot that pulls the
+# zombie, and K switches back
+NEIGHBORHOOD_OPENING: tuple[HeldStretch, ...] = (
+    (('D',), 10, 50),
+    (('S',), 50, 90),
+    (('A',), 90, 130),
+    (('W',), 130, 170),
+    (('RIGHT',), 170, 200),
+    (('DOWN',), 200, 230),
+    (('LEFT',), 230, 260),
+    (('UP',), 260, 290),
+    (('W', 'D'), 290, 320),
+    (('A', 'W', 'J'), 320, 410),
+    (('A',), 410, 470),
+    (('W',), 470, 497),
+    (('A',), 497, 499),
+    (('RSHIFT',), 499, 700),
+    (('W',), 700, 760),
+    (('D',), 760, 800),
+    (('K',), 800, 802),
+    (('J',), 802, 950),
+    (('K',), 950, 952),
+)
+# The rest of the stage, cleared: planned by scripts/plan_neighborhood_route.py (Dex walks to
+# the nearest standing neighbor holding J, then out through the gate). Re-plan and paste its
+# output here whenever gameplay changes; the game's test of the golden fails when the golden no
+# longer reaches stage 2, or this route no longer matches the plan
+# (cleared at frame 1771, the STAGE 2 card at 1861, 3 rescued, a zombie lured for 125 frames:
+# recorded with --frames 2161)
+NEIGHBORHOOD_STAGE_CLEAR_ROUTE: tuple[HeldStretch, ...] = (
+    (('A', 'S', 'J'), 952, 960),
+    (('A', 'J'), 960, 1189),
+    (('A', 'S', 'J'), 1189, 1196),
+    (('S', 'J'), 1196, 1352),
+    (('D', 'W', 'J'), 1352, 1409),
+    (('J',), 1409, 1432),
+    (('D', 'W', 'J'), 1432, 1679),
+    (('D', 'J'), 1679, 1772),
+)
+
+
+def held_keys_script(stretches: tuple[HeldStretch, ...]) -> InputScript:
+    """Return a script holding keys by stretches.
+
+    Each frame presses only the keys that become held and releases only those let go, so a key
+    held across stretches stays down.
+
+    Args:
+        stretches: (key names, first frame, frame after the last), in frame order.
+
+    Returns:
+        The input script.
+
+    """
+    script = InputScript()
+    held: set[str] = set()
+    boundaries = sorted({frame for _keys, start, end in stretches for frame in (start, end)})
+    for frame in boundaries:
+        held_now: tuple[str, ...] = next(
+            (keys for keys, start, end in stretches if start <= frame < end), ()
+        )
+        wanted = set(held_now)
+        events = [release(NEIGHBORHOOD_KEYS[key]) for key in sorted(held - wanted)]
+        events += [press(NEIGHBORHOOD_KEYS[key]) for key in sorted(wanted - held)]
+        if events:
+            script.at(frame, *events)
+        held = wanted
+    return script
+
+
+def zombies_aint_my_neighbors_neighborhood_script() -> InputScript:
+    """Zombies Ain't My Neighbors' neighborhood: every key it reads, a stage cleared, stage 2.
+
+    The neighborhood reads the keyboard as polled input (held scancodes), so each key is held for
+    a stretch (``NEIGHBORHOOD_OPENING``): walking every way, the Channel Changer destroying a
+    TV, a rescue. Then the rest of the stage (``NEIGHBORHOOD_STAGE_CLEAR_ROUTE``, planned by
+    scripts/plan_neighborhood_route.py): neighbor to neighbor, out through the gate, the cheer,
+    the STAGE 2 card and stage 2. The recording begins in the neighborhood with the keyboard as
+    P1 (built from options alone), under the goldens' seed.
+
+    Returns:
+        The input script.
+
+    """
+    return held_keys_script(NEIGHBORHOOD_OPENING + NEIGHBORHOOD_STAGE_CLEAR_ROUTE)
+
+
 def _pause_with(tail: InputScript, *, key: int, pause_frame: int, resume_frame: int) -> None:
     """Pause with a key, then resume from the engine's pause screen with SPACE.
 
@@ -629,6 +756,50 @@ def mr_muncher_controls() -> InputScript:
         tail.tap(tap_frame, key, held_frames=10)
     _pause_with(tail, key=pygame.K_p, pause_frame=65, resume_frame=95)
     tail.at(120, press(pygame.K_q))
+    return tail
+
+
+def zombies_aint_my_neighbors_controls() -> InputScript:
+    """Zombies Ain't My Neighbors' title: pause, begin, back out, quit with Q and ESC.
+
+    P pauses the title and SPACE resumes it; the joined keyboard's keypad Enter (start, as the
+    script's main Enter was) opens the feature card, and Backspace (the card's back) returns to
+    the title before the card's 2 s are up, so the recording ends on the title (the golden rule:
+    it ends in the game's scene). The title binds
+    no quit of its own: the engine's Scene quits on the release of Q or ESC, released together
+    as PaddleSlap's tail does.
+
+    Returns:
+        The controls tail (frames count from the tail's first frame).
+
+    """
+    tail = InputScript()
+    _pause_with(tail, key=pygame.K_p, pause_frame=5, resume_frame=35)
+    tail.tap(50, pygame.K_KP_ENTER, held_frames=2)
+    tail.tap(70, pygame.K_BACKSPACE, held_frames=2)
+    tail.at(90, press(pygame.K_q))
+    tail.at(92, press(pygame.K_ESCAPE))
+    tail.at(100, release(pygame.K_q), release(pygame.K_ESCAPE))
+    return tail
+
+
+def zombies_aint_my_neighbors_neighborhood_controls() -> InputScript:
+    """The neighborhood: pause with Enter, keypad Enter and P, quit with Q and ESC.
+
+    Each pause is resumed with SPACE. The neighborhood binds no quit of its own: the engine's
+    Scene quits on the release of Q or ESC, released together as PaddleSlap's tail does.
+
+    Returns:
+        The controls tail (frames count from the tail's first frame).
+
+    """
+    tail = InputScript()
+    _pause_with(tail, key=pygame.K_RETURN, pause_frame=5, resume_frame=35)
+    _pause_with(tail, key=pygame.K_KP_ENTER, pause_frame=50, resume_frame=80)
+    _pause_with(tail, key=pygame.K_p, pause_frame=95, resume_frame=125)
+    tail.at(140, press(pygame.K_q))
+    tail.at(142, press(pygame.K_ESCAPE))
+    tail.at(150, release(pygame.K_q), release(pygame.K_ESCAPE))
     return tail
 
 

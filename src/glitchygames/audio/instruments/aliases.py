@@ -189,4 +189,390 @@ ALIASES: Final[dict[str, str]] = {
     # https://en.wikipedia.org/wiki/Kanun (redirects to the Qanun page): "The qanun, kanun, ganoun
     # or kanoon"; another spelling of the qanun
     'kanun': 'qanun',
+    # --- Batch 5's bars, plaques, tubes and stones, in the order of
+    # plans/data/instrument-audit/batch-5.tsv
+    # https://en.wikipedia.org/wiki/Glockenspiel: "In the United Kingdom, the United States, and
+    # Canada, a form of glockenspiel is called a bell lyre, bell lyra, or lyra-glockenspiel."; the
+    # marching glockenspiel in a lyre-shaped frame, so another name for the glockenspiel
+    'bell lyra': 'glockenspiel',
+    # https://en.wikipedia.org/wiki/Boomwhacker: the page's own title is the singular ("A
+    # Boomwhacker is a percussion instrument ..."); another name for boomwhackers
+    'boomwhacker': 'boomwhackers',
+    # https://en.wikipedia.org/wiki/Saron_(instrument): "Saron barung (sometimes just saron)";
+    # another name for the saron
+    'saron barung': 'saron',
+    # https://www.vsl.co.at/academy/percussion/glockenspiel: "Glockenspiel (orchestra bells)";
+    # another name for the glockenspiel
+    'orchestra bells': 'glockenspiel',
+    # https://en.wikipedia.org/wiki/Tubular_bells: "Tubular bells (also known as chimes)"; another
+    # name for the tubular bells
+    'chimes': 'tubular bells',
+    # https://en.wikipedia.org/wiki/Tubular_bells: the infobox's alternative names, "Chimes",
+    # "orchestral chimes"; another name for the tubular bells
+    'orchestral chimes': 'tubular bells',
+    # --- Batch 5's gongs, bells, pans and drums (and `antique cymbals`, a plaque row written
+    # here), in the order of plans/data/instrument-audit/batch-5.tsv
+    # https://en.wikipedia.org/wiki/Standing_bell: the page lists the "rin gong" and "Japanese rin
+    # played as struck idiophone" among the standing bells; the struck standing bell is the
+    # catalog's singing bowl, and the page gives the rin no pitch of its own
+    'rin': 'singing bowl',
+    # https://pan-mag.com/basics-of-steelpan-instruments-in-the-steel-orchestra/: the tenor pan is
+    # "sometimes referred to as the lead pan, soprano pan or single tenor", range "most often
+    # from C4 to E6", which matches the catalog tenor steel pan's range (C4 to E6)
+    'soprano steel pan': 'tenor steel pan',
+    # https://en.wikipedia.org/wiki/Crotales: crotales are "sometimes called antique cymbals"
+    'antique cymbals': 'crotales',
+    # https://en.wikipedia.org/wiki/Glass_harp: "verrillon or ghost fiddle" is another name of the
+    # glass harp; this crosses families (friction instruments), as aliases are catalog-wide
+    'verrillon': 'glass harp',
+    # https://pan-mag.com/basics-of-steelpan-instruments-in-the-steel-orchestra/: the tenor pan is
+    # "sometimes referred to as the lead pan, soprano pan or single tenor"
+    'lead pan': 'tenor steel pan',
+    # https://en.wikipedia.org/wiki/Steelpan: its table lists "Single Tenor, or Ping Pong" at
+    # soprano pitch, the same top pan the PAN Magazine page calls the tenor pan
+    'ping pong': 'tenor steel pan',
+    # https://en.wikipedia.org/wiki/Mbira: the infobox's other names include "sansa, sansu, sanza,
+    # thumb piano"; the lead has "kalimba and zanza (or variant spellings)", and `zanza` is
+    # already this entry's alias (this crosses families, plucked idiophones)
+    'sanza': 'mbira',
+    # https://en.wikipedia.org/wiki/Mbira: as `sanza` above, from the same infobox list
+    'sansa': 'mbira',
+    # --- Batch 6's players' instruments (electronic), in the order of
+    # plans/data/instrument-audit/batch-6.tsv
+    # https://en.wikipedia.org/wiki/Vox_Continental: "The Vox Continental is a transistorised combo
+    # organ that was manufactured between 1962 and 1971 by the British musical equipment
+    # manufacturer Vox."; the model is the catalog combo organ (organs family), so this crosses
+    # families, as aliases are catalog-wide
+    'vox continental': 'combo organ',
+    # https://en.wikipedia.org/wiki/Theremin: "The theremin (; originally known as the ætherphone,
+    # etherphone, thereminophone or termenvox/thereminvox)"; another name for the theremin
+    'thereminvox': 'theremin',
+    # https://www.sweetwater.com/store/detail/EtherwaveStd: "Moog Etherwave Standard Theremin -
+    # Ash"; Moog's model name for a theremin, so another name for the catalog theremin (a name
+    # source only: Wikipedia has no Etherwave page and the National Music Centre record returned
+    # 403)
+    'etherwave': 'theremin',
+    # https://en.wikipedia.org/wiki/MOS_Technology_6581 (the SID's "four basic waveform types
+    # selectable: triangle, sawtooth, pulse (with variable duty cycle), and pseudorandom
+    # noise"); the audit's generic name for the SID's sawtooth (its alias list: "sid chip sawtooth
+    # -> chip sawtooth"), the name a person asking for a chip sawtooth would type
+    'chip sawtooth': 'sid sawtooth',
+    # https://en.wikipedia.org/wiki/General_Instrument_AY-3-8910 ("It was also manufactured under
+    # license by Yamaha (with a selectable clock divider pin and a double-resolution and
+    # double-rate volume envelope table) as the YM2149F; the Atari ST uses this version."): the
+    # licensed chip, its tone channels the AY's; the differences are the clock pin and the
+    # envelope table, not the square tone
+    'ym2149': 'ay 3 8910',
+    # --- Batch 7's bowed strings, in the order of plans/data/instrument-audit/batch-7.tsv
+    # https://en.wikipedia.org/wiki/Hurdy-gurdy ("In Poland it is called 'cranked lyre' (lira
+    # korbowa)."): the Polish name for the hurdy gurdy; an alias is a name, not a build, so it
+    # does not share the approximating hurdy gurdy's sound as a sound-alike would
+    'lira korbowa': 'hurdy gurdy',
+    # https://musicbrainz.org/instrument/8f15287f-48c1-4a7c-a7f7-30653c490279 (the viol family
+    # lists the consort as "Soprano viol (treble)" and the first grouping as "Treble/Diskant or
+    # Dessus viol"); https://en.wikipedia.org/wiki/Viol ("treble (dessus in French)"): the
+    # catalog treble viol under another name
+    'soprano viol': 'treble viol',
+    # https://www.thedailystar.net/supplements/28th-anniversary-supplements/deshi-first/news/folk-musical-instruments-the-land-1704676
+    # ("the violin; popularly known as behala"): the violin's Bengali name, so an alias, not a
+    # sound-alike
+    'behala': 'violin',
+    # https://en.wikipedia.org/wiki/Morin_khuur (the Matouqin title redirects there; the Huqin
+    # page lists "Matouqin (馬頭琴) (Inner Mongolia)"): the Chinese name for the morin khuur
+    'matouqin': 'morin khuur',
+    # https://en.wikipedia.org/wiki/Kemenche (the Kemençe title redirects there and opens
+    # "Kemenche (Turkish: kemençe; Greek: κεμεντζές)"): the Turkish spelling of the catalog
+    # kemenche
+    'kemence': 'kemenche',
+    # --- Batch 8's voices, in the order of plans/data/instrument-audit/batch-8.tsv
+    # https://en.wikipedia.org/wiki/Contralto ("A contralto ... (sometimes alto) is a classical
+    # female singing voice whose vocal range is the lowest of such voice types."): the solo voice
+    # the catalog's alto ah is titled for ("Alto (contralto)"), F3 to F5 as the page gives it
+    'contralto': 'alto ah',
+    # https://en.wikipedia.org/wiki/Boy_soprano ("A boy soprano ... or boy treble ... is a young
+    # male singer with a voice in the soprano range, a range that is often still called the
+    # treble voice range"): the catalog's treble ah, titled "Treble (boy soprano)"
+    'boy soprano': 'treble ah',
+    # --- Batch 9's flutes, in the order of plans/data/instrument-audit/batch-9.tsv
+    # https://en.wikipedia.org/wiki/Tin_whistle ("The tin whistle, also known as the penny
+    # whistle, is a simple six-holed woodwind instrument."): another name for the tin whistle
+    'penny whistle': 'tin whistle',
+    # https://en.wikipedia.org/wiki/Pan_flute ("In Bolivia, the panpipes of the altiplano are
+    # known as jula-jula, and those of the Andean range as julu-julu."): the altiplano's Bolivian
+    # name for the panpipes, which the page does not tie to the siku, so the catalog's pan flute
+    'jula jula': 'pan flute',
+    # The same page and sentence: the Andean range's Bolivian name for the panpipes
+    'julu julu': 'pan flute',
+    # https://en.wikipedia.org/wiki/Pan_flute ("A pan flute (also known as panpipes or syrinx) is
+    # a musical instrument based on the principle of the closed tube"; "Ancient Greeks called
+    # this instrument Syrinx"): the Greek name for the catalog's pan flute
+    'syrinx': 'pan flute',
+    # https://www.windkanal.de/2-windkanal/88-give-your-spirit-a-voice ("In the original language
+    # of the Lakota, the flute is called Siyotanka and is also known as "love flute" and
+    # "courting flute". Today, the name Native American Flute or Native American Style Flute has
+    # generally prevailed."); https://www.horniman.ac.uk/object/M47-1991 ("Siyotanka, courting
+    # flute."): the Lakota name for the catalog's native american flute
+    'siyotanka': 'native american flute',
+    # --- Batch 10's brass, in the order of plans/data/instrument-audit/batch-10.tsv
+    # https://en.wikipedia.org/wiki/Piccolo_trumpet ("Most piccolo trumpets are built to play in
+    # either B-flat or A, using a separate leadpipe for each key."): one instrument set to
+    # either key by its leadpipe, so the key-first name is the catalog's piccolo trumpet
+    'b flat piccolo trumpet': 'piccolo trumpet',
+    # https://en.wikipedia.org/wiki/Tuba ("The euphonium, pitched in 9' B-flat a fourth above
+    # the bass tuba in F, is sometimes referred to as a tenor tuba, particularly by British
+    # composers."): another name for the euphonium
+    'tenor tuba': 'euphonium',
+    # https://en.wikipedia.org/wiki/Cornett ("The ordinary curved treble cornett is made by
+    # splitting a length of wood, usually walnut, boxwood or other tonewoods like plum, cherry
+    # or pear."): the page makes the ordinary cornett the treble
+    'treble cornett': 'cornett',
+    # https://collections.ed.ac.uk/stcecilias/record/99179 ("In French the instrument was called
+    # cornet a pistons (cornet with pistons - meaning valves) to distinguish it from its
+    # predecessor the cornet de poste (post horn)."): the French name for the catalog's cornet
+    'cornet a pistons': 'cornet',
+    # https://en.wikipedia.org/wiki/Tenor_horn ("The tenor horn (British English; alto horn in
+    # American English, sometimes E-flat horn) is a brass instrument in the saxhorn family
+    # pitched in E-flat with three piston valves."): the British name for the alto horn
+    'tenor horn': 'alto horn',
+    # https://en.wikipedia.org/wiki/Cornett ("The cornett (Italian: cornetto, German: Zink) is a
+    # lip-reed wind instrument"): the German name for the cornett
+    'zink': 'cornett',
+    # --- Batch 10's second half: the natural horns and trumpets, shells and animal horns
+    # https://en.wikipedia.org/wiki/Conch_(instrument) ("In Tibet it is known as dung-dkar or
+    # dungkar."): the Tibetan name for the catalog's conch
+    'dung dkar': 'conch',
+    # https://en.wikipedia.org/wiki/Hakgediya ("The hakgediya is a type of conch shell (the
+    # shell of a large marine gastropod mollusk) which is used as a kind of trumpet"): the conch
+    # shell blown as a trumpet, with no trait of its own (its notes vary only in volume)
+    'hakgediya': 'conch',
+    # https://en.wikipedia.org/wiki/Titanostrombus_galeatus ("The shells of this species were
+    # used as a wind instruments by the Chavín," "They are still used for this purpose in the
+    # Andes, where they are known as pututu."): the Andean name for the catalog's conch
+    'pututu': 'conch',
+    # https://en.wikipedia.org/wiki/Conch_(instrument) ("The sacred chank, Turbinella pyrum, is
+    # known in India as the shankha"): the Indian name for the catalog's conch
+    'shankha': 'conch',
+    # https://en.wikipedia.org/wiki/French_horn (infobox, other names: "German: Horn, Waldhorn,
+    # Ventilhorn"): a German name for the catalog's french horn
+    'waldhorn': 'french horn',
+    # https://en.wikipedia.org/wiki/Natural_horn ("In 1753 Anton Hampel alongside Johann
+    # Werner,[who?] developed the Inventionshorn, built with a fixed mouthpiece so that the horn
+    # remained at the same distance no matter how many crooks were added."): the natural horn
+    # with crooks, no valves, by a design name
+    'inventionshorn': 'natural horn',
+    # https://en.wikipedia.org/wiki/Didgeridoo ("Yiḏaki (transcribed yidaki in English,
+    # sometimes spelt yirdaki) is one of the most commonly used names"): a name for the
+    # catalog's didgeridoo
+    'yidaki': 'didgeridoo',
+    # https://en.wikipedia.org/wiki/Didgeridoo ("In the Bininj Kunwok language of West Arnhem
+    # Land it is known as mako (pronounced, and sometimes spelt, as mago)."): the West Arnhem
+    # Land name for the catalog's didgeridoo
+    'mako': 'didgeridoo',
+    # https://en.wikipedia.org/wiki/Alphorn ("The alphorn (German: Alphorn, Alpenhorn; French:
+    # cor des Alpes; Italian: corno alpino) is a traditional lip-reed wind instrument."):
+    # another name for the catalog's alphorn
+    'alpenhorn': 'alphorn',
+    # https://en.wikipedia.org/wiki/Conch_(instrument) ("The Arawak word 'fotuto' was used to
+    # describe this instrument, and is still used to this day to refer to conch instruments,"):
+    # another name for the catalog's conch
+    'fotuto': 'conch',
+    # --- Batch 11's double reeds, in the order of plans/data/instrument-audit/batch-11.tsv
+    # https://en.wikipedia.org/wiki/Cor_anglais ("The cor anglais ... or English horn (mainly
+    # North America), is a double-reed woodwind instrument in the oboe family."): another name
+    # for the catalog's english horn
+    'cor anglais': 'english horn',
+    # https://en.wikipedia.org/wiki/Bass_oboe ("The bass oboe or baritone oboe is a double reed
+    # instrument in the woodwind family."): another name for the catalog's bass oboe
+    'baritone oboe': 'bass oboe',
+    # https://en.wikipedia.org/wiki/Bassoon ("The term for bassoon used in classical music scores
+    # and parts is often its Italian name fagotto (plural fagotti), which referred initially to
+    # the dulcian. This word, adopted in many other European languages as fagot, fagote, or in
+    # German, Fagott, comes from an Old French word meaning a bundle of sticks."): the German
+    # name of the modern bassoon
+    'fagott': 'bassoon',
+    # https://en.wikipedia.org/wiki/Rackett ("The rackett, raggett, cervelas, or sausage bassoon
+    # is a Renaissance-era double reed wind instrument"): another name for the catalog's rackett
+    'cervelas': 'rackett',
+    # https://en.wikipedia.org/wiki/Gyaling ("As its name indicates, it is the Chinese double reed
+    # Suona horn (much like the Iranian sorna) used mainly in Tibetan monasteries during puja
+    # (chanting and prayer)"): the suona under its Tibetan name
+    'gyaling': 'suona',
+    # https://en.wikipedia.org/wiki/Zurna ("Also called sunay, birbynė, lettish horn, zurla or
+    # zurle, surla, sornai, zournas, zurma, or zurnes."): another name for the catalog's zurna
+    'zurla': 'zurna',
+    # https://en.wikipedia.org/wiki/Bombard_(musical_instrument) ("The bombard (Breton: bombard,
+    # talabard, French: bombarde) is a contemporary family of oboes widely used to play
+    # traditional Breton music, where it is considered emblematic."): the Breton instrument that
+    # is the catalog's bombarde
+    'bombard': 'bombarde',
+    # https://en.wikipedia.org/wiki/Surna (a disambiguation page: "Zurna or Surna, a
+    # multinational outdoor wind instrument" and "Sorna or Surna, an ancient Iranian woodwind
+    # instrument"): the name also covers the sorna, a distinct instrument that is not in the
+    # catalog, so it stands for the zurna, the disambiguation's first sense
+    'surna': 'zurna',
+    # https://en.wikipedia.org/wiki/Zurna (its Persian name: "Persian: karna/Kornay/surnay"):
+    # another name for the catalog's zurna. The Sorna page gives "surnāy" for the sorna too, so
+    # like surna it stands for the zurna, the sense the Zurna page gives directly
+    'surnay': 'zurna',
+    # https://en.wikipedia.org/wiki/Zurna ("Also called sunay, birbynė, lettish horn, zurla or
+    # zurle, surla, sornai, zournas, zurma, or zurnes." and "Greek: ζουρνάς"): the Greek name of
+    # the catalog's zurna
+    'zournas': 'zurna',
+    # https://en.wikipedia.org/wiki/Suona ("The suona, also called dida, laba or haidi, is a
+    # traditional double-reeded Chinese musical instrument."): another name for the catalog's
+    # suona
+    'haidi': 'suona',
+    # --- Batch 12's bagpipes, in the order of plans/data/instrument-audit/batch-12.tsv
+    # https://en.wikipedia.org/wiki/Uilleann_pipes ("also known as Union pipes and sometimes called
+    # Irish pipes, are the characteristic national bagpipe of Ireland."): another name for the
+    # catalog's uilleann pipes
+    'irish pipes': 'uilleann pipes',
+    # https://en.wikipedia.org/wiki/Border_pipes ("Other names have been used for the instrument:
+    # Lowland pipes and reel pipes in Scotland, and half-long pipes in Northumberland and
+    # Durham."): another name for the catalog's border pipes
+    'lowland pipes': 'border pipes',
+    # The same page: the Northumbrian name of the catalog's border pipes
+    'half long pipes': 'border pipes',
+    # https://en.wikipedia.org/wiki/Galician_gaita ("The Galician gaita (Galician: Gaita galega,
+    # Portuguese: Gaita galega, Spanish: Gaita gallega) is the traditional instrument of Galicia
+    # and northern Portugal."): the Galician name of the catalog's galician gaita
+    'gaita galega': 'galician gaita',
+    # --- Batch 13's organs: the organ stops, in the order of
+    # plans/data/instrument-audit/batch-13.tsv
+    # http://www.organstops.org/o/OpenDiapason.html (the Encyclopedia of Organ Stops; its
+    # Principal entry lists the stop's names "Principal English" "Diapason English" "Open
+    # Diapason English") and Audsley, Organ-Stops and Their Artistic Registration (1921,
+    # https://archive.org/download/cu31924086010331/cu31924086010331_djvu.txt), DIAPASON: "Ger.,
+    # Prinzipal. Ital., Principale. Fr., Montre."; OPEN DIAPASON, of the manual: "In the former it
+    # is invariably of 8 ft.": the English name of the principal stop, the catalog's pipe organ
+    # principal (8')
+    'open diapason': 'pipe organ principal',
+    # Audsley, Organ-Stops and Their Artistic Registration (1921,
+    # https://archive.org/download/cu31924086010331/cu31924086010331_djvu.txt), TRUMPET:
+    # "TRUMPET.— Fr., Trompette. Ger., Trompete." "The manual lingual stop, of 8 ft. pitch, to
+    # which these names are given by the organ-builders of different countries" (OCR errors in the
+    # archive.org text corrected); the Encyclopedia of Organ Stops
+    # (http://www.organstops.org/t/Trumpet.html) lists "Trompette French" among the stop's names:
+    # the French name of the trumpet stop, the catalog's pipe organ reed ("Pipe organ, trumpet
+    # 8'")
+    'organ trompette': 'pipe organ reed',
+    # --- Batch 13's organs: the organs as instruments, in the order of
+    # plans/data/instrument-audit/batch-13.tsv
+    # https://en.wikipedia.org/wiki/Calliope_(instrument) ("is an American musical instrument that
+    # produces sound by sending a gas, originally steam or, more recently, compressed air, through
+    # large whistles—originally locomotive whistles."): the calliope blown by compressed air, the
+    # same whistles, which no source sets apart in sound; the catalog's calliope
+    'air calliope': 'calliope',
+    # https://en.wikipedia.org/wiki/Calliope_(instrument)#Calliaphone ("The air-driven calliope is
+    # sometimes called a calliaphone, the name given to it by Norman Baker"): the air calliope's
+    # other name, so the catalog's calliope
+    'calliaphone': 'calliope',
+    # --- Batch 15's keyboards: the pianos, in the order of
+    # plans/data/instrument-audit/batch-15.tsv
+    # https://en.wikipedia.org/wiki/Rhodes_piano ("The Rhodes piano (also known as the Fender
+    # Rhodes piano) is an electric piano invented by Harold Rhodes"; the name Fender Rhodes
+    # redirects to this page): the same instrument the catalog's tine electric piano builds (its
+    # source comment in electromechanical.py cites https://en.wikipedia.org/wiki/Fender_Rhodes)
+    'fender rhodes': 'tine electric piano',
+    # --- Batch 16's free reeds: the mouth-blown free reeds, in the order of
+    # plans/data/instrument-audit/batch-16.tsv (half A, the bellows free reeds, has no alias)
+    # https://en.wikipedia.org/wiki/Richter-tuned_harmonica ("The Richter-tuned harmonica,
+    # 10-hole harmonica (in Asia), or blues harp (in America), is the most widely known type of
+    # harmonica", and "Here is the layout for a standard diatonic harmonica, labeled C, starting
+    # on middle C (C4)"): a Richter layout is a tuning, no trait the build makes, and the
+    # catalog's harmonica (free_reeds.py, "Diatonic harmonica in C", C4-C7) is that instrument.
+    # The name drops the page's hyphenated "-tuned" (catalog names hold no hyphens)
+    'richter harmonica': 'harmonica',
+    # --- Batch 17's harps: the frame harps, in the order of
+    # plans/data/instrument-audit/batch-17.tsv (half A; its other rows drop or wait)
+    # https://en.wikipedia.org/wiki/Pedal_harp ("The pedal harp (also known as the concert harp) is
+    # a large and technologically modern harp", with "hornbostel_sachs = 322.222"): the concert
+    # harp's other name, so the catalog's concert harp
+    'pedal harp': 'concert harp',
+    # https://en.wikipedia.org/wiki/Celtic_harp ("hornbostel_sachs=322.221", "manually tuned frame
+    # harp"; the Lever harp page redirects to it) and https://en.wikipedia.org/wiki/Harp ("they are
+    # frequently referred to broadly as 'Celtic harps' due to their region of revival and popular
+    # association, or more generically as 'folk harps' due to their use in non-classical music,
+    # or as 'lever harps' to contrast their modifying mechanism with the larger pedal harp"):
+    # one family of mid-size harps without pedals, which is the catalog's celtic harp
+    'lever harp': 'celtic harp',
+    # https://en.wikipedia.org/wiki/Harp#Folk,_lever,_and_Celtic_instruments (the quote above; the
+    # Folk harp page redirects to this section): the same family, so the catalog's celtic harp.
+    # The page calls this name the more generic one ("more generically"), which says why it is
+    # used, not that it names other instruments
+    'folk harp': 'celtic harp',
+    # --- Batch 18's struck strings: the hammered dulcimers and hammered zithers, in the order of
+    # plans/data/instrument-audit/batch-18.tsv (half A; its other rows drop or wait). Each name is
+    # one the Hammered dulcimer page lists in its "Adaptations around the world" section (the
+    # infobox's names line points there); each alias takes its target's range. Each quote writes
+    # the page's en dash as a hyphen
+    # https://de.wikipedia.org/wiki/Hackbrett ("Das Hackbrett ist ein Typ einer Kastenzither,
+    # deren Saiten mit Klöppeln angeschlagen werden", and "Im englischen Sprachraum heißt das
+    # Hackbrett heute noch dulcimer") and https://en.wikipedia.org/wiki/Hammered_dulcimer ("*
+    # Austria, Germany and Switzerland - Hackbrett"): the German name of the hammered dulcimer
+    # itself, so the catalog's hammered dulcimer. The Salzburg model is a version of it, not this
+    # name
+    'hackbrett': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Hispanosphere - dulcémele", among the
+    # names derived from "The Graeco-Roman word dulcimer"; the catalog name drops the accent): the
+    # Spanish-speaking world's name, so the catalog's hammered dulcimer
+    'dulcemele': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Israel - דולצימר dultzimar", among the
+    # names derived from "The Graeco-Roman word dulcimer"): the Hebrew name, so the catalog's
+    # hammered dulcimer
+    'dultzimar': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Japan - darushimaa (ダルシマー)",
+    # among the names derived from "The Graeco-Roman word dulcimer"): the Japanese name, so the
+    # catalog's hammered dulcimer
+    'darushimaa': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Belgium - hakkebord", with "* Netherlands
+    # - hakkebord", under "Germanic nations:"): the Dutch name, so the catalog's hammered dulcimer
+    'hakkebord': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Denmark - hakkebræt", under "Germanic
+    # nations:"; the catalog name writes æ as ae): the Danish name, so the catalog's hammered
+    # dulcimer
+    'hakkebraet': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Norway - hakkebrett", under "Germanic
+    # nations:"): the Norwegian name, so the catalog's hammered dulcimer. It shares a stem with
+    # hackbrett but is decided on its own line of the page
+    'hakkebrett': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Sweden - hackbräde, hammarharpa", under
+    # "Germanic nations:"; the catalog name writes ä as ae): one of two Swedish names, so the
+    # catalog's hammered dulcimer
+    'hackbraede': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer (the same line, "* Sweden - hackbräde,
+    # hammarharpa"): the other Swedish name, so the catalog's hammered dulcimer
+    'hammarharpa': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Slovenia - cimbale, oprekelj", under
+    # "Others were transmitted under variants of the cimbalom from Latin cymbalum:"; the sub-list's
+    # heading is a word's etymology, like the Graeco-Roman and Germanic ones, so its names are
+    # names): the Slovenian name, so the catalog's hammered dulcimer. The page captions a photo
+    # "Tuning of a hammered dulcimer (southeastern Slovenia)" on a file named for it
+    'oprekelj': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Slovenia - cimbale, oprekelj", and "*
+    # Croatian - cimbal, cimbale, cimbule", under the same cimbalom sub-list): the Slovenian and
+    # Croatian name, so the catalog's hammered dulcimer. The Cimbalom page gives the cimbalom
+    # cimbal and cimbule, never cimbale
+    'cimbale': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Poland - cymbaly", under the same
+    # cimbalom sub-list) and https://de.wikipedia.org/wiki/Zymbal ("Namensverwandte Hackbretter
+    # heißen in Polen cymbaly", hammered dulcimers related by name): the Polish name, so the
+    # catalog's hammered dulcimer, not the cimbalom
+    'cymbaly': 'hammered dulcimer',
+    # https://en.wikipedia.org/wiki/Hammered_dulcimer ("* Russia - chimbaly", under the same
+    # cimbalom sub-list): the Russian name, so the catalog's hammered dulcimer
+    'chimbaly': 'hammered dulcimer',
+    # --- Batch 19's saxophones, in the order of plans/data/instrument-audit/batch-19.tsv (half A;
+    # its other rows drop or wait). Each alias names the soprillo saxophone, a sound-alike entry of
+    # the same sheet. Each quote writes the page's markup as plain text
+    # https://en.wikipedia.org/wiki/Soprillo ("The soprillo, also known as the piccolo saxophone or
+    # rarely sopranissimo saxophone, is the highest pitched and smallest saxophone." and, of its
+    # maker, "He called it the soprillo"): the page is titled by this name and the catalog entry
+    # takes the family's "<size> saxophone" form, so it is the same instrument
+    'soprillo': 'soprillo saxophone',
+    # https://en.wikipedia.org/wiki/Soprillo (the same sentence: "or rarely sopranissimo
+    # saxophone"): a names sentence for the same instrument. The page gives the bare word
+    # "sopranissimo" to a 1960 prototype "of the same pitch", which it counts as the first piccolo
+    # saxophone, so the name is not given to two instruments
+    'sopranissimo saxophone': 'soprillo saxophone',
 }

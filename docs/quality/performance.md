@@ -28,24 +28,33 @@ The explorer above draws one chart at a time: pick the recording (grouped by gam
 the statistics (p50, p99, max) and the machines to compare. Each recording's own page, linked
 under it, shows every chart at once with the slowest-frame heatmaps.
 
-- **Processing time per frame**: the median (p50), the 99th percentile (p99) and the slowest
-  frame (max) of one replay, in milliseconds, by commit (oldest on the left, labelled with the
-  short hash). A frame's budget at 60 FPS is 16.7 ms.
-- **Frames over budget**: frames whose processing alone took longer than the budget.
-- **Live frame time**: for the runs that recorded a session live (paced, in a window), how long
-  each frame really took, start to start: how steady pacing was. Replays have none.
-- **FPS by commit**: the same runs as frames per second. A live run's line (solid) is the FPS
-  it achieved (1 / its frame time); it is paced, so it never passes the target (the dotted
-  line, 1 / the frame budget). A replay's line (dashed) is its headroom (1 / its processing
-  time): how fast the work alone could run. Each point is the average, with a bar from the
-  "5% low" to the "5% high": the mean of the slowest and of the fastest 5% of frames (at least
-  one frame; pause frames count; a live run's first frame, timed from the clock's start, does
-  not). The axis is logarithmic, as headroom runs to thousands. Paced and unpaced numbers do
-  not compare: the processor slows down between paced frames.
-- **Machines**: each machine's latest replay, as a bar of its average headroom FPS with the
-  same 5% low and high, so platforms compare at a glance for the same recording. Replays only;
-  machines marked **(CI)** measured on continuous integration's virtual runners, which are
-  noisy.
+Processing time per frame
+:   The median (p50), the 99th percentile (p99) and the slowest
+    frame (max) of one replay, in milliseconds, by commit (oldest on the left, labelled with the
+    short hash). A frame's budget at 60 FPS is 16.7 ms.
+
+Frames over budget
+:   Frames whose processing alone took longer than the budget.
+
+Live frame time
+:   For the runs that recorded a session live (paced, in a window), how long
+    each frame really took, start to start: how steady pacing was. Replays have none.
+
+FPS by commit
+:   The same runs as frames per second. A live run's line (solid) is the FPS
+    it achieved (1 / its frame time); it is paced, so it never passes the target (the dotted
+    line, 1 / the frame budget). A replay's line (dashed) is its headroom (1 / its processing
+    time): how fast the work alone could run. Each point is the average, with a bar from the
+    "5% low" to the "5% high": the mean of the slowest and of the fastest 5% of frames (at least
+    one frame; pause frames count; a live run's first frame, timed from the clock's start, does
+    not). The axis is logarithmic, as headroom runs to thousands. Paced and unpaced numbers do
+    not compare: the processor slows down between paced frames.
+
+Machines
+:   Each machine's latest replay, as a bar of its average headroom FPS with the
+    same 5% low and high, so platforms compare at a glance for the same recording. Replays only;
+    machines marked **(CI)** measured on continuous integration's virtual runners, which are
+    noisy.
 
 The figures are stored in seconds and turned into FPS only for display. Measurements from
 before them (2026-10-28) have no FPS point. `glitchygames measure` and `glitchygames report`
@@ -79,11 +88,14 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    measured by the next commit (or by hand: `nox -s measure-staged`, then commit, which also
    adds a machine without the hook). `SKIP=replay-metrics git commit ...` skips it.
    A pre-push hook (`scripts/measure_on_raspberry_pi.py`) measures the same way on the Raspberry
-   Pis (a Pi 4 and a Pi 5, `ansible/inventory.yml`'s `raspberry_pis`), both at once, and copies
-   their row files here, staged. A push that brings rows stops so they can be committed, and the
-   next one goes through; a Pi that cannot be reached stops the push before any Pi measures (by
-   hand: `nox -s measure-on-raspberry-pi`; `SKIP=raspberry-pi-replay-metrics git push ...` skips
-   it).
+   Pis (a Pi 4 and two Pi 5s, 16 GB and 8 GB, `ansible/inventory.yml`'s `raspberry_pis`), all at
+   once, and copies
+   their row files of the pushed commit's code tree here, staged. Each Pi measures one push at a
+   time (a lock beside its clone; a second push waits, and gives up after 30 minutes), and a row
+   of any other code tree is refused rather than staged. A push that brings rows stops so they
+   can be committed, and the next one goes through; a Pi that cannot be reached stops the push
+   before any Pi measures (by hand: `nox -s measure-on-raspberry-pi`;
+   `SKIP=raspberry-pi-replay-metrics git push ...` skips it).
 2. **The site shows what landed on `main`.** Every docs build reads the repository's row files
    and keeps each row whose code tree is the code tree of the commit that added its file: on
    `main`, the squash merge, so each is shown under the commit its code landed in (code that

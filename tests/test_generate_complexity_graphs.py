@@ -52,6 +52,7 @@ from scripts.generate_complexity_graphs import (
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import OutputCapture, run_command
 from glitchygames.replay.tools.performance_pages import PLOTLY_JS_URL
+from tests.explorer_site import make_explorer_site
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -805,11 +806,14 @@ def module_with_a_filled_cache(*, name: str) -> tuple[types.ModuleType, weakref.
 def test_the_mkdocs_hook_frees_the_documentation_caches_after_a_build(mocker, tmp_path):
     """After a build, griffe's and mkdocstrings' module caches are emptied, freeing their keys."""
     mocker.patch.dict(sys.modules)
-    # No browser games built: the hook copies none into the (relative) default site_dir
+    # No browser games built: the hook copies none. The hook also checks the built explorer
+    # pages, so the site is one holding them, never the checkout's (a fresh CI checkout has none)
     mocker.patch.object(mkdocs_hooks, 'BROWSER_GAMES_DIRECTORY', tmp_path / 'no games')
+    config = MkDocsConfig()
+    config['site_dir'] = str(make_explorer_site(tmp_path / 'site'))
     module, key = module_with_a_filled_cache(name='griffe._fake_extension')
 
-    mkdocs_hooks.on_post_build(config=MkDocsConfig())
+    mkdocs_hooks.on_post_build(config=config)
     gc.collect()
 
     assert module.cached_lookup.cache_info().currsize == 0
@@ -819,11 +823,14 @@ def test_the_mkdocs_hook_frees_the_documentation_caches_after_a_build(mocker, tm
 def test_the_mkdocs_hook_leaves_other_modules_caches_alone(mocker, tmp_path):
     """Only griffe's and mkdocstrings' caches are emptied."""
     mocker.patch.dict(sys.modules)
-    # No browser games built: the hook copies none into the (relative) default site_dir
+    # No browser games built: the hook copies none. The hook also checks the built explorer
+    # pages, so the site is one holding them, never the checkout's (a fresh CI checkout has none)
     mocker.patch.object(mkdocs_hooks, 'BROWSER_GAMES_DIRECTORY', tmp_path / 'no games')
+    config = MkDocsConfig()
+    config['site_dir'] = str(make_explorer_site(tmp_path / 'site'))
     module, key = module_with_a_filled_cache(name='unrelated_package.lookups')
 
-    mkdocs_hooks.on_post_build(config=MkDocsConfig())
+    mkdocs_hooks.on_post_build(config=config)
 
     assert module.cached_lookup.cache_info().currsize == 1
     assert key() is not None

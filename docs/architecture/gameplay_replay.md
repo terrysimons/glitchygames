@@ -112,9 +112,11 @@ Read time from `src/glitchygames/clock.py` or `Scene.game_time`, never from `tim
 decides the same way both times; such timers advance once per frame. In a recorded run (and its
 replay) `wall_clock_time()` is the recording's start time (`recorded_at`) plus the frame clock,
 so a timestamp the game shows replays exactly; live play without recording reads the real wall
-clock. `measured_seconds()` is real
-monotonic time and is never replayed: never let its value change what is drawn, played or
-recorded.
+clock.
+
+!!! warning "`measured_seconds()` never changes what is drawn, played or recorded"
+    It is real monotonic time and is never replayed: a value read from it differs in a replay,
+    so anything it decides diverges.
 
 Text-widget cursor blinks use the frame clock, not `Scene.game_time`. A paused scene's widgets
 are neither updated nor drawn, so a blink cannot be seen advancing while the game is paused.
@@ -192,6 +194,12 @@ the same time are listed by name, so `list_slots()` gives the same order everywh
 - Post events with `glitchygames.recording.post_event`, not `pygame.event.post`, so a recording
   can mark them internal. Replay delivers internal events from the code that posts them again;
   an SDL-type event posted directly would be delivered twice.
+- A custom-type event (FPSEVENT, any `pygame.event.custom_type()`) is internal by its type
+  alone, so every run's start drops the ones still in SDL's queue (an inner game's start,
+  which uses a private queue, drops none). Post custom events from the run's own code
+  (`setup()` or later), never before the game engine is built.
+- A run's teardown empties its event queue, so nothing it left (a QUIT, a custom event, unread
+  input) reaches a later run in the same process, even when the host keeps pygame running.
 - Code that drives the game from outside its logic, as a player would (a supervisor, a test
   harness, a tool), posts with `glitchygames.recording.post_input_event` instead. The event is
   recorded as external input, whatever its type, so `--replay-trace`, instant replays and demos
@@ -205,9 +213,11 @@ the same time are listed by name, so `list_slots()` gives the same order everywh
   `pygame.event.custom_type()`) included. The rule: input of an SDL type posted during a demo
   or instant replay counts as the player's; everything else reaches the game (after the
   demo or instant replay, if one is playing), live and replayed alike.
-- Draw random numbers from the seeded named streams in `src/glitchygames/randomness.py`
-  (`random_stream('name')`, `numpy_stream('name')`), never from the global `random` functions,
-  `secrets` or an unseeded numpy generator.
+
+!!! warning "Draw random numbers only from the seeded named streams"
+    Use `random_stream('name')` or `numpy_stream('name')` from `src/glitchygames/randomness.py`,
+    never the global `random` functions, `secrets` or an unseeded numpy generator: a replay
+    serves the recorded seed only to the streams.
 
 ## The supervisor hook and control events
 
@@ -354,6 +364,18 @@ post, which shows up as a missing internal event divergence. A watched replay le
 and `KEYUP` unblocked, so such a post arrives there and matches its recording: a recording of a
 game that posts keys can match watched and diverge headless (and under `--audit`). Recorded window references in
 events are served as `None`, as live events of the display window carry.
+
+### Sounds in a replay
+
+Audio is played during a replay but never compared, and nothing a game reads of a sound (its
+`length`, `peak` and `sample_rate`) depends on how sounds are kept. So `--sound-cache` is
+replay-local: a recording replays under `none`, `ram` or `disk` (the default) with the same
+frames, whatever mode it was recorded under. Every golden and bundled demo is replayed under
+`disk` twice in the test suite, cold then warm, with equal frame digests
+(`tests/audio/test_audio_engine_goldens.py`). A replay run in a child process (the tools, the
+golden tests) finds the disk cache where `GLITCHYGAMES_SOUND_CACHE_ROOT` says, from the
+environment it inherits; the test harness sets it empty, so no test writes to a player's cache
+folder (`docs/architecture/sound.md`, Cache modes).
 
 ### Watching a replay
 
@@ -529,22 +551,31 @@ Without `--replay-trace`, `--compare-trace OLD [--compare-alpha PERCENT]` lets y
 live, with real input, while OLD's frame of the same number is drawn over each frame you see.
 OLD is replayed by the same headless child as above.
 
-- **Pausing freezes the ghost.** Frames are paired by game frames: the frames a game's own
-  logic ran in, not its pause screen's. While you are paused, OLD's frame stays where it was,
-  and it moves on when the game does. OLD's own pauses are skipped the same way, so your game
-  frame N meets OLD's game frame N. A replay pairs frames the same way, so
-  `--record-trace NEW --compare-trace OLD`, and later `--replay-trace NEW --compare-trace OLD`,
-  show the same pairs. Recordings themselves still count every frame.
-- **The seed:** the game plays under OLD's recorded seed, so the ghost starts in the same world,
-  unless `--random-seed N` is given. The log names the seed either way.
-- **OLD shorter than your play:** OLD's last frame stays, labelled `OLD ended at frame N`, and
-  play goes on. The child is stopped when the game quits, fails or is interrupted.
-- **Refused before anything runs:** with `--headless` (exit 64), an OLD that is missing (66) or
-  not a readable recording (65; a header without its seed counts), or one recorded at another
-  screen size than the game's window (65). `--record-trace NEW` may be given too, and records the
-  seed played. There is no step back in live play, and this is a game flag only.
-- **Not in a browser:** OLD's child is a separate process, which a browser page cannot start, so
-  `--compare-trace` (live or with a replay) is refused there before anything starts (exit 64).
+Pausing freezes the ghost
+:   Frames are paired by game frames: the frames a game's own
+    logic ran in, not its pause screen's. While you are paused, OLD's frame stays where it was,
+    and it moves on when the game does. OLD's own pauses are skipped the same way, so your game
+    frame N meets OLD's game frame N. A replay pairs frames the same way, so
+    `--record-trace NEW --compare-trace OLD`, and later `--replay-trace NEW --compare-trace OLD`,
+    show the same pairs. Recordings themselves still count every frame.
+
+The seed
+:   The game plays under OLD's recorded seed, so the ghost starts in the same world,
+    unless `--random-seed N` is given. The log names the seed either way.
+
+OLD shorter than your play
+:   OLD's last frame stays, labelled `OLD ended at frame N`, and
+    play goes on. The child is stopped when the game quits, fails or is interrupted.
+
+Refused before anything runs
+:   With `--headless` (exit 64), an OLD that is missing (66) or
+    not a readable recording (65; a header without its seed counts), or one recorded at another
+    screen size than the game's window (65). `--record-trace NEW` may be given too, and records the
+    seed played. There is no step back in live play, and this is a game flag only.
+
+Not in a browser
+:   OLD's child is a separate process, which a browser page cannot start, so
+    `--compare-trace` (live or with a replay) is refused there before anything starts (exit 64).
 
 ### `--replay-fps {recorded,real}`
 
@@ -600,15 +631,15 @@ the code it exits with as `Exiting with OPTIONS_REFUSED (64)`, at INFO (shown wi
 | 1 | `REPLAY_DIVERGED` | A replay's frames differ from the recording |
 | 2 | `ARGUMENT_PARSER_ERROR` | A usage error from argparse; the engine never exits with it itself |
 | 3 | `AUDIT_NONDETERMINISTIC` | `--audit`'s two runs differ from each other or from the recording |
-| 4 | `GENERATION_REJECTED` | The API server rejected the sprite client's generation request |
-| 5 | `EXTRACTION_REJECTED` | The API server rejected the sprite client's frame extraction |
+| 4 | `GENERATION_REJECTED` | The sprite client's generation failed (the AI's answer was not a valid sprite, or nothing could be rendered) |
+| 5 | `EXTRACTION_REJECTED` | The sprite client's frame extraction failed (the file is not an APNG or a sprite) |
 | 6 | `AUDIO_DROPOUT_RISK` | `scripts/audio_glitch_probe.py` found a risk of audio dropouts |
 | 7 | `REBASELINE_INPUT_LOST` | `--rebaseline` wrote NEW, but the run never received some of OLD's input (it ended early, or did not pump a recorded batch) |
 | 8 | `PROCESSING_SLOWER` | A replay matched, but its processing time exceeded the recording's by more than `--max-processing-slowdown` |
 | 64 | `OPTIONS_REFUSED` | The engine refuses the options given (a combination it will not run) |
-| 65 | `UNUSABLE_INPUT` | The recording or input data is unusable (another game's recording, an unsupported format version, a corrupt or unreadable file, a bad server response) |
+| 65 | `UNUSABLE_INPUT` | The recording or input data is unusable (another game's recording, an unsupported format version, a corrupt or unreadable file, a malformed response) |
 | 66 | `MISSING_INPUT` | The input file does not exist |
-| 69 | `SERVICE_UNAVAILABLE` | A required service (the API server) cannot be reached |
+| 69 | `SERVICE_UNAVAILABLE` | A required service (the local AI service) is not installed, cannot be reached, or answered an error |
 | 70 | `INTERNAL_ERROR` | An uncaught exception during a run or its teardown (logged with its traceback, after the teardown), or an audit that could not run |
 | 73 | `CANNOT_WRITE_OUTPUT` | An output file or directory cannot be created or written (a rebaseline's new recording could not be moved into place) |
 | 129 | `HANGUP` | Stopped by SIGHUP (Unix only) |
@@ -828,12 +859,14 @@ Each tool is reachable two ways, with the same name and the same options:
   the game as a child process with the tool's flag. Arguments after a bare `--` go to that game
   unchanged (`glitchygames record-trace paddleslap run.jsonl.gz -- --resolution 640x480`).
   `--project-root DIR` is, for the tools that read the project's settings (`verify`, `measure`,
-  `unmeasured`, `clear-published`, `performance-pages`), the project they work on (default: the
+  `unmeasured`, `clear-published`, `performance-pages`, `sound-cache-fill`), the project they
+  work on (default: the
   nearest directory at or above the current one whose `pyproject.toml` has
   `[tool.glitchygames]`, else the nearest with a `pyproject.toml`, else the current directory);
-  for `record-trace`, `replay-trace`, `record-golden-trace` and `record-session`, the directory
-  the game runs in (default: the current directory); `report`, `sound-render` and
-  `sound-migrate` read only what they are given.
+  for `record-trace`, `replay-trace`, `record-golden-trace`, `record-session` and the other
+  `sound-cache-*` tools, the directory the game runs in (default: the current directory);
+  `report`, `sound-render`, `sound-migrate`, `listening-instruments` and `listening-pipes` read
+  only what they are given.
 
 Both front ends are generated from one table, `TOOLS` in
 `src/glitchygames/replay/tools/registry.py`, which is the reference for every flag, option,
@@ -857,6 +890,13 @@ own git repository.
 | `performance-pages` | no | `--performance-pages DIRECTORY [--published]` | `glitchygames performance-pages DIRECTORY [--published]` |
 | `sound-render` | no | `--sound-render SOURCE --sound-output PATH [--sample-format int16\|float32]` (SOURCE: `sounds/pickups.toml#coin` or a WAV file; offline, no audio device) | `glitchygames sound-render SOURCE` with the same options |
 | `sound-migrate` | no | `--sound-migrate FILE [--migrated-output PATH]` (a version 0 recipe file to version 1, default `<stem>.v1.toml` beside it, never over FILE) | `glitchygames sound-migrate FILE [--migrated-output PATH]` |
+| `sound-cache-list` | no | `--sound-cache-list` (the game's own sound cache folders) | `glitchygames sound-cache-list [--game GAME ...]` (default: the whole cache root) |
+| `sound-cache-size` | no | `--sound-cache-size` | `glitchygames sound-cache-size [--game GAME ...]` (default: the whole cache root) |
+| `sound-cache-verify` | no | `--sound-cache-verify` (exit 65 for a damaged file) | `glitchygames sound-cache-verify [--game GAME ...]` (default: the whole cache root) |
+| `sound-cache-clear` | no | `--sound-cache-clear [--stale-only]` (`--listening` is refused: those files are no game's) | `glitchygames sound-cache-clear [--stale-only] [--listening] [--game GAME ...]` (default: the whole cache root; `--listening`: the listening WAVs instead of the games' sounds, never with `--game`) |
+| `sound-cache-fill` | no | `--sound-cache-fill` (the game's declared sounds and the CRT power-on's) | `glitchygames sound-cache-fill [--game GAME ...]` (default: `[tool.glitchygames] games`) |
+| `listening-instruments` | no | `--listening-instruments [--family FAMILY] [--only TEXT]` (the same files as the command: they are no game's) | `glitchygames listening-instruments [--family FAMILY] [--only TEXT]` (each catalog instrument across its range, into the listening folder; prints each file's path) |
+| `listening-pipes` | no | `--listening-pipes [--only TEXT]` | `glitchygames listening-pipes [--only TEXT]` (the pipe demos and tunes, into the listening folder; prints each file's path) |
 
 - An option several tools list is one flag on the game: `--random-seed` (every tool that runs
   the game) and `--headless` (the four that record or replay). `--random-seed` is never needed:
@@ -926,10 +966,33 @@ module looked for in the current directory first. `--controls-tail MODULE:NAME` 
 names the keys played after the script's frames, ending with the game's own quit. A golden
 trace runs the game's scene in a headless harness at 1/60 second per frame and samples every
 sprite each frame; a session runs the game for real, at its own pace, with `--record-trace`.
-Our five games' scripts and controls tails are test data in `scripts/golden_inputs.py`
+Our six games' scripts and controls tails are test data in `scripts/golden_inputs.py`
 (`--input-script scripts.golden_inputs:paddleslap_script`, run from the repository root);
 `scripts/record_golden_traces.py` and `scripts/record_scripted_session.py` keep only our
 games' tables and call the engine.
+
+From Python, the scripted-session recorder
+(`glitchygames.replay.tools.scripted_sessions.record_scripted_session`) takes its options by
+keyword (`ScriptedSessionOptions`): `controls_tail` (None ends the session after the script's
+frames, as `--script-only` and every bundled demo do), `polled_input`, `input_only_placements`,
+`random_seed`, and `stand_in_devices`. Stand-in devices
+(`glitchygames.input.stand_in_devices`: a joystick or game controller that exists only in the
+session, given as `DeviceDescriptor`s) are plugged in from the session's start and opened
+through the real devices door, so the game sees them as real pads, the recording's header holds
+them and its replay opens them again (a replay never sees real hardware). The script moves them
+with their events (`JOYAXISMOTION`, `JOYBUTTONDOWN`/`UP`, `JOYHATMOTION` by `instance_id`),
+which a game that polls (`current_input()`) sees only with `polled_input`. The golden-trace
+harness takes the same option (`GoldenTraceEngine(..., stand_in_devices=...)`). It has three
+cases:
+
+- None (the default): the machine's real devices, as any run has.
+- An empty tuple: no devices at all. The session runs on stand-in doors around an empty
+  registry, so a real device is never seen or opened, on any platform.
+- A non-empty tuple: exactly those stand-ins.
+
+It has no command-line flag. `scripts/record_bundled_demos.py` is its user: every bundled demo
+is recorded with no devices at all (an empty tuple) unless its recipe names stand-ins, as the
+joystick demo's `pad` recording does.
 
 ### Project settings (`[tool.glitchygames]`)
 
@@ -1037,14 +1100,33 @@ A demo plays at the game's speed from the start of the next frame and ends at th
 end, at the player's first press (consumed: it never reaches `then`), at the recording's own
 quit, or at a divergence (logged at WARNING as `demo diverged: ...`, then back to `then`). A
 recording that cannot be played (missing, unreadable, another game's, no scene start) is logged
-at WARNING and nothing starts. Record a demo with
-`scripts/record_scripted_session.py --script-only --output PATH` (it runs `--record-trace`, so
-its first frame holds the scene start; `--script-only` leaves out the controls tail, whose quit
-would end the demo).
+at WARNING and nothing starts. A demo is a scripted session recorded with `--record-trace`, so
+its first frame holds the scene start, and without a controls tail, whose quit would end the
+demo (`scripts/record_scripted_session.py --script-only --output PATH` records one from a
+game's golden script).
 
 Bundled demos are recordings shipped in a game's package as package data,
-`<package>/demos/<name>.jsonl.gz`: PaddleSlap's `paddleslap/demos/rally.jsonl.gz`, which its
-game-over screen plays after 10 seconds without a press. The engine finds them, for any tool or
+`<package>/demos/<name>.jsonl.gz`. Every Arcade tile has one, ten in all: PaddleSlap's
+`paddleslap/demos/rally.jsonl.gz`, which its game-over screen plays after 10 seconds without a
+press; Clockwork Keep's `climb`; Brave Adventurer's `classic` and `papyrus` (both in its
+launcher's package, `brave_adventurer_modes/demos/`, whose console script replays the edition
+each header names); Mr. Muncher's `chase`; Drawing Fire's `battle`; Bitmappy's `drawing` (a
+smiley drawn on the canvas); the dt demo's `timing`, the text-input demo's `typing` and the
+joystick demo's `pad` (a stand-in pad, 'GlitchyGames Demo Pad'). Each is recorded by one
+command from its recipe in `scripts/record_bundled_demos.py` (`DEMO_RECIPES`: the scene, the
+input script, the frame count, the package and name, and the session's options):
+
+```bash
+uv run python -m scripts.record_bundled_demos --demo mr_muncher_chase   # or --all
+```
+
+Every recipe records without a controls tail, under the goldens' seed, at 800x480, with no AI
+service reachable and no real pad (the session's AI install root is an empty directory and SDL's
+joystick drivers are off). The games reuse their golden scripts' frames up to the controls tail;
+the demos and Bitmappy have their own scripts in `scripts/demo_inputs.py`. A demo must end with
+nothing held (no key, mouse or pad button down, every pad axis at rest and every hat centred),
+since the Arcade loops it, and stay at most 256 KB; `tests/replay/test_bundled_demos.py` checks
+both on the committed files. Re-record a demo only deliberately, as a golden. The engine finds them, for any tool or
 installed game, with `glitchygames.bundled_demos.bundled_demos()`: each `BundledDemo` (a frozen
 record) holds the game's console script (None when no installed console script is in the
 package), the demo's installed path and its install name (`paddleslap/demos/rally.jsonl.gz`,

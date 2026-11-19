@@ -100,6 +100,7 @@ from tests.world.test_gameplay_replay import (
     record_session,
     replay_session_with_arguments,
 )
+from tests.world.test_transition_input import running_game, step
 
 # The command line every engine in this file starts from: the default display's size
 ENGINE_TEST_ARGUMENTS = ('--resolution', '800x600', '--log-level', 'info')
@@ -127,6 +128,19 @@ class EngineTestGame(Scene):
         """
         parser.add_argument('--test-flag', action='store_true', help='a game option')
         return parser
+
+
+class RawEventGame(EngineTestGame):
+    """A game whose scene takes every raw pygame event itself (event_system.md's porting path)."""
+
+    def __init__(self, options=None, groups=None) -> None:
+        """Keep every raw event it is handed."""
+        super().__init__(options=options, groups=groups)
+        self.raw_events: list[pygame.event.Event] = []
+
+    def process_event(self, event: pygame.event.Event) -> None:
+        """Keep the event."""
+        self.raw_events.append(event)
 
 
 class NoIconGame(EngineTestGame):
@@ -597,6 +611,33 @@ class TestGameEngineSystemInfo:
         assert f'Display Driver: {pygame.display.get_driver()}' in caplog.text
         assert 'Display inited: True' in caplog.text
         assert f'Initial Resolution: {engine.initial_resolution}' in caplog.text
+
+    def test_the_window_manager_info_is_never_asked_for_on_wayland(self, mocker, caplog):
+        """pygame-ce 2.5.8's get_wm_info() segfaults with a window open on Wayland.
+
+        Every game crashed at start on a Raspberry Pi's Wayland session once the engine chose
+        Wayland by default. A Wayland display cannot run here, so the driver's name is patched.
+        """
+        engine = _make_engine(mocker)
+        mocker.patch.object(pygame.display, 'get_driver', return_value='wayland')
+        get_wm_info = mocker.patch.object(pygame.display, 'get_wm_info')
+
+        with caplog.at_level(logging.INFO, logger=GameEngine.log.name):
+            engine.print_system_info()
+
+        get_wm_info.assert_not_called()
+        assert 'Window Manager Info: not asked for on wayland' in caplog.text
+
+    def test_the_window_manager_info_is_logged_on_other_drivers(self, mocker, caplog):
+        """On every other driver the window manager info is still logged."""
+        engine = _make_engine(mocker)
+        mocker.patch.object(pygame.display, 'get_driver', return_value='x11')
+        mocker.patch.object(pygame.display, 'get_wm_info', return_value={'window': 42})
+
+        with caplog.at_level(logging.INFO, logger=GameEngine.log.name):
+            engine.print_system_info()
+
+        assert "Window Manager Info: {'window': 42}" in caplog.text
 
     def test_print_system_info_logs_display_info_as_text(self, mocker, caplog):
         """The display info reaches logging already formatted, never as the VidInfo object.
@@ -1119,6 +1160,28 @@ class TestUnhandledEventTracking:
         assert performance_manager._fps_log_interval_ms == 250.0
         assert performance_manager._target_fps == engine.fps
 
+    def test_teardown_empties_the_queue_even_when_pygame_stays_up(self, mocker):
+        """A run leaves no event for the next run in the process (BUGS.md #276).
+
+        Quitting pygame empties SDL's queue too, but a host that keeps pygame running (the
+        test harness, as here) would hand the next run a stale QUIT or custom event.
+        """
+        engine = _make_engine(mocker)
+        mocker.patch('pygame.display.quit')
+        mocker.patch('pygame.quit')
+        pygame.event.post(pygame.event.Event(pygame.QUIT))
+        pygame.event.post(pygame.event.Event(pygame.USEREVENT, left='over'))
+
+        engine._shutdown()
+
+        # Only these types: on a real driver the window system may queue its own events after
+        left_over = [
+            event.type
+            for event in pygame.event.get()
+            if event.type == pygame.QUIT or event.type >= pygame.USEREVENT
+        ]
+        assert left_over == []
+
 
 class TestSceneManagerGameEngineSetter:
     """SceneManager.game_engine's setter configures the performance manager from the engine."""
@@ -1249,7 +1312,7 @@ class TestProcessEvents:
 
         mock_scene = mocker.Mock()
         mock_scene.process_event = mocker.Mock()
-        engine._active_scene = mock_scene
+        engine.scene_manager.active_scene = mock_scene
 
         result = engine.process_events()
         assert result is True
@@ -1261,7 +1324,7 @@ class TestProcessEvents:
     ):
         """Test process_events routes events through the engine's event_handlers."""
         engine = _make_engine(mocker)
-        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        engine.scene_manager.active_scene = mocker.Mock(spec=[])  # No process_event
 
         raw_event = _raw_event(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a')
         mocker.patch('pygame.event.get', return_value=[raw_event])
@@ -1288,7 +1351,7 @@ class TestProcessEvents:
     def test_process_events_unhandled_event(self, mocker):
         """Test process_events routes unhandled events to process_unimplemented_event."""
         engine = _make_engine(mocker)
-        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        engine.scene_manager.active_scene = mocker.Mock(spec=[])  # No process_event
         engine.unimplemented_events.clear()
 
         mocker.patch('pygame.event.get', return_value=[_raw_event(UNMAPPED_EVENT_TYPE)])
@@ -1303,7 +1366,7 @@ class TestProcessEvents:
     def test_process_events_unhandled_event_does_not_drop_rest_of_batch(self, mocker):
         """An unhandled event must not drop the key-down queued after it in the same batch."""
         engine = _make_engine(mocker)
-        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        engine.scene_manager.active_scene = mocker.Mock(spec=[])  # No process_event
 
         unhandled_raw_event = _raw_event(pygame.KEYUP, key=pygame.K_b)
         key_down_raw_event = _raw_event(pygame.KEYDOWN, key=pygame.K_a)
@@ -1325,6 +1388,45 @@ class TestProcessEvents:
         assert mock_unimplemented.call_args.args[0].type == pygame.KEYUP
         assert result is False
 
+    def test_the_scene_managers_raw_event_scene_gets_the_raw_events(self, mocker):
+        """A real scene with process_event, active where a run keeps it, gets the batch raw.
+
+        The scene manager holds the active scene; the engine once looked for process_event on
+        a field of its own that nothing assigned, so in a run no such scene got any event.
+        """
+        engine = _make_engine(mocker)
+        scene = RawEventGame(options={})
+        engine.scene_manager.active_scene = scene
+        raw_events = [
+            _raw_event(pygame.KEYDOWN, key=pygame.K_a),
+            _raw_event(pygame.KEYUP, key=pygame.K_a),
+        ]
+        mocker.patch('pygame.event.get', return_value=raw_events)
+
+        assert engine.process_events() is True
+        assert scene.raw_events == raw_events
+
+    def test_a_raw_event_game_gets_its_events_in_a_running_frame(self):
+        """In a game that is really running, a frame hands the raw-event scene its events."""
+        with running_game(RawEventGame) as manager:
+            step(manager, _raw_event(pygame.KEYDOWN, key=pygame.K_a, scancode=4, mod=0))
+            scene = manager.active_scene
+
+        assert isinstance(scene, RawEventGame)
+        assert [
+            (event.type, event.key) for event in scene.raw_events if event.type == pygame.KEYDOWN
+        ] == [(pygame.KEYDOWN, pygame.K_a)]
+
+    def test_the_engine_keeps_no_active_scene_of_its_own(self, mocker):
+        """The scene manager's active scene is the only one, so no copy can go stale.
+
+        A copy the engine kept (``_active_scene``) was never assigned in a run, and tests that
+        set it by hand passed while raw-event scenes got nothing.
+        """
+        engine = _make_engine(mocker)
+
+        assert not hasattr(engine, '_active_scene')
+
     def test_process_events_raw_event_scene_receives_every_event_in_order(self, mocker):
         """A scene with process_event receives all N events of a batch, in order."""
         engine = _make_engine(mocker)
@@ -1335,7 +1437,7 @@ class TestProcessEvents:
         ]
         mocker.patch('pygame.event.get', return_value=raw_events)
         mock_scene = mocker.Mock()
-        engine._active_scene = mock_scene
+        engine.scene_manager.active_scene = mock_scene
 
         result = engine.process_events()
 
@@ -1345,7 +1447,7 @@ class TestProcessEvents:
     def test_process_events_unmapped_type_after_handled_event_is_unhandled(self, mocker):
         """A type missing from the engine's event_handlers never inherits the previous result."""
         engine = _make_engine(mocker)
-        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        engine.scene_manager.active_scene = mocker.Mock(spec=[])  # No process_event
         unmapped_event_type = OTHER_UNMAPPED_EVENT_TYPE
         assert unmapped_event_type not in engine.event_handlers
 
@@ -1366,7 +1468,7 @@ class TestProcessEvents:
     def test_process_events_returns_true_only_when_every_event_handled(self, mocker):
         """The return value is True only if every event of the batch was handled."""
         engine = _make_engine(mocker)
-        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        engine.scene_manager.active_scene = mocker.Mock(spec=[])  # No process_event
         raw_events = [
             _raw_event(pygame.KEYDOWN, key=pygame.K_a),
             _raw_event(pygame.KEYUP, key=pygame.K_a),
@@ -1394,7 +1496,7 @@ class TestProcessEvents:
     def test_process_events_returns_false_when_every_event_is_discarded(self, mocker):
         """No event dispatched (all discarded) is reported as False, like an empty batch."""
         engine = _make_engine(mocker)
-        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        engine.scene_manager.active_scene = mocker.Mock(spec=[])  # No process_event
         raw_events = [_raw_event(pygame.KEYDOWN, key=pygame.K_a)]
         mocker.patch('pygame.event.get', return_value=raw_events)
         key_down_handler = mocker.Mock(return_value=True)
@@ -1410,7 +1512,7 @@ class TestProcessEvents:
     def test_process_events_discards_only_matching_events(self, mocker):
         """Kept events are dispatched and decide the result; discarded ones do not count."""
         engine = _make_engine(mocker)
-        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        engine.scene_manager.active_scene = mocker.Mock(spec=[])  # No process_event
         raw_events = [
             _raw_event(pygame.KEYDOWN, key=pygame.K_a),
             _raw_event(pygame.KEYUP, key=pygame.K_a),
@@ -2956,7 +3058,8 @@ class TestGameEngineTimerCalibration:
         # The methods start() calls on the current context's performance manager
         for method_name in ('set_trim_percent', 'set_histogram_mode'):
             mocker.patch.object(AdaptiveClamping, method_name, autospec=True)
-        engine.game = mocker.Mock()
+        # A Scene subclass's SOUNDS is empty by default (no start-up compile)
+        engine.game = mocker.Mock(SOUNDS=())
         engine.options = {
             'profile': False,
             'timer_backend': 'auto',
@@ -2995,7 +3098,7 @@ class TestGameEngineTimerBackendError:
         )
 
         # Mock scene manager and game for start()
-        mock_game_class = mocker.Mock()
+        mock_game_class = mocker.Mock(SOUNDS=())
         mock_game_instance = mocker.Mock()
         mock_game_class.return_value = mock_game_instance
         engine.game = mock_game_class
@@ -3259,7 +3362,8 @@ class TestFpsHistogramArgument:
         set_histogram_mode = mocker.patch.object(
             AdaptiveClamping, 'set_histogram_mode', autospec=True
         )
-        engine.game = mocker.Mock()
+        # A Scene subclass's SOUNDS is empty by default (no start-up compile)
+        engine.game = mocker.Mock(SOUNDS=())
         engine.options = {
             'profile': False,
             'timer_backend': 'fast',
@@ -3287,7 +3391,8 @@ class TestFpsHistogramArgument:
             performance_manager, '_histogram_mode', performance_manager._histogram_mode
         )
         histogram_mode_before = performance_manager._histogram_mode
-        engine.game = mocker.Mock()
+        # A Scene subclass's SOUNDS is empty by default (no start-up compile)
+        engine.game = mocker.Mock(SOUNDS=())
         engine.options = {
             'profile': False,
             'timer_backend': 'fast',
@@ -3318,7 +3423,8 @@ class TestFpsHistogramArgument:
         set_histogram_mode = mocker.patch.object(
             AdaptiveClamping, 'set_histogram_mode', autospec=True
         )
-        engine.game = mocker.Mock()
+        # A Scene subclass's SOUNDS is empty by default (no start-up compile)
+        engine.game = mocker.Mock(SOUNDS=())
         engine.options = {
             'profile': False,
             'timer_backend': 'fast',

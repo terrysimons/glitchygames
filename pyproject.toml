@@ -12,6 +12,9 @@ maintainers = [
 ]
 readme = "README.md"
 license = "BSD-3-Clause"
+# 3.14, not 3.15: the browser builds' Pyodide 314 runs Python 3.14. Everything else runs on
+# 3.15 (the owner, 2026-11-19); move this, ruff's target-version and the type checkers' python
+# version to 3.15 when a Pyodide on 3.15 ships
 requires-python = ">=3.14,<4.0"
 classifiers = [
   "Programming Language :: Python :: 3.14",
@@ -36,6 +39,8 @@ dependencies = [
   "apng",
   "pillow",
   "hidapi>=0.15.0",
+  # The sound cache's cross-process write lock (glitchygames/audio/disk_cache.py)
+  "filelock",
 ]
 
 [project.urls]
@@ -74,6 +79,8 @@ docs = [
   "mkdocs-autorefs",
   "mkdocs-macros-plugin",
   "mkdocstrings-python",
+  # Each page's last-updated date, from its history (zensical.yml plugins)
+  "mkdocs-git-revision-date-localized-plugin",
 ]
 dev = [
   "nox[uv]",
@@ -114,6 +121,12 @@ dev = [
   "filelock>=3.32.7",
   # uv.lock's dependency markers and package names (scripts/generate_sbom.py)
   "packaging>=26.0",
+  # Runs the Raspberry Pi and AI service playbooks (uv run --extra dev ansible-playbook;
+  # ansible/). A development tool, never imported or bundled: its GPL is cleared in
+  # scripts/check_licenses.py. ansible-core alone, not the community bundle: the playbooks use only
+  # ansible.builtin modules, and 2.22 is the first to run on Python 3.15 (2.21 crashed at startup:
+  # dataclasses._is_type is gone), while the bundle still held core at 2.21 (2026-11-17)
+  "ansible-core>=2.22.0",
 ]
 api = []
 # Building a new game project from a template (glitchygames.templates, scripts/create.py):
@@ -130,6 +143,7 @@ games = [
   "clockwork-keep",
   "paddleslap",
   "drawing-fire",
+  "zombies-aint-my-neighbors",
 ]
 demos = ["dt-demo", "joystick-demo", "sound-board-demo", "text-input-demo"]
 apps = ["bitmappy"]
@@ -143,6 +157,7 @@ members = [
   "src/games/clockwork-keep",
   "src/games/paddleslap",
   "src/games/drawing-fire",
+  "src/games/zombies-aint-my-neighbors",
   "src/demos/dt-demo",
   "src/demos/joystick-demo",
   "src/demos/sound-board-demo",
@@ -157,6 +172,7 @@ brave-adventurer = { workspace = true }
 clockwork-keep = { workspace = true }
 paddleslap = { workspace = true }
 drawing-fire = { workspace = true }
+zombies-aint-my-neighbors = { workspace = true }
 dt-demo = { workspace = true }
 joystick-demo = { workspace = true }
 sound-board-demo = { workspace = true }
@@ -174,6 +190,7 @@ dev = [
   "clockwork-keep",
   "paddleslap",
   "drawing-fire",
+  "zombies-aint-my-neighbors",
   "dt-demo",
   "joystick-demo",
   "sound-board-demo",
@@ -194,7 +211,7 @@ packages = ["src/glitchygames"]
 # The engine's recording, replay and measurement tools read this project's layout from here
 # (glitchygames/replay/tools/settings.py; a project without this table gets the defaults there)
 [tool.glitchygames]
-# Every workspace member's console script: the five games, the four demos and Bitmappy
+# Every workspace member's console script: the six games, the four demos and Bitmappy
 games = [
   "bitmappy",
   "brave-adventurer",
@@ -206,6 +223,7 @@ games = [
   "paddleslap",
   "sound-board-demo",
   "text-input-demo",
+  "zombies-aint-my-neighbors",
 ]
 # Each member's golden replays, directly in its tests/fixtures/replays/ (src/<layer>/<member>/)
 golden-globs = ["src/*/*/tests/fixtures/replays/golden*.jsonl.gz"]
@@ -259,6 +277,7 @@ testpaths = [
   "src/games/clockwork-keep/tests",
   "src/games/paddleslap/tests",
   "src/games/drawing-fire/tests",
+  "src/games/zombies-aint-my-neighbors/tests",
   "src/demos/dt-demo/tests",
   "src/demos/joystick-demo/tests",
   "src/demos/sound-board-demo/tests",
@@ -290,7 +309,7 @@ norecursedirs = [
   ".hypothesis",
   "__pycache__",
 ]
-addopts = "--import-mode=importlib -p no:randomly -n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=dt_demo --cov=joystick_demo --cov=sound_board_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+addopts = "--import-mode=importlib -p no:randomly -n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=zombies_aint_my_neighbors --cov=dt_demo --cov=joystick_demo --cov=sound_board_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
@@ -311,6 +330,7 @@ source = [
   "clockwork_keep",
   "paddleslap",
   "drawing_fire",
+  "zombies_aint_my_neighbors",
   "dt_demo",
   "joystick_demo",
   "sound_board_demo",
@@ -362,6 +382,10 @@ paddleslap = [
 drawing_fire = [
   "src/games/drawing-fire/src/drawing_fire",
   "*/site-packages/drawing_fire",
+]
+zombies_aint_my_neighbors = [
+  "src/games/zombies-aint-my-neighbors/src/zombies_aint_my_neighbors",
+  "*/site-packages/zombies_aint_my_neighbors",
 ]
 dt_demo = ["src/demos/dt-demo/src/dt_demo", "*/site-packages/dt_demo"]
 joystick_demo = [
@@ -415,6 +439,7 @@ src = [
   "src/games/clockwork-keep/src",
   "src/games/paddleslap/src",
   "src/games/drawing-fire/src",
+  "src/games/zombies-aint-my-neighbors/src",
   "src/demos/dt-demo/src",
   "src/demos/joystick-demo/src",
   "src/demos/sound-board-demo/src",
@@ -429,6 +454,7 @@ include = [
   "src/games/clockwork-keep/**/*.py",
   "src/games/paddleslap/**/*.py",
   "src/games/drawing-fire/**/*.py",
+  "src/games/zombies-aint-my-neighbors/**/*.py",
   "src/demos/dt-demo/**/*.py",
   "src/demos/joystick-demo/**/*.py",
   "src/demos/sound-board-demo/**/*.py",
@@ -439,6 +465,7 @@ include = [
   "infra/**/*.py",
   "noxfile.py",
 ]
+# The browser builds' Python (Pyodide 314): see requires-python
 target-version = "py314"
 # A workspace member's tests directory is not a package (pytest imports its files by name; a
 # package named tests would shadow the engine's tests/), so it is a namespace on purpose
@@ -449,6 +476,7 @@ namespace-packages = [
   "src/games/clockwork-keep/tests",
   "src/games/paddleslap/tests",
   "src/games/drawing-fire/tests",
+  "src/games/zombies-aint-my-neighbors/tests",
   "src/demos/dt-demo/tests",
   "src/demos/joystick-demo/tests",
   "src/demos/sound-board-demo/tests",
@@ -707,6 +735,7 @@ known-first-party = [
   "clockwork_keep",
   "paddleslap",
   "drawing_fire",
+  "zombies_aint_my_neighbors",
   "dt_demo",
   "joystick_demo",
   "sound_board_demo",
@@ -718,6 +747,7 @@ known-first-party = [
 
 ## ty (Astral's type checker) configuration
 [tool.ty.environment]
+# The browser builds' Python (Pyodide 314): see requires-python
 python-version = "3.14"
 # src/ first: the engine's source package (explicit; ty's automatic src root is not relied on)
 root = [
@@ -728,6 +758,7 @@ root = [
   "src/games/clockwork-keep/src",
   "src/games/paddleslap/src",
   "src/games/drawing-fire/src",
+  "src/games/zombies-aint-my-neighbors/src",
   "src/demos/dt-demo/src",
   "src/demos/joystick-demo/src",
   "src/demos/sound-board-demo/src",
@@ -744,6 +775,7 @@ include = [
   "src/games/clockwork-keep",
   "src/games/paddleslap",
   "src/games/drawing-fire",
+  "src/games/zombies-aint-my-neighbors",
   "src/demos/dt-demo",
   "src/demos/joystick-demo",
   "src/demos/sound-board-demo",
@@ -822,6 +854,7 @@ known_first_party = ["glitchygames"]
 "clockwork-keep" = ["clockwork_keep"]
 "paddleslap" = ["paddleslap"]
 "drawing-fire" = ["drawing_fire"]
+"zombies-aint-my-neighbors" = ["zombies_aint_my_neighbors"]
 "dt-demo" = ["dt_demo"]
 "joystick-demo" = ["joystick_demo"]
 "sound-board-demo" = ["sound_board_demo"]
@@ -855,6 +888,7 @@ DEP002 = [
   "mkdocs-autorefs",
   "mkdocs-macros-plugin",
   "mkdocstrings-python",
+  "mkdocs-git-revision-date-localized-plugin",
   "pytest-cov",
   "pytest-xdist",
   "pytest-benchmark",
@@ -872,6 +906,10 @@ DEP002 = [
   "yamllint",
   "wily",
   "radon",
+  # Runs the Raspberry Pi and AI service playbooks (uv run --extra dev ansible-playbook);
+  # GPL-3.0, so a development tool only, never imported (its exception in
+  # scripts/check_licenses.py)
+  "ansible-core",
 ]
 
 [build-system]

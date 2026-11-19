@@ -29,16 +29,23 @@ After the build, ``on_post_build`` copies the browser games (build/browser/site,
 ``python -m scripts.build_browser_bundle all``) into the site as play/. A build without them
 (``lint-docs``, ``docs-serve``) leaves play/ out: building them needs the pygame-ce wheel's
 WebAssembly toolchain.
+
+Last, ``on_post_build`` checks the explorers' pages (``EXPLORER_PAGES``: requirements, replay
+performance, code complexity) without a browser: each built page must hold its explorer, and
+every local script, stylesheet and ``data-source`` the page names must be a file of the built
+site (``missing_explorer_files``), or the build stops naming what is missing.
 """
 
 from __future__ import annotations
 
 import importlib.util
 import logging
+import posixpath
 import shutil
 import sys
+from html.parser import HTMLParser
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol, override
 
 from mkdocs.exceptions import PluginError
 
@@ -66,6 +73,15 @@ LOG = logging.getLogger('mkdocs.hooks.glitchygames')
 # The packages whose module caches ``on_post_build`` empties (the griffe and mkdocstrings
 # distributions, mkdocstrings-python's handler package included)
 DOCUMENTATION_CACHE_PACKAGES = ('griffe', 'mkdocstrings')
+# Each explorer's built page (from the site's root) and the class of the element it draws into,
+# whose data-source names the JSON it reads (docs/js/requirements.js, performance.js, complexity.js)
+EXPLORER_PAGES: dict[str, str] = {
+    'requirements/index.html': 'requirements-explorer',
+    'quality/performance/index.html': 'performance-explorer',
+    'quality/complexity/index.html': 'complexity-explorer',
+}
+# A reference with one of these is not a file of the site (another site's script or font)
+EXTERNAL_REFERENCE_PREFIXES = ('http://', 'https://', '//', 'data:')
 
 
 class ModuleCache(Protocol):
@@ -237,18 +253,98 @@ def documentation_caches() -> list[ModuleCache]:
     return caches
 
 
+class PageReferences(HTMLParser):
+    """The files a built page names: its scripts, its stylesheets and its elements' data-source.
+
+    Attributes:
+        references: Each ``<script src>``, ``<link rel="stylesheet" href>`` and
+            ``data-source``, as written in the page, in order.
+        classes: Every class any element of the page has.
+
+    """
+
+    def __init__(self) -> None:
+        """Start with nothing found."""
+        super().__init__()
+        self.references: list[str] = []
+        self.classes: set[str] = set()
+
+    @override
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        """Note what one start tag names.
+
+        Args:
+            tag: The element's name.
+            attrs: Its attributes, as written.
+
+        """
+        attributes = {name: value or '' for name, value in attrs}
+        self.classes.update(attributes.get('class', '').split())
+        if tag == 'script' and attributes.get('src'):
+            self.references.append(attributes['src'])
+        if tag == 'link' and 'stylesheet' in attributes.get('rel', '').split():
+            self.references.append(attributes.get('href', ''))
+        if attributes.get('data-source'):
+            self.references.append(attributes['data-source'])
+
+
+def missing_explorer_files(*, site_directory: Path) -> list[str]:
+    """Return what the explorers' built pages need and the built site lacks.
+
+    A browser-free check of what a reader's browser would load: each page in ``EXPLORER_PAGES``
+    must exist and hold its explorer's element, and each local script, stylesheet and
+    ``data-source`` it names, resolved against the page's directory as a browser resolves it,
+    must be a file of the site.
+
+    Args:
+        site_directory: The built docs site.
+
+    Returns:
+        ``<page>: <what is missing>`` for each, in ``EXPLORER_PAGES``' order; empty when all
+        are there.
+
+    """
+    missing: list[str] = []
+    for page, explorer_class in EXPLORER_PAGES.items():
+        page_path = site_directory / page
+        if not page_path.is_file():
+            missing.append(f'{page}: the page itself')
+            continue
+        parser = PageReferences()
+        parser.feed(page_path.read_text(encoding='utf-8'))
+        if explorer_class not in parser.classes:
+            missing.append(f'{page}: its explorer (an element of class {explorer_class})')
+        page_directory = posixpath.dirname(page)
+        for reference in parser.references:
+            if reference.startswith(EXTERNAL_REFERENCE_PREFIXES):
+                continue
+            file_path = reference.split('#', maxsplit=1)[0].split('?', maxsplit=1)[0]
+            site_path = posixpath.normpath(posixpath.join(page_directory, file_path))
+            if site_path.startswith('..') or not (site_directory / site_path).is_file():
+                missing.append(f'{page}: {reference} ({site_path})')
+    return missing
+
+
 def on_post_build(config: MkDocsConfig) -> None:
-    """Copy the browser games into the built site, then empty the documentation caches.
+    """Copy the browser games in, empty the documentation caches, then check the explorers.
 
     mkdocs runs this after a build, before ``gh-deploy`` publishes the site. The games:
-    ``copy_browser_games``; the caches would keep this build alive (see the module docstring).
+    ``copy_browser_games``; the caches would keep this build alive (see the module docstring);
+    the explorers: ``missing_explorer_files``.
 
     Args:
         config: The mkdocs configuration (its ``site_dir``).
 
+    Raises:
+        PluginError: An explorer's page, its explorer or a file it names is missing from the
+            built site.
+
     """
-    copy_browser_games(
-        games_directory=BROWSER_GAMES_DIRECTORY, site_directory=Path(config.site_dir)
-    )
+    site_directory = Path(config.site_dir)
+    copy_browser_games(games_directory=BROWSER_GAMES_DIRECTORY, site_directory=site_directory)
     for cache in documentation_caches():
         cache.cache_clear()
+    missing = missing_explorer_files(site_directory=site_directory)
+    if missing:
+        message = "The explorers' pages name files the built site lacks:\n" + '\n'.join(missing)
+        raise PluginError(message)

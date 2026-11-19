@@ -16,7 +16,8 @@ src/
                        every game and demo is a member, and its resources/ holds only what the
                        engine itself ships
   games/<game>/        one member per game: every game (mr-muncher, clockwork-keep,
-                       brave-adventurer, paddleslap, drawing-fire)
+                       brave-adventurer, paddleslap, drawing-fire,
+                       zombies-aint-my-neighbors)
   demos/<demo>/        one member per demo (dt-demo, joystick-demo, sound-board-demo,
                        text-input-demo): a small
                        program that shows one engine feature (console scripts `dt-demo`,
@@ -37,7 +38,8 @@ the installed package. Coverage maps the installed copies back to `src/`
 - A **demo** (a demos-layer member): a program under `src/demos/<demo>/`, run with its console
   script or `python -m <package>`. It is code.
 - A game's **bundled demo recording**: `<package>/demos/<name>.jsonl.gz`, package data inside a
-  game (PaddleSlap's `rally.jsonl.gz`), replayed by that game's console script. It is data, and
+  game (PaddleSlap's `rally.jsonl.gz`; every Arcade tile has one), replayed by that game's
+  console script. It is data, and
   `glitchygames.bundled_demos` finds it (see "Bundled demos" below).
 
 A `demos` directory inside a package is therefore never a demos-layer member, and a demos-layer
@@ -333,6 +335,15 @@ registration (`git add -A src tests scripts docs`) before committing.
   built install (`site-packages`, as nox's test sessions install on purpose) a recording outside
   the repository is named by its install name
   (`glitchygames.replay.tools.measure.recording_ledger_name`).
+  A bundled demo is paired with the console script whose entry point is in the demo's own
+  package, so a member with several import packages keeps its demos in the package its console
+  script starts (Brave Adventurer's `classic` and `papyrus` are in the launcher's
+  `brave_adventurer_modes/demos/`). A new member's demo is a recipe in
+  `scripts/record_bundled_demos.py` (`DEMO_RECIPES`: scene, input script, frame count, package,
+  name and the session's options; `uv run python -m scripts.record_bundled_demos --demo KEY`)
+  and an entry in `tests/workspace_expectations.py` `EXPECTED_BUNDLED_DEMOS`; it is recorded
+  without a controls tail, must end with nothing held (the Arcade loops it) and stay within
+  `MAXIMUM_DEMO_BYTES` (256 KB), both checked by `tests/replay/test_bundled_demos.py`.
 - **Engine-private names**: a member uses only the engine's public API. Where a member needs
   something the engine keeps private, give the engine a public read-only API first: PaddleSlap
   reads its ball's path through `BallSprite.trajectory` and `record_trajectory_point`.
@@ -359,22 +370,27 @@ all moved into members by 2026-10-26 (Part 3). The plans record each move step b
 (`plans/2026-10-24-workspace-packages.md` and its parts; Mr. Muncher's, the first, is
 `plans/2026-10-24-workspace-packages-1-foundation.md`, Task 9). What still matters:
 
-- **Logical names**: a game moved from the examples package kept its logical name, so no
-  recording changed. Bitmappy, which was not in a layer, did not: its scene's logical name was
-  its module path (glitchygames.bitmappy.editor:BitmapEditorScene) and is now
-  `apps.bitmappy.editor:BitmapEditorScene`. A plain replay refuses a recording made before the
-  move, naming the remedy, and `--replay-trace OLD --rebaseline NEW --headless` converts it (a
-  rebaseline compares the game and each scene by qualified name alone and writes the current
-  logical names: [gameplay replay](gameplay_replay.md)).
-- **Moved recordings keep their history**: the root `pyproject.toml`'s
-  `[tool.glitchygames.recording-renames]` maps each moved recording's old path to its new one,
-  so its run-ledger rows stay connected (each moved member's `_recording_history.py` test
-  checks its lines). Each lookup is one step: a recording moved twice needs a line from each of
-  its old paths.
-- **Old checkouts**: a checkout from before the moves can hold ignored leftovers (their
-  `__pycache__`) in the old places, src/glitchygames/examples, src/glitchygames/bitmappy and
-  tests/examples, which resolve as namespace packages in an editable install. The moved
-  members' `test_the_old_example_module_is_gone` (PaddleSlap's and the demos'), Bitmappy's
-  `test_the_old_engine_package_is_gone` and the engine's
-  `test_the_engines_examples_directory_is_gone` fail on them, naming the leftover; the remedy is
-  `rm -rf src/glitchygames/examples src/glitchygames/bitmappy tests/examples`.
+Logical names
+:   A game moved from the examples package kept its logical name, so no
+    recording changed. Bitmappy, which was not in a layer, did not: its scene's logical name was
+    its module path (glitchygames.bitmappy.editor:BitmapEditorScene) and is now
+    `apps.bitmappy.editor:BitmapEditorScene`. A plain replay refuses a recording made before the
+    move, naming the remedy, and `--replay-trace OLD --rebaseline NEW --headless` converts it (a
+    rebaseline compares the game and each scene by qualified name alone and writes the current
+    logical names: [gameplay replay](gameplay_replay.md)).
+
+Moved recordings keep their history
+:   The root `pyproject.toml`'s
+    `[tool.glitchygames.recording-renames]` maps each moved recording's old path to its new one,
+    so its run-ledger rows stay connected (each moved member's `_recording_history.py` test
+    checks its lines). Each lookup is one step: a recording moved twice needs a line from each of
+    its old paths.
+
+Old checkouts
+:   A checkout from before the moves can hold ignored leftovers (their
+    `__pycache__`) in the old places, src/glitchygames/examples, src/glitchygames/bitmappy and
+    tests/examples, which resolve as namespace packages in an editable install. The moved
+    members' `test_the_old_example_module_is_gone` (PaddleSlap's and the demos'), Bitmappy's
+    `test_the_old_engine_package_is_gone` and the engine's
+    `test_the_engines_examples_directory_is_gone` fail on them, naming the leftover; the remedy is
+    `rm -rf src/glitchygames/examples src/glitchygames/bitmappy tests/examples`.

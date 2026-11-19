@@ -952,675 +952,680 @@ signatures).
 
 ### AudioEvents → AudioEventStubs
 
-```mermaid
-flowchart LR
-    A1["AUDIODEVICEADDED"] --> AH1["on_audio_device_added_event"]
-    click A1 "https://pyga.me/docs/ref/event.html" _blank
-```
+??? note "Its 2 handlers: each diagram, then the handler's signature"
+    ```mermaid
+    flowchart LR
+        A1["AUDIODEVICEADDED"] --> AH1["on_audio_device_added_event"]
+        click A1 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_audio_device_added_event(
-    event: HashableEvent(AUDIODEVICEADDED {
-        'which': ...,
-        'iscapture': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_audio_device_added_event(
+        event: HashableEvent(AUDIODEVICEADDED {
+            'which': ...,
+            'iscapture': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    A2["AUDIODEVICEREMOVED"] --> AH2["on_audio_device_removed_event"]
-    click A2 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        A2["AUDIODEVICEREMOVED"] --> AH2["on_audio_device_removed_event"]
+        click A2 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_audio_device_removed_event(
-    event: HashableEvent(AUDIODEVICEREMOVED {
-        'which': ...,
-        'iscapture': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_audio_device_removed_event(
+        event: HashableEvent(AUDIODEVICEREMOVED {
+            'which': ...,
+            'iscapture': ...,
+        })
+    ):
+        ...
+    ```
 
 ### ControllerEvents → ControllerEventStubs
 
-```mermaid
-flowchart LR
-    C1["CONTROLLERAXISMOTION"] --> CH1["on_controller_axis_motion_event"]
-    click C1 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
-```
+??? note "Its 10 handlers: each diagram, then the handler's signature"
+    ```mermaid
+    flowchart LR
+        C1["CONTROLLERAXISMOTION"] --> CH1["on_controller_axis_motion_event"]
+        click C1 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
+    ```
 
-```py
-def on_controller_axis_motion_event(
-    event: HashableEvent(CONTROLLERAXISMOTION {
-        'instance_id': ...,
-        'axis': ...,
-        'value': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_controller_axis_motion_event(
+        event: HashableEvent(CONTROLLERAXISMOTION {
+            'instance_id': ...,
+            'axis': ...,
+            'value': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    C2["CONTROLLERBUTTONDOWN"] --> CH2["on_controller_button_down_event"]
-    click C2 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        C2["CONTROLLERBUTTONDOWN"] --> CH2["on_controller_button_down_event"]
+        click C2 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
+    ```
 
-```py
-def on_controller_button_down_event(
-    event: HashableEvent(CONTROLLERBUTTONDOWN {
-        'instance_id': ...,
-        'button': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_controller_button_down_event(
+        event: HashableEvent(CONTROLLERBUTTONDOWN {
+            'instance_id': ...,
+            'button': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    C3["CONTROLLERBUTTONUP"] --> CH3["on_controller_button_up_event"]
-    click C3 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        C3["CONTROLLERBUTTONUP"] --> CH3["on_controller_button_up_event"]
+        click C3 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
+    ```
 
-```py
-def on_controller_button_up_event(
-    event: HashableEvent(CONTROLLERBUTTONUP {
-        'instance_id': ...,
-        'button': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_controller_button_up_event(
+        event: HashableEvent(CONTROLLERBUTTONUP {
+            'instance_id': ...,
+            'button': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    C4["CONTROLLERDEVICEADDED"] --> CH4["on_controller_device_added_event"]
-    click C4 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        C4["CONTROLLERDEVICEADDED"] --> CH4["on_controller_device_added_event"]
+        click C4 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
+    ```
 
-```py
-def on_controller_device_added_event(
-    event: HashableEvent(CONTROLLERDEVICEADDED {
-        'device_index': ...,
-        'guid': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_controller_device_added_event(
+        event: HashableEvent(CONTROLLERDEVICEADDED {
+            'device_index': ...,
+            'guid': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    C5["CONTROLLERDEVICEREMAPPED"] --> CH5["on_controller_device_remapped_event"]
-    click C5 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        C5["CONTROLLERDEVICEREMAPPED"] --> CH5["on_controller_device_remapped_event"]
+        click C5 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
+    ```
 
-```py
-def on_controller_device_remapped_event(
-    event: HashableEvent(CONTROLLERDEVICEREMAPPED {
-        'instance_id': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_controller_device_remapped_event(
+        event: HashableEvent(CONTROLLERDEVICEREMAPPED {
+            'instance_id': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    C6["CONTROLLERDEVICEREMOVED"] --> CH6["on_controller_device_removed_event"]
-    click C6 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        C6["CONTROLLERDEVICEREMOVED"] --> CH6["on_controller_device_removed_event"]
+        click C6 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
+    ```
 
-```py
-def on_controller_device_removed_event(
-    event: HashableEvent(CONTROLLERDEVICEREMOVED {
-        'instance_id': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_controller_device_removed_event(
+        event: HashableEvent(CONTROLLERDEVICEREMOVED {
+            'instance_id': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    C7["CONTROLLERTOUCHPADDOWN"] --> CH7["on_controller_touchpad_down_event"]
-    click C7 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        C7["CONTROLLERTOUCHPADDOWN"] --> CH7["on_controller_touchpad_down_event"]
+        click C7 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
+    ```
 
-```py
-def on_controller_touchpad_down_event(
-    event: HashableEvent(CONTROLLERTOUCHPADDOWN {
-        'instance_id': ...,
-        'touch_id': ...,
-        'finger_id': ...,
-        'x': ...,
-        'y': ...,
-        'pressure': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_controller_touchpad_down_event(
+        event: HashableEvent(CONTROLLERTOUCHPADDOWN {
+            'instance_id': ...,
+            'touch_id': ...,
+            'finger_id': ...,
+            'x': ...,
+            'y': ...,
+            'pressure': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    C8["CONTROLLERTOUCHPADMOTION"] --> CH8["on_controller_touchpad_motion_event"]
-    click C8 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        C8["CONTROLLERTOUCHPADMOTION"] --> CH8["on_controller_touchpad_motion_event"]
+        click C8 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
+    ```
 
-```py
-def on_controller_touchpad_motion_event(
-    event: HashableEvent(CONTROLLERTOUCHPADMOTION {
-        'instance_id': ...,
-        'touch_id': ...,
-        'finger_id': ...,
-        'x': ...,
-        'y': ...,
-        'pressure': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_controller_touchpad_motion_event(
+        event: HashableEvent(CONTROLLERTOUCHPADMOTION {
+            'instance_id': ...,
+            'touch_id': ...,
+            'finger_id': ...,
+            'x': ...,
+            'y': ...,
+            'pressure': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    C9["CONTROLLERTOUCHPADUP"] --> CH9["on_controller_touchpad_up_event"]
-    click C9 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        C9["CONTROLLERTOUCHPADUP"] --> CH9["on_controller_touchpad_up_event"]
+        click C9 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
+    ```
 
-```py
-def on_controller_touchpad_up_event(
-    event: HashableEvent(CONTROLLERTOUCHPADUP {
-        'instance_id': ...,
-        'touch_id': ...,
-        'finger_id': ...,
-        'x': ...,
-        'y': ...,
-        'pressure': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_controller_touchpad_up_event(
+        event: HashableEvent(CONTROLLERTOUCHPADUP {
+            'instance_id': ...,
+            'touch_id': ...,
+            'finger_id': ...,
+            'x': ...,
+            'y': ...,
+            'pressure': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    C10["CONTROLLERSENSORUPDATE"] --> CH10["on_controller_sensor_update_event"]
-    click C10 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        C10["CONTROLLERSENSORUPDATE"] --> CH10["on_controller_sensor_update_event"]
+        click C10 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
+    ```
 
-```py
-def on_controller_sensor_update_event(
-    event: HashableEvent(CONTROLLERSENSORUPDATE {
-        'instance_id': ...,
-        'sensor': ...,
-        'data': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_controller_sensor_update_event(
+        event: HashableEvent(CONTROLLERSENSORUPDATE {
+            'instance_id': ...,
+            'sensor': ...,
+            'data': ...,
+        })
+    ):
+        ...
+    ```
 
 ### KeyboardEvents → KeyboardEventStubs
 
-```mermaid
-flowchart LR
-    K1["KEYDOWN"] --> KH1["on_key_down_event"]
-    click K1 "https://pyga.me/docs/ref/key.html" _blank
-```
+??? note "Its 4 handlers: each diagram, then the handler's signature"
+    ```mermaid
+    flowchart LR
+        K1["KEYDOWN"] --> KH1["on_key_down_event"]
+        click K1 "https://pyga.me/docs/ref/key.html" _blank
+    ```
 
-```py
-def on_key_down_event(
-    event: HashableEvent(KEYDOWN {
-        'unicode': ...,
-        'key': ...,
-        'mod': ...,
-        'scancode': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_key_down_event(
+        event: HashableEvent(KEYDOWN {
+            'unicode': ...,
+            'key': ...,
+            'mod': ...,
+            'scancode': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    K2["KEYUP"] --> KH2["on_key_up_event"]
-    click K2 "https://pyga.me/docs/ref/key.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        K2["KEYUP"] --> KH2["on_key_up_event"]
+        click K2 "https://pyga.me/docs/ref/key.html" _blank
+    ```
 
-```py
-def on_key_up_event(
-    event: HashableEvent(KEYUP {
-        'key': ...,
-        'mod': ...,
-        'scancode': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_key_up_event(
+        event: HashableEvent(KEYUP {
+            'key': ...,
+            'mod': ...,
+            'scancode': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    K1["KEYDOWN"] -.->|"tracks pressed keys"| KS1("on_key_chord_down_event"):::synthesized
-    classDef synthesized stroke-dasharray: 5 5
-    click K1 "https://pyga.me/docs/ref/key.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        K1["KEYDOWN"] -.->|"tracks pressed keys"| KS1("on_key_chord_down_event"):::synthesized
+        classDef synthesized stroke-dasharray: 5 5
+        click K1 "https://pyga.me/docs/ref/key.html" _blank
+    ```
 
-```py
-# Synthesized — fired after every KEYDOWN with all currently held keys
-def on_key_chord_down_event(
-    event: HashableEvent(KEYDOWN {
-        'unicode': ..., 'key': ..., 'mod': ..., 'scancode': ...,
-    }),
-    keys: tuple[KeyEvent, ...],  # the KEYDOWN events of the keys held, in press order
-):
-    ...
-```
+    ```py
+    # Synthesized — fired after every KEYDOWN with all currently held keys
+    def on_key_chord_down_event(
+        event: HashableEvent(KEYDOWN {
+            'unicode': ..., 'key': ..., 'mod': ..., 'scancode': ...,
+        }),
+        keys: tuple[KeyEvent, ...],  # the KEYDOWN events of the keys held, in press order
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    K2["KEYUP"] -.->|"tracks pressed keys"| KS2("on_key_chord_up_event"):::synthesized
-    classDef synthesized stroke-dasharray: 5 5
-    click K2 "https://pyga.me/docs/ref/key.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        K2["KEYUP"] -.->|"tracks pressed keys"| KS2("on_key_chord_up_event"):::synthesized
+        classDef synthesized stroke-dasharray: 5 5
+        click K2 "https://pyga.me/docs/ref/key.html" _blank
+    ```
 
-```py
-# Synthesized — fired after every KEYUP with all keys still held down
-def on_key_chord_up_event(
-    event: HashableEvent(KEYUP {
-        'key': ..., 'mod': ..., 'scancode': ...,
-    }),
-    keys: tuple[KeyEvent, ...],  # the KEYDOWN events of the keys still held
-):
-    ...
-```
+    ```py
+    # Synthesized — fired after every KEYUP with all keys still held down
+    def on_key_chord_up_event(
+        event: HashableEvent(KEYUP {
+            'key': ..., 'mod': ..., 'scancode': ...,
+        }),
+        keys: tuple[KeyEvent, ...],  # the KEYDOWN events of the keys still held
+    ):
+        ...
+    ```
 
 ### MouseEvents → MouseEventStubs
 
-```mermaid
-flowchart LR
-    M1["MOUSEMOTION"] --> MH1["on_mouse_motion_event"]
-    click M1 "https://pyga.me/docs/ref/mouse.html" _blank
-```
+??? note "Its 20 handlers: each diagram, then the handler's signature"
+    ```mermaid
+    flowchart LR
+        M1["MOUSEMOTION"] --> MH1["on_mouse_motion_event"]
+        click M1 "https://pyga.me/docs/ref/mouse.html" _blank
+    ```
 
-```py
-def on_mouse_motion_event(
-    event: HashableEvent(MOUSEMOTION {
-        'pos': ...,
-        'rel': ...,
-        'buttons': ...,
-        'touch': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_mouse_motion_event(
+        event: HashableEvent(MOUSEMOTION {
+            'pos': ...,
+            'rel': ...,
+            'buttons': ...,
+            'touch': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    M2["MOUSEBUTTONDOWN"] --> MH2["on_mouse_button_down_event"]
-    click M2 "https://pyga.me/docs/ref/mouse.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        M2["MOUSEBUTTONDOWN"] --> MH2["on_mouse_button_down_event"]
+        click M2 "https://pyga.me/docs/ref/mouse.html" _blank
+    ```
 
-```py
-def on_mouse_button_down_event(
-    event: HashableEvent(MOUSEBUTTONDOWN {
-        'pos': ...,
-        'button': ...,
-        'touch': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_mouse_button_down_event(
+        event: HashableEvent(MOUSEBUTTONDOWN {
+            'pos': ...,
+            'button': ...,
+            'touch': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    M3["MOUSEBUTTONUP"] --> MH3["on_mouse_button_up_event"]
-    click M3 "https://pyga.me/docs/ref/mouse.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        M3["MOUSEBUTTONUP"] --> MH3["on_mouse_button_up_event"]
+        click M3 "https://pyga.me/docs/ref/mouse.html" _blank
+    ```
 
-```py
-def on_mouse_button_up_event(
-    event: HashableEvent(MOUSEBUTTONUP {
-        'pos': ...,
-        'button': ...,
-        'touch': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_mouse_button_up_event(
+        event: HashableEvent(MOUSEBUTTONUP {
+            'pos': ...,
+            'button': ...,
+            'touch': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    M4["MOUSEWHEEL"] --> MH4["on_mouse_wheel_event"]
-    click M4 "https://pyga.me/docs/ref/mouse.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        M4["MOUSEWHEEL"] --> MH4["on_mouse_wheel_event"]
+        click M4 "https://pyga.me/docs/ref/mouse.html" _blank
+    ```
 
-```py
-def on_mouse_wheel_event(
-    event: HashableEvent(MOUSEWHEEL {
-        'flipped': ...,
-        'x': ...,
-        'y': ...,
-        'touch': ...,
-        'window': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_mouse_wheel_event(
+        event: HashableEvent(MOUSEWHEEL {
+            'flipped': ...,
+            'x': ...,
+            'y': ...,
+            'touch': ...,
+            'window': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    M2["MOUSEBUTTONDOWN"] -.->|"button==1"| MS1("on_left_mouse_button_down_event"):::synthesized
-    M2 -.->|"button==2"| MS2("on_middle_mouse_button_down_event"):::synthesized
-    M2 -.->|"button==3"| MS3("on_right_mouse_button_down_event"):::synthesized
-    M2 -.->|"button==4"| MS4("on_mouse_scroll_up_event"):::synthesized
-    M2 -.->|"button==5"| MS5("on_mouse_scroll_down_event"):::synthesized
-    classDef synthesized stroke-dasharray: 5 5
-    click M2 "https://pyga.me/docs/ref/mouse.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        M2["MOUSEBUTTONDOWN"] -.->|"button==1"| MS1("on_left_mouse_button_down_event"):::synthesized
+        M2 -.->|"button==2"| MS2("on_middle_mouse_button_down_event"):::synthesized
+        M2 -.->|"button==3"| MS3("on_right_mouse_button_down_event"):::synthesized
+        M2 -.->|"button==4"| MS4("on_mouse_scroll_up_event"):::synthesized
+        M2 -.->|"button==5"| MS5("on_mouse_scroll_down_event"):::synthesized
+        classDef synthesized stroke-dasharray: 5 5
+        click M2 "https://pyga.me/docs/ref/mouse.html" _blank
+    ```
 
-```py
-# Synthesized — button-specific variants of MOUSEBUTTONDOWN
-def on_left_mouse_button_down_event(
-    event: HashableEvent(MOUSEBUTTONDOWN {
-        'pos': ..., 'button': ..., 'touch': ...,
-    })
-):
-    ...
+    ```py
+    # Synthesized — button-specific variants of MOUSEBUTTONDOWN
+    def on_left_mouse_button_down_event(
+        event: HashableEvent(MOUSEBUTTONDOWN {
+            'pos': ..., 'button': ..., 'touch': ...,
+        })
+    ):
+        ...
 
-def on_middle_mouse_button_down_event(
-    event: HashableEvent(MOUSEBUTTONDOWN {
-        'pos': ..., 'button': ..., 'touch': ...,
-    })
-):
-    ...
+    def on_middle_mouse_button_down_event(
+        event: HashableEvent(MOUSEBUTTONDOWN {
+            'pos': ..., 'button': ..., 'touch': ...,
+        })
+    ):
+        ...
 
-def on_right_mouse_button_down_event(
-    event: HashableEvent(MOUSEBUTTONDOWN {
-        'pos': ..., 'button': ..., 'touch': ...,
-    })
-):
-    ...
+    def on_right_mouse_button_down_event(
+        event: HashableEvent(MOUSEBUTTONDOWN {
+            'pos': ..., 'button': ..., 'touch': ...,
+        })
+    ):
+        ...
 
-def on_mouse_scroll_down_event(
-    event: HashableEvent(MOUSEBUTTONDOWN {
-        'pos': ..., 'button': ..., 'touch': ...,
-    })
-):
-    ...
+    def on_mouse_scroll_down_event(
+        event: HashableEvent(MOUSEBUTTONDOWN {
+            'pos': ..., 'button': ..., 'touch': ...,
+        })
+    ):
+        ...
 
-def on_mouse_scroll_up_event(
-    event: HashableEvent(MOUSEBUTTONDOWN {
-        'pos': ..., 'button': ..., 'touch': ...,
-    })
-):
-    ...
-```
+    def on_mouse_scroll_up_event(
+        event: HashableEvent(MOUSEBUTTONDOWN {
+            'pos': ..., 'button': ..., 'touch': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    M3["MOUSEBUTTONUP"] -.->|"button==1"| MS6("on_left_mouse_button_up_event"):::synthesized
-    M3 -.->|"button==2"| MS7("on_middle_mouse_button_up_event"):::synthesized
-    M3 -.->|"button==3"| MS8("on_right_mouse_button_up_event"):::synthesized
-    classDef synthesized stroke-dasharray: 5 5
-    click M3 "https://pyga.me/docs/ref/mouse.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        M3["MOUSEBUTTONUP"] -.->|"button==1"| MS6("on_left_mouse_button_up_event"):::synthesized
+        M3 -.->|"button==2"| MS7("on_middle_mouse_button_up_event"):::synthesized
+        M3 -.->|"button==3"| MS8("on_right_mouse_button_up_event"):::synthesized
+        classDef synthesized stroke-dasharray: 5 5
+        click M3 "https://pyga.me/docs/ref/mouse.html" _blank
+    ```
 
-```py
-# Synthesized — button-specific variants of MOUSEBUTTONUP
-def on_left_mouse_button_up_event(
-    event: HashableEvent(MOUSEBUTTONUP {
-        'pos': ..., 'button': ..., 'touch': ...,
-    })
-):
-    ...
+    ```py
+    # Synthesized — button-specific variants of MOUSEBUTTONUP
+    def on_left_mouse_button_up_event(
+        event: HashableEvent(MOUSEBUTTONUP {
+            'pos': ..., 'button': ..., 'touch': ...,
+        })
+    ):
+        ...
 
-def on_middle_mouse_button_up_event(
-    event: HashableEvent(MOUSEBUTTONUP {
-        'pos': ..., 'button': ..., 'touch': ...,
-    })
-):
-    ...
+    def on_middle_mouse_button_up_event(
+        event: HashableEvent(MOUSEBUTTONUP {
+            'pos': ..., 'button': ..., 'touch': ...,
+        })
+    ):
+        ...
 
-def on_right_mouse_button_up_event(
-    event: HashableEvent(MOUSEBUTTONUP {
-        'pos': ..., 'button': ..., 'touch': ...,
-    })
-):
-    ...
-```
+    def on_right_mouse_button_up_event(
+        event: HashableEvent(MOUSEBUTTONUP {
+            'pos': ..., 'button': ..., 'touch': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    M1["MOUSEMOTION"] -.->|"button held + motion"| MS9("on_left_mouse_drag_event"):::synthesized
-    M1 -.->|"button held + motion"| MS9b("on_middle_mouse_drag_event"):::synthesized
-    M1 -.->|"button held + motion"| MS9c("on_right_mouse_drag_event"):::synthesized
-    classDef synthesized stroke-dasharray: 5 5
-    click M1 "https://pyga.me/docs/ref/mouse.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        M1["MOUSEMOTION"] -.->|"button held + motion"| MS9("on_left_mouse_drag_event"):::synthesized
+        M1 -.->|"button held + motion"| MS9b("on_middle_mouse_drag_event"):::synthesized
+        M1 -.->|"button held + motion"| MS9c("on_right_mouse_drag_event"):::synthesized
+        classDef synthesized stroke-dasharray: 5 5
+        click M1 "https://pyga.me/docs/ref/mouse.html" _blank
+    ```
 
-```py
-# Synthesized — drag events (motion while button held)
-def on_left_mouse_drag_event(
-    event: HashableEvent(MOUSEMOTION {
-        'pos': ..., 'rel': ..., 'buttons': ..., 'touch': ...,
-    }),
-    trigger: HashableEvent(MOUSEBUTTONDOWN {
-        'pos': ..., 'button': ..., 'touch': ...,
-    }),  # the original button-down
-):
-    ...
+    ```py
+    # Synthesized — drag events (motion while button held)
+    def on_left_mouse_drag_event(
+        event: HashableEvent(MOUSEMOTION {
+            'pos': ..., 'rel': ..., 'buttons': ..., 'touch': ...,
+        }),
+        trigger: HashableEvent(MOUSEBUTTONDOWN {
+            'pos': ..., 'button': ..., 'touch': ...,
+        }),  # the original button-down
+    ):
+        ...
 
-def on_middle_mouse_drag_event(
-    event: HashableEvent(MOUSEMOTION {
-        'pos': ..., 'rel': ..., 'buttons': ..., 'touch': ...,
-    }),
-    trigger: HashableEvent(MOUSEBUTTONDOWN {
-        'pos': ..., 'button': ..., 'touch': ...,
-    }),
-):
-    ...
+    def on_middle_mouse_drag_event(
+        event: HashableEvent(MOUSEMOTION {
+            'pos': ..., 'rel': ..., 'buttons': ..., 'touch': ...,
+        }),
+        trigger: HashableEvent(MOUSEBUTTONDOWN {
+            'pos': ..., 'button': ..., 'touch': ...,
+        }),
+    ):
+        ...
 
-def on_right_mouse_drag_event(
-    event: HashableEvent(MOUSEMOTION {
-        'pos': ..., 'rel': ..., 'buttons': ..., 'touch': ...,
-    }),
-    trigger: HashableEvent(MOUSEBUTTONDOWN {
-        'pos': ..., 'button': ..., 'touch': ...,
-    }),
-):
-    ...
-```
+    def on_right_mouse_drag_event(
+        event: HashableEvent(MOUSEMOTION {
+            'pos': ..., 'rel': ..., 'buttons': ..., 'touch': ...,
+        }),
+        trigger: HashableEvent(MOUSEBUTTONDOWN {
+            'pos': ..., 'button': ..., 'touch': ...,
+        }),
+    ):
+        ...
+    ```
 
-A release after a drag arrives as `on_mouse_drop_event(event, trigger)` and then as the
-released button's drop handler below, both arguments the `MOUSEBUTTONUP` (see Mouse Event
-Synthesis).
+    A release after a drag arrives as `on_mouse_drop_event(event, trigger)` and then as the
+    released button's drop handler below, both arguments the `MOUSEBUTTONUP` (see Mouse Event
+    Synthesis).
 
-```mermaid
-flowchart LR
-    M3["MOUSEBUTTONUP"] -.->|"released after drag"| MS10("on_left_mouse_drop_event"):::synthesized
-    M3 -.->|"released after drag"| MS10b("on_middle_mouse_drop_event"):::synthesized
-    M3 -.->|"released after drag"| MS10c("on_right_mouse_drop_event"):::synthesized
-    classDef synthesized stroke-dasharray: 5 5
-    click M3 "https://pyga.me/docs/ref/mouse.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        M3["MOUSEBUTTONUP"] -.->|"released after drag"| MS10("on_left_mouse_drop_event"):::synthesized
+        M3 -.->|"released after drag"| MS10b("on_middle_mouse_drop_event"):::synthesized
+        M3 -.->|"released after drag"| MS10c("on_right_mouse_drop_event"):::synthesized
+        classDef synthesized stroke-dasharray: 5 5
+        click M3 "https://pyga.me/docs/ref/mouse.html" _blank
+    ```
 
-```py
-# Synthesized — drop events (button released after drag)
-def on_left_mouse_drop_event(
-    event: HashableEvent(MOUSEBUTTONUP {
-        'pos': ..., 'button': ..., 'touch': ...,
-    }),
-    trigger: HashableEvent(MOUSEBUTTONUP {
-        'pos': ..., 'button': ..., 'touch': ...,
-    }),  # the release itself, as for on_mouse_drop_event
-):
-    ...
+    ```py
+    # Synthesized — drop events (button released after drag)
+    def on_left_mouse_drop_event(
+        event: HashableEvent(MOUSEBUTTONUP {
+            'pos': ..., 'button': ..., 'touch': ...,
+        }),
+        trigger: HashableEvent(MOUSEBUTTONUP {
+            'pos': ..., 'button': ..., 'touch': ...,
+        }),  # the release itself, as for on_mouse_drop_event
+    ):
+        ...
 
-def on_middle_mouse_drop_event(
-    event: HashableEvent(MOUSEBUTTONUP {
-        'pos': ..., 'button': ..., 'touch': ...,
-    }),
-    trigger: HashableEvent(MOUSEBUTTONUP {
-        'pos': ..., 'button': ..., 'touch': ...,
-    }),
-):
-    ...
+    def on_middle_mouse_drop_event(
+        event: HashableEvent(MOUSEBUTTONUP {
+            'pos': ..., 'button': ..., 'touch': ...,
+        }),
+        trigger: HashableEvent(MOUSEBUTTONUP {
+            'pos': ..., 'button': ..., 'touch': ...,
+        }),
+    ):
+        ...
 
-def on_right_mouse_drop_event(
-    event: HashableEvent(MOUSEBUTTONUP {
-        'pos': ..., 'button': ..., 'touch': ...,
-    }),
-    trigger: HashableEvent(MOUSEBUTTONUP {
-        'pos': ..., 'button': ..., 'touch': ...,
-    }),
-):
-    ...
-```
+    def on_right_mouse_drop_event(
+        event: HashableEvent(MOUSEBUTTONUP {
+            'pos': ..., 'button': ..., 'touch': ...,
+        }),
+        trigger: HashableEvent(MOUSEBUTTONUP {
+            'pos': ..., 'button': ..., 'touch': ...,
+        }),
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    M1["MOUSEMOTION"] -.->|"sprite collision change"| MS11("on_mouse_focus_event"):::synthesized
-    M1 -.->|"sprite collision change"| MS12("on_mouse_unfocus_event"):::synthesized
-    classDef synthesized stroke-dasharray: 5 5
-    click M1 "https://pyga.me/docs/ref/mouse.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        M1["MOUSEMOTION"] -.->|"sprite collision change"| MS11("on_mouse_focus_event"):::synthesized
+        M1 -.->|"sprite collision change"| MS12("on_mouse_unfocus_event"):::synthesized
+        classDef synthesized stroke-dasharray: 5 5
+        click M1 "https://pyga.me/docs/ref/mouse.html" _blank
+    ```
 
-```py
-# Synthesized — sprite focus tracking
-def on_mouse_focus_event(
-    event: HashableEvent(MOUSEMOTION {
-        'pos': ..., 'rel': ..., 'buttons': ..., 'touch': ...,
-    }),
-    entering_focus: object,  # the sprite gaining focus
-):
-    ...
+    ```py
+    # Synthesized — sprite focus tracking
+    def on_mouse_focus_event(
+        event: HashableEvent(MOUSEMOTION {
+            'pos': ..., 'rel': ..., 'buttons': ..., 'touch': ...,
+        }),
+        entering_focus: object,  # the sprite gaining focus
+    ):
+        ...
 
-def on_mouse_unfocus_event(
-    event: HashableEvent(MOUSEMOTION {
-        'pos': ..., 'rel': ..., 'buttons': ..., 'touch': ...,
-    }),
-    leaving_focus: object,  # the sprite losing focus
-):
-    ...
-```
+    def on_mouse_unfocus_event(
+        event: HashableEvent(MOUSEMOTION {
+            'pos': ..., 'rel': ..., 'buttons': ..., 'touch': ...,
+        }),
+        leaving_focus: object,  # the sprite losing focus
+    ):
+        ...
+    ```
 
 ### JoystickEvents → JoystickEventStubs
 
-```mermaid
-flowchart LR
-    J1["JOYAXISMOTION"] --> JH1["on_joy_axis_motion_event"]
-    click J1 "https://pyga.me/docs/ref/joystick.html" _blank
-```
+??? note "Its 7 handlers: each diagram, then the handler's signature"
+    ```mermaid
+    flowchart LR
+        J1["JOYAXISMOTION"] --> JH1["on_joy_axis_motion_event"]
+        click J1 "https://pyga.me/docs/ref/joystick.html" _blank
+    ```
 
-```py
-def on_joy_axis_motion_event(
-    event: HashableEvent(JOYAXISMOTION {
-        'joy': ...,
-        'instance_id': ...,
-        'axis': ...,
-        'value': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_joy_axis_motion_event(
+        event: HashableEvent(JOYAXISMOTION {
+            'joy': ...,
+            'instance_id': ...,
+            'axis': ...,
+            'value': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    J2["JOYBUTTONDOWN"] --> JH2["on_joy_button_down_event"]
-    click J2 "https://pyga.me/docs/ref/joystick.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        J2["JOYBUTTONDOWN"] --> JH2["on_joy_button_down_event"]
+        click J2 "https://pyga.me/docs/ref/joystick.html" _blank
+    ```
 
-```py
-def on_joy_button_down_event(
-    event: HashableEvent(JOYBUTTONDOWN {
-        'joy': ...,
-        'instance_id': ...,
-        'button': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_joy_button_down_event(
+        event: HashableEvent(JOYBUTTONDOWN {
+            'joy': ...,
+            'instance_id': ...,
+            'button': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    J3["JOYBUTTONUP"] --> JH3["on_joy_button_up_event"]
-    click J3 "https://pyga.me/docs/ref/joystick.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        J3["JOYBUTTONUP"] --> JH3["on_joy_button_up_event"]
+        click J3 "https://pyga.me/docs/ref/joystick.html" _blank
+    ```
 
-```py
-def on_joy_button_up_event(
-    event: HashableEvent(JOYBUTTONUP {
-        'joy': ...,
-        'instance_id': ...,
-        'button': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_joy_button_up_event(
+        event: HashableEvent(JOYBUTTONUP {
+            'joy': ...,
+            'instance_id': ...,
+            'button': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    J4["JOYHATMOTION"] --> JH4["on_joy_hat_motion_event"]
-    click J4 "https://pyga.me/docs/ref/joystick.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        J4["JOYHATMOTION"] --> JH4["on_joy_hat_motion_event"]
+        click J4 "https://pyga.me/docs/ref/joystick.html" _blank
+    ```
 
-```py
-def on_joy_hat_motion_event(
-    event: HashableEvent(JOYHATMOTION {
-        'joy': ...,
-        'instance_id': ...,
-        'hat': ...,
-        'value': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_joy_hat_motion_event(
+        event: HashableEvent(JOYHATMOTION {
+            'joy': ...,
+            'instance_id': ...,
+            'hat': ...,
+            'value': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    J5["JOYBALLMOTION"] --> JH5["on_joy_ball_motion_event"]
-    click J5 "https://pyga.me/docs/ref/joystick.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        J5["JOYBALLMOTION"] --> JH5["on_joy_ball_motion_event"]
+        click J5 "https://pyga.me/docs/ref/joystick.html" _blank
+    ```
 
-```py
-def on_joy_ball_motion_event(
-    event: HashableEvent(JOYBALLMOTION {
-        'joy': ...,
-        'instance_id': ...,
-        'ball': ...,
-        'rel': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_joy_ball_motion_event(
+        event: HashableEvent(JOYBALLMOTION {
+            'joy': ...,
+            'instance_id': ...,
+            'ball': ...,
+            'rel': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    J6["JOYDEVICEADDED"] --> JH6["on_joy_device_added_event"]
-    click J6 "https://pyga.me/docs/ref/joystick.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        J6["JOYDEVICEADDED"] --> JH6["on_joy_device_added_event"]
+        click J6 "https://pyga.me/docs/ref/joystick.html" _blank
+    ```
 
-```py
-def on_joy_device_added_event(
-    event: HashableEvent(JOYDEVICEADDED {
-        'device_index': ...,
-        'guid': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_joy_device_added_event(
+        event: HashableEvent(JOYDEVICEADDED {
+            'device_index': ...,
+            'guid': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    J7["JOYDEVICEREMOVED"] --> JH7["on_joy_device_removed_event"]
-    click J7 "https://pyga.me/docs/ref/joystick.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        J7["JOYDEVICEREMOVED"] --> JH7["on_joy_device_removed_event"]
+        click J7 "https://pyga.me/docs/ref/joystick.html" _blank
+    ```
 
-```py
-def on_joy_device_removed_event(
-    event: HashableEvent(JOYDEVICEREMOVED {
-        'instance_id': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_joy_device_removed_event(
+        event: HashableEvent(JOYDEVICEREMOVED {
+            'instance_id': ...,
+        })
+    ):
+        ...
+    ```
 
 ### WindowEvents → WindowEventStubs
 
@@ -1629,532 +1634,537 @@ All window events carry `{'window': ...}` (the `pygame.Window`, or `None`; a rep
 `GameEngine.process_window_event` routes the types below; WINDOWDISPLAYCHANGED and
 WINDOWICCPROFCHANGED reach no handler (they are counted as unhandled).
 
-```mermaid
-flowchart LR
-    W1["WINDOWCLOSE"] --> WH1["on_window_close_event"]
-    click W1 "https://pyga.me/docs/ref/window.html" _blank
-```
+??? note "Its 16 handlers: each diagram, then the handler's signature"
+    ```mermaid
+    flowchart LR
+        W1["WINDOWCLOSE"] --> WH1["on_window_close_event"]
+        click W1 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_close_event(event: HashableEvent(WINDOWCLOSE {'window': ...})):
-    ...
-```
+    ```py
+    def on_window_close_event(event: HashableEvent(WINDOWCLOSE {'window': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W2["WINDOWFOCUSGAINED"] --> WH2["on_window_focus_gained_event"]
-    click W2 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W2["WINDOWFOCUSGAINED"] --> WH2["on_window_focus_gained_event"]
+        click W2 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_focus_gained_event(event: HashableEvent(WINDOWFOCUSGAINED {'window': ...})):
-    ...
-```
+    ```py
+    def on_window_focus_gained_event(event: HashableEvent(WINDOWFOCUSGAINED {'window': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W3["WINDOWFOCUSLOST"] --> WH3["on_window_focus_lost_event"]
-    click W3 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W3["WINDOWFOCUSLOST"] --> WH3["on_window_focus_lost_event"]
+        click W3 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_focus_lost_event(event: HashableEvent(WINDOWFOCUSLOST {'window': ...})):
-    ...
-```
+    ```py
+    def on_window_focus_lost_event(event: HashableEvent(WINDOWFOCUSLOST {'window': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W4["WINDOWRESIZED"] --> WH4["on_window_resized_event"]
-    click W4 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W4["WINDOWRESIZED"] --> WH4["on_window_resized_event"]
+        click W4 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_resized_event(event: HashableEvent(WINDOWRESIZED {'window': ..., 'x': ..., 'y': ...})):
-    ...
-```
+    ```py
+    def on_window_resized_event(event: HashableEvent(WINDOWRESIZED {'window': ..., 'x': ..., 'y': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W5["WINDOWMOVED"] --> WH5["on_window_moved_event"]
-    click W5 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W5["WINDOWMOVED"] --> WH5["on_window_moved_event"]
+        click W5 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_moved_event(event: HashableEvent(WINDOWMOVED {'window': ..., 'x': ..., 'y': ...})):
-    ...
-```
+    ```py
+    def on_window_moved_event(event: HashableEvent(WINDOWMOVED {'window': ..., 'x': ..., 'y': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W6["WINDOWMINIMIZED"] --> WH6["on_window_minimized_event"]
-    click W6 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W6["WINDOWMINIMIZED"] --> WH6["on_window_minimized_event"]
+        click W6 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_minimized_event(event: HashableEvent(WINDOWMINIMIZED {'window': ...})):
-    ...
-```
+    ```py
+    def on_window_minimized_event(event: HashableEvent(WINDOWMINIMIZED {'window': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W7["WINDOWMAXIMIZED"] --> WH7["on_window_maximized_event"]
-    click W7 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W7["WINDOWMAXIMIZED"] --> WH7["on_window_maximized_event"]
+        click W7 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_maximized_event(event: HashableEvent(WINDOWMAXIMIZED {'window': ...})):
-    ...
-```
+    ```py
+    def on_window_maximized_event(event: HashableEvent(WINDOWMAXIMIZED {'window': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W8["WINDOWRESTORED"] --> WH8["on_window_restored_event"]
-    click W8 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W8["WINDOWRESTORED"] --> WH8["on_window_restored_event"]
+        click W8 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_restored_event(event: HashableEvent(WINDOWRESTORED {'window': ...})):
-    ...
-```
+    ```py
+    def on_window_restored_event(event: HashableEvent(WINDOWRESTORED {'window': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W9["WINDOWSHOWN"] --> WH9["on_window_shown_event"]
-    click W9 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W9["WINDOWSHOWN"] --> WH9["on_window_shown_event"]
+        click W9 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_shown_event(event: HashableEvent(WINDOWSHOWN {'window': ...})):
-    ...
-```
+    ```py
+    def on_window_shown_event(event: HashableEvent(WINDOWSHOWN {'window': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W10["WINDOWHIDDEN"] --> WH10["on_window_hidden_event"]
-    click W10 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W10["WINDOWHIDDEN"] --> WH10["on_window_hidden_event"]
+        click W10 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_hidden_event(event: HashableEvent(WINDOWHIDDEN {'window': ...})):
-    ...
-```
+    ```py
+    def on_window_hidden_event(event: HashableEvent(WINDOWHIDDEN {'window': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W11["WINDOWEXPOSED"] --> WH11["on_window_exposed_event"]
-    click W11 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W11["WINDOWEXPOSED"] --> WH11["on_window_exposed_event"]
+        click W11 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_exposed_event(event: HashableEvent(WINDOWEXPOSED {'window': ...})):
-    ...
-```
+    ```py
+    def on_window_exposed_event(event: HashableEvent(WINDOWEXPOSED {'window': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W12["WINDOWENTER"] --> WH12["on_window_enter_event"]
-    click W12 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W12["WINDOWENTER"] --> WH12["on_window_enter_event"]
+        click W12 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_enter_event(event: HashableEvent(WINDOWENTER {'window': ...})):
-    ...
-```
+    ```py
+    def on_window_enter_event(event: HashableEvent(WINDOWENTER {'window': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W13["WINDOWLEAVE"] --> WH13["on_window_leave_event"]
-    click W13 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W13["WINDOWLEAVE"] --> WH13["on_window_leave_event"]
+        click W13 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_leave_event(event: HashableEvent(WINDOWLEAVE {'window': ...})):
-    ...
-```
+    ```py
+    def on_window_leave_event(event: HashableEvent(WINDOWLEAVE {'window': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W14["WINDOWSIZECHANGED"] --> WH14["on_window_size_changed_event"]
-    click W14 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W14["WINDOWSIZECHANGED"] --> WH14["on_window_size_changed_event"]
+        click W14 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_size_changed_event(event: HashableEvent(WINDOWSIZECHANGED {'window': ..., 'x': ..., 'y': ...})):
-    ...
-```
+    ```py
+    def on_window_size_changed_event(event: HashableEvent(WINDOWSIZECHANGED {'window': ..., 'x': ..., 'y': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W15["WINDOWTAKEFOCUS"] --> WH15["on_window_take_focus_event"]
-    click W15 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W15["WINDOWTAKEFOCUS"] --> WH15["on_window_take_focus_event"]
+        click W15 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_take_focus_event(event: HashableEvent(WINDOWTAKEFOCUS {'window': ...})):
-    ...
-```
+    ```py
+    def on_window_take_focus_event(event: HashableEvent(WINDOWTAKEFOCUS {'window': ...})):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    W16["WINDOWHITTEST"] --> WH16["on_window_hit_test_event"]
-    click W16 "https://pyga.me/docs/ref/window.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        W16["WINDOWHITTEST"] --> WH16["on_window_hit_test_event"]
+        click W16 "https://pyga.me/docs/ref/window.html" _blank
+    ```
 
-```py
-def on_window_hit_test_event(event: HashableEvent(WINDOWHITTEST {'window': ...})):
-    ...
-```
+    ```py
+    def on_window_hit_test_event(event: HashableEvent(WINDOWHITTEST {'window': ...})):
+        ...
+    ```
 
 ### DropEvents → DropEventStubs
 
-```mermaid
-flowchart LR
-    D1["DROPBEGIN"] --> DH1["on_drop_begin_event"]
-    click D1 "https://pyga.me/docs/ref/event.html" _blank
-```
+??? note "Its 4 handlers: each diagram, then the handler's signature"
+    ```mermaid
+    flowchart LR
+        D1["DROPBEGIN"] --> DH1["on_drop_begin_event"]
+        click D1 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_drop_begin_event(
-    event: HashableEvent(DROPBEGIN)
-):
-    ...
-```
+    ```py
+    def on_drop_begin_event(
+        event: HashableEvent(DROPBEGIN)
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    D2["DROPFILE"] --> DH2["on_drop_file_event"]
-    click D2 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        D2["DROPFILE"] --> DH2["on_drop_file_event"]
+        click D2 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_drop_file_event(
-    event: HashableEvent(DROPFILE {
-        'file': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_drop_file_event(
+        event: HashableEvent(DROPFILE {
+            'file': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    D3["DROPTEXT"] --> DH3["on_drop_text_event"]
-    click D3 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        D3["DROPTEXT"] --> DH3["on_drop_text_event"]
+        click D3 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_drop_text_event(
-    event: HashableEvent(DROPTEXT {
-        'text': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_drop_text_event(
+        event: HashableEvent(DROPTEXT {
+            'text': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    D4["DROPCOMPLETE"] --> DH4["on_drop_complete_event"]
-    click D4 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        D4["DROPCOMPLETE"] --> DH4["on_drop_complete_event"]
+        click D4 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_drop_complete_event(
-    event: HashableEvent(DROPCOMPLETE)
-):
-    ...
-```
+    ```py
+    def on_drop_complete_event(
+        event: HashableEvent(DROPCOMPLETE)
+    ):
+        ...
+    ```
 
 ### TouchEvents → TouchEventStubs
 
-```mermaid
-flowchart LR
-    T1["FINGERDOWN"] --> TH1["on_touch_down_event"]
-    click T1 "https://pyga.me/docs/ref/touch.html" _blank
-```
+??? note "Its 4 handlers: each diagram, then the handler's signature"
+    ```mermaid
+    flowchart LR
+        T1["FINGERDOWN"] --> TH1["on_touch_down_event"]
+        click T1 "https://pyga.me/docs/ref/touch.html" _blank
+    ```
 
-```py
-def on_touch_down_event(
-    event: HashableEvent(FINGERDOWN {
-        'touch_id': ...,
-        'finger_id': ...,
-        'x': ...,
-        'y': ...,
-        'dx': ...,
-        'dy': ...,
-        'pressure': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_touch_down_event(
+        event: HashableEvent(FINGERDOWN {
+            'touch_id': ...,
+            'finger_id': ...,
+            'x': ...,
+            'y': ...,
+            'dx': ...,
+            'dy': ...,
+            'pressure': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    T2["FINGERMOTION"] --> TH2["on_touch_motion_event"]
-    click T2 "https://pyga.me/docs/ref/touch.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        T2["FINGERMOTION"] --> TH2["on_touch_motion_event"]
+        click T2 "https://pyga.me/docs/ref/touch.html" _blank
+    ```
 
-```py
-def on_touch_motion_event(
-    event: HashableEvent(FINGERMOTION {
-        'touch_id': ...,
-        'finger_id': ...,
-        'x': ...,
-        'y': ...,
-        'dx': ...,
-        'dy': ...,
-        'pressure': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_touch_motion_event(
+        event: HashableEvent(FINGERMOTION {
+            'touch_id': ...,
+            'finger_id': ...,
+            'x': ...,
+            'y': ...,
+            'dx': ...,
+            'dy': ...,
+            'pressure': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    T3["FINGERUP"] --> TH3["on_touch_up_event"]
-    click T3 "https://pyga.me/docs/ref/touch.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        T3["FINGERUP"] --> TH3["on_touch_up_event"]
+        click T3 "https://pyga.me/docs/ref/touch.html" _blank
+    ```
 
-```py
-def on_touch_up_event(
-    event: HashableEvent(FINGERUP {
-        'touch_id': ...,
-        'finger_id': ...,
-        'x': ...,
-        'y': ...,
-        'dx': ...,
-        'dy': ...,
-        'pressure': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_touch_up_event(
+        event: HashableEvent(FINGERUP {
+            'touch_id': ...,
+            'finger_id': ...,
+            'x': ...,
+            'y': ...,
+            'dx': ...,
+            'dy': ...,
+            'pressure': ...,
+        })
+    ):
+        ...
+    ```
 
-`TouchEventManager` and the stubs define `on_multi_touch_down_event`,
-`on_multi_touch_motion_event` and `on_multi_touch_up_event`, but
-`GameEngine.process_touch_event` does not route `MULTIGESTURE` today: it is counted
-as unhandled.
+    `TouchEventManager` and the stubs define `on_multi_touch_down_event`,
+    `on_multi_touch_motion_event` and `on_multi_touch_up_event`, but
+    `GameEngine.process_touch_event` does not route `MULTIGESTURE` today: it is counted
+    as unhandled.
 
-```mermaid
-flowchart LR
-    T4["MULTIGESTURE"] -.->|"not routed"| TH4["on_multi_touch_*_event"]
-    click T4 "https://pyga.me/docs/ref/touch.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        T4["MULTIGESTURE"] -.->|"not routed"| TH4["on_multi_touch_*_event"]
+        click T4 "https://pyga.me/docs/ref/touch.html" _blank
+    ```
 
-```py
-def on_multi_touch_*_event(
-    event: HashableEvent(MULTIGESTURE {
-        'touch_id': ...,
-        'x': ...,
-        'y': ...,
-        'pinched': ...,
-        'rotated': ...,
-        'num_fingers': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_multi_touch_*_event(
+        event: HashableEvent(MULTIGESTURE {
+            'touch_id': ...,
+            'x': ...,
+            'y': ...,
+            'pinched': ...,
+            'rotated': ...,
+            'num_fingers': ...,
+        })
+    ):
+        ...
+    ```
 
 ### GameEvents → GameEventStubs
 
-```mermaid
-flowchart LR
-    G1["FPSEVENT"] --> GH1["on_fps_event"]
-    click G1 "https://pyga.me/docs/ref/event.html" _blank
-```
+??? note "Its 8 handlers: each diagram, then the handler's signature"
+    ```mermaid
+    flowchart LR
+        G1["FPSEVENT"] --> GH1["on_fps_event"]
+        click G1 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-# Custom USEREVENT+1 — posted by the engine with the measured frame rate
-def on_fps_event(
-    event: FpsEvent(FPSEVENT {
-        'fps': ...,
-    })
-):
-    ...
-```
-
-```mermaid
-flowchart LR
-    G2["GAMEEVENT"] --> GH2["on_game_event"]
-    click G2 "https://pyga.me/docs/ref/event.html" _blank
-```
-
-```py
-# Custom USEREVENT+2 — a subtype plus the game-defined payload
-def on_game_event(
-    event: GameEvent(GAMEEVENT {
-        'subtype': ...,
+    ```py
+    # Custom USEREVENT+1 — posted by the engine with the measured frame rate
+    def on_fps_event(
+        event: FpsEvent(FPSEVENT {
+            'fps': ...,
+        })
+    ):
         ...
-    })
-):
-    ...
-```
+    ```
 
-```mermaid
-flowchart LR
-    G3["MENUEVENT"] --> GH3["on_menu_item_event"]
-    click G3 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        G2["GAMEEVENT"] --> GH2["on_game_event"]
+        click G2 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-# Custom USEREVENT+3 — posted by a clicked MenuItem (src/glitchygames/ui/menus.py)
-def on_menu_item_event(
-    event: HashableEvent(MENUEVENT {
-        'menu': ...,
-        'menu_item': ...,
-    })
-):
-    ...
-```
+    ```py
+    # Custom USEREVENT+2 — a subtype plus the game-defined payload
+    def on_game_event(
+        event: GameEvent(GAMEEVENT {
+            'subtype': ...,
+            ...
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    G4["QUIT"] --> GH4["on_quit_event"]
-    click G4 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        G3["MENUEVENT"] --> GH3["on_menu_item_event"]
+        click G3 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_quit_event(
-    event: HashableEvent(QUIT)
-):
-    ...
-```
+    ```py
+    # Custom USEREVENT+3 — posted by a clicked MenuItem (src/glitchygames/ui/menus.py)
+    def on_menu_item_event(
+        event: HashableEvent(MENUEVENT {
+            'menu': ...,
+            'menu_item': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    G5["ACTIVEEVENT"] --> GH5["on_active_event"]
-    click G5 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        G4["QUIT"] --> GH4["on_quit_event"]
+        click G4 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_active_event(
-    event: HashableEvent(ACTIVEEVENT {
-        'gain': ...,
-        'state': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_quit_event(
+        event: HashableEvent(QUIT)
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    G6["VIDEORESIZE"] --> GH6["on_video_resize_event"]
-    click G6 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        G5["ACTIVEEVENT"] --> GH5["on_active_event"]
+        click G5 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_video_resize_event(
-    event: HashableEvent(VIDEORESIZE {
-        'size': ...,
-        'w': ...,
-        'h': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_active_event(
+        event: HashableEvent(ACTIVEEVENT {
+            'gain': ...,
+            'state': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    G7["VIDEOEXPOSE"] --> GH7["on_video_expose_event"]
-    click G7 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        G6["VIDEORESIZE"] --> GH6["on_video_resize_event"]
+        click G6 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_video_expose_event(
-    event: HashableEvent(VIDEOEXPOSE)
-):
-    ...
-```
+    ```py
+    def on_video_resize_event(
+        event: HashableEvent(VIDEORESIZE {
+            'size': ...,
+            'w': ...,
+            'h': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    G8["USEREVENT"] --> GH8["on_user_event"]
-    click G8 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        G7["VIDEOEXPOSE"] --> GH7["on_video_expose_event"]
+        click G7 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_user_event(
-    event: HashableEvent(USEREVENT {
-        'code': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_video_expose_event(
+        event: HashableEvent(VIDEOEXPOSE)
+    ):
+        ...
+    ```
 
-`SYSWMEVENT` reaches `on_sys_wm_event` only when the game opts in (see Native window
-messages). `GameEventManager` and the stubs also define `on_clipboard_update_event`,
-`on_locale_changed_event`, `on_render_device_reset_event`,
-`on_render_targets_reset_event` and `on_font_changed_event`, but
-`GameEngine.process_game_event` does not route `CLIPBOARDUPDATE`, `LOCALECHANGED` or the
-`RENDER_*` types today: they are counted as unhandled.
+    ```mermaid
+    flowchart LR
+        G8["USEREVENT"] --> GH8["on_user_event"]
+        click G8 "https://pyga.me/docs/ref/event.html" _blank
+    ```
+
+    ```py
+    def on_user_event(
+        event: HashableEvent(USEREVENT {
+            'code': ...,
+        })
+    ):
+        ...
+    ```
+
+    `SYSWMEVENT` reaches `on_sys_wm_event` only when the game opts in (see Native window
+    messages). `GameEventManager` and the stubs also define `on_clipboard_update_event`,
+    `on_locale_changed_event`, `on_render_device_reset_event`,
+    `on_render_targets_reset_event` and `on_font_changed_event`, but
+    `GameEngine.process_game_event` does not route `CLIPBOARDUPDATE`, `LOCALECHANGED` or the
+    `RENDER_*` types today: they are counted as unhandled.
 
 ### AppEvents → AppEventStubs
 
 All app lifecycle events carry no parameters.
 
-```mermaid
-flowchart LR
-    A1["APP_TERMINATING"] --> AH1["on_app_terminating_event"]
-    click A1 "https://pyga.me/docs/ref/event.html" _blank
-```
+??? note "Its 6 handlers: each diagram, then the handler's signature"
+    ```mermaid
+    flowchart LR
+        A1["APP_TERMINATING"] --> AH1["on_app_terminating_event"]
+        click A1 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_app_terminating_event(event: HashableEvent(APP_TERMINATING)):
-    ...
-```
+    ```py
+    def on_app_terminating_event(event: HashableEvent(APP_TERMINATING)):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    A2["APP_LOWMEMORY"] --> AH2["on_app_low_memory_event"]
-    click A2 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        A2["APP_LOWMEMORY"] --> AH2["on_app_low_memory_event"]
+        click A2 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_app_low_memory_event(event: HashableEvent(APP_LOWMEMORY)):
-    ...
-```
+    ```py
+    def on_app_low_memory_event(event: HashableEvent(APP_LOWMEMORY)):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    A3["APP_WILLENTERBACKGROUND"] --> AH3["on_app_will_enter_background_event"]
-    click A3 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        A3["APP_WILLENTERBACKGROUND"] --> AH3["on_app_will_enter_background_event"]
+        click A3 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_app_will_enter_background_event(event: HashableEvent(APP_WILLENTERBACKGROUND)):
-    ...
-```
+    ```py
+    def on_app_will_enter_background_event(event: HashableEvent(APP_WILLENTERBACKGROUND)):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    A4["APP_DIDENTERBACKGROUND"] --> AH4["on_app_did_enter_background_event"]
-    click A4 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        A4["APP_DIDENTERBACKGROUND"] --> AH4["on_app_did_enter_background_event"]
+        click A4 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_app_did_enter_background_event(event: HashableEvent(APP_DIDENTERBACKGROUND)):
-    ...
-```
+    ```py
+    def on_app_did_enter_background_event(event: HashableEvent(APP_DIDENTERBACKGROUND)):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    A5["APP_WILLENTERFOREGROUND"] --> AH5["on_app_will_enter_foreground_event"]
-    click A5 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        A5["APP_WILLENTERFOREGROUND"] --> AH5["on_app_will_enter_foreground_event"]
+        click A5 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_app_will_enter_foreground_event(event: HashableEvent(APP_WILLENTERFOREGROUND)):
-    ...
-```
+    ```py
+    def on_app_will_enter_foreground_event(event: HashableEvent(APP_WILLENTERFOREGROUND)):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    A6["APP_DIDENTERFOREGROUND"] --> AH6["on_app_did_enter_foreground_event"]
-    click A6 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        A6["APP_DIDENTERFOREGROUND"] --> AH6["on_app_did_enter_foreground_event"]
+        click A6 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_app_did_enter_foreground_event(event: HashableEvent(APP_DIDENTERFOREGROUND)):
-    ...
-```
+    ```py
+    def on_app_did_enter_foreground_event(event: HashableEvent(APP_DIDENTERFOREGROUND)):
+        ...
+    ```
 
 ### Text Events
 
@@ -2162,79 +2172,81 @@ def on_app_did_enter_foreground_event(event: HashableEvent(APP_DIDENTERFOREGROUN
 which hands them to the active scene's handlers below (`Scene`'s log them); text widgets read
 `KEYDOWN`'s `unicode` instead.
 
-```mermaid
-flowchart LR
-    TX1["TEXTEDITING"] --> TXH1["on_text_editing_event"]
-    click TX1 "https://pyga.me/docs/ref/event.html" _blank
-```
+??? note "Its 2 handlers: each diagram, then the handler's signature"
+    ```mermaid
+    flowchart LR
+        TX1["TEXTEDITING"] --> TXH1["on_text_editing_event"]
+        click TX1 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_text_editing_event(
-    event: HashableEvent(TEXTEDITING {
-        'text': ...,
-        'start': ...,
-        'length': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_text_editing_event(
+        event: HashableEvent(TEXTEDITING {
+            'text': ...,
+            'start': ...,
+            'length': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    TX2["TEXTINPUT"] --> TXH2["on_text_input_event"]
-    click TX2 "https://pyga.me/docs/ref/event.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        TX2["TEXTINPUT"] --> TXH2["on_text_input_event"]
+        click TX2 "https://pyga.me/docs/ref/event.html" _blank
+    ```
 
-```py
-def on_text_input_event(
-    event: HashableEvent(TEXTINPUT {
-        'text': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_text_input_event(
+        event: HashableEvent(TEXTINPUT {
+            'text': ...,
+        })
+    ):
+        ...
+    ```
 
 ### MidiEvents → MidiEventStubs
 
-```mermaid
-flowchart LR
-    MI1["MIDIIN"] --> MIH1["on_midi_in_event"]
-    click MI1 "https://pyga.me/docs/ref/midi.html" _blank
-```
+??? note "Its 2 handlers: each diagram, then the handler's signature"
+    ```mermaid
+    flowchart LR
+        MI1["MIDIIN"] --> MIH1["on_midi_in_event"]
+        click MI1 "https://pyga.me/docs/ref/midi.html" _blank
+    ```
 
-```py
-def on_midi_in_event(
-    event: MidiEvent(MIDIIN {
-        'status': ...,
-        'data1': ...,
-        'data2': ...,
-        'data3': ...,
-        'timestamp': ...,
-        'vice_id': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_midi_in_event(
+        event: MidiEvent(MIDIIN {
+            'status': ...,
+            'data1': ...,
+            'data2': ...,
+            'data3': ...,
+            'timestamp': ...,
+            'vice_id': ...,
+        })
+    ):
+        ...
+    ```
 
-```mermaid
-flowchart LR
-    MI2["MIDIOUT"] --> MIH2["on_midi_out_event"]
-    click MI2 "https://pyga.me/docs/ref/midi.html" _blank
-```
+    ```mermaid
+    flowchart LR
+        MI2["MIDIOUT"] --> MIH2["on_midi_out_event"]
+        click MI2 "https://pyga.me/docs/ref/midi.html" _blank
+    ```
 
-```py
-def on_midi_out_event(
-    event: MidiEvent(MIDIOUT {
-        'status': ...,
-        'data1': ...,
-        'data2': ...,
-        'data3': ...,
-        'timestamp': ...,
-        'vice_id': ...,
-    })
-):
-    ...
-```
+    ```py
+    def on_midi_out_event(
+        event: MidiEvent(MIDIOUT {
+            'status': ...,
+            'data1': ...,
+            'data2': ...,
+            'data3': ...,
+            'timestamp': ...,
+            'vice_id': ...,
+        })
+    ):
+        ...
+    ```
 
 ## Joystick vs Controller: Two Input Subsystems
 

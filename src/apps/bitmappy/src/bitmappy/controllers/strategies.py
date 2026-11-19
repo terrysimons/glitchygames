@@ -415,7 +415,7 @@ class SliderModeStrategy:
                 description,
             )
             if action is not None:
-                action()  # type: ignore[operator] # ty: ignore[call-non-callable]
+                action()  # type: ignore[operator] # ty: ignore[not-callable]
         else:
             handler.log.debug(
                 'Controller %s: Button %s not handled in slider mode',

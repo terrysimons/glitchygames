@@ -3,6 +3,8 @@ site_name: GlitchyGames
 site_url: https://terrysimons.github.io/glitchygames/
 repo_url: https://github.com/terrysimons/glitchygames
 repo_name: glitchygames
+# Each page's "Edit this page" link (content.action.edit): the file on GitHub's main
+edit_uri: edit/main/docs/
 
 nav:
   - GlitchyGames Getting Started: "index.md"
@@ -18,6 +20,7 @@ nav:
       - Clockwork Keep Architecture: "games/clockwork_keep.md"
       - Mr. Muncher Architecture: "games/mr_muncher.md"
       - Drawing Fire Architecture: "games/drawing_fire.md"
+      - Zombies Ain't My Neighbors Architecture: "games/zombies_aint_my_neighbors.md"
     - Event System: "architecture/event_system.md"
     - Argument System: "architecture/argument_system.md"
     - Gameplay Recording and Replay: "architecture/gameplay_replay.md"
@@ -75,6 +78,7 @@ nav:
     - clockwork_keep: "clockwork_keep/index.md"
     - paddleslap: "paddleslap/index.md"
     - drawing_fire: "drawing_fire/index.md"
+    - zombies_aint_my_neighbors: "zombies_aint_my_neighbors/index.md"
   - Demos API Reference:
     - dt_demo: "dt_demo/index.md"
     - joystick_demo: "joystick_demo/index.md"
@@ -104,10 +108,12 @@ extra_javascript:
 
 # The complexity and performance graphs' snippets, which quality/complexity.md and
 # quality/performance.md include (pymdownx.snippets), are not pages of their own
-# (scripts/generate_complexity_graphs.py, scripts/generate_performance_graphs.py)
+# (scripts/generate_complexity_graphs.py, scripts/generate_performance_graphs.py); nor is the
+# glossary every page appends (includes/abbreviations.md, pymdownx.snippets' auto_append)
 exclude_docs: |
   /quality/graphs/*.md
   /quality/metrics/*.md
+  /includes/
 
 # Every build (build, serve, gh-deploy) first generates the complexity graphs when they are
 # missing or were made from another commit, then the performance graphs (scripts/mkdocs_hooks.py)
@@ -123,24 +129,49 @@ theme:
   name: material
   # Our icon: mkdocs' own theme read docs/img/favicon.ico by default, Material shows its own unless told
   favicon: img/favicon.ico
+  # Light and dark, following the reader's system setting until they pick one with the header's
+  # toggle. The explorers read Material's color variables and draw again when the scheme changes
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
   features:
+    - content.action.edit
+    - content.code.annotate
+    - content.code.copy
     - content.tabs.link
-    - navigation.expand
+    - content.tooltips
+    - navigation.footer
     - navigation.indexes
     - navigation.instant
     - navigation.instant.progress
     - navigation.path
     - navigation.sections
-    - navigation.tabs
-    - navigation.tabs.sticky
     - navigation.top
     - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
     - toc.follow
     - toc.integrate
 
 markdown_extensions:
+  - abbr
   - admonition
   - attr_list
+  - def_list
+  - footnotes
   - md_in_html
   - toc:
       toc_depth: 3
@@ -148,6 +179,9 @@ markdown_extensions:
       separator: "-"
   - pymdownx.highlight:
       anchor_linenums: true
+      # Both needed by code annotations (content.code.annotate)
+      line_spans: __span
+      pygments_lang_class: true
   - pymdownx.betterem
   - pymdownx.inlinehilite
   - pymdownx.magiclink
@@ -155,7 +189,10 @@ markdown_extensions:
   - pymdownx.smartsymbols
   - pymdownx.tasklist
   - pymdownx.tilde
-  - pymdownx.emoji
+  # Material's icons in a page (:material-timer:, :octicons-alert-16:)
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.keys
   - pymdownx.caret
   - pymdownx.superfences:
@@ -163,7 +200,10 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.snippets
+  # The abbreviations' glossary is appended to every page, so each one is explained on hover
+  - pymdownx.snippets:
+      auto_append:
+        - docs/includes/abbreviations.md
   - pymdownx.details
   # Content tabs (=== "Raspberry Pi 4"): the requirements page's platform picker
   - pymdownx.tabbed:
@@ -174,6 +214,11 @@ plugins:
   - macros
   - search
   - section-index
+  # Each page's last-updated date. The generated pages (the members' API pages, the graphs'
+  # snippets) have no history, so they take the build's date instead of failing the strict build
+  - git-revision-date-localized:
+      type: date
+      fallback_to_build_date: true
   # The workspace members' API reference pages (the engine's are in docs/glitchygames/)
   - gen-files:
       scripts:
@@ -188,6 +233,7 @@ plugins:
             - src/games/clockwork-keep/src
             - src/games/paddleslap/src
             - src/games/drawing-fire/src
+            - src/games/zombies-aint-my-neighbors/src
             - src/demos/dt-demo/src
             - src/demos/joystick-demo/src
             - src/demos/sound-board-demo/src

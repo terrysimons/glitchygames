@@ -735,6 +735,11 @@ CATALOG_BUILD = (
     'R16: an instrument build (functools.partial of a module function with constant '
     'arguments), immutable though the rules cannot prove it.'
 )
+LISTENING_INSTRUMENT = (
+    'R16: a listening instrument (audio/listening/pipes.py), an Instrument built at import from '
+    'constants: immutable and hashable by content (audio/instrument.py), though the rules cannot '
+    'prove a call returns one.'
+)
 CATALOG_SERIES = (
     'R16: a harmonic series, a tuple of floats computed at import from constants; the rules '
     'cannot prove a function returns a tuple.'
@@ -771,7 +776,10 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
     },
     'api/main.py': {'app': API_SERVER},
     'api/routes/health.py': {'router': API_SERVER},
-    'api/routes/sprites.py': {'router': API_SERVER, 'ALLOWED_OUTPUT_ROOT': API_SERVER},
+    'api/routes/sprites.py': {'router': API_SERVER},
+    # The save root moved here from the routes (the client calls this module too, but never
+    # saves through it: it sends no output_path), computed once at import and never written
+    'api/sprite_requests.py': {'ALLOWED_OUTPUT_ROOT': API_SERVER},
     'audio/assets.py': {
         '_CACHE': (
             'R17: loaded sound files (frozen SoundFile) by path, reloaded when the file changes; '
@@ -788,6 +796,22 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             'context compares against the same one.'
         ),
     },
+    'audio/instruments/bowed_strings.py': {
+        'VIOLIN': CATALOG_BUILD,
+        'VIOLA': CATALOG_BUILD,
+        'CELLO': CATALOG_BUILD,
+        'DOUBLE_BASS': CATALOG_BUILD,
+        'VIOL': CATALOG_BUILD,
+        'FOLK_FIDDLE': CATALOG_BUILD,
+        'SPIKE_FIDDLE': CATALOG_BUILD,
+    },
+    'audio/listening/pipes.py': {
+        'highland_chanter': LISTENING_INSTRUMENT,
+        'highland_drones': LISTENING_INSTRUMENT,
+        'uilleann_chanter': LISTENING_INSTRUMENT,
+        'uilleann_drones': LISTENING_INSTRUMENT,
+        'uilleann_regulators': LISTENING_INSTRUMENT,
+    },
     'audio/instruments/brass.py': {
         'HARMON_LEVELS': CATALOG_SERIES,
         'STRAIGHT_MUTE_LEVELS': CATALOG_SERIES,
@@ -802,10 +826,22 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         'NATURAL': CATALOG_BUILD,
         'WOODEN_LIP_REED': CATALOG_BUILD,
     },
-    'audio/instruments/keyboards.py': {
+    'audio/instruments/flutes.py': {
+        'METAL_FLUTE': CATALOG_BUILD,
+        'WOODEN_FLUTE': CATALOG_BUILD,
+        'RECORDER': CATALOG_BUILD,
+        'WHISTLE': CATALOG_BUILD,
+        'END_BLOWN': CATALOG_BUILD,
+        'VESSEL': CATALOG_BUILD,
+    },
+    'audio/instruments/free_reeds.py': {
+        'FREE_REED_LEVELS': CATALOG_SERIES,
+    },
+    'audio/instruments/organs.py': {
         'PRINCIPAL_LEVELS': CATALOG_SERIES,
         'REED_STOP_LEVELS': CATALOG_SERIES,
         'STRING_STOP_LEVELS': CATALOG_SERIES,
+        'CLOSED_REED_LEVELS': CATALOG_SERIES,
     },
     'audio/instruments/percussion.py': {
         'GLOCKENSPIEL': CATALOG_BUILD,
@@ -831,15 +867,6 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             'catalog), a frozen Instrument computed from its name alone.'
         ),
     },
-    'audio/instruments/strings.py': {
-        'VIOLIN': CATALOG_BUILD,
-        'VIOLA': CATALOG_BUILD,
-        'CELLO': CATALOG_BUILD,
-        'DOUBLE_BASS': CATALOG_BUILD,
-        'VIOL': CATALOG_BUILD,
-        'FOLK_FIDDLE': CATALOG_BUILD,
-        'SPIKE_FIDDLE': CATALOG_BUILD,
-    },
     'audio/instruments/timbres.py': {
         'HARMONIC_FIELD_NAMES': (
             'R16: a tuple of strings, its harmonics unpacked from a generator expression, '
@@ -848,28 +875,31 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         'HIGHEST_HARMONIC': 'R16: an int, the length of HARMONIC_FIELD_NAMES.',
     },
     'audio/instruments/voices.py': {
-        'VOICES': (
+        '_VOICE_BUILDS': (
             'R16: a tuple of frozen CatalogEntry values, unpacked from a function the rules '
             'cannot read.'
         ),
-        'CHOIRS': (
+        '_CHOIR_BUILDS': (
             'R16: a tuple of frozen CatalogEntry values, returned by a function the rules '
             'cannot read.'
         ),
-    },
-    'audio/instruments/winds.py': {
-        'METAL_FLUTE': CATALOG_BUILD,
-        'WOODEN_FLUTE': CATALOG_BUILD,
-        'RECORDER': CATALOG_BUILD,
-        'WHISTLE': CATALOG_BUILD,
-        'END_BLOWN': CATALOG_BUILD,
-        'VESSEL': CATALOG_BUILD,
-        'FREE_REED_LEVELS': CATALOG_SERIES,
+        # The rules treat a name bound to a reported name as reported (reported_names), so the
+        # concatenations are reported because _VOICE_BUILDS and _CHOIR_BUILDS are: each is those
+        # reasoned tuples plus a literal tuple of frozen CatalogEntry values
+        'VOICES': (
+            'R16: _VOICE_BUILDS (above) plus the voice sound-alikes, both tuples of frozen '
+            'CatalogEntry values; reported only because _VOICE_BUILDS is.'
+        ),
+        'CHOIRS': (
+            'R16: _CHOIR_BUILDS (above) plus the choir sound-alikes, both tuples of frozen '
+            'CatalogEntry values; reported only because _CHOIR_BUILDS is.'
+        ),
     },
     'audio/library.py': {
         'ENGINE_SOUND_CACHE': (
-            "R17: the engine's own sounds' compiled, read-only samples by identity key, one "
-            'cache per process by design (the owner, 2026-11-02; CLAUDE.md, Scene backgrounds).'
+            'R17: compiled, read-only samples by identity key, one cache per process by design '
+            "(the owner, 2026-11-02, for the engine's own sounds, pinned; 2026-11-14, for every "
+            "game's too, so an Arcade tile's restart compiles nothing; CLAUDE.md)."
         ),
     },
     'audio/pitch.py': {
@@ -892,6 +922,15 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         '_partitioned_mixer': (
             "S3: the mixer's channel partition (its channel count and reserved channels), "
             "pygame's one mixer per process; it replaced audio/live.py's channel counts."
+        ),
+        '_inner_game_channels': (
+            "S3: the inner games' channels the host declared on pygame's one mixer per process "
+            '(the two heard sets and the live pools, and who holds each; Arcade sub-plan 4, '
+            'decision 4).'
+        ),
+        '_every_channel_reservation': (
+            "S3: whether every channel of pygame's one mixer per process is reserved "
+            '(every_channel_reserved, around a silent inner game), and how deeply nested.'
         ),
     },
     'backgrounds.py': {
@@ -1076,6 +1115,12 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
     'src/games/brave-adventurer/src/brave_adventurer_core/drawing.py': {
         '_vertical_gradient_cache': DRAWING_CACHE,
     },
+    'src/games/clockwork-keep/src/clockwork_keep/sounds.py': {
+        'ELEVATOR_MOTOR': (
+            "R14: the game's live elevator motor, an Instrument (immutable, hashed by value), "
+            'never written.'
+        ),
+    },
     'src/games/clockwork-keep/src/clockwork_keep/levels.py': {
         'FLOOR_BOILER_ROOM': "R14: the game's floor table (a FloorData), never written.",
         'FLOOR_GEAR_WORKS': "R14: the game's floor table (a FloorData), never written.",
@@ -1100,14 +1145,15 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         'bonus_reel_picture': DRAWING_CACHE,
         'film_strip_panel': DRAWING_CACHE,
     },
-    'src/games/mr-muncher/src/mr_muncher/game.py': {
-        'shared_sound_bank': "R14: the game's sound bank, built once from its recipes.",
-    },
     'src/games/mr-muncher/src/mr_muncher/sounds.py': {
-        'CRUNCH_ONE': "R14: one of the game's sound recipes, never written.",
-        'CRUNCH_TWO': "R14: one of the game's sound recipes, never written.",
-        'CRUNCH_RECIPES': "R14: a tuple of the game's sound recipes, never written.",
-        'ALL_RECIPES': "R14: a tuple of the game's sound recipes, never written.",
+        'CRUNCH_ONE': "R14: one of the game's sound effects, never written.",
+        'CRUNCH_TWO': "R14: one of the game's sound effects, never written.",
+        'CRUNCH_EFFECTS': "R14: a tuple of the game's sound effects, never written.",
+        'EFFECTS': "R14: a tuple of the game's sound effects, never written.",
+        'PROJECTOR': (
+            "R14: the game's live projector, an Instrument (immutable, hashed by value), never "
+            'written.'
+        ),
     },
 }
 # Each listing's reason begins with its audit row's name and a colon

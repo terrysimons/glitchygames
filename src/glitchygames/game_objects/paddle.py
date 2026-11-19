@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Self, override
+from typing import TYPE_CHECKING, Self, override
 
 import pygame
 from pygame import draw
@@ -13,7 +13,9 @@ from glitchygames.movement import Horizontal, Vertical
 from glitchygames.movement.speed import Speed
 from glitchygames.sprites import Sprite
 
-from .sounds import load_sound
+if TYPE_CHECKING:
+    from glitchygames.audio.library import Sound
+
 
 # Its level is the engine's (--log-level), never set here: set at import, it outlived the command
 # line's (BUGS.md #236)
@@ -35,7 +37,7 @@ class BasePaddle(Sprite):
         width: int,
         height: int,
         groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
-        collision_sound: str | None = None,
+        collision_sound: Sound | None = None,
     ) -> None:
         """Initialize the paddle.
 
@@ -49,7 +51,8 @@ class BasePaddle(Sprite):
             width (int): The width of the paddle.
             height (int): The height of the paddle.
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
-            collision_sound (str | None): The sound to play on collision.
+            collision_sound (Sound | None): The sound a ball plays hitting this paddle (the
+                game's, from its audio engine), or None for none.
 
         """
         if groups is None:
@@ -63,8 +66,8 @@ class BasePaddle(Sprite):
         # Sprite.__init__ created the image after the display was set, so it already has the
         # display's pixel format (convert() would return an equivalent copy)
         draw.rect(self.image, color, (0, 0, self.width, self.height))
-        if collision_sound:
-            self.snd = load_sound(collision_sound)
+        if collision_sound is not None:
+            self.snd = collision_sound
         # Create Speed object based on axis type
         speed_obj = Speed(speed, 0) if axis is Horizontal else Speed(0, speed)
         self._move: Horizontal | Vertical = axis(speed_obj)
@@ -142,7 +145,7 @@ class HorizontalPaddle(BasePaddle):
         speed: int,
         *,
         groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
-        collision_sound: str | None = None,
+        collision_sound: Sound | None = None,
     ) -> None:
         """Initialize the horizontal paddle.
 
@@ -153,7 +156,8 @@ class HorizontalPaddle(BasePaddle):
             color (tuple[int, int, int]): The color of the paddle.
             speed (int): The speed to move at.
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
-            collision_sound (str | None): The sound to play on collision.
+            collision_sound (Sound | None): The sound a ball plays hitting this paddle (the
+                game's, from its audio engine), or None for none.
 
         """
         if groups is None:
@@ -236,7 +240,7 @@ class VerticalPaddle(BasePaddle):
         speed: int,
         *,
         groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
-        collision_sound: str | None = None,
+        collision_sound: Sound | None = None,
     ) -> None:
         """Initialize the vertical paddle.
 
@@ -247,7 +251,8 @@ class VerticalPaddle(BasePaddle):
             color (tuple[int, int, int]): The color of the paddle.
             speed (int): The speed to move at.
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
-            collision_sound (str | None): The sound to play on collision.
+            collision_sound (Sound | None): The sound a ball plays hitting this paddle (the
+                game's, from its audio engine), or None for none.
 
         """
         if groups is None:

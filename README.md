@@ -1,12 +1,13 @@
 # GlitchyGames Engine
 
-A Python 3.14 game engine built on Pygame with an event-driven architecture. Includes Bitmappy, a full-featured pixel art editor with animation support, AI sprite generation, and voice recognition.
+A Python 3.14+ game engine built on Pygame with an event-driven architecture. Includes Bitmappy, a full-featured pixel art editor with animation support, AI sprite generation, and voice recognition.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Python 3.14+
+- Python 3.15 (the code is also checked to parse and type-check as 3.14, which the browser
+  builds run)
 - [uv](https://docs.astral.sh/uv/) (recommended package manager)
 
 ### Installation
@@ -133,7 +134,7 @@ uv run glitchygames-server
 
 ### `glitchygames-client` -- Sprite API Client
 
-CLI client for the sprite API server. Generates sprites from text prompts and extracts APNG frames.
+Generates sprites from text prompts, in its own process through the local AI service (no server to start), and extracts the frames of an APNG or a `.toml` sprite.
 
 ```bash
 # Generate a sprite from a prompt
@@ -145,11 +146,11 @@ uv run glitchygames-client "walking knight" --width 32 --height 32 --frame-count
 # Save output to a directory
 uv run glitchygames-client "idle slime" -o ./sprites/
 
-# Extract frames from an APNG file
+# Extract frames from an APNG file or a .toml sprite
 uv run glitchygames-client --extract-frames animation.apng
 
-# Output as TOML only
-uv run glitchygames-client "red mushroom" -f toml
+# The image as well as the .toml
+uv run glitchygames-client "red mushroom" -f toml -f png
 
 # Use a specific AI model
 uv run glitchygames-client "blue dragon" --animation-language-model bonsai-2-9b
@@ -160,8 +161,7 @@ uv run glitchygames-client "blue dragon" --animation-language-model bonsai-2-9b
 | Flag | Description | Default |
 |------|-------------|---------|
 | `prompt` | Text description of the sprite to generate | -- |
-| `--server-url` | Server URL | `http://localhost:8000` |
-| `-f`, `--output-format` | Output format: `toml` or `png` (repeat for both) | both |
+| `-f`, `--output-format` | Output format: `toml` or `png` (repeat for both) | `toml` |
 | `-o`, `--output-path` | Directory to save output files | -- |
 | `--width` | Sprite width in pixels (1-64) | the AI chooses |
 | `--height` | Sprite height in pixels (1-64) | the AI chooses |
@@ -171,7 +171,7 @@ uv run glitchygames-client "blue dragon" --animation-language-model bonsai-2-9b
 | `--png-scale` | PNG output scale factor (1-10) | 1 |
 | `--extract-scale` | Nearest-neighbor scale factor for extracted PNG frames | 8 |
 | `--animation-language-model` | AI model override: a role or an exact size | -- |
-| `--extract-frames` | Extract frames from an APNG file | -- |
+| `--extract-frames` | Extract the frames of an APNG or a `.toml` sprite (as PNGs) | -- |
 | `-v`, `--verbose` | Verbose output | -- |
 | `-q`, `--quiet` | Quiet output | -- |
 
@@ -186,6 +186,7 @@ Every example game is its own package, with its own code, tests and golden repla
 | Brave Adventurer (Classic and Papyrus) | `uv run brave-adventurer` | `src/games/brave-adventurer/` |
 | PaddleSlap | `uv run paddleslap` | `src/games/paddleslap/` |
 | Drawing Fire | `uv run drawing-fire` | `src/games/drawing-fire/` |
+| Zombies Ain't My Neighbors | `uv run zombies-aint-my-neighbors` | `src/games/zombies-aint-my-neighbors/` |
 
 Brave Adventurer is one project holding both games: the shared primitives (`brave_adventurer_core`), each game (`brave_adventurer`, the Classic edition, and `brave_adventurer_papyrus`, the Egyptian one) and a launcher (`brave_adventurer_modes`) that is its one console script. Its title screen offers Classic and Papyrus; `--game classic` or `--game papyrus` starts one at once. The demos (`dt_demo`, `joystick_demo`, `text_input_demo`) are members of the demos layer (`src/demos/dt-demo/`, console scripts `dt-demo`, `joystick-demo` and `text-input-demo`, each also `python -m <package>`), and Bitmappy is its own package, `src/apps/bitmappy/`.
 
@@ -368,7 +369,7 @@ nox -s lint
 # Format code
 nox -s format
 
-# Run tests with coverage reports (HTML, XML, JSON, LCOV)
+# Run tests with coverage reports (HTML, XML, JSON, LCOV), on Python 3.15
 nox -s test
 
 # Type checkers (basedpyright + ty)

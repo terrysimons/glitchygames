@@ -6,7 +6,6 @@ detection, and color map lookups used by the animation system.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -57,10 +56,9 @@ def needs_alpha_channel(pixels: Sequence[tuple[int, ...]]) -> bool:
             _r, _g, _b, a = pixel
             if a != MAX_COLOR_CHANNEL_VALUE:
                 return True
-        elif len(pixel) == RGB_COMPONENT_COUNT:
-            # RGB format - check if it's the transparent color (255, 0, 255)
-            if pixel == MAGENTA_TRANSPARENCY_KEY:
-                return True
+        elif len(pixel) == RGB_COMPONENT_COUNT and pixel == MAGENTA_TRANSPARENCY_KEY:
+            # RGB format: the transparent color (255, 0, 255)
+            return True
     return False
 
 
@@ -682,6 +680,25 @@ def _pixel_row_repairs(
     return tuple(repairs)
 
 
+def _common_prefix(lines: Sequence[str]) -> str:
+    """Return the longest prefix every line shares, compared character for character.
+
+    The alphabetically first and last lines differ soonest, so their shared prefix is every
+    line's: the method of CPython's ``os.path.commonprefix`` (Lib/genericpath.py), which this
+    replaces. Python 3.15 deprecates that function for ``os.path.commonpath``, which compares
+    path components, not characters.
+
+    Returns:
+        str: The shared prefix ('' when lines is empty).
+
+    """
+    first, last = min(lines, default=''), max(lines, default='')
+    for index, (character, other_character) in enumerate(zip(first, last, strict=False)):
+        if character != other_character:
+            return first[:index]
+    return first
+
+
 def _shared_indentation_length(lines: Sequence[str]) -> int:
     """Return how many leading spaces and tabs every line shares, character for character.
 
@@ -689,8 +706,7 @@ def _shared_indentation_length(lines: Sequence[str]) -> int:
         int: The length of the shared prefix (0 when lines is empty).
 
     """
-    # os.path.commonprefix compares character by character, whatever the strings are
-    shared_prefix = os.path.commonprefix(list(lines))  # ruff: ignore[os-path-commonprefix] - character by character is the point
+    shared_prefix = _common_prefix(lines)
     return len(shared_prefix) - len(shared_prefix.lstrip(PIXEL_LINE_INDENTATION))
 
 

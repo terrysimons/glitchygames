@@ -530,19 +530,23 @@ class TestSceneManagerInternals:
         self.scene_manager._update_frame_services()
         device.rumble.assert_called_once()
 
-    def test_live_audio_is_lazy_and_updated_with_pending_transition(self, mocker):
+    def test_the_live_pool_is_lazy_and_the_audio_update_gets_the_pending_transition(self, mocker):
+        """A ride starts its motor before transition_to runs it: the pending one counts.
+
+        The audio engine's update applies the live pool's owner rules too (since migration
+        step 7b), so the scene manager hands it the pending transition.
+        """
         manager = self.scene_manager
         manager._live_audio = None
-        manager._update_frame_services()  # No LiveAudio created by merely running frames
+        manager._update_frame_services()  # No pool created by merely running frames
         assert manager._live_audio is None
-        live_audio = mocker.Mock()
-        manager._live_audio = live_audio
+        audio_engine = mocker.Mock()
+        mocker.patch('glitchygames.scenes.scene._existing_audio_engine', return_value=audio_engine)
         pending = mocker.Mock()
         manager._pending_transition = (mocker.Mock(), pending)
         manager._update_frame_services()
-        assert live_audio.update.call_args.kwargs['active_transitions'][1] is pending
+        assert audio_engine.update.call_args.kwargs['active_transitions'][1] is pending
         manager._pending_transition = None
-        manager._live_audio = None
 
 
 class TestSceneManagerLiveAudio:
@@ -557,11 +561,11 @@ class TestSceneManagerLiveAudio:
         """Reset the scene manager singleton."""
         SceneManager._reset()
 
-    def test_live_audio_is_created_once_and_then_reused(self, mocker):
-        """The first access creates LiveAudio; later accesses return the same one."""
+    def test_the_live_pool_is_created_once_and_then_reused(self, mocker):
+        """The first live sound's start creates the pool; later ones get the same one."""
         live_audio_class = mocker.patch('glitchygames.audio.live.LiveAudio')
-        first = self.scene_manager.live_audio
-        second = self.scene_manager.live_audio
+        first = self.scene_manager._live_pool()
+        second = self.scene_manager._live_pool()
         assert first is second is live_audio_class.return_value
         live_audio_class.assert_called_once()
 

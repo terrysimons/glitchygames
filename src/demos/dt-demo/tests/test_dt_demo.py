@@ -19,6 +19,7 @@ from glitchygames.events.base import HashableEvent
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 from glitchygames.input.state import InputSnapshot, set_current_input
+from glitchygames.ui import TextSprite
 from tests.demo_runs import engine_run_environment, run_demo_main
 
 if TYPE_CHECKING:
@@ -122,6 +123,19 @@ def _rgb(screen: pygame.Surface, position: tuple[int, int]) -> tuple[int, int, i
     return (color.r, color.g, color.b)
 
 
+def _draw_frame(scene: dt_demo.Game) -> None:
+    """Draw one frame as the scene manager does: the scene's update, then its sprite group."""
+    scene.update()
+    assert scene.screen is not None
+    scene.render(scene.screen)
+
+
+def _start_the_square(scene: dt_demo.Game) -> None:
+    """Press Space, which starts the square."""
+    _hold_keys(pygame.K_SPACE)
+    scene.on_key_down_event(_key_down(pygame.K_SPACE))
+
+
 @pytest.fixture
 def scene() -> dt_demo.Game:
     """Return the demo's scene, on the test display.
@@ -136,7 +150,7 @@ def scene() -> dt_demo.Game:
 def test_before_space_the_square_waits_at_the_left_edge(scene: dt_demo.Game) -> None:
     """Time passes but nothing moves until Space: the clock shows 0 and the square is at x 0."""
     scene.dt_tick(0.5)
-    scene.update()
+    _draw_frame(scene)
 
     assert scene.screen is not None
     assert _shows(scene.screen, image=_demo_text('Time: 0.0'), topleft=(0, 0))
@@ -152,7 +166,7 @@ def test_space_starts_the_square_moving_frame_rate_independently(scene: dt_demo.
     # Two short frames move it as far as one long frame would
     scene.dt_tick(0.25)
     scene.dt_tick(0.25)
-    scene.update()
+    _draw_frame(scene)
 
     assert scene.screen is not None
     assert _shows(scene.screen, image=_demo_text('Time: 0.5'), topleft=(0, 0))
@@ -169,7 +183,7 @@ def test_other_keys_do_not_start_it(scene: dt_demo.Game) -> None:
     scene.on_key_down_event(_key_down(pygame.K_a))
 
     scene.dt_tick(0.5)
-    scene.update()
+    _draw_frame(scene)
 
     assert scene.screen is not None
     assert _shows(scene.screen, image=_demo_text('Time: 0.0'), topleft=(0, 0))
@@ -183,7 +197,7 @@ def test_crossing_the_screen_shows_the_time_it_took(scene: dt_demo.Game) -> None
     _hold_keys(pygame.K_SPACE)
     scene.on_key_down_event(_key_down(pygame.K_SPACE))
     scene.dt_tick(crossing_seconds)
-    scene.update()
+    _draw_frame(scene)
 
     record_text = _demo_text(f'Time: {round(crossing_seconds, 2)}')
     record_position = (scene.screen_width // 4, scene.screen_height // 2)
@@ -191,12 +205,115 @@ def test_crossing_the_screen_shows_the_time_it_took(scene: dt_demo.Game) -> None
 
     # Later frames keep the first crossing time, while the clock runs on
     scene.dt_tick(1.0)
-    scene.update()
+    _draw_frame(scene)
 
     assert _shows(scene.screen, image=record_text, topleft=record_position)
     assert _shows(
         scene.screen, image=_demo_text(f'Time: {round(crossing_seconds + 1.0, 2)}'), topleft=(0, 0)
     )
+
+
+def test_the_square_is_a_sprite_that_follows_its_position(scene: dt_demo.Game) -> None:
+    """The square is a sprite of the scene's group, at the whole pixel of its position."""
+    _start_the_square(scene)
+
+    for _ in range(3):
+        scene.dt_tick(0.1234)
+        _draw_frame(scene)
+
+    assert scene.square in scene.all_sprites
+    assert scene.rect_pos == pytest.approx(SQUARE_SPEED * 0.1234 * 3)
+    assert scene.square.rect.x == int(scene.rect_pos)
+    assert scene.square.rect.y == scene.screen_height // 2 + SQUARE_BELOW_MIDDLE
+    assert scene.square.rect.size == (SQUARE_SIZE, SQUARE_SIZE)
+
+
+def test_the_record_line_is_hidden_until_the_square_crosses(scene: dt_demo.Game) -> None:
+    """The crossing time is a text sprite, hidden until the square has left the screen."""
+    assert isinstance(scene.record_line, TextSprite)
+    _start_the_square(scene)
+    scene.dt_tick(scene.screen_width / SQUARE_SPEED / 2)
+    _draw_frame(scene)
+
+    assert not scene.record_line.visible
+
+    scene.dt_tick(scene.screen_width / SQUARE_SPEED)
+    _draw_frame(scene)
+
+    assert scene.record_line.visible
+    assert scene.record_line in scene.all_sprites
+
+
+def test_the_lines_are_text_sprites(scene: dt_demo.Game) -> None:
+    """The time and FPS lines are text sprites of the scene's group."""
+    assert isinstance(scene.time_line, TextSprite)
+    assert isinstance(scene.fps_line, TextSprite)
+    assert {scene.time_line, scene.fps_line} <= set(scene.all_sprites)
+
+
+def test_the_fps_line_keeps_one_rect_whatever_the_fps(scene: dt_demo.Game) -> None:
+    """The FPS line's rect is the same for very different FPS values (Ruling R14).
+
+    The FPS is measured: a replay under ``--replay-fps real`` serves this machine's, so a rect
+    that followed the text would diverge on a faster or slower machine.
+    """
+    scene.fps = 5.0
+    _draw_frame(scene)
+    slow_rect = scene.fps_line.rect.copy()
+
+    scene.fps = 12345.67
+    _draw_frame(scene)
+
+    assert scene.fps_line.text == 'FPS: 12345.67'
+    assert scene.fps_line.rect == slow_rect
+    assert slow_rect.topleft == (0, dt_demo.FPS_LINE_TOP)
+
+
+# Each narrower than the line's widest text, so some of the line is right of the text
+@pytest.mark.parametrize('frames_per_second', [0.0, 60.01, 9876.5])
+def test_the_fps_line_shows_its_text_at_its_left(
+    scene: dt_demo.Game, frames_per_second: float
+) -> None:
+    """The fixed-size FPS line looks as the text did when drawn alone: same font, same place."""
+    scene.fps = frames_per_second
+    _draw_frame(scene)
+
+    assert scene.screen is not None
+    expected_text = _demo_text(f'FPS: {round(frames_per_second, 2)}')
+    assert _shows(scene.screen, image=expected_text, topleft=(0, dt_demo.FPS_LINE_TOP))
+    # Right of the text, to the line's fixed edge, the line is transparent: black shows
+    text_width, text_height = expected_text.get_size()
+    line_right = scene.fps_line.rect.right
+    beyond_text = pygame.Rect(
+        text_width, dt_demo.FPS_LINE_TOP, line_right - text_width, text_height
+    )
+    assert beyond_text.width > 0
+    region = scene.screen.subsurface(beyond_text)
+    assert pygame.image.tobytes(region, 'RGB') == bytes(BLACK_RGB) * (
+        beyond_text.width * beyond_text.height
+    )
+
+
+def test_update_draws_only_sprites(scene: dt_demo.Game) -> None:
+    """update() draws nothing on the screen: everything shown is the sprite group's."""
+    assert scene.screen is not None
+    background = (0, 0, 0)
+    assert scene.background_color is not None
+    assert scene.background_color[:3] == background
+    scene.screen.fill(background)
+    _start_the_square(scene)
+    scene.dt_tick((scene.screen_width + 1) / SQUARE_SPEED)
+
+    scene.update()
+
+    width, height = scene.screen.get_size()
+    assert pygame.image.tobytes(scene.screen, 'RGB') == bytes(background) * (width * height)
+
+    # Drawing the group then shows the frame
+    scene.render(scene.screen)
+
+    record_position = (scene.screen_width // 4, scene.screen_height // 2)
+    assert _shows(scene.screen, image=_demo_text(scene.record_line.text), topleft=record_position)
 
 
 def test_the_text_uses_the_bundled_font_never_a_system_font(mocker: MockerFixture) -> None:

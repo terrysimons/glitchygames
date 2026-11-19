@@ -27,13 +27,6 @@ from clockwork_keep.constants import (
     ELEVATOR_BOUNCE_DURATION,
     ELEVATOR_BOUNCE_FREQUENCY,
     ELEVATOR_BOUNCE_STRENGTH,
-    ELEVATOR_MOTOR_IDLE_FREQUENCY,
-    ELEVATOR_MOTOR_LOW_PASS_CUTOFF,
-    ELEVATOR_MOTOR_MAXIMUM_VOLUME,
-    ELEVATOR_MOTOR_MINIMUM_VOLUME,
-    ELEVATOR_MOTOR_PEAK_FREQUENCY,
-    ELEVATOR_MOTOR_TREMOLO_DEPTH,
-    ELEVATOR_MOTOR_TREMOLO_RATE,
     ELEVATOR_RATTLE_DURATION,
     ELEVATOR_RATTLE_FREQUENCY,
     ELEVATOR_RATTLE_STRENGTH,
@@ -60,11 +53,9 @@ from clockwork_keep.drawing import (
 )
 from clockwork_keep.levels import ALL_FLOORS, FloorData
 from clockwork_keep.player import Tinker
-from clockwork_keep.sounds import ALL_RECIPES
+from clockwork_keep.sounds import EFFECTS, ELEVATOR_MOTOR
 from clockwork_keep.terrain import Elevator, MovingGear, Platform
 from glitchygames.audio.exceptions import AudioUnavailableError
-from glitchygames.audio.recipes import SoundBank, Tremolo
-from glitchygames.audio.synth import Waveform
 from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.collision.solids import feet_land_on_surface
@@ -84,7 +75,8 @@ if TYPE_CHECKING:
     import argparse
     from collections.abc import Mapping
 
-    from glitchygames.audio.live import LiveVoice
+    from glitchygames.audio.library import Sound
+    from glitchygames.audio.live_instrument import LiveSoundHandle
     from glitchygames.events.base import (
         ControllerButtonEvent,
         JoyAxisEvent,
@@ -201,6 +193,8 @@ class ClockworkKeepScene(Scene):
 
     NAME = 'Clockwork Keep'
     VERSION = '1.0'
+    # Every sound the game plays, compiled when it starts (Scene.SOUNDS)
+    SOUNDS = (*EFFECTS, ELEVATOR_MOTOR)
     # Cap dt so a hitch (focus loss, Cmd-Tab, ...) advances the game at most 50 ms (20 fps).
     # The engine caps the dt dt_tick and the camera aim receive. A capped tick still moves a
     # falling Tinker 40 px, so the ground check sweeps the fall (_resolve_ground_collision)
@@ -318,10 +312,15 @@ class ClockworkKeepScene(Scene):
         # the fall from there (None outside dt_tick: no sweep)
         self._player_world_y_before_tick: float | None = None
 
-        # Sound
-        self.sounds = SoundBank(ALL_RECIPES)
+        # Sound: every effect, the sound library's (compiled on first request, cached after), so
+        # all are compiled before the floor runs and the elevator clank never compiles on the
+        # slam frame. The game engine is set before the game is built, so the audio engine
+        # follows its sound options
+        audio = self.scene_manager.audio
+        self.sounds: dict[str, Sound] = {effect.name: audio.sound(effect) for effect in EFFECTS}
+        self._elevator_motor_sound = audio.sound(ELEVATOR_MOTOR)  # live: compiles nothing
         self._was_grounded: bool | None = None  # Set from the first real collision result
-        self._elevator_motor: LiveVoice | None = None
+        self._elevator_motor: LiveSoundHandle | None = None
         self._elevator_peak_velocity = 1.0
 
         # Persistence
@@ -470,8 +469,6 @@ class ClockworkKeepScene(Scene):
         """Set up the floor scene."""
         super().setup()
         self.hud_font = pygame.font.Font(None, 28)
-        # Render every sound now so the elevator clank does not render on the slam frame
-        self.sounds.prerender()
         # The engine aims the camera at the player each frame (both axes; the bounds above
         # keep it from scrolling sideways) and places every world sprite from it
         self.camera.follow(target=self.player, axes=FollowAxes.BOTH)
@@ -767,14 +764,22 @@ class ClockworkKeepScene(Scene):
             return
         grounded = self.player.on_ground
         if self._was_grounded is False and grounded:
-            self.sounds.play('land')
+            self.play_sound('land')
         self._was_grounded = grounded
+
+    def play_sound(self: Self, name: str) -> None:
+        """Play one of the game's effects by name (``sounds.EFFECTS``).
+
+        Args:
+            name: The effect's name.
+        """
+        self.sounds[name].play()
 
     def _try_jump(self: Self) -> None:
         """Jump if standing on something, with its sound."""
         if self.player.on_ground:
             self.player.jump(running=self.actions.is_held('run'))
-            self.sounds.play('jump')
+            self.play_sound('jump')
 
     def _check_collectibles(self: Self) -> None:
         """Collect cogs whose collision rect overlaps the player's (via the collision layers)."""
@@ -783,7 +788,7 @@ class ClockworkKeepScene(Scene):
     def _on_player_collect_cog(self: Self, _player: Tinker, cog: CogCollectible) -> None:
         """Award a cog's points and remove it everywhere."""
         self.player.score += cog.points
-        self.sounds.play('cog_pickup')
+        self.play_sound('cog_pickup')
         cog.kill()
         self.collectible_sprites.remove(cog)
         self.collisions.get_layer('cogs').remove(cog)
@@ -858,32 +863,21 @@ class ClockworkKeepScene(Scene):
         transition.add_cue(1.0, self._elevator_arrived)
         self.transition_to(next_scene, transition)
 
-    def _start_elevator_motor(self: Self, *, owner: object) -> LiveVoice | None:
-        """Start the motor voice owned by the ride; None (silent ride) if no channel is free.
+    def _start_elevator_motor(self: Self, *, owner: object) -> LiveSoundHandle | None:
+        """Start the motor owned by the ride; None (silent ride) if no channel is free.
 
         Returns:
-            The running voice, or None.
+            The motor's handle, or None.
 
         """
         try:
-            motor = self.scene_manager.live_audio.create_voice(
-                owner=owner,
-                waveform=Waveform.SAWTOOTH,
-                frequency=ELEVATOR_MOTOR_IDLE_FREQUENCY,
-                volume=ELEVATOR_MOTOR_MINIMUM_VOLUME,
-                low_pass_cutoff=ELEVATOR_MOTOR_LOW_PASS_CUTOFF,
-                tremolo=Tremolo(
-                    rate_hz=ELEVATOR_MOTOR_TREMOLO_RATE, depth=ELEVATOR_MOTOR_TREMOLO_DEPTH
-                ),
-            )
-            motor.start()
+            return self._elevator_motor_sound.start(owner=owner)
         except ValueError, AudioUnavailableError:
             log.warning('No live voice or audio available; the elevator rides without its motor')
             return None
-        return motor
 
     def _update_elevator_motor(self: Self, transition: Transition) -> None:
-        """Drive motor pitch and volume from the car's speed (the easing's slope).
+        """Drive the motor from the car's speed (the easing's slope; its routes do the rest).
 
         Runs from the transition after this scene was cleaned up, so it only touches the
         motor voice, never sprites or the camera.
@@ -906,14 +900,7 @@ class ClockworkKeepScene(Scene):
         )
         if self._elevator_motor is None:
             return
-        self._elevator_motor.frequency = (
-            ELEVATOR_MOTOR_IDLE_FREQUENCY
-            + (ELEVATOR_MOTOR_PEAK_FREQUENCY - ELEVATOR_MOTOR_IDLE_FREQUENCY) * speed_fraction
-        )
-        self._elevator_motor.volume = (
-            ELEVATOR_MOTOR_MINIMUM_VOLUME
-            + (ELEVATOR_MOTOR_MAXIMUM_VOLUME - ELEVATOR_MOTOR_MINIMUM_VOLUME) * speed_fraction
-        )
+        self._elevator_motor.set('speed', speed_fraction)
 
     def _elevator_arrived(self: Self) -> None:
         """The car slams into the floor: stop the motor, clank, shake and rumble.
@@ -922,10 +909,12 @@ class ClockworkKeepScene(Scene):
         cleaned up by the time the ride ends.
         """
         if self._elevator_motor is not None:
-            self._elevator_motor.stop_now()
+            # Cut on the landing frame, the chunk already queued included: a fade would sound
+            # after the clank
+            self._elevator_motor.cancel()
             self._elevator_motor = None
         self.scene_manager.rumble.clear_sustained()
-        self.sounds.play('elevator_clank')
+        self.play_sound('elevator_clank')
         self.shake(ELEVATOR_STOP_BOUNCE, targets=ShakeTarget.SCREEN)
         self.shake(ELEVATOR_STOP_RATTLE, targets=ShakeTarget.SCREEN)
 
@@ -940,7 +929,7 @@ class ClockworkKeepScene(Scene):
         log.info('Victory! Score: %d', self.player.score)
         # The floor (and its camera) stand still from here on: stop following
         self.camera.follow(target=None)
-        self.sounds.play('victory')
+        self.play_sound('victory')
         self._save_high_score()
         # A shake still running would carry into the fade; end it first (as at game over)
         self.scene_manager.screen_shake.clear()
@@ -965,7 +954,7 @@ class ClockworkKeepScene(Scene):
             self.game_over_triggered = True
             # The floor (and its camera) stand still from here on: stop following
             self.camera.follow(target=None)
-            self.sounds.play('game_over')
+            self.play_sound('game_over')
             self._save_high_score()
             # Spec revision 3: a shake still running would carry into the fade; end it first.
             self.scene_manager.screen_shake.clear()
@@ -977,7 +966,7 @@ class ClockworkKeepScene(Scene):
             )
             self.transition_to(game_over, FadeTransition(duration=1.0))
         else:
-            self.sounds.play('death')
+            self.play_sound('death')
             self._respawn_player()
 
     def _respawn_player(self: Self) -> None:

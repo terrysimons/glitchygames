@@ -371,6 +371,37 @@ class TestHandlesAndOwners:
         assert handle.is_playing is False
         engine.close(wait_seconds=0.0)
 
+    def test_a_sound_from_a_transitions_last_cue_belongs_to_the_arriving_scene(self, scene_manager):
+        """It plays on after the switch: the arriving scene is active from the transition's start.
+
+        Clockwork Keep's elevator clank plays from the ride's progress-1.0 cue, after the old
+        floor's cleanup, and needs no owner of its own because ``_start_transition`` makes the
+        arriving scene active before the transition runs (plans/2026-11-14-sound-migration.md,
+        decision 5). Were it the old floor's, the owner rules would fade it within 50 ms.
+        """
+        from glitchygames.transitions.fade import FadeTransition
+
+        arriving = SoundFixtureScene()
+        transition = FadeTransition(duration=0.1)
+        handles: list[SoundHandle] = []
+        transition.add_cue(
+            1.0,
+            lambda: handles.append(
+                scene_manager.audio.play(Instrument(wave='square'), pitch='C5', length=1.0)
+            ),
+        )
+
+        scene_manager._start_transition(arriving, transition)
+        assert transition.update(0.2)  # runs the cue and completes
+        scene_manager._finalize_transition()
+        scene_manager.dt = FRAME_SECONDS
+        for _ in range(6):  # 100 ms of frames, twice the cleanup fade
+            scene_manager._update_frame_services()
+
+        assert scene_manager.active_scene is arriving
+        assert len(handles) == 1
+        assert handles[0].is_playing
+
     def test_system_voices_outlive_every_scene(self, scene_manager):
         engine = AudioEngine(
             partition=ChannelPartition(live=(), library=tuple(range(4, 36)), legacy_count=8),
@@ -879,3 +910,85 @@ def test_the_fixture_directory_is_where_the_stand_in_scene_looks():
     package_root = Path(__file__).resolve().parent.parent
     assert SoundFixtureScene.SOUND_DIRECTORY is not None
     assert package_root / SoundFixtureScene.SOUND_DIRECTORY == FIXTURE_SOUNDS.resolve()
+
+
+class TestDiskCacheMode:
+    """``disk``: the root decides (plans/2026-11-14-sound-cache-on-first-use.md, decision 7)."""
+
+    NO_CHANNELS = ChannelPartition(live=(), library=(), legacy_count=0)
+
+    def test_with_a_root_sounds_are_kept_under_it(self, tmp_path, monkeypatch):
+        from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
+        from glitchygames.audio.library import CacheMode
+        from glitchygames.audio.spec import AUDIO_RENDER_VERSION
+
+        monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, str(tmp_path))
+        engine = AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK, game_name='keep')
+
+        engine.sound(Instrument(wave='square'), pitch='C5')
+
+        assert engine.cache_mode is CacheMode.DISK
+        assert engine.sounds.statistics().disk_writes == 1
+        assert list((tmp_path / 'keep' / 'sounds' / str(AUDIO_RENDER_VERSION)).rglob('*.wav'))
+
+    def test_an_engine_with_no_game_keeps_its_sounds_in_the_no_game_folder(
+        self, tmp_path, monkeypatch
+    ):
+        from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
+        from glitchygames.audio.engine import NO_GAME_CACHE_FOLDER
+        from glitchygames.audio.library import CacheMode
+
+        monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, str(tmp_path))
+        engine = AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK)
+
+        engine.sound(Instrument(wave='square'), pitch='C5')
+
+        assert [path.name for path in tmp_path.iterdir()] == [NO_GAME_CACHE_FOLDER]
+
+    def test_a_games_start_prunes_only_its_own_folder(self, tmp_path, monkeypatch):
+        """Per-game limits: one game's start never removes another game's sounds."""
+        from glitchygames.audio import engine as engine_module
+        from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
+        from glitchygames.audio.library import ENGINE_SOUND_CACHE, CacheMode
+
+        monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, str(tmp_path))
+        for game in ('first', 'second'):
+            AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK, game_name=game).sound(
+                Instrument(wave='square'), pitch='C5'
+            )
+            ENGINE_SOUND_CACHE.clear()  # each game compiles and writes its own copy
+        monkeypatch.setattr(engine_module, 'DISK_CACHE_LIMIT_BYTES', 0)
+
+        AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK, game_name='second')
+
+        assert list((tmp_path / 'first').rglob('*.wav'))
+        assert not list((tmp_path / 'second').rglob('*.wav'))
+
+    def test_an_empty_root_runs_as_ram_and_says_so_once(self, monkeypatch, caplog):
+        from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
+        from glitchygames.audio.library import CacheMode
+
+        monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, '')
+        with caplog.at_level(logging.INFO, logger='game.audio'):
+            engine = AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK)
+            engine.sound(Instrument(wave='square'), pitch='C5')
+
+        assert engine.cache_mode is CacheMode.RAM
+        assert engine.sounds.statistics().disk_writes == 0
+        notes = [record for record in caplog.records if SOUND_CACHE_ROOT_VARIABLE in record.message]
+        assert len(notes) == 1
+
+    def test_in_the_browser_it_runs_as_ram_and_says_so_once(self, tmp_path, monkeypatch, caplog):
+        from glitchygames.audio import engine as engine_module
+        from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
+        from glitchygames.audio.library import CacheMode
+
+        monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, str(tmp_path))
+        monkeypatch.setattr(engine_module.sys, 'platform', 'emscripten')
+        with caplog.at_level(logging.INFO, logger='game.audio'):
+            engine = AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK)
+
+        assert engine.cache_mode is CacheMode.RAM
+        assert not list(tmp_path.rglob('*'))
+        notes = [record for record in caplog.records if 'browser' in record.message]
+        assert len(notes) == 1

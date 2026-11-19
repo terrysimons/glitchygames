@@ -159,10 +159,49 @@ all of it (`tests/test_engine_doors.py`).
 test, instead of the kernel killing the job silently (`tests/memory_guard.py`;
 `tests/test_memory_guard.py`).
 
-- It is on only when `GLITCHYGAMES_TEST_RSS_LIMIT_MB` is set; CircleCI's Linux job sets 1600.
+- It is on only when `GLITCHYGAMES_TEST_RSS_LIMIT_MB` is set; CircleCI's Linux job sets 1750.
 - A background thread samples memory every `SAMPLE_INTERVAL_SECONDS`, and each test's start and
   end are checked too.
 - It reads the container's memory (cgroup v2) where there is one, else this process's resident
   memory, and does nothing on macOS or Windows.
 - It matters for playback because the golden replays and the tools' tests start child processes,
   and the container's figure counts them.
+
+## A CI job split across machines
+
+**Intent:** one CircleCI job ran past CircleCI's one-hour job limit running the whole suite on
+one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs on two
+(`parallelism: 2`), each running a share (`tests/circleci_test_split.py`;
+`tests/test_circleci_test_split.py`).
+
+- It is on only when `GLITCHYGAMES_TEST_SPLIT` is `circleci`; the split jobs set it, and any
+  other value stops the run. It needs CircleCI's `CIRCLE_NODE_TOTAL`, `CIRCLE_NODE_INDEX` and
+  `circleci` command, so it is never set locally (`nox -s test-linux-ci` leaves it out).
+- After collection, every collected test's file, golden replays included, goes to `circleci tests
+  split --split-by=timings`, and the tests of the files it returns run; the rest are deselected.
+  The share is written to `test-results/test-split.txt`.
+- CircleCI's timings come from the JUnit reports, which name each test's file
+  (`junit_family=xunit1`, which the test session adds for a split job).
+- No share reaches the 100% coverage rule alone, so the test session turns it off for a share;
+  each machine keeps its `.coverage` in `coverage-data/<job>/`, and a `coverage-combine-*` job
+  combines them on the job's Python and applies the rule (`nox -s coverage-combine-3.15`).
+
+## Memory by test file
+
+**Intent:** when the guard stops a run, find which test files make the test process grow
+(`tests/memory_by_file.py`; `tests/test_memory_by_file.py`).
+
+- It is a plugin loaded on request, never by default:
+  `GLITCHYGAMES_MEMORY_BY_FILE=rows.json pytest -p tests.memory_by_file -n 0`.
+- Per file it writes `kept` (resident memory at the file's end less at its start, with garbage
+  collected at both ends), `peak_rise` (the most above that start after any of its tests) and
+  `after`, all in MiB. The rows are rewritten after every file, so a run the guard stops keeps
+  the files it finished.
+- It reads `/proc/self/statm` on Linux and `task_info` on macOS; elsewhere it says so once and
+  does nothing. It counts this process only, not the children a test starts.
+- macOS keeps freed memory differently from glibc: use its figures to rank files, and
+  `nox -s test-linux-ci` for the numbers CI sees.
+- To see which code holds Python memory after a file (by allocating line or by the engine
+  frame that allocated it), use `uv run python -m scripts.memory_triage` (`collection`, `held`,
+  `traced`, `per-test`). The November 2026 triage it came from is
+  `bugs/2026-11-17-linux-test-memory-guard-stops.md`.

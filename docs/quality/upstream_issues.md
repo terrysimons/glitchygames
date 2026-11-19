@@ -136,33 +136,31 @@ when both projects have fixed theirs.
 
 **Issue drafted for griffe** (github.com/mkdocstrings/griffe):
 
-> **`_dataclass_parameters` cache keeps every `mkdocs serve` rebuild's API tree alive**
->
-> `griffe/_internal/extensions/dataclasses.py` decorates `_dataclass_parameters(class_)` with an
-> unbounded `functools.cache` keyed by `Class` objects. Under `mkdocs serve`, each rebuild loads a
-> new API tree, and the cache keeps the previous trees reachable (each `Class` references its
-> module and the whole collection). With griffe 2.4.1 on a package of about 4,000 functions,
-> memory grew by about 330 MB per rebuild (694 -> 1016 -> 1375 -> 1532 MB over four in-process
-> builds, `gc.collect()` after each); calling `_dataclass_parameters.cache_clear()` after each
-> build kept it flat (about 690 MB).
->
-> Suggestion: cache on the `Class` instance (e.g. a private attribute), or in a
-> `weakref.WeakKeyDictionary`, so the cache dies with the tree.
->
-> Reproduction: load the config and call `mkdocs.commands.build.build(config)` several times in
-> one process, `gc.collect()` between, tracking resident memory (script attached).
+!!! bug "_dataclass_parameters cache keeps every mkdocs serve rebuild's API tree alive"
+    `griffe/_internal/extensions/dataclasses.py` decorates `_dataclass_parameters(class_)` with an
+    unbounded `functools.cache` keyed by `Class` objects. Under `mkdocs serve`, each rebuild loads a
+    new API tree, and the cache keeps the previous trees reachable (each `Class` references its
+    module and the whole collection). With griffe 2.4.1 on a package of about 4,000 functions,
+    memory grew by about 330 MB per rebuild (694 -> 1016 -> 1375 -> 1532 MB over four in-process
+    builds, `gc.collect()` after each); calling `_dataclass_parameters.cache_clear()` after each
+    build kept it flat (about 690 MB).
+
+    Suggestion: cache on the `Class` instance (e.g. a private attribute), or in a
+    `weakref.WeakKeyDictionary`, so the cache dies with the tree.
+
+    Reproduction: load the config and call `mkdocs.commands.build.build(config)` several times in
+    one process, `gc.collect()` between, tracking resident memory (script attached).
 
 **Issue drafted for mkdocstrings-python** (github.com/mkdocstrings/python):
 
-> **`_test_existing_template` cache keeps every rebuild's handler and Jinja environment alive**
->
-> `mkdocstrings_handlers/python/_internal/rendering.py` decorates `_test_existing_template(env,
-> path)` with `functools.cache`, keyed by the Jinja `Environment`. Each `mkdocs serve` rebuild
-> makes a new environment, so the cache keeps every previous one and, through it, the previous
-> `PythonHandler` (mkdocstrings-python 2.0.10). Clearing it after each build frees the old
-> handler.
->
-> Suggestion: cache per environment (on `env` itself, or in a `weakref.WeakKeyDictionary`).
+!!! bug "_test_existing_template cache keeps every rebuild's handler and Jinja environment alive"
+    `mkdocstrings_handlers/python/_internal/rendering.py` decorates `_test_existing_template(env,
+    path)` with `functools.cache`, keyed by the Jinja `Environment`. Each `mkdocs serve` rebuild
+    makes a new environment, so the cache keeps every previous one and, through it, the previous
+    `PythonHandler` (mkdocstrings-python 2.0.10). Clearing it after each build frees the old
+    handler.
+
+    Suggestion: cache per environment (on `env` itself, or in a `weakref.WeakKeyDictionary`).
 
 ## Fixed
 

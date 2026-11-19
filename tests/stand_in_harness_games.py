@@ -28,6 +28,10 @@ on ``BURST_FRAME`` it plays ``BURST_PLAYS`` blips, more than the effects bus has
 the long note and some blips are stolen; ``burst_probe`` sits at ``x`` = how many of the burst's
 handles still play and ``y`` = the steals so far. It takes no input, and ends the run itself
 after ``SOUNDING_RALLY_FRAMES`` frames (``SceneManager.quit``: no event).
+
+``PadReadoutScene`` stands in for a game read from a joystick: its marker's x follows the
+stand-in stick's polled axis 0, so a recorded session with the stand-in pad replays what the
+pad did (``PadReadoutScene``'s docstring has its facts).
 """
 
 from __future__ import annotations
@@ -37,9 +41,11 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 
 from glitchygames.audio import Instrument
+from glitchygames.input.state import current_input
 from glitchygames.replay.tools.golden_traces import InputScript, press, release
 from glitchygames.scenes import Scene
 from glitchygames.transitions.elevator import ElevatorTransition
+from tests.input.stand_in_devices import STAND_IN_STICK
 
 if TYPE_CHECKING:
     from glitchygames.events.base import KeyEvent
@@ -369,3 +375,57 @@ class SoundingRallyScene(Scene):
         self.frames_run += 1
         if self.frames_run == SOUNDING_RALLY_FRAMES:
             self.scene_manager.quit()
+
+
+# The pad readout's marker: its x is PAD_READOUT_ORIGIN_X plus PAD_READOUT_SCALE times the pad's
+# axis 0 (rounded), so an axis at 0.5 puts it at 150
+PAD_READOUT_ORIGIN_X = 100
+PAD_READOUT_SCALE = 100
+PAD_READOUT_Y = 120
+PAD_READOUT_SIZE = (6, 6)
+PAD_READOUT_COLOR = (120, 220, 160)
+
+
+class PadReadoutMarker(pygame.sprite.DirtySprite):
+    """A small sprite whose place shows the stand-in pad's axis 0."""
+
+    def __init__(self) -> None:
+        """Create the marker at the axis's rest position."""
+        super().__init__()
+        self.image = pygame.Surface(PAD_READOUT_SIZE)
+        self.image.fill(PAD_READOUT_COLOR)
+        self.rect = self.image.get_rect(topleft=(PAD_READOUT_ORIGIN_X, PAD_READOUT_Y))
+        self.dirty = 2
+
+    def update_nested_sprites(self) -> None:
+        """Scene.update() calls this on every sprite; this sprite has no nested sprites."""
+
+    def on_mouse_motion_event(self, event: pygame.event.Event) -> None:
+        """The mouse manager calls this on the sprite under the pointer; it ignores it."""
+
+
+class PadReadoutScene(Scene):
+    """A stand-in for a game read from a pad: its marker follows the pad's polled axis 0.
+
+    Its facts: it reads the stand-in stick (``STAND_IN_STICK``, tests/input/stand_in_devices.py)
+    from the frame's polled input only (``current_input()``), so a session of it needs
+    ``polled_input``; the marker is a sprite on every frame, its x
+    ``PAD_READOUT_ORIGIN_X + round(PAD_READOUT_SCALE * axis 0)``, so a replay compares what the
+    pad did. Its pad's events change nothing of its own.
+    """
+
+    NAME = 'Pad Readout'
+    VERSION = '1.0'
+
+    def __init__(self: Self, options: dict[str, Any] | None = None, groups: Any = None) -> None:
+        """Add the marker."""
+        super().__init__(options=options, groups=groups)
+        self.marker = PadReadoutMarker()
+        self.all_sprites.add(self.marker)
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Put the pad's axis 0 into the marker's x."""
+        super().dt_tick(dt)
+        axis_position = current_input().axis(device_id=STAND_IN_STICK.instance_id, axis=0)
+        self.marker.rect.x = PAD_READOUT_ORIGIN_X + round(PAD_READOUT_SCALE * axis_position)

@@ -323,7 +323,26 @@
         }
     }
 
+
+    // The palette toggle (zensical.yml theme.palette) changes the body's data-md-color-scheme
+    // without reloading the page; plotly keeps the colors a chart was drawn with, so the chart is
+    // drawn again in the new scheme's. One watcher at a time: instant navigation keeps the body.
+    var schemeWatcher = null;
+
+    function redrawOnSchemeChange(redraw) {
+        if (schemeWatcher) {
+            schemeWatcher.disconnect();
+            schemeWatcher = null;
+        }
+        if (!redraw) {
+            return;
+        }
+        schemeWatcher = new MutationObserver(redraw);
+        schemeWatcher.observe(document.body, {attributes: true, attributeFilter: ["data-md-color-scheme"]});
+    }
+
     function start() {
+        redrawOnSchemeChange(null);
         var root = document.querySelector(".performance-explorer");
         if (!root) {
             return;
@@ -355,6 +374,9 @@
                 state.recordingIndex = Math.max(gameIndex, 0);
                 return loadPlotly(data.plotly).then(function () {
                     render(root, data, state);
+                    redrawOnSchemeChange(function () {
+                        render(root, data, state);
+                    });
                 });
             })
             .catch(function (error) {

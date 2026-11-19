@@ -16,7 +16,7 @@ from __future__ import annotations
 import dataclasses
 import os
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pygame
 import pytest
@@ -24,10 +24,15 @@ import pytest
 from glitchygames import live_sources
 from glitchygames.events import GAMEEVENT
 from glitchygames.exit_codes import ExitCode
-from glitchygames.input.state import IDLE_INPUT
+from glitchygames.input.state import IDLE_INPUT, InputSnapshot, apply_snapshot_changes
 from glitchygames.process import OutputCapture, run_command
-from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, post_event
-from glitchygames.replay.tools import command, scripted_sessions
+from glitchygames.recording import (
+    EVENT_BATCHES_FIELD,
+    EXTERNAL_ORIGIN,
+    INPUT_CHANGES_FIELD,
+    post_event,
+)
+from glitchygames.replay.tools import command, golden_traces, scripted_sessions
 from glitchygames.replay.tools.golden_traces import (
     RANDOM_SEED,
     GoldenTraceSceneManager,
@@ -46,6 +51,7 @@ from glitchygames.replay.tools.scripted_sessions import (
     record_scripted_session,
 )
 from glitchygames.tracing import read_trace_result
+from tests.input.stand_in_devices import STAND_IN_PAD, STAND_IN_STICK
 from tests.replay.replay_helpers import replay_through_engine
 from tests.stand_in_games import (
     RECORD_TIMEOUT_SECONDS,
@@ -54,7 +60,13 @@ from tests.stand_in_games import (
     use_stand_in_game,
     write_stand_in_game,
 )
-from tests.stand_in_harness_games import SteeredPaddleScene, steered_paddle_script
+from tests.stand_in_harness_games import (
+    PAD_READOUT_ORIGIN_X,
+    PAD_READOUT_SCALE,
+    PadReadoutScene,
+    SteeredPaddleScene,
+    steered_paddle_script,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -305,6 +317,232 @@ def test_a_session_drops_events_left_queued_before_it(mocker, tmp_path):
         if record['type'] == GAMEEVENT
     ]
     assert STALE_EVENT_SUBTYPE not in recorded_subtypes
+
+
+# The stand-in pad session: 20 frames; axis 0 moved to PAD_AXIS_VALUE before frame 5, button
+# PAD_BUTTON held from frame 8 to 11
+PAD_SESSION_FRAMES = 20
+PAD_AXIS_FRAME = 5
+PAD_BUTTON_PRESS_FRAME = 8
+PAD_BUTTON_RELEASE_FRAME = 11
+PAD_AXIS_VALUE = 0.5
+PAD_BUTTON = 1
+PAD_HAT_VALUE = (1, 0)
+
+
+def joystick_axis(*, instance_id: int, axis: int, value: float) -> pygame.event.Event:
+    """Build a joystick axis motion, as SDL reports one for the device ``instance_id``.
+
+    Returns:
+        The JOYAXISMOTION event.
+
+    """
+    return pygame.event.Event(pygame.JOYAXISMOTION, instance_id=instance_id, axis=axis, value=value)
+
+
+def joystick_button(*, instance_id: int, button: int, pressed: bool) -> pygame.event.Event:
+    """Build a joystick button press or release, as SDL reports one for ``instance_id``.
+
+    Returns:
+        The JOYBUTTONDOWN (pressed) or JOYBUTTONUP event.
+
+    """
+    return pygame.event.Event(
+        pygame.JOYBUTTONDOWN if pressed else pygame.JOYBUTTONUP,
+        instance_id=instance_id,
+        button=button,
+    )
+
+
+def joystick_hat(*, instance_id: int, hat: int, value: tuple[int, int]) -> pygame.event.Event:
+    """Build a joystick hat motion, as SDL reports one for the device ``instance_id``.
+
+    Returns:
+        The JOYHATMOTION event.
+
+    """
+    return pygame.event.Event(pygame.JOYHATMOTION, instance_id=instance_id, hat=hat, value=value)
+
+
+def read_recording(*, path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Read a recording's header and frames (``read_trace_result``).
+
+    Returns:
+        The header (every field but the frames) and the frames.
+
+    """
+    trace = read_trace_result(path=path).trace
+    header = {field: value for field, value in trace.items() if field != 'frames'}
+    return header, trace['frames']
+
+
+def snapshot_at(*, frames: list[dict[str, Any]], frame_number: int) -> InputSnapshot:
+    """Rebuild a frame's polled input from the recorded changes, as a replay does.
+
+    Returns:
+        The frame's snapshot: the idle snapshot with every change up to that frame applied.
+
+    """
+    snapshot = IDLE_INPUT
+    for frame in frames[: frame_number + 1]:
+        snapshot = apply_snapshot_changes(
+            previous=snapshot, changes=frame.get(INPUT_CHANGES_FIELD, {})
+        )
+    return snapshot
+
+
+def snapshot_axis(
+    *, frames: list[dict[str, Any]], frame_number: int, instance_id: int, axis: int
+) -> float:
+    """Return a device axis's recorded position on a frame (``snapshot_at``).
+
+    Returns:
+        The axis position, 0.0 for a device or axis the frame's snapshot does not hold.
+
+    """
+    return snapshot_at(frames=frames, frame_number=frame_number).axis(
+        device_id=instance_id, axis=axis
+    )
+
+
+@pytest.mark.frames_vary(
+    reason='the session runs the real frame loop: each frame moves by its measured frame time'
+)
+def test_a_session_with_a_stand_in_pad_records_and_replays_it(mocker, tmp_path):
+    """The pad exists only in the session; its recording replays headless (Review Focus 4).
+
+    The header names the stand-in among the devices the engine opened, the snapshots hold what
+    the posted pad events would leave behind, and the replay compares the readout's marker,
+    which follows the pad's axis.
+    """
+    script = InputScript()
+    script.at(
+        PAD_AXIS_FRAME,
+        joystick_axis(instance_id=STAND_IN_STICK.instance_id, axis=0, value=PAD_AXIS_VALUE),
+    )
+    script.at(
+        PAD_BUTTON_PRESS_FRAME,
+        joystick_button(instance_id=STAND_IN_STICK.instance_id, button=PAD_BUTTON, pressed=True),
+    )
+    script.at(
+        PAD_BUTTON_RELEASE_FRAME,
+        joystick_button(instance_id=STAND_IN_STICK.instance_id, button=PAD_BUTTON, pressed=False),
+    )
+    path = tmp_path / 'pad.jsonl.gz'
+    # GameEngine._shutdown quits pygame; later tests on this worker still need it
+    mocker.patch('pygame.quit')
+    mocker.patch('pygame.display.quit')
+
+    record_scripted_session(
+        scene_class=PadReadoutScene,
+        script=script,
+        frame_count=PAD_SESSION_FRAMES,
+        path=path,
+        polled_input=True,
+        stand_in_devices=[STAND_IN_STICK],
+        random_seed=RANDOM_SEED,
+    )
+
+    header, frames = read_recording(path=path)
+    assert [device['name'] for device in header['devices']] == [STAND_IN_STICK.name]
+    assert (
+        snapshot_axis(
+            frames=frames,
+            frame_number=PAD_AXIS_FRAME + 1,
+            instance_id=STAND_IN_STICK.instance_id,
+            axis=0,
+        )
+        == PAD_AXIS_VALUE
+    )
+    held = snapshot_at(frames=frames, frame_number=PAD_BUTTON_PRESS_FRAME)
+    assert held.button(device_id=STAND_IN_STICK.instance_id, button=PAD_BUTTON)
+    released = snapshot_at(frames=frames, frame_number=PAD_BUTTON_RELEASE_FRAME)
+    assert not released.button(device_id=STAND_IN_STICK.instance_id, button=PAD_BUTTON)
+    # The marker followed the axis (its logic reads the snapshot a frame late: dt_tick runs
+    # before the pump), so the replay compares the pad's effect
+    marker_x_values = {sprite['rect'][0] for frame in frames for sprite in frame['sprites']}
+    assert marker_x_values == {
+        PAD_READOUT_ORIGIN_X,
+        PAD_READOUT_ORIGIN_X + round(PAD_READOUT_SCALE * PAD_AXIS_VALUE),
+    }
+
+    replay = replay_through_engine(mocker=mocker, scene_class=PadReadoutScene, path=path)
+
+    assert replay.exit_status == ExitCode.SUCCESS, replay.result.divergence
+    assert replay.result.frames_replayed == PAD_SESSION_FRAMES
+
+
+@pytest.mark.frames_vary(
+    reason='the session runs the real frame loop: each frame moves by its measured frame time'
+)
+def test_a_session_with_no_stand_in_devices_has_no_devices_at_all(mocker, tmp_path):
+    """An empty ``stand_in_devices`` is a session with no devices at all (Ruling R13).
+
+    None gives the machine's real devices; an empty tuple gives stand-in doors around an empty
+    registry, so the real ones are hidden: the header lists no device, enumeration counts none
+    and no frame opens one. The bundled demos without a pad are recorded this way.
+    """
+    path = tmp_path / 'no-devices.jsonl.gz'
+    # GameEngine._shutdown quits pygame; later tests on this worker still need it
+    mocker.patch('pygame.quit')
+    mocker.patch('pygame.display.quit')
+    # Observed, not replaced: which registry the engine's doors were built around
+    registry_spy = mocker.spy(golden_traces, 'stand_in_registry')
+
+    record_scripted_session(
+        scene_class=SteeredPaddleScene,
+        script=steered_paddle_script(),
+        frame_count=RECORDED_FRAME_COUNT,
+        path=path,
+        stand_in_devices=(),
+        random_seed=RANDOM_SEED,
+    )
+
+    registry_spy.assert_called_once_with(descriptors=())
+    header, frames = read_recording(path=path)
+    assert header['devices'] == []
+    assert [
+        (answer['call'], answer['value'])
+        for answer in header['device_enumeration']
+        if answer['call'] == 'joystick_count'
+    ] == [('joystick_count', 0)]
+    assert not any(frame.get('devices_opened') for frame in frames)
+    assert not any(frame.get('device_enumeration') for frame in frames)
+
+
+def test_posted_polled_input_follows_the_pads_axes_buttons_and_hat():
+    """Posted pad events show in the overlay, sized from the descriptors; a release reads False.
+
+    A device the descriptors do not name changes nothing; a named one shows at rest before any
+    of its events, as an opened real device's polled positions do.
+    """
+    posted_input = PostedPolledInput(descriptors=[STAND_IN_STICK, STAND_IN_PAD])
+    stick = STAND_IN_STICK.instance_id
+
+    at_rest = posted_input.overlay(IDLE_INPUT)
+
+    assert at_rest.device_axes[stick] == (0.0,) * STAND_IN_STICK.axis_count
+    assert at_rest.device_buttons[stick] == (False,) * STAND_IN_STICK.button_count
+    assert at_rest.device_hats[stick] == ((0, 0),) * STAND_IN_STICK.hat_count
+    assert at_rest.device_axes[STAND_IN_PAD.instance_id] == (0.0,) * STAND_IN_PAD.axis_count
+
+    posted_input.follow(joystick_axis(instance_id=stick, axis=1, value=PAD_AXIS_VALUE))
+    posted_input.follow(joystick_button(instance_id=stick, button=PAD_BUTTON, pressed=True))
+    posted_input.follow(joystick_hat(instance_id=stick, hat=0, value=PAD_HAT_VALUE))
+    # A device no descriptor names: SDL would report no such device
+    posted_input.follow(joystick_axis(instance_id=stick + 100, axis=0, value=1.0))
+
+    moved = posted_input.overlay(IDLE_INPUT)
+
+    assert moved.axis(device_id=stick, axis=1) == PAD_AXIS_VALUE
+    assert moved.axis(device_id=stick, axis=0) == 0.0
+    assert moved.button(device_id=stick, button=PAD_BUTTON)
+    assert moved.hat(device_id=stick, hat=0) == PAD_HAT_VALUE
+    assert stick + 100 not in moved.device_axes
+
+    posted_input.follow(joystick_button(instance_id=stick, button=PAD_BUTTON, pressed=False))
+
+    assert not posted_input.overlay(IDLE_INPUT).button(device_id=stick, button=PAD_BUTTON)
 
 
 def placing_script() -> InputScript:
@@ -572,9 +810,13 @@ def test_the_supervisor_places_and_posts_per_frame_input_on_the_active_scene(sce
 
 
 def test_posted_input_ignores_events_that_change_no_polled_input():
-    """An event that is no key, mouse motion or mouse button changes nothing polled."""
+    """An event that is no key, mouse or device input changes nothing polled.
+
+    A device event changes nothing either when no stand-in descriptor names its device.
+    """
     posted_input = PostedPolledInput()
 
+    posted_input.follow(pygame.event.Event(pygame.WINDOWFOCUSGAINED, window=None))
     posted_input.follow(pygame.event.Event(pygame.JOYBUTTONDOWN, instance_id=0, button=1))
 
     assert posted_input.overlay(IDLE_INPUT) == IDLE_INPUT

@@ -299,6 +299,7 @@ from glitchygames.recording import (
     forget_pending_posts,
     is_input_post,
     pending_internal_posts,
+    private_event_queue,
     recorded_start_time,
     remapped_event_records,
     start_tracking_internal_posts,
@@ -2461,6 +2462,12 @@ class ReplaySources:
             The real batch, in queue order.
 
         """
+        # An inner context drains its own queue: SDL's queue and its input blocking (both
+        # process-wide) belong to the context that owns the window (audit rows S5 and S6)
+        queue = private_event_queue()
+        if queue.enabled:
+            live_events, queue.events = queue.events, []
+            return live_events
         live_events = self._live_queue.pump_events()
         # After the drain, so the replayed code's posts made before the first drain are kept
         if not self._has_blocked_real_input:

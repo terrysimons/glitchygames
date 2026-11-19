@@ -19,10 +19,7 @@ if TYPE_CHECKING:
         JoyBallEvent,
         JoyButtonEvent,
         JoyHatEvent,
-        KeyEvent,
         MouseButtonEvent,
-        MouseMotionEvent,
-        MouseWheelEvent,
         VideoResizeEvent,
     )
 
@@ -30,6 +27,7 @@ import pygame
 
 from glitchygames.engine_context import ContextSlot, current_context
 from glitchygames.read_only_views import ReadOnlyView, ReadOnlyViewsABC
+from glitchygames.render_target import display_surface
 
 from .root_sprite import RootSprite
 
@@ -189,8 +187,9 @@ class Sprite(RootSprite, metaclass=ReadOnlyViewsABC):  # ruff: ignore[too-many-p
         # Sprites can register callbacks for any event type.
         self.callbacks: dict[str, Any] = {}
 
-        # Each sprite maintains a reference to the screen.
-        self.screen = pygame.display.get_surface()
+        # Each sprite maintains a reference to the screen: an inner context's render target,
+        # else the display (glitchygames/render_target.py)
+        self.screen = display_surface()
         assert self.screen is not None, (
             'Display surface must be initialized before creating sprites'
         )
@@ -337,51 +336,9 @@ class Sprite(RootSprite, metaclass=ReadOnlyViewsABC):  # ruff: ignore[too-many-p
         """
         # JOYBALLMOTION    joy, ball, rel
         # Not logged: ball motion streams every frame while the ball moves.
-
-    @override
-    def on_mouse_motion_event(self: Self, event: MouseMotionEvent) -> None:
-        """Handle a mouse motion event.
-
-        Args:
-            event (MouseMotionEvent): The event to handle.
-
-        """
         # MOUSEMOTION      pos, rel, buttons
         # Not logged: motion streams every frame while the mouse moves, to every
         # sprite under it, so a log line here would drown out useful debug output.
-
-    @override
-    def on_mouse_focus_event(self: Self, event: HashableEvent, entering_focus: object) -> None:
-        """Handle a mouse focus event.
-
-        Args:
-            event (HashableEvent): The event to handle.
-            entering_focus (object): The object entering focus.
-
-        """
-        # Custom Event
-        self.log.debug(
-            'Mouse Focus Event: %s: %s, Entering Focus: %s',
-            type(self),
-            event,
-            entering_focus,
-        )
-
-    @override
-    def on_mouse_unfocus_event(
-        self: Self,
-        event: HashableEvent,
-        leaving_focus: object = None,
-    ) -> None:
-        """Handle a mouse unfocus event.
-
-        Args:
-            event (HashableEvent): The event to handle.
-            leaving_focus (object): The object leaving focus.
-
-        """
-        # Custom Event
-        self.log.debug('Mouse Unfocus Event: %s: %s', type(self), event)
 
     def on_mouse_enter_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse enter event.
@@ -404,17 +361,6 @@ class Sprite(RootSprite, metaclass=ReadOnlyViewsABC):  # ruff: ignore[too-many-p
         self.log.debug('Mouse Exit Event: %s: %s', type(self), event)
 
     @override
-    def on_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
-        """Handle a mouse button up event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-
-        """
-        # MOUSEBUTTONUP    pos, button
-        self.log.debug('%s: %s', type(self), event)
-
-    @override
     def on_left_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle a left mouse button up event.
 
@@ -429,18 +375,7 @@ class Sprite(RootSprite, metaclass=ReadOnlyViewsABC):  # ruff: ignore[too-many-p
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug('%s: Left Mouse Button Up Event: %s @ %s', type(self), event, self)
-
-    @override
-    def on_middle_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
-        """Handle a middle mouse button up event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-
-        """
-        # MOUSEBUTTONUP    pos, button
-        self.log.debug('%s: Middle Mouse Button Up Event: %s', type(self), event)
+            super().on_left_mouse_button_up_event(event)
 
     @override
     def on_right_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
@@ -456,18 +391,7 @@ class Sprite(RootSprite, metaclass=ReadOnlyViewsABC):  # ruff: ignore[too-many-p
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug('%s: Right Mouse Button Up Event: %s @ %s', type(self), event, self)
-
-    @override
-    def on_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
-        """Handle a mouse button down event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-
-        """
-        # MOUSEBUTTONDOWN  pos, button
-        self.log.debug('%s: %s @ %s', type(self), event, self)
+            super().on_right_mouse_button_up_event(event)
 
     @override
     def on_left_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
@@ -485,18 +409,7 @@ class Sprite(RootSprite, metaclass=ReadOnlyViewsABC):  # ruff: ignore[too-many-p
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug('%s: Left Mouse Button Down Event: %s @ %s', type(self), event, self)
-
-    @override
-    def on_middle_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
-        """Handle a middle mouse button down event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-
-        """
-        # MOUSEBUTTONDOWN  pos, button
-        self.log.debug('%s: Middle Mouse Button Down Event: %s', type(self), event)
+            super().on_left_mouse_button_down_event(event)
 
     @override
     def on_right_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
@@ -512,31 +425,7 @@ class Sprite(RootSprite, metaclass=ReadOnlyViewsABC):  # ruff: ignore[too-many-p
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug(
-                '%s: Right Mouse Button Down Event: %s @ %s', type(self), event, self.name
-            )
-
-    @override
-    def on_mouse_scroll_down_event(self: Self, event: MouseButtonEvent) -> None:
-        """Handle a mouse scroll down event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-
-        """
-        # MOUSEBUTTONDOWN  pos, button
-        self.log.debug('%s: Mouse Scroll Down Event: %s', type(self), event)
-
-    @override
-    def on_mouse_scroll_up_event(self: Self, event: MouseButtonEvent) -> None:
-        """Handle a mouse scroll up event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-
-        """
-        # MOUSEBUTTONDOWN  pos, button
-        self.log.debug('%s: Mouse Scroll Up Event: %s', type(self), event)
+            super().on_right_mouse_button_down_event(event)
 
     def on_mouse_chord_up_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse chord up event.
@@ -555,48 +444,6 @@ class Sprite(RootSprite, metaclass=ReadOnlyViewsABC):  # ruff: ignore[too-many-p
 
         """
         self.log.debug('%s: Mouse Chord Down Event: %s', type(self), event)
-
-    def on_key_down_event(self: Self, event: KeyEvent) -> None:
-        """Handle a key down event.
-
-        Args:
-            event (KeyEvent): The event to handle.
-
-        """
-        # KEYDOWN          unicode, key, mod
-        self.log.debug('%s: %s', type(self), event)
-
-    def on_key_up_event(self: Self, event: KeyEvent) -> None:
-        """Handle a key up event.
-
-        Args:
-            event (KeyEvent): The event to handle.
-
-        """
-        # KEYUP            key, mod
-        self.log.debug('%s: %s', type(self), event)
-
-    def on_key_chord_down_event(self: Self, event: KeyEvent, keys: tuple[KeyEvent, ...]) -> None:
-        """Handle a key chord down event.
-
-        Args:
-            event (KeyEvent): The event to handle.
-            keys (tuple[KeyEvent, ...]): The KEYDOWN events of the keys held, in the order
-                they were pressed.
-
-        """
-        self.log.debug('%s: %s, %s', type(self), event, keys)
-
-    def on_key_chord_up_event(self: Self, event: KeyEvent, keys: tuple[KeyEvent, ...]) -> None:
-        """Handle a key chord up event.
-
-        Args:
-            event (KeyEvent): The event to handle.
-            keys (tuple[KeyEvent, ...]): The KEYDOWN events of the keys held, in the order
-                they were pressed.
-
-        """
-        self.log.debug('%s KEYCHORDUP: %s, %s', type(self), event, keys)
 
     def on_quit_event(self: Self, event: HashableEvent) -> None:
         """Handle a quit event.
@@ -661,130 +508,14 @@ class Sprite(RootSprite, metaclass=ReadOnlyViewsABC):  # ruff: ignore[too-many-p
         """
         # USEREVENT        code
         self.log.debug('%s: %s', type(self), event)
-
-    @override
-    def on_left_mouse_drag_event(
-        self: Self, event: MouseMotionEvent, trigger: MouseButtonEvent
-    ) -> None:
-        """Handle a left mouse drag event.
-
-        Args:
-            event (MouseMotionEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drag.
-
-        """
         # Not logged: a drag arrives with every mouse motion while a button is held, so a log
         # line here would run every frame of a drag and drown out useful debug output.
-
-    @override
-    def on_middle_mouse_drag_event(
-        self: Self,
-        event: MouseMotionEvent,
-        trigger: MouseButtonEvent,
-    ) -> None:
-        """Handle a middle mouse drag event.
-
-        Args:
-            event (MouseMotionEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drag.
-
-        """
         # Not logged: a drag arrives with every mouse motion while a button is held, so a log
         # line here would run every frame of a drag and drown out useful debug output.
-
-    @override
-    def on_right_mouse_drag_event(
-        self: Self, event: MouseMotionEvent, trigger: MouseButtonEvent
-    ) -> None:
-        """Handle a right mouse drag event.
-
-        Args:
-            event (MouseMotionEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drag.
-
-        """
         # Not logged: a drag arrives with every mouse motion while a button is held, so a log
         # line here would run every frame of a drag and drown out useful debug output.
-
-    @override
-    def on_left_mouse_drop_event(
-        self: Self, event: MouseButtonEvent, trigger: MouseButtonEvent
-    ) -> None:
-        """Handle a left mouse drop event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drop.
-
-        """
-        self.log.debug(
-            '%s: Left Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger
-        )
-
-    @override
-    def on_middle_mouse_drop_event(
-        self: Self,
-        event: MouseButtonEvent,
-        trigger: MouseButtonEvent,
-    ) -> None:
-        """Handle a middle mouse drop event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drop.
-
-        """
-        self.log.debug(
-            '%s: Middle Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger
-        )
-
-    @override
-    def on_right_mouse_drop_event(
-        self: Self, event: MouseButtonEvent, trigger: MouseButtonEvent
-    ) -> None:
-        """Handle a right mouse drop event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drop.
-
-        """
-        self.log.debug(
-            '%s: Right Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger
-        )
-
-    @override
-    def on_mouse_drag_event(self: Self, event: MouseMotionEvent, trigger: MouseButtonEvent) -> None:
-        """Handle a mouse drag event.
-
-        Args:
-            event (MouseMotionEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drag.
-
-        """
         # Not logged: a drag arrives with every mouse motion while a button is held, so a log
         # line here would run every frame of a drag and drown out useful debug output.
-
-    @override
-    def on_mouse_drop_event(self: Self, event: MouseButtonEvent, trigger: MouseButtonEvent) -> None:
-        """Handle a mouse drop event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drop.
-
-        """
-        self.log.debug('%s: Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger)
-
-    @override
-    def on_mouse_wheel_event(self: Self, event: MouseWheelEvent) -> None:
-        """Handle a mouse wheel event.
-
-        Args:
-            event (MouseWheelEvent): The event to handle.
-
-        """
-        self.log.debug('%s: Mouse Wheel Event: %s @ %s', type(self), event, self)
 
     @override
     def __str__(self: Self) -> str:

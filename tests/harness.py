@@ -17,6 +17,12 @@ from hypothesis import settings
 # has it, and only there: every client gets "not installed" unless a test names an install
 os.environ.setdefault('GLITCHYGAMES_AI_INSTALL_ROOT', '/nonexistent/glitchygames-ai-service')
 
+# No test writes to the user's sound cache folder: an empty root turns cache disk's disk layer off
+# (glitchygames/audio/disk_cache.py, rule 6), so disk runs as ram. Set, not defaulted, so a value
+# exported in a developer's shell never reaches the suite. A test of the disk layer asks for the
+# disk_sound_cache fixture (tests/disk_sound_cache.py), which points it at the test's own folder
+os.environ['GLITCHYGAMES_SOUND_CACHE_ROOT'] = ''
+
 # Importing tests.sdl_defaults defaults the SDL drivers to dummy (keeping any value the invoker
 # set); it must come before pygame is imported/initialized in any test worker
 from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip
@@ -43,6 +49,7 @@ from glitchygames.sprites.bitmappy_sprite import SINGLETONS_SLOT
 from glitchygames.sprites.sprite import SPRITE_COUNTERS_SLOT
 from glitchygames.user_files import install_user_files
 from tests.ai_service_stand_in import CONTROL_SCRIPT_NAME, python_twin
+from tests.child_process_guard import ChildProcessGuard, controller_sweep_lines
 from tests.display_canvas import (
     CANVAS_PATTERN,
     TEST_DISPLAY_SIZE,
@@ -284,6 +291,29 @@ def pytest_configure(config):
     )
 
 
+@pytest.hookimpl(trylast=True)
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """Kill and list what the run's tests left running when a worker died outright.
+
+    The controller sweeps the run's temporary directory once every worker has ended
+    (tests/child_process_guard.py ``controller_sweep_lines``): the backstop for a worker killed
+    without unwinding, where neither its tests' cleanup nor ``no_child_process_left_running``
+    ran (BUGS.md #275).
+
+    Args:
+        terminalreporter: Where the summary is written.
+        exitstatus: The run's exit status (unused).
+        config: pytest's configuration.
+
+    """
+    del exitstatus
+    left_running = controller_sweep_lines(config=config)
+    if left_running:
+        terminalreporter.section('processes left running by this run (now killed)')
+        for line in left_running:
+            terminalreporter.line(line)
+
+
 def _reset_all_singleton_instances():
     """Reset every singleton and shared cache so no test sees another test's instances.
 
@@ -355,6 +385,27 @@ def restore_signal_handlers():
     """
     with preserved_signal_handlers():
         yield
+
+
+@pytest.fixture(autouse=True)
+def no_child_process_left_running():
+    """Fail a test that leaves a process running, after stopping it (tests/child_process_guard.py).
+
+    Every child the test starts is recorded; at teardown, after the test's own fixtures stopped
+    what they started, each child still running, every process in a group one led, and every
+    descendant of either is killed and named. A test killed without unwinding (a worker's
+    SIGTERM) once left such processes running for days (BUGS.md #266, #275).
+    """
+    guard = ChildProcessGuard()
+    guard.start_recording()
+    yield
+    leftovers = guard.stop_leftovers()
+    if leftovers:
+        named = '\n'.join(f'  pid {process.pid}: {process.command}' for process in leftovers)
+        pytest.fail(
+            f'the test left {len(leftovers)} process(es) running (now killed):\n{named}',
+            pytrace=False,
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -684,7 +735,9 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
     if pygame.mixer.get_init() is not None:
         pygame.mixer.stop()
     restore_run_sdl_drivers(
-        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=run_sdl_driver_state
+        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
+        run_state=run_sdl_driver_state,
+        hides_windows=TEST_WINDOWS_HIDDEN,
     )
     with contextlib.suppress(pygame.error):
         surface = pygame.display.get_surface() if pygame.get_init() else None

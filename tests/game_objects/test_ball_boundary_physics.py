@@ -11,7 +11,6 @@ from glitchygames.game_objects.ball import (
     SpeedUpTrigger,
     speed_up_step_ratio,
 )
-from glitchygames.game_objects.sounds import SFX
 from glitchygames.movement import Speed
 from tests.game_objects.ball_helpers import drawn_visible_rect, place_visible_edge_past_wall
 
@@ -262,17 +261,15 @@ class TestBallBoundaryPhysics:
 
     def test_boundary_bounce_sound_effects(self, mocker):
         """Test that boundary bounces trigger sound effects."""
-        # Mock the loaded sound: playing it needs no mixer (none under some audio drivers)
+        # A stand-in for the game's sound: playing it needs no mixer (none under some drivers)
         bounce_sound = mocker.Mock()
-        load_sound = mocker.patch('glitchygames.game_objects.load_sound', return_value=bounce_sound)
         ball = BallSprite(
             x=400,
             y=0,
             bounce_top_bottom=True,
             bounce_left_right=False,
-            collision_sound=SFX.BOUNCE,
+            collision_sound=bounce_sound,
         )
-        load_sound.assert_called_once_with(SFX.BOUNCE)
         assert ball.snd is bounce_sound
         # Moving up into the top wall; reset() picks a random direction, and a ball
         # moving away from a wall is moved back inside without bouncing (no sound)

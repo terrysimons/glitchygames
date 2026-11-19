@@ -1267,16 +1267,27 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
         'scripts/mkdocs_hooks.py',
     ),
     'tests/test_import_published_ledger.py': ('scripts/import_published_ledger.py',),
+    'tests/test_instrument_audit_pages_manifest.py': (
+        'scripts/instrument_audit_pages_manifest.py',
+    ),
+    'tests/test_instrument_audit_quote_check.py': ('scripts/instrument_audit_quote_check.py',),
     'tests/test_measure_on_raspberry_pi.py': ('scripts/measure_on_raspberry_pi.py',),
     'tests/test_measure_staged_replays.py': ('scripts/measure_staged_replays.py',),
     'tests/test_microphone_capture_check.py': ('scripts/microphone_capture_check.py',),
     'tests/test_mkdocs_hooks_browser_games.py': ('scripts/mkdocs_hooks.py',),
+    'tests/test_record_bundled_demos.py': (
+        'scripts/record_bundled_demos.py',
+        'scripts/demo_inputs.py',
+    ),
     'tests/test_record_golden_traces.py': (
         'scripts/record_golden_traces.py',
         'scripts/golden_inputs.py',
         'scripts/record_scripted_session.py',
     ),
     'tests/test_replay_schedule.py': ('scripts/replay_schedule.py',),
+    'tests/test_reproduce_orphaned_test_processes.py': (
+        'scripts/reproduce_orphaned_test_processes.py',
+    ),
     'tests/test_workspace_packages.py': (
         'scripts/workspace_packages.py',
         'scripts/git_checkout.py',
@@ -1314,6 +1325,9 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/replay/test_replays_log_quietly.py': (
         "replays our members' goldens and bundled demos at the tools' log level"
     ),
+    'tests/test_every_recording_replays_inside_an_inner_game.py': (
+        "replays our members' goldens and bundled demos as inner games, beside each other"
+    ),
     'tests/replay/test_committed_recordings_present_every_frame.py': (
         'checks a watched 1x replay presents every frame of every committed recording'
     ),
@@ -1331,6 +1345,7 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/test_process_state_guard.py': SOURCE_GUARD_REASON,
     'tests/test_pump_seam_guard.py': SOURCE_GUARD_REASON,
     'tests/test_shared_font_cache_guard.py': SOURCE_GUARD_REASON,
+    'tests/test_sprite_classes_are_root_sprites.py': SOURCE_GUARD_REASON,
     'tests/test_suite_collection.py': (
         "the suite's own collection and import guards, over every test root"
     ),

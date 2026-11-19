@@ -15,7 +15,11 @@ Branch `feature/samples-phase-0-layers` holds no phase 0 work yet. In order:
 
 - [x] **Land #111.** Its Windows CI job fails (Linux and macOS pass); find out why and fix it, or
   confirm another session has it. **Done**: #111 merged 2026-10-28 (checked 2026-11-08).
-- [ ] **Rebase `feature/samples-phase-0-layers` onto `main`** once #111 is merged.
+- [x] **Rebase `feature/samples-phase-0-layers` onto `main`** once #111 is merged. **Done**
+  (nothing to rebase): the branch's two commits beyond main only added future-work notes, and
+  every one of the 49 lines they added was checked on 2026-11-11 against main's future-work (41
+  verbatim, the other 8 reworded or updated there). Its worktree was removed on 2026-11-11; the
+  local branch `feature/samples-phase-0-layers` still exists.
 - [ ] **Re-run the layer audit** against the new tree, and record what #111 resolved, what is
   left and anything new, against the 2026-10-26 audit (update that file, dated, rather than
   writing another).
@@ -176,6 +180,15 @@ local branches are deleted. The decisions made on the way, for the record:
 | Each AI response runs `_prepare_ai_content` twice (the pixel-row check, then the load), repeating its parse, rewrite and logs | `src/apps/bitmappy/src/bitmappy/ai_manager.py` | Found 2026-10-30 by the pixel-rows final review (minor). |
 | ~~`qlmanage -t -s 256 -o <dir> <sprite.toml>...` hangs with no output and the sprite thumbnail extension never launches~~ | `src/quicklook/tools/make_thumbnails.swift` | Found 2026-10-29 (`feat/sprite-quicklook`, plan Task 7). **Done** (explained, not an extension bug): on this macOS `qlmanage -t` only uses old generator plug-ins (its log says "missing or invalid generator for thumbnail" and its `com.apple.quicklook.thumbnail` discovery finds 0 extensions), and it hangs on any type without one (an unknown `.qqqzz` file hangs too). Through `QLThumbnailGenerator`, the API Finder uses, the extension draws sprites and declines other `.toml` files, which keep the plain document icon they had before (checked with the extension switched off). Check thumbnails with `swift tools/make_thumbnails.swift`. |
 | The multi-ball simulation tests write `ball.rect.x/y` for start positions and separations, which never took effect (the ball's position is `world_x`/`world_y`; rect was rebuilt from it, now by the engine), so every ball starts at its `reset()` serve position, not the drawn random one | `tests/game_objects/test_multi_ball_*.py` | Pre-existing test weakness found in feature/engine-world-space Task 9; set `world_x`/`world_y` instead and re-check the thresholds. |
+| CoreAudio flake: `AudioQueueStart -66681` stalled two of three full `uv run pytest` runs on the native (cocoa + coreaudio) driver on 2026-11-11, in `test_crt_power_on_sound` and `test_sound_cache`; the named tests pass alone | `tests/` (native driver child run), SDL's coreaudio driver | Found during Arcade sub-plan 2's verification. Same error as BUGS.md #266 (a held audio device), but no orphaned process was found this time; find what holds or starves the device under the full parallel run. |
+| ~~The channel-fade device tests' live recordings can merge two trials under load: `test_the_crt_skip_fade_on_the_device_is_a_plateau_or_two_then_a_halt` failed `assert 5 == 6` (`len(recorded_trials) == TRIAL_COUNT`) on CircleCI's Windows job for #179, 2026-11-11; the bus-fade test has the same check~~ | `tests/audio/test_channel_fades.py` (the `recordings` fixture, `trial_chunks` in `tests/audio/channel_fade_analysis.py`) | The exact count is deliberate (a merged trial would be analysed as one), so the fix belongs in the recording, not the assertion: a gap between trials that survives a stalled real-time disk-driver run (longer, or detected by marker tones rather than silence length), or a re-record when the count is short. Present since the tests landed in #147; #179 loosened only the report test, whose subject is the report. **Done** 2026-11-13, after the bus-fade test failed the same way (CircleCI job 3303, Windows, `feat/instrument-catalog-batch-9`: trials 4 and 5 recorded as one 30-chunk trial; a re-run passed): `record` records a case again when a trial was lost, up to `RECORDING_ATTEMPTS` (3), and only a recording of every trial is moved into place; three short ones fail it naming each count. The exact count assertions stay. |
+| `TextSprite.update_text` renders with `FontManager.get_font()` and ignores `self.font`, so the `.font` Bitmappy sets on its slider labels does nothing | `src/glitchygames/ui/text_widgets.py` (`TextSprite.update_text`), Bitmappy's slider labels | Found in Arcade sub-plan 2 (Task 6, Bitmappy's demo). Use `self.font` when set, or stop setting it. |
+| The dt demo's square keeps moving off screen after it crosses: nothing clamps or wraps it | `src/demos/dt-demo/src/dt_demo/__init__.py` | Found in Arcade sub-plan 2 (Tasks 4-5). Clamp or wrap it, then re-record `timing.jsonl.gz` (a reviewed step). |
+| Stand-in pads log a misleading WARNING "Device enumeration ... is not in the recording" on a second `joystick_count` or on `name_for_index` | `src/glitchygames/input/stand_in_devices.py`, `src/glitchygames/input/devices.py` (~1371) | Found in Arcade sub-plan 2 (Task 7, the joystick demo's `pad`). The answer is right; the warning is noise. A stand-in registry should answer repeated enumerations without falling to the "not recorded" path. |
+| The joystick demo would raise if a device connected while another scene was active | `src/demos/joystick-demo/src/joystick_demo/__init__.py` | Found in Arcade sub-plan 2. Matters once the Arcade hosts the demo beside other scenes. |
+| Bitmappy's Arcade tile diverges at frame 0: it sizes its film strip from `pygame.display.get_surface()`, which inside a tile is the Arcade's window, not the tile's 800x480 render target (`FilmStripSprite#0` rect expected `[350, 24, 450, 124]`, got width 6914 or 930) | `src/apps/bitmappy/src/bitmappy/film_strip_coordinator.py:348` (also `animated_canvas.py:1628`, `controllers/visual_indicators.py:326`) | Found 2026-11-12 by the ten-tile check of the full-Arcade spike ported to main (Arcade sub-plan 3); the other nine tiles match their solo replays exactly. Left failing for now (the owner, 2026-11-12). The two fixes on the table each bend a rule: an engine answer for `get_surface` while a tile's context is active (no pygame shims), or Bitmappy reading its scene's screen (no game changes). Held by a strict xfail in `tests/test_every_recording_replays_inside_an_inner_game.py` (Arcade sub-plan 3, Task 4), which runs the tiles inside a 1280x720 outer window: the test display (800x600) is as wide as the demo and hid it (width 930 there). |
+| A tile changes the outer game's key repeat (and other window and process settings): the text-input demo's tile leaves SDL's key repeat at `(200, 200)` where the outer game had `(0, 0)` (`pygame.key.get_repeat()`, one per process). The demo's `setup()` calls `pygame.key.set_repeat(350)` and the engine's `InputBox.on_key_up_event` calls `pygame.key.set_repeat(200)` on every key release while the box is active; the outer game (the Arcade) would then get repeated KEYDOWNs for its own held keys. A replay is unaffected (it serves recorded events). The same holds, unmeasured, for SDL's other one-per-process settings an inner game can still reach (found by the branch's final review, 2026-11-12): text input start and stop (the engine's text widgets, `src/glitchygames/ui/text_widgets.py:1218, 1260, 1274, 1328, 1503, 1509`: a tile's active text box would turn the outer game's IME text input on or off), the mouse cursor's visibility (Bitmappy's canvas, `src/apps/bitmappy/src/bitmappy/animated_canvas.py:1153, 1175`), pygame's default font resolution (`pygame.freetype.set_default_resolution` in `FontManager.__init__`, `src/glitchygames/fonts/font_manager.py:307`, from the inner game's `--font-dpi`: the last `FontManager` made wins) and `os.environ.setdefault('SDL_MOUSE_FOCUS_CLICKTHROUGH', '1')` (`src/glitchygames/engine/game_engine.py:1571`, harmless once the outer engine set it) | `src/glitchygames/ui/inputs.py:195` (the engine's), `src/demos/text-input-demo/src/text_input_demo/__init__.py:69` (the demo's; no game changes), also `src/glitchygames/ui/text_widgets.py` (1220, 1262, 1275, 1329, 1504, 1511) | Found 2026-11-12 by Arcade sub-plan 3's Task 4 (the plan's Review Focus 4): `test_a_tile_leaves_the_outer_key_repeat_as_it_was[text-input-demo/typing.jsonl.gz]`, a strict xfail naming this entry; every other recording leaves it. The repeat belongs to the context that owns the window: an inner context should keep its own (a slot) and never call SDL's, the way it keeps no caption and never changes SDL's blocked event types (`events.set_event_types_allowed`); the same for text input, the cursor's visibility (a Bitmappy call: the engine would need a door for it, since no game file changes) and the font resolution. The engine's own widgets setting the repeat on every key release is worth a look on its own. |
+| The pending replay ledger is rewritten in place, its only copy of unpublished rows, so a crash or a full disk mid-write loses them | `src/glitchygames/replay/tools/measure.py` (`pending_path.write_text`) | Found 2026-11-17 sweeping for siblings of bugs/2026-11-17-ai-console-history-seen-part-written.md. Write it aside then into place (`output_files.write_aside_then_replace`). |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)
 
@@ -254,9 +267,10 @@ arc was lost. What follows is left.
 - **Process-wide state sub-plan 2 left open** (Task 16, 2026-11-10; the audit in
   `plans/2026-10-25-engine-context.md`). S20: `_warned_hertz_values`
   (`src/glitchygames/audio/pitch.py:79`) is not yet per context, so a second context never warns
-  about a frequency the first did; it has no owning sub-plan yet. S3: `release_channels`
-  (`src/glitchygames/audio/voices.py:149`) clears the mixer's partition when any one context
-  shuts down (sub-plan 5's, sound). S8: `FontManager.__init__` sets pygame's one default font
+  about a frequency the first did; it has no owning sub-plan yet. (S3, `release_channels`
+  clearing the partition when any one context shut down, is resolved by Arcade sub-plan 4: an
+  inner context never partitions the mixer nor calls it; only the outer engine's teardown
+  does.) S8: `FontManager.__init__` sets pygame's one default font
   resolution from its context's `--font-dpi`, so the last `FontManager` made wins (sub-plan 7's,
   the inner engine, which keeps an inner context off the process services).
 
@@ -736,6 +750,198 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   nothing when that doesn't fit. Agreed earlier and deferred: step down instead, full context, then
   32K, then 8K, then none, with Qwen starting with the game as it does today.
 
+- **`glitchygames-client` minors** (#216's final review, deferred; plans/2026-11-16-console-sprite-generation.md,
+  "Part 1: execution record"):
+  - The test guard against HTTP patches `httpx2.Client`, so a call through `httpx2.post` gets past it:
+    patch the transport or the socket instead.
+  - `RendererService` is built even for the TOML-only default, which logs one "Pygame initialized" line.
+  - `sprite_requests.ALLOWED_OUTPUT_ROOT = Path.cwd()` runs at import, so a deleted current folder
+    kills the client at import: compute it when first needed.
+  - `tests/api/test_sprite_requests.py` installs the AI stand-in through `generation_service._client`,
+    not `create_chat_client`.
+  - `output_format == ['png']` misses `-f png -f png` (older than the branch): compare as a set.
+- **Keep or remove `glitchygames-server`** (the owner's call, still open): nothing uses it since #216,
+  and it keeps `fastapi` and `uvicorn` in the engine's core dependencies.
+
+## Arcade (sub-plan 2 follow-ups, 2026-11-11; plans/2026-11-11-arcade-2-demos.md)
+
+- **Longer attract scripts for Clockwork Keep and Brave Adventurer.** Their demos (`climb`, 330
+  frames; `classic` and `papyrus`, 400 each) reuse their golden scripts' frames and stop where
+  each script's first placement comes (a session may not run a placement's frame), so they are
+  short loops (Ruling 3). Write demo-only scripts in `scripts/demo_inputs.py` (as Mr. Muncher's
+  chase has) and re-record with `scripts/record_bundled_demos.py`.
+- **The game demos keep the golden scripts' pause** (the owner's question). Mr. Muncher's chase
+  pauses at frames 31-34 and Brave Adventurer's two at frames 80-93, so a looping tile briefly
+  shows the pause screen. Keep the pause, or trim or replace those scripts' pauses for the demos.
+- **The Sound Board's tile and demo** (the owner's question). It is not one of the mockup's ten
+  tiles, so it got no demo (Ruling 2). If it becomes a tile, its demo is one more recipe in
+  `DEMO_RECIPES`; note a replay compares sprites and events, so what it plays must be shown by
+  sprites or posted as events to be checked.
+- **The text-input demo's replay doesn't compare the typed text** (Ruling R10). Its submit
+  handler only logs the text and the `InputBox` rect never changes, so `typing.jsonl.gz` would
+  replay clean if typing broke. Post an internal GAMEEVENT on submit
+  (`glitchygames.recording.post_event`, as Drawing Fire does per death) or draw the typed text as
+  sprites, then re-record the demo (`src/demos/text-input-demo/src/text_input_demo/__init__.py`
+  `on_input_box_submit_event`).
+- **Bitmappy starts its AI worker process on every run** (Ruling R11). With no AI service
+  installed, `ai_worker.py` logs "AI features disabled" at ERROR with a traceback
+  (`log.exception`), though that is a normal case. In the one-process Arcade, Bitmappy's tile
+  would start a worker on every loop. Start no worker, and log no error (INFO at most), when the
+  service is absent, in a replay or in a demo (`src/apps/bitmappy/src/bitmappy/ai_worker.py`).
+- ~~**Convert the joystick demo (and the dt demo) to sprites**~~ (the owner, 2026-11-11). **Done**
+  in sub-plan 2's Task 4 (`40576db5`, `8c5dcf61`), which removed the entry from Games: both draw
+  with sprites (the joystick demo's gauges, a column rebuilt when a pad's mapping changes), so
+  their `timing` and `pad` demos compare what they show.
+- **Fold both demos' `TextLine` into the engine's `TextSprite`.** The dt and joystick demos each
+  carry a near-identical `TextLine(TextSprite)` subclass because `TextSprite.update_text`
+  ignores `self.font` (the bugs table). Fix that, then delete both copies; text showing a
+  measured value (the dt demo's FPS line, Ruling R14) keeps a fixed size.
+- **Say why each demo's frame count was chosen in `scripts/record_bundled_demos.py`** (final
+  review, minor 2). Only the rally's is explained there (Mr. Muncher's in
+  `scripts/demo_inputs.py`); Clockwork Keep's 330, Brave Adventurer's 400 and Drawing Fire's 1600
+  are explained only in the plan (Ruling 3) and the entry above.
+- **The text-input script copies the demo's starting text** (final review, minor 3).
+  `scripts/demo_inputs.py` `TEXT_INPUT_DEMO_ORIGINAL_TEXT_LENGTH = len('Test')`, and
+  `test_the_text_input_script_types_and_submits` builds its own `InputBox(text='Test')`, so a
+  change to the demo's starting text is not caught. Read it from the demo (by AST, as
+  `keys_read_by` does, or a shared constant).
+- **`record_scripted_session` swaps the supervisor's `PostedPolledInput`** (final review, minor
+  4). The supervisor builds one, then the recorder replaces it with one that knows the stand-ins'
+  descriptors (`scripted_sessions.py`). Pass `descriptors` to `ScriptedInputSupervisor.__init__`
+  and drop the swap and its comment.
+- **Plan checkboxes.** `plans/2026-11-11-arcade-2-demos.md` says DONE, but the steps of Tasks 2-8
+  are still `- [ ]` (only Task 1's are ticked).
+- **Small clean-ups left from sub-plan 2's task reviews** (kept from the progress ledger, Ruling
+  R16; each harmless today):
+  - `tests/test_record_bundled_demos.py` `held_at_end` sees only `InputScript.key_events`, so it
+    is near-vacuous for per-frame input; the recordings' own guard
+    (`tests/replay/test_bundled_demos.py` `test_no_bundled_demo_ends_with_input_held`, Rulings R6
+    and R12) superseded it. Delete it or make it read per-frame input.
+  - `scripts/record_bundled_demos.py` sets `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER` with
+    `os.environ.setdefault` at import time (so importing it from a test sets them too).
+  - `scripts/record_bundled_demos.py` `main` prints the recipe's frame count, not the recording's
+    frame count.
+  - `scripts/demo_inputs.py` `ReleaseHeldKeyOnFinalFrame` assumes "call n is frame n" and writes
+    `steering.held_key` directly; only the end-to-end held-input guard checks it.
+  - `scripts/demo_inputs.py` `bitmappy_demo_script`: the unused `_channel` unpacking in the two
+    colour-pick loops, the stroke-to-canvas-points comprehension written twice, and
+    `BITMAPPY_DEMO_FRAMES_BETWEEN_PICKS` doing double duty (the pause after each click and the
+    pause after the face's strokes).
+  - `scripts/demo_inputs.py` `typed_key_events` sets Shift in `mod` without a Shift press.
+  - `tests/test_record_bundled_demos.py` `scripted_events_in_frame_order` reads
+    `InputScript.key_events` internals; the hat test asserts only the four cardinals; the dt test
+    pins only the Space press, not the crossing or the record line.
+  - The held-input guard (R12) reads `JOYAXISMOTION` and `JOYHATMOTION` but not `JOYBALLMOTION`
+    (no shipped demo has a ball), and only external events (the supervisor's posts are
+    external, so every scripted input is read).
+  - A new demo must be `git add`ed before the every-recording-checked test sees it.
+  - Every text line of the dt and joystick demos is rendered again each frame.
+  - `nox -s test` reported 30 skips to `uv run pytest`'s 8 at Task 8: confirm the extra 22 are
+    optional-dependency skips (the voice tests) that main has too.
+
+## Arcade (sub-plan 3 follow-ups, 2026-11-12; plans/2026-11-12-arcade-3-inner-game.md)
+
+The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0, and a tile
+changes the outer game's key repeat (the plan's Review Focus 4).
+
+- **Every engine build adds a `pygame.register_quit` entry that is never removed.**
+  `GameEngine.__init__` registers its `quit_game` (`src/glitchygames/engine/game_engine.py`,
+  `pygame.register_quit(self.quit_game)`, a classmethod), and pygame has no way to unregister
+  one, so every `InnerGame` adds one for the life of the process: an Arcade looping ten tiles
+  adds ten per loop, each called once at `pygame.quit()`. Harmless today (the classmethod holds
+  no engine), but the list only grows. Register once per process, or not at all in an inner
+  context (the host's own engine registers it).
+- **The hosted start skips `_begin_start` (and `_begin_run`).** An inner game's `start()`
+  builds the game and returns (`render_target.hosted_start_requested()`), so the startup options
+  block is never logged for it, and `--profile` (`_begin_start`) and `--list-input-devices`
+  (`_begin_run`) are refused by `InnerGame` (`REFUSED_FLAGS`) rather than silently ignored. Log the options block for an
+  inner game (at INFO, under its context's name) if a tile's options are ever needed in a bug
+  report; profiling one tile would be a host's job (sub-plan 6).
+- **The proof's runtime.** `tests/test_every_recording_replays_inside_an_inner_game.py` runs
+  sixteen pairs (two child replays and, since Arcade sub-plan 4, six inner replays each: the
+  pair silent, the pair with one tile switched heard and back, and each alone) and sixteen
+  key-repeat replays: about 32-40 s of wall time under `-n 8` on an Apple M4 Max (about 180-200
+  s of CPU, 2026-11-13), the longest case 24.5 s (Drawing Fire beside Mr. Muncher). Watch it as
+  recordings are added.
+- **`--replay-digest` is allowed in an inner game on purpose** (a ruling during Task 3,
+  (from the sub-plan's run ledgers, archived outside the repository on 2026-11-14)): the proof test gives each `InnerGame` its own digest path. Nothing stops a host giving
+  two tiles the same path, and then both write one file. Refuse it, or give each tile its own
+  path, if a host ever passes it through.
+- **A watched inner replay would drop real key presses.** An inner context's replay never sets
+  `_has_blocked_real_input`, so every drain is treated as the first and real keys are dropped as
+  stale. It does not matter today: `InnerGame` replays only headless. Fix it before a watched
+  inner replay is ever allowed.
+- **`InnerGameOutcome.diverged` follows `ReplayReport.is_failure`, so two cases read as not
+  diverged**: a replay given another `--random-seed` (the reseeded summary), and a truncated
+  recording that matched up to its cut-off (alone it exits UNUSABLE_INPUT, but `diverged` is
+  False). Say so in `inner_game.py`'s docstring, or make `diverged` cover them.
+- **No guard stops a direct `pygame.event.set_allowed` or `set_blocked` in the engine.** Every
+  engine call that changes SDL's blocked types goes through `events.set_event_types_allowed`
+  (sub-plan 3's fix: an inner context never changes them), except `EventTypeBlock`. A future
+  direct call would bring the bug back quietly. Add a source-guard test like
+  `tests/test_engine_doors.py`'s.
+- Minor, from the same ledgers: refusal by prefix can over-refuse (a game's own flag that is a
+  strict prefix of a refused one, such as `--rec`, would be refused; no engine flag is one), and
+  an empty run is not handled specially (`step()` checks `should_run_frames()` only after each
+  frame, so a game already stopped after its build still runs one `run_frame_step`; replays
+  refuse empty recordings first).
+
+## Arcade (sub-plan 4 follow-ups, 2026-11-13; plans/2026-11-13-arcade-4-sound.md)
+
+- **The owner's listening check: clicks when the heard game changes.** Switching a heard tile
+  silent stops its plain `Sound.play()` sounds and mutes its live chunks at once
+  (`voices.stop_plain_plays_and_mute_the_live_pool`), and a finished tile's live pool is
+  stopped (`release_inner_context_channels`); a heard set still sounding when it is taken again
+  (heard games switched faster than the 50 ms fade) is stopped too (`take_heard_set`). Each is a
+  hard cut, which may click; only the voice table's voices fade (50 ms, stepped per mixer chunk,
+  as the impl spec's risks R4 and R5 say). A `Channel.fadeout(50)` for plain plays is possible
+  (only a channel the game itself already fades ignores it, its own fade then running on), but
+  it would keep the channel busy for about 50 ms after the switch, so the proof's invariant (no
+  unreserved channel plays while no tile is heard, `assert_no_tile_is_heard`) and a quick switch
+  back would both have to allow a channel still fading out, and SDL_mixer steps that fade once
+  per 11.6 ms chunk, so it is a few plateaus, not a ramp. Live chunks would need their fade
+  rendered in. Listen while switching quickly; the fallback is the owner's decision.
+- **`Scene.INNER_GAMES` declares only the default sizes** (two heard sets of 32 library
+  channels, 4 live channels per inner game). A host needing more (a tile recorded with
+  `--sound-channels` above 32 replays silent and refuses to be heard; one with
+  `--live-voice-pool` above 4 fails) calls `reserve_inner_game_channels(games=...,
+  heard_set_channels=..., live_channels_per_game=...)` after `GameEngine(...)` and before
+  `start()`. A class attribute for the sizes (or a model) would let a scene say it too.
+- **A host-context `FrameSilencer` would cut every inner game's sound.** In the default
+  context (not inner) `FrameSilencer.silence_frame` (`src/glitchygames/replay/silence.py`)
+  still calls `pygame.mixer.stop()`, which would stop the heard set, every tile's live pool and
+  the tiles' plain plays, not only the host's own sounds. Unreached today: the Arcade host
+  never rebuilds frames or plays an instant replay. Before a host does, give the default
+  context's silencer the inner one's rule (stop only its own channels: the outer partition's
+  live and library channels and the plain plays it started).
+- **The host must finish every inner game it drops** (`InnerGame.finish()`; rule 6 of
+  `src/glitchygames/inner_game.py`). Nothing gives a dropped game's live pool back (no
+  `__del__`), so an Arcade looping tiles that drops them unfinished exhausts its declaration;
+  the next build then fails naming the contexts still holding pools. A host-side registry (or a
+  weak-reference finaliser that only logs) could catch the mistake earlier.
+- **`pygame.mixer.music` is still one per process** (row S4 of
+  `plans/2026-10-25-engine-context.md`): a silent inner game's music would be heard, and its
+  `pause`/`unpause` reach the host's. No game uses music today; `FrameSilencer` in an inner
+  context already leaves it alone. Route music through the audio route when a game first
+  plays it.
+- **A heard tile's live voices are heard from their next chunk.** Going audible starts nothing
+  already under way (decision 3); a live voice queues its next chunk by real time (every 100 ms),
+  so a tile switched heard is silent for up to 200 ms of its projector. Re-render the queued
+  chunk at the switch if that gap is ever heard.
+- Minor, (from the sub-plan's run ledgers, archived outside the repository on 2026-11-14):
+  - `_partition_with_the_current_engine` (`audio/voices.py`) trusts the current context's engine:
+    a stale engine, constructed but never started, would lend its options. Engines clear the slot
+    at shutdown and the suite shows no leak, but a host must not leave a dead engine current.
+  - After `release_channels()` without a mixer restart, a re-declaration's `legacy_count` is the
+    mixer's whole remainder above the partition, so the mixer can grow by much more than needed
+    (only a process reusing a grown mixer, as tests do).
+  - `reserve_live_voice_pool` (the legacy wrapper) can raise `MixerBusyError` when called while
+    sound plays and it must grow (intended under BUGS.md #145; not in the docs).
+  - Nested inner games: an audible inner game stepping its own audible inner game would count
+    the grandchild's plays as both games' (`plain_plays_followed`). Nothing does this today.
+  - A review minor about real-time margins in the tests (M5) was parked without detail beyond
+    its name; the archived ledger holds the review.
+
 ## Games
 
 - **Convert Drawing Fire to sprites** (the owner, 2026-11-07). It draws its soldiers, sandbags and bullets straight
@@ -932,6 +1138,36 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
 
 ## Developer environment
 
+- **Name the CI jobs for what they run** (the owner, 2026-11-18: "so it's more obvious what's
+  running in CI"). The 3.15 jobs are `test-python-3-15-linux` and `-windows`, but the 3.14 ones are
+  `build-and-test-linux` and `-windows`, which name no Python. In order:
+  1. The owner changes `main`'s required status checks to the workflow's own check,
+     `build-and-test` (the owner: "I'll take care of changing that"). It fails when any job in the
+     workflow fails, and its name never changes, so renaming or adding jobs never touches branch
+     protection again. Required per-job checks (`ci/circleci: build-and-test-linux`) would block
+     every PR the moment a job is renamed.
+  2. Rename the jobs inside the workflow: `test-python-3-14-linux` and `-windows`, and the
+     coverage jobs to match. Touches: the job definitions, the workflow's list and every
+     `requires:`, `noxfile._CIRCLECI_LINUX_JOB` (`test-linux-ci` reads that job), and the names in
+     `tests/test_ci_config.py`, CLAUDE.md and the docs. **Done another way (2026-11-18 and 19):**
+     the jobs are `test-python-3-15-macos`, `-linux` and `-windows`, and the 3.14 jobs are gone
+     (the owner: "let's get rid of Python 3.14 altogether"); only the coverage jobs
+     (`coverage-combine-linux-test-3-15`, `-windows-`) keep their own pattern.
+  3. ~~Move the wheel and binary build out of the 3.14 jobs into a job of its own.~~ **Done
+     differently (2026-11-18, the owner: "Switch the builds over to 3.15"):** the builds run in
+     the 3.15 jobs, on machine 0 of each split job, and in the macOS job; none is in a 3.14 job.
+
+- **Move the code's oldest Python to 3.15 when a Pyodide on 3.15 ships.** Python 3.14 is gone from
+  the tests, CI, the pre-push hooks and every nox session (the owner, 2026-11-19: "let's get rid of
+  Python 3.14 altogether"); it stays only as the oldest the code must parse and type-check as,
+  because the browser builds run on PyScript's Pyodide 314 (`scripts/build_browser_bundle.py`,
+  Python 3.14). Nothing tests on 3.14, so a 3.14-only break would show first in the browser
+  games; ruff and the type checkers catch 3.15-only syntax and standard-library names. When
+  Pyodide (and the PyScript release that pins it) moves to 3.15: rebuild our pygame-ce wheel for
+  it, then move `requires-python` (the root's and every member's), ruff's `target-version`, ty's
+  `python-version` and pyrightconfig.json's `pythonVersion` to 3.15, and the generated SBOM's
+  supported environments (`scripts/generate_sbom.py`).
+
 - Dropbox syncing test artefacts made the suite run in 10 minutes instead of 46 s. If Dropbox stays
   on, mark `test-results/`, `.coverage*`, `.venv` and cache directories as ignored
   (`xattr -w com.dropbox.ignored 1 <path>`).
@@ -949,6 +1185,17 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   (`pytest_benchmark/fixture.py:88`), so every `benchmark` test errored at setup. Lift it once a
   pytest-benchmark release works with 9.2, then re-run the benchmarks and the memory guard's
   check that pytest still keeps each test's class instance (`tests/garbage_collection.py`).
+- **The serial suite's two memory leads still open** (found 2026-10-28 by the test-memory-reduction
+  work, #112; its report, kept 2026-11-11: plans/2026-10-28-test-memory-reduction-report.md,
+  BUGS.md #237). Neither is needed for the 1600 MiB limit (CircleCI's Linux peak was 1121 MiB,
+  `tests/memory_guard.py`); they are where the next savings are.
+  - `tests/world/test_golden_traces.py` adds about 116 MiB to the pytest process: `record_trace`
+    holds the whole current run in memory. Reading the baseline with shared records
+    (`share_records`) did not change it.
+  - The serial job's peak is `tests/test_driver_comparison.py::TestEndToEnd`: pytest at about
+    685 MiB plus an inner pytest with two worker processes (about 100 MiB each). Where the inner
+    run gets its workers in a serial job was not found. Next after it: the golden replays near the
+    end (pytest about 850 MiB plus a 150-185 MiB child).
 - **The SBOM's scope** (found 2026-10-28 when syft and grype replaced safety and pip-audit).
   The license decisions are in `scripts/check_licenses.py`'s `EXCEPTIONS`. The SBOM
   (`docs/sbom.cyclonedx.json`) is everything `uv.lock` pins, development and docs tools included,
@@ -979,6 +1226,186 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
     `pyproject.toml` does).
   - Then test that a built member wheel's recording names its game commit with source
     `build-stamp`.
+- **Make the pre-push driver comparison faster** (the owner, 2026-11-13). A push runs the suite
+  four times: `test-random` once (shuffled, `-n auto`: 80 s for 26,007 tests) and
+  `compare-drivers --drivers native --fail-on-difference` three times in file order, one run
+  after another at `_COMPARE_DRIVERS_WORKERS = 4` (dummy twice, cocoa once: 396 + 309 + 450 s,
+  about 19 minutes). The 4 workers were chosen "so the machine stays usable"
+  (`docs/quality/driver_comparison.md`), for the by-hand matrix with Docker and XQuartz. CI runs
+  neither: each CircleCI job runs `nox -s test` once. Steps, cheapest first:
+  - ~~**Every core for the hook's comparison.**~~ **Done** 2026-11-13 (branch
+    `perf/faster-pre-push-comparison`): `compare-drivers -- --workers N|auto` (default 4, the
+    by-hand matrix), and the hook passes `--workers auto`. Measured 2026-11-13 on this Mac (16
+    logical cores), `nox -s compare-drivers -- --drivers native -n auto`: 185 + 190 + 228 s, 10
+    minutes; every configuration agreed on all 26,114 compared tests, nothing nondeterministic
+    on dummy (as at 4 workers), the `frames_vary` list unchanged but for a test #185 added.
+  - **Why a run is still 2.3x the shuffled run** at the same width (185 s against 80 s; CPU
+    averaged 521% of 1600%). Profiled 2026-11-13: not the frame-fingerprint plugin. It
+    fingerprints about 57,000 frames per run (31,281 presented plus each test's final frame) at
+    about 3.8 ms each (half the display's RGB conversion, half SHA-256), and a dummy run with it
+    took 1,032 CPU-seconds against 964 without (about 7%). The runs are short of parallelism, not
+    CPU: about 4 of 16 cores busy, so time goes to waiting (sleeps, child processes, timeouts).
+    The wall times of that profile (253 s with the plugin, 628 s without) were taken on a
+    loaded machine (load average about 60: another session's comparison, another project's
+    suite) and say nothing about the plugin. Next: on a quiet machine, the slowest tests by
+    wall time against their CPU time (`--durations`), and the xdist distribution's tail.
+  - ~~**Skip the comparison on a push that cannot change a frame**~~ **Done** 2026-11-13 (same
+    branch): the hook passes `--skip-when-frames-cannot-change`; a push whose every path is
+    under `plans/`, `docs/`, `quality/`, `.circleci/` or `.github/`, or is root Markdown
+    (`_path_cannot_change_frames`, an allowlist), skips the comparison and says why; a push
+    whose range git cannot read, and any run outside a push, is compared.
+  - Not done: folding `test-random` into the comparison (shuffling one dummy run). The comparison
+    passes on failing tests (`_PYTEST_FINISHED_CODES = [0, 1]`), and order-dependent frames would
+    read as "varies between runs" rather than fail; little to save (80 s).
+- **Upgrade every locked dependency, then generate sounds on first use: one branch,
+  `chore/upgrade-and-sounds-on-first-use`** (the owner, 2026-11-14: one upgrade, not a
+  tornado-only branch; sounds and the instrument and demo WAVs made on first use, never stored
+  in the repository; the two combined). The upgrade lands first, as its own commit with every
+  gate green, so a replay or sound that changes afterwards points at the cache code alone.
+  - The upgrade: `uv sync --upgrade --all-extras --all-groups --all-packages`, then the gates in order (ruff, basedpyright and ty, the suite) and
+    `nox -s security-scan`, committing the regenerated `docs/sbom.cyclonedx.json` with `uv.lock`.
+    A trial run on 2026-11-14 (main at c3beb0a8, not kept) changed 31 packages, none added or
+    removed: tornado 6.6 -> 6.6.1 closes Dependabot alert 196
+    (bugs/2026-11-14-dependabot-alert-196-tornado-open-redirect.md); two major versions to check,
+    pymdown-extensions 12.3 -> 13.1 (the docs build) and python-dateutil 2.9.0.post0 -> 4.0.0; ruff
+    0.17.3 -> 0.17.5 and ty 0.0.95 -> 0.0.104 may report new findings.
+  - Sounds on first use (an installed wheel runs no code at install time, so first use is the
+    earliest point):
+    - Runtime sounds: compiled samples are cached only in memory, per process
+      (`ENGINE_SOUND_CACHE`, `src/glitchygames/audio/library.py`), so every launch compiles them
+      again (the CRT power-on sound included). Add a disk cache in the user's cache folder
+      (`src/glitchygames/state/paths.py` finds the platform folders), keyed by the engine version
+      and the sound's identity, so a machine compiles each sound once. Replays must still get the
+      same samples (a cached sample equals a fresh compile; test it), and a corrupt or old-version
+      entry is compiled again and replaced, never trusted.
+    - Listening WAVs: done 2026-11-16 (branch `feat/sound-cache-subcommands`):
+      `glitchygames listening-instruments [--family] [--only]` and `listening-pipes [--only]`
+      render into `<cache root>/listening/<render version>/`, only what is missing; the code is
+      `glitchygames.audio.listening`, the scripts are gone.
+    - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
+      clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
+- ~~**Move the games onto the new sound library (sound engine M2's migration), in
+  `chore/upgrade-and-sounds-on-first-use` with the upgrade and the disk cache**~~ **Done**
+  2026-11-15 (plans/2026-11-14-sound-migration.md, steps 1-9, and its two measurements: ten
+  Arcade tiles hold one copy of a game's sounds, about 16 KB more per tile; every start-up
+  compile fits the CRT power-on).
+- **A first launch's long sound stalls the CRT power-on on a slow machine** (measured
+  2026-11-15, `scripts/measure_sound_start.py`): a start-up slice compiles at least one whole
+  sound, and Clockwork Keep's victory jingle takes 117 ms on a Raspberry Pi 4 (Mr. Muncher's
+  film snap 81 ms), so the power-on stalls once for about 7 frames there (about 2 on a Pi 5).
+  Once per machine: later launches read the disk cache. Remedies, in order: `sound-cache-fill`
+  (built 2026-11-16: `glitchygames sound-cache-fill`, or a game's `--sound-cache-fill`, so even a
+  first launch reads; nothing runs it yet: an installer, a packaged build's first run or the
+  sound editor would); rendering a long effect tone by tone across slices and mixing at the end (keeps the
+  no-thread design; the longest tone bounds the stall). Not a background thread (the plan's
+  decision 6; the mixer's callback needs the GIL, BUGS.md #27).
+  (the owner,
+  2026-11-14: "Update the games to use it"; "I want to do the migration here in this branch. All
+  together."; live instruments built as part of it; "make them all compile at the init of each
+  game, so we cache from the start"). Plan: `plans/2026-11-14-sound-migration.md`. Found while building the disk cache: no golden or bundled demo makes
+  a sound through `scene_manager.audio` today, so the disk layer has nothing to cache in them
+  (a PaddleSlap golden under `--sound-cache disk` wrote no file; the `disk_sound_cache` fixture
+  failed the test). Spec: `docs/specs/2026-11-02-sound-engine-implementation-spec.md` §10.4.
+  - Clockwork Keep and Mr. Muncher: `SoundBank(ALL_RECIPES)` to `audio.sounds.add_recipes` and
+    `audio.sound(name)`; version 0 recipes compile through the same renderer, so a test proves
+    the samples bit-identical.
+  - Brave Adventurer: `GameSounds` and its five `_generate_*_sound()` functions re-authored as
+    `Instrument(...)` requests, within 1 LSB or by RMS spectrum within 0.5 dB, then the owner's
+    listening check.
+  - Live instruments (M2's first item: `Instrument(..., live=True)`, `start(parameters=...)`),
+    then Clockwork Keep's elevator motor and Mr. Muncher's projector on them; the Arcade's live
+    pools and heard-tile switching must hold (the inner-game proof).
+  - Every game compiles all its sounds when it starts, so the cache is warm from the first frame
+    (measure the first launch's cost; compiling during the CRT power-on would hide it; measure
+    the memory of ten Arcade tiles each holding their game's set).
+  - Then the clean-up: `SoundBank`, `live_audio`/`create_voice`, `GameSounds`, `load_sound` and
+    `add_recipes` (once the recipes are TOML) removed, with their tests.
+  - ~~The proof the disk branch could not have: every golden and bundled demo replays under
+    `--sound-cache disk` cold and warm with the `disk_sound_cache` fixture (writes, then hits,
+    nothing compiled twice, digests equal).~~ **Done** 2026-11-15 (migration step 8,
+    `tests/audio/test_audio_engine_goldens.py`): all 16 recordings, cold then warm, digests
+    equal; the 8 that cache sounds write into their game's folder (written down per recording)
+    and read every one back with nothing compiled or written again; the 8 that cache none write
+    nothing. A planted warm recompile, and a planted write on a hit, each fail the 8.
+- **The rest of sound engine M2's live instruments** (not built with the migration, which built
+  what the two live sounds need: parameters, routes, curves, smoothing, tremolo, `start`/`set`;
+  plans/2026-11-14-sound-migration.md): the state-variable filter and its resonance, pink noise,
+  `note_on`/`note_off` and the retrigger rules, bit and rate reduction, `at_frame` and
+  `unschedule`, the Audio panel's live-voices section (AUD-DIAG-003), `--live-chunk-ms`, the
+  loudness budget and device-loss handling. Spec: the feature spec's 5.3-5.4 and 6, the
+  implementation spec's M2. A live voice (`src/glitchygames/audio/live_instrument.py`, rule 3)
+  also refuses, for now: waves other than sine, square, saw and triangle (pulse, mixes,
+  blends, drawn and registered waves; it renders the plain oscillator, not the PolyBLEP
+  tables a baked sound uses), LFSR noise and a noise seed, a source's own pitch, glide,
+  envelope and filter, and drive; and it applies no envelope (a live sound sustains until
+  stopped, then fades). Sound files (`src/glitchygames/audio/assets.py`) take a live
+  instrument's `live`, `tremolo`, `parameters` and `routes`, but not yet note names in a
+  route's `output` (they need the game's tuning at start, not the default at load) nor a
+  `[sounds.<name>]` entry's own starting `parameters` ("arrives in M2").
+- **Replace `assert` outside tests with explicit raises, and turn ruff's S101 back on** (the
+  owner, 2026-11-15: "Make a TODO for later"; its own branch). The owner's global rule: never
+  `assert` outside tests, since `python -O` strips them and bandit flags them (B101). This
+  project turned S101 off repository-wide in #71 (2026-03-21: "assert is used intentionally for
+  type narrowing and runtime invariant checks", `pyproject.toml`'s ignore list), so no lint,
+  hook or CI step ever flags one and the conflict went unseen. Counted 2026-11-15 (with
+  `git grep -E '^[[:space:]]+assert '`; `\s` matches nothing in git grep): 203 outside tests,
+  the same on `main` and on `chore/upgrade-and-sounds-on-first-use`, 154 in shipped code (51
+  files: engine core 77, Bitmappy 38, audio 26, games and demos 13; most in `scenes/scene.py`,
+  24) and 49 in `scripts/` (18 files). 200 are type narrowing (`is not None`, `isinstance`).
+  Each becomes an explicit check raising an error with a real message; the 100% coverage gate
+  may need a test per new branch. Then remove S101 from the ignore list so none returns.
+  Decide with the owner whether `scripts/` (hand-run tools, never shipped) is in scope.
+- **Stereo synthesis** (the owner, 2026-11-15: "couldn't we make them stereo since we own the
+  sound waves?"; its own branch, after the sound migration). The renderer makes mono samples
+  and every sound, live and baked, pans by the constant-power law (`voices.constant_power_gains`,
+  centre 3 dB down on each side). An instrument could render two channels: a pan per source
+  (the feature spec's Game Boy-style profile has channels "hard-panned in stereo", M4), width
+  (detuned copies left and right, a short one-sided delay), later stereo chorus and ping-pong
+  delay (with M4's delays); live voices would render stereo chunks. A stereo sound pans by the
+  balance law (centre at full, the far side turned down), chosen by what the sound is (mono or
+  stereo), as mixing desks do, never by a per-sound setting. Cost: a stereo sound holds twice
+  the samples in memory and in the disk cache; mono sounds, their keys and files, unchanged.
+- ~~**CLAUDE.md carries its old long Architecture Overview again**~~ **Done** 2026-11-14
+  (#211, `chore/claude-md-and-hook-speedups`): the block is gone (CLAUDE.md is 333fcc0d's again
+  plus later edits), and `tests/test_claude_md.py` fails on a repeated heading or component name
+  or past 360 lines; both checks failed on the 1476-line file.
+- **Time each pre-push hook before splitting `lint` into hooks of its own** (the owner asked,
+  2026-11-14, whether one hook per lint step would be faster). pre-commit runs hooks one after
+  another; it runs in parallel only inside a hook given file names, and every hook here has
+  `pass_filenames: false`, so separate hooks alone gain nothing. Each lint nox session also
+  installs from the lock file (`reuse_venv=False`): split, `lint`'s one install becomes eight.
+  What splitting would buy is skipping: a `files:` filter per hook (`lint-toml` on `.toml`
+  changes only, `lint-yaml` and `lint-ci-config` on YAML; the docs build reads docstrings, so it
+  needs any `src/` change). First time every hook of one full gate run (pre-commit prints no
+  times: wrap each session in `time`); the two suite runs, `test-random` and `compare-drivers`,
+  are the likely bulk of the gate's ten minutes and more, and would come first.
+- **The docs deploy always publishes the latest `main`** (the owner, 2026-11-17: "break the
+  deploy docs job out into a triggered pipeline job so that when a subsequent branch is landed
+  and we re-trigger a main pipeline we can have that pipeline branch be pre-empted by the latest
+  one so the docs are always up-to-date with the latest main that successfully raced the docs";
+  "Then the docs job should always pull main right before it builds"). Today `deploy-docs`
+  (`.circleci/config.yml`) is a job in the `build-and-test` workflow on `main`, after
+  `build-and-test-macos`, in a `serial-group`: a second merge's deploy waits behind the first and
+  both run, each building its own pipeline's commit (`nox -s docs-deploy` refuses unless HEAD is
+  on `origin/main`). Wanted:
+  - its own pipeline, triggered by the main workflow once the macOS job passes (a pipeline
+    trigger through CircleCI's API, or a separate workflow), so a newer trigger cancels an older
+    deploy still waiting or running (CircleCI's auto-cancel of redundant builds, or a check at
+    the start of the job);
+  - the job fetches `origin/main` and checks out its tip right before it builds, not the commit
+    its pipeline started on, so whichever deploy runs publishes the latest `main`;
+  - no serializer queueing every merge's deploy (the owner, 2026-11-17: "remove the serializer -
+    just have it so we can only ever have one docs job running, and it fetches the latest main
+    always"; it makes the macOS usage more efficient). Only one docs job ever runs, and a deploy
+    whose work is already done costs almost nothing: before building, the job compares
+    `origin/main`'s tip with the commit `gh-pages` was last built from (recorded on publish) and
+    stops when they match. So two quick merges cost one build, never two, and the first never
+    publishes a commit that is already stale.
+  - To settle when built: the tip may be a merge whose own macOS job has not passed yet (the
+    deploy then publishes a commit only its pull request tested). That is the race the owner
+    describes ("the latest main that successfully raced the docs"); the alternative is to deploy
+    the newest `main` commit whose macOS job passed (ask CircleCI's API), at the cost of the docs
+    lagging a merge behind.
 
 ## Upstream issues to file
 
@@ -1020,14 +1447,20 @@ drafted issue text. Not posted yet:
   glossary of abbreviations). Material stays, with mkdocs pinned below 2.0. Plan:
   `plans/2026-11-09-docs-material-formatting.md`.
 - **Smaller docs items left from #145** (2026-11-09):
-  - `docs/index.md` says the engine "aims to support 20-25FPS minimum games on Raspberry Pi",
-    while the requirements page's minimum is a typical p99 under 16.7 ms (60 FPS). The owner
-    decides which holds; the other is reworded.
-  - The event system diagrams' click links (`js/mermaid-config.js` sets Mermaid's `loose` security
-    level so they work under Material) were checked to render, not clicked: click one on the
-    published site.
-  - The explorers' JavaScript has no automated test (the browser test under Performance and
-    pacing).
+  - Done (2026-11-10, `docs/material-formatting`): `docs/index.md` said the engine "aims to
+    support 20-25FPS minimum games on Raspberry Pi", while the requirements page's minimum is a
+    typical p99 under 16.7 ms (60 FPS). index.md now follows the requirements page (60 FPS; the
+    Pi 5 runs every game, the Pi 4 all but Brave Adventurer, which fits 30 FPS there). The owner
+    may still choose the other wording.
+  - Done (2026-11-10): the event system diagrams' click links (`js/mermaid-config.js` sets
+    Mermaid's `loose` security level so they work under Material): all 74 `click` lines reach the
+    built page, and their 8 targets on pyga.me answer 200.
+  - Done (2026-11-10), without a browser: every docs build checks the three explorers' built
+    pages (requirements, replay performance, code complexity) hold their explorer and that every
+    local script, stylesheet and `data-source` they name is a file of the site
+    (`scripts/mkdocs_hooks.py` `missing_explorer_files`, `tests/test_mkdocs_hooks_browser_games.py`).
+    The explorers' JavaScript itself still has no automated test (the browser test under
+    Performance and pacing).
   - The requirements page and its claude.ai doc copy are re-measured later (under Performance and
     pacing).
 - **Move the docs site to Zensical** (the owner, 2026-11-09: later, after the Material
@@ -1037,7 +1470,9 @@ drafted issue text. Not posted yet:
   plugin the site uses (mkdocstrings, gen-files, macros, section-index, autorefs, search) and the
   hook in `scripts/mkdocs_hooks.py` (the complexity and performance generation, the caches it
   clears), then drop the `mkdocs<2.0` pin and the link, and update `CLAUDE.md`'s documentation
-  note and `tests/test_workspace_config.py`'s link test.
+  note and `tests/test_workspace_config.py`'s link test. The plan, written 2026-11-13 after a
+  trial build (hooks, gen-files and `gh-deploy` unsupported, page dates only planned, no strict
+  mode): `plans/2026-11-13-zensical-migration.md`. Not started (the owner, 2026-11-13).
 
 ## Raspberry Pi speedups (user request, 2026-11-04)
 
@@ -1076,7 +1511,247 @@ Loading and memory:
 - **USB 3 SSD** against the SD card, for start-up and asset loading (the runner plan's storage decision).
 - **Background services and `vm.swappiness`** (60 now): fewer services, less swapping onto the card.
 
+## The Raspberry Pi OS Pi's memory cgroup (the owner, 2026-11-16)
+
+- [ ] **Decide whether to enable the memory cgroup on Raspberry Pi OS.** Its firmware boots the
+  kernel with `cgroup_disable=memory` (in its own boot arguments, ahead of `cmdline.txt`'s: read
+  2026-11-16 on `raspberry-pi-5-16gb-raspberry-pi-os`), so the runner's `MemoryMax=2G` and
+  `MemorySwapMax=0` are written and not enforced there; the Ubuntu Pis enforce them. Left alone
+  for now (the owner: "Leave boot arguments alone but make a todo"). It matters only once a Pi's
+  CircleCI job is switched on: no workflow runs one, and the push-time measuring logs in over SSH,
+  outside the runner's service. To enable it, append `cgroup_memory=1 cgroup_enable=memory` to
+  `/boot/firmware/cmdline.txt` (https://docs.k3s.io/installation/requirements, Raspberry Pi), a
+  reboot applying it, and have a play check every Pi's `/sys/fs/cgroup/cgroup.controllers` holds
+  `memory`. Details: plans/2026-11-04-raspberry-pi-ci-runner.md, "The first Raspberry Pi OS Pi".
+
+## Sprite color profiles and a glyph generator (the owner, 2026-11-16)
+
+Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversation:
+
+- **Two separate settings: a profile (how many colors one sprite may use) and a color space
+  (which colors exist).**
+- **Profiles are counts only, named by era with "+": each sprite may use as many colors as the
+  console's largest color table** (the owner: "Oh nice, I like that").
+- **Every profile's count is per sprite, never a total** (the owner: "Make sure to clarify that the
+  + variants are per-sprite, not total"). 16-bit+ lets each sprite use up to 256 colors of its
+  own; two such sprites may use 512 different colors between them, and a scene has no limit on
+  the colors on screen at once. The consoles capped the screen too (a NES showed at most 25
+  colors at once, a SNES's sprites shared 128 slots); no profile models that.
+
+  | Profile | The console gave a sprite | "+" gives it | Bits per pixel | Colors |
+  |---|---|---|---|---|
+  | 8-bit+ | 3 + transparent (one of 4 sprite palettes) | the NES's whole 64-entry master palette | 6 | 64: today's format |
+  | 16-bit+ | 15 + transparent (one of 8 sprite palettes) | the SNES's whole 256-entry palette RAM | 8 | 256 |
+
+  Neither console's sprites could reach that much, which is the "+": a NES sprite never used all
+  64 master colors, and SNES sprites reached only the top half of palette RAM (palettes 8 to 15,
+  128 entries; the bottom 128 were the backgrounds', all 256 only in its 256-color background
+  modes). Rejected: the era's number as bits per pixel (16-bit+ would allow 65,536 per sprite,
+  more than a 32x48 sprite has pixels, so no limit at all; and the NES was 2 bits per pixel, its
+  "8-bit" the processor's word). Rejected: a "16-bit+ 64" profile for the Genesis (the owner:
+  "Isn't 64 colors per sprite just 8-bit+?"; the count is the same, only the colors differ).
+- **Strict profiles, below today's format** (the owner agreed to a 4-color profile, then to its
+  name and the 16-color one, 2026-11-16: "All of it, love it"). No "+" is the console's real budget
+  for one sprite, "+" its largest color table, each per sprite, as above:
+
+  | Profile | Colors per sprite | Bits per pixel | The real budget of |
+  |---|---|---|---|
+  | 8-bit | 4 (3 + transparent) | 2 | the NES and the Game Boy |
+  | 16-bit | 16 (15 + transparent) | 4 | the SNES and the Genesis (every Zombies sprite today) |
+
+  The mono color spaces need the 4-color profile: `8-bit+ · 2-bit mono` would allow 64 colors
+  chosen from 4 shades, so the profile would limit nothing.
+- **Direct-color profiles: High Color and True Color** (the owner agreed, 2026-11-16). Era names
+  cover the palette years, where the era defined what a sprite got; established color-depth names
+  cover the direct-color years, where the depth is the whole story.
+
+  | Profile | Colors per sprite | Bits per pixel | Era |
+  |---|---|---|---|
+  | High Color | 32,768 | 15 | the PlayStation's and Saturn's direct-color sprites |
+  | True Color | no budget | 24 | the N64 onward; how every existing file reads |
+
+  High Color is the 15-bit flavor (32,768), not the 16-bit one (65,536, 6 bits of green): its
+  description says so. It barely limits anything (more than a sprite has pixels until about
+  181x181) and outgrows the glyph generator (about 24,000), so a full High Color sprite is the PNG
+  case. True Color is no `profile` key, or `profile = "true-color"` written out; both read alike.
+  Rejected: "32-bit+" (PCs read "32-bit color" as RGB with alpha; the PlayStation's and Saturn's
+  sprites were 15-bit, their "32-bit" the processor), a "24-bit" profile (no console era had the
+  name, and "24-bit RGB" is already the full-color color space), and a strict "32-bit" (their
+  largest indexed mode, 256, is 16-bit+'s count; 16-bit+'s description says it is also those
+  consoles' 256-color sprites).
+- **Color spaces: a bit depth ("N-bit RGB") or a named fixed palette.** Off means 32-bit RGBA
+  (below), as today. The NES's needs the named kind: its 54 colors were a hand-picked list, not a
+  grid of levels (`color/resources/nes.palette` holds 55).
+- **Alpha** (the owner agreed both rules, 2026-11-16):
+  1. Each distinct color with its alpha is one entry of a profile's budget, as the file already
+     stores it: a half-transparent red and a solid red are two of 8-bit+'s 64. The magenta key
+     counts too, as the consoles counted their transparent slot (8-bit is exactly 4 entries).
+  2. Only 32-bit RGBA has partial alpha; every other color space is on/off (the magenta key), as
+     the consoles were until the N64: the NES, Game Boy and Genesis had one transparent slot, the
+     SNES blended whole layers ("color math"), the PlayStation and Saturn whole sprites by a few
+     fixed modes.
+
+  | Color space | Colors | Alpha | Use |
+  |---|---|---|---|
+  | 32-bit RGBA | any | any (0 to 255) | the default, no `color_space` key |
+  | 24-bit RGB | any | on/off | full color the console way: solid or invisible |
+
+  32-bit RGBA is the owner's ("we should consider adding 32bit RGBA in that case, yes?"). The
+  default must allow partial alpha: of 104 sprite files, Bitmappy's `toadstool.toml` has 14
+  colors at alpha 137 or 128 (counted 2026-11-16). "32-bit" belongs here, with "RGBA" spelled out,
+  rather than in a profile's name.
+  - 9-bit RGB: the Genesis's 512 (3 bits a channel, 8 levels). Its levels weren't evenly spaced
+    (a non-linear output stage), so snap to a published measured table, credited, not to even
+    steps. Its shadow and highlight mode (half a step darker or brighter, about 1,500 colors on
+    screen) would be another color space name, never a third setting.
+  - 15-bit RGB: the SNES's 32,768 (5 bits a channel, 32 levels).
+  - Mono: one hue at even brightness levels, named by bits like the RGB ones (the owner: "2-bit
+    gray should probably be like... 4-mono or something"; "2-bit mono" matches "9-bit RGB", which
+    names its bits, not its 512). 1-bit mono (2 shades: the original Mac, terminal screens), 2-bit
+    mono (4: the Game Boy), 4-bit mono (16: grayscale LCDs and Macs). Plain mono is even grays
+    (the Game Boy Pocket's look); a tint is a named palette of particular colors, like the NES's,
+    never a third setting: a Game Boy green from the commonly cited emulator values (`#0f380f` dark
+    to `#9bbc0f` light; credit the source used), an amber terminal, a green phosphor.
+  - Also agreed (the owner, 2026-11-16: "All of it, love it"): 6-bit RGB (64: the Master System,
+    the PC's EGA), 12-bit RGB (4,096: the Amiga, Game Gear, Neo Geo), and named palettes for the
+    C64's 16, the CGA's 4-color sets, the ZX Spectrum's 15 and the web-safe 216. Community
+    palettes too (DawnBringer's DB16 and DB32, Endesga 32 and 64, Sweetie 16, PICO-8's 16;
+    collected on Lospec), each only after its author's license is checked, recorded and credited
+    in its palette file.
+- **The notation.** For people (menus, descriptions, docs): `profile · color space`, the color
+  space left out when it's full color.
+
+  | Written | Colors per sprite | Chosen from | Matches |
+  |---|---|---|---|
+  | `8-bit+` | 64 | any (32-bit RGBA) | |
+  | `8-bit+ · NES palette` | 64 | the NES's 54 | the NES, every color for every sprite |
+  | `8-bit+ · 9-bit RGB` | 64 | 512 | the Genesis's whole 64-entry palette |
+  | `16-bit+` | 256 | any (32-bit RGBA) | |
+  | `16-bit+ · 15-bit RGB` | 256 | 32,768 | the SNES's whole palette RAM |
+  | `High Color` | 32,768 | any (32-bit RGBA) | |
+  | `High Color · 15-bit RGB` | 32,768 | 32,768 | the PlayStation's and Saturn's sprites |
+  | `True Color` | no budget | any color, any alpha (32-bit RGBA) | today's default |
+  | `True Color · 24-bit RGB` | no budget | any color, alpha on/off | |
+
+  8-bit+'s description says it is also the Genesis's whole palette, so Genesis-minded artists
+  aren't steered to 16-bit+. In a sprite file, two plain keys, neither parsed out of the other:
+  `profile = "8-bit+"` and `color_space = "rgb9"` (or `"nes"`, `"rgb15"`) in `[sprite]`. No
+  `profile` means no budget and no `color_space` means full color, which is how every existing
+  file reads today, so none changes. Console names (NES, SNES, Genesis) are trademarks: use them
+  in descriptions ("like the Genesis"), not as profile names.
+- **One format, a longer glyph list, not a second format** (the owner: "keep the current format,
+  but clamp on the glyph map but make it a robust generator that returns printable characters in a
+  savory order"). Readers already take any character: `zap.toml` with three glyphs swapped for
+  `#`, `é`, `Ŧ` loaded pixel for pixel identical (2026-11-16). Only the writers stop at
+  `SPRITE_GLYPHS`' 64 (Bitmappy's save raises above it, `bitmappy_sprite.py:555`). Rejected: a
+  hex-pair format (an extra reader and writer and conversions, rows twice as wide, still 256).
+  Past a few thousand colors (photo-like art, hand-edited by nobody) the second format is PNG,
+  which Bitmappy already imports.
+- **The generator's rules:**
+  - The first 64 are `SPRITE_GLYPHS` in its order, so every writer's output today is unchanged
+    and a re-save changes nothing in git. "Core glyphs" in code and docs; possibly "the Crayon Box"
+    as 8-bit+'s friendly name (64, the big crayon box; not the brand name).
+  - Then a savory order: the rest of safe ASCII punctuation (not the busy marks), accented Latin
+    grouped by base letter (`à á â ä`), then Greek and Cyrillic less lookalikes of anything earlier
+    (Cyrillic `а о р с х`, Greek `Α Β Ο`), from Unicode's `confusables.txt`, credited.
+  - Every glyph is one terminal cell wide (East Asian width `Na` or `N`), left to right, not a
+    combining mark, unchanged by NFKC, and not `"`, `\`, `'` or whitespace. Counted 2026-11-16
+    (Python 3.14, Unicode 16): 91 in ASCII, 429 with Latin-1 and Latin Extended A/B (16-bit+
+    fits in characters every common font has), about 24,000 in all, so never 65,536.
+  - Frozen as a literal in the source, built once by a dev script and never at import (the comment
+    on `SPRITE_GLYPHS` asks this; another Python's Unicode data could change which characters pass,
+    so one sprite would save differently on two machines). A test proves the frozen list still
+    meets every rule.
+  - Clamped by profile: more colors than the profile or the list allows raises, naming both.
+- **A bug it fixes: Bitmappy's terminal preview gives two colors one glyph above 64.**
+  `_build_color_to_glyph_map` (`src/apps/bitmappy/src/bitmappy/pixel_ops.py:264`) picks
+  `SPRITE_GLYPHS[char_index % len(SPRITE_GLYPHS)]`: reproduced 2026-11-16, 65 colors gave
+  `(0,0,0)` and `(64,0,0)` both `.`, so `sprite_inspection.py`'s preview draws one in the other's
+  color (preview only: saving refuses above 64). The test gap: nothing renders a preview with more
+  colors than glyphs; write that test first. Sweep the same assignment at `animated.py:2037`,
+  `bitmappy_sprite.py:709` and `toml_processing.py:828` (not checked yet) and move all of them to
+  the generator.
+- **Palette features: what the indexed format makes cheap.** A sprite file's pixels are glyphs and
+  its `[colors]` map says what each means, so changing the map recolors the art. In order of
+  value (my recommendation; the owner agreed to record them, 2026-11-16, order not decided):
+  1. Palette swaps: one drawing, many color maps (the NES's enemy variants). For Zombies, one
+     lawn-zombie drawing as green, gray and glowing zombies, or each neighbor's zombie keeping
+     their shirt, with no new art and the sprite kit building variants. Drawing Fire's
+     `recolor_surface` (its swatch schemes) does a version for one game: the engine's swap becomes
+     the one shared path and Drawing Fire moves onto it, so the two don't drift.
+  2. Color cycling: a range of colors rotates over time while the pixels stay put (16-bit
+     waterfalls, fire, lava, signs). For Zombies, the TV's glow or the laser's shimmer.
+  3. Palette fades and flashes: a fade steps each color down its color space's levels (the NES's
+     way); a hit flash swaps to an all-white map for a frame.
+
+## Refresh-aware rendering and fixed simulation (the owner, 2026-11-17)
+
+The owner's brief, verbatim: plans/2026-11-17-refresh-aware-rendering-and-fixed-simulation.md.
+A to-do while two branches are in flight (the zombies PR and the color profiles branch). What
+discussing it found and decided:
+
+- **Measure one thing at a time** (the owner). First today's loop as it is, on the Pi (frame
+  intervals at median, p95, p99 and p99.9, how often each frame spins, CPU use); then one change
+  (for example sleeping instead of spinning), measured again under the same display and power
+  settings. The kernel page-size comparison (the Raspberry Pi OS Pi's 16 KB pages, the Ubuntu Pis'
+  4 KB) is a separate experiment, never mixed with a pacing change.
+- **Today's engine (read 2026-11-17).** No refresh-rate query and no VSync request anywhere
+  (`get_current_refresh_rate`, `vsync=`); no fixed timestep, accumulator or interpolation. One loop
+  iteration is one frame is one step: scenes get one variable `dt` per frame (`Scene.dt_tick`).
+  The pacer busy-waits by default: `--timer-backend auto` (`timing.py`) sleeps to just before each
+  deadline and spins the rest, spinning whole waits where the OS delays sleeps. The brief says not
+  to default to that on the Pi.
+- **Why a fixed simulation is architectural, not local.** At 120 Hz frames over 60 Hz steps, half
+  the frames run no step and an overloaded one runs several. The engine leans on frame = step:
+  32 `dt_tick` implementations in the games, demos and Bitmappy (38 with the engine's) mix per-step
+  and per-frame work; event dispatch hands each event to the scene in the frame it arrives, so a
+  one-shot event on a frame with no step would act between steps; world sprites are positioned per
+  frame (camera, culling, pixel snapping), and blending needs two copies of the world; every clock
+  (game time, frame clock, tweens, shake, rumble, sound voices ending by played time) needs a
+  per-step or per-frame answer; the Arcade drives inner games by the outer game's frames. The
+  engine's rules shape it: time only through `src/glitchygames/clock.py` (not
+  `time.perf_counter()`), and world sprites' `rect` the engine's alone.
+- **Steps are the recorded unit; frames are only drawing (the owner's idea, 2026-11-17).** A
+  recording stays a list of steps, each with its `dt`. Existing recordings replay as they are, each
+  recorded frame one step of its recorded `dt`, drawn at any refresh rate by blending between steps,
+  so the 25 golden replays and demos and the 5 golden-trace baselines keep their meaning and are
+  never re-recorded for this. New live play steps at the fixed rate. One stepping path: live, the
+  accumulator decides when to step; in a replay, the recording does. The game logic always replays
+  at exactly the steps it was recorded with: re-stepping it at another rate changes outcomes
+  (collisions land at other points, timers such as the zap's 0.25 s cooldown cross on other steps,
+  random streams draw per step), so only drawing is resampled.
+- **Drawing above the step rate:** positions and the camera blend between steps; a discrete change
+  (a spawn, an animation frame, score) shows from the first frame after its step, not a middle one,
+  which would add half a step of delay. Teleports and respawns reset both copies and draw as jumps.
+- **Drawing below the step rate: nothing vanishes (the owner: "design a smarter algorithm that
+  can't let something vanish ... do it at the end of the last frame").** Between frames the engine
+  lists what happened since the last drawn one: sprites that appeared, sprites removed (their last
+  image, position and layer), and marked states entered and left. Each frame draws the latest step,
+  then, once each, every sprite that appeared and was removed unseen, at its last state, and every
+  marked state entered and left unseen, in place of the current one; then the list is cleared, so
+  nothing is ever more than one frame late and a slow device never piles them up. Drawing only:
+  never game state, collisions, recordings or replays. Existence is guaranteed for every sprite;
+  marked states (a hit flash, not an idle blink) are the game's opt-in. Skipped animation frames
+  stay skipped. Example, 30 Hz frames over 60 Hz steps: a zap hits a zombie on step 1 (its struck
+  flash) and it crumbles on step 2; the frame shows the zap at its last position and the zombie
+  struck, once, rather than the zombie blinking out of existence.
+- **Inputs:** read once per frame and handed to the first step after; below the step rate their
+  timing is as coarse as the frames. Two presses within one step keep their order but not their
+  timing inside it; a game needing finer timing (a rhythm game) chooses a faster step rate.
+- **A cheaper first change, nothing architectural:** pace to the display's detected rate with
+  variable `dt` as today (120 game steps a second at 120 Hz). Every contract stays and replays
+  still serve their recorded `dt`; the cost is twice the game work and no smoothing of uneven
+  frames. The measurements decide whether that alone fixes the hitching before the fixed
+  simulation is paid for.
+
 ## Code quality
+
+- **Test-suite memory on the Linux CI job: the structural options** (the owner's call;
+  bugs/2026-11-17-linux-test-memory-guard-stops.md). #218 brought the peak to 1341-1350 MiB of
+  1600; what is left grows from 503 to 859 MiB over 274 files, spread thin. In order of
+  robustness: run the suite as two pytest processes with coverage combined; `malloc_trim(0)`
+  after each test file on Linux (about 100 MiB); the parse-heavy scans in a child process; and
+  the 3.15 session inheriting about 200 MiB of 3.14's slab in the same container.
 
 - **Lint caps shape the replay classes.** `GameEngine.__init__` and `ReplaySources.__init__`
   sit at the statement limit, `ReplaySources` and `PlaybackSources` at the public-method limit

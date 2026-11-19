@@ -8,7 +8,7 @@ import pygame
 
 from glitchygames.audio.accounting import AudioAccountant
 from glitchygames.audio.instrument import Instrument
-from glitchygames.audio.library import CacheMode, SoundLibrary
+from glitchygames.audio.library import CacheMode, Sound, SoundLibrary, compile_sound
 from glitchygames.audio.pitch import Tuning
 from glitchygames.audio.waves import current_wave_registry
 
@@ -17,12 +17,34 @@ FIXTURE_SOUNDS = Path(__file__).parent / 'fixtures' / 'sounds'
 FIXTURES = Path(__file__).parent / 'fixtures'
 
 
+def float_render(sound: Sound) -> np.ndarray:
+    """Return a sound's float64 render: a fresh copy compiled, as an offline render makes one.
+
+    A sound the library compiled keeps its int16 samples only (``Sound.release_float_samples``),
+    so a test that compares float samples renders them here.
+
+    Returns:
+        Mono float64 samples at the sound's rate.
+
+    Raises:
+        AssertionError: When the copy compiled no float samples.
+
+    """
+    copy = sound.fresh_copy()
+    compile_sound(copy)
+    if copy.samples_float is None:
+        message = f'{sound.name}: compiled no float samples'
+        raise AssertionError(message)
+    return copy.samples_float
+
+
 def make_library(
     cache=CacheMode.RAM,
     *,
     memory_limit_bytes=256 * 1024 * 1024,
     tuning_source=None,
     is_playing=None,
+    disk=None,
 ) -> tuple[SoundLibrary, AudioAccountant]:
     """Build a library over the current context's wave registry.
 
@@ -38,6 +60,7 @@ def make_library(
         tuning_source=tuning_source if tuning_source is not None else (lambda: default_tuning),
         memory_limit_bytes=memory_limit_bytes,
         **({'is_playing': is_playing} if is_playing is not None else {}),
+        **({'disk': disk} if disk is not None else {}),
     )
     return library, accountant
 

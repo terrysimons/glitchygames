@@ -25,11 +25,21 @@ from pydantic import BaseModel, ConfigDict
 
 from glitchygames.audio.engine import (
     AudioEngine,
+    default_channel_partition,
     discard_audio_engine,
     existing_audio_engine,
     install_audio_engine,
 )
-from glitchygames.audio.voices import ChannelPartition
+from glitchygames.audio.route import AUDIO_ROUTE_SLOT, is_audible, set_audible
+from glitchygames.audio.voices import (
+    INNER_CHANNELS_SLOT,
+    ChannelPartition,
+    heard_set_start,
+    inner_context_partition,
+    release_inner_context_channels,
+    reserve_inner_game_channels,
+    take_heard_set,
+)
 from glitchygames.audio.waves import Wave, current_wave_registry
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -76,10 +86,19 @@ from glitchygames.randomness import (
     stream_seed,
 )
 from glitchygames.recording import (
+    PRIVATE_EVENT_QUEUE_SLOT,
     live_game_code_running,
+    private_event_queue,
     reset_internal_post_tracking,
     set_live_game_code_running,
     start_tracking_internal_posts,
+)
+from glitchygames.render_target import (
+    RENDER_TARGET_SLOT,
+    hosted_start_requested,
+    render_target,
+    request_hosted_start,
+    set_render_target,
 )
 from glitchygames.scenes import SceneManager
 from glitchygames.sources import (
@@ -150,6 +169,7 @@ PROCESS_STATE_AUTOUSE_FIXTURES = {
     'restore_gil_switch_interval': 'the GIL switch interval is one per process',
     'ensure_pygame_graceful_quit': 'pygame, the display and the mixer are one per process',
     'inner_runs_keep_their_order': 'PYTEST_ADDOPTS is the process environment, read by inner runs',
+    'no_child_process_left_running': 'child processes belong to the process, never a context',
 }
 
 
@@ -1165,6 +1185,81 @@ def check_sprite_counters(*, first: EngineContext, second: EngineContext) -> Non
     assert default_context().value(slot=SPRITE_COUNTERS_SLOT) == SpriteCounters()
 
 
+def check_render_target(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own render target and hosted start, the default context none."""
+    first_target = pygame.Surface((4, 3))
+    second_target = pygame.Surface((5, 2))
+    with first.active():
+        set_render_target(surface=first_target)
+    with second.active():
+        set_render_target(surface=second_target)
+        set_render_target(surface=None)
+        request_hosted_start()
+    with first.active():
+        first_reading = (render_target(), hosted_start_requested())
+    with second.active():
+        second_reading = (render_target(), hosted_start_requested())
+
+    assert first_reading == (first_target, True)
+    assert second_reading == (None, True)
+    assert first.value(slot=RENDER_TARGET_SLOT).hosted_start_requested is False
+    assert render_target() is None
+    assert not hosted_start_requested()
+    assert default_context().value(slot=RENDER_TARGET_SLOT).started_engine is None
+
+
+def check_private_event_queue(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own private event queue, off in the default context."""
+    first_event = pygame.event.Event(pygame.USEREVENT, value=1)
+    with first.active():
+        private_event_queue().enabled = True
+        private_event_queue().events.append(first_event)
+    with second.active():
+        second_reading = (private_event_queue().enabled, list(private_event_queue().events))
+
+    assert second_reading == (False, [])
+    assert first.value(slot=PRIVATE_EVENT_QUEUE_SLOT).events == [first_event]
+    assert not private_event_queue().enabled
+    assert private_event_queue().events == []
+
+
+def check_audio_route(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own audio route, the default context audible."""
+    with first.active():
+        set_audible(audible=False)
+    with second.active():
+        second_reading = is_audible()
+
+    assert second_reading is True
+    assert first.value(slot=AUDIO_ROUTE_SLOT).audible is False
+    assert is_audible()
+
+
+def check_inner_channels(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own inner channels, none in the default context; released apart."""
+    # The outer partition first, as a host's engine makes it: a declaration lies above it
+    default_channel_partition()
+    reserve_inner_game_channels(games=2, heard_set_channels=2, live_channels_per_game=1)
+    with first.active():
+        first_partition = inner_context_partition(live_pool=1, library_channels=2)
+        take_heard_set()
+    with second.active():
+        second_before_its_own = second.value(slot=INNER_CHANNELS_SLOT).partition
+        second_partition = inner_context_partition(live_pool=1, library_channels=2)
+        second_heard_set = heard_set_start()
+        release_inner_context_channels()
+
+    assert second_before_its_own is None
+    assert first_partition.live != second_partition.live
+    assert second_heard_set is None
+    assert second.value(slot=INNER_CHANNELS_SLOT).partition is None
+    assert first.value(slot=INNER_CHANNELS_SLOT).partition == first_partition
+    assert first.value(slot=INNER_CHANNELS_SLOT).heard_set_index == 0
+    assert current_context().value(slot=INNER_CHANNELS_SLOT).partition is None
+    with first.active():
+        release_inner_context_channels()
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -1185,6 +1280,10 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.sprites.bitmappy_sprite.singletons': check_singletons,
     'glitchygames.events.base.unhandled_event_types': check_unhandled_event_types,
     'glitchygames.sprites.sprite.counters': check_sprite_counters,
+    'glitchygames.render_target.target': check_render_target,
+    'glitchygames.recording.private_event_queue': check_private_event_queue,
+    'glitchygames.audio.route.audio_route': check_audio_route,
+    'glitchygames.audio.voices.inner_channels': check_inner_channels,
 }
 
 

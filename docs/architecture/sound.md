@@ -1,9 +1,9 @@
 # Sound
 
 The sound engine's first milestone (M1) gives every game one call for sound:
-`scene_manager.audio.sound(...)`. It takes a short name, a path or an `Instrument`, compiles the
-sound the first time it is asked for, and hands back the same compiled sound on every later
-request. Getting a sound never plays it.
+`scene_manager.audio.sound(...)`. It takes a short name, a path, an `Instrument` or a `Mix`,
+compiles the sound the first time it is asked for, and hands back the same compiled sound on
+every later request. Getting a sound never plays it.
 
 The design is in two specifications:
 
@@ -12,9 +12,10 @@ The design is in two specifications:
 - [Sound engine implementation specification](../specs/2026-11-02-sound-engine-implementation-spec.md):
   how each requirement is met, the decision and risk registers, and the measurements.
 
-M2 adds live instruments (sounds that follow game parameters), moves the five games onto this
-API and removes the old sound paths (`SoundBank`, `load_sound`, `live_audio`). Until then those
-keep working beside it on channels of their own.
+M2 adds live instruments (sounds that follow game parameters: `Sound.start()` and its
+`LiveSoundHandle`), moves the five games onto this API and removes the old sound paths:
+`SoundBank`, `load_sound`, `live_audio.create_voice` and `LiveVoice` are gone (sound migration
+step 7, plans/2026-11-14-sound-migration.md).
 
 ## One call
 
@@ -52,11 +53,16 @@ class Game(Scene):
   `WavePoint`, with the `CYCLE` and `LEVEL` named positions). Each engine context has its own
   wave registry.
 
-Compile in `setup()`. That is the convention, not a rule: a sound first asked for during gameplay
+Declare every sound the game plays on the scene class it hands `GameEngine`, as `SOUNDS`
+(effects, a sound file's `path#name` entries, mixes, live instruments and unpitched ones; a
+pitched sound needs a sound file's entry or a mix's part, which holds its notes): the engine
+compiles them when the game starts,
+in the CRT power-on's spare time, a slice a frame, and finishes them before the game is built (at
+once where the power-on is skipped). The game's own requests then find each one compiled. A game
+that declares none makes no audio engine for them. A sound first asked for during gameplay still
 compiles in that frame, and the engine counts it, logs it and shows it in the Audio panel as a
-gameplay compile, so you can move it into `setup()`. A setup whose compiles take more than 50 ms
-logs one INFO line naming its slowest sounds. A loading screen can spread compiles across frames
-with `audio.sounds.warm(requests, budget_ms=...)`.
+gameplay compile, so you can add it to `SOUNDS`. A setup whose compiles take more than 50 ms logs
+one INFO line naming its slowest sounds.
 
 ## Short names and paths
 
@@ -92,6 +98,161 @@ volume = 0.6
 Version 0 recipe files (`[recipes.*]`) still load and sound exactly as before;
 `glitchygames sound-migrate FILE` converts one to version 1.
 
+## Effects
+
+An effect is a synthetic sound effect: tones mixed straight, exact and cheap (blips, sweeps,
+crunches, jingles). It is one of the two kinds of sound; instruments are the other, the layered
+renderer for music and live sounds. Both play through `audio.sound(...)`.
+
+```python
+from glitchygames.audio import Effect, Envelope, Tone, Waveform
+
+JUMP = Effect(
+    name='jump',
+    volume=0.35,
+    tones=(
+        Tone(waveform=Waveform.SQUARE, start_frequency=330.0, end_frequency=660.0, duration=0.1,
+             envelope=Envelope(attack=0.005, decay=0.03, sustain_level=0.6, release=0.05)),
+    ),
+)
+audio.sound(JUMP).play()   # plays at its own volume unless play(volume=...) says otherwise
+```
+
+In a sound file, an effect is an `[effects.<name>]` table, the same fields as data:
+
+```toml
+[effects.jump]
+volume = 0.35
+
+[[effects.jump.tones]]
+waveform = "square"
+start_frequency = 330.0
+end_frequency = 660.0
+duration = 0.1
+envelope = { attack = 0.005, decay = 0.03, sustain_level = 0.6, release = 0.05 }
+```
+
+`audio.sounds.add_effects([...])` registers effects by name, looked up before the sound directory.
+Each tone is oscillator, distortion, filters, tremolo, envelope, volume; the tones are mixed at
+their offsets and normalized to `peak`, or left exactly as summed with `normalize=False`.
+
+## Mixes
+
+A `Mix` is several instrument parts compiled into one sound (`src/glitchygames/audio/mix.py`):
+a score's layers, say, played as one buffer on one channel instead of a sound and a channel each.
+Its parts are rendered and added at their volumes, and the result is cached as every sound is
+(the process's memory, then the disk layer, else compiled and written), so the first request
+builds it and every later request, in this launch or a later one, gets the built copy.
+
+```python
+from glitchygames.audio import Mix, MixPart, instruments
+
+loop = audio.sound(Mix(
+    name='stage',
+    parts=(
+        MixPart(instrument=instruments.get('theremin'), notes='D5:1 A4:1 _:2', volume=0.3),
+        MixPart(instrument=instruments.get('timpani'), notes='D2:1 _:3', volume=0.3),
+    ),
+    loop_seconds=2.0,
+))
+loop.play(loop=True, bus='music')
+```
+
+With `loop_seconds` the mix is exactly that long, so `play(loop=True)` repeats it in time, sample
+for sample. A melody rendered alone can't loop in time: its length drops a trailing rest and adds
+the instrument's release tail. A looping mix keeps the rest as silence and adds every frame past
+its end back onto its start, as a tail would ring into the next pass. Without `loop_seconds` it is
+as long as its longest part, tail included.
+
+Its identity is a digest of its parts' own keys, their volumes, the loop and the mixer's rate, so
+changing any part's notes or volume builds a new mix. Each part is seeded from
+`<mix name>-part-<index>`. A mix takes no `pitch`, `notes`, `chord`, `length` or `transpose`
+(its parts carry their notes), and a live instrument can't be a part. A mix may be declared in
+`SOUNDS`, so a score on catalog instruments is built while the game starts. Zombies Ain't My
+Neighbors' score is three mixes, declared so (feature plan 11).
+
+## Live sounds
+
+A live sound is rendered while it plays, chunk by chunk, so the game can move it: an engine
+whose pitch follows its speed, a projector whose flutter follows the action. It is an
+`Instrument(live=True)` with **parameters** the game sets and **routes** that map each onto what
+the sound does:
+
+```python
+from glitchygames.audio import Instrument, Parameter, Route, Tremolo
+from glitchygames.audio.instrument import Filter
+
+MOTOR = Instrument(
+    wave='saw',
+    live=True,
+    filter=Filter('low_pass', 600.0),
+    tremolo=Tremolo(rate_hz=8.0, depth=0.4),
+    parameters={'speed': Parameter(range=(0.0, 1.0), default=0.0)},
+    routes=[
+        Route(source='speed', destination='pitch', curve='exponential', output=(45.0, 110.0)),
+        Route(source='speed', destination='level', output=(0.2, 0.85)),
+    ],
+)
+
+motor = audio.sound(MOTOR).start(owner=ride)   # a LiveSoundHandle
+motor.set('speed', 0.7)                        # each frame, or whenever it changes
+motor.release()                                # fades it out over 100 ms
+```
+
+- **Parameters** clamp to their range (each clamp counted, `handle.clamp_count`) and glide to a
+  new value: one-pole over `smoothing_ms` (30 by default), or a straight line with
+  `glide='linear'`. Any number of `set` calls before a chunk count as the last one.
+- **Routes** (at most 8) map a parameter onto `pitch` (Hz), `level` (multiplied in),
+  `filter.cutoff`, `tremolo.rate`, `tremolo.depth` or `sources.<name>.level`, by a curve:
+  `linear`, `exponential`, `logarithmic`, `smoothstep` or `steps(n)`. Levels multiply; pitch,
+  cutoff and the tremolo take one route each. A route needs the filter or tremolo it moves.
+- **Sources** are sine, square, saw, triangle and white noise for now, each with its own level
+  and `semitones`/`detune_cents`. `chunk_seconds` (0.03-0.5, default 0.1) is its latency.
+- **`start(parameters=, volume=, owner=, persist=, pan=, bus=, priority=)`**: the owner (the
+  scene that starts it, by default; a transition keeps it playing through the ride) decides when
+  it pauses and ends, as for baked plays; `persist=True` outlives the owner. Pan, bus and priority
+  default to the sound file's; every sound pans by the constant-power law, so centred is 3 dB
+  down on each side. A full live pool (`--live-voice-pool`, 4) steals the lowest-priority voice
+  at or below the new one's, else refuses with `ValueError`.
+- **The handle:** `set`, `release()`, `stop(fade=)`, `cancel()` (at once, the chunk already
+  queued included), `set_volume(volume, fade=)`, `set_pan`, `pause()`/`resume()` (a pause holds
+  whatever the scene rules say), and `set_frequency`, `set_cutoff` (None removes the filter) and
+  `set_tremolo` (None removes it) for what no route moves. Like a `SoundHandle`, every method
+  answers False once the sound has ended; both kinds are a `PlayingSound`.
+- `play()` refuses a live sound and `start()` a baked one. A live sound compiles nothing, so it
+  costs nothing to declare in `SOUNDS`.
+
+In a sound file:
+
+```toml
+[instruments.motor]
+live = true
+tremolo = { rate_hz = 8.0, depth = 0.4 }
+
+[instruments.motor.sources.main]
+wave = "saw"
+
+[instruments.motor.filter]
+type = "low_pass"
+cutoff = 600.0
+
+[instruments.motor.parameters.speed]
+range = [0.0, 1.0]
+default = 0.0
+
+[[instruments.motor.routes]]
+from = "speed"
+to = "pitch"
+curve = "exponential"
+output = [45.0, 110.0]
+
+[sounds.motor]
+instrument = "motor"
+```
+
+Route outputs are numbers (hertz for pitch). Live voices, their parameters and routes:
+`audio/live_instrument.py`, `audio/live_controls.py`; their channel and pool: `audio/live.py`.
+
 ## Cache modes
 
 `--sound-cache` chooses how compiled sounds are kept (replay-local: a recording replays under any
@@ -99,9 +260,39 @@ mode):
 
 | Mode | What happens |
 | --- | --- |
-| `ram` (default) | Compiled sounds stay in memory. Above `--sound-cache-memory` (256 MB) the least recently played sounds that are not playing are dropped, and compiled again on their next request (counted). |
+| `ram` | Compiled sounds stay in memory. Above `--sound-cache-memory` (256 MB) the least recently played sounds that are not playing are dropped, and compiled again on their next request (counted). |
 | `none` | Nothing is kept: every `play()` compiles in its frame. This is the switch that shows what compiling in gameplay costs. Getting a sound renders nothing, and a sound played 5 times compiles 5 times. What a game reads of a sound never depends on the cache (a replay may run under another mode): a synthesized sound's `length` is worked out without rendering, exactly as a compile would size it; whatever only a compile can tell (every `peak`, and a recorded file's `length` and rate) comes from one compile on its first read, counted like any compile, then kept. A play's compile gives them too, so a read after a play compiles nothing more. |
-| `disk` | Arrives in M3; refused now (`OPTIONS_REFUSED`). |
+| `disk` (default) | As `ram`, and each compiled sound is also kept as a file in the game's own folder, `<root>/<game package>/sounds/<render version>/<key[:2]>/<key>.wav`, so a later launch reads it back instead of compiling (faster on every machine measured, a Raspberry Pi's SD card included: `scripts/benchmark_sound_cache.py`). A read writes nothing; each game's folder is limited to 64 MB, oldest written files pruned at startup. `GLITCHYGAMES_SOUND_CACHE_ROOT` names the root (unset: the platform's cache folder; empty: no disk layer, so `ram`; the test harness sets it empty). In the browser it runs as `ram`. Compiled sounds are also shared by every engine context in a process (an Arcade tile's restart compiles nothing). |
+
+Whichever way a sound is made, compiled or read from the disk, it keeps only its int16 samples
+(and its peak): the float64 render is dropped once those are made from it
+(`Sound.release_float_samples`), as it was four times their size and only an offline render reads
+it, which compiles a copy. Playing makes one more copy, the mixer's stereo 16-bit sound.
+`uv run python -m scripts.measure_sound_memory` reports what each game's declared sounds hold and
+where (the zombies game: 9 MiB on a first launch, down from 20 MiB with the float64 renders kept).
+
+A game's start also removes its own folders for older render versions: only an older engine
+wrote them. A newer version's folder is kept, since another engine on the machine (a branch with
+a bumped render version) may share the root.
+
+### Managing the disk cache
+
+Five tools work on the cache, each a flag on every game (acting on that game's own folder) and a
+`glitchygames` subcommand. With no game named, the subcommand works on the whole root; with
+`--game GAME` (given once per game) it starts each game with the flag. All five refuse (exit 64)
+when `GLITCHYGAMES_SOUND_CACHE_ROOT` is empty, since there is then no disk cache.
+
+| Command | What it does |
+| --- | --- |
+| `glitchygames sound-cache-list` | One line per game and render version (sounds, size, whether stale), a line per listening folder, then the total. |
+| `glitchygames sound-cache-size` | The whole cache in one line, stale versions counted apart, the listening files after. |
+| `glitchygames sound-cache-verify` | Reads every file back and lists each damaged one and why; removes nothing (a game's read already replaces a damaged file, silently). Exits 65 when a file is damaged. |
+| `glitchygames sound-cache-clear [--stale-only] [--listening]` | Removes cache folders, and never anything else under the root (it may be a folder of the player's). `--stale-only` removes only older render versions. `--listening` removes the listening WAVs (below) instead of the games' sounds; nothing else ever removes them. |
+| `glitchygames sound-cache-fill` | Compiles each game's declared sounds (`SOUNDS`) and the CRT power-on's into its folder, so even a first launch reads them all. With no `--game` it fills the project's `[tool.glitchygames] games`. Live sounds and recorded files are never cached. Running it twice writes nothing more. |
+
+The logic is one engine API, `glitchygames.audio.cache_inventory` (`inventory`, `clear`,
+`verify`, `fill`, returning frozen models), which the tools, the tests and the sound editor all
+call.
 
 ## Voices, channels and buses
 
@@ -140,6 +331,13 @@ thread runs, in `tests/benchmarks/test_channel_fade_relations.py` under `--bench
 
 - `Channel.fadeout(10)` (a steal) is one plateau or an immediate halt, and `Channel.play` straight
   after it replaces the fading sound at the next chunk, so the engine keeps its one-frame wait.
+- The wait orders the fade before the stealer only if the mixer thread mixes a chunk during that
+  frame. A mixer thread kept off the CPU for longer than a frame mixes the stealer into the fade's
+  first chunk, the same cut as playing at once, so the delayed benchmark needs only
+  `MINIMUM_DELAYED_STEAL_TRIALS` of its trials to show the wait. Both steal benchmarks report
+  every trial, passing or not (the action chunk, both tones' levels in it, and whether the
+  stealer is absent from it and sounds after it), to `test-results/channel-fade-steal-delayed.md`
+  and `channel-fade-steal-immediate.md`, so a flaky run can be diagnosed afterwards.
 - A volume or bus fade stepped once per frame over 50 ms reaches the channel as three gain steps
   of a third, each at a chunk boundary.
 - The CRT skip's `Channel.fadeout(20)` is one or two plateaus and then a halt.
@@ -148,6 +346,60 @@ None of these is a smooth ramp by the feature spec's discontinuity metric (16.1)
 short fades and the CRT skip can click. Whether they are heard is the owner's listening check;
 the fallback, fades rendered into the sound by the engine, is the owner's decision (impl spec
 risks R4 and R5).
+
+## Inner games
+
+An outer game (the Arcade) runs other games inside itself as inner games
+([Engine context](engine_context.md), "Inner contexts"), and only the one it watches is heard (Arcade
+sub-plan 4, `plans/2026-11-13-arcade-4-sound.md`; `src/glitchygames/audio/route.py` and the
+docstring of `src/glitchygames/audio/voices.py` are the contract):
+
+- **One audio route per engine context.** The default context (an ordinary game, or the Arcade
+  itself) is audible; a new inner game is silent, and its host makes one heard with
+  `InnerGame.set_audible(audible=True)` (`InnerGame.audible` tells which). Keeping one heard is
+  the host's job: the engine lets two be heard at once, one per heard set (the next made heard
+  before the last is silenced, a crossfade), and refuses a third (`InnerGameChannelsError`). What a game sees
+  (`is_playing`, voice endings, steals, a live voice made or refused) is the same heard or
+  silent, so every tile replays as it does alone.
+- **Declared once, before anything plays.** An ordinary game's partition is exactly as above.
+  A host declares how many inner games it runs: `INNER_GAMES = 6` on its scene class (its
+  engine declares them at construction, before the CRT power-on plays), or
+  `glitchygames.audio.reserve_inner_game_channels(games=..., heard_set_channels=32,
+  live_channels_per_game=4)` after `GameEngine(...)` and before `start()` (it has that engine
+  partition first, so the inner games' channels lie above its partition; without an engine the
+  mixer must be partitioned already, or the declaration is refused). The mixer grows that
+  once, right above the default partition, to two **heard sets** of library channels and a
+  **live pool** per inner game, with the legacy channels above them all; it never grows again
+  (growing it while a sound plays corrupts pygame's channel table: BUGS.md #145, so a growth
+  then is refused, by the declaration and by any partition, `MixerBusyError`). A second host's
+  declaration while inner games hold channels raises `ChannelsHeldError`; finish them first.
+  A host finishes every inner game it drops (`InnerGame.finish()`): an unfinished one keeps
+  its live pool, so a host looping tiles without finishing them runs out of its declaration.
+- **An inner build never partitions the mixer.** Its sound library has its recording's
+  `--sound-channels` as slots, so its steals and drops are the game's alone, and plays them on
+  a heard set only while it is heard: the two sets alternate, so the game switched away from
+  fades out on its set while the newly heard one starts on the other. Its live voices take a
+  live pool (`--live-voice-pool` up to the declared size). A tile built with nothing declared,
+  or past the declared count, fails alone (`InnerGameChannelsError`); one whose
+  `--sound-channels` outnumber a heard set's channels replays silent and refuses to be heard.
+- **A silent tile touches no channel.** Its voice table makes no mixer call; while it builds,
+  steps or finishes every channel is reserved, so a plain `pygame.mixer.Sound.play()` (a game's
+  own) returns None and starts nothing, as on a busy mixer; its live voices play
+  chunks at volume 0 on its own pool.
+- **Switching.** A heard tile's plain plays are heard, and followed: each step notes the
+  unreserved channels it started a sound on. Switching it silent (or its finish) fades its
+  voices over 50 ms, stops its plain plays still playing that very sound and mutes the chunks
+  on its live pool at once; the host's sounds and another tile's are never touched. A tile
+  switched heard is heard from its next sound (its live voices from their next chunk).
+- **Silenced frames** (`FrameSilencer`) in an inner context stop only that context's channels
+  (its heard set, live pool and plain plays), never `pygame.mixer.stop()` and never the music.
+- `pygame.mixer.music` is still one per process (no game uses it).
+
+The proof is `tests/test_every_recording_replays_inside_an_inner_game.py`: every golden and
+bundled demo, as a tile beside another, matches its solo replay's digests and pixels with every
+tile silent and with the first tile heard for the middle third of its recording; while no tile
+is heard nothing a tile played sounds. The stops and mutes are hard cuts, which may click when
+heard games are switched quickly (the owner's listening check, `plans/future-work.md`).
 
 ## Accounting
 
@@ -204,7 +456,7 @@ the sound never plays where the picture does not (`--headless`, tests, replays, 
 
 ## The instrument catalog
 
-`glitchygames.audio.instruments` holds 658 ready-made instruments in 23 families. Each is an
+`glitchygames.audio.instruments` holds 707 ready-made instruments in 23 families. Each is an
 ordinary `Instrument`, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:
@@ -217,62 +469,85 @@ tune = audio.sound(violin, notes='G3:0.5 D4:0.5 A4:1')
 instruments.entry('alto saxophone').playing_range        # (Note('Db3'), Note('Ab5'))
 instruments.names(family=instruments.Family.BRASS)       # every brass instrument
 instruments.names(tag=instruments.Tag.MECHANICAL)        # every entry carrying a tag
+instruments.names(tag=instruments.Tag.CHIP)              # every sound-chip voice
 instruments.get('slapstick')                             # an alias: the same instrument as 'whip'
 ```
 
 | Family | Entries | Examples |
 | --- | --- | --- |
-| `flutes` | 30 | piccolo to contrabass flute, wooden flutes, sopranino to contrabass recorders, whistles, shakuhachi, ocarinas |
-| `clarinets` | 9 | E-flat to contrabass clarinet, basset horn, chalumeau |
-| `saxophones` | 8 | sopranino to contrabass, C melody |
-| `double reeds` | 23 | oboe family, bassoon and contrabassoon, shawms, crumhorns, suona, duduk |
-| `bagpipes` | 8 | Highland, uilleann, smallpipes, gaita, gaida, musette (drones built in) |
-| `free reeds` | 13 | accordions (dry, musette, bass), bandoneon, concertina, harmonicas, melodicas, sheng |
-| `brass` | 42 | piccolo trumpet to contrabass tuba, alto to contrabass trombone, mutes, historic and folk horns |
-| `bowed strings` | 27 | violin to double bass, sections, pizzicato, viols, erhu, hurdy-gurdy |
+| `flutes` | 33 | piccolo to contrabass flute, wooden flutes, sopranino to subcontrabass recorders, whistles, shakuhachi, ocarinas, and 3 sound-alikes (csakan, subcontrabass recorder, ryuteki) |
+| `clarinets` | 10 | E-flat to contrabass clarinet, basset horn, chalumeau, and 1 sound-alike (c clarinet) |
+| `saxophones` | 11 | sopranino to contrabass, C melody, and 3 sound-alikes (soprillo saxophone, tubax in eb, heckelphone clarinet) |
+| `double reeds` | 25 | oboe family, bassoon and contrabassoon, heckelphone, sarrusophone, shawms, crumhorns, suona, zurna, duduk, and 2 sound-alikes (contraforte, piccolo heckelphone) |
+| `bagpipes` | 9 | Highland, uilleann, smallpipes, gaita, gaida, musette, sackpipa (drones built in) |
+| `free reeds` | 13 | accordions (dry, musette, bass), bandoneon, concertina, harmonium, harmonicas, melodicas, sheng (no sound-alikes yet) |
+| `brass` | 44 | piccolo trumpet to contrabass tuba, alto to contrabass trombone, mutes, historic and folk horns, and 2 sound-alikes (bass wagner tuba, soprano trombone) |
+| `bowed strings` | 29 | violin to double bass, sections, pizzicato, viols, erhu, hurdy-gurdy, and 2 sound-alikes (viola pomposa, bowed psaltery) |
 | `plucked strings` | 92 | guitars (nylon, steel, twelve-string, electric clean to distortion), basses, ukuleles, banjos, mandolins, lutes (angelique), sitar, koto, qanun, tar, ruan, chapman stick, and 27 sound-alikes |
-| `harps` | 7 | concert, lever, wire-strung, triple harp, lyre, kora |
-| `struck strings` | 5 | hammered dulcimer, cimbalom, santur, yangqin, berimbau |
-| `keyboards` | 11 | pianos, harpsichords, clavichord, celesta, toy piano |
-| `organs` | 9 | pipe organ stops and plenum, positive, combo and theatre organs, calliope |
+| `harps` | 7 | concert, celtic (lever), wire-strung, triple harp, lyre, kora, harp guitar (no sound-alikes yet) |
+| `struck strings` | 5 | hammered dulcimer, cimbalom, santur, yangqin, berimbau (no sound-alikes yet) |
+| `keyboards` | 11 | pianos, fortepiano, harpsichords, virginal, clavichord, celesta, toy piano (no sound-alikes yet) |
+| `organs` | 19 | pipe organ stops and plenum, positive, combo and theatre organs, calliope, stopped diapason, cornet and organ clarinet, and 7 sound-alikes (bourdon, salicional, voix céleste, oboe, krummhorn, tuba, post horn) |
 | `electromechanical` | 11 | electric pianos (tine, reed), Clavinet, Pianet, tonewheel organ registrations and percussion |
-| `electronic` | 15 | theremin, ondes Martenot, leads, pads, basses, chiptune pulses |
-| `tuned percussion` | 23 | glockenspiel, xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan |
+| `electronic` | 26 | theremin, ondes Martenot, leads, pads, basses, chiptune pulses, sound-chip voices (NES triangle, AY-3-8910, SID sawtooth, SN76489, PC speaker) and drum-machine voices (TR-808 tom, conga, cowbell, clave, maracas; Syndrum); 10 of the 26 are sound-alikes of other entries |
+| `tuned percussion` | 36 | glockenspiel, xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan, boomwhackers, gangsa, and 11 sound-alikes |
 | `plucked idiophones` | 4 | kalimba, mbira, music box, sansula |
 | `friction instruments` | 3 | glass harmonica, glass harp, terpodion |
 | `drums and percussion` | 237 | kits (kicks, snares, toms, hi-hats, cymbals), hand drums (daf, dhol, kendang, mridangam), gongs, shakers, blocks, and 131 sound-alikes |
 | `noise makers` | 5 | whip crack, diaphone, air horn, vehicle horn, party horn |
 | `sound effects` | 8 | thunder sheet, rain machine, ocean drum, cannon, crash box, coconut shells, door slam |
-| `voices` | 55 | soprano, mezzo, alto, treble, countertenor, tenor, baritone, bass and basso profundo on ah, eh, ee, oh, oo and humming; whistling |
+| `voices` | 56 | soprano, mezzo, alto, treble, countertenor, tenor, baritone, bass and basso profundo on ah, eh, ee, oh, oo and humming; whistling; and 1 sound-alike (basso buffo, of bass ah) |
 | `choirs` | 13 | soprano, alto, tenor and bass sections on ah, oh and oo; children's choir |
 
 - Names and families are lowercase words separated by spaces (`'tenor saxophone'`, `'double
   reeds'`). `get`, `entry`, `names` and `entries` lowercase what they are given, so
   `instruments.get('Tenor Saxophone')` is the same instrument.
 - A `Tag` marks a quality that cuts across families (the set is closed): `Tag.MECHANICAL`, on
-  the music box so far, stays in the family the instrument sounds like.
+  the music box, and `Tag.CHIP`, on the voices of sound chips (an integrated circuit made to
+  produce a computer's, console's or arcade machine's sound: the four generic `chip ...` entries
+  and `nes triangle`, `ay 3 8910`, `pc speaker`, `sid sawtooth`, `sn76489`; nine in all), each
+  stays in the family the instrument sounds like.
   `instruments.names(tag=...)` and `entries(tag=...)` list the entries carrying it, and combine
   with `family=`.
-- `instruments.ALIASES` (read-only, as `instruments.CATALOG` is) maps another name to its
-  catalog name: `slapstick` to `whip`, `zanza` to `mbira`, `cylinder music box` and `disc music
-  box` to `music box`, `wurlitzer electronic piano` to `reed electric piano`, `hohner clavinet`
-  to `clavinet`, `rain box` to `rain machine`, `horse hooves` to `coconut shells`, `tavil` to
-  `thavil` and `riq` to `daf` (54 in all, among them `kanun` to `qanun`, `ud` to `oud` and
-  `neapolitan mandolin` to `mandolin`). `get` and `entry` resolve an alias, while `names` and
-  `entries` list catalog names only.
+- `instruments.ALIASES` (read-only, as `instruments.CATALOG` is) maps another name to its catalog
+  name: `slapstick` to `whip`, `contralto` to `alto ah`, `boy soprano` to `treble ah`, `zanza` to
+  `mbira`, `cylinder music box` and `disc music box` to `music box`, `wurlitzer electronic piano`
+  to `reed electric piano`, `fender rhodes` to `tine electric piano`, `hohner clavinet` to
+  `clavinet`, `rain box` to `rain machine`, `horse hooves` to `coconut shells`, `tavil` to `thavil` and `riq` to `daf`, `richter harmonica` to `harmonica`, `pedal harp` to `concert harp` and `lever harp` to `celtic harp`, and thirteen names (`hackbrett`, `dulcemele`, `dultzimar`, `darushimaa`, `hakkebord`, `hakkebraet`, `hakkebrett`, `hackbraede`, `hammarharpa`, `oprekelj`, `cimbale`, `cymbaly`, `chimbaly`) to `hammered dulcimer`, and `soprillo` and `sopranissimo saxophone` to `soprillo saxophone` (140 in all, among them
+  `kanun` to `qanun`, `ud` to `oud` and `neapolitan mandolin` to `mandolin`). `get` and `entry`
+  resolve an alias, while `names` and `entries` list catalog names only.
 - A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
   (`bamboula` and `conga`, `tombak` and `darbuka doum`), so it is an entry of its own, listed by
   `names` and `entries`, whose `CatalogEntry.sounds_like` names the parent whose build it
   shares (`instruments.get('bamboula') == instruments.get('conga')`; the parent may be in
   another family). A pitched sound-alike (the plucked strings' `requinto guitar`, `liuqin`)
   gives its own sourced range, since it may play another span than its parent; it is pitched
-  exactly when its parent is, and an unpitched one has none. `sound_changes` (empty so far) holds
-  keyword overrides of the parent's builder, for a sound-alike that a source sets apart by one
-  trait; each needs a cited source.
+  exactly when its parent is, and an unpitched one has none. `sound_changes` (set on one entry so
+  far, the organ stop `bourdon`: its footage) holds keyword overrides of the parent's builder,
+  for a sound-alike that a source sets apart by one trait; each needs a cited source.
   Assembly refuses a `sounds_like` that names no entry, itself or another sound-alike. The 131
   drum ones are in `drum_sound_alikes.py`, the family's builds in `drums.py`; the 27 plucked
-  string ones are in `plucked_sound_alikes.py`, the builds in `plucked_strings.py` (158
-  sound-alikes in all).
+  string ones are in `plucked_sound_alikes.py`, the builds in `plucked_strings.py`; the 11
+  tuned percussion ones are in `tuned_sound_alikes.py`, the 10 electronic ones in
+  `electronic_sound_alikes.py` and the 2 bowed string ones (`viola pomposa`, `bowed psaltery`) in
+  `bowed_sound_alikes.py`, the builds in `bowed_strings.py`; the voices' one (`basso buffo ah`, of
+  `bass ah`) is in `voice_sound_alikes.py`, the builds in `voices.py`; the flutes' 3 (`csakan`, `subcontrabass recorder`, `ryuteki`) are
+  in `flute_sound_alikes.py`, the builds in `flutes.py`; and the brass's 2 (`bass wagner tuba`, of
+  `wagner tuba`, and `soprano trombone`, of `trumpet`) are in `brass_sound_alikes.py`, the builds in
+  `brass.py`; and the double reeds' 2 (`contraforte`, of `contrabassoon`, and `piccolo heckelphone`,
+  of `heckelphone`) are in `double_reed_sound_alikes.py`, the builds in
+  `double_reeds.py`; the clarinets' 1 (`c clarinet`, of `clarinet`) is in `clarinet_sound_alikes.py`, the builds in `clarinets.py`; the organs' 7 (`bourdon`, `salicional`, `voix celeste`, `organ oboe`, `organ
+  krummhorn`, `organ tuba`, `posthorn`) are in `organ_sound_alikes.py`, the builds in `organs.py`;
+  the bagpipes' table (`bagpipe_sound_alikes.py`) is empty so far, and so are the keyboards'
+  (`keyboard_sound_alikes.py`, the builds in `keyboards.py`) and the free reeds'
+  (`free_reed_sound_alikes.py`, the builds in `free_reeds.py`), the harps' (`harp_sound_alikes.py`, the builds in `harps.py`) and the struck
+  strings' (`struck_sound_alikes.py`, the builds in `struck_strings.py`); the saxophones' 3
+  (`soprillo saxophone`, of `sopranino saxophone`, `tubax in eb`, of `contrabass saxophone`, and
+  `heckelphone clarinet`, of `alto saxophone`) are in `saxophone_sound_alikes.py`, the builds in
+  `saxophones.py`. `electromechanical.py` holds the
+  electromechanical instruments that shared that module. There are 200 sound-alikes in all. A bagpipe's drones are fixed pitches inside its build, so a bagpipe
+  sound-alike in another tuning would carry its own drones as `sound_changes` (each at the pitch
+  its source gives, equal-tempered like the chanter).
 - Each entry has a `title`, a `family` and its playing range, `lowest` and `highest` (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (`pitch='A4'`); it does not change
@@ -282,17 +557,24 @@ instruments.get('slapstick')                             # an alias: the same in
   range (its formants are placed for that pitch and move with the note elsewhere).
 - The ranges and models were audited against published references (orchestration texts, the
   Vienna Symphonic Library, makers' specifications, Fletcher and Rossing, the Csound formant
-  table) on 2026-11-03 and corrected. An organ's range is its keys at 8' pitch (C2-C7; a 16'
-  stop sounds an octave lower). Paired strings double every note, though a twelve-string
+  table) on 2026-11-03 and corrected. An organ's range is its keys at 8' pitch (C2-C7; a stop sounds at its
+  footage, a 16' an octave lower, a 4' an octave higher). Paired strings double every note, though a twelve-string
   guitar's or a bouzouki's octave pairs are only on its lower courses, and a church bell leaves
   out its weak quint, as an instrument has at most four sources.
-- `uv run python -m scripts.make_instrument_demos [DIRECTORY] [--only TEXT]` renders every
-  instrument climbing its range (or four hits) to `build/instruments/<family>/<name>.wav`.
-- `uv run python scripts/make_pipes.py [DIRECTORY]` renders a Highland bagpipe and uilleann
-  pipes (chanter, drones and regulators) and *Sí Bheag, Sí Mhór* to `build/pipes/`;
-  `uv run python -m scripts.pipe_tunes scripts/pipe_tunes_abc [DIRECTORY]` plays the 20
-  public-domain tunes in `scripts/pipe_tunes_abc/` (ABC notation, sources in its
-  `index.json`) on them, to `build/pipes/tunes/`.
+- `uv run glitchygames listening-instruments [--family FAMILY] [--only TEXT]` renders every
+  instrument climbing its range (or four hits) to `instruments/<family>/<name>.wav` in the
+  listening folder, with `instruments/index.txt` (every instrument, its family and range).
+- `uv run glitchygames listening-pipes [--only TEXT]` renders a Highland bagpipe and uilleann
+  pipes (chanter, drones and regulators) and *Sí Bheag, Sí Mhór* to `pipes/`, and plays the 20
+  public-domain tunes in `src/glitchygames/audio/listening/tunes/` (ABC notation, sources in its
+  `index.json`) on them, to `pipes/tunes/`.
+- The listening folder is `<cache root>/listening/<render version>/`, beside the games' sound
+  folders (about 300 MB in all, so no size limit applies and nothing prunes it). Each tool
+  renders only the files missing and prints every file's path (written or already there) on
+  standard output, the summary on standard error. `glitchygames sound-cache-list` and
+  `sound-cache-size` show it apart from the games', and only `glitchygames sound-cache-clear
+  --listening` removes it. The code is `glitchygames.audio.listening` (`renders.render_instruments`
+  and `render_pipes`).
 
 ## The Sound Board
 
@@ -307,3 +589,33 @@ key never compiles anything.
 `glitchygames.audio.render_to_file(sound, path, ...)` writes a sound to a WAV file with no audio
 device; `glitchygames sound-render SOURCE --sound-output PATH` does the same from the command
 line. A sound rendered alone is its compiled buffer, bit for bit.
+
+## Outside a game
+
+A tool, test bench or script can have an audio engine of its own, without a `GameEngine` or
+scene manager: reserve the mixer's channels, make a live pool on the live ones, make the engine,
+and call its `update` once a frame. That one call moves the baked voices by the frame's time
+(they end by played time, so without it a one-shot never ends) and applies the owner rules to
+the live voices.
+
+```python
+import pygame
+
+from glitchygames.audio import AudioEngine, Instrument, LiveAudio
+from glitchygames.audio.voices import reserve_channels
+
+pygame.mixer.init()
+partition = reserve_channels(live_pool=4, library_channels=32, legacy_channels=8)
+tool = object()  # owns the tool's sounds, as a scene owns a game's
+pool = LiveAudio(channel_indices=partition.live)  # one pool: the engine asks for it at each start
+audio = AudioEngine(partition=partition, scene_source=lambda: tool, live_pool=lambda: pool)
+
+audio.sound('sounds/ui.toml#click').play()
+drone = audio.sound(Instrument(wave='sine', live=True), pitch='A2').start()
+
+while running:
+    audio.update(dt=1 / 60, active_scene=tool, previous_scene=None, active_transitions=())
+```
+
+A sound handed out by a bare `SoundLibrary`, with no engine, plays nothing (a warning says so
+once per sound).

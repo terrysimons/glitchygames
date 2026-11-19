@@ -12,10 +12,42 @@
   `plans/2026-11-08-instrument-catalog-batch-3-implementation.md` and
   `plans/data/instrument-audit/batch-3.tsv`. Batch 4 (plucked strings) is done: see
   `plans/2026-11-09-instrument-catalog-batch-4-implementation.md` and
-  `plans/data/instrument-audit/batch-4.tsv`. The later batches are not yet planned.
+  `plans/data/instrument-audit/batch-4.tsv`. Batch 5 (tuned percussion) is done: see
+  `plans/2026-11-11-instrument-catalog-batch-5-implementation.md` and
+  `plans/data/instrument-audit/batch-5.tsv`. Batch 6 (electronic) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-6-implementation.md` and
+  `plans/data/instrument-audit/batch-6.tsv`. Batch 7 (bowed strings) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-7-implementation.md` and
+  `plans/data/instrument-audit/batch-7.tsv`. Batch 8 (voices and choirs) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-8-implementation.md` and
+  `plans/data/instrument-audit/batch-8.tsv`. Batch 9 (flutes) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-9-implementation.md` and
+  `plans/data/instrument-audit/batch-9.tsv`. Batch 10 (brass) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-10-implementation.md` and
+  `plans/data/instrument-audit/batch-10.tsv`. Batch 11 (double reeds) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-11-implementation.md` and
+  `plans/data/instrument-audit/batch-11.tsv`. Batch 12 (bagpipes) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-12-implementation.md` and
+  `plans/data/instrument-audit/batch-12.tsv`. Batch 13 (organs) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-13-implementation.md` and
+  `plans/data/instrument-audit/batch-13.tsv`. Batch 14 (clarinets) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-14-implementation.md` and
+  `plans/data/instrument-audit/batch-14.tsv`. Batch 15 (keyboards) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-15-implementation.md` and
+  `plans/data/instrument-audit/batch-15.tsv`. Batch 16 (free reeds) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-16-implementation.md` and
+  `plans/data/instrument-audit/batch-16.tsv`. Batch 17 (harps) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-17-implementation.md` and
+  `plans/data/instrument-audit/batch-17.tsv`. Batch 18 (struck strings) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-18-implementation.md` and
+  `plans/data/instrument-audit/batch-18.tsv`. Batch 19 (saxophones) is done: see
+  `plans/2026-11-12-instrument-catalog-batch-19-implementation.md` and
+  `plans/data/instrument-audit/batch-19.tsv`. Every family the audits cover has had its batch
+  (batches 1 to 19); the later passes over each family and the owner's checks are tracked in
+  `plans/future-features.md` #70 and #71 to #89.
 - **Depends on:** the instrument catalog (`src/glitchygames/audio/instruments/`, 431 instruments
   in 18 families when this was written, shipped with the sound engine M1; 439 in 21 after batch
-  1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4), its range audit, and the engine's four sources per instrument
+  1, 448 in 23 after batch 2, 624 after batch 3, 658 after batch 4, 671 after batch 5, 682 after batch 6, 684 after batch 7, 685 after batch 8, 688 after batch 9, 690 after batch 10, 692 after batch 11, 693 after batch 12, 703 after batch 13, 704 after batches 14, 15, 16, 17 and 18, 707 after batch 19), its range audit, and the engine's four sources per instrument
   (`src/glitchygames/audio/instrument.py`).
 - **Tracked as:** `plans/future-features.md` #70.
 
@@ -133,8 +165,8 @@ A grouping that cuts across families is a tag, not a family (the owner, 2026-11-
   pianos, serinettes). Each stays in the family it sounds like.
 - `instruments.names(tag=Tag.MECHANICAL)` lists them, beside `names(family=...)`; both may be
   given together.
-- Later tags (`chip` for the sound-chip voices, `historical`, regions) are added the same way
-  when a batch needs one.
+- `Tag.CHIP` (the sound-chip voices) was added by batch 6; later tags (`historical`, regions)
+  are added the same way when a batch needs one.
 - Tests: every entry's tags are members of `Tag`; `names(tag=...)` returns exactly the tagged
   entries.
 

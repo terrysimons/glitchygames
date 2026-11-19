@@ -31,6 +31,7 @@ from typing import (
 )
 
 import pygame
+from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock, events
 from glitchygames.ai_link import AiLink, create_link
@@ -95,6 +96,8 @@ from glitchygames.recording import (
     RecordingWriteError,
     TraceRecordingAlreadyStartedError,
     custom_event_types_header,
+    discard_custom_events_queued_before_the_run,
+    discard_events_left_at_the_runs_end,
     forget_pending_posts,
     json_safe_value,
     pending_internal_posts,
@@ -107,6 +110,12 @@ from glitchygames.recording_history import (
     CONTENT_HASH_SCHEME,
     MEASUREMENT_RUNS_HEADER_FIELD,
     MeasurementRun,
+)
+from glitchygames.render_target import (
+    hosted_start_requested,
+    is_inner_context,
+    note_started_engine,
+    render_target,
 )
 from glitchygames.replay.audit import (
     AuditRunError,
@@ -186,6 +195,7 @@ if TYPE_CHECKING:
     from types import FrameType
 
     from glitchygames.ai_console import AiConsole
+    from glitchygames.audio.startup import StartupSounds
     from glitchygames.audio.voices import ChannelPartition
     from glitchygames.crt_power_on_sound import CrtPowerOnSound
     from glitchygames.input.devices import OpenedController, ReplayDeviceRegistry
@@ -234,6 +244,10 @@ SDL_DRIVER_VARIABLES = ('SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')
 # fullscreen window about 25% on a Raspberry Pi 4. SDL tries a list in order, so x11 still starts
 # when Wayland cannot
 WAYLAND_FIRST_VIDEO_DRIVERS = 'wayland,x11'
+# The video drivers whose window manager info is never asked for: pygame-ce 2.5.8's
+# pygame.display.get_wm_info() segfaults once a window is open on SDL's wayland driver (seen on a
+# Raspberry Pi 4, Ubuntu 26.10, GNOME), and the engine asks for it at every start
+VIDEO_DRIVERS_WITHOUT_WM_INFO = frozenset({'wayland'})
 # SDL's hint that turns its own SIGINT/SIGTERM handlers off (the engine owns the signals)
 SDL_NO_SIGNAL_HANDLERS_HINT = 'SDL_NO_SIGNAL_HANDLERS'
 # --video-driver's choices: SDL 2's video drivers by platform.system() name (SDL's own list,
@@ -269,7 +283,7 @@ def scene_class_of(game: type[Scene] | Scene) -> type[Scene]:
     # class. ty narrows the class branch to "type[Scene] | (Scene & type)" (a Scene that is also
     # a type, a metaclass instance no game is), where basedpyright sees type[Scene] and refuses a
     # cast as unnecessary: so ty alone is told
-    return game if isinstance(game, type) else type(game)  # ty: ignore[invalid-return-type]
+    return game if isinstance(game, type) else type(game)  # ty: ignore[invalid-explicit-return]
 
 
 def pygame_needs_fastevents() -> bool:
@@ -735,6 +749,21 @@ def startup_options_block(*, game_name: str, options: Mapping[str, Any]) -> str:
     return '\n'.join([f'Options for {game_name} (secrets redacted):', *lines])
 
 
+class ReplayReport(BaseModel):
+    """A replay's settled report (``GameEngine.settle_replay_report``; read-only).
+
+    Attributes:
+        text: The report (``ReplayResult.report``, or what ended the run early).
+        is_failure: True when it reports a divergence or an early end.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    text: str
+    is_failure: bool
+
+
 class NoRunningEngineError(RuntimeError):
     """``current_engine()`` was called in an engine context where no game engine is running."""
 
@@ -1163,6 +1192,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         from glitchygames.audio.engine import (
             DEFAULT_CACHE_MEMORY_MEGABYTES,
             DEFAULT_LIBRARY_CHANNELS,
+            DEFAULT_SOUND_CACHE,
         )
         from glitchygames.audio.library import CacheMode
 
@@ -1180,9 +1210,11 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             choices=[mode.value for mode in CacheMode],
             help=(
                 'how compiled sounds are kept: none (compiled again at every play), ram (in '
-                'memory, default) or disk (arrives in M3; refused until then)'
+                "memory) or disk (in memory and in the game's cache folder, so a later launch "
+                'compiles nothing: GLITCHYGAMES_SOUND_CACHE_ROOT names the root, empty for none) '
+                f'(default: {DEFAULT_SOUND_CACHE.value})'
             ),
-            default=CacheMode.RAM.value,
+            default=DEFAULT_SOUND_CACHE.value,
         )
         group.add_argument(
             '--sound-cache-memory',
@@ -1447,6 +1479,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         self.initialize_icon(icon=icon)
 
+        # The command line it parses (after the command): an inner game it hosts is given it
+        # first (glitchygames/inner_game.py, rule 1)
+        self.command_arguments: tuple[str, ...] = tuple(sys.argv[1:])
         options = self.initialize_arguments(game=game)
         # This engine's parsed command line (audit C8: its own; GameEngine.OPTIONS is a
         # read-only view of it), set before the engine is current below
@@ -1460,13 +1495,15 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # (_restore_sdl_driver_variables); None when the run changed neither
         self._sdl_driver_variables_before_run: dict[str, str | None] | None = None
         # Before anything starts the display or the mixer (pygame.init() below)
-        self._choose_sdl_drivers(options=options)
+        # An inner context (glitchygames/render_target.py) shares the process's drivers with
+        # every other context: it never changes the variables or restarts the display or mixer
+        if not is_inner_context():
+            self._choose_sdl_drivers(options=options)
 
         # NOTE: Game is coupled to event manager for unhandled event routing.
         # Decoupling tracked in https://glitchy-games.atlassian.net/browse/GG-22
         super().__init__()
 
-        self._active_scene: Scene | None = None
         # The signals exit_on_signal is installed for (by start(), and around a wait for child
         # processes: _waiting_for_child_processes, which --audit uses before start() runs)
         self._installed_signal_handlers: list[int] = []
@@ -1586,15 +1623,17 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # started late); _pump_events forgets the posts after each pump
         reset_internal_post_tracking()
         start_tracking_internal_posts()
+        # No custom event queued now is this run's: an earlier run in this process left it,
+        # and a recording or replay would take it for the run's own post (BUGS.md #276)
+        discard_custom_events_queued_before_the_run()
         # A live run is hosted: the outer game (glitchygames/host.py) reads through the live
         # doors and drives the frames. A replay has no host (its viewer is its outer game)
         self.host: GameHost | None = None
         # The run's session with the local AI service, if it has one (glitchygames/ai_link.py)
         self.ai_link: AiLink | None = None
         if self.replay_sources is None:
-            live_sources = LiveSources(
+            live_sources = self.build_live_sources(
                 random_seed=self.random_seed,
-                use_fastevents=GameEngine.USE_FASTEVENTS,
                 # A recorded run captures scene starts from its first scene on, which
                 # is built before recording starts (glitchygames/scene_start.py)
                 captures_scene_starts=options.get('record_trace') is not None,
@@ -1688,6 +1727,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # The mixer's channels: live voices, the sound library's, the legacy rest (set as the
         # event managers are made; None before)
         self.channel_partition: ChannelPartition | None = None
+        # The game's declared sounds still to compile at start (Scene.SOUNDS), made once
+        self._startup_sounds: StartupSounds | None = None
+        self._partition_a_host_now()
         self.drop_manager: DropEventManager
         self.controller_manager: ControllerEventManager | None = None
         self.touch_manager: TouchEventManager
@@ -1714,6 +1756,19 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # There are various caveats for hardware accelerated blitting
         # that make it undesirable in a lot of cases, so we'll just use
         # software.
+        # An inner context draws on its render target: it never opens or resizes the window nor
+        # sets its cursor (row S1 of plans/2026-10-25-engine-context.md;
+        # glitchygames/render_target.py)
+        inner_target = render_target()
+        if inner_target is not None:
+            self.display_info = pygame.display.Info()
+            self.initial_resolution = inner_target.get_size()
+            self.cursor = []
+            self.display_update = pygame.display.update
+            self.screen = inner_target
+            paint_default_background(surface=self.screen)
+            self.scene_manager.screen = self.screen
+            return
         self.display_info = pygame.display.Info()
         self.initial_resolution: tuple[int, int] = (
             self.display_info.current_w,
@@ -1917,7 +1972,13 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             (pygame.display.mode_ok(self.initial_resolution), self.mode_flags),
             self.mode_flags,
         )
-        self.log.info('Window Manager Info: %s', pygame.display.get_wm_info())
+        video_driver = pygame.display.get_driver()
+        if video_driver in VIDEO_DRIVERS_WITHOUT_WM_INFO:
+            self.log.info(
+                'Window Manager Info: not asked for on %s (pygame-ce crashes there)', video_driver
+            )
+        else:
+            self.log.info('Window Manager Info: %s', pygame.display.get_wm_info())
         self.log.info('Platform Timer Resolution: %s', pygame.TIMER_RESOLUTION)
 
     def print_game_info(self: Self, *, game: type[Scene] | Scene) -> None:
@@ -2050,6 +2111,10 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         icon: pygame.Surface = icon_attr
 
+        # The window's icon and caption are its owner's: an inner context sets neither (row S2
+        # of plans/2026-10-25-engine-context.md)
+        if is_inner_context():
+            return
         pygame.display.set_icon(icon)
 
         # The game's caption until its scene sets its own, not the engine's placeholder
@@ -2088,7 +2153,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         if input_mode is InputMode.JOYSTICK:
             self.controller_manager = None
-            pygame.event.set_blocked(events.CONTROLLER_EVENTS)
+            events.set_event_types_allowed(event_types=events.CONTROLLER_EVENTS, allowed=False)
             LOG.info('Input mode: joystick (controller events blocked)')
         else:
             self.controller_manager = ControllerEventManager(game=self.scene_manager)
@@ -2211,7 +2276,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             # at SDL: the live game (joystick mode) keeps them blocked, and the scope's events
             # come from the recording, not SDL
             self.controller_manager = ControllerEventManager(game=self.scene_manager)
-            pygame.event.set_blocked(events.CONTROLLER_EVENTS)
+            events.set_event_types_allowed(event_types=events.CONTROLLER_EVENTS, allowed=False)
         self.joystick_manager.joysticks = (
             self.joystick_manager.open_connected_joysticks()
             if adopted is None
@@ -2602,7 +2667,6 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         """
         self._refuse_listing_input_devices_during_a_run(options=options)
         self._refuse_a_forced_power_on_during_a_run(options=options)
-        self._refuse_the_disk_sound_cache(options=options)
         replay_trace_path = options.get('replay_trace')
         if replay_trace_path is None:
             self._check_replay_options_without_a_recording(options=options)
@@ -2844,6 +2908,16 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 self.log.error('Cannot play the CRT power-on sequence with %s', flag)
                 exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
+    def _partition_a_host_now(self: Self) -> None:
+        """Partition the mixer at construction when the game is a host (it sets INNER_GAMES).
+
+        Its inner games' channels are declared with the partition in the same one growth, before
+        the CRT power-on or anything else plays (Arcade sub-plan 4, decision 4). Other games
+        partition on first use, as before.
+        """
+        if int(getattr(self.game, 'INNER_GAMES', 0)) > 0:
+            self.reserved_channel_partition()
+
     def reserved_channel_partition(self: Self) -> ChannelPartition:
         """Partition the mixer's channels once per run, and return the partition (impl 7.1).
 
@@ -2855,6 +2929,17 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         Only a partition made on a running mixer is kept (ruling R35): without a mixer the
         empty partition is returned, and a later call (once the mixer runs) reserves.
 
+        An inner context's engine (an Arcade tile) never partitions the mixer: its partition is
+        its own options' (the recording's) library slots, played on a heard set while it is
+        heard, and a live pool from the channels its host declared at startup
+        (``voices.inner_context_partition``; Arcade sub-plan 4, decisions 4 and 5), so the
+        outer's partition and reservation stay as they are. With none declared, or every live
+        pool held, it raises ``InnerGameChannelsError`` (the inner game fails alone).
+
+        A host's engine (its scene class sets ``INNER_GAMES``) declares its inner games' channels
+        with its own partition, in the same one growth, here at construction: before the CRT
+        power-on or anything else plays (Arcade sub-plan 4, decision 4).
+
         Returns:
             The partition (empty without a mixer).
 
@@ -2862,30 +2947,26 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         if self.channel_partition is not None:
             return self.channel_partition
         from glitchygames.audio.engine import DEFAULT_LIBRARY_CHANNELS, LEGACY_CHANNELS
-        from glitchygames.audio.voices import reserve_channels
+        from glitchygames.audio.voices import inner_context_partition, reserve_channels
 
-        partition = reserve_channels(
-            live_pool=int(self.options.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL)),
-            library_channels=int(self.options.get('sound_channels', DEFAULT_LIBRARY_CHANNELS)),
-            legacy_channels=LEGACY_CHANNELS,
-        )
+        live_pool = int(self.options.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL))
+        library_channels = int(self.options.get('sound_channels', DEFAULT_LIBRARY_CHANNELS))
+        if is_inner_context():
+            partition = inner_context_partition(
+                live_pool=live_pool, library_channels=library_channels
+            )
+        else:
+            partition = reserve_channels(
+                live_pool=live_pool,
+                library_channels=library_channels,
+                legacy_channels=LEGACY_CHANNELS,
+                # Looked up by name, as TARGET_FPS is: a game may be any scene class
+                inner_games=int(getattr(self.game, 'INNER_GAMES', 0)),
+            )
         self.live_voice_channels = partition.live
         if pygame.mixer.get_init() is not None:
             self.channel_partition = partition
         return partition
-
-    def _refuse_the_disk_sound_cache(self: Self, *, options: dict[str, Any]) -> None:
-        """Exit with ExitCode.OPTIONS_REFUSED for ``--sound-cache disk``, which arrives in M3.
-
-        Args:
-            options: The parsed options.
-
-        """
-        from glitchygames.audio.library import DISK_CACHE_MESSAGE, CacheMode
-
-        if options.get('sound_cache') == CacheMode.DISK.value:
-            self.log.error('Cannot use --sound-cache disk: %s', DISK_CACHE_MESSAGE)
-            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
     def _refuse_listing_input_devices_during_a_run(self: Self, *, options: dict[str, Any]) -> None:
         """Exit with ExitCode.OPTIONS_REFUSED for --list-input-devices with a replay or recording.
@@ -3181,8 +3262,35 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
     def _report_replay_result(self: Self, *, run_ended_by: str | None) -> None:
         """Settle the replay's result and report it, if replaying (rule 11).
 
-        The report (``ReplayResult.report``) is printed to stdout under ``--headless``, where it
+        The report (``settle_replay_report``) is printed to stdout under ``--headless``, where it
         is the run's output, and logged otherwise (as an error when the replay diverged).
+
+        Args:
+            run_ended_by: What ended the run early (an exit status as
+                ``ExitCode.describe_status`` gives it), or None when the run ended normally.
+
+        """
+        if self.replay_sources is None:
+            return
+        report = self.settle_replay_report(
+            replay_sources=self.replay_sources, run_ended_by=run_ended_by
+        )
+        if self.replay_sources.options.headless:
+            sys.stdout.write(f'{report.text}\n')
+            sys.stdout.flush()
+        elif report.is_failure:
+            self.log.error(report.text)
+        else:
+            self.log.info(report.text)
+
+    def settle_replay_report(
+        self: Self, *, replay_sources: ReplaySources, run_ended_by: str | None
+    ) -> ReplayReport:
+        """Settle the replay's result (``ReplaySources.finish_run``) and return its report.
+
+        The report is ``ReplayResult.report``; ``_report_replay_result`` prints or logs it, and
+        an inner game (glitchygames/inner_game.py), which writes nothing to stdout, keeps it in
+        its outcome.
 
         Any early end of the run (a crash, Ctrl-C, a signal, or any SystemExit, a game's own
         ``sys.exit(0)`` included) is reported by what ended it: before the replay reached its
@@ -3196,16 +3304,19 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         says so after the report.
 
         Args:
+            replay_sources: The run's replay doors (``self.replay_sources``).
             run_ended_by: What ended the run early (an exit status as
-                ``ExitCode.describe_status`` gives it), or None when the run ended normally.
+                ``ExitCode.describe_status`` gives it, or an inner game's error), or None when
+                the run ended normally.
+
+        Returns:
+            The report and whether it reports a failure.
 
         """
-        if self.replay_sources is None:
-            return
-        result = self.replay_sources.result
+        result = replay_sources.result
         # Read before finish_run, which turns a replay still running into a length divergence
         replay_had_ended = result.end_reason != RUNNING_END_REASON
-        self.replay_sources.finish_run()
+        replay_sources.finish_run()
         if run_ended_by is not None and replay_had_ended:
             report = f'{result.report()}\nthen the run ended with {run_ended_by}'
             is_failure = True
@@ -3226,26 +3337,20 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             else:
                 self.rebaseline.discard()
                 report = f'{report}\n{self.rebaseline.destination} was not written'
-        elif self.replay_sources.is_reseeded and run_ended_by is None:
+        elif replay_sources.is_reseeded and run_ended_by is None:
             # Under another seed than recorded (rule 19 of glitchygames/replay/driver.py) the
             # differences are what the replay reports, never a failure, and nothing is written
             report = RebaselineSummary.from_result(
                 result=result, path=None
             ).describe_reseeded_replay(
-                random_seed=self.replay_sources.random_seed,
-                recorded_seed=self.replay_sources.recorded_seed,
+                random_seed=replay_sources.random_seed,
+                recorded_seed=replay_sources.recorded_seed,
             )
             is_failure = False
         if result.processing is not None:
             # After the replay's own report (glitchygames/replay/processing.py)
             report = f'{report}\n{result.processing.describe()}'
-        if self.replay_sources.options.headless:
-            sys.stdout.write(f'{report}\n')
-            sys.stdout.flush()
-        elif is_failure:
-            self.log.error(report)
-        else:
-            self.log.info(report)
+        return ReplayReport(text=report, is_failure=is_failure)
 
     def _enter_headless_mode(self: Self) -> None:
         """--headless: run on SDL's dummy video and audio drivers (no window, no sound).
@@ -3468,6 +3573,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
     def _finish_the_teardown(self: Self) -> None:
         """Print the end-of-run reports (unless the replay restarts) and shut down pygame."""
+        # The run is over: nothing still queued is a later run's, even when the host keeps
+        # pygame running and so its queue (BUGS.md #276)
+        discard_events_left_at_the_runs_end()
         # A step back restarts the replay (glitchygames/replay/rebuild.py): not the end of the
         # run, so the end-of-run reports wait for the last replay
         if self.replay_sources is not None and self.replay_sources.result.restart_frame is not None:
@@ -3598,7 +3706,20 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         short (``ExitCode.REPLAY_DIVERGED``; a rebaseline ends normally then, with what the game
         ran); at the normal end of a replay, with the replay's exit code (``ExitCode.SUCCESS``,
         ``ExitCode.REPLAY_DIVERGED`` or ``ExitCode.UNUSABLE_INPUT`` for a truncated recording).
+
+        A hosted start (``render_target.hosted_start_requested()``: an inner context, or one
+        that called ``request_hosted_start()``) builds the game up to its first frame and
+        returns, keeping the engine for the host (``render_target.take_started_engine()``),
+        which runs the frames and their end itself; none of the above applies to it.
         """
+        # A hosted start (an inner context, or one that asked: glitchygames/render_target.py):
+        # build the game up to its first frame and hand the engine to the host, which steps its
+        # frames. No signal handlers, no blocking loop and no crash boundary, whose teardown
+        # would quit pygame for every context
+        if hosted_start_requested():
+            self._build_game(paced_by_timer=False)
+            note_started_engine(engine=self)
+            return
         profiler = self._begin_start()
         with self._crash_boundary(profiler=profiler):
             self._run_game()
@@ -3651,12 +3772,16 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             if self._begin_run():
                 if self._power_on_plays():
                     sound_cues = self._power_on_sound_cues()
+                    startup_sounds = self._prepared_startup_sounds()
                     self._hand_back_power_on(
                         outcome=await play_power_on_async(
                             screen=self.screen,
                             sources=active_sources(),
                             wait_for_tick=wait_for_tick,
                             sound_cues=sound_cues,
+                            idle_work=(
+                                None if startup_sounds is None else startup_sounds.compile_for
+                            ),
                         ),
                         sound_cues=sound_cues,
                     )
@@ -3798,9 +3923,13 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             return
         if self._power_on_plays():
             sound_cues = self._power_on_sound_cues()
+            startup_sounds = self._prepared_startup_sounds()
             self._hand_back_power_on(
                 outcome=play_power_on(
-                    screen=self.screen, sources=active_sources(), sound_cues=sound_cues
+                    screen=self.screen,
+                    sources=active_sources(),
+                    sound_cues=sound_cues,
+                    idle_work=None if startup_sounds is None else startup_sounds.compile_for,
                 ),
                 sound_cues=sound_cues,
             )
@@ -3892,6 +4021,31 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         if outcome is PowerOnOutcome.QUIT:
             post_input_event(event=pygame.event.Event(pygame.QUIT))
 
+    def build_live_sources(
+        self: Self, *, random_seed: int, captures_scene_starts: bool
+    ) -> LiveSources:
+        """Build the live doors a live run reads through, beneath its host's.
+
+        Called once, as the engine is constructed, for every run that is not a replay. A
+        subclass may build other live doors: the golden-trace harness's engine builds stand-in
+        devices' (``GoldenTraceEngine(stand_in_devices=...)``,
+        glitchygames/replay/tools/golden_traces.py).
+
+        Args:
+            random_seed: The run's master seed (glitchygames/randomness.py).
+            captures_scene_starts: True when the run will be recorded (``--record-trace``), so
+                scene starts are captured from its first scene on (``LiveSources``).
+
+        Returns:
+            The live doors.
+
+        """
+        return LiveSources(
+            random_seed=random_seed,
+            use_fastevents=GameEngine.USE_FASTEVENTS,
+            captures_scene_starts=captures_scene_starts,
+        )
+
     def _host_sources(self: Self, *, inner: LiveSources, overlay: OnionSkin | None) -> HostSources:
         """Build the host's doors: the AI's subclass only for a run that has a link.
 
@@ -3924,18 +4078,42 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         if self.ai_link is not None:
             self.ai_link.start()
 
+        # Every declared sound compiled before the game is built: what the power-on's idle time
+        # left, or all of them where it was skipped (and in a hosted start, which has none)
+        startup_sounds = self._prepared_startup_sounds()
+        if startup_sounds is not None:
+            startup_sounds.finish()
+
+        # The setter gives the scene manager this engine's options (manager.engine_options).
+        # Before the game is built: a constructor asking for scene_manager.audio (a sprite
+        # loading its sound) gets an audio engine made from these options, where it once got
+        # cache ram and the default partition whenever the CRT power-on had not made one first
+        self.scene_manager.game_engine = self
+
         # Build the game's scene: engine.game stays its class, the scene is running_game.instance
         scene = self.game(options=self.options)
         self.running_game = RunningGame(game_class=self.game, instance=scene)
-
-        # The setter gives the scene manager this engine's options (manager.engine_options)
-        self.scene_manager.game_engine = self
 
         self._initialize_event_managers()
 
         self.scene_manager.switch_to_scene(scene)
         self._configure_timer_and_performance(paced_by_timer=paced_by_timer)
         self._start_requested_trace_recording()
+
+    def _prepared_startup_sounds(self: Self) -> StartupSounds | None:
+        """Make, once, the compile of the game's declared sounds (``Scene.SOUNDS``).
+
+        Returns:
+            It, over this context's audio engine; None when the game declares no sounds (so a
+            game without sound makes no audio engine).
+        """
+        if self._startup_sounds is None and self.game.SOUNDS:
+            from glitchygames.audio.startup import StartupSounds
+
+            self._startup_sounds = StartupSounds(
+                audio=self.scene_manager.audio_for(game_engine=self), sources=self.game.SOUNDS
+            )
+        return self._startup_sounds
 
     def _describe_exit_request(self: Self, *, exit_status: object) -> str:
         """Describe a SystemExit that ended the run, for the log and the replay report.
@@ -4217,9 +4395,11 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             dispatched_event_count += 1
 
             # Support scenes processing pygame raw events, bypassing
-            # the glitchygames.engine event processing altogether
-            if hasattr(self._active_scene, 'process_event'):
-                self._active_scene.process_event(pygame_event)  # type: ignore[union-attr] # ty: ignore[call-non-callable]
+            # the glitchygames.engine event processing altogether. The scene manager's active
+            # scene is the only one: the engine keeps no copy that could go stale
+            raw_event_handler = getattr(self.scene_manager.active_scene, 'process_event', None)
+            if raw_event_handler is not None:
+                raw_event_handler(pygame_event)
                 continue
 
             event = events.HashableEvent.from_pygame(pygame_event)

@@ -1,9 +1,14 @@
 # GlitchyGames Sound Engine — Implementation Specification
 
 - **Date:** 2026-11-02 (revision 2: the one-call `audio.sound(...)` API; builder-check fixes)
-- **Status:** DRAFT for the owner's review. M1 is built on this branch (2026-11-02; user docs:
-  `docs/architecture/sound.md`); M2 onwards is not. The experiments in Appendix A are throwaway
-  and are not in the repository.
+- **Status:** DRAFT for the owner's review. M1 is built (2026-11-02; user docs:
+  `docs/architecture/sound.md`). M2's migration is built (2026-11-15, branch
+  `chore/upgrade-and-sounds-on-first-use`, plans/2026-11-14-sound-migration.md): effects
+  first-class, the five games on the library, the start-up compile, live instruments with
+  parameters, routes, curves and smoothing, the old sound paths removed, and the disk cache
+  (§6.4, built ahead of M3, the default). The rest of M2 and M3 onwards are not
+  (plans/future-work.md). Sections that changed with the migration say so. The experiments in
+  Appendix A are throwaway and are not in the repository.
 - **Companion:** `docs/specs/2026-11-02-sound-engine-feature-spec.md` (what the engine does; the
   requirement IDs used below).
 - **Branch:** `docs/sound-engine-specs`.
@@ -17,6 +22,12 @@ by the spec's author after the builder check, open to the owner's change).
 ---
 
 ## 1. Repository evidence
+
+These are the codebase's facts on the spec's date (`origin/main` 0f1a4b81), what the design was
+built on. The migration changed several since (plans/2026-11-14-sound-migration.md):
+`recipes.py` is `effects.py` (recipes are effects), `LiveVoice`, `SoundBank`, `load_sound`,
+`reserve_live_voice_pool` and the public `live_audio` are gone, and every live voice is a live
+instrument's (§7.5).
 
 | Question from the brief | Answer [Fact] | Where |
 | --- | --- | --- |
@@ -109,9 +120,10 @@ Observations made while reading (reported per the owner's instructions; not bugs
      "setup" (before the scene's first logic frame) or to the current frame number.
 4. **Play**: `sound.play(...)` allocates a channel (§7.1), calls `Channel.play(sound, loops)`
    and then `Channel.set_volume(left, right)`. The mixer (C, SDL's audio thread) does the rest.
-5. **Live**: `sound.start(...)` creates a `LiveVoice` on a reserved live channel. Each frame,
-   `AudioEngine.update` renders the next chunk when the queue has room (today's mechanism
-   [Fact]), reading the latest coalesced parameter values.
+5. **Live**: `sound.start(...)` creates an `InstrumentVoice` on a channel of the context's live
+   pool (§7.5). Each frame, `AudioEngine.update` applies the live pool's owner rules and renders
+   each voice's next chunk when its queue has room, reading the latest coalesced parameter
+   values.
 6. **Offline**: `OfflineMixer` takes compiled float buffers (or steps live renderers with a
    parameter timeline) and sums them at exact sample offsets into a file.
 
@@ -187,14 +199,18 @@ harness. If it fails, the fallback is A as specified. The Renderer layer is pure
 | Main (game loop) | all API calls, compiles, live chunk rendering, channel allocation, bus volume updates, diagnostics | engine |
 | SDL audio thread | pygame's C mixer: sums playing channels, and calls the channel-finished callback that queues a live voice's next chunk [Fact] | SDL |
 
-No new thread is created **[Proposal]**. The brief's command-queue and memory-ordering
+No new thread is created **[Proposal]**. The start-up compile (a game's declared sounds,
+`Scene.SOUNDS`) runs on the main thread too, in slices during the CRT power-on's frames' idle
+time, then whatever is left before the game is built (`audio/startup.py`; migration decision 6).
+The brief's command-queue and memory-ordering
 requirements apply only to the deferred native core (§3.4). With one thread there is nothing to
 queue: an API call takes effect through pygame's own thread-safe mixer calls.
 
 ### 4.2 Bounded work per frame
 
-`AudioEngine.update(dt=...)` runs once per frame, in the slot where `LiveAudio.update` runs today
-[Fact: `scene.py:1227`], with the same scene and pause arguments. It:
+`AudioEngine.update(dt=...)` runs once per frame, in the slot where `LiveAudio.update` ran
+[Fact: `scene.py:1227`], with the same scene and pause arguments, and applies the live pool's owner
+rules itself (built: migration step 7b, so a caller outside a game makes one call a frame). It:
 
 1. advances scheduled plays whose frame has arrived (M2; feature spec §7.1, late rule);
 2. advances each unpaused voice's played time by `dt` and reaps voices whose sound has ended
@@ -307,7 +323,7 @@ logged once.
 The models are pydantic v2 [Fact: an engine dependency] with `extra='forbid'`. Error messages
 render pydantic's `loc` tuple as a TOML path (`instruments.vehicle.routes[1].output`), with a "did
 you mean" from `difflib.get_close_matches`. A field that exists in the schema but belongs to a
-later milestone is rejected with "`routes` arrives in M2" until its milestone lands
+later milestone is rejected with "`vibrato` arrives in M4" until its milestone lands
 (AUD-ASSET-003). Defaults are listed; a field without one is required.
 
 **`[glitchygames]`**: `kind = "sounds"` (required), `version = 1` (required).
@@ -339,8 +355,10 @@ Plus, for every kind: `normalize` (bool, default true).
 | `filter` with `band_pass`, `resonance`, `envelope` | as above + `resonance` 0–0.95, `envelope` table with `amount_octaves` | none | M2 |
 | `drive` | 0–20 | 0 | M1 |
 | `bits`, `sample_rate_reduction` | 1–16; Hz | none | M2 |
-| `parameters.<name>` | `{ range = [lo, hi], default, smoothing_ms = 30, unit = "" }` | none | M2 |
-| `routes` | array of `{ from, to, curve = "linear", output = [a, b] }` | none | M2 |
+| `parameters.<name>` | `{ range = [lo, hi], default, smoothing_ms = 30, glide = "one_pole", unit = "" }`; `glide = "linear"` reaches the target in a straight line over `smoothing_ms` (plans/2026-11-14-sound-migration.md, step 7b) | none | M2 |
+| `routes` | array of `{ from, to, curve = "linear", output = [a, b] }`; `output` in numbers (Hz for `pitch`): note names are later work, since they would resolve without the game's tuning | none | M2 |
+| `chunk_seconds` | 0.03–0.5, live only: the voice's chunk length, its latency (below 30 ms a chunk cannot cover a 60 fps frame plus the device buffer) | 0.1 | M2 (plans/2026-11-14-sound-migration.md, step 7b) |
+| `tremolo` | `{ rate_hz, depth }` (an effect tone's form), live only; `tremolo.rate` and `tremolo.depth` are route destinations | none | M2 (plans/2026-11-14-sound-migration.md) |
 | `vibrato`, `lfos`, `glide`, `bend_range` | tables | none | M4 |
 | `algorithm`, `operators`, `feedback` | FM | none | M4 |
 | `delay`, `wow_flutter` | tables | none | M4 |
@@ -431,12 +449,17 @@ both.
   Above `--sound-cache-memory` (default 256 MB), the least recently played sounds that are not
   playing are dropped. They are recompiled on their next request, which is counted.
 - **Disk (`'disk'`, M3):** memory first, then disk.
-  - Layout: `<cache>/sounds/<render_version>/<key[:2]>/<key>.wav` (16-bit PCM WAV at the mixer
-    rate), written with `output_files.write_aside_then_replace` [Fact].
+  - Layout: `<cache>/<game package>/sounds/<render_version>/<key[:2]>/<key>.wav` (16-bit PCM WAV
+    at the mixer rate), written aside to a temporary file of its own, then moved into place
+    (plans/2026-11-14-sound-cache-on-first-use.md, decision 3). One folder per game (the owner,
+    2026-11-15), so a game's limit and pruning touch only its own files.
+  - **`'disk'` is the default** (the owner, 2026-11-15, ahead of M3's benchmarks): a read beats
+    a compile on every machine measured, a Raspberry Pi's SD card cold included
+    (`scripts/benchmark_sound_cache.py`). A read writes nothing (SD cards wear from writes).
   - The cache root is a new `state/paths.get_cache_directory(app_name)` beside
     `get_save_directory` [Fact]: macOS `~/Library/Caches/<app>/`, Linux `$XDG_CACHE_HOME/<app>/`
     (default `~/.cache/<app>/`), Windows `%LOCALAPPDATA%\<app>\Cache\`.
-  - The size limit is 64 MB, and the oldest-accessed files are pruned at startup.
+  - The size limit is 64 MB per game, and the oldest written files are pruned at startup.
   - Reads verify the WAV header's rate and length. A bad file is deleted and recompiled.
   - In the browser and in tests, `'disk'` falls back to `'ram'` with one log line. Under
     `--headless` outside tests it is honoured, so the M2 startup benchmark can measure it.
@@ -452,10 +475,11 @@ conventions, not separate APIs.
 1. **Setup (the convention):** games call `audio.sound(...)` in `setup()`. Those compiles run
    before the scene's first logic frame and are attributed to setup. A setup whose compiles exceed
    50 ms logs one INFO line naming the slowest sounds.
-2. **Loading screens:** `audio.sounds.warm(requests, budget_ms=...)` takes a list of `sound(...)`
-   argument sets and compiles as many as fit in the budget each time it is called, returning
-   progress from 0 to 1. It exists only so a loading scene can spread work across frames; it calls
-   the same compile path.
+2. **The game's start (built in the migration, replacing `warm`):** a game declares every sound
+   it plays (`Scene.SOUNDS` on the class it hands `GameEngine`); `StartupSounds` compiles them
+   in slices during the CRT power-on's idle time and the rest before the game is built, through
+   the same compile path, so none compiles mid-frame (`audio/startup.py`; migration decision 6).
+   `audio.sounds.warm(...)` was removed with it.
 3. **Gameplay:** a first request inside a gameplay frame compiles there. It is timed, counted and
    listed with its frame (AUD-FUNC-003).
 4. **The engine's own sounds** (CRT) compile before the power-on, in
@@ -494,7 +518,7 @@ set_reserved(live_pool + library_channels)                         # 0 .. 35 res
 | --- | --- | --- |
 | `0 .. live_pool-1` | live voices (today's pool, unchanged [Fact]) | `LiveAudio` |
 | `live_pool .. live_pool+library-1` | the sound library | the library's own table (`Channel(i).play`) |
-| the rest (8, pygame's default count) | legacy `Sound.play()` callers: `SoundBank`, `load_sound`, any game code | SDL picks among unreserved channels |
+| the rest (8, pygame's default count) | a game's own `pygame.mixer.Sound.play()` (`SoundBank` and `load_sound`, the engine's, were removed in M2) | SDL picks among unreserved channels |
 
 The library never calls `Sound.play()`, and legacy callers can never reach reserved channels, so
 neither cuts the other off (AUD-MIX-008). The one-time reservation keeps today's rule that the
@@ -595,16 +619,28 @@ loudness_budget)`:
 
 ### 7.5 Live voices (M2)
 
-The existing `LiveVoice`/`LiveAudio` [Fact] is generalized. A `LiveVoice` renders chunks from a
-compiled live instrument (sources, routes, filter state, smoothed parameters) instead of a single
-waveform with a cutoff:
+**Built in the migration** (plans/2026-11-14-sound-migration.md steps 5-7b), as follows. The
+older `LiveVoice` was split, then removed: its channel and lifecycle are `live.LiveStream` (start,
+one chunk playing and one queued, fades rendered in, pause, drain, the context's audible route),
+its crossfaded filter `live.FilterState`, and every live voice is a live instrument's:
 
-- The chunk length is configurable with `--live-chunk-ms` (default 100). M3 measures 50 ms against
-  the underrun probe (`scripts/audio_glitch_probe.py` [Fact]). The safety margin is the chunk
-  minus the device buffer [Fact: module docstring], so 50 ms leaves about 38 ms.
+- `live_instrument.InstrumentVoice` renders an `Instrument(live=True)` per chunk: smoothed
+  parameters (one-pole, or `glide='linear'`), routes, its sources (sine, square, saw, triangle
+  and white noise for now) mixed by level, the filter, tremolo, then volume and level. Steady
+  settings render what the old voice rendered (tested to rounding against its rendering, kept in
+  the test).
+- `Sound.start()` puts it on the context's live pool (`live.LiveAudio`, the audio engine's) and
+  returns a `LiveSoundHandle` (§8). Its playback settings travel as one
+  `live.LiveVoiceOptions`: persist, priority (a full pool steals the lowest at or below), pan
+  (the constant-power law every sound pans by) and the bus's gain, read per chunk.
+- The chunk length is the instrument's (`Instrument(chunk_seconds=)`, 0.03-0.5 s, default 0.1),
+  not an engine option: latency is part of a live sound's design (the owner, 2026-11-15).
+  `--live-chunk-ms` is not built. M3 measures 50 ms against the underrun probe
+  (`scripts/audio_glitch_probe.py`, which plays the elevator motor). The safety margin is the
+  chunk minus the device buffer, so 50 ms leaves about 38 ms.
 - The pool grows from 4 to 8 only if AUD-RT-002 holds on the CI Linux container profile (1 CPU
   [Fact: `nox -s test-linux-ci`]).
-- `scene_manager.live_audio.create_voice(...)` stays, implemented on the new voice table.
+- `scene_manager.live_audio.create_voice(...)` was removed with the old paths (§10.4).
 
 ### 7.6 Streams (M5)
 
@@ -721,7 +757,7 @@ class AudioEngine:
     buses: BusTree
     music: MusicTransport            # M5
     tuning: Tuning
-    sounds: SoundLibrary             # warm(), names(), cache statistics
+    sounds: SoundLibrary             # names(), cache statistics
 
     def sound(self, source: SoundSource, *, pitch: PitchLike | None = None,
               notes: str | Sequence[tuple[PitchLike, float]] | None = None,
@@ -754,9 +790,11 @@ class Sound:                         # compiled, immutable, shared; returned by 
              position: tuple[float, float] | None = None) -> SoundHandle: ...
              # None = the sound file's default, else the engine default
     def start(self, *, parameters: Mapping[str, float] | None = None,
-              volume: float | None = None, pan: float | None = None, bus: str | None = None,
-              priority: int | None = None, persist: bool = False) -> LiveSoundHandle: ...
-              # live sounds only; TypeError on a baked sound
+              volume: float | None = None, owner: object | None = None,
+              persist: bool = False, pan: float | None = None, bus: str | None = None,
+              priority: int | None = None) -> LiveSoundHandle: ...
+              # live sounds only (SoundRenderError on a baked one, and play() on a live one);
+              # owner None: the scene that starts it; built 2026-11-15 (migration 5d, 7b)
 
 class SoundHandle:   # frozen (slot, generation); methods consult the engine's voice table
     def stop(self, *, fade: float = 0.05) -> bool: ...
@@ -768,14 +806,23 @@ class SoundHandle:   # frozen (slot, generation); methods consult the engine's v
     def set_volume(self, volume: float, *, fade: float = 0.0) -> bool: ...
     def set_pan(self, pan: float) -> bool: ...
 
-class LiveSoundHandle(SoundHandle):
-    def set(self, parameter: str, value: float) -> bool: ...   # KeyError for an unknown name
-    def note_on(self, pitch: PitchLike, *, velocity: float = 1.0) -> bool: ...
-    def note_off(self) -> bool: ...
+class LiveSoundHandle:   # built: live_instrument.py; both handles are a voices.PlayingSound
+    def set(self, parameter: str, value: float) -> bool: ...   # ValueError for an unknown name
+    def stop(self, *, fade: float = 0.05) -> bool: ...
+    def cancel(self) -> bool: ...             # at once, the queued chunk included
+    def release(self) -> bool: ...            # the live release (a 100 ms fade)
+    def set_volume(self, volume: float, *, fade: float = 0.0) -> bool: ...
+    def set_pan(self, pan: float) -> bool: ...
+    def pause(self) -> bool: ...              # holds until resume(), whatever the owner rules
+    def resume(self) -> bool: ...
+    def set_frequency(self, frequency: float) -> bool: ...     # refused where a route moves it
+    def set_cutoff(self, cutoff: float | None) -> bool: ...    # None removes the filter
+    def set_tremolo(self, tremolo: Tremolo | None) -> bool: ...
+    @property
+    def is_playing(self) -> bool: ...
+    # note_on(pitch, velocity=...) and note_off(): later M2 work (plans/future-work.md)
 
 class SoundLibrary:
-    def warm(self, requests: Sequence[Mapping[str, object]], *,
-             budget_ms: float | None = None) -> float: ...       # progress 0-1
     def names(self) -> tuple[str, ...]: ...                      # the short names indexed
     def statistics(self) -> CacheStatistics: ...
 
@@ -796,19 +843,19 @@ def render_to_file(sound: Sound, path: Path | str, *, sample_rate: int | None = 
 - **Errors:** `SoundAssetError` (file problems, duplicate names), `SoundRenderError` (a compile
   bug), `KeyError` (unknown short name or parameter) and `ValueError` (invalid argument). The new
   errors derive from the existing `glitchygames.audio.exceptions` hierarchy [Fact:
-  `AudioUnavailableError`, `SoundRecipeError`].
+  `AudioUnavailableError`, `SoundRecipeError` (now `EffectError`)].
 - **No mixer:** `sound()` compiles to float buffers (no `pygame.mixer.Sound`), so offline
   rendering and tests work. `play()` returns a handle whose methods return `False`, and a warning
   is logged once (AUD-FUNC-006).
 - **Access point:** `SceneManager.audio`, a property creating the `AudioEngine` on first use, as
-  `live_audio` does today [Fact: `scene.py:1262`]. It is a `ContextSlot` value, so each engine
+  `live_audio` did [Fact: `scene.py:1262`]. It is a `ContextSlot` value, so each engine
   context has its own library, voices and short-name index. **[Call]** M1 adds only the slot.
   Muting all but the audible context is Arcade work, done with the Arcade.
 - `Scene.SOUND_DIRECTORY` is a class attribute (default `'sounds'`), resolved relative to the
   scene's package directory (`identity.game_identity(...).package_directory` [Fact]). The index
   is per directory, so scenes sharing a directory share it.
-- **Compatibility:** `scene_manager.live_audio` stays. In M2 it is implemented on the new voice
-  table.
+- **Compatibility:** `scene_manager.live_audio` was removed in M2's clean-up (§10.4); the
+  scene manager's live pool is private, the audio engine's (`Sound.start()`).
 
 ---
 
@@ -855,7 +902,8 @@ def render_to_file(sound: Sound, path: Path | str, *, sample_rate: int | None = 
   harness's repeated engines) and every engine context compiles nothing for the CRT.
   - **Scope:** only the engine's own CRT sounds. Game sounds stay per engine context in each
     context's `SoundLibrary`, and each context keeps its own `AudioEngine`, voices and accounting.
-  - **What is shared:** the compiled samples (float64 and int16, made read-only) with their peak
+  - **What is shared:** the compiled samples (int16, made read-only; the float64 render is dropped
+    once they are made, 2026-11-18, `Sound.release_float_samples`) with their peak
     and rate, never a `Sound`: each library makes its own `Sound` over them, because a `Sound`
     carries its context's player (`attach_player`, the engine whose voices play it) and its own
     pygame sound, built from the samples on its first play. A pygame `Sound` could be played from
@@ -917,8 +965,8 @@ def render_to_file(sound: Sound, path: Path | str, *, sample_rate: int | None = 
 | --- | --- | --- |
 | `--sound-channels N` | 32 | library channels |
 | `--live-voice-pool N` | 4 | exists [Fact] |
-| `--live-chunk-ms` | 100 | M2 |
-| `--sound-cache {none,ram,disk}` | ram | `none` and `ram` from M1; `disk` is refused (`OPTIONS_REFUSED`, "arrives in M3") until M3. Replay-local (added to `REPLAY_LOCAL_OPTIONS` [Fact: `replay/driver.py`]), so a recording replays under any mode |
+| `--live-chunk-ms` | 100 | not built: a live sound's chunk length is its instrument's (`Instrument(chunk_seconds=)`, §7.5) |
+| `--sound-cache {none,ram,disk}` | disk | `none` and `ram` from M1; `disk` built ahead of M3 and the default since 2026-11-15 (§6.4): each game's sounds in its own folder, read back on later launches. Replay-local (added to `REPLAY_LOCAL_OPTIONS` [Fact: `replay/driver.py`]), so a recording replays under any mode |
 | `--sound-cache-memory MB` | 256 | |
 | `--crt-power-on-sound {on,off}` | on | |
 | `--sound-diagnostics` | off | starts with the debug overlay on, showing the Audio panel (§10.5) |
@@ -935,6 +983,14 @@ def render_to_file(sound: Sound, path: Path | str, *, sample_rate: int | None = 
   sleep].
 
 ### 10.4 Migration and clean-up (M2), and legacy parity (fixes the builder check's third finding)
+
+**Built 2026-11-15** (plans/2026-11-14-sound-migration.md). As built, beside the plan below:
+recipes became effects (`Effect`, `[effects.*]`, `add_effects`; `[recipes.*]` still loads), so
+Clockwork Keep and Mr. Muncher request their `Effect`s directly rather than through a short-name
+adapter; Brave Adventurer's five sounds are effects too, byte-identical at 16 bits; PaddleSlap's
+WAVs are its own sound files; the motor and the projector are live instruments; every game
+declares its sounds for the start-up compile; and the old paths below were removed. The
+"Today" column is the codebase before the migration.
 
 **Version 0 recipes compile through today's renderer.** A `[recipes.*]` table (version 0)
 resolves to a `LegacyRecipeSpec`, and its compile calls `SoundRecipe.render()` unchanged [Fact:
@@ -1124,7 +1180,8 @@ ship the same modules.
 4. `assets.py`: v1 models for the M1 fields (§6.1), "arrives in Mx" rejection, v0 recipes as
    `LegacyRecipeSpec`, error formatting, the malformed corpus (≥ 20 cases), the short-name index.
 5. `library.py`: `sound()` resolution, identity hashing and memoization, compile accounting
-   (setup vs gameplay frames), the memory cache with its LRU limit, `warm`, `add_recipes`.
+   (setup vs gameplay frames), the memory cache with its LRU limit, `warm`, `add_recipes`
+   (since removed and renamed in M2's migration: §6.5, §10.4).
 6. `voices.py`/`buses.py`: the channel partition (§7.1), table allocation and stealing, handles
    with generations, `played_seconds` with pause, constant-power pan, bus volume/mute/solo.
 7. `engine.py`: the facade, the `SceneManager.audio` slot, `update(dt)` in the frame, the
@@ -1142,6 +1199,10 @@ ship the same modules.
     section, and `plans/future-features.md` #53 marked built for the sound.
 
 ### M2 — Live, migration and clean-up
+
+Built 2026-11-15: live instruments (parameters, routes, curves, smoothing, tremolo, `start()`
+and its handle) and the migration of all five games with the removal of the old paths (§10.4).
+The rest is not yet (plans/future-work.md).
 
 - Live instruments with parameters, routes, curves and smoothing.
 - State-variable filter, pink noise, bit and rate reduction.
@@ -1318,8 +1379,8 @@ Tests live in `tests/audio/` unless noted; benchmarks are in `tests/benchmarks/`
   `.play()` plays it.
 - The surrounding API covers pitch types (notes, hertz, MIDI and scale steps side by side), named
   and blendable waves whose numbers are named, and TOML instruments.
-- Continuously controlled sounds render in live chunks on the main thread, extending today's
-  `LiveVoice`.
+- Continuously controlled sounds render in live chunks on the main thread, as the old
+  `LiveVoice` did (built: live instruments, §7.5).
 - There are no new dependencies and no new threads, and nothing new for replays, headless runs or
   the browser's compiled-sound path to learn.
 

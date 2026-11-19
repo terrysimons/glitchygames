@@ -24,6 +24,7 @@ from glitchygames.events import (
     JoyHatEvent,
     JoystickEvents,
     ResourceManager,
+    set_event_types_allowed,
 )
 from glitchygames.input.state import current_input
 from glitchygames.sources import active_sources
@@ -375,7 +376,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         """
         super().__init__(game=game)
         try:
-            pygame.event.set_allowed(JOYSTICK_EVENTS)
+            set_event_types_allowed(event_types=JOYSTICK_EVENTS, allowed=True)
         except pygame.error:
             LOG.debug('Failed to set allowed joystick events: pygame not fully initialized')
         self.game: Any = game

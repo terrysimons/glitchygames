@@ -1,4 +1,4 @@
-"""Mr. Muncher's sound effects and jingles, as synth recipes (glitchygames/audio/recipes.py).
+"""Mr. Muncher's sound effects and jingles (glitchygames/audio/effects.py), and its projector.
 
 All original, and all cinema: eating a sprocket is a popcorn crunch (two slightly different
 ones, alternating, so a run of them never repeats exactly), a snack is a clapperboard's clack
@@ -10,7 +10,9 @@ falling minor phrase. Values are starting points tuned by ear; edit them freely.
 
 from __future__ import annotations
 
-from glitchygames.audio.recipes import SoundRecipe, Tone, Tremolo
+from glitchygames.audio.effects import Effect, Tone, Tremolo
+from glitchygames.audio.instrument import Filter, Instrument
+from glitchygames.audio.live_controls import Parameter, Route
 from glitchygames.audio.synth import Envelope, Waveform
 
 # One beat of the jingles, in seconds
@@ -95,7 +97,7 @@ def _clack(*, offset: float = 0.0) -> Tone:
     )
 
 
-def _crunch(*, name: str, cutoff: float, pop_frequency: float) -> SoundRecipe:
+def _crunch(*, name: str, cutoff: float, pop_frequency: float) -> Effect:
     """Return a popcorn crunch: a short burst of filtered noise over a falling pop.
 
     Args:
@@ -107,7 +109,7 @@ def _crunch(*, name: str, cutoff: float, pop_frequency: float) -> SoundRecipe:
         The recipe.
 
     """
-    return SoundRecipe(
+    return Effect(
         name=name,
         volume=0.18,
         tones=(
@@ -134,9 +136,9 @@ def _crunch(*, name: str, cutoff: float, pop_frequency: float) -> SoundRecipe:
 CRUNCH_ONE = _crunch(name='crunch_one', cutoff=1800.0, pop_frequency=700.0)
 CRUNCH_TWO = _crunch(name='crunch_two', cutoff=2600.0, pop_frequency=820.0)
 # Played alternately, one per sprocket
-CRUNCH_RECIPES = (CRUNCH_ONE, CRUNCH_TWO)
+CRUNCH_EFFECTS = (CRUNCH_ONE, CRUNCH_TWO)
 
-SUGAR_RUSH = SoundRecipe(
+SUGAR_RUSH = Effect(
     name='sugar_rush',
     volume=0.3,
     tones=(
@@ -155,7 +157,7 @@ SUGAR_RUSH = SoundRecipe(
     ),
 )
 
-CAMERA_FLASH = SoundRecipe(
+CAMERA_FLASH = Effect(
     name='camera_flash',
     volume=0.32,
     tones=(
@@ -175,7 +177,7 @@ CAMERA_FLASH = SoundRecipe(
     ),
 )
 
-EAT_BONUS = SoundRecipe(
+EAT_BONUS = Effect(
     name='eat_bonus',
     volume=0.3,
     tones=_melody(
@@ -186,7 +188,7 @@ EAT_BONUS = SoundRecipe(
 )
 
 # Caught: the film snaps, then a sad trombone slides down four notes, sagging on the last
-FILM_SNAP = SoundRecipe(
+FILM_SNAP = Effect(
     name='film_snap',
     volume=0.4,
     tones=(
@@ -220,7 +222,7 @@ FILM_SNAP = SoundRecipe(
     ),
 )
 
-LEVEL_CLEAR = SoundRecipe(
+LEVEL_CLEAR = Effect(
     name='level_clear',
     volume=0.35,
     tones=_melody(
@@ -235,7 +237,7 @@ LEVEL_CLEAR = SoundRecipe(
     ),
 )
 
-EXTRA_LIFE = SoundRecipe(
+EXTRA_LIFE = Effect(
     name='extra_life',
     volume=0.3,
     tones=_melody(
@@ -246,7 +248,7 @@ EXTRA_LIFE = SoundRecipe(
 )
 
 # A film leader's countdown beep, one per number
-COUNTDOWN_BEEP = SoundRecipe(
+COUNTDOWN_BEEP = Effect(
     name='countdown_beep',
     volume=0.25,
     tones=(
@@ -260,7 +262,7 @@ COUNTDOWN_BEEP = SoundRecipe(
 )
 
 # ACTION!: the clapperboard, then a bright major chord over a low root
-ACTION = SoundRecipe(
+ACTION = Effect(
     name='action',
     volume=0.32,
     tones=(
@@ -284,7 +286,7 @@ ACTION = SoundRecipe(
     ),
 )
 
-THE_END = SoundRecipe(
+THE_END = Effect(
     name='the_end',
     volume=0.35,
     tones=_melody(
@@ -295,7 +297,29 @@ THE_END = SoundRecipe(
     + _melody(notes=(('A2', 4.0),), waveform=Waveform.TRIANGLE, volume=1.0),
 )
 
-ALL_RECIPES = (
+# The projector behind play: filtered noise that flutters like a film projector's shutter. The
+# game sets its ``cutoff`` and ``flutter`` (Hz) for the moment; each routes one to one. No
+# smoothing: a cutoff change is crossfaded across a chunk, and the flutter's phase carries on,
+# as the older live voice did.
+PROJECTOR_CUTOFF_RANGE_HZ = (300.0, 2000.0)  # frightened, slowest, to eyes going home
+PROJECTOR_FLUTTER_RANGE_HZ = (8.0, 40.0)
+PROJECTOR = Instrument(
+    noise='white',
+    live=True,
+    filter=Filter('low_pass', 500.0),
+    tremolo=Tremolo(rate_hz=20.0, depth=0.8),
+    parameters={
+        'cutoff': Parameter(range=PROJECTOR_CUTOFF_RANGE_HZ, default=500.0, smoothing_ms=0.0),
+        'flutter': Parameter(range=PROJECTOR_FLUTTER_RANGE_HZ, default=20.0, smoothing_ms=0.0),
+    },
+    routes=[
+        Route(source='cutoff', destination='filter.cutoff', output=PROJECTOR_CUTOFF_RANGE_HZ),
+        Route(source='flutter', destination='tremolo.rate', output=PROJECTOR_FLUTTER_RANGE_HZ),
+    ],
+)
+
+# Every effect the game plays, requested from the sound library when a level is built
+EFFECTS = (
     CRUNCH_ONE,
     CRUNCH_TWO,
     SUGAR_RUSH,

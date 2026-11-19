@@ -12,9 +12,10 @@ from typing import TYPE_CHECKING, NamedTuple, Self, assert_never, override
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from glitchygames.audio.library import Sound
+
 import pygame
 
-from glitchygames import game_objects
 from glitchygames.collision.detection import get_collision_rect, snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.collision.solids import entered_from_left
@@ -372,7 +373,7 @@ class BallSprite(Sprite):
         height: int = 20,
         radius: int = 5,
         groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
-        collision_sound: str | None = None,
+        collision_sound: Sound | None = None,
         bounce_top_bottom: bool = True,
         bounce_left_right: bool = False,
         speed_up_settings: SpeedUpSettings | None = None,
@@ -389,7 +390,8 @@ class BallSprite(Sprite):
             radius (int): The radius of the circle drawn centred in the image: the visible ball,
                 whose pixels are its hitbox (BUGS.md #172: it was always 5 whatever the size).
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
-            collision_sound (str | None): The sound to play on collision.
+            collision_sound (Sound | None): The sound to play on a wall bounce (the game's,
+                from its audio engine), or None for none.
             bounce_top_bottom (bool): Whether to bounce off top and bottom boundaries.
             bounce_left_right (bool): Whether to bounce off left and right boundaries.
             speed_up_settings (SpeedUpSettings | None): How and when the ball speeds up;
@@ -425,8 +427,8 @@ class BallSprite(Sprite):
         self._pixel_snap_mode = pixel_snap_mode
         self.world_x = float(x)
         self.world_y = float(y)
-        if collision_sound:
-            self.snd = game_objects.load_sound(collision_sound)
+        if collision_sound is not None:
+            self.snd = collision_sound
         self.color = WHITE
 
         # Configure boundary bouncing behavior

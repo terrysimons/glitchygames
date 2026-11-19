@@ -57,6 +57,8 @@ from glitchygames.recording import (
     UnrepresentableValue,
     custom_event_type_remap,
     custom_event_types_header,
+    discard_custom_events_queued_before_the_run,
+    discard_events_left_at_the_runs_end,
     event_from_record,
     event_origin,
     event_to_record,
@@ -70,6 +72,7 @@ from glitchygames.recording import (
     pending_internal_posts,
     post_event,
     post_input_event,
+    private_event_queue,
     remapped_event_records,
     reset_internal_post_tracking,
     set_live_game_code_running,
@@ -1182,6 +1185,70 @@ class TestInternalPostTracking:
 
         assert first_still_tracks is True
         stop_tracking_internal_posts()
+
+
+class TestDiscardCustomEventsQueuedBeforeTheRun:
+    """A run's start drops the custom events an earlier run left in SDL's queue (BUGS.md #276)."""
+
+    def test_custom_events_go_and_sdl_events_stay_in_order(self, event_queue):
+        # KEYDOWN is the one real input type event_queue leaves unblocked
+        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a))
+        pygame.event.post(pygame.event.Event(PROBE_EVENT_TYPE, left='over'))
+        pygame.event.post(pygame.event.Event(pygame.USEREVENT, left='over'))
+        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_b))
+        discard_custom_events_queued_before_the_run()
+
+        assert [(event.type, event.key) for event in pygame.event.get()] == [
+            (pygame.KEYDOWN, pygame.K_a),
+            (pygame.KEYDOWN, pygame.K_b),
+        ]
+
+    def test_an_inner_context_leaves_sdls_queue_to_its_owner(self, event_queue):
+        """An inner game drains a private queue; SDL's belongs to the window's context."""
+        pygame.event.post(pygame.event.Event(PROBE_EVENT_TYPE, owner='outer'))
+        with EngineContext(name='inner').active():
+            private_event_queue().enabled = True
+            discard_custom_events_queued_before_the_run()
+
+        assert [event.dict for event in pygame.event.get()] == [{'owner': 'outer'}]
+
+    def test_without_a_display_there_is_no_queue_to_read(self, mocker, event_queue):
+        pygame.event.post(pygame.event.Event(PROBE_EVENT_TYPE, left='over'))
+        mocker.patch.object(pygame.display, 'get_init', return_value=False)
+        discard_custom_events_queued_before_the_run()
+        mocker.stopall()
+
+        assert [event.dict for event in pygame.event.get()] == [{'left': 'over'}]
+
+
+class TestDiscardEventsLeftAtTheRunsEnd:
+    """A run's teardown empties its event queue, so no later run reads them (BUGS.md #276)."""
+
+    def test_sdls_queue_is_emptied(self, event_queue):
+        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a))
+        pygame.event.post(pygame.event.Event(PROBE_EVENT_TYPE, left='over'))
+        discard_events_left_at_the_runs_end()
+
+        assert pygame.event.get() == []
+
+    def test_an_inner_context_empties_its_own_queue_and_leaves_sdls(self, event_queue):
+        pygame.event.post(pygame.event.Event(PROBE_EVENT_TYPE, owner='outer'))
+        with EngineContext(name='inner').active():
+            private_event_queue().enabled = True
+            post_event(pygame.event.Event(PROBE_EVENT_TYPE, owner='inner'))
+            discard_events_left_at_the_runs_end()
+            inner_left = list(private_event_queue().events)
+
+        assert inner_left == []
+        assert [event.dict for event in pygame.event.get()] == [{'owner': 'outer'}]
+
+    def test_without_a_display_there_is_no_queue_to_empty(self, mocker, event_queue):
+        pygame.event.post(pygame.event.Event(PROBE_EVENT_TYPE, left='over'))
+        mocker.patch.object(pygame.display, 'get_init', return_value=False)
+        discard_events_left_at_the_runs_end()
+        mocker.stopall()
+
+        assert [event.dict for event in pygame.event.get()] == [{'left': 'over'}]
 
 
 def _recording_sources(*, path: Path) -> tuple[RecordingSources, GameplayRecorder, LiveSources]:

@@ -11,6 +11,10 @@ tests/benchmarks/test_logging_cost.py, ``nox -s performance-test``) and are skip
 What holds under any load (where levels change, the plateaus, the unmet smoothness criterion)
 stays in the normal suite, tests/audio/test_channel_fades.py.
 
+Each test reports every trial, whether or not it passes (printed, and written to
+``test-results/channel-fade-<case>.md`` by ``write_trial_report``), so a flaky run can be
+diagnosed afterwards by how close the relations came to flipping.
+
 Measured 2026-11-02 (pygame-ce 2.5.8, SDL 2.32.10, SDL_mixer 2.8.2): ``play`` at once replaces
 the fading sound at the next chunk (worst step 10.3 times the tone's own), so the voice table
 keeps its one-frame delayed play; with the wait, the stealer starts after the fade's first chunk.
@@ -31,7 +35,9 @@ from tests.audio.channel_fade_analysis import (
     recording_directory,
     shared_recording,
     trial_chunks,
+    trial_report_path,
     worst_step_ratio,
+    write_trial_report,
 )
 from tests.audio.channel_fade_probe import (
     STEAL_DELAYED,
@@ -56,7 +62,17 @@ def recorded(case: str, *, benchmark, request, tmp_path_factory) -> np.ndarray:
     return benchmark.pedantic(shared_recording, args=(case, directory), rounds=1, iterations=1)
 
 
-def test_fadeout_then_play_at_once_cuts_the_stolen_voice(benchmark, request, tmp_path_factory):
+def report_every_trial(samples: np.ndarray, *, case: str, request, capsys) -> None:
+    """Write the case's per-trial report and print it, before the test asserts anything."""
+    path, text = write_trial_report(samples, case=case)
+    terminal = request.config.pluginmanager.get_plugin('terminalreporter')
+    with capsys.disabled():
+        terminal.write_line(f'\n{text}\n(written to {path})')
+
+
+def test_fadeout_then_play_at_once_cuts_the_stolen_voice(
+    benchmark, request, tmp_path_factory, capsys
+):
     """Impl spec 7.1's open question, answered: ``play`` right after ``fadeout(10)`` cuts the fade.
 
     ``play`` on a channel straight after its ``fadeout(10)`` replaces the fading sound at the
@@ -68,10 +84,12 @@ def test_fadeout_then_play_at_once_cuts_the_stolen_voice(benchmark, request, tmp
     samples = recorded(
         STEAL_IMMEDIATE, benchmark=benchmark, request=request, tmp_path_factory=tmp_path_factory
     )
+    report_every_trial(samples, case=STEAL_IMMEDIATE, request=request, capsys=capsys)
     stolen = chunk_levels(samples, frequency=STOLEN_TONE_HZ)
     stealer = chunk_levels(samples, frequency=STEALER_TONE_HZ)
     recorded_trials = trial_chunks(samples)
 
+    assert trial_report_path(case=STEAL_IMMEDIATE).is_file()
     assert len(recorded_trials) == TRIAL_COUNT
     for chunks in recorded_trials:
         first_changed = action_chunk(stolen, chunks)
@@ -81,7 +99,7 @@ def test_fadeout_then_play_at_once_cuts_the_stolen_voice(benchmark, request, tmp
 
 
 def test_a_delayed_steal_starts_the_stealer_after_the_fades_first_chunk(
-    benchmark, request, tmp_path_factory
+    benchmark, request, tmp_path_factory, capsys
 ):
     """The voice table's delayed play: the stealer starts only after the fade's first chunk.
 
@@ -93,10 +111,12 @@ def test_a_delayed_steal_starts_the_stealer_after_the_fades_first_chunk(
     samples = recorded(
         STEAL_DELAYED, benchmark=benchmark, request=request, tmp_path_factory=tmp_path_factory
     )
+    report_every_trial(samples, case=STEAL_DELAYED, request=request, capsys=capsys)
     stolen = chunk_levels(samples, frequency=STOLEN_TONE_HZ)
     stealer = chunk_levels(samples, frequency=STEALER_TONE_HZ)
     recorded_trials = trial_chunks(samples)
 
+    assert trial_report_path(case=STEAL_DELAYED).is_file()
     assert len(recorded_trials) == TRIAL_COUNT
     for chunks in recorded_trials:
         first_changed = action_chunk(stolen, chunks)

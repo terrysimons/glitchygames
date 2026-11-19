@@ -71,7 +71,7 @@ from mr_muncher.maze import (
     Maze,
     build_maze,
 )
-from mr_muncher.sounds import ALL_RECIPES, CRUNCH_RECIPES
+from mr_muncher.sounds import CRUNCH_EFFECTS, EFFECTS
 
 SCREEN_SIZE = (800, 480)
 TEST_SEED = 20261023
@@ -882,14 +882,14 @@ class TestScenery:
 class TestSounds:
     """Every recipe renders; eating alternates two popcorn crunches."""
 
-    @pytest.mark.parametrize('recipe', ALL_RECIPES, ids=lambda recipe: recipe.name)
+    @pytest.mark.parametrize('recipe', EFFECTS, ids=lambda recipe: recipe.name)
     def test_every_recipe_renders(self, recipe):
         samples = recipe.render(sample_rate=22050)
         assert len(samples) > 0
         assert abs(samples).max() == pytest.approx(recipe.peak)
 
     def test_eating_crunches_two_ways(self):
-        assert [recipe.name for recipe in CRUNCH_RECIPES] == ['crunch_one', 'crunch_two']
+        assert [effect.name for effect in CRUNCH_EFFECTS] == ['crunch_one', 'crunch_two']
 
 
 class TestAutopilot:

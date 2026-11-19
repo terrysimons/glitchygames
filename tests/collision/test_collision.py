@@ -129,6 +129,53 @@ class TestGetCollisionRect:
 
         assert rect == pygame.Rect(100, 200, 32, 32)
 
+    @pytest.mark.parametrize(
+        ('width', 'height', 'margin', 'expected'),
+        [
+            # Narrower and shorter than twice the margin: empty, at its centre
+            (0, 0, 2, pygame.Rect(10, 10, 0, 0)),
+            (3, 3, 2, pygame.Rect(11, 11, 0, 0)),
+            # Only the height is too small: the width shrinks, the height empties
+            (10, 4, 3, pygame.Rect(13, 12, 4, 0)),
+        ],
+    )
+    def test_a_margin_wider_than_the_rect_leaves_it_empty_at_its_centre(
+        self, width, height, margin, expected
+    ):
+        """A side shorter than twice the margin shrinks to zero, never to a negative size.
+
+        pygame-ce normalises a negative size, so ``Rect(10, 10, 0, 0).inflate(-4, -4)`` became
+        ``Rect(12, 12, -4, -4)``, which collides with a rect around it: a box meant to be too
+        small to hit grew into a hittable one (found by the Zombies Ain't My Neighbors character
+        BOM's audit 2).
+        """
+        sprite = HitboxSprite(
+            hitbox_offset_x=10, hitbox_offset_y=10, hitbox_width=width, hitbox_height=height
+        )
+
+        rect = get_collision_rect_with_margin(sprite, world_x=0.0, world_y=0.0, margin=margin)
+
+        assert rect == expected
+        assert not rect.colliderect(pygame.Rect(0, 0, 40, 40))
+
+    @pytest.mark.parametrize('margin', [0, 1, 2, 3, 5, 8, 17])
+    @pytest.mark.parametrize(('width', 'height'), [(0, 0), (1, 7), (6, 6), (16, 3), (24, 28)])
+    def test_a_margin_never_grows_or_moves_the_rect(self, width, height, margin):
+        """The margin only shrinks: the result never outgrows the hitbox or leaves it."""
+        sprite = HitboxSprite(
+            hitbox_offset_x=10, hitbox_offset_y=10, hitbox_width=width, hitbox_height=height
+        )
+        hitbox = get_collision_rect(sprite, world_x=0.0, world_y=0.0)
+
+        rect = get_collision_rect_with_margin(sprite, world_x=0.0, world_y=0.0, margin=margin)
+
+        assert rect.width >= 0
+        assert rect.height >= 0
+        assert rect.width <= hitbox.width
+        assert rect.height <= hitbox.height
+        assert hitbox.left <= rect.left <= rect.right <= hitbox.right
+        assert hitbox.top <= rect.top <= rect.bottom <= hitbox.bottom
+
 
 class TestCheckAABBOverlap:
     """AABB overlap detection."""
