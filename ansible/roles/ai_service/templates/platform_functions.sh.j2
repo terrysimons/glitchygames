@@ -392,20 +392,19 @@ finish_setup_job() {
 }
 {% endmacro %}
 
-{% macro setup_lock_path() %}
-# Where setup.sh's lock lives: a folder a restart empties, so a lock a power cut left behind can't
-# outlive the boot and name a process id something else now has. The user's runtime folder on
-# Linux (the user manager and a login session set it); the per-user temporary folder on a Mac
-setup_lock_path() {
+{% macro take_the_setup_lock() %}
+# Takes setup.sh's lock for one user root: take_the_setup_lock FILE. The kernel holds it on file
+# descriptor 9 (flock(2)) for as long as this run or anything it started has that open, and frees
+# it however the run ends, a crash or a power cut included, so no lock outlives its holder.
+# Returns 75 at once when another run holds it, other non-zero when it can't be taken at all
+take_the_setup_lock() {
+    exec 9>>"$1"
 {% if ansible_facts['system'] == 'Linux' %}
-    if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -d "$XDG_RUNTIME_DIR" ]; then
-        echo "$XDG_RUNTIME_DIR/glitchygames-ai-setup.lock"
-    else
-        # No session (a cron job, su without a login): /tmp, which systemd empties at boot
-        echo "${TMPDIR:-/tmp}/glitchygames-ai-setup-$(id -u).lock"
-    fi
+    # util-linux, which every Debian and Ubuntu system has (Essential)
+    flock --nonblock --conflict-exit-code 75 9
 {% else %}
-    echo "${TMPDIR:-/tmp}/glitchygames-ai-setup-$(id -u).lock"
+    # macOS's own, which exits 75 (EX_TEMPFAIL) when the lock is held
+    lockf -s -t 0 9
 {% endif %}
 }
 {% endmacro %}

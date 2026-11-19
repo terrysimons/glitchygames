@@ -24,7 +24,7 @@ set -u
 {{ platform.reload_agent_definitions() }}
 {{ platform.check_the_service_managers_data_home() }}
 {{ platform.finish_setup_job() }}
-{{ platform.setup_lock_path() }}
+{{ platform.take_the_setup_lock() }}
 
 say() {
     echo "setup: $1"
@@ -73,44 +73,23 @@ fill_in() {
 
 mkdir -p "$models" "$config" "$(log_root)"
 
-# One run at a time for this user: the setup job at a login, the package's postinst and Ansible may
-# start it together, and two runs would write the same .part files. A later run waits for the
-# first, then finds its work done. The lock is a link naming the holder's process id, made in one
-# step (ln -s refuses a name that exists), in a folder a restart empties (setup_lock_path). A
-# holder that no longer runs, or that is this run itself (an id reused since), is stale: a fresh
-# link is renamed over it, so a live lock made meanwhile is never deleted, only replaced
-lock=$(setup_lock_path)
-said_waiting=false
-until ln -s "pid-$$" "$lock" 2>/dev/null; do
-    if ! holder=$(readlink "$lock" 2>/dev/null); then
-        if [ -e "$lock" ]; then
-            say "$lock is not a setup lock; stopping"
-            exit 1
-        fi
-        # Released between the two calls
-        continue
-    fi
-    holder=${holder#pid-}
-    if [ "$holder" = "$$" ] || ! kill -0 "$holder" 2>/dev/null; then
-        say "taking over the lock of setup run $holder, which has stopped"
-        rm -f "$lock.$$"
-        if ! { ln -s "pid-$$" "$lock.$$" && mv -f "$lock.$$" "$lock"; }; then
-            rm -f "$lock.$$"
-            say "could not take over the lock at $lock; stopping"
-            exit 1
-        fi
-        [ "$(readlink "$lock" 2>/dev/null)" = "pid-$$" ] && break
-        continue
-    fi
-    if [ "$said_waiting" = false ]; then
-        say "waiting for setup run $holder to finish"
-        said_waiting=true
-    fi
-    sleep 1
-done
-# Only this run's own lock: one that replaced it is another run's
-trap '[ "$(readlink "$lock" 2>/dev/null)" = "pid-$$" ] && rm -f "$lock"' EXIT
-trap 'exit 1' HUP INT TERM
+# One run at a time for this user root: the setup job at a login, the package's postinst and Ansible
+# may start it together, and two runs would write the same .part files. The lock is a file in the
+# root it guards, so every run for that root takes the same one whatever its environment, and the
+# kernel holds it (take_the_setup_lock), so a run that dies frees it. A run that finds it taken
+# leaves the work to the run holding it
+take_the_setup_lock "$config/setup.lock"
+case $? in
+    0) ;;
+    75)
+        say "another setup run for $user_root is already running; it finishes the job"
+        exit 0
+        ;;
+    *)
+        say "could not take the setup lock $config/setup.lock; stopping"
+        exit 1
+        ;;
+esac
 
 if ! machine_can_run_the_service; then
     exit 0

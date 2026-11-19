@@ -14,6 +14,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import socket
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs the service's rendered scripts under sh
 import sys
@@ -1562,6 +1563,16 @@ else
     echo 1
 fi
 """
+# Where util-linux's flock is missing (a Mac running the Linux rendering), setup.sh's call is
+# served by the Mac's lockf on the same descriptor: the same kernel lock (flock(2)), refused with
+# the same exit code 75. Any other call is refused, so a changed call is caught
+FLOCK_STUB = """#!/bin/sh
+if [ "$*" != '--nonblock --conflict-exit-code 75 9' ]; then
+    echo "unexpected: flock $*" >> "$SERVICE_TOOL_LOG"
+    exit 2
+fi
+exec /usr/bin/lockf -s -t 0 9
+"""
 
 
 class LinuxSetup:
@@ -1575,9 +1586,11 @@ class LinuxSetup:
         self.program_root = tmp_path / 'opt' / 'glitchygames' / 'ai'
         self.downloads = tmp_path / 'downloads'
         self.cpu_root = tmp_path / 'sys' / 'devices' / 'system' / 'cpu'
-        # The user's runtime folder, which a restart empties: setup.sh's lock lives there
+        # The user's runtime and temporary folders, where setup.sh must keep no lock
         self.runtime_directory = tmp_path / 'run' / 'user'
         self.runtime_directory.mkdir(parents=True)
+        self.temporary_directory = tmp_path / 'tmp'
+        self.temporary_directory.mkdir()
         self.core_count = 4
         for tool, stub in (
             ('curl', CURL_STUB),
@@ -1587,6 +1600,8 @@ class LinuxSetup:
             ('lsof', LSOF_STUB),
         ):
             _write_executable(self.service.tools / tool, stub)
+        if shutil.which('flock') is None:
+            _write_executable(self.service.tools / 'flock', FLOCK_STUB)
         _write_executable(
             self.program_root / 'runtime' / RUNTIME_NAME / 'bin' / 'llama-server',
             LLAMA_SERVER_STUB,
@@ -1695,13 +1710,14 @@ class LinuxSetup:
             'DOWNLOAD_ROOT': str(self.downloads),
             'DOWNLOAD_BASE_URL': DOWNLOAD_BASE_URL,
             'XDG_RUNTIME_DIR': str(self.runtime_directory),
+            'TMPDIR': str(self.temporary_directory),
             **(extra or {}),
         }
 
     @property
     def lock(self) -> Path:
-        """Name setup.sh's lock, in the user's runtime folder."""
-        return self.runtime_directory / 'glitchygames-ai-setup.lock'
+        """Name setup.sh's lock: a file in the user root it guards."""
+        return self.user_root / 'config' / 'setup.lock'
 
     def run(
         self,
@@ -3218,217 +3234,103 @@ def test_an_upgrade_that_renames_the_runtime_keeps_every_users_settings_valid(tm
     assert '--model' in runner.stdout.splitlines(), runner.stdout
 
 
-@needs_a_posix_shell
-def test_two_setup_runs_at_once_never_both_download(tmp_path: Path):
-    """A login's setup job, postinst's and Ansible's may run together: the second waits.
+def start_setup(*, setup: LinuxSetup, extra: dict[str, str]) -> subprocess.Popen[str]:
+    """Start setup.sh as rendered for Linux, in a process group of its own.
 
-    It then finds the first's work done, so every model file is fetched once and no two runs
-    write the same .part file.
+    Returns:
+        The running setup.
     """
-    setup = LinuxSetup(tmp_path=tmp_path)
-    setup.set_cores(count=4, capacities={})
-    script = setup.service.script(template='setup.sh.j2')
-    environment = setup.service.environment(
-        extra=setup.environment(extra={'CURL_DELAY_SECONDS': '1'})
-    )
-
-    def start() -> subprocess.Popen[str]:
-        return subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] - sh and a rendered script, as an argument list
-            ['/bin/sh', str(script)],
-            env=environment,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-
-    first = start()
-    try:
-        # The first holds the lock once it is downloading
-        for _ in range(600):
-            if any(call.startswith('curl') for call in setup.service.tool_calls()):
-                break
-            clock.raw_sleep(0.05)
-        second = start()
-        second_output, second_errors = second.communicate(timeout=120)
-        first_output, first_errors = first.communicate(timeout=120)
-    finally:
-        first.kill()
-        first.wait(timeout=10)
-
-    assert first.returncode == 0, first_output + first_errors
-    assert second.returncode == 0, second_output + second_errors
-    assert 'waiting for setup run' in second_output
-    downloads = [call for call in setup.service.tool_calls() if call.startswith('curl')]
-    assert len(downloads) == len(setup.selected_model_files()), downloads
-    assert not setup.lock.is_symlink()
-    assert not list(setup.service.home.rglob('*lock*')), 'a lock in the home'
-    for model_file in setup.selected_model_files():
-        served = setup.download_path(model_file=model_file).read_bytes()
-        assert (setup.user_root / 'models' / model_file['file']).read_bytes() == served
-
-
-# Beyond any system's largest process id (Linux's pid_max is at most 2**22, a Mac's 99998), so
-# kill -0 always fails on it, however many tests run at once
-NO_SUCH_PROCESS_ID = 99999999
-
-
-@needs_a_posix_shell
-def test_setup_takes_over_the_lock_of_a_run_that_was_killed(tmp_path: Path):
-    """A run killed outright leaves its lock naming a process that no longer exists."""
-    setup = LinuxSetup(tmp_path=tmp_path)
-    setup.set_cores(count=4, capacities={})
-    setup.lock.symlink_to(f'pid-{NO_SUCH_PROCESS_ID}')
-
-    result = setup.run()
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert f'taking over the lock of setup run {NO_SUCH_PROCESS_ID}' in result.stdout
-    assert not setup.lock.is_symlink()
-    assert not list(setup.lock.parent.glob('glitchygames-ai-setup.lock.*')), 'a takeover link left'
-
-
-@needs_a_posix_shell
-def test_setup_takes_over_a_lock_naming_its_own_process_id(tmp_path: Path):
-    """A lock from before a restart can name the id this run now has: it never waits on itself."""
-    setup = LinuxSetup(tmp_path=tmp_path)
-    setup.set_cores(count=4, capacities={})
-    script = setup.service.script(template='setup.sh.j2')
-    # exec keeps the process id, so the lock names the run that then finds it
-    wrapper = 'ln -s "pid-$$" "$LOCK" && exec /bin/sh "$SETUP"'
-    environment = setup.service.environment(
-        extra=setup.environment(extra={'LOCK': str(setup.lock), 'SETUP': str(script)})
-    )
-
-    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - sh and a rendered script, as an argument list
-        ['/bin/sh', '-c', wrapper],
-        env=environment,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=60,
-    )
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert 'taking over the lock of setup run' in result.stdout
-    assert 'waiting' not in result.stdout
-    assert not setup.lock.is_symlink()
-
-
-@needs_a_posix_shell
-def test_a_run_leaves_a_lock_that_replaced_its_own(tmp_path: Path):
-    """A run that ends removes its own lock only: one another run renamed over it is that run's."""
-    setup = LinuxSetup(tmp_path=tmp_path)
-    setup.set_cores(count=4, capacities={})
-    script = setup.service.script(template='setup.sh.j2')
-    environment = setup.service.environment(
-        extra=setup.environment(extra={'CURL_DELAY_SECONDS': '1'})
-    )
-    run = subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] - sh and a rendered script, as an argument list
-        ['/bin/sh', str(script)],
-        env=environment,
+    return subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] - sh and a rendered script, as an argument list
+        ['/bin/sh', str(setup.service.script(template='setup.sh.j2'))],
+        env=setup.service.environment(extra=setup.environment(extra=extra)),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        start_new_session=True,
     )
+
+
+def wait_until_downloading(*, setup: LinuxSetup) -> None:
+    """Wait until a running setup has called curl, so it holds the lock.
+
+    Raises:
+        TimeoutError: It never called curl.
+    """
+    for _ in range(600):
+        if any(call.startswith('curl') for call in setup.service.tool_calls()):
+            return
+        clock.raw_sleep(0.05)
+    message = 'setup never started downloading'
+    raise TimeoutError(message)
+
+
+def assert_no_lock_outside_the_user_root(*, setup: LinuxSetup) -> None:
+    """The lock is the user root's file alone: nothing in the runtime or temporary folders."""
+    assert setup.lock.is_file()
+    assert not list(setup.runtime_directory.iterdir())
+    assert not list(setup.temporary_directory.iterdir())
+
+
+@needs_a_posix_shell
+def test_two_setup_runs_at_once_never_both_download(tmp_path: Path):
+    """A login's setup job, postinst's and Ansible's may run together: the second leaves at once.
+
+    It says another run is setting up and exits 0, and the first finishes the job: every model
+    file is fetched once and no two runs write the same .part file.
+    """
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    first = start_setup(setup=setup, extra={'CURL_DELAY_SECONDS': '1'})
     try:
-        for _ in range(600):
-            if any(call.startswith('curl') for call in setup.service.tool_calls()):
-                break
-            clock.raw_sleep(0.05)
-        # Another run's takeover, while this one still runs: this test's process stands in for it
-        replacement = setup.lock.with_name('replacement')
-        replacement.symlink_to(f'pid-{os.getpid()}')
-        replacement.replace(setup.lock)
-        output, errors = run.communicate(timeout=120)
+        wait_until_downloading(setup=setup)
+        second = start_setup(setup=setup, extra={})
+        second_output, second_errors = second.communicate(timeout=120)
+        second_finished_first = first.poll() is None
+        first_output, first_errors = first.communicate(timeout=120)
     finally:
-        run.kill()
-        run.wait(timeout=10)
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(first.pid, signal.SIGKILL)
+        first.wait(timeout=10)
 
-    assert run.returncode == 0, output + errors
-    assert str(setup.lock.readlink()) == f'pid-{os.getpid()}'
-
-
-@needs_a_posix_shell
-def test_setup_without_a_runtime_folder_locks_in_the_temporary_folder(tmp_path: Path):
-    """No session sets XDG_RUNTIME_DIR (cron, su): the lock goes to /tmp, which boot empties."""
-    setup = LinuxSetup(tmp_path=tmp_path)
-    setup.set_cores(count=4, capacities={})
-    temporary = tmp_path / 'tmp'
-    temporary.mkdir()
-    lock = temporary / f'glitchygames-ai-setup-{os.getuid()}.lock'
-    lock.symlink_to(f'pid-{NO_SUCH_PROCESS_ID}')
-
-    result = setup.run(extra={'TMPDIR': str(temporary)}, unset=('XDG_RUNTIME_DIR',))
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert f'taking over the lock of setup run {NO_SUCH_PROCESS_ID}' in result.stdout
-    assert not lock.is_symlink()
+    assert second.returncode == 0, second_output + second_errors
+    assert 'is already running; it finishes the job' in second_output
+    assert second_finished_first, 'the second run waited for the first'
+    assert first.returncode == 0, first_output + first_errors
+    downloads = [call for call in setup.service.tool_calls() if call.startswith('curl')]
+    assert len(downloads) == len(setup.selected_model_files()), downloads
+    assert not [call for call in setup.service.tool_calls() if call.startswith('unexpected')]
+    for model_file in setup.selected_model_files():
+        served = setup.download_path(model_file=model_file).read_bytes()
+        assert (setup.user_root / 'models' / model_file['file']).read_bytes() == served
+    assert_no_lock_outside_the_user_root(setup=setup)
 
 
 @needs_a_posix_shell
-def test_setup_refuses_a_lock_path_that_is_not_a_link(tmp_path: Path):
-    """Something else at the lock's name stops the run, rather than spinning on it forever."""
+def test_a_run_after_one_that_was_killed_proceeds_at_once(tmp_path: Path):
+    """The kernel frees the lock when its holder dies: no lock outlives a crash or a power cut.
+
+    The killed run's whole process group goes, as a power cut takes it; the next run takes the
+    lock, resumes the download and finishes.
+    """
     setup = LinuxSetup(tmp_path=tmp_path)
     setup.set_cores(count=4, capacities={})
-    setup.lock.write_text('not a lock\n', encoding='utf-8')
+    killed = start_setup(setup=setup, extra={'CURL_DELAY_SECONDS': '30'})
+    try:
+        wait_until_downloading(setup=setup)
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(killed.pid, signal.SIGKILL)
+        killed.communicate(timeout=10)
 
     result = setup.run()
 
-    assert result.returncode == 1
-    assert 'is not a setup lock' in result.stdout
-
-
-@needs_a_posix_shell
-@pytest.mark.parametrize(
-    ('system', 'environment', 'expected'),
-    [
-        (
-            'Linux',
-            {'XDG_RUNTIME_DIR': '{tmp}', 'TMPDIR': '/elsewhere'},
-            '{tmp}/glitchygames-ai-setup.lock',
-        ),
-        ('Linux', {'TMPDIR': '{tmp}'}, '{tmp}/glitchygames-ai-setup-{uid}.lock'),
-        (
-            'Darwin',
-            {'TMPDIR': '{tmp}', 'XDG_RUNTIME_DIR': '/elsewhere'},
-            '{tmp}/glitchygames-ai-setup-{uid}.lock',
-        ),
-    ],
-)
-def test_the_setup_lock_lives_where_a_restart_empties(
-    tmp_path: Path,
-    system: Literal['Darwin', 'Linux'],
-    environment: dict[str, str],
-    expected: str,
-):
-    """The runtime folder on Linux, else /tmp; the per-user temporary folder on a Mac.
-
-    Never the user's folder in the home, which a restart keeps: a lock a power cut left there
-    would name a process id something else has after the restart.
-    """
-    variables = ansible_variables(system=system, architecture='aarch64', home=tmp_path / 'home')
-    template = tmp_path / 'lock_path.sh.j2'
-    template.write_text(
-        "{% import 'roles/ai_service/templates/platform_functions.sh.j2' as platform"
-        ' with context %}\n{{ platform.setup_lock_path() }}\nsetup_lock_path\n',
-        encoding='utf-8',
-    )
-    script = tmp_path / 'lock_path.sh'
-    script.write_text(render_template(path=template, variables=variables), encoding='utf-8')
-    filled = {name: value.format(tmp=tmp_path) for name, value in environment.items()}
-
-    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - sh and a rendered script, as an argument list
-        ['/bin/sh', str(script)],
-        env={'PATH': '/usr/bin:/bin', **filled},
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=60,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == expected.format(tmp=tmp_path, uid=os.getuid())
-    assert not result.stdout.strip().startswith(str(tmp_path / 'home'))
+    assert killed.returncode == -signal.SIGKILL
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'already running' not in result.stdout
+    for model_file in setup.selected_model_files():
+        served = setup.download_path(model_file=model_file).read_bytes()
+        assert (setup.user_root / 'models' / model_file['file']).read_bytes() == served
+    assert_no_lock_outside_the_user_root(setup=setup)
 
 
 def libstdcxx_floor(*, search_output: str, tmp_path: Path) -> str | None:
