@@ -26,18 +26,28 @@
   failed_when: false
 
 # apt skips a package whose version is already installed, and a rebuilt .deb keeps its version, so
-# Ansible compares checksums. apt-get, not dpkg -i, so the Depends are installed too. The postinst
-# starts the owner's setup in the background (SUDO_USER is the user Ansible connects as)
-- name: Install the package
-  ansible.builtin.command:
-    argv: [apt-get, install, --yes, --reinstall, "{{ ai_package_deb_output }}"]
-  environment:
-    DEBIAN_FRONTEND: noninteractive
-  become: true
+# Ansible compares checksums
+- name: Install the package when it is new or rebuilt
   when: >-
     ai_service_package_status.stdout != 'install ok installed'
     or ai_service_installed_package.stdout != ai_service_package.stat.checksum
-  changed_when: true
+  become: true
+  block:
+    # The package's Depends come from the package lists, which on a fresh Pi are as old as its
+    # image, and an install from them can 404: they're refreshed first when an hour old or more
+    - name: Refresh apt's package lists for the package's Depends
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    # apt-get, not dpkg -i, so the Depends are installed too. The postinst starts the owner's
+    # setup in the background (SUDO_USER is the user Ansible connects as)
+    - name: Install the package
+      ansible.builtin.command:
+        argv: [apt-get, install, --yes, --reinstall, "{{ ai_package_deb_output }}"]
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      changed_when: true
 
 - name: Record which package is installed
   ansible.builtin.copy:

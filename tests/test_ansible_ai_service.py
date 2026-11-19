@@ -3877,6 +3877,10 @@ def test_the_libstdcxx_tables_follow_gccs_abi_list():
 # The Linux install (plans/lucid-circuit-linux.md, 5.1, 6.3 and 6.9): Ansible installs the .deb it
 # built, runs the installed setup.sh for the owner, waits for setup to finish, then smoke-tests
 INSTALL_PACKAGE_TASK = 'Install the package'
+INSTALL_PACKAGE_BLOCK = 'Install the package when it is new or rebuilt'
+REFRESH_LISTS_TASK = "Refresh apt's package lists for the package's Depends"
+# How old apt's package lists may be before an install refreshes them, as the runner's play has it
+APT_LISTS_VALID_SECONDS = 3600
 REMOVE_PACKAGE_TASK = 'Remove the package'
 RUN_SETUP_TASK = 'Run setup for the owner, waiting out a run already going'
 SETUP_FINISHED_TASK = 'Check that setup finished, with the models in place'
@@ -3925,10 +3929,39 @@ def test_on_linux_only_the_package_steps_take_root():
     )
 
     assert raised == [
-        ('ai_service/tasks/linux.yml', INSTALL_PACKAGE_TASK),
+        # The apt lists' refresh and the install inside it
+        ('ai_service/tasks/linux.yml', INSTALL_PACKAGE_BLOCK),
         ('ai_uninstall/tasks/linux.yml', REMOVE_PACKAGE_TASK),
         ('llama_cpp/tasks/linux.yml', 'Install the build tools'),
     ]
+    block = named_task(role='ai_service', file_name='linux.yml', name=INSTALL_PACKAGE_BLOCK)
+    assert [task['name'] for task in block['block']] == [REFRESH_LISTS_TASK, INSTALL_PACKAGE_TASK]
+
+
+def test_every_linux_apt_install_refreshes_stale_package_lists():
+    """A fresh Pi's lists are as old as its image, so an install from them can 404 on a mirror.
+
+    Every apt task that installs (state present, the module's default) refreshes them when an hour
+    old or more, and so does the .deb's install, whose Depends come from the same lists.
+    """
+    installs = [
+        (str(path.relative_to(ROLES)), task)
+        for path in ROLES.glob('*/tasks/*.yml')
+        for task in walk_tasks(tasks=yaml.safe_load(path.read_text(encoding='utf-8')) or [])
+        if 'ansible.builtin.apt' in task
+        and task['ansible.builtin.apt'].get('state', 'present') == 'present'
+    ]
+
+    assert installs
+    for file_name, task in installs:
+        apt = task['ansible.builtin.apt']
+        assert apt.get('update_cache') is True, (file_name, task['name'])
+        assert apt.get('cache_valid_time') == APT_LISTS_VALID_SECONDS, (file_name, task['name'])
+    names = [
+        task['name']
+        for task in walk_tasks(tasks=role_tasks(role='ai_service', file_name='linux.yml'))
+    ]
+    assert names.index(REFRESH_LISTS_TASK) < names.index(INSTALL_PACKAGE_TASK)
 
 
 def test_linux_installs_the_package_then_waits_for_setup_then_smoke_tests():
@@ -3938,7 +3971,10 @@ def test_linux_installs_the_package_then_waits_for_setup_then_smoke_tests():
     finds that run holding the lock and leaves at once: the wait sits between the install and the
     smoke test.
     """
-    names = [task['name'] for task in role_tasks(role='ai_service', file_name='linux.yml')]
+    names = [
+        task['name']
+        for task in walk_tasks(tasks=role_tasks(role='ai_service', file_name='linux.yml'))
+    ]
 
     assert (
         names.index(INSTALL_PACKAGE_TASK)
@@ -4027,7 +4063,7 @@ def install_needed(*, status: str, recorded: str, built: str) -> bool:
     Returns:
         Whether Ansible installs the package.
     """
-    task = named_task(role='ai_service', file_name='linux.yml', name=INSTALL_PACKAGE_TASK)
+    task = named_task(role='ai_service', file_name='linux.yml', name=INSTALL_PACKAGE_BLOCK)
     return render_expression(
         expression=task['when'],
         variables={
@@ -4060,8 +4096,9 @@ def test_a_rebuilt_package_of_the_same_version_is_installed_again(
 ):
     """A rebuilt .deb keeps its version, so Ansible compares checksums, not versions."""
     assert install_needed(status=status, recorded=recorded, built=built) is installs
+    block = named_task(role='ai_service', file_name='linux.yml', name=INSTALL_PACKAGE_BLOCK)
     task = named_task(role='ai_service', file_name='linux.yml', name=INSTALL_PACKAGE_TASK)
-    assert task['become'] is True
+    assert block['become'] is True
     argv = task['ansible.builtin.command']['argv']
     assert argv[:4] == ['apt-get', 'install', '--yes', '--reinstall']
 

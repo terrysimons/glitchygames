@@ -14,11 +14,15 @@
           This builds for {{ llama_cpp_cpu_variants | list | join(' and ') }} Linux only; this is
           {{ ansible_facts['system'] }} {{ ansible_facts['architecture'] }}
 
+    # A fresh Pi's package lists are as old as its image, and their mirrors' files move on, so
+    # an install from them can 404: the lists are refreshed first when an hour old or more
     - name: Install the build tools
       become: true
       ansible.builtin.apt:
         name: [cmake, build-essential, rsync]
         state: present
+        update_cache: true
+        cache_valid_time: 3600
 
     - name: Work out this build's options
       ansible.builtin.set_fact:
