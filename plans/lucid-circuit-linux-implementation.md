@@ -667,6 +667,29 @@ the job's packages.
 
 ---
 
+### Task 13: Removing the package names other users' leftover AI data (the owner, 2026-11-19)
+
+`apt remove` never touches a home (Debian convention), so every other user's
+`~/.local/share/glitchygames/ai` (models of about 1.4 GB, keys, settings, history) stays, and
+their `uninstall-user.sh` goes with the package. The owner chose a notice, never a deletion.
+
+**Files:** `ansible/roles/ai_package/templates/deb-postrm.sh.j2` (or prerm, whichever still has
+the user list when it runs: decide and say), its tests in tests/test_ansible_ai_service.py, the
+design's §6.7 and §13.1.
+
+- [ ] On `remove` and `purge`, the script finds every local user (from `/etc/passwd`, UID in the
+  login range) whose user root exists — `${XDG_DATA_HOME:-$HOME/.local/share}/glitchygames/ai`, and
+  the cache and state folders — and prints, per user: the folder, its size (`du -sh`), and the
+  command that deletes it (`rm -rf <folder>`), plus one line that nothing was deleted. Nothing
+  printed when no user has data. It reads no secret file (sizes only) and exits 0 whatever happens
+  (a maintainer script failure must not block dpkg).
+- [ ] Tests: users with and without data (a fake passwd and homes under tmp_path); the folders
+  and sizes named; nothing deleted (bytes unchanged); exit 0 when `du` fails; nothing printed on
+  `upgrade`. Prove the rendered script once in the Debian container (a real `apt remove` of a
+  small test package, or `dpkg -r` in the existing check_package.sh flow).
+
+---
+
 ### Task 10 (after the power fix; the owner runs or authorizes it): first install and validation on the Pi (§8.3)
 
 Not code. On the 16 GB Ubuntu Pi 5, once `vcgencmd get_throttled` stays `0x0` under a full

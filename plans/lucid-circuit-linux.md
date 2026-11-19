@@ -975,6 +975,8 @@ changes for x86_64.
 | The nine per-line ruff suppressions the build added (subprocess calls in tests) | Approved by the owner, 2026-11-19 |
 | `ansible-core` becomes a development dependency so CI runs the Ansible syntax checks; `iproute2` and `lsof` in the CircleCI Linux image (plan Task 12) | The owner, 2026-11-19 |
 | Uninstalling keeps `history/` (no change) | The owner, 2026-11-19 |
+| Other users' data after `apt remove`: the package prints a notice naming each folder, its size and the delete command; it never deletes another user's data (plan Task 13) | The owner, 2026-11-19 |
+| Ansible in CI: installed as a separate `uv` tool (`ansible-core==2.22.0`, pinned in the CI config), not a project dependency, so the license policy stays without an exception | The owner, 2026-11-19 |
 | The Pi's speed (15-25 s for a short question) is acceptable: go | The owner, 2026-11-19 |
 | Keep the per-line `jinja2-autoescape-false` suppression in `tests/ansible_rendering.py` (autoescape would corrupt shell templates) | The owner, 2026-11-18 |
 | Accept slower embeddings on 4 GB machines for Qwen's `--no-repack` (13.1) | The owner, 2026-11-18 |
@@ -1004,7 +1006,7 @@ review findings deferred during the build are in the progress ledger (lines star
 | The Pi's speed bar (go/no-go, 8.3) | 15-25 s for a short question at about 5-7.5 tokens a second; prompt reading about 10 tokens a second, so a 1,000-token prompt waits 80-95 s unless the prompt cache holds it | The owner's; measure the console's real prompt lengths first |
 | The game stays pinned to its core if the service stops later in the run (STOPPED, or a crash it doesn't recover from); it pins only once the service starts (final review) | Open | Restore the saved mask when the link reaches STOPPED |
 | Should uninstalling remove history too? `uninstall.sh` keeps `history/` even with `--remove-models`, so the user folder is never fully removed (Task 4 review) | Open | `--remove-models` (or a new `--all`) also removes history |
-| Other users' data after `apt remove` (their settings, keys and models stay, and their `uninstall-user.sh` goes with the package; Task 7 review) | Open | A postrm notice naming the leftover folders; never delete another user's data unasked |
+| Count the prompt cache (`--cache-ram`, up to 512 MiB on 4 GB, 1,024 on 8 GB, 4,096 on 16 GB) in the memory fit? Today the fit leaves it out, so a 4 GB machine can run out of memory late in a long session as the cache fills; counting it fits every tier only with the Pi's measured Linux figures (Bonsai 32K 1,277 MiB, 128K ~1,905; Qwen 1,717) in `group_vars/linux.yml` instead of the Mac-derived ones (Task 11 review) | Open: the owner, 2026-11-19, "TBD" | Count it, with the Pi's measured figures on Linux |
 | Add `ansible-core` as a development dependency group, so CI runs the Ansible `--syntax-check` tests (today they skip: Ansible isn't a project dependency) | Open | Yes: it is the only way the check guards every push (cost: `uv.lock`, SBOM, license check) |
 | Another session's request: merge GitHub's `feature/zombies-aint-my-neighbors` into the local one and push (CI split `dc70fe4a`, for #215/#220/#221) | Declined by this session: not its branch, 29 uncommitted files of another session's sound work in that worktree, and pushes need the owner's own ask | The owner, or the session owning that branch |
 
