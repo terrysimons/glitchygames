@@ -332,7 +332,7 @@ the 2026-11-18 Pi measurements):
 | Memory | Bonsai context | Qwen | Prompt cache cap | KV cache, both | Models in use | Status |
 |---|---|---|---|---|---|---|
 | 16 GB and up | 131,072 | 8,192 | 4,096 MiB | 1,292 MiB | about 3.9 GB | the owner, 2026-11-18 |
-| 8 GB | 32,768 | 8,192 | about 1,024 MiB | 680 MiB | about 3.3 GB | proposed |
+| 8 GB | 32,768 | 8,192 | about 1,024 MiB | 680 MiB | about 3.3 GB | the owner, 2026-11-18 |
 | 4 GB | 32,768 | none | about 512 MiB | 204 MiB | about 1.6 GB | the owner, 2026-11-18 |
 | 2 GB, 1 GB | nothing | nothing | | | | Bonsai alone holds 1.3 GB at load |
 
@@ -342,6 +342,25 @@ the 2026-11-18 Pi measurements):
   `/health/ready` wants both, `app.py`), and `/v1/embeddings` answers with a clear "this machine has
   no embedding model" error. Nothing in the engine embeds today (only the sprite catalog exports
   text for it), so games lose nothing yet.
+- **The 4 GB test (2026-11-18, `MEMORY_LIMIT=2500M BONSAI_CONTEXT=32768`, results
+  `20261118-210248`):** both servers under a 2,500 MiB cap with no swap, taking turns (Bonsai
+  answers, Qwen embeds, an image, again): no out-of-memory kill, every answer and embedding right,
+  answers at 4.7-4.9 tokens a second, embeddings in about 0.3 s, peak 2,336 MiB. But the scope
+  showed `file 0`: the model files' cached pages were charged to the earlier, uncapped runs that
+  first read them, so the cap counted only the memory that must stay, not Bonsai's 511 MiB of
+  weights read every token nor Qwen's 157 MiB mapped. Counting those and Bitmappy (about 262 MiB),
+  everything at once needs about 3.3 GB against about 2.8 GB free on a 4 GB Pi with a desktop
+  (about 3.4 GB without one). The benchmark now drops the model files from the page cache before a
+  capped run (`posix_fadvise`, checked with `fincore`: 521 MiB and 610 MiB cached before, 0 after),
+  so the rerun counts them.
+- **Closing the gap without changing a model:** Qwen sleeping after a short idle on 4 GB machines
+  (`--sleep-idle-seconds`, the service's own `ai_service_sleep_idle_seconds`, per agent), so it is
+  resident only around embedding bursts (the benchmark's `QWEN_SLEEP_SECONDS` measures it), and
+  `--no-repack` for Qwen, which turns its 446 MiB repacked copy (ordinary memory, measured) into
+  droppable file pages at some cost to embedding speed. Open until the rerun.
+- **Fallback if neither is enough: turn-taking (the owner, 2026-11-18).** Bonsai and Qwen loaded
+  one at a time, peak the larger of the two; built when something embeds. Bonsai alone stays the
+  4 GB decision until a run proves more fits.
 - **The game's reserve decides whether the small tiers fit.** `ai_service_game_reserve_mib` (2,048)
   predates any measurement; Bitmappy idles at about 262 MiB on the Pi (2026-11-18, with its `uv`
   wrapper). With 2,048 the 4 GB tier needs about 3.6 GB free against about 2.8 GB on a 4 GB Pi
@@ -866,5 +885,7 @@ changes for x86_64.
 | Bonsai's context 128K (131,072) on every system, down from the model's whole 262K (6.5) | The owner, 2026-11-18 |
 | Qwen's context stays 8,192 on every machine, the 8 GB tier included (6.4.1) | The owner, 2026-11-18 |
 | 16 GB and up: Bonsai 128K with Qwen; 4 GB: Bonsai alone at 32K, no Qwen (6.4.1) | The owner, 2026-11-18 |
+| 8 GB: Bonsai 32K with Qwen 8K (6.4.1) | The owner, 2026-11-18 |
+| 4 GB fallback, if a measured run doesn't fit everything: turn-taking (6.4.1) | The owner, 2026-11-18 |
 | Qwen's agent passes `--flash-attn on`, which a quantized V cache needs (6.5) | Designer's call |
 | Smaller-memory machines: context tiers proposed, smaller models listed; open (6.4.1) | Raised by the owner, 2026-11-18; not decided |
