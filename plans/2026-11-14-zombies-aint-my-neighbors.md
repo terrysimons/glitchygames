@@ -432,7 +432,8 @@ Each feature gets its own plan in `plans/`, linked here and linking back to this
    the engine's new `Mix` and cached as every sound is (`music.py`; the owner, 2026-11-18:
    "build it, then play the built copy. Same as our other caching layer.").
 12. [The intro and the title's idle loop](2026-11-19-zombies-aint-my-neighbors-12-intro-and-idle-loop.md):
-   BUILT (2026-11-19), committed; the browser rumble check waits for the owner. The title plays the intro after 20 s idle, then (feature 13)
+   BUILT (2026-11-19), committed. The owner watched a real launch (2026-11-19: "Great, it's
+   good."); the browser rumble check waits for the owner. The title plays the intro after 20 s idle, then (feature 13)
    the attract demo, arcade style; the intro also opens every launch, any key or button
    skipping it; pads rumble only then, never while unattended; built as one timeline of cues.
 
