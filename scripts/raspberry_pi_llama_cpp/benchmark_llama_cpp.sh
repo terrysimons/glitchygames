@@ -3,7 +3,8 @@
 # models and settings (ansible/roles/ai_models and ai_service defaults: keep them equal):
 #   [AI_CORES=N[,N...]|none] [GAME=NAME] [THREADS=N[,N...]] [DEPTHS=N[,N...]] \
 #       [CACHE_TYPE_K=T[,T...]] [CACHE_TYPE_V=T[,T...]] [BONSAI_CONTEXT=N] [QWEN_CONTEXT=N] \
-#       [MEMORY_LIMIT=SIZE] [QWEN_SLEEP_SECONDS=N] benchmark_llama_cpp.sh [WORK_ROOT] [CONFIGURATION...]
+#       [MEMORY_LIMIT=SIZE] [QWEN_SLEEP_SECONDS=N] [QWEN_NO_REPACK=1] \
+#       benchmark_llama_cpp.sh [WORK_ROOT] [CONFIGURATION...]
 # MEMORY_LIMIT (such as 2500M) runs this script, and so both servers, in a systemd user scope
 # with that much memory and no swap (MemoryMax, MemorySwapMax=0; the user manager is handed the
 # memory controller), to stand in for a smaller Pi on a bigger one: what a 4 GB Pi with a desktop
@@ -17,7 +18,9 @@
 # QWEN_SLEEP_SECONDS gives the Qwen server --sleep-idle-seconds N, so it unloads after N idle
 # seconds (the service's own setting), and the turns wait that long after each embedding before
 # Bonsai's next answer: the scope's memory then shows Bonsai alone, and the next embedding
-# includes Qwen's reload.
+# includes Qwen's reload. QWEN_NO_REPACK=1 gives the Qwen server --no-repack: its weights stay the
+# mapped file (pages the kernel can drop and re-read) instead of a 446 MiB repacked copy in
+# ordinary memory, at some cost to embedding speed (the owner accepts that on 4 GB, 2026-11-18).
 # WORK_ROOT defaults to ~/ai-spike; with no configurations it measures each llama.cpp-*-* folder
 # there that holds a build. Cores are placed as the service places them
 # (plans/lucid-circuit-linux.md 6.2: ranked by cpu_capacity, the game on the first, the mirror on
@@ -236,6 +239,11 @@ if [ -n "${MEMORY_LIMIT:-}" ]; then
 fi
 say "models on: $(findmnt -no SOURCE --target "$models")"
 qwen_sleep=${QWEN_SLEEP_SECONDS:-}
+qwen_no_repack=${QWEN_NO_REPACK:-}
+if [ -n "$qwen_no_repack" ] && [ "$qwen_no_repack" != 1 ]; then
+    echo "QWEN_NO_REPACK must be 1 or unset" >&2
+    exit 64
+fi
 if [ -n "$qwen_sleep" ] && ! [[ "$qwen_sleep" =~ ^[1-9][0-9]*$ ]]; then
     echo "QWEN_SLEEP_SECONDS must be a whole number of seconds, such as 30" >&2
     exit 64
@@ -347,13 +355,13 @@ for configuration in "${configurations[@]}"; do
     fi
 
     phase "$configuration-qwen-server"
-    say "-- Qwen 0.6B embedding server, $server_settings"
+    say "-- Qwen 0.6B embedding server, $server_settings${qwen_no_repack:+; --no-repack}${qwen_sleep:+; sleeps after $qwen_sleep s idle}"
     "$bin/llama-server" --host 127.0.0.1 --port "$qwen_port" \
         --model "$models/$qwen_file" --alias qwen3-embedding-0.6b --gpu-layers 99 \
         --threads "$server_threads" \
         --parallel 1 --no-webui --embedding --pooling last \
         --ctx-size "$qwen_context" --ubatch-size "$qwen_context" --flash-attn on \
-        ${qwen_sleep:+--sleep-idle-seconds "$qwen_sleep"} \
+        ${qwen_sleep:+--sleep-idle-seconds "$qwen_sleep"} ${qwen_no_repack:+--no-repack} \
         --cache-type-k "$cache_type_k" --cache-type-v "$cache_type_v" --log-verbosity 4 \
         > "$results/$configuration-qwen.log" 2>&1 &
     qwen=$!
