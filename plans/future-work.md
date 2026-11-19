@@ -1137,7 +1137,16 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   supported environments (`scripts/generate_sbom.py`).
 
 - **Small follow-ups from the int16 sounds and the 3.15-only CI (found 2026-11-19):**
-  1. **`glitchygames sound-render` compiles every sound twice.** `replay/tools/sound_tools.py`
+  1. **DONE 2026-11-19 (feature/zombies-finish-level-1).** The tool resolves the source through
+     a `CacheMode.NONE` library and compiles one copy itself (`compile_sound` on a
+     `fresh_copy()`, inside the lookup's `try`), which keeps its float samples for
+     `render_to_file`. `CacheMode.NONE` alone was not enough: a recorded file's `sample_rate` is
+     read by decoding it under `none`, so a WAV still decoded twice. Tests in
+     `tests/replay/tools/test_sound_tools.py`: a sound file's sound compiles once, a WAV decodes
+     once, an OGG (refused only while compiling) exits `UNUSABLE_INPUT`. Left as it is: the
+     public `render_to_file(library_sound, ...)` still compiles a copy, by design
+     (`Sound.release_float_samples` trades that for memory). Original note:
+     **`glitchygames sound-render` compiles every sound twice.** `replay/tools/sound_tools.py`
      (around line 118) gets the sound from a `CacheMode.RAM` library, which now keeps int16
      samples only (`Sound.release_float_samples`), so `render_to_file` compiles a fresh copy for
      the float samples (`offline._samples_at`): the first compile is wasted. Fix: the tool's

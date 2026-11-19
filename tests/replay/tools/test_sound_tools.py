@@ -14,12 +14,14 @@ import wave
 import numpy as np
 import pytest
 
+from glitchygames.audio import library as audio_library
+from glitchygames.audio import offline as audio_offline
 from glitchygames.audio.assets import clear_sound_file_cache, load_sound_file
 from glitchygames.audio.library import CacheMode
 from glitchygames.audio.render import NORMALIZED_PEAK
 from glitchygames.engine_context import EngineContext
 from glitchygames.exit_codes import ExitCode
-from glitchygames.replay.tools import command
+from glitchygames.replay.tools import command, sound_tools
 from glitchygames.replay.tools.sound_tools import (
     MIGRATED_SUFFIX,
     migrated_document,
@@ -213,6 +215,58 @@ def test_sound_render_of_a_recorded_wav(tmp_path):
     status = command.main(['sound-render', str(source), '--sound-output', str(output)])
 
     assert status == ExitCode.SUCCESS
+    assert np.array_equal(read_wav(output)[0], ramp)
+
+
+def spy_on_every_compile(mocker):
+    """Count every compile, through whichever module's name for ``compile_sound`` it runs.
+
+    ``library.compile_sound`` is the one compile path (the library's, offline renders' and the
+    tool's), but each module that imports it by name holds its own reference.
+
+    Returns:
+        The spy wrapping the real ``compile_sound``.
+    """
+    spy = mocker.Mock(wraps=audio_library.compile_sound)
+    for module in (audio_library, audio_offline, sound_tools):
+        if hasattr(module, 'compile_sound'):
+            mocker.patch.object(module, 'compile_sound', spy)
+    return spy
+
+
+def test_sound_render_compiles_a_sound_file_sound_once(tmp_path, mocker):
+    """The tool compiles a sound once, and the WAV holds that compile's int16 samples."""
+    sound_file = tmp_path / 'pickups.toml'
+    sound_file.write_text(COIN_FILE, encoding='utf-8')
+    output = tmp_path / 'coin.wav'
+    spy = spy_on_every_compile(mocker)
+
+    status = command.main(['sound-render', f'{sound_file}#coin', '--sound-output', str(output)])
+    compiles_by_the_tool = spy.call_count
+
+    assert status == ExitCode.SUCCESS
+    assert compiles_by_the_tool == 1
+    # Compiled after the tool ran: a sound compiled earlier is shared process-wide, so the tool's
+    # library would take it from there and compile nothing itself
+    assert np.array_equal(read_wav(output)[0], compiled_coin(sound_file))
+
+
+def test_sound_render_decodes_a_recorded_wav_once(tmp_path, mocker):
+    """A recorded file is decoded once, its rate included (no first read decodes it again)."""
+    source = tmp_path / 'ramp.wav'
+    ramp = np.linspace(-20000, 20000, 441).astype(np.int16)
+    with wave.open(str(source), 'wb') as wave_file:
+        wave_file.setnchannels(1)
+        wave_file.setsampwidth(2)
+        wave_file.setframerate(SAMPLE_RATE)
+        wave_file.writeframes(ramp.tobytes())
+    output = tmp_path / 'copy.wav'
+    spy = spy_on_every_compile(mocker)
+
+    status = command.main(['sound-render', str(source), '--sound-output', str(output)])
+
+    assert status == ExitCode.SUCCESS
+    assert spy.call_count == 1
     assert np.array_equal(read_wav(output)[0], ramp)
 
 
@@ -558,6 +612,23 @@ def test_sound_render_of_a_sound_that_cannot_compile_is_unusable_input(tmp_path,
 
     assert status == ExitCode.UNUSABLE_INPUT
     assert 'needs a pitch, notes or chord' in capsys.readouterr().err
+    assert not output.exists()
+
+
+def test_sound_render_of_an_ogg_file_is_unusable_input(tmp_path, capsys):
+    """An OGG file needs a mixer to decode: UNUSABLE_INPUT, naming why; nothing is written.
+
+    The lookup accepts the path; the refusal comes from the compile, so this is the tool's
+    failure that surfaces only while compiling.
+    """
+    source = tmp_path / 'music.ogg'
+    source.write_bytes(b'OggS')
+    output = tmp_path / 'music.wav'
+
+    status = command.main(['sound-render', str(source), '--sound-output', str(output)])
+
+    assert status == ExitCode.UNUSABLE_INPUT
+    assert 'a mixer is needed to decode .ogg files' in capsys.readouterr().err
     assert not output.exists()
 
 
