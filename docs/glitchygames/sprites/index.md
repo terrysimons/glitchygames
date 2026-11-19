@@ -58,9 +58,12 @@
 A sprite file's text compiles once per process and sprite class: every sprite of one class loaded
 from the same text gets frames of its own that share the compile's surfaces and pixels, as
 compiled sounds are shared (`compiled_sprites`, `ENGINE_SPRITE_CACHE`). The compile is the loader
-run on the first such sprite, so a subclass that changes how a file loads loads as it always did. Sixteen sprites of one file hold one copy of
-its frames, and the second load parses nothing. Each sprite keeps its own playback and its own
-copies of everything else the load set, and an Arcade tile reuses what another game compiled.
+run on the first such sprite, so a subclass that changes how a file loads loads as it always did.
+Sixteen sprites of one file hold one copy of its frames, and the second load parses nothing, not
+even for `SpriteFactory.load_sprite`'s content check, which the compile keeps. Each sprite keeps
+its own playback and its own copies of everything else the load set, and an Arcade tile reuses
+what another game compiled. The compile's load logs the file's warnings (a skipped transition,
+say) once; the sprites loaded from it log none.
 
 A frame's `image` and `pixels` copy the shared surface and pixels on their first read
 (copy-on-write), so whatever a game or the editor then does with them, drawing into the surface

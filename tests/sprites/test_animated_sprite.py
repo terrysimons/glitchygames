@@ -5079,3 +5079,88 @@ class TestSharedFramesHonorTheLoadingClass:
             is second.animation_data['walk'][0].read_only_image
         )
         assert len(ENGINE_SPRITE_CACHE) == 1
+
+
+BAD_TRANSITIONS_TOML = (
+    f'{TWO_ANIMATIONS_TOML}'
+    '[[transition]]\nfrom = "walk"\nto = "rest"\n\n'
+    '[[transition]]\nfrom = "walk"\nto = "rest"\nwhen = "speed <"\n\n'
+    '[[transition]]\nfrom = "walk"\nto = "rest"\nwhen = "speed < 1"\n\n'
+)
+
+
+class TestCachedLoadsWarnOnce:
+    """A sprite file's load warnings are the compile's: logged once, not once per sprite."""
+
+    @staticmethod
+    def _write(tmp_path: Path) -> str:
+        toml_file = tmp_path / 'walker.toml'
+        toml_file.write_text(BAD_TRANSITIONS_TOML, encoding='utf-8')
+        return str(toml_file)
+
+    def test_bad_transitions_warn_once_however_many_sprites_load_them(self, tmp_path, caplog):
+        """An incomplete transition and an unparsable one each log once for three sprites."""
+        path = self._write(tmp_path)
+        caplog.set_level(logging.WARNING, logger='game.animation.state_machine')
+
+        for _ in range(3):
+            AnimatedSprite(path)
+
+        messages = [record.getMessage() for record in caplog.records]
+        assert (
+            sum(message.startswith('Skipping incomplete transition') for message in messages) == 1
+        )
+        assert sum(message.startswith('Failed to parse transition') for message in messages) == 1
+
+    def test_each_sprite_has_its_own_state_machine_with_the_good_transitions(self, tmp_path):
+        """The bad transitions are left out of every sprite's machine, each machine its own."""
+        path = self._write(tmp_path)
+
+        sprites = [AnimatedSprite(path) for _ in range(2)]
+
+        machines = [sprite.state_machine for sprite in sprites]
+        assert machines[0] is not None
+        assert machines[1] is not None
+        assert machines[0] is not machines[1]
+        for machine in machines:
+            assert [
+                (transition.from_state, transition.to_state) for transition in machine._transitions
+            ] == [('walk', 'rest')]
+
+
+def _square_sprite_text(*, size: int) -> str:
+    """Return a one-frame sprite file, size pixels square, of one color.
+
+    Returns:
+        str: The TOML text.
+
+    """
+    rows = '\n'.join('a' * size for _ in range(size))
+    return (
+        '[sprite]\nname = "square"\n\n[[animation]]\nnamespace = "idle"\n\n'
+        f'[[animation.frame]]\nframe_index = 0\npixels = """\n{rows}\n"""\n\n'
+        '[colors."a"]\nred = 1\ngreen = 2\nblue = 3\n'
+    )
+
+
+class TestDebugLoggingDoesNotGrowWithTheSprite:
+    """A load logged at DEBUG logs about the sprite, never its pixels (pytest keeps each record)."""
+
+    @staticmethod
+    def _logged_characters(caplog, *, size: int) -> int:
+        caplog.clear()
+        sprite = AnimatedSprite(groups=None)
+        sprite.load_text(text=_square_sprite_text(size=size), source_name=f'square{size}.toml')
+        return sum(len(record.getMessage()) for record in caplog.records)
+
+    def test_a_large_sprite_logs_no_more_than_a_small_one(self, caplog):
+        """A 64-pixel square logs what a 16-pixel one logs, give or take its numbers.
+
+        Both are past every capped sample a log line takes (BitmappySprite logs 10 pixels).
+        """
+        caplog.set_level(logging.DEBUG)
+
+        small = self._logged_characters(caplog, size=16)
+        large = self._logged_characters(caplog, size=64)
+
+        assert large - small < 64

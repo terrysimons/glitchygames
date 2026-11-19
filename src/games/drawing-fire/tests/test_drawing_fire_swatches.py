@@ -19,6 +19,7 @@ from drawing_fire.swatches import (
     recolor_surface,
     shade_map,
 )
+from glitchygames.sprites.frame import SpriteFrame
 
 # Beside the game's own package (the installed copy), wherever that package lives
 SOLDIER_PATH = Path(drawing_fire.__file__).parent / 'sprites' / 'soldier.toml'
@@ -302,6 +303,23 @@ def test_load_frames_gives_each_animations_surfaces():
     # the soldier's corner is paper: transparent, not the file's magenta key
     assert frames['stand'][0].get_at((0, 0)).a == 0
     assert frames['stand'][0].get_at((0, 21)).a == 0
+
+
+def test_load_frames_reads_the_frames_without_copying_them(mocker):
+    """It copies each frame once, into its cleared surface: never the frame's own copy first.
+
+    A loaded frame's ``image`` copies the shared surface on its first read
+    (glitchygames.sprites.frame.SpriteFrame), so reading it here would copy every frame twice.
+    """
+
+    def copying_read(_frame: SpriteFrame) -> pygame.Surface:
+        pytest.fail('load_frames read a frame through its copying image property')
+
+    mocker.patch.object(SpriteFrame, 'image', new=property(copying_read))
+
+    frames = load_frames(path=SOLDIER_PATH)
+
+    assert set(frames) == {'stand', 'walk', 'down'}
 
 
 def test_both_liveries_recolor_the_soldier():

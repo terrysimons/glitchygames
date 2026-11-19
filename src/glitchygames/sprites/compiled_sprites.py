@@ -115,14 +115,16 @@ class CompiledSprite(BaseModel):
     pixel_rows_source: str
     color_map: MappingProxyType[str, tuple[int, ...]]
     color_order: tuple[str, ...]
-    # The loader's last [[animation]] frame_interval, or None when it set none (written, never
-    # read: carried so a cached load is the loader's sprite exactly)
-    frame_interval: float | None
     drawn_surfaces: MappingProxyType[tuple[str, int], pygame.Surface]
+    # Whether the text is one static or animated sprite (sprite_toml.is_one_sprite): a load
+    # that requires it (SpriteFactory) checks it here instead of parsing the text again
+    is_one_sprite: bool
     byte_count: int
 
 
-def compile_sprite_text(*, sprite: AnimatedSprite, text: str, source_name: str) -> CompiledSprite:
+def compile_sprite_text(
+    *, sprite: AnimatedSprite, text: str, source_name: str, require_sprite_content: bool = False
+) -> CompiledSprite:
     """Compile a sprite file's text by loading it, uncached, into the sprite that asked.
 
     The loader is the sprite's own (its class's overrides included), so a sprite loaded from the
@@ -134,12 +136,16 @@ def compile_sprite_text(*, sprite: AnimatedSprite, text: str, source_name: str) 
             load then gives it frames sharing them.
         text: The sprite file's TOML text.
         source_name: What the text came from (a file name, a console).
+        require_sprite_content: Refuse text that is not one static or animated sprite
+            (``AnimatedSprite.load_text``).
 
     Returns:
         CompiledSprite: The compile.
 
     """
-    return sprite.compile_text_by_loading(text=text, source_name=source_name)
+    return sprite.compile_text_by_loading(
+        text=text, source_name=source_name, require_sprite_content=require_sprite_content
+    )
 
 
 def compiled_sprite_bytes(

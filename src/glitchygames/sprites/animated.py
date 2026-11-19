@@ -1263,7 +1263,7 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
 
     # File I/O methods
     @override
-    def load(self: Self, filename: str) -> None:
+    def load(self: Self, filename: str, *, require_sprite_content: bool = False) -> None:
         """Load animated sprite from a file.
 
         Currently only supports TOML format. To add new formats:
@@ -1280,7 +1280,7 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         file_format = detect_file_format(filename)
 
         if file_format == 'toml':
-            self._load_toml(filename)
+            self._load_toml(filename, require_sprite_content=require_sprite_content)
         else:
             raise ValueError(ERR_UNSUPPORTED_FORMAT.format(file_format))
 
@@ -1316,7 +1316,7 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             self.frame_manager.current_frame = 0
             self.log.debug('No animations available, set to empty')
 
-    def _load_toml(self: Self, filename: str) -> None:
+    def _load_toml(self: Self, filename: str, *, require_sprite_content: bool = False) -> None:
         """Load animated sprite from TOML file: read the file's text and load the text.
 
         Raises:
@@ -1331,9 +1331,13 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             raise FileNotFoundError(ERR_SPRITE_FILE_NOT_FOUND.format(filename)) from e
         except UnicodeDecodeError as e:
             raise ValueError(ERR_TOML_LOAD_FAILED.format(filename, e)) from e
-        self.load_text(text=text, source_name=filename)
+        self.load_text(
+            text=text, source_name=filename, require_sprite_content=require_sprite_content
+        )
 
-    def load_text(self: Self, *, text: str, source_name: str) -> None:
+    def load_text(
+        self: Self, *, text: str, source_name: str, require_sprite_content: bool = False
+    ) -> None:
         """Load animated sprite from the text of a sprite file.
 
         The one path a sprite loads by: a file's load reads its text and calls this, so a sprite
@@ -1350,6 +1354,14 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             text: The sprite file's TOML text.
             source_name: What the text came from (a file name, a console); it names the text in
                 an error and in the warnings about pixel rows the loader repaired.
+            require_sprite_content: Refuse text that is not one static or animated sprite
+                (``sprite_toml.is_one_sprite``), as SpriteFactory does: checked on the
+                compile's parse, before the loader validates the text, and kept with the
+                compile, so a cached load checks without parsing.
+
+        Raises:
+            ValueError: If require_sprite_content and the text holds no sprite, or a static
+                sprite and animations both.
 
         """
         # Imported here: compiled_sprites imports this module (its compile runs this loader)
@@ -1364,12 +1376,21 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         if compiled is None:
             compiled = ENGINE_SPRITE_CACHE.keep(
                 key=key,
-                compiled=compile_sprite_text(sprite=self, text=text, source_name=source_name),
+                compiled=compile_sprite_text(
+                    sprite=self,
+                    text=text,
+                    source_name=source_name,
+                    require_sprite_content=require_sprite_content,
+                ),
             )
+        elif require_sprite_content and not compiled.is_one_sprite:
+            raise ValueError(sprite_toml.INVALID_SPRITE_FILE_ERROR)
         # Even the sprite that compiled takes sharing frames: the templates stay the cache's
         self._apply_compiled_sprite(compiled)
 
-    def compile_text_by_loading(self: Self, *, text: str, source_name: str) -> CompiledSprite:
+    def compile_text_by_loading(
+        self: Self, *, text: str, source_name: str, require_sprite_content: bool = False
+    ) -> CompiledSprite:
         """Load text into this sprite, uncached, and return what the load set as a compile.
 
         This sprite's loader runs, its class's overrides included. Its frames become the
@@ -1380,16 +1401,23 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         Args:
             text: The sprite file's TOML text.
             source_name: What the text came from (a file name, a console).
+            require_sprite_content: Refuse text that is not one sprite (load_text).
 
         Returns:
             CompiledSprite: The compile.
 
         """
-        self._load_text_uncached(text=text, source_name=source_name)
-        return self._compile_of_this_load()
+        is_one_sprite = self._load_text_uncached(
+            text=text, source_name=source_name, require_sprite_content=require_sprite_content
+        )
+        return self._compile_of_this_load(is_one_sprite=is_one_sprite)
 
-    def _compile_of_this_load(self: Self) -> CompiledSprite:
+    def _compile_of_this_load(self: Self, *, is_one_sprite: bool) -> CompiledSprite:
         """Return what this sprite's load set, read-only, its frames the compile's templates.
+
+        Args:
+            is_one_sprite: Whether the text is one static or animated sprite
+                (``sprite_toml.is_one_sprite``), for loads that require it.
 
         Returns:
             CompiledSprite: The compile.
@@ -1421,8 +1449,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             pixel_rows_source=self._pixel_rows_source,
             color_map=MappingProxyType(dict(self._color_map)),
             color_order=tuple(self._color_order or ()),
-            frame_interval=getattr(self, '_frame_interval', None),
             drawn_surfaces=MappingProxyType(drawn_surfaces),
+            is_one_sprite=is_one_sprite,
             byte_count=compiled_sprite_bytes(animations=animations, drawn_surfaces=drawn_surfaces),
         )
 
@@ -1454,23 +1482,38 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         self._pixel_rows_source = compiled.pixel_rows_source
         self._color_map = dict(compiled.color_map)
         self._color_order = list(compiled.color_order)
-        if compiled.frame_interval is not None:
-            self._frame_interval = compiled.frame_interval
         self._compiled_sprite = compiled
         # The sprite that compiled drew its own surfaces while loading; it draws the shared ones
         self.clear_surface_cache()
-        # The compile logged the warnings and the missing animations once
-        self._finish_load(transitions=self.transition_data, log_missing_animations=False)
+        # The compile's own load logged the skipped transitions and the missing animations once
+        self._finish_load(
+            transitions=self.transition_data,
+            log_missing_animations=False,
+            log_skipped_transitions=False,
+        )
 
-    def _load_text_uncached(self: Self, *, text: str, source_name: str) -> None:
+    def _load_text_uncached(
+        self: Self, *, text: str, source_name: str, require_sprite_content: bool = False
+    ) -> bool:
         """Load animated sprite from the text of a sprite file, as load_text's compile does.
 
         Args:
             text: The sprite file's TOML text.
             source_name: What the text came from (a file name, a console).
+            require_sprite_content: Refuse text that is not one sprite (load_text).
+
+        Returns:
+            bool: Whether the text is one static or animated sprite (``sprite_toml.is_one_sprite``).
+
+        Raises:
+            ValueError: If require_sprite_content and the text is not one sprite.
 
         """
         data = sprite_toml.parse_sprite_toml(text=text, source_name=source_name)
+        # Checked first, as SpriteFactory always checked before loading
+        is_one_sprite = sprite_toml.is_one_sprite(sprite_toml.analyze_sprite_content(data))
+        if require_sprite_content and not is_one_sprite:
+            raise ValueError(sprite_toml.INVALID_SPRITE_FILE_ERROR)
         # Every value checked once, here, so a bad one fails at load, naming the source and field
         # (sprite_file_schema.py), never later in update: a file's text and any other text alike
         validate_sprite_file(data=data, source_name=source_name)
@@ -1514,24 +1557,34 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
 
         self._animation_order.extend(self._load_toml_animations(data, color_map, animations))
         self._finish_load(
-            transitions=data.get('transition', []), log_missing_animations=not animations
+            transitions=data.get('transition', []),
+            log_missing_animations=not animations,
+            log_skipped_transitions=True,
         )
+        return is_one_sprite
 
     def _finish_load(
-        self: Self, *, transitions: list[dict[str, Any]], log_missing_animations: bool
+        self: Self,
+        *,
+        transitions: list[dict[str, Any]],
+        log_missing_animations: bool,
+        log_skipped_transitions: bool,
     ) -> None:
         """Build the sprite's own state machine, set its first animation and draw its image.
+
+        A load from a compile logs neither: the compile's own load logged them once.
 
         Args:
             transitions: The [[transition]] tables, in file order.
             log_missing_animations: Log when the sprite has no animations (the file listed none).
+            log_skipped_transitions: Log each transition skipped as incomplete or unparsable.
 
         """
         # Auto-create animation state machine if [[transition]] sections exist
         self.state_machine: AnimationStateMachine | None = None
         if transitions:
             self.state_machine = AnimationStateMachine(self)
-            self.state_machine.load_from_toml(transitions)
+            self.state_machine.load_from_toml(transitions, log_skipped=log_skipped_transitions)
 
         # Log if no animations found
         if log_missing_animations and not self._animations:
@@ -1723,9 +1776,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         # Loop property from TOML data (applied when the animation is set, see set_animation)
         loop_setting = anim_data.get('loop', True)
 
-        # Set frame interval from TOML data
+        # The animation's frame interval: each frame's duration unless the frame sets its own
         frame_interval = anim_data.get('frame_interval', 0.5)
-        self._frame_interval = frame_interval
 
         # Remember both per animation so save() writes them back
         self._animation_frame_intervals[anim_name] = frame_interval
@@ -1911,11 +1963,15 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         frame_data: dict[str, Any],
     ) -> None:
         """Log debug information for a frame."""
-        self.log.debug('    Frame %s loaded successfully', frame_index)
-        self.log.debug('    Sanitized pixel data for frame %s:', frame_index)
-
-        for y, line in enumerate(pixel_lines):
-            self.log.debug('      %02x: %s', y, line)
+        # The frame's size, never its rows: pytest keeps every record, and a row per record
+        # held about 300 MiB at the zombies peak, as the bug record
+        # bugs/2026-11-18-sprite-frames-held-a-tuple-per-pixel.md says
+        self.log.debug(
+            '    Frame %s loaded: %s pixel rows, the longest %s pixels',
+            frame_index,
+            len(pixel_lines),
+            max((len(line) for line in pixel_lines), default=0),
+        )
 
         self.log.debug('    Frame %s metadata:', frame_index)
         for key, value in frame_data.items():
@@ -2750,9 +2806,12 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         # Read without copying (a SpriteFrame's pixels copy on a public read)
         pixels = getattr(frame, 'read_only_pixels', None)
         if pixels:
-            # Create hash of frame pixel data for debugging
-            pixel_data_str = str(pixels)
-            pixel_hash = hashlib.sha256(pixel_data_str.encode()).hexdigest()[:8]
+            # A hash of the frame's pixels, one pixel at a time: never the whole frame as one
+            # string (tens of kilobytes per frame advance for a 64-pixel square)
+            digest = hashlib.sha256()
+            for pixel in pixels:
+                digest.update(str(pixel).encode())
+            pixel_hash = digest.hexdigest()[:8]
             self.log.debug(
                 '  Frame %s pixel hash: %s', self.frame_manager.current_frame, pixel_hash
             )

@@ -1755,7 +1755,8 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         animated_sprite.copy_sprite_metadata_from(self.animated_sprite)
 
         # Update the sprite's image to match the frame
-        animated_sprite.image = frame.image.copy()
+        # One copy: frame.image would copy a shared surface before this copy did
+        animated_sprite.image = frame.read_only_image.copy()
         animated_sprite.rect = animated_sprite.image.get_rect()
 
         # Save using the animated sprite's save method

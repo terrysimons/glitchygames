@@ -136,12 +136,17 @@ class AnimationStateMachine:
         """Seconds since entering the current state."""
         return self._time_in_state
 
-    def load_from_toml(self, transitions_data: list[dict[str, Any]]) -> None:
+    def load_from_toml(
+        self, transitions_data: list[dict[str, Any]], *, log_skipped: bool = True
+    ) -> None:
         """Load transition rules from parsed TOML data.
 
         Args:
             transitions_data: List of transition dicts from TOML,
                 each with 'from', 'to', and 'when' keys.
+            log_skipped: Log each transition skipped as incomplete or unparsable. A sprite
+                loaded from a compiled sprite file passes False: the compile logged them once
+                (glitchygames/sprites/compiled_sprites.py).
 
         """
         for transition_dict in transitions_data:
@@ -150,19 +155,21 @@ class AnimationStateMachine:
             when_expr = transition_dict.get('when', '')
 
             if not from_state or not to_state or not when_expr:
-                log.warning(
-                    'Skipping incomplete transition: %s',
-                    transition_dict,
-                )
+                if log_skipped:
+                    log.warning(
+                        'Skipping incomplete transition: %s',
+                        transition_dict,
+                    )
                 continue
 
             try:
                 condition = parse(when_expr)
             except ValueError:
-                log.exception(
-                    "Failed to parse transition expression '%s'",
-                    when_expr,
-                )
+                if log_skipped:
+                    log.exception(
+                        "Failed to parse transition expression '%s'",
+                        when_expr,
+                    )
                 continue
 
             self._transitions.append(

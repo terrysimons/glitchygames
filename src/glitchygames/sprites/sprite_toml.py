@@ -280,6 +280,70 @@ def parse_sprite_toml(*, text: str, source_name: str) -> dict[str, Any]:
         raise ValueError(msg) from error
 
 
+# The error a document that is not one sprite's content raises (SpriteFactory.load_sprite)
+INVALID_SPRITE_FILE_ERROR = 'Invalid sprite file'
+
+
+def analyze_sprite_content(document: Mapping[str, Any]) -> dict[str, bool]:
+    """Report which kinds of sprite content a parsed document holds.
+
+    Args:
+        document: A parsed sprite file (``parse_sprite_toml``).
+
+    Returns:
+        ``has_sprite_pixels`` (non-empty ``[sprite]`` pixels: a static sprite),
+        ``has_animation_sections`` and ``has_frame_sections`` (an animated sprite's tables).
+
+    """
+    has_sprite_pixels = False
+    has_animation_sections = False
+    has_frame_sections = False
+
+    # Check for sprite.pixels (ignore empty strings and empty lists)
+    if 'sprite' in document and 'pixels' in document['sprite']:
+        pixels = document['sprite']['pixels']
+        if (isinstance(pixels, str) and pixels.strip()) or (isinstance(pixels, list) and pixels):
+            has_sprite_pixels = True
+
+    # Check for animation sections (both keys and arrays of tables)
+    if (
+        'animation' in document
+        or 'animations' in document
+        or (isinstance(document.get('animation'), list) and document['animation'])
+    ):
+        has_animation_sections = True
+
+    # Check for frame sections (both keys and arrays of tables)
+    if 'frame' in document or (isinstance(document.get('frame'), list) and document['frame']):
+        has_frame_sections = True
+
+    # Check for nested frame sections within animation arrays
+    if isinstance(document.get('animation'), list):
+        for animation in document['animation']:
+            if isinstance(animation, dict) and 'frame' in animation:
+                has_frame_sections = True
+                break
+
+    return {
+        'has_sprite_pixels': has_sprite_pixels,
+        'has_animation_sections': has_animation_sections,
+        'has_frame_sections': has_frame_sections,
+    }
+
+
+def is_one_sprite(content: Mapping[str, bool]) -> bool:
+    """Whether a document's content (``analyze_sprite_content``) is one static or animated sprite.
+
+    Returns:
+        False for no sprite content, or for static pixels and animation tables together.
+
+    """
+    animated = content['has_animation_sections'] or content['has_frame_sections']
+    if not (content['has_sprite_pixels'] or animated):
+        return False
+    return not (content['has_sprite_pixels'] and animated)
+
+
 def write_sprite_toml(*, data: Mapping[str, Any]) -> str:
     """Write a sprite document as TOML text in the engine's layout.
 

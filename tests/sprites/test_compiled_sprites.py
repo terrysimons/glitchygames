@@ -44,7 +44,7 @@ def _compiled(*, byte_count: int, name: str = 'kept') -> CompiledSprite:
         pixel_rows_source='kept.toml',
         color_map=MappingProxyType({}),
         color_order=(),
-        frame_interval=None,
+        is_one_sprite=True,
         drawn_surfaces=MappingProxyType({('idle', 0): surface}),
         byte_count=byte_count,
     )
