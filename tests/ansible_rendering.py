@@ -93,6 +93,15 @@ def _regex_search(value: str, pattern: str) -> str | None:
     return found.group(0) if found else None
 
 
+def _search(value: str, pattern: str) -> bool:
+    """Ansible's `search` test.
+
+    Returns:
+        Whether the pattern matches anywhere in the value.
+    """
+    return re.search(pattern, value) is not None
+
+
 def _environment() -> jinja2.Environment:
     """Build Jinja with the Ansible filters the roles use.
 
@@ -118,7 +127,7 @@ def _environment() -> jinja2.Environment:
     for name, function in filters.items():
         environment.filters[name] = function
     # Ansible's `is search(pattern)`, which `reject('search', pattern)` also uses
-    environment.tests['search'] = lambda value, pattern: bool(re.search(pattern, str(value)))
+    environment.tests['search'] = _search
     return environment
 
 
