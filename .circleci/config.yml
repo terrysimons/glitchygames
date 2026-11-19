@@ -538,12 +538,36 @@ jobs:
               # 3629); the Raspberry Pis install the same. nox -s test-linux-ci reads this line
               sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config
             }
+            # The fallback's update, tried 5 times. It complements the cache, never replaces it
+            # (retries alone were turned down above): it runs only when the cache cannot
+            # install (a new key, or a stale cache), and there one failed fetch stopped the job
+            # (job 3840, 2026-11-19: node 0's update got an HTTP 520 from archive.ubuntu.com;
+            # Acquire::Retries does not retry that). Error-Mode=any makes a failed fetch fail the
+            # update (apt 3.2 exits 0 after one otherwise). The waits, 30 to 240 seconds, add up
+            # to 7.5 minutes, past the 7+ minute outage of 2026-11-19 and under CircleCI's
+            # 10-minute no-output limit; each failure is printed before its wait
+            update_from_the_mirror() {
+              local waits=(30 60 120 240)
+              local attempts=$(( ${#waits[@]} + 1 ))
+              local attempt=1
+              until sudo apt-get update -o APT::Update::Error-Mode=any; do
+                if (( attempt == attempts )); then
+                  echo "apt-get update failed $attempts times: giving up" >&2
+                  return 1
+                fi
+                local wait_seconds=${waits[attempt - 1]}
+                echo "apt-get update failed (attempt $attempt of $attempts):" \
+                  "trying again in ${wait_seconds}s" >&2
+                sleep "$wait_seconds"
+                attempt=$(( attempt + 1 ))
+              done
+            }
             # From the restored lists and packages, with no mirror; with none restored (a new
             # key) or a stale cache, update from the mirror and install again, then drop the
             # packages the fresh lists no longer name, so the cache keeps no outdated ones
             if ! install_packages; then
               echo "Installing from the apt cache failed: updating from the mirror" >&2
-              sudo apt-get update
+              update_from_the_mirror
               install_packages
               sudo apt-get autoclean
             fi

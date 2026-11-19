@@ -1,7 +1,7 @@
 # The Linux Test Job Stopped When an Ubuntu Mirror Was Down
 
 - **Description**: CircleCI jobs 3822 and 3827 (#226, 2026-11-19, about 12:05 and 12:12) died in `test-python-3-15-linux`'s "Install Linux system dependencies" step. `apt-get update` could not reach archive.ubuntu.com or security.ubuntu.com for 7+ minutes, so none of the 5 packages could be found (exit 100). Every later step failed with "nox: command not found", and no test ran. Main's green job 3793 shows the step downloading 27.5 MB of package lists to install 538 kB of packages.
-- **Status**: Fixed (2026-11-19, branch `fix/sprite-frame-memory`, #226)
+- **Status**: Fixed (2026-11-19, branch `fix/sprite-frame-memory`, #226; the fallback's retry on branch `fix/apt-update-retry`)
 - **Priority**: Medium (an outage fails every Linux job; nothing is wrong with the code under test)
 - **Root Cause**: The step needed the mirror on every run. It ran `apt-get update`, then `apt-get install`, with nothing kept between jobs and no retries. The image's apt keeps no downloaded packages (`Keep-Downloaded-Packages` is `"0"`), and its `docker-clean` hook deletes any it finds under `/var/cache/apt/archives`.
 - **Test gap**: `tests/test_ci_config.py` checked which packages the job installs, never whether it could install them without the network.
@@ -21,6 +21,7 @@
   - With the network and an empty cache, it installed and filled the cache (44 MB).
   - In a fresh container with `--network none` and that cache, it installed all 5 packages and exited 0.
   - With `--network none` and an empty cache, it took the fallback and failed with exit 100.
+- **Follow-up: the fallback's update was tried once** (job 3840, `b9dc8b64`, the cache-miss run): node 0's `apt-get update` got an HTTP 520 from archive.ubuntu.com for resolute's InRelease and the job exited 100, while node 1 succeeded and saved the cache. `Acquire::Retries` does not retry that, and apt 3.2 exits 0 after a failed fetch unless told otherwise. **Fixed** (the owner, 2026-11-19: "let's address those issues now"): the fallback runs `apt-get update -o APT::Update::Error-Mode=any` up to 5 times, waiting 30, 60, 120 and 240 seconds (7.5 minutes, past the 7+ minute outage, under CircleCI's 10-minute no-output limit), printing each failure before its wait and giving up loudly after the last. The install line is unchanged. Tests: a mirror failing twice then answering lets the job go on; a mirror always down fails the step after 5 updates; every update carries `Error-Mode=any`; the waits grow, outlast 7 minutes and stay under the limit. In `cimg/python:3.15.2` (arm64): apt 3.2.0 accepts the option (an unknown mode is refused), and with it a failed fetch exits 100 where plain `apt-get update` exits 0; with the mirror reachable the fallback updated once and installed; with `--network none` it tried 5 times and failed.
 - **Not verified locally**: amd64 (CI's architecture; this machine's Docker cannot emulate it), CircleCI's own save and restore of the files and their ownership, and a stale but present cache against the real mirror. CI's first run after the push covers the cache-miss path and the save; the second covers the cache hit.
 - **Reporter**: Claude (from glitchygames-43's CI evidence)
 - **Date Reported**: 2026-11-19

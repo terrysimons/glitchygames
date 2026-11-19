@@ -15,6 +15,7 @@ from typing import Any, NoReturn
 
 import pytest
 import yaml
+from pydantic import BaseModel, ConfigDict
 from scripts.workspace_packages import workspace_members
 
 from glitchygames.process import OutputCapture, run_command
@@ -940,6 +941,10 @@ APT_INSTALL_STEP_NAME = 'Install Linux system dependencies'
 APT_CACHE_KEY_PREFIX = 'apt-v1-'
 # The file a step writes this ISO week to, whose checksum ends the apt cache's key (git-ignored)
 APT_CACHE_WEEK_FILE = 'test-results/apt-cache-week'
+# How many times the fallback runs apt-get update before the step fails, and CircleCI's
+# no-output limit for a step that sets none: the waits between attempts stay under it
+APT_UPDATE_ATTEMPTS = 5
+CIRCLECI_DEFAULT_NO_OUTPUT_SECONDS = 600
 
 
 def linux_job_steps() -> list[Any]:
@@ -1082,23 +1087,45 @@ def test_the_linux_job_has_exactly_one_install_line():
     assert len(re.findall(r'^\s*sudo apt-get install -y \S', script, flags=re.MULTILINE)) == 1
 
 
+class AptScriptRun(BaseModel):
+    """One run of the Linux job's system-package step with stand-ins (run_apt_install_script)."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    status: int
+    # Each apt-get call's arguments, in order
+    calls: tuple[str, ...]
+    # Each wait the script slept, in seconds, in order
+    sleeps: tuple[float, ...]
+    output: str
+
+    @property
+    def commands(self) -> list[str]:
+        """Each apt-get call's command (install, update, autoclean), in order."""
+        return [call.split()[0] for call in self.calls]
+
+
 def run_apt_install_script(
-    *, tmp_path: Path, cache_hit: bool, mirror_up: bool
-) -> tuple[int, list[str]]:
-    """Run the step's script with stand-ins for sudo and apt-get; return its status and apt's calls.
+    *, tmp_path: Path, cache_hit: bool, mirror_up: bool, failed_updates: int = 0
+) -> AptScriptRun:
+    """Run the step's script with stand-ins for sudo, apt-get and sleep.
 
     The stand-in apt-get installs when the cache was restored (cache_hit) or after an update
-    that reached the mirror (mirror_up); an install with neither fails, as apt-get does with no
-    lists ("Unable to locate package", exit 100). sudo runs its command as this user, except that
-    ``tee`` writes into tmp_path instead of /etc.
+    that reached the mirror; an install with neither fails, as apt-get does with no lists
+    ("Unable to locate package", exit 100). Its update reaches the mirror when mirror_up, after
+    the first failed_updates attempts fail. A failed update exits 100 only when given
+    ``APT::Update::Error-Mode=any``, as apt 3.2 on the job's image does; without it apt exits 0
+    after a failed fetch. sudo runs its command as this user, except that ``tee`` writes into
+    tmp_path instead of /etc. sleep records its seconds and returns at once.
 
     Returns:
-        The script's exit status and each apt-get call's arguments, in order.
+        AptScriptRun: The script's status, apt's calls, the waits and the output.
 
     """
     stand_ins = tmp_path / 'bin'
     stand_ins.mkdir()
     calls = tmp_path / 'apt-calls.txt'
+    sleeps = tmp_path / 'sleeps.txt'
     (stand_ins / 'sudo').write_text(
         '#!/bin/bash\n'
         'if [ "$1" = tee ]; then shift; cat > "$STAND_IN_ROOT/$(basename "$1")"; exit; fi\n'
@@ -1110,10 +1137,22 @@ def run_apt_install_script(
         'echo "$*" >> "$APT_CALLS"\n'
         'if [ "$1" = autoclean ]; then exit 0; fi\n'
         'if [ "$1" = update ]; then\n'
-        '  [ "$MIRROR_UP" = 1 ] && touch "$STAND_IN_ROOT/updated"\n'
+        '  attempts_file="$STAND_IN_ROOT/update-attempts"\n'
+        '  attempt=$(( $(cat "$attempts_file" 2>/dev/null || echo 0) + 1 ))\n'
+        '  echo "$attempt" > "$attempts_file"\n'
+        '  if [ "$MIRROR_UP" = 1 ] && [ "$attempt" -gt "$FAILED_UPDATES" ]; then\n'
+        '    touch "$STAND_IN_ROOT/updated"; exit 0\n'
+        '  fi\n'
+        '  echo "E: Failed to fetch http://archive.ubuntu.com/ubuntu/dists/resolute/InRelease"'
+        ' >&2\n'
+        '  case "$*" in *APT::Update::Error-Mode=any*) exit 100 ;; esac\n'
         '  exit 0\n'
         'fi\n'
         '[ "$CACHE_HIT" = 1 ] || [ -e "$STAND_IN_ROOT/updated" ] || exit 100\n',
+        encoding='utf-8',
+    )
+    (stand_ins / 'sleep').write_text(
+        '#!/bin/bash\necho "$1" >> "$SLEEPS"\n',
         encoding='utf-8',
     )
     for stand_in in stand_ins.iterdir():
@@ -1128,14 +1167,22 @@ def run_apt_install_script(
             'HOME': str(home),
             'STAND_IN_ROOT': str(tmp_path),
             'APT_CALLS': str(calls),
+            'SLEEPS': str(sleeps),
             'CACHE_HIT': '1' if cache_hit else '0',
             'MIRROR_UP': '1' if mirror_up else '0',
+            'FAILED_UPDATES': str(failed_updates),
         },
         timeout_seconds=60,
         capture_output=OutputCapture.TOGETHER,
     )
-    called = calls.read_text(encoding='utf-8').splitlines() if calls.exists() else []
-    return result.returncode, [call.split()[0] for call in called]
+    return AptScriptRun(
+        status=result.returncode,
+        calls=tuple(calls.read_text(encoding='utf-8').splitlines()) if calls.exists() else (),
+        sleeps=tuple(float(line) for line in sleeps.read_text(encoding='utf-8').split())
+        if sleeps.exists()
+        else (),
+        output=result.stdout or '',
+    )
 
 
 apt_script_needs_bash = pytest.mark.skipif(
@@ -1147,9 +1194,9 @@ apt_script_needs_bash = pytest.mark.skipif(
 @apt_script_needs_bash
 def test_a_restored_apt_cache_installs_without_updating(tmp_path):
     """A cache hit installs from the cached lists and packages: no mirror is asked."""
-    status, calls = run_apt_install_script(tmp_path=tmp_path, cache_hit=True, mirror_up=False)
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=True, mirror_up=False)
 
-    assert (status, calls) == (0, ['install'])
+    assert (run.status, run.commands) == (0, ['install'])
 
 
 @apt_script_needs_bash
@@ -1159,18 +1206,70 @@ def test_a_failed_cached_install_updates_from_the_mirror_and_installs_again(tmp_
     autoclean drops the packages the fresh lists no longer name, so the week's new cache holds
     no outdated ones.
     """
-    status, calls = run_apt_install_script(tmp_path=tmp_path, cache_hit=False, mirror_up=True)
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=False, mirror_up=True)
 
-    assert (status, calls) == (0, ['install', 'update', 'install', 'autoclean'])
+    assert (run.status, run.commands) == (0, ['install', 'update', 'install', 'autoclean'])
 
 
 @apt_script_needs_bash
-def test_no_cache_and_no_mirror_fails_the_step(tmp_path):
-    """With nothing cached and the mirror down, the step fails rather than going on."""
-    status, calls = run_apt_install_script(tmp_path=tmp_path, cache_hit=False, mirror_up=False)
+def test_no_cache_and_no_mirror_fails_the_step_after_its_last_update(tmp_path):
+    """With nothing cached and the mirror down, every update fails, then the step does.
 
-    assert status != 0
-    assert calls == ['install', 'update', 'install']
+    It never installs from lists it could not fetch, and it says it gave up.
+    """
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=False, mirror_up=False)
+
+    assert run.status != 0
+    assert run.commands == ['install'] + ['update'] * APT_UPDATE_ATTEMPTS
+    assert 'giving up' in run.output
+
+
+@apt_script_needs_bash
+def test_the_fallback_outlasts_a_few_failed_updates(tmp_path):
+    """A mirror answering on the third try: the job goes on (job 3840 died on one HTTP 520)."""
+    run = run_apt_install_script(
+        tmp_path=tmp_path, cache_hit=False, mirror_up=True, failed_updates=2
+    )
+
+    assert run.status == 0
+    assert run.commands == ['install', 'update', 'update', 'update', 'install', 'autoclean']
+    assert len(run.sleeps) == 2
+    assert run.output.count('apt-get update failed') == 2
+
+
+@apt_script_needs_bash
+def test_every_update_fails_on_a_failed_fetch(tmp_path):
+    """apt-get update exits 0 after a failed fetch unless told otherwise: each update says so."""
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=False, mirror_up=False)
+
+    updates = [call for call in run.calls if call.startswith('update')]
+    assert updates
+    assert all('APT::Update::Error-Mode=any' in update for update in updates)
+
+
+@apt_script_needs_bash
+def test_the_update_waits_grow_and_stay_under_the_no_output_limit(tmp_path):
+    """The waits outlast a 7-minute outage (2026-11-19) yet stay under the step's limit."""
+    steps = linux_job_steps()
+    install_step = steps[apt_install_step_index(steps=steps)]['run']
+    limit_seconds = CIRCLECI_DEFAULT_NO_OUTPUT_SECONDS
+    assert 'no_output_timeout' not in install_step
+
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=False, mirror_up=False)
+
+    assert len(run.sleeps) == APT_UPDATE_ATTEMPTS - 1
+    assert list(run.sleeps) == sorted(run.sleeps)
+    assert sum(run.sleeps) > 7 * 60
+    assert sum(run.sleeps) < limit_seconds
+
+
+def test_the_install_line_is_the_one_noxfile_reads():
+    """The retry leaves the install line as noxfile's test-linux-ci and these tests read it."""
+    import noxfile
+
+    assert noxfile._linux_ci_job_packages(
+        configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    ) == ['fontconfig', 'libudev-dev', 'libusb-1.0-0-dev', 'pkg-config']
 
 
 def test_every_linux_job_installs_the_linux_jobs_system_packages():
