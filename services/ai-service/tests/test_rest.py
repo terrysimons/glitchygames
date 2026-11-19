@@ -447,6 +447,52 @@ def test_settings_load_from_the_file_the_environment_names(tmp_path, settings, m
     assert load_settings() == settings
 
 
+def test_a_service_json_naming_no_selection_file_reads_the_one_beside_it(
+    tmp_path, settings, worker, running_worker, monkeypatch
+):
+    # Written before the selection file existed (or by a setup that hasn't run again since): no
+    # selection_file key. ai-service.sh still writes selected-models.json beside it, so a
+    # Bonsai-only machine is ready on Bonsai alone and has no embedding model
+    _fake, port = running_worker
+    installed = settings.model_copy(
+        update={'models': (live_reasoning(port), embedding_at(free_port()))}
+    )
+    written = json.loads(installed.model_dump_json())
+    del written['selection_file']
+    path = tmp_path / 'config' / 'service.json'
+    path.parent.mkdir()
+    path.write_text(json.dumps(written), encoding='utf-8')
+    (path.parent / 'selected-models.json').write_text(
+        json.dumps({'models': ['bonsai-2-2b']}), encoding='utf-8'
+    )
+    monkeypatch.setenv(CONFIG_ENVIRONMENT_VARIABLE, str(path))
+
+    with TestClient(create_app(settings=load_settings())) as client:
+        ready = client.get('/health/ready')
+        embeddings = client.post('/v1/embeddings', headers=AUTHORIZED, json={'input': 'a'})
+
+    assert ready.status_code == 200
+    assert ready.json()['ready'] is True
+    assert embeddings.status_code == 503
+    assert embeddings.json()['error']['code'] == 'no_embedding_model'
+    assert worker.requests == []
+
+
+def test_the_selection_file_is_beside_the_settings_whatever_they_name(
+    tmp_path, settings, monkeypatch
+):
+    # One rule: a selection_file key (written by an earlier build) is never followed
+    path = tmp_path / 'config' / 'service.json'
+    path.parent.mkdir()
+    path.write_text(
+        json.dumps({**json.loads(settings.model_dump_json()), 'selection_file': '/elsewhere.json'}),
+        encoding='utf-8',
+    )
+    monkeypatch.setenv(CONFIG_ENVIRONMENT_VARIABLE, str(path))
+
+    assert load_settings().selection_file == path.parent / 'selected-models.json'
+
+
 def test_settings_refuse_an_unknown_key(tmp_path, settings, monkeypatch):
     path = tmp_path / 'service.json'
     path.write_text(

@@ -141,7 +141,8 @@ ai_service_agents_directory: "{{ ai_program_root }}/agents"
 # Only the service holds the workers' key. Games and tools use the service's
 ai_service_api_key_file: "{{ ai_service_config_directory }}/worker-api-key"
 # Where ai-service.sh names the models each start started, in the config folder, for the API's
-# readiness: a machine whose memory tier runs no Qwen is ready with Bonsai alone
+# readiness: a machine whose memory tier runs no Qwen is ready with Bonsai alone. The service finds
+# it beside service.json by its own name (settings.SELECTION_FILE_NAME), so the two must agree
 ai_service_selection_file_name: selected-models.json
 ai_service_service_key_file: "{{ ai_service_config_directory }}/service-api-key"
 ai_service_api_label: "{{ ai_service_label_prefix }}.api"

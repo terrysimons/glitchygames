@@ -2042,15 +2042,38 @@ def test_a_stop_forgets_the_selection(tmp_path: Path, system: Literal['Darwin', 
     assert not (service.config / 'selected-models.json').exists()
 
 
-def test_the_api_reads_the_selection_the_picker_writes(tmp_path: Path):
-    """service.json names the file ai-service.sh writes, in the config folder."""
-    service = ServiceHome(system='Linux', home=tmp_path / 'home', tools=tmp_path / 'tools')
-    rendered = render_template(
-        path=TEMPLATES / 'service.json.j2',
-        variables=service.variables | {'ai_service_agents': service.agents()},
-    )
+@pytest.mark.parametrize('system', SYSTEMS)
+def test_the_api_reads_the_selection_the_picker_writes(
+    tmp_path: Path, system: Literal['Darwin', 'Linux']
+):
+    """ai-service.sh writes the selection beside service.json, where the service looks for it.
 
-    assert json.loads(rendered)['selection_file'] == str(service.config / 'selected-models.json')
+    The service names the file by convention (its settings.SELECTION_FILE_NAME, beside the file
+    GLITCHYGAMES_AI_SERVICE_CONFIG names), so a service.json written before the selection
+    existed finds it too, and service.json names no selection file.
+    """
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    rendered = json.loads(
+        render_template(
+            path=TEMPLATES / 'service.json.j2',
+            variables=service.variables | {'ai_service_agents': service.agents()},
+        )
+    )
+    api = service.agent(role='api')
+    service.write_agent_settings(agent=api)
+    agent_settings = (service.config / f'{api["label"]}.env').read_text(encoding='utf-8')
+    (settings_path,) = re.findall(r'^GLITCHYGAMES_AI_SERVICE_CONFIG=(.+)$', agent_settings, re.M)
+    service_settings = (
+        PROJECT_ROOT / 'services/ai-service/src/glitchygames_ai_service/settings.py'
+    ).read_text(encoding='utf-8')
+    (service_name,) = re.findall(r"^SELECTION_FILE_NAME = '(.+)'$", service_settings, re.M)
+
+    assert 'selection_file' not in rendered
+    assert service.variables['ai_service_selection_file_name'] == service_name
+    # Where ai-service.sh start writes it (test_a_stop_forgets_the_selection)
+    assert Path(shlex.split(settings_path)[0]).parent / service_name == (
+        service.config / 'selected-models.json'
+    )
 
 
 @needs_a_posix_shell
