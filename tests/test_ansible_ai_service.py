@@ -2678,6 +2678,11 @@ def test_the_user_uninstaller_stops_the_units_and_removes_what_setup_wrote(tmp_p
     stopped = calls.index('systemctl --user stop ai.glitchygames.*.service')
     # systemd forgets the removed drop-ins only when it reloads
     assert 'systemctl --user daemon-reload' in calls[stopped:]
+    # The package enables the setup job for every user, so without this user's own mask it would
+    # set everything up again at their next login; and they're told how to undo it
+    setup_unit = f'{setup.service.variables["ai_package_setup_label"]}.service'
+    assert f'systemctl --user mask {setup_unit}' in calls[stopped:]
+    assert f'systemctl --user unmask {setup_unit}' in kept_models.stdout
     assert not (setup.user_root / 'config').exists()
     assert not cache.exists()
     assert not logs.exists()
@@ -3361,6 +3366,8 @@ def test_postinst_enables_the_setup_job_and_starts_it_for_the_user_who_ran_sudo(
     assert result.returncode == 0, result.stdout + result.stderr
     assert scripts.calls() == [
         f'systemctl --global enable {SETUP_UNIT}',
+        # Undoes the mask an earlier uninstall-user.sh left for this user: they're installing it
+        f'systemctl --user --machine=alice@ unmask {SETUP_UNIT}',
         f'systemctl --user --machine=alice@ start --no-block {SETUP_UNIT}',
     ]
     assert 'background' in result.stdout

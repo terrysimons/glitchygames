@@ -308,8 +308,8 @@ templates staged in `share/agents/` with the home placeholder filled in.
 On Linux the same template is used, with its platform parts made functions (5.3): `sha256sum` for
 `shasum -a 256`, unit files with no placeholder (systemd's `%h` names the home) for plists that need
 one, and `systemctl --user daemon-reload` for `plutil -lint`. It also writes each AI unit's two
-drop-ins, the CPU placement and the user's folder (6.2), the only per-user parts of a unit. The download source stays the pinned
-Hugging Face URLs, as on a Mac; no mirror.
+drop-ins, the CPU placement and the user's folder (6.2), the only per-user parts of a unit. The
+download source stays the pinned Hugging Face URLs, as on a Mac; no mirror.
 
 Ansible on Linux therefore does not write the user's config itself, as `ai_service` does on a Mac:
 after installing the `.deb` it runs the installed `/opt/glitchygames/ai/bin/setup.sh` as the owner
@@ -558,7 +558,13 @@ plists on a Mac, unit files on Linux).
 - **Maintainer scripts:** `postinst` enables and starts the setup job (6.2); `prerm` stops every
   running `ai.glitchygames.*` user unit for every logged-in user; `postrm purge` removes nothing in
   homes (Debian convention). `/opt/glitchygames/ai/bin/uninstall-user.sh` removes one user's data
-  when they ask.
+  when they ask, and masks the setup job for that user (`systemctl --user mask`, the user's own
+  override of the `--global` enable), or it would set everything up again at their next login; it
+  says how to undo that (`systemctl --user unmask ai.glitchygames.setup.service`). The postinst
+  unmasks it for the user who installs the package again, as that is asking for it back; every
+  other user's mask stays theirs (final review, 2026-11-19; checked with systemd 257). A Mac's
+  setup job has no such problem: it runs once and removes its own plist, and installing the
+  `.pkg` again is what brings it back.
 - **Contents check** (as the `.pkg`'s "holds the server and its notices, and no model"):
   `dpkg-deb --contents` lists `llama-server`, every CPU variant for the architecture, the sidecar,
   the licenses and every unit file, and no `.gguf`.

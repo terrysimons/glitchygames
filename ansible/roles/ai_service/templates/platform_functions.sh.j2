@@ -185,6 +185,11 @@ forget_every_agent() {
         rm -f "$drop_in_directory/cpu-placement.conf" "$drop_in_directory/user-root.conf"
         rmdir "$drop_in_directory" 2>/dev/null
     done
+    # The package enables the setup job for every user (systemctl --global enable), so it would set
+    # everything up again at this user's next login. This user's own mask overrides that (checked
+    # with systemd 257); how_to_set_up_again says how to undo it, and the postinst undoes it for
+    # the user who installs the package again
+    systemctl --user mask '{{ ai_package_setup_label }}.service' 2>/dev/null
     systemctl --user daemon-reload 2>/dev/null
 {% else %}
     # The models' agents, and the package's setup job or anything an older install left in
@@ -196,6 +201,20 @@ forget_every_agent() {
         launchctl enable "gui/$(id -u)/$label" 2>/dev/null
         rm -f "$plist"
     done
+{% endif %}
+    return 0
+}
+{% endmacro %}
+
+{% macro how_to_set_up_again() %}
+# Says how this user gets the service back after uninstalling it, where that takes more than
+# installing it again
+how_to_set_up_again() {
+{% if ansible_facts['system'] == 'Linux' %}
+    echo "The setup job no longer runs at your login. To set the service up again: systemctl --user unmask {{ ai_package_setup_label }}.service, then log in again or run {{ ai_service_bin_directory }}/setup.sh."
+{% else %}
+    # The setup job ran once and removed itself, and installing the package again brings it back
+    :
 {% endif %}
     return 0
 }

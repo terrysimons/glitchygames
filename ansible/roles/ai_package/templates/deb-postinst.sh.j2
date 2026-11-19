@@ -37,6 +37,9 @@ if [ -z "${SUDO_USER:-}" ] || [ "$SUDO_USER" = root ]; then
     exit 0
 fi
 
+# A user who ran uninstall-user.sh masked the job for themselves; installing the package again is
+# asking for it back. Every other user's choice stays theirs
+systemctl --user --machine="$SUDO_USER@" unmask "$setup_unit" 2>/dev/null
 if systemctl --user --machine="$SUDO_USER@" start --no-block "$setup_unit"; then
     say "setting up for $SUDO_USER; the models download in the background (follow it with: journalctl --user -u $setup_unit -f)"
 else

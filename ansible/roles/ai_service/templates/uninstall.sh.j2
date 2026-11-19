@@ -12,6 +12,7 @@ set -u
 {{ platform.log_root() }}
 {{ platform.forget_every_agent() }}
 {{ platform.forget_package() }}
+{{ platform.how_to_set_up_again() }}
 
 remove_models=false
 if [ "${1:-}" = "--remove-models" ]; then
@@ -44,4 +45,5 @@ echo "Removed the GlitchyGames local AI service."
 if [ "$remove_models" = false ] && [ -d "$user_root/models" ]; then
     echo "The models are still in $user_root/models ($(basename "$0") --remove-models removes them)."
 fi
+how_to_set_up_again
 exit 0
