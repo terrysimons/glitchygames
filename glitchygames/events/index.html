@@ -482,6 +482,8 @@
       
         
       
+        
+      
     
     
     
@@ -679,6 +681,34 @@
     
   
     Drawing Fire Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../games/zombies_aint_my_neighbors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Zombies Ain't My Neighbors Architecture
   
 
     
@@ -22307,6 +22337,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#glitchygames.events.mouse.call_sprite_handler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        call_sprite_handler
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#glitchygames.events.mouse.collided_sprites" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -23096,6 +23137,8 @@
       
         
       
+        
+      
     
     
     
@@ -23333,6 +23376,34 @@
     
   
     drawing_fire
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../zombies_aint_my_neighbors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    zombies_aint_my_neighbors
   
 
     
@@ -291897,7 +291968,7 @@ releases this context's only: a game in another engine context keeps its manager
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-86"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-86" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-86"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-87"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-87" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-87"></a>            <span class="k">if</span> <span class="n">sprite</span><span class="p">:</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-88"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-88" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-88"></a>                <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">'</span><span class="si">%s</span><span class="s1">: Mouse Motion: </span><span class="si">%s</span><span class="s1">'</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">event</span><span class="p">)</span>
-</span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-89"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-89" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-89"></a>                <span class="n">sprite</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">on_mouse_motion_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+</span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-89"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-89" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-89"></a>                <span class="n">call_sprite_handler</span><span class="p">(</span><span class="n">sprite</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'on_mouse_motion_event'</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-90"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-90" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-90"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-91"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-91" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-91"></a>            <span class="c1"># Caller can check the buttons.</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-92"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-92" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-92"></a>            <span class="c1"># Note: This probably doesn't work right because</span>
@@ -292071,7 +292142,7 @@ releases this context's only: a game in another engine context keeps its manager
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-260"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-260" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-260"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span> <span class="o">=</span> <span class="n">entering_focus</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-261"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-261" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-261"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-262"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-262" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-262"></a>            <span class="c1"># Send an enter event for the new focus.</span>
-</span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-263"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-263" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-263"></a>            <span class="n">entering_focus</span><span class="o">.</span><span class="n">on_mouse_focus_event</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span><span class="p">)</span>  <span class="c1"># pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[missing-attribute]</span>
+</span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-263"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-263" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-263"></a>            <span class="n">call_sprite_handler</span><span class="p">(</span><span class="n">entering_focus</span><span class="p">,</span> <span class="s1">'on_mouse_focus_event'</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span><span class="p">)</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-264"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-264" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-264"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-265"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-265" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-265"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Entered Focus: </span><span class="si">%s</span><span class="s1">'</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span><span class="p">)</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-266"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-266" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-266"></a>
@@ -292087,7 +292158,7 @@ releases this context's only: a game in another engine context keeps its manager
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-276"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-276" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-276"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">previous_focus</span> <span class="o">=</span> <span class="n">leaving_focus</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-277"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-277" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-277"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-278"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-278" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-278"></a>            <span class="k">if</span> <span class="n">leaving_focus</span><span class="p">:</span>
-</span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-279"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-279" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-279"></a>                <span class="n">leaving_focus</span><span class="o">.</span><span class="n">on_mouse_unfocus_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>  <span class="c1"># pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[missing-attribute]</span>
+</span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-279"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-279" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-279"></a>                <span class="n">call_sprite_handler</span><span class="p">(</span><span class="n">leaving_focus</span><span class="p">,</span> <span class="s1">'on_mouse_unfocus_event'</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-280"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-280" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-280"></a>                <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-281"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-281" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-281"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager--source--__span-0-282"><a id="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-282" name="glitchygames.events.mouse.MouseEventManager--source--__codelineno-0-282"></a>                <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Left Focus: </span><span class="si">%s</span><span class="s1">'</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">previous_focus</span><span class="p">)</span>
@@ -292751,7 +292822,7 @@ releases this context's only: a game in another engine context keeps its manager
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-86"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-86" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-86"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-87"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-87" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-87"></a>        <span class="k">if</span> <span class="n">sprite</span><span class="p">:</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-88"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-88" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-88"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">'</span><span class="si">%s</span><span class="s1">: Mouse Motion: </span><span class="si">%s</span><span class="s1">'</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">event</span><span class="p">)</span>
-</span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-89"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-89" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-89"></a>            <span class="n">sprite</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">on_mouse_motion_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+</span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-89"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-89" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-89"></a>            <span class="n">call_sprite_handler</span><span class="p">(</span><span class="n">sprite</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'on_mouse_motion_event'</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-90"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-90" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-90"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-91"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-91" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-91"></a>        <span class="c1"># Caller can check the buttons.</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-92"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-92" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-92"></a>        <span class="c1"># Note: This probably doesn't work right because</span>
@@ -292925,7 +292996,7 @@ releases this context's only: a game in another engine context keeps its manager
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-260"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-260" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-260"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span> <span class="o">=</span> <span class="n">entering_focus</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-261"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-261" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-261"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-262"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-262" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-262"></a>        <span class="c1"># Send an enter event for the new focus.</span>
-</span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-263"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-263" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-263"></a>        <span class="n">entering_focus</span><span class="o">.</span><span class="n">on_mouse_focus_event</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span><span class="p">)</span>  <span class="c1"># pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[missing-attribute]</span>
+</span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-263"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-263" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-263"></a>        <span class="n">call_sprite_handler</span><span class="p">(</span><span class="n">entering_focus</span><span class="p">,</span> <span class="s1">'on_mouse_focus_event'</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span><span class="p">)</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-264"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-264" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-264"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-265"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-265" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-265"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Entered Focus: </span><span class="si">%s</span><span class="s1">'</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span><span class="p">)</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-266"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-266" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-266"></a>
@@ -292941,7 +293012,7 @@ releases this context's only: a game in another engine context keeps its manager
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-276"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-276" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-276"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">previous_focus</span> <span class="o">=</span> <span class="n">leaving_focus</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-277"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-277" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-277"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-278"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-278" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-278"></a>        <span class="k">if</span> <span class="n">leaving_focus</span><span class="p">:</span>
-</span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-279"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-279" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-279"></a>            <span class="n">leaving_focus</span><span class="o">.</span><span class="n">on_mouse_unfocus_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>  <span class="c1"># pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[missing-attribute]</span>
+</span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-279"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-279" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-279"></a>            <span class="n">call_sprite_handler</span><span class="p">(</span><span class="n">leaving_focus</span><span class="p">,</span> <span class="s1">'on_mouse_unfocus_event'</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-280"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-280" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-280"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-281"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-281" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-281"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__span-0-282"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-282" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy--source--__codelineno-0-282"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Left Focus: </span><span class="si">%s</span><span class="s1">'</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">previous_focus</span><span class="p">)</span>
@@ -294951,7 +295022,7 @@ as compatible with it), so the normal inheritance check decides.</p>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__span-0-260"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__codelineno-0-260" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__codelineno-0-260"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span> <span class="o">=</span> <span class="n">entering_focus</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__span-0-261"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__codelineno-0-261" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__codelineno-0-261"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__span-0-262"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__codelineno-0-262" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__codelineno-0-262"></a>    <span class="c1"># Send an enter event for the new focus.</span>
-</span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__span-0-263"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__codelineno-0-263" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__codelineno-0-263"></a>    <span class="n">entering_focus</span><span class="o">.</span><span class="n">on_mouse_focus_event</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span><span class="p">)</span>  <span class="c1"># pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[missing-attribute]</span>
+</span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__span-0-263"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__codelineno-0-263" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__codelineno-0-263"></a>    <span class="n">call_sprite_handler</span><span class="p">(</span><span class="n">entering_focus</span><span class="p">,</span> <span class="s1">'on_mouse_focus_event'</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span><span class="p">)</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__span-0-264"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__codelineno-0-264" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__codelineno-0-264"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__span-0-265"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__codelineno-0-265" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_focus_event--source--__codelineno-0-265"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Entered Focus: </span><span class="si">%s</span><span class="s1">'</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span><span class="p">)</span>
 </span></code></pre></div></td></tr></table></div>
@@ -295067,7 +295138,7 @@ as compatible with it), so the normal inheritance check decides.</p>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__span-0-86"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-86" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-86"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__span-0-87"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-87" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-87"></a>    <span class="k">if</span> <span class="n">sprite</span><span class="p">:</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__span-0-88"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-88" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-88"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">'</span><span class="si">%s</span><span class="s1">: Mouse Motion: </span><span class="si">%s</span><span class="s1">'</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">event</span><span class="p">)</span>
-</span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__span-0-89"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-89" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-89"></a>        <span class="n">sprite</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">on_mouse_motion_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+</span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__span-0-89"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-89" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-89"></a>        <span class="n">call_sprite_handler</span><span class="p">(</span><span class="n">sprite</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'on_mouse_motion_event'</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__span-0-90"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-90" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-90"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__span-0-91"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-91" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-91"></a>    <span class="c1"># Caller can check the buttons.</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__span-0-92"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-92" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_motion_event--source--__codelineno-0-92"></a>    <span class="c1"># Note: This probably doesn't work right because</span>
@@ -295314,7 +295385,7 @@ as compatible with it), so the normal inheritance check decides.</p>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__span-0-276"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-276" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-276"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">previous_focus</span> <span class="o">=</span> <span class="n">leaving_focus</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__span-0-277"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-277" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-277"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__span-0-278"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-278" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-278"></a>    <span class="k">if</span> <span class="n">leaving_focus</span><span class="p">:</span>
-</span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__span-0-279"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-279" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-279"></a>        <span class="n">leaving_focus</span><span class="o">.</span><span class="n">on_mouse_unfocus_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>  <span class="c1"># pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[missing-attribute]</span>
+</span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__span-0-279"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-279" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-279"></a>        <span class="n">call_sprite_handler</span><span class="p">(</span><span class="n">leaving_focus</span><span class="p">,</span> <span class="s1">'on_mouse_unfocus_event'</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__span-0-280"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-280" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-280"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">current_focus</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__span-0-281"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-281" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-281"></a>
 </span><span id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__span-0-282"><a id="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-282" name="glitchygames.events.mouse.MouseEventManager.MouseEventProxy.on_mouse_unfocus_event--source--__codelineno-0-282"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Left Focus: </span><span class="si">%s</span><span class="s1">'</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">previous_focus</span><span class="p">)</span>
@@ -296841,6 +296912,125 @@ releases this context's only: a game in another engine context keeps its manager
 <div class="doc doc-object doc-function">
 
 
+<h3 id="glitchygames.events.mouse.call_sprite_handler" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">call_sprite_handler</span><span class="p">(</span><span class="n">sprite</span><span class="p">,</span> <span class="n">handler_name</span><span class="p">,</span> <span class="o">*</span><span class="n">arguments</span><span class="p">)</span></code>
+
+<a href="#glitchygames.events.mouse.call_sprite_handler" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Call a sprite's mouse handler, if it has one.</p>
+<p>Every RootSprite has them all (silent by default), but a scene may hold a plain pygame
+sprite (a replay's ghost is one): it gets no call it lacks, as the scene's click dispatch
+already skips them. The pointer over a sprite without handlers once ended the game.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sprite</code>
+            </td>
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The sprite under the pointer, or the one leaving or taking the focus.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>handler_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The handler (<code>on_mouse_focus_event</code>, ...).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>*arguments</code>
+            </td>
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>What the handler takes.</p>
+              </div>
+            </td>
+            <td>
+                  <code>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/glitchygames/events/mouse.py</code></summary>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-523">523</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-524">524</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-525">525</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-526">526</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-527">527</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-528">528</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-529">529</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-530">530</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-531">531</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-532">532</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-533">533</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-534">534</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-535">535</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-536">536</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-537">537</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-538">538</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-523"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-523" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-523"></a><span class="k">def</span><span class="w"> </span><span class="nf">call_sprite_handler</span><span class="p">(</span><span class="n">sprite</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="n">handler_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">arguments</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-524"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-524" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-524"></a><span class="w">    </span><span class="sd">"""Call a sprite's mouse handler, if it has one.</span>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-525"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-525" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-525"></a>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-526"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-526" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-526"></a><span class="sd">    Every RootSprite has them all (silent by default), but a scene may hold a plain pygame</span>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-527"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-527" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-527"></a><span class="sd">    sprite (a replay's ghost is one): it gets no call it lacks, as the scene's click dispatch</span>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-528"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-528" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-528"></a><span class="sd">    already skips them. The pointer over a sprite without handlers once ended the game.</span>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-529"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-529" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-529"></a>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-530"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-530" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-530"></a><span class="sd">    Args:</span>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-531"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-531" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-531"></a><span class="sd">        sprite: The sprite under the pointer, or the one leaving or taking the focus.</span>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-532"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-532" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-532"></a><span class="sd">        handler_name: The handler (``on_mouse_focus_event``, ...).</span>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-533"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-533" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-533"></a><span class="sd">        *arguments: What the handler takes.</span>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-534"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-534" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-534"></a>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-535"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-535" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-535"></a><span class="sd">    """</span>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-536"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-536" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-536"></a>    <span class="n">handler</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">sprite</span><span class="p">,</span> <span class="n">handler_name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-537"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-537" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-537"></a>    <span class="k">if</span> <span class="n">handler</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.events.mouse.call_sprite_handler--source--__span-0-538"><a id="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-538" name="glitchygames.events.mouse.call_sprite_handler--source--__codelineno-0-538"></a>        <span class="n">handler</span><span class="p">(</span><span class="o">*</span><span class="n">arguments</span><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="glitchygames.events.mouse.collided_sprites" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">collided_sprites</span><span class="p">(</span><span class="n">scene</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
@@ -296940,25 +297130,7 @@ releases this context's only: a game in another engine context keeps its manager
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/events/mouse.py</code></summary>
-              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-523">523</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-524">524</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-525">525</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-526">526</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-527">527</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-528">528</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-529">529</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-530">530</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-531">531</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-532">532</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-533">533</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-534">534</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-535">535</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-536">536</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-537">537</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-538">538</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-539">539</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-540">540</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-541">541</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-541">541</a></span>
 <span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-542">542</a></span>
 <span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-543">543</a></span>
 <span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-544">544</a></span>
@@ -296967,34 +297139,52 @@ releases this context's only: a game in another engine context keeps its manager
 <span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-547">547</a></span>
 <span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-548">548</a></span>
 <span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-549">549</a></span>
-<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-550">550</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-523"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-523" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-523"></a><span class="k">def</span><span class="w"> </span><span class="nf">collided_sprites</span><span class="p">(</span><span class="n">scene</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]:</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-524"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-524" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-524"></a><span class="w">    </span><span class="sd">"""Get the list of collided sprites.</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-525"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-525" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-525"></a>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-526"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-526" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-526"></a><span class="sd">    Args:</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-527"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-527" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-527"></a><span class="sd">        scene (object): The scene to check.</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-528"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-528" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-528"></a><span class="sd">        event (pygame.event.Event): The event to check.</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-529"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-529" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-529"></a><span class="sd">        index (int): The index of the sprite to return.</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-530"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-530" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-530"></a>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-531"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-531" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-531"></a><span class="sd">    Returns:</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-532"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-532" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-532"></a><span class="sd">        list: The list of collided sprites.</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-533"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-533" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-533"></a>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-534"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-534" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-534"></a><span class="sd">    """</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-535"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-535" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-535"></a>    <span class="n">mouse</span> <span class="o">=</span> <span class="n">MousePointer</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">event</span><span class="o">.</span><span class="n">pos</span><span class="p">)</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-536"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-536" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-536"></a>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-537"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-537" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-537"></a>    <span class="n">all_sprites</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="s1">'Any'</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span><span class="o">.</span><span class="n">all_sprites</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-538"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-538" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-538"></a>    <span class="n">sprites</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">sprite</span><span class="o">.</span><span class="n">spritecollide</span><span class="p">(</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-539"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-539" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-539"></a>        <span class="n">sprite</span><span class="o">=</span><span class="n">mouse</span><span class="p">,</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-540"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-540" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-540"></a>        <span class="n">group</span><span class="o">=</span><span class="n">all_sprites</span><span class="p">,</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-541"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-541" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-541"></a>        <span class="n">dokill</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-542"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-542" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-542"></a>    <span class="p">)</span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-550">550</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-551">551</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-552">552</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-553">553</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-554">554</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-555">555</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-556">556</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-557">557</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-558">558</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-559">559</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-560">560</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-561">561</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-562">562</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-563">563</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-564">564</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-565">565</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-566">566</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-567">567</a></span>
+<span class="normal"><a href="#glitchygames.events.mouse.collided_sprites--source--__codelineno-0-568">568</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-541"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-541" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-541"></a><span class="k">def</span><span class="w"> </span><span class="nf">collided_sprites</span><span class="p">(</span><span class="n">scene</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]:</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-542"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-542" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-542"></a><span class="w">    </span><span class="sd">"""Get the list of collided sprites.</span>
 </span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-543"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-543" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-543"></a>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-544"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-544" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-544"></a>    <span class="k">if</span> <span class="n">sprites</span><span class="p">:</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-545"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-545" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-545"></a>        <span class="k">if</span> <span class="n">index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-546"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-546" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-546"></a>            <span class="k">return</span> <span class="n">sprites</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-547"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-547" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-547"></a>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-548"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-548" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-548"></a>        <span class="k">return</span> <span class="p">[</span><span class="n">sprites</span><span class="p">[</span><span class="n">index</span><span class="p">]]</span>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-549"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-549" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-549"></a>
-</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-550"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-550" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-550"></a>    <span class="k">return</span> <span class="p">[]</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-544"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-544" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-544"></a><span class="sd">    Args:</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-545"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-545" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-545"></a><span class="sd">        scene (object): The scene to check.</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-546"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-546" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-546"></a><span class="sd">        event (pygame.event.Event): The event to check.</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-547"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-547" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-547"></a><span class="sd">        index (int): The index of the sprite to return.</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-548"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-548" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-548"></a>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-549"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-549" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-549"></a><span class="sd">    Returns:</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-550"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-550" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-550"></a><span class="sd">        list: The list of collided sprites.</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-551"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-551" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-551"></a>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-552"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-552" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-552"></a><span class="sd">    """</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-553"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-553" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-553"></a>    <span class="n">mouse</span> <span class="o">=</span> <span class="n">MousePointer</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">event</span><span class="o">.</span><span class="n">pos</span><span class="p">)</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-554"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-554" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-554"></a>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-555"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-555" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-555"></a>    <span class="n">all_sprites</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="s1">'Any'</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span><span class="o">.</span><span class="n">all_sprites</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-556"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-556" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-556"></a>    <span class="n">sprites</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">sprite</span><span class="o">.</span><span class="n">spritecollide</span><span class="p">(</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-557"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-557" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-557"></a>        <span class="n">sprite</span><span class="o">=</span><span class="n">mouse</span><span class="p">,</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-558"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-558" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-558"></a>        <span class="n">group</span><span class="o">=</span><span class="n">all_sprites</span><span class="p">,</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-559"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-559" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-559"></a>        <span class="n">dokill</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-560"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-560" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-560"></a>    <span class="p">)</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-561"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-561" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-561"></a>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-562"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-562" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-562"></a>    <span class="k">if</span> <span class="n">sprites</span><span class="p">:</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-563"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-563" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-563"></a>        <span class="k">if</span> <span class="n">index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-564"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-564" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-564"></a>            <span class="k">return</span> <span class="n">sprites</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-565"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-565" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-565"></a>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-566"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-566" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-566"></a>        <span class="k">return</span> <span class="p">[</span><span class="n">sprites</span><span class="p">[</span><span class="n">index</span><span class="p">]]</span>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-567"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-567" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-567"></a>
+</span><span id="glitchygames.events.mouse.collided_sprites--source--__span-0-568"><a id="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-568" name="glitchygames.events.mouse.collided_sprites--source--__codelineno-0-568"></a>    <span class="k">return</span> <span class="p">[]</span>
 </span></code></pre></div></td></tr></table></div>
             </details>
     </div>

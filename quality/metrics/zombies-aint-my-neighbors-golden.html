@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/games/zombies-aint-my-neighbors/tests/fixtures/replays/golden.jsonl.gz performance</title>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --surface: #fcfcfb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --grid: #e4e3df;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --grid: #33332f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #1a1a19;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --grid: #33332f;
+}
+body {
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: system-ui, sans-serif;
+  margin: 0 16px;
+}
+h2 { font-size: 1.05rem; margin: 1.2rem 0 0.2rem; }
+p { color: var(--text-secondary); margin: 0.2rem 0; font-size: 0.9rem; }
+.chart { width: 100%; height: 320px; }
+</style>
+</head>
+<body>
+<h2>Processing time per frame (ms): p50 solid, p99 dashed, max dotted</h2>
+<div class="chart" id="processing"></div>
+<h2>Frames over budget</h2>
+<div class="chart" id="over_budget"></div>
+<h2>Live frame time (ms): how steady pacing was</h2>
+<div class="chart" id="frame_time"></div>
+<h2>FPS by commit: achieved by live runs (solid), headroom of replays (dashed)</h2>
+<p>Each point is the average; its bar runs from the 5% low (the slowest 5% of frames, averaged)
+to the 5% high. Live runs are paced, so they never pass the target (the dotted line); a replay's
+headroom is 1 / its processing time, how fast the work alone could run. Log scale.</p>
+<div class="chart" id="fps"></div>
+<h2>Machines: headroom FPS of each machine's latest replay</h2>
+<p>Replays only (never paced runs). The bar is the average, its error bar the 5% low to the 5%
+high. Machines marked (CI) measured on continuous integration's virtual runners: noisy.</p>
+<div class="chart" id="machines"></div>
+<h2>Slowest frame across the recording, by commit (ms)</h2>
+<p>Each cell is the slowest frame of a stretch of the recording (about 1% of it). The heatmap
+shows time only: whether the work changed (a frame whose content hash differs) is what the
+behaviour-change map shows (<code>glitchygames report</code>).</p>
+<div id="heatmaps"></div>
+<script>
+const charts = {"commits":["9a2127e"],"processing":[{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay: p50","x":["9a2127e"],"y":[0.067],"customdata":["committed 2026-11-19, measured 2026-11-19T08:34, 342 frames"],"meta":0,"line":{"width":2,"dash":"solid"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay: p99","x":["9a2127e"],"y":[19.082],"customdata":["committed 2026-11-19, measured 2026-11-19T08:34, 342 frames"],"meta":0,"line":{"width":2,"dash":"dash"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay: max","x":["9a2127e"],"y":[71.344],"customdata":["committed 2026-11-19, measured 2026-11-19T08:34, 342 frames"],"meta":0,"line":{"width":2,"dash":"dot"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"}],"over_budget":[{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay","x":["9a2127e"],"y":[6.0],"customdata":["committed 2026-11-19, measured 2026-11-19T08:34, 342 frames"],"meta":0,"line":{"width":2,"dash":"solid"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"}],"frame_time":[],"fps":[{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay: headroom FPS","x":["9a2127e"],"y":[905.0],"customdata":["5% low 57, 5% high 19231 fps<br>committed 2026-11-19, measured 2026-11-19T08:34, 342 frames"],"error_y":{"type":"data","symmetric":false,"array":[18325.8],"arrayminus":[848.3],"thickness":1.5,"width":4},"meta":0,"line":{"width":2,"dash":"dash"},"marker":{"size":8},"hovertemplate":"%{x}: avg %{y} fps, %{customdata}<extra>%{fullData.name}<\/extra>"}],"machines":{"type":"bar","name":"headroom FPS, latest replay","x":["Apple M4 Max"],"y":[905.0],"customdata":["5% low 57, 5% high 19231 fps<br>commit 9a2127e, committed 2026-11-19, measured 2026-11-19T08:34, 342 frames"],"error_y":{"type":"data","symmetric":false,"array":[18325.8],"arrayminus":[848.3],"thickness":1.5,"width":6},"meta":[0],"marker":{},"hovertemplate":"%{x}: avg %{y} fps, %{customdata}<extra><\/extra>"},"target_fps":60.0,"heatmaps":[{"type":"heatmap","name":"Apple M4 Max, unpaced replay","x":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99],"y":["9a2127e"],"z":[[0.375,0.076,0.07,0.072,0.07,0.069,0.068,0.068,0.068,0.112,0.054,0.055,0.054,0.053,0.053,0.057,0.054,0.16,0.099,0.068,0.19,0.074,0.069,0.069,0.074,0.071,0.068,0.086,0.061,0.057,0.064,0.063,0.063,0.064,0.447,0.086,0.097,0.083,0.069,0.069,0.069,0.067,0.067,0.067,0.058,0.076,0.061,0.057,0.057,0.057,0.056,0.056,0.075,0.07,0.093,0.069,0.067,0.083,0.067,0.067,0.067,0.07,0.056,0.074,0.056,0.056,0.056,0.057,0.056,0.058,0.07,5.489,0.444,0.35,0.273,0.325,1.054,0.136,0.108,0.1,0.14,0.795,0.073,0.073,0.072,71.344,19.182,12.711,12.769,12.568,18.548,0.153,0.074,0.072,0.071,0.069,0.1,0.082,0.069,0.111]],"customdata":[["frames 0-2, scene TitleScene, max 0.375 ms","frames 3-5, scene TitleScene, max 0.076 ms","frames 6-9, scene TitleScene, max 0.070 ms","frames 10-12, scene TitleScene, max 0.072 ms","frames 13-16, scene TitleScene, max 0.070 ms","frames 17-19, scene TitleScene, max 0.069 ms","frames 20-22, scene TitleScene, max 0.068 ms","frames 23-26, scene TitleScene, max 0.068 ms","frames 27-29, scene TitleScene, max 0.068 ms","frames 30-33, scene TitleScene, max 0.112 ms","frames 34-36, scene TitleScene, max 0.054 ms","frames 37-40, scene TitleScene, max 0.055 ms","frames 41-43, scene TitleScene, max 0.054 ms","frames 44-46, scene TitleScene, max 0.053 ms","frames 47-50, scene TitleScene, max 0.053 ms","frames 51-53, scene TitleScene, max 0.057 ms","frames 54-57, scene TitleScene, max 0.054 ms","frames 58-60, scene TitleScene, max 0.160 ms","frames 61-63, scene TitleScene, max 0.099 ms","frames 64-67, scene TitleScene, max 0.068 ms","frames 68-70, scene TitleScene, max 0.190 ms","frames 71-74, scene TitleScene, max 0.074 ms","frames 75-77, scene TitleScene, max 0.069 ms","frames 78-81, scene TitleScene, max 0.069 ms","frames 82-84, scene TitleScene, max 0.074 ms","frames 85-87, scene TitleScene, max 0.071 ms","frames 88-91, scene TitleScene, max 0.068 ms","frames 92-94, scene TitleScene, max 0.086 ms","frames 95-98, scene TitleScene, max 0.061 ms","frames 99-101, scene TitleScene, max 0.057 ms","frames 102-105, scene TitleScene, max 0.064 ms","frames 106-108, scene TitleScene, max 0.063 ms","frames 109-111, scene TitleScene, max 0.063 ms","frames 112-115, scene TitleScene, max 0.064 ms","frames 116-118, scene TitleScene, max 0.447 ms","frames 119-122, scene TitleScene, max 0.086 ms","frames 123-125, scene TitleScene, max 0.097 ms","frames 126-128, scene TitleScene, max 0.083 ms","frames 129-132, scene TitleScene, max 0.069 ms","frames 133-135, scene TitleScene, max 0.069 ms","frames 136-139, scene TitleScene, max 0.069 ms","frames 140-142, scene TitleScene, max 0.067 ms","frames 143-146, scene TitleScene, max 0.067 ms","frames 147-149, scene TitleScene, max 0.067 ms","frames 150-152, scene TitleScene, max 0.058 ms","frames 153-156, scene TitleScene, max 0.076 ms","frames 157-159, scene TitleScene, max 0.061 ms","frames 160-163, scene TitleScene, max 0.057 ms","frames 164-166, scene TitleScene, max 0.057 ms","frames 167-170, scene TitleScene, max 0.057 ms","frames 171-173, scene TitleScene, max 0.056 ms","frames 174-176, scene TitleScene, max 0.056 ms","frames 177-180, scene TitleScene, max 0.075 ms","frames 181-183, scene TitleScene, max 0.070 ms","frames 184-187, scene TitleScene, max 0.093 ms","frames 188-190, scene TitleScene, max 0.069 ms","frames 191-193, scene TitleScene, max 0.067 ms","frames 194-197, scene TitleScene, max 0.083 ms","frames 198-200, scene TitleScene, max 0.067 ms","frames 201-204, scene TitleScene, max 0.067 ms","frames 205-207, scene TitleScene, max 0.067 ms","frames 208-211, scene TitleScene, max 0.070 ms","frames 212-214, scene TitleScene, max 0.056 ms","frames 215-217, scene TitleScene, max 0.074 ms","frames 218-221, scene TitleScene, max 0.056 ms","frames 222-224, scene TitleScene, max 0.056 ms","frames 225-228, scene TitleScene, max 0.056 ms","frames 229-231, scene TitleScene, max 0.057 ms","frames 232-234, scene TitleScene, max 0.056 ms","frames 235-238, scene TitleScene, max 0.058 ms","frames 239-241, scene TitleScene, max 0.070 ms","frames 242-245, scene TitleScene, max 5.489 ms","frames 246-248, scene PauseScene, max 0.444 ms","frames 249-252, scene PauseScene, max 0.350 ms","frames 253-255, scene PauseScene, max 0.273 ms","frames 256-258, scene PauseScene, max 0.325 ms","frames 259-262, scene PauseScene, max 1.054 ms","frames 263-265, scene PauseScene, max 0.136 ms","frames 266-269, scene PauseScene, max 0.108 ms","frames 270-272, scene PauseScene, max 0.100 ms","frames 273-276, scene PauseScene, max 0.140 ms","frames 277-279, scene TitleScene, max 0.795 ms","frames 280-282, scene TitleScene, max 0.073 ms","frames 283-286, scene TitleScene, max 0.073 ms","frames 287-289, scene TitleScene, max 0.072 ms","frames 290-293, scene FeatureCardScene, max 71.344 ms","frames 294-296, scene FeatureCardScene, max 19.182 ms","frames 297-299, scene FeatureCardScene, max 12.711 ms","frames 300-303, scene FeatureCardScene, max 12.769 ms","frames 304-306, scene FeatureCardScene, max 12.568 ms","frames 307-310, scene FeatureCardScene, max 18.548 ms","frames 311-313, scene TitleScene, max 0.153 ms","frames 314-317, scene TitleScene, max 0.074 ms","frames 318-320, scene TitleScene, max 0.072 ms","frames 321-323, scene TitleScene, max 0.071 ms","frames 324-327, scene TitleScene, max 0.069 ms","frames 328-330, scene TitleScene, max 0.100 ms","frames 331-334, scene TitleScene, max 0.082 ms","frames 335-337, scene TitleScene, max 0.069 ms","frames 338-341, scene TitleScene, max 0.111 ms"]],"hoverongaps":false,"hovertemplate":"%{y}: %{customdata}<extra><\/extra>","colorbar":{"title":{"text":"ms"}}}]};
+const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  && document.documentElement.dataset.theme !== 'light';
+const palette = dark ? ["#3987e5","#d95926","#199e70","#c98500","#d55181","#008300","#9085e9","#e66767"] : ["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#6250d6","#e34948"];
+const style = getComputedStyle(document.documentElement);
+const ink = style.getPropertyValue('--text-primary').trim();
+const muted = style.getPropertyValue('--text-secondary').trim();
+const grid = style.getPropertyValue('--grid').trim();
+const empty = {
+  processing: 'No measurements with a known commit yet.',
+  over_budget: 'No measurements with a frame budget yet.',
+  frame_time: 'No live runs with a known commit yet: the recordings were made before runs '
+    + 'named their commit.',
+  fps: 'No measurements with FPS figures yet: rows from before the 5% slices have none.',
+};
+const target = charts.target_fps;
+const targetLine = target === null ? [] : [{
+  type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: target, y1: target,
+  line: { color: muted, width: 1.5, dash: 'dot' },
+}];
+// A log axis places annotations by the value's logarithm
+const targetLabel = (logarithmic) => target === null ? [] : [{
+  xref: 'paper', x: 1, xanchor: 'right', yref: 'y', y: logarithmic ? Math.log10(target) : target,
+  yanchor: 'bottom', text: 'target ' + target + ' fps', showarrow: false,
+  font: { color: muted, size: 11 },
+}];
+for (const name of ['processing', 'over_budget', 'frame_time', 'fps']) {
+  const traces = charts[name];
+  const element = document.getElementById(name);
+  if (traces.length === 0) {
+    element.outerHTML = '<p>' + empty[name] + '</p>';
+    continue;
+  }
+  for (const trace of traces) {
+    trace.line.color = palette[trace.meta % palette.length];
+    trace.marker.color = trace.line.color;
+    if (trace.error_y) {
+      trace.error_y.color = trace.line.color;
+    }
+  }
+  const fps = name === 'fps';
+  Plotly.newPlot(element, traces, {
+    shapes: fps ? targetLine : [],
+    annotations: fps ? targetLabel(true) : [],
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: ink },
+    margin: { l: 56, r: 16, t: 40, b: 48 },
+    hovermode: 'closest',
+    legend: { orientation: 'h', x: 0, y: 1.02, yanchor: 'bottom', font: { color: muted } },
+    xaxis: {
+      type: 'category', categoryorder: 'array', categoryarray: charts.commits,
+      title: { text: 'commit' }, gridcolor: grid, linecolor: grid,
+    },
+    yaxis: fps
+      ? { type: 'log', title: { text: 'fps' }, gridcolor: grid, linecolor: grid }
+      : { rangemode: 'tozero', gridcolor: grid, linecolor: grid, zerolinecolor: grid },
+  }, { responsive: true, displaylogo: false });
+}
+const machinesElement = document.getElementById('machines');
+if (charts.machines === null) {
+  machinesElement.outerHTML = '<p>No replays with FPS figures yet.</p>';
+} else {
+  const bars = charts.machines;
+  bars.marker.color = bars.meta.map((slot) => palette[slot % palette.length]);
+  bars.error_y.color = muted;
+  Plotly.newPlot(machinesElement, [bars], {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: ink },
+    margin: { l: 56, r: 16, t: 24, b: 72 },
+    hovermode: 'closest',
+    showlegend: false,
+    shapes: targetLine,
+    annotations: targetLabel(false),
+    xaxis: { type: 'category', gridcolor: grid, linecolor: grid },
+    yaxis: {
+      rangemode: 'tozero', title: { text: 'headroom fps' }, gridcolor: grid, linecolor: grid,
+      zerolinecolor: grid,
+    },
+  }, { responsive: true, displaylogo: false });
+}
+const heatmapScale = dark
+  ? [[0, '#1d2b3f'], [1, '#9cc4f5']]
+  : [[0, '#e8f0fb'], [1, '#0d3b7a']];
+const heatmapContainer = document.getElementById('heatmaps');
+if (charts.heatmaps.length === 0) {
+  heatmapContainer.outerHTML = '<p>No measurements with a per-frame profile yet.</p>';
+}
+for (const heatmap of charts.heatmaps) {
+  const heading = document.createElement('p');
+  heading.textContent = heatmap.name;
+  const element = document.createElement('div');
+  element.className = 'chart';
+  heatmapContainer.append(heading, element);
+  heatmap.colorscale = heatmapScale;
+  Plotly.newPlot(element, [heatmap], {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: ink },
+    margin: { l: 72, r: 16, t: 8, b: 48 },
+    xaxis: { title: { text: 'position in the recording (start to end)' }, showgrid: false },
+    yaxis: {
+      type: 'category', categoryorder: 'array', categoryarray: heatmap.y,
+      title: { text: 'commit' },
+    },
+  }, { responsive: true, displaylogo: false });
+}
+</script>
+</body>
+</html>
