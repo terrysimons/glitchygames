@@ -13,6 +13,7 @@ import dataclasses
 import gc
 import gzip
 import json
+import tracemalloc
 import types
 import weakref
 from typing import TYPE_CHECKING, Any, cast
@@ -494,6 +495,31 @@ class TestTraceReader:
             remaining_frame_count = sum(1 for _ in frame_iterator)
         assert remaining_frame_count == 1999
         assert reader.bytes_read == file_size
+
+    def test_taking_a_line_never_copies_the_rest_of_the_buffer(self, tmp_path):
+        """Reading a decompressed chunk's lines is linear in its size, not size times lines.
+
+        Taking each line used to copy everything after it (``bytes.partition``'s rest): a 64 KiB
+        chunk of the zombies neighborhood golden unpacks to about 1 MiB of 1.4 KiB lines, about
+        350 MB copied per chunk (bugs/2026-11-19-trace-reader-copied-the-rest-per-line.md). With
+        the whole file as one chunk, the copies show as a peak about the size of the unread
+        text: here, frames are read with the extra memory staying under half of it.
+        """
+        path = tmp_path / 'long.jsonl.gz'
+        write_trace(trace=self._moving_trace(frame_count=40_000), path=path)
+        decompressed_size = len(gzip.decompress(path.read_bytes()))
+        tracemalloc.start()
+        try:
+            with TraceReader(path=path, chunk_bytes=path.stat().st_size) as reader:
+                tracemalloc.reset_peak()
+                held_before, _peak = tracemalloc.get_traced_memory()
+                frame_count = sum(1 for _frame_record in reader)
+                _held, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+
+        assert frame_count == 40_000
+        assert peak - held_before < decompressed_size // 2, (peak - held_before, decompressed_size)
 
     def test_yielded_frames_are_independent(self, tmp_path):
         """Changing a yielded frame cannot change the frames that follow it."""

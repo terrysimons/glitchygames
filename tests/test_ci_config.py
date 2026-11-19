@@ -11,7 +11,7 @@ import sys
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
-from typing import NoReturn
+from typing import Any, NoReturn
 
 import pytest
 import yaml
@@ -934,6 +934,243 @@ def test_the_linux_job_installs_what_hidapis_source_build_needs():
 
     assert HIDAPI_SOURCE_BUILD_PACKAGES | {'fontconfig'} <= set(packages)
     assert 'libusb-dev' not in packages
+
+
+APT_INSTALL_STEP_NAME = 'Install Linux system dependencies'
+APT_CACHE_KEY_PREFIX = 'apt-v1-'
+# The file a step writes this ISO week to, whose checksum ends the apt cache's key (git-ignored)
+APT_CACHE_WEEK_FILE = 'test-results/apt-cache-week'
+
+
+def linux_job_steps() -> list[Any]:
+    """Return the Linux test job's steps, parsed.
+
+    Returns:
+        The steps, in order.
+
+    """
+    steps = circleci_jobs()['test-python-3-15-linux']['steps']
+    assert isinstance(steps, list)
+    return steps
+
+
+def apt_install_step_index(*, steps: list[Any]) -> int:
+    """Return the index of the Linux job's system-package step.
+
+    Returns:
+        The index.
+
+    """
+    for index, step in enumerate(steps):
+        if isinstance(step, dict) and step.get('run', {}).get('name') == APT_INSTALL_STEP_NAME:
+            return index
+    pytest.fail(f'test-python-3-15-linux has no "{APT_INSTALL_STEP_NAME}" step')
+
+
+def apt_install_script() -> str:
+    """Return the Linux job's system-package step's shell script.
+
+    Returns:
+        The script.
+
+    """
+    steps = linux_job_steps()
+    script = steps[apt_install_step_index(steps=steps)]['run']['command']
+    assert isinstance(script, str)
+    return script
+
+
+def apt_cache_steps(*, steps: list[Any], kind: str) -> list[tuple[int, dict]]:
+    """Return the Linux job's restore_cache or save_cache steps for the apt cache.
+
+    Returns:
+        (index, the step's settings) for each one whose key starts with the apt prefix.
+
+    """
+    found = []
+    for index, step in enumerate(steps):
+        if not isinstance(step, dict) or kind not in step:
+            continue
+        settings = step[kind]
+        keys = settings.get('keys', [settings.get('key')])
+        if any(str(key).startswith(APT_CACHE_KEY_PREFIX) for key in keys):
+            found.append((index, settings))
+    return found
+
+
+def test_the_linux_job_restores_its_apt_cache_before_installing_and_saves_it_after():
+    """An Ubuntu mirror outage (jobs 3822, 3827) cannot stop a job whose packages are cached.
+
+    The owner, 2026-11-19 ("Yeah, 226"): cache apt's lists and the downloaded packages. One
+    restore before the install and one save after it, under the same key.
+    """
+    steps = linux_job_steps()
+    install = apt_install_step_index(steps=steps)
+    restores = apt_cache_steps(steps=steps, kind='restore_cache')
+    saves = apt_cache_steps(steps=steps, kind='save_cache')
+
+    assert len(restores) == 1
+    assert len(saves) == 1
+    (restore_index, restore), (save_index, save) = restores[0], saves[0]
+    assert restore_index < install < save_index
+    assert restore['keys'][0] == save['key']
+
+
+def test_the_apt_cache_key_turns_over_weekly_and_falls_back_to_the_last_one():
+    """CircleCI never overwrites a key: a key that never changed would freeze the first lists.
+
+    Once the mirror dropped a version those lists name, every run would install from the mirror
+    and none could save fresher lists (glitchygames-43's review, 2026-11-19). The key ends with
+    this ISO week's checksum, written by a step before the restore; the restore falls back to
+    the key without it, so a new week starts from last week's cache, and its run saves anew.
+    """
+    steps = linux_job_steps()
+    ((restore_index, restore),) = apt_cache_steps(steps=steps, kind='restore_cache')
+    ((_, save),) = apt_cache_steps(steps=steps, kind='save_cache')
+    week_file = APT_CACHE_WEEK_FILE
+    week_steps = [
+        index
+        for index, step in enumerate(steps)
+        if isinstance(step, dict)
+        and f'date +%G-%V > {week_file}' in str(step.get('run', {}).get('command', ''))
+    ]
+
+    assert len(week_steps) == 1
+    assert week_steps[0] < restore_index
+    assert save['key'].endswith(f'-{{{{ checksum "{week_file}" }}}}')
+    (current, fallback) = restore['keys']
+    assert current == save['key']
+    assert fallback != current
+    assert current.startswith(fallback)
+    assert fallback.endswith('-')
+
+
+def test_the_apt_cache_key_holds_the_image_the_arch_and_every_installed_package():
+    """Changing the packages, the image or the machine's architecture makes a new cache."""
+    import noxfile
+
+    steps = linux_job_steps()
+    ((_, save),) = apt_cache_steps(steps=steps, kind='save_cache')
+    key = save['key']
+    packages = noxfile._linux_ci_job_packages(
+        configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    )
+
+    assert '<< pipeline.parameters.PYTHON_VERSION >>' in key
+    assert '{{ arch }}' in key
+    assert [package for package in packages if package not in key] == []
+
+
+def test_apt_retries_and_keeps_its_lists_and_packages_in_the_cached_directory():
+    """Apt retries a flaky mirror and keeps what the cache saves where the cache saves it."""
+    steps = linux_job_steps()
+    ((_, save),) = apt_cache_steps(steps=steps, kind='save_cache')
+    (cached_directory,) = save['paths']
+    script = apt_install_script()
+    home_directory = cached_directory.replace('~', '$HOME', 1)
+
+    assert re.search(r'Acquire::Retries \\?"[1-9]\d*\\?"', script)
+    assert f'Dir::State::Lists \\"{home_directory}/lists\\"' in script
+    assert f'Dir::Cache::Archives \\"{home_directory}/archives\\"' in script
+    assert 'Keep-Downloaded-Packages \\"true\\"' in script
+
+
+def test_the_linux_job_has_exactly_one_install_line():
+    """Noxfile's test-linux-ci and these tests read the packages from that one line."""
+    script = apt_install_script()
+
+    assert len(re.findall(r'^\s*sudo apt-get install -y \S', script, flags=re.MULTILINE)) == 1
+
+
+def run_apt_install_script(
+    *, tmp_path: Path, cache_hit: bool, mirror_up: bool
+) -> tuple[int, list[str]]:
+    """Run the step's script with stand-ins for sudo and apt-get; return its status and apt's calls.
+
+    The stand-in apt-get installs when the cache was restored (cache_hit) or after an update
+    that reached the mirror (mirror_up); an install with neither fails, as apt-get does with no
+    lists ("Unable to locate package", exit 100). sudo runs its command as this user, except that
+    ``tee`` writes into tmp_path instead of /etc.
+
+    Returns:
+        The script's exit status and each apt-get call's arguments, in order.
+
+    """
+    stand_ins = tmp_path / 'bin'
+    stand_ins.mkdir()
+    calls = tmp_path / 'apt-calls.txt'
+    (stand_ins / 'sudo').write_text(
+        '#!/bin/bash\n'
+        'if [ "$1" = tee ]; then shift; cat > "$STAND_IN_ROOT/$(basename "$1")"; exit; fi\n'
+        'exec "$@"\n',
+        encoding='utf-8',
+    )
+    (stand_ins / 'apt-get').write_text(
+        '#!/bin/bash\n'
+        'echo "$*" >> "$APT_CALLS"\n'
+        'if [ "$1" = autoclean ]; then exit 0; fi\n'
+        'if [ "$1" = update ]; then\n'
+        '  [ "$MIRROR_UP" = 1 ] && touch "$STAND_IN_ROOT/updated"\n'
+        '  exit 0\n'
+        'fi\n'
+        '[ "$CACHE_HIT" = 1 ] || [ -e "$STAND_IN_ROOT/updated" ] || exit 100\n',
+        encoding='utf-8',
+    )
+    for stand_in in stand_ins.iterdir():
+        stand_in.chmod(0o755)
+    home = tmp_path / 'home'
+    home.mkdir()
+    result = run_command(
+        command=['bash', '-c', apt_install_script()],
+        environment={
+            # /usr/sbin and /sbin: chown is there on macOS
+            'PATH': f'{stand_ins}:/usr/bin:/bin:/usr/sbin:/sbin',
+            'HOME': str(home),
+            'STAND_IN_ROOT': str(tmp_path),
+            'APT_CALLS': str(calls),
+            'CACHE_HIT': '1' if cache_hit else '0',
+            'MIRROR_UP': '1' if mirror_up else '0',
+        },
+        timeout_seconds=60,
+        capture_output=OutputCapture.TOGETHER,
+    )
+    called = calls.read_text(encoding='utf-8').splitlines() if calls.exists() else []
+    return result.returncode, [call.split()[0] for call in called]
+
+
+apt_script_needs_bash = pytest.mark.skipif(
+    sys.platform == 'win32' or shutil.which('bash') is None,
+    reason="the Linux job's script is bash; its stand-ins are bash scripts",
+)
+
+
+@apt_script_needs_bash
+def test_a_restored_apt_cache_installs_without_updating(tmp_path):
+    """A cache hit installs from the cached lists and packages: no mirror is asked."""
+    status, calls = run_apt_install_script(tmp_path=tmp_path, cache_hit=True, mirror_up=False)
+
+    assert (status, calls) == (0, ['install'])
+
+
+@apt_script_needs_bash
+def test_a_failed_cached_install_updates_from_the_mirror_and_installs_again(tmp_path):
+    """No cache (a new key) or a stale one: the fallback updates, installs, then autocleans.
+
+    autoclean drops the packages the fresh lists no longer name, so the week's new cache holds
+    no outdated ones.
+    """
+    status, calls = run_apt_install_script(tmp_path=tmp_path, cache_hit=False, mirror_up=True)
+
+    assert (status, calls) == (0, ['install', 'update', 'install', 'autoclean'])
+
+
+@apt_script_needs_bash
+def test_no_cache_and_no_mirror_fails_the_step(tmp_path):
+    """With nothing cached and the mirror down, the step fails rather than going on."""
+    status, calls = run_apt_install_script(tmp_path=tmp_path, cache_hit=False, mirror_up=False)
+
+    assert status != 0
+    assert calls == ['install', 'update', 'install']
 
 
 def test_every_linux_job_installs_the_linux_jobs_system_packages():

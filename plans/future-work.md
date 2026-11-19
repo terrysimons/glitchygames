@@ -1723,6 +1723,15 @@ discussing it found and decided:
 
 ## Code quality
 
+- **Bitmappy's AI sprites load from text, not a temp file** (shared sprite frames review,
+  2026-11-19). `ai_manager._detect_and_load_ai_sprite` writes the model's TOML to a temp file and
+  loads it with `SpriteFactory.load_sprite`; `load_sprite_from_text` gives the same sprite and
+  check from the text itself. A content check without a load is `sprite_toml.analyze_sprite_content`
+  with `is_one_sprite` (pygame-free); `SpriteFactory._analyze_file` only wraps it for a file.
+- **Bitmappy's film strip clears magenta a pixel at a time on every redraw** (shared sprite frames
+  review, 2026-11-19). `film_strip_rendering.convert_magenta_to_transparent` calls `get_at` and
+  `set_at` for each pixel of each thumbnail each time the strip renders: editor time, not memory.
+  A colorkey or `pygame.transform.threshold` does it in one call.
 - **Test-suite memory on the Linux CI job: the structural options** (the owner's call;
   bugs/2026-11-17-linux-test-memory-guard-stops.md). #218 brought the peak to 1341-1350 MiB of
   1600; what is left grows from 503 to 859 MiB over 274 files, spread thin. In order of

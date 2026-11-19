@@ -1,0 +1,27 @@
+# The Linux Test Job Stopped When an Ubuntu Mirror Was Down
+
+- **Description**: CircleCI jobs 3822 and 3827 (#226, 2026-11-19, about 12:05 and 12:12) died in `test-python-3-15-linux`'s "Install Linux system dependencies" step. `apt-get update` could not reach archive.ubuntu.com or security.ubuntu.com for 7+ minutes, so none of the 5 packages could be found (exit 100). Every later step failed with "nox: command not found", and no test ran. Main's green job 3793 shows the step downloading 27.5 MB of package lists to install 538 kB of packages.
+- **Status**: Fixed (2026-11-19, branch `fix/sprite-frame-memory`, #226)
+- **Priority**: Medium (an outage fails every Linux job; nothing is wrong with the code under test)
+- **Root Cause**: The step needed the mirror on every run. It ran `apt-get update`, then `apt-get install`, with nothing kept between jobs and no retries. The image's apt keeps no downloaded packages (`Keep-Downloaded-Packages` is `"0"`), and its `docker-clean` hook deletes any it finds under `/var/cache/apt/archives`.
+- **Test gap**: `tests/test_ci_config.py` checked which packages the job installs, never whether it could install them without the network.
+- **Solution**: The owner chose this option, 2026-11-19 ("Yeah, 226"):
+  - **The cache:** apt's lists and downloaded packages go in `~/apt-cache`, which CircleCI's cache restores before the step and saves after it.
+  - **apt settings:** a file under `/etc/apt/apt.conf.d/` points `Dir::State::Lists` and `Dir::Cache::Archives` there, keeps downloaded packages, and retries each download 5 times with a 30-second timeout. The image's `docker-clean` deletes only the default archive path.
+  - **The install:** it runs from the cache first. If that fails (no cache, or a stale one), the step runs `apt-get update`, installs again, and runs `apt-get autoclean`. The step still has one `sudo apt-get install -y` line, which `nox -s test-linux-ci` reads.
+  - **The key:** it holds the image's Python version, the architecture, every installed package, and this ISO week. CircleCI never overwrites a key, so a key that never changed would keep the first job's lists until the mirror dropped a version they name; then every job would need the mirror again, and none could save fresher lists (glitchygames-43's review). A new week restores last week's cache through the fallback key, then saves its own.
+  - **Turned down:** retries alone (apt gives up within about a minute, and this outage lasted 7+) and an image of our own (too heavy for 5 packages).
+- **Tests** (`tests/test_ci_config.py`):
+  - The restore comes before the install and the save after it, under the same key. The key holds the image, the architecture and every package; adding a package to the line without the key fails this test.
+  - The key ends with the week's checksum, and its fallback is a prefix of it.
+  - apt retries, and keeps its lists and packages in the cached directory.
+  - The step has exactly one install line.
+  - The step's real script, run with stand-in `sudo` and `apt-get`, behaves three ways: a cache hit only installs; a miss updates, installs and autocleans; a miss with the mirror down fails the step.
+- **Verified in containers** (`cimg/python:3.15.2`, arm64, the step's script taken from the config):
+  - With the network and an empty cache, it installed and filled the cache (44 MB).
+  - In a fresh container with `--network none` and that cache, it installed all 5 packages and exited 0.
+  - With `--network none` and an empty cache, it took the fallback and failed with exit 100.
+- **Not verified locally**: amd64 (CI's architecture; this machine's Docker cannot emulate it), CircleCI's own save and restore of the files and their ownership, and a stale but present cache against the real mirror. CI's first run after the push covers the cache-miss path and the save; the second covers the cache hit.
+- **Reporter**: Claude (from glitchygames-43's CI evidence)
+- **Date Reported**: 2026-11-19
+- **Files**: `.circleci/config.yml`, `tests/test_ci_config.py`, `docs/quality/driver_comparison.md`

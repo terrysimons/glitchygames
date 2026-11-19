@@ -492,15 +492,69 @@ jobs:
     steps:
       - checkout
 
+      # apt's package lists and the packages it downloaded, kept between jobs, so an Ubuntu mirror
+      # outage cannot stop the job: jobs 3822 and 3827 (2026-11-19) died here when apt-get update
+      # could not reach archive.ubuntu.com or security.ubuntu.com for 7+ minutes, and every later
+      # step failed with "nox: command not found". The owner, 2026-11-19 ("Yeah, 226"): cache them,
+      # install from the cache, and fall back to the mirror. Retries alone were turned down (apt
+      # gives up within about a minute), and so was an image of our own (too heavy for these
+      # packages). The key holds the image, the architecture and every package the step installs:
+      # change the install line and change the key with it (tests/test_ci_config.py). It ends with
+      # this ISO week, as CircleCI never overwrites a key: a key that never changed would keep the
+      # first job's lists until the mirror dropped a version they name, and then every job would
+      # need the mirror again and none could save fresher lists. A new week's first job restores
+      # last week's cache (the fallback key) and saves its own. Only the very first job, with no
+      # cache under any week, needs the mirror; bump v1 to start afresh
+      - run:
+          name: "Name this week's apt cache"
+          command: |
+            mkdir -p test-results
+            date +%G-%V > test-results/apt-cache-week
+
+      - restore_cache:
+          keys:
+            - apt-v1-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-{{ checksum "test-results/apt-cache-week" }}
+            - apt-v1-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-
+
       - run:
           name: "Install Linux system dependencies"
           command: |
             set -euo pipefail
-            sudo apt-get update
-            # fontconfig: the suite's text tests. pkg-config, libudev-dev, libusb-1.0-0-dev:
-            # hidapi's source build on Python 3.15, which has no manylinux wheel for it (job
-            # 3629); the Raspberry Pis install the same. nox -s test-linux-ci reads this line
-            sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config
+            # apt keeps its lists and downloaded packages in ~/apt-cache, which the cache saves
+            # (the image's docker-clean deletes packages from /var/cache/apt/archives only, and
+            # its apt keeps none unless told to), and retries each download
+            mkdir -p "$HOME/apt-cache/lists/partial" "$HOME/apt-cache/archives/partial"
+            printf '%s\n' \
+              "Dir::State::Lists \"$HOME/apt-cache/lists\";" \
+              "Dir::Cache::Archives \"$HOME/apt-cache/archives\";" \
+              "APT::Keep-Downloaded-Packages \"true\";" \
+              "Binary::apt::APT::Keep-Downloaded-Packages \"true\";" \
+              "Acquire::Retries \"5\";" \
+              "Acquire::http::Timeout \"30\";" \
+              | sudo tee /etc/apt/apt.conf.d/80glitchygames-apt-cache > /dev/null
+            install_packages() {
+              # fontconfig: the suite's text tests. pkg-config, libudev-dev, libusb-1.0-0-dev:
+              # hidapi's source build on Python 3.15, which has no manylinux wheel for it (job
+              # 3629); the Raspberry Pis install the same. nox -s test-linux-ci reads this line
+              sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config
+            }
+            # From the restored lists and packages, with no mirror; with none restored (a new
+            # key) or a stale cache, update from the mirror and install again, then drop the
+            # packages the fresh lists no longer name, so the cache keeps no outdated ones
+            if ! install_packages; then
+              echo "Installing from the apt cache failed: updating from the mirror" >&2
+              sudo apt-get update
+              install_packages
+              sudo apt-get autoclean
+            fi
+            # apt leaves root-owned files (partial/ is root or _apt, mode 700): the cache saves
+            # them as this user
+            sudo chown -R "$(id -u):$(id -g)" "$HOME/apt-cache"
+
+      - save_cache:
+          key: apt-v1-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-{{ checksum "test-results/apt-cache-week" }}
+          paths:
+            - ~/apt-cache
 
       - restore-uv-cache-posix
       - install-deps-posix:
