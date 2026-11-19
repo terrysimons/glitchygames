@@ -188,14 +188,17 @@ class TestGetCacheDirectory:
             get_cache_directory('Invalid Name!')
 
 
+FIXED_HOME = Path('/Users/testuser')
+
+
 @pytest.mark.parametrize(
     ('platform', 'environment', 'expected'),
     [
-        ('darwin', {}, Path.home() / 'Library' / 'Application Support'),
+        ('darwin', {}, FIXED_HOME / 'Library' / 'Application Support'),
         ('win32', {'APPDATA': '/appdata'}, Path('/appdata')),
-        ('win32', {}, Path.home() / 'AppData' / 'Roaming'),
+        ('win32', {}, FIXED_HOME / 'AppData' / 'Roaming'),
         ('linux', {'XDG_DATA_HOME': '/xdg'}, Path('/xdg')),
-        ('linux', {}, Path.home() / '.local' / 'share'),
+        ('linux', {}, FIXED_HOME / '.local' / 'share'),
     ],
     ids=['macos', 'windows-appdata', 'windows-default', 'linux-xdg', 'linux-default'],
 )
@@ -204,6 +207,7 @@ def test_platform_data_home_is_what_saves_used_on_every_platform(
 ) -> None:
     """The save folder is the data home joined with the app name, as it was before the lift."""
     mocker.patch.object(paths_module.sys, 'platform', platform)
+    mocker.patch.object(Path, 'home', return_value=FIXED_HOME)
     mocker.patch.dict(paths_module.os.environ, environment, clear=True)
 
     assert platform_data_home() == expected
