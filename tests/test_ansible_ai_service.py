@@ -2062,11 +2062,13 @@ def test_the_api_reads_the_selection_the_picker_writes(
     api = service.agent(role='api')
     service.write_agent_settings(agent=api)
     agent_settings = (service.config / f'{api["label"]}.env').read_text(encoding='utf-8')
-    (settings_path,) = re.findall(r'^GLITCHYGAMES_AI_SERVICE_CONFIG=(.+)$', agent_settings, re.M)
+    (settings_path,) = re.findall(
+        r'^GLITCHYGAMES_AI_SERVICE_CONFIG=(.+)$', agent_settings, re.MULTILINE
+    )
     service_settings = (
         PROJECT_ROOT / 'services/ai-service/src/glitchygames_ai_service/settings.py'
     ).read_text(encoding='utf-8')
-    (service_name,) = re.findall(r"^SELECTION_FILE_NAME = '(.+)'$", service_settings, re.M)
+    (service_name,) = re.findall(r"^SELECTION_FILE_NAME = '(.+)'$", service_settings, re.MULTILINE)
 
     assert 'selection_file' not in rendered
     assert service.variables['ai_service_selection_file_name'] == service_name
@@ -2171,7 +2173,9 @@ def test_every_rendered_script_passes_sh_n(
 # or a for loop's variable
 TOP_LEVEL_ASSIGNMENT = re.compile(r'^(?P<name>[a-z_][a-z0-9_]*)=')
 FUNCTION_START = re.compile(r'^[a-z_][a-z0-9_]*\(\) \{$')
-INDENTED_ASSIGNMENT = re.compile(r'^\s+(?:for (?P<loop>[a-z_][a-z0-9_]*) in\b|(?P<name>[a-z_][a-z0-9_]*)=)')
+INDENTED_ASSIGNMENT = re.compile(
+    r'^\s+(?:for (?P<loop>[a-z_][a-z0-9_]*) in\b|(?P<name>[a-z_][a-z0-9_]*)=)'
+)
 
 
 def functions_reassigning_script_wide_variables(*, script: str) -> list[str]:
@@ -2224,7 +2228,7 @@ def test_no_function_overwrites_a_script_wide_variable(
         for template in SHELL_TEMPLATES
     }
 
-    assert clashes == dict.fromkeys(SHELL_TEMPLATES, [])
+    assert clashes == {template: [] for template in SHELL_TEMPLATES}
 
 
 def rendered_units(*, tmp_path: Path) -> dict[str, configparser.ConfigParser]:
@@ -4992,8 +4996,8 @@ def registered_command(*, rc: int, stdout: str, stderr: str = '') -> dict[str, A
 def test_on_linux_only_the_package_steps_take_root():
     """The plays run as the user; root is raised for apt alone: build tools and the .deb.
 
-    The AI playbook's roles only: the Raspberry Pi runner's own roles (ansible/raspberry_pi_runner.yml)
-    set up a machine, and take root for it.
+    The AI playbook's roles only: the Raspberry Pi runner's own roles
+    (ansible/raspberry_pi_runner.yml) set up a machine, and take root for it.
     """
     raised = sorted(
         (str(path.relative_to(ROLES)), task['name'])
