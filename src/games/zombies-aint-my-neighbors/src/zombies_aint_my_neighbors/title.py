@@ -16,20 +16,27 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any, Final, override
 
+from glitchygames.input.state import current_input
 from zombies_aint_my_neighbors import launch_showing, text
 from zombies_aint_my_neighbors.roster import MAXIMUM_PLAYERS, PLAYER_COLOURS, DeviceKind
 from zombies_aint_my_neighbors.roster_scene import RosterScene
 from zombies_aint_my_neighbors.run_state import RunState, as_run
+from zombies_aint_my_neighbors.tolerances import TIME_TOLERANCE
 
 if TYPE_CHECKING:
     import argparse
 
     import pygame
 
+    from glitchygames.events.base import ControllerButtonEvent, JoyButtonEvent, KeyEvent
     from zombies_aint_my_neighbors.roster import DeviceIdentity, JoinRoster
 
 # Unjoined slots blink: shown this long, then hidden this long, all four in step
 BLINK_SECONDS: Final = 0.5
+# How long the title stands idle, nobody joined and no run, before the intro plays (feature plan
+# 12's idle loop: long enough to read it and pick up a pad, short enough to start while someone
+# is still looking)
+IDLE_SECONDS: Final = 20.0
 # The game's title, in the upper half of the screen
 TITLE_TEXT: Final = "ZOMBIES AIN'T MY NEIGHBORS"
 TITLE_COLOUR: Final = (230, 230, 210)
@@ -71,6 +78,7 @@ class TitleScene(RosterScene):
         roster: JoinRoster | dict[str, Any] | None = None,
         run: RunState | dict[str, Any] | None = None,
         opening: bool = True,
+        awaiting_release: bool = False,
     ) -> None:
         """Make the title screen.
 
@@ -85,11 +93,17 @@ class TitleScene(RosterScene):
                 the intro on its first frame wherever the CRT power-on would play (feature plan
                 12). Every other place that builds a title passes False (the intro's end, a
                 card's Back, the last player leaving a stage, the game over).
+            awaiting_release: Whether every press is ignored until a frame holds no key and no
+                pad button (the title the intro hands back: the press that skipped it, still
+                held or repeating, must not join anyone).
 
         """
         super().__init__(options=options, groups=groups, roster=roster)
         self.run = None if run is None else as_run(run)
         self.opening = opening
+        self.awaiting_release = awaiting_release
+        # When the title last saw a press or a join (the idle count starts from it)
+        self._last_activity_seconds = 0.0
         # The opening title asks once, on its first frame, whether the intro opens the launch
         self._launch_asked = False
         self.slot_pictures: tuple[text.TextPicture, ...] = ()
@@ -111,7 +125,14 @@ class TitleScene(RosterScene):
             arguments['run'] = self.run.model_dump(mode='json')
         if not self.opening:
             arguments['opening'] = False
+        if self.awaiting_release:
+            arguments['awaiting_release'] = True
         return arguments
+
+    @property
+    def idle_seconds(self) -> float:
+        """How long the title has stood with no press and no join, on its ``game_time``."""
+        return self.game_time - self._last_activity_seconds
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
@@ -191,6 +212,75 @@ class TitleScene(RosterScene):
         super().dt_tick(dt)
         self._pose_slots()
         self._open_with_the_intro()
+        self._wait_for_release()
+        self._loop_to_the_intro()
+
+    def _wait_for_release(self) -> None:
+        """Stop ignoring presses on the first frame that holds no key and no pad button."""
+        if not self.awaiting_release:
+            return
+        snapshot = current_input()
+        held_buttons = any(
+            any(buttons)
+            for layer in (snapshot.device_buttons, snapshot.controller_buttons)
+            for buttons in layer.values()
+        )
+        if not snapshot.pressed_scancodes and not held_buttons:
+            self.awaiting_release = False
+
+    def _loop_to_the_intro(self) -> None:
+        """Idle long enough, nobody joined and no run: hand over to the intro, unattended."""
+        if (
+            self.next_scene is not None
+            or self.roster.joined_players
+            or self.run is not None
+            or self.idle_seconds < IDLE_SECONDS - TIME_TOLERANCE
+        ):
+            return
+        # Imported here: the intro returns to a title in turn
+        from zombies_aint_my_neighbors.intro import IntroScene, IntroShowing
+
+        self.next_scene = IntroScene(options=self.options, showing=IntroShowing.LOOP)
+
+    def _note_activity(self) -> None:
+        """A press or a join: the idle count starts again."""
+        self._last_activity_seconds = self.game_time
+
+    @override
+    def on_key_down_event(self, event: KeyEvent) -> None:
+        """Any key is activity; while awaiting release no key does anything else.
+
+        Args:
+            event: The key press.
+
+        """
+        self._note_activity()
+        if not self.awaiting_release:
+            super().on_key_down_event(event)
+
+    @override
+    def on_controller_button_down_event(self, event: ControllerButtonEvent) -> None:
+        """Any pad button is activity; while awaiting release none does anything else.
+
+        Args:
+            event: The button press.
+
+        """
+        self._note_activity()
+        if not self.awaiting_release:
+            super().on_controller_button_down_event(event)
+
+    @override
+    def on_joy_button_down_event(self, event: JoyButtonEvent) -> None:
+        """Any joystick-layer button is activity; while awaiting release none does else.
+
+        Args:
+            event: The button press.
+
+        """
+        self._note_activity()
+        if not self.awaiting_release:
+            super().on_joy_button_down_event(event)
 
     def _open_with_the_intro(self) -> None:
         """On the opening title's first frame, hand over to the intro if the launch shows it."""
@@ -222,6 +312,7 @@ class TitleScene(RosterScene):
             )
             return
         self.roster = self.roster.join(device=device)
+        self._note_activity()
 
     def _pose_slots(self) -> None:
         """Show each slot's image for the roster, and blink the free slots on game time."""
