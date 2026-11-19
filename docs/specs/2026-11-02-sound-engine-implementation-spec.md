@@ -902,7 +902,8 @@ def render_to_file(sound: Sound, path: Path | str, *, sample_rate: int | None = 
   harness's repeated engines) and every engine context compiles nothing for the CRT.
   - **Scope:** only the engine's own CRT sounds. Game sounds stay per engine context in each
     context's `SoundLibrary`, and each context keeps its own `AudioEngine`, voices and accounting.
-  - **What is shared:** the compiled samples (float64 and int16, made read-only) with their peak
+  - **What is shared:** the compiled samples (int16, made read-only; the float64 render is dropped
+    once they are made, 2026-11-18, `Sound.release_float_samples`) with their peak
     and rate, never a `Sound`: each library makes its own `Sound` over them, because a `Sound`
     carries its context's player (`attach_player`, the engine whose voices play it) and its own
     pygame sound, built from the samples on its first play. A pygame `Sound` could be played from

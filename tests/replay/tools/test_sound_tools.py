@@ -27,7 +27,7 @@ from glitchygames.replay.tools.sound_tools import (
     sound_render_on_the_game,
 )
 from glitchygames.scenes import Scene
-from tests.audio.library_support import FIXTURE_SOUNDS, make_library, stop_mixer
+from tests.audio.library_support import FIXTURE_SOUNDS, float_render, make_library, stop_mixer
 
 SAMPLE_RATE = 44100
 # A version 1 sound file with one sound
@@ -303,10 +303,8 @@ def legacy_and_migrated(original, migrated, *, name):
     recipe = original.sounds[name].effect
     assert recipe is not None
     library.add_effects([recipe])
-    legacy = library.sound(name, scene_sound_directory=None).samples_float
-    migrated_samples = library.sound(f'{migrated}#{name}', scene_sound_directory=None).samples_float
-    assert legacy is not None
-    assert migrated_samples is not None
+    legacy = float_render(library.sound(name, scene_sound_directory=None))
+    migrated_samples = float_render(library.sound(f'{migrated}#{name}', scene_sound_directory=None))
     return legacy, migrated_samples
 
 

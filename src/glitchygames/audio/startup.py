@@ -1,8 +1,8 @@
 """A game's declared sounds, compiled at start: in slices during the CRT power-on, then the rest.
 
 plans/2026-11-14-sound-migration.md, decision 6. A game declares every sound it plays
-(``Scene.SOUNDS`` on the class it hands ``GameEngine``: effects, instruments or paths to a sound
-file's entry; never a short name, which resolves through a scene and none is active yet). The
+(``Scene.SOUNDS`` on the class it hands ``GameEngine``: effects, instruments, mixes or paths to a
+sound file's entry; never a short name, which resolves through a scene and none is active yet). The
 engine makes a ``StartupSounds`` over the context's audio engine before the power-on and gives
 ``compile_for`` to it as idle work, so each frame's spare time compiles sounds; ``finish``
 compiles whatever is left before the game is built, which is everything where the power-on is
@@ -32,9 +32,8 @@ from glitchygames import clock
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
-    from glitchygames.audio.effects import Effect
     from glitchygames.audio.engine import AudioEngine
-    from glitchygames.audio.instrument import Instrument
+    from glitchygames.audio.library import SoundSource
 
 
 class StartupSounds:
@@ -44,18 +43,18 @@ class StartupSounds:
         self,
         *,
         audio: AudioEngine,
-        sources: Sequence[str | Instrument | Effect],
+        sources: Sequence[SoundSource],
         counter: Callable[[], float] | None = None,
     ) -> None:
         """Hold the sounds to compile.
 
         Args:
             audio: The context's audio engine.
-            sources: The declared sounds (effects, instruments or ``path#name`` strings).
+            sources: The declared sounds (effects, instruments, mixes or ``path#name`` strings).
             counter: Reads seconds (rule 3); None is the engine's raw counter.
         """
         self._audio = audio
-        self._pending: deque[str | Instrument | Effect] = deque(sources)
+        self._pending: deque[SoundSource] = deque(sources)
         self._counter = counter
 
     @property

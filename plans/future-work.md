@@ -1106,6 +1106,36 @@ changes the outer game's key repeat (the plan's Review Focus 4).
 
 ## Developer environment
 
+- **Name the CI jobs for what they run** (the owner, 2026-11-18: "so it's more obvious what's
+  running in CI"). The 3.15 jobs are `test-python-3-15-linux` and `-windows`, but the 3.14 ones are
+  `build-and-test-linux` and `-windows`, which name no Python. In order:
+  1. The owner changes `main`'s required status checks to the workflow's own check,
+     `build-and-test` (the owner: "I'll take care of changing that"). It fails when any job in the
+     workflow fails, and its name never changes, so renaming or adding jobs never touches branch
+     protection again. Required per-job checks (`ci/circleci: build-and-test-linux`) would block
+     every PR the moment a job is renamed.
+  2. Rename the jobs inside the workflow: `test-python-3-14-linux` and `-windows`, and the
+     coverage jobs to match. Touches: the job definitions, the workflow's list and every
+     `requires:`, `noxfile._CIRCLECI_LINUX_JOB` (`test-linux-ci` reads that job), and the names in
+     `tests/test_ci_config.py`, CLAUDE.md and the docs. **Done another way (2026-11-18 and 19):**
+     the jobs are `test-python-3-15-macos`, `-linux` and `-windows`, and the 3.14 jobs are gone
+     (the owner: "let's get rid of Python 3.14 altogether"); only the coverage jobs
+     (`coverage-combine-linux-test-3-15`, `-windows-`) keep their own pattern.
+  3. ~~Move the wheel and binary build out of the 3.14 jobs into a job of its own.~~ **Done
+     differently (2026-11-18, the owner: "Switch the builds over to 3.15"):** the builds run in
+     the 3.15 jobs, on machine 0 of each split job, and in the macOS job; none is in a 3.14 job.
+
+- **Move the code's oldest Python to 3.15 when a Pyodide on 3.15 ships.** Python 3.14 is gone from
+  the tests, CI, the pre-push hooks and every nox session (the owner, 2026-11-19: "let's get rid of
+  Python 3.14 altogether"); it stays only as the oldest the code must parse and type-check as,
+  because the browser builds run on PyScript's Pyodide 314 (`scripts/build_browser_bundle.py`,
+  Python 3.14). Nothing tests on 3.14, so a 3.14-only break would show first in the browser
+  games; ruff and the type checkers catch 3.15-only syntax and standard-library names. When
+  Pyodide (and the PyScript release that pins it) moves to 3.15: rebuild our pygame-ce wheel for
+  it, then move `requires-python` (the root's and every member's), ruff's `target-version`, ty's
+  `python-version` and pyrightconfig.json's `pythonVersion` to 3.15, and the generated SBOM's
+  supported environments (`scripts/generate_sbom.py`).
+
 - Dropbox syncing test artefacts made the suite run in 10 minutes instead of 46 s. If Dropbox stays
   on, mark `test-results/`, `.coverage*`, `.venv` and cache directories as ignored
   (`xattr -w com.dropbox.ignored 1 <path>`).

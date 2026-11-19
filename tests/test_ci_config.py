@@ -23,6 +23,11 @@ from tests.ledger_repositories import environment_without_git_variables, git
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CIRCLECI_CONFIG_PATH = PROJECT_ROOT / '.circleci' / 'config.yml'
+# How a job's text names its platform: the Linux image, the Windows executor
+LINUX_IMAGE_MARKER = '      - image: cimg/python:'
+WINDOWS_EXECUTOR_MARKER = 'name: win/default'
+# A job that runs a test session runs one of these commands
+TEST_SESSION_COMMANDS = ('      - nox-test:\n', '      - nox-test-windows:\n')
 LOCK_PATH = PROJECT_ROOT / 'uv.lock'
 
 
@@ -511,7 +516,8 @@ def test_docs_deploy_with_no_measure_measures_nothing():
 
 
 # How ``nox -s docs-serve`` runs mkdocs: in a fresh environment of its own from uv.lock, removed
-# when it ends (noxfile.docs_serve)
+# when it ends (noxfile.docs_serve), on 3.15 as every session but the tests (the owner, 2026-11-18:
+# "Migrate docs-serve to 3.15")
 DOCS_SERVE_IN_A_FRESH_ENVIRONMENT = (
     'uv',
     'run',
@@ -521,7 +527,7 @@ DOCS_SERVE_IN_A_FRESH_ENVIRONMENT = (
     '--all-packages',
     '--all-extras',
     '--python',
-    '3.14',
+    '3.15',
 )
 
 
@@ -669,7 +675,7 @@ def test_the_docs_deploy_after_main_passes_on_macos():
     """
     entry = circleci_workflow_job(name='deploy-docs')
 
-    assert 'requires:\n            - build-and-test-macos\n' in entry
+    assert 'requires:\n            - test-python-3-15-macos\n' in entry
     assert 'branches:\n              only: main\n' in entry
     assert 'serial-group:' in entry
 
@@ -757,7 +763,7 @@ def test_the_test_session_installs_a_stamped_engine():
     """
     import noxfile
 
-    installed = '.nox/test-3-14/lib/python3.14/site-packages/glitchygames'
+    installed = '.nox/test-3-15/lib/python3.15/site-packages/glitchygames'
     session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
     noxfile.test(session)
     commands = session.commands
@@ -791,20 +797,20 @@ def test_the_test_session_fails_when_it_cannot_find_its_installed_engine():
         noxfile.test(session)
 
 
-def test_circleci_runs_every_test_python_on_every_os():
-    """Each Python of noxfile.TEST_PYTHONS is installed by CircleCI and run on every OS.
+def test_circleci_runs_3_15_on_every_os():
+    """CircleCI's one Python is noxfile.TEST_PYTHONS' one, and every OS runs test-3.15 only.
 
-    Linux, macOS and Windows each run test-3.14 and test-3.15, every test step naming its
-    session, never a default (the owner: "Be explicit about the 3.14 testing, too").
+    Every test step names its session, never a default (the owner: "Be explicit about the 3.14
+    testing, too"). Python 3.14 is gone from the tests and CI (the owner, 2026-11-19: "let's get
+    rid of Python 3.14 altogether"): no job, parameter or session names it.
     """
     import noxfile
 
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
-    installed = {
-        pipeline_parameter_default(name=name).rsplit('.', 1)[0]
-        for name in ('PYTHON_LATEST_VERSION', 'PYTHON_NEXT_VERSION')
-    }
-    assert installed == set(noxfile.TEST_PYTHONS)
+    installed = pipeline_parameter_default(name='PYTHON_VERSION').rsplit('.', 1)[0]
+    assert (installed,) == noxfile.TEST_PYTHONS
+    assert 'default: "3.14' not in configuration
+    assert 'test-3.14' not in configuration
     assert noxfile.test.python == list(noxfile.TEST_PYTHONS)
     assert re.search(r'^\s+- nox-test(-windows)?$', configuration, flags=re.MULTILINE) is None
     assert 'default: test-3' not in configuration
@@ -826,7 +832,7 @@ def test_circleci_runs_every_test_python_on_every_os():
                 flags=re.MULTILINE,
             )
         }
-        assert sessions == {f'test-{python}' for python in noxfile.TEST_PYTHONS}, operating_system
+        assert sessions == {f'test-{noxfile.TEST_PYTHONS[-1]}'}, operating_system
 
 
 # Windows' path limit: 260 characters with the terminating null, so 259 usable (MAX_PATH)
@@ -840,6 +846,41 @@ UV_DEFAULT_WINDOWS_CACHE = r'C:\Users\circleci\AppData\Local\uv\cache'
 WINDOWS_SHORT_UV_CACHE = r'C:\uv-cache'
 
 
+def test_no_parameter_reference_is_escaped():
+    r"""Every ``<< ... >>`` is substituted: none follows a backslash, CircleCI's escape for ``<<``.
+
+    A Windows path written ``coverage-data\<< parameters.share >>`` reached PowerShell unreplaced,
+    and New-Item refused the path (job 3768, 2026-11-18). A path uses ``/``, which PowerShell takes.
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    escaped = [
+        f'{number}: {line.strip()}'
+        for number, line in enumerate(configuration.splitlines(), start=1)
+        if '\\<<' in line
+    ]
+
+    assert escaped == []
+
+
+def test_every_running_job_that_restores_the_uv_cache_saves_it_last():
+    """A job that restores the uv cache saves it as its last step, so each OS's cache is kept.
+
+    Only the 3.14 jobs saved it, so with them off (the owner, 2026-11-18) Linux and Windows saved
+    none: the 3.15 jobs save it now (the owner: "Yes, let's move the uv cache").
+    """
+    jobs = circleci_job_texts()
+    restoring = [name for name in workflow_jobs() if '- restore-uv-cache-' in jobs[name]]
+
+    assert set(restoring) >= {
+        'test-python-3-15-macos',
+        'test-python-3-15-linux',
+        'test-python-3-15-windows',
+    }
+    for name in restoring:
+        steps = re.findall(r'^      - ([a-z0-9-]+):?$', jobs[name], flags=re.MULTILINE)
+        assert steps[-1].startswith('save-uv-cache-'), (name, steps[-1])
+
+
 def test_windows_builds_from_source_within_the_path_limit():
     """The Windows job's uv cache is short, cached under that path, and long paths are on.
 
@@ -847,7 +888,7 @@ def test_windows_builds_from_source_within_the_path_limit():
     and long paths are belt and braces (MSVC's linker may not honour them).
     """
     jobs = circleci_job_texts()
-    windows_job = jobs['build-and-test-windows']
+    windows_job = jobs['test-python-3-15-windows']
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     save_windows = configuration[
         configuration.index('\n  save-uv-cache-windows:\n') : configuration.index(
@@ -861,9 +902,9 @@ def test_windows_builds_from_source_within_the_path_limit():
     ]
 
     assert f"      UV_CACHE_DIR: '{WINDOWS_SHORT_UV_CACHE}'\n" in windows_job
-    # Every Windows job builds from source on 3.15 or might, so each has the short cache
-    windows_jobs = {name: job for name, job in jobs.items() if 'name: win/default' in job}
-    assert set(windows_jobs) == {'build-and-test-windows', 'test-python-3-15-windows'}
+    # Every Windows test job builds from source on 3.15 or might, so each has the short cache
+    windows_jobs = jobs_that_run_tests(platform_marker=WINDOWS_EXECUTOR_MARKER)
+    assert set(windows_jobs) == {'test-python-3-15-windows'}
     for name, job in windows_jobs.items():
         assert f"      UV_CACHE_DIR: '{WINDOWS_SHORT_UV_CACHE}'\n" in job, name
     assert f'            - {WINDOWS_SHORT_UV_CACHE}\n' in save_windows
@@ -896,14 +937,10 @@ def test_the_linux_job_installs_what_hidapis_source_build_needs():
 
 
 def test_every_linux_job_installs_the_linux_jobs_system_packages():
-    """The 3.15 Linux job installs exactly what build-and-test-linux does, so they can't drift."""
+    """Every Linux test job installs exactly the Linux job's packages, so a new one can't drift."""
     import noxfile
 
-    linux_jobs = {
-        name: job
-        for name, job in circleci_job_texts().items()
-        if '      - image: cimg/python:' in job
-    }
+    linux_jobs = jobs_that_run_tests(platform_marker=LINUX_IMAGE_MARKER)
     expected = noxfile._linux_ci_job_packages(
         configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     )
@@ -913,6 +950,219 @@ def test_every_linux_job_installs_the_linux_jobs_system_packages():
         )
         assert install is not None, name
         assert install['packages'].split() == expected, name
+
+
+@pytest.mark.parametrize(
+    ('platform_marker', 'platform', 'save_command', 'combine_job'),
+    [
+        (LINUX_IMAGE_MARKER, 'linux', 'save-coverage-share-posix', 'coverage-combine-linux'),
+        (
+            WINDOWS_EXECUTOR_MARKER,
+            'windows',
+            'save-coverage-share-windows',
+            'coverage-combine-windows',
+        ),
+    ],
+    ids=['linux', 'windows'],
+)
+def test_every_linux_and_windows_test_job_is_split_and_its_coverage_combined(
+    platform_marker, platform, save_command, combine_job
+):
+    """Each runs on two machines, saves each's coverage, and one combine job applies the rule.
+
+    The owner, 2026-11-18 (one Python ran past the one-hour limit on Linux, jobs 3705, 3707):
+    "yes" to two machines a job, and "Do it for windows too". tests/circleci_test_split.py picks
+    each machine's share; the combine job holds the shares together to 100%.
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    workflow = configuration[configuration.index('\nworkflows:\n') :]
+    jobs = jobs_that_run_tests(platform_marker=platform_marker)
+
+    assert set(jobs) == {f'test-python-3-15-{platform}'}
+    assert set(jobs) <= set(workflow_jobs())
+    for name, job in jobs.items():
+        session = re.search(r'session: (?P<session>test-[0-9.]+)\n', job)
+        assert session is not None, name
+        share = f'{platform}-{session["session"]}'
+        assert '    parallelism: 2\n' in job, name
+        assert '      GLITCHYGAMES_TEST_SPLIT: "circleci"\n' in job, name
+        assert f'      - {save_command}:\n          share: {share}\n' in job, name
+        # Saved after the tests ran, so the data is the run's
+        assert job.index(f'      - {save_command}:') > job.index('session: test-'), name
+        # One combine job for the share, after this job
+        python = session['session'].removeprefix('test-')
+        combine = (
+            f'      - {combine_job}:\n'
+            f'          name: {combine_job}-{session["session"].replace(".", "-")}\n'
+            f'          share: {share}\n'
+            f'          pythons: {PYTHON_PARAMETERS[python]}\n'
+            f'          session: coverage-combine-{python}\n'
+            f'          requires:\n'
+            f'            - {name}\n'
+        )
+        assert workflow.count(combine) == 1, name
+        assert workflow.count(f'          share: {share}\n') == 1, name
+
+
+# Each Python's pipeline parameter, as a job's install step names it
+PYTHON_PARAMETERS = {
+    '3.15': '<< pipeline.parameters.PYTHON_VERSION >>',
+}
+# The Linux and Windows test jobs, each one Python's
+ONE_PYTHON_JOBS = {
+    'test-python-3-15-linux': '3.15',
+    'test-python-3-15-windows': '3.15',
+}
+
+
+def nox_sessions_of(job: str) -> set[str]:
+    """Return the nox sessions a job's steps run: its test sessions, timer report and builds.
+
+    Returns:
+        The sessions' names.
+
+    """
+    sessions = set(re.findall(r'session: (test-[0-9.]+)\n', job))
+    if '- nox-timer-report' in job or 'nox -s timer-report' in job:
+        sessions.add('timer-report')
+    if re.search(r'^      - nox-build(-windows)?$', job, flags=re.MULTILINE):
+        sessions.add('build')
+    return sessions
+
+
+@pytest.mark.parametrize(('name', 'python'), ONE_PYTHON_JOBS.items(), ids=list(ONE_PYTHON_JOBS))
+def test_a_one_python_job_installs_and_runs_only_its_python(name, python):
+    """A 3.15 job's nox runs only 3.15, and a 3.14 job's only 3.14, as each installs only it.
+
+    The owner, 2026-11-18: "Make sure we're only targeting 3.15 with nox in the 3.15 jobs", "Same
+    with the commented out 3.14 blocks". The build is 3.15's, so it is in the 3.15 jobs.
+    """
+    import noxfile
+
+    job = circleci_job_texts()[name]
+    pythons_of_session = {
+        'timer-report': noxfile.timer_report.python,
+        'build': noxfile.build_all.python,
+        **{f'test-{version}': [version] for version in PYTHON_PARAMETERS},
+    }
+
+    assert re.findall(r'          pythons: (.+)\n', job) == [PYTHON_PARAMETERS[python]]
+    sessions = nox_sessions_of(job)
+    assert f'test-{python}' in sessions
+    assert ('build' in sessions) == (python == '3.15'), name
+    for session in sessions:
+        assert pythons_of_session[session] == [python], (name, session)
+
+
+def test_the_builds_are_on_3_15_once_an_os():
+    """Build and build-binary run on 3.15; each OS builds in one running job, on one machine.
+
+    The owner, 2026-11-18: "Switch the builds over to 3.15". A split job runs every step on each
+    machine, so its build runs on machine 0 only.
+    """
+    import noxfile
+
+    assert noxfile.PINNED_PYTHONS == ['3.15']
+    assert noxfile.build_all.python == noxfile.build_binary.python == ['3.15']
+    jobs = circleci_job_texts()
+    building = {
+        name
+        for name in workflow_jobs()
+        if re.search(r'^      - nox-build(-windows)?$', jobs[name], flags=re.MULTILINE)
+    }
+    assert building == {
+        'test-python-3-15-macos',
+        'test-python-3-15-linux',
+        'test-python-3-15-windows',
+    }
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    for command in ('nox-build', 'nox-build-windows'):
+        steps = configuration.split(f'\n  {command}:\n', 1)[1].split('\n\n', 1)[0]
+        assert 'CIRCLE_NODE_INDEX' in steps, command
+        assert steps.index('CIRCLE_NODE_INDEX') < steps.index('nox -s build'), command
+
+
+def test_a_coverage_combine_session_runs_on_each_test_python():
+    """coverage-combine-3.14 and -3.15: a split job's data is combined on its own Python."""
+    import noxfile
+
+    assert noxfile.coverage_combine.python == list(noxfile.TEST_PYTHONS)
+
+
+def test_every_session_but_the_tests_is_pinned_to_3_15():
+    """Only the test and coverage-combine sessions are one a Python; every other is 3.15's.
+
+    The owner, 2026-11-18: "pin 3.15", "Also upgrade deploy-docs to 3.15". The macOS job and
+    deploy-docs, which run those sessions, install 3.15 alone.
+    """
+    import noxfile
+
+    pinned = {
+        name: session.python
+        for name, session in vars(noxfile).items()
+        if callable(session) and isinstance(getattr(session, 'python', None), list)
+    }
+    assert pinned, 'no nox session found'
+    for name, python in pinned.items():
+        expected = (
+            list(noxfile.TEST_PYTHONS)
+            if getattr(noxfile, name).__name__ in {'test', 'coverage_combine'}
+            else noxfile.PINNED_PYTHONS
+        )
+        assert python == expected, name
+    jobs = circleci_job_texts()
+    for job in ('test-python-3-15-macos', 'deploy-docs'):
+        assert re.findall(r'          pythons: (.+)\n', jobs[job]) == [PYTHON_PARAMETERS['3.15']], (
+            job
+        )
+
+
+def test_a_split_share_turns_off_the_coverage_rule_and_names_test_files():
+    """Set: its 100% rule off (applied combined) and file names in JUnit (CircleCI's timings)."""
+    import noxfile
+
+    arguments = noxfile.split_share_pytest_arguments(
+        environment={'GLITCHYGAMES_TEST_SPLIT': 'circleci'}
+    )
+
+    assert arguments == ['--cov-fail-under=0', '-o', 'junit_family=xunit1']
+
+
+def test_an_unsplit_run_adds_no_arguments():
+    """Unset (macOS, a local run): pytest's own 100% rule and report stand."""
+    import noxfile
+
+    assert noxfile.split_share_pytest_arguments(environment={}) == []
+
+
+def test_the_combine_session_installs_the_locked_coverage():
+    """coverage-combine installs coverage at uv.lock's version, which the lock does pin."""
+    import noxfile
+
+    lock = (PROJECT_ROOT / 'uv.lock').read_text(encoding='utf-8')
+
+    version = noxfile.locked_version(package='coverage', lock=lock)
+
+    assert re.fullmatch(r'\d+\.\d+(\.\d+)?', version)
+
+
+def test_a_package_the_lock_does_not_pin_is_refused():
+    """A misspelled name is an error, never an unpinned install."""
+    import noxfile
+
+    with pytest.raises(ValueError, match="no package named 'coverge'"):
+        noxfile.locked_version(
+            package='coverge', lock='[[package]]\nname = "coverage"\nversion = "7.0"\n'
+        )
+
+
+def test_the_macos_job_is_not_split_and_holds_its_own_coverage():
+    """The macOS job runs 3.15's suite whole, under the hour, with pytest's own 100% rule."""
+    job = circleci_job_texts()['test-python-3-15-macos']
+
+    assert 'parallelism:' not in job
+    assert 'GLITCHYGAMES_TEST_SPLIT' not in job
+    assert 'save-coverage-share' not in job
 
 
 def test_random_order_is_off_unless_asked_for():
@@ -962,11 +1212,11 @@ def test_the_shuffled_run_reorders_only_on_the_dummy_drivers():
         }
 
 
-def test_the_shuffled_run_tests_every_python_with_one_seed():
-    """Each Python the suite supports, in order, with the same seed on each.
+def test_the_shuffled_run_tests_only_the_development_python():
+    """One run, on 3.15, the development version: the newest of the Pythons the suite supports.
 
-    The owner: "We should test both". Each run has its own environment, so a .venv synced on 3.15
-    still tests 3.14 at every push.
+    The owner, 2026-11-18: "For the pre-commit checks only run python 3.15", "so that we can push
+    more quickly. The pipeline can catch 3.14 breakage" (nox -s test and CircleCI still run both).
     """
     import noxfile
 
@@ -974,9 +1224,10 @@ def test_the_shuffled_run_tests_every_python_with_one_seed():
     noxfile.test_random(session)
 
     python_at = len(SHUFFLED_RUN_ENVIRONMENT)
-    assert [command[python_at] for command in session.commands] == list(noxfile.TEST_PYTHONS)
-    assert noxfile.TEST_PYTHONS == ('3.14', '3.15')
-    assert all('--randomly-seed=12345' in command for command in session.commands)
+    pythons = [command[python_at] for command in session.commands]
+    assert pythons == ['3.15']
+    assert noxfile.TEST_PYTHONS[-1] == noxfile.SHUFFLED_RUN_PYTHON
+    assert '--randomly-seed=12345' in session.commands[0]
 
 
 def test_a_shuffled_run_picks_a_new_seed_each_time():
@@ -1013,8 +1264,8 @@ def test_a_failed_shuffled_run_names_its_seed_and_how_to_replay_it(mocker):
 
     message = str(failure.value)
     assert 'seed 777' in message
-    assert 'Python 3.14' in message
-    assert '--python 3.14 pytest' in message
+    assert 'Python 3.15' in message
+    assert '--python 3.15 pytest' in message
     assert '--randomly-seed=777 -n 0' in message
     assert 'nox -s test-random -- 777' in message
 
@@ -1479,6 +1730,23 @@ def test_the_wheel_build_builds_every_workspace_package(mocker):
     )
 
 
+def jobs_that_run_tests(*, platform_marker: str) -> dict[str, str]:
+    """Return the jobs on one platform that run a test session, each's text by its name.
+
+    A job on the same image that runs no tests (coverage-combine-linux, -windows) is left out:
+    the test jobs' rules (memory limit, system packages, the short uv cache) are about the suite.
+
+    Returns:
+        The jobs' texts by name.
+
+    """
+    return {
+        name: job
+        for name, job in circleci_job_texts().items()
+        if platform_marker in job and any(command in job for command in TEST_SESSION_COMMANDS)
+    }
+
+
 def circleci_job_texts() -> dict[str, str]:
     """Return each CircleCI job's text by its name, from its name line to the next job's.
 
@@ -1556,7 +1824,9 @@ def test_the_raspberry_pi_job_allows_30_minutes_of_silence_per_step():
     """A cold install compiles without printing, past CircleCI's default 10 minutes."""
     job = raspberry_pi_job()
 
-    assert '- install-deps-posix:\n          no_output_timeout: 30m\n' in job
+    assert re.search(
+        r'- install-deps-posix:\n          pythons: .+\n          no_output_timeout: 30m\n', job
+    )
     assert '- nox-timer-report:\n          no_output_timeout: 30m\n' in job
     assert job.count('          no_output_timeout: 30m\n') == 4
 
@@ -1636,14 +1906,10 @@ def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():
     jobs have the memory, and the plugin needs Linux's ``/proc/self/statm`` anyway. The Linux
     job's resource class and worker count stay as they were.
     """
-    linux_jobs = {
-        name: job
-        for name, job in circleci_job_texts().items()
-        if '      - image: cimg/python:' in job
-    }
+    linux_jobs = jobs_that_run_tests(platform_marker=LINUX_IMAGE_MARKER)
 
-    # Every job on the Linux image, so a new one can't miss them
-    assert set(linux_jobs) == {'build-and-test-linux', 'test-python-3-15-linux'}
+    # Every test job on the Linux image, so a new one can't miss them
+    assert set(linux_jobs) == {'test-python-3-15-linux'}
     assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"\n' in raspberry_pi_job()
     for name, job in linux_jobs.items():
         assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"\n' in job, name
@@ -1722,7 +1988,7 @@ def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monke
     noxfile.test_linux_ci(session)
 
     docker_run = next(command for command in session.commands if command[:2] == ('docker', 'run'))
-    python_version = pipeline_parameter_default(name='PYTHON_LATEST_VERSION')
+    python_version = pipeline_parameter_default(name='PYTHON_VERSION')
     assert f'cimg/python:{python_version}' in docker_run
     assert {'--memory=2g', '--memory-swap=2g', '--cpus=1', '--platform=linux/amd64'} <= set(
         docker_run
@@ -1736,12 +2002,13 @@ def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monke
         'CI=true',
         'CIRCLECI=true',
     } <= environment
+    # The job is split across CircleCI's machines; a local run is one machine, the whole suite
+    assert not any(variable.startswith('GLITCHYGAMES_TEST_SPLIT=') for variable in environment)
     script = docker_run[-1]
     uv_version = pipeline_parameter_default(name='UV_VERSION')
     nox_version = pipeline_parameter_default(name='NOX_VERSION')
     assert f'https://astral.sh/uv/{uv_version}/install.sh' in script
-    next_python_version = pipeline_parameter_default(name='PYTHON_NEXT_VERSION')
-    assert f'uv python install "{python_version}" "{next_python_version}"' in script
+    assert f'\nuv python install "{python_version}"\n' in script
     # The job's own apt packages, read from it, so the two can't drift
     job_packages = noxfile._linux_ci_job_packages(
         configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
@@ -1802,13 +2069,13 @@ def macos_job() -> str:
     """Return the macOS job's text in the CircleCI configuration.
 
     Returns:
-        From its name to the Windows job's.
+        From its name to the next job's (the Linux one).
 
     """
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     return configuration[
-        configuration.index('\n  build-and-test-macos:\n') : configuration.index(
-            '\n  build-and-test-windows:\n'
+        configuration.index('\n  test-python-3-15-macos:\n') : configuration.index(
+            '\n  test-python-3-15-linux:\n'
         )
     ]
 
@@ -1881,7 +2148,7 @@ class SecurityScanSession(LoggingRecordingSession):
         self.git_status = git_status
         self.warnings: list[str] = []
         self.virtualenv = type(
-            'Virtualenv', (), {'location': '/checkout/.nox/security-scan-3-14'}
+            'Virtualenv', (), {'location': '/checkout/.nox/security-scan-3-15'}
         )()
 
     def warn(self, message: str) -> None:

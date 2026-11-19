@@ -17,15 +17,40 @@ import pytest
 import zombies_aint_my_neighbors
 from glitchygames.audio.assets import load_sound_file
 from zombies_aint_my_neighbors import sound_rig
-from zombies_aint_my_neighbors.kid import FIRE_SECONDS
+from zombies_aint_my_neighbors.exit_door import OPENING_SECONDS
+from zombies_aint_my_neighbors.game_over import SWITCH_OFF_SECONDS
+from zombies_aint_my_neighbors.kid import FIRE_SECONDS, KNOCKOUT_SECONDS
 from zombies_aint_my_neighbors.laser import WARM_UP_SECONDS
+from zombies_aint_my_neighbors.neighbor import LOST_SECONDS, SAVED_SECONDS
 from zombies_aint_my_neighbors.roster_scene import RosterScene
 from zombies_aint_my_neighbors.sounds import (
+    GATE,
     GROANS,
+    KNOCKOUT,
     LASER_RISE,
     LASER_SHINE,
+    LOSS,
+    RESCUE,
     SOUND_FILE,
+    SWITCH_OFF,
+    TV_BREAK,
+    TV_DESTROYED,
+    TV_HIT,
+    TV_SPAWN,
     ZAP,
+)
+
+# Feature plan 11's effects
+FEATURE_11_EFFECTS: Final = (
+    TV_SPAWN,
+    TV_HIT,
+    TV_BREAK,
+    TV_DESTROYED,
+    RESCUE,
+    LOSS,
+    KNOCKOUT,
+    GATE,
+    SWITCH_OFF,
 )
 
 SAMPLE_RATE: Final = 44100
@@ -249,8 +274,10 @@ def test_no_crossfaded_join_dips(name):
     samples = rendered(name)
     effect = load_sound_file(SOUND_FILE).sounds[name].effect
     assert effect is not None
+    # Only a swoop crossfades (feature plan 11): a held note or a noise layer may start after a
+    # gap on purpose (a chirp's separate notes, a thud after a wail)
     for tone in effect.tones[1:]:
-        if tone.envelope.attack == 0.0 or tone.offset == 0.0:
+        if tone.end_frequency is None or tone.envelope.attack == 0.0 or tone.offset == 0.0:
             continue
         join = tone.offset + tone.envelope.attack / 2
         around = min(
@@ -261,6 +288,92 @@ def test_no_crossfaded_join_dips(name):
         assert loudness(samples, at_seconds=join) >= JOIN_LOUDNESS_SHARE * around, (
             f'a dip at {join:.3f} s'
         )
+
+
+def band_share(samples: np.ndarray, *, lowest: float, highest: float) -> float:
+    """Return the share of a sound's energy between two frequencies.
+
+    Returns:
+        From 0 to 1.
+
+    """
+    spectrum = np.abs(np.fft.rfft(samples)) ** 2
+    frequencies = np.fft.rfftfreq(len(samples), d=1.0 / SAMPLE_RATE)
+    band = (frequencies >= lowest) & (frequencies <= highest)
+    return float(spectrum[band].sum() / spectrum.sum())
+
+
+def test_every_moment_of_a_stage_has_its_effect_in_the_file():
+    """Feature plan 11: the TVs, the neighbors, a knockout, the gate and the switch-off."""
+    sounds = load_sound_file(SOUND_FILE).sounds
+    declared = set(RosterScene.SOUNDS)
+
+    for name in FEATURE_11_EFFECTS:
+        assert sounds[name].effect is not None, name
+        assert f'{SOUND_FILE}#{name}' in declared, name
+
+
+def test_a_tv_spawn_is_a_low_thump_under_static():
+    """The picture tube's thump (under 120 Hz) and the static of a zombie climbing out."""
+    samples = rendered(TV_SPAWN)
+
+    assert band_share(samples, lowest=20.0, highest=120.0) >= 0.2
+    assert band_share(samples, lowest=2000.0, highest=20000.0) >= 0.1
+
+
+def test_a_tvs_sounds_grow_with_what_the_zap_did():
+    """A hit is shorter than a break, and a break than the TV's destruction."""
+    assert seconds(TV_HIT) < seconds(TV_BREAK) < seconds(TV_DESTROYED)
+
+
+def test_a_destroyed_tv_booms():
+    """Its end has a low boom under the crunch, as a hit's and a break's don't."""
+    assert band_share(rendered(TV_DESTROYED), lowest=20.0, highest=120.0) >= 0.2
+    assert band_share(rendered(TV_HIT), lowest=20.0, highest=120.0) < 0.05
+    assert band_share(rendered(TV_BREAK), lowest=20.0, highest=120.0) < 0.05
+
+
+def test_a_rescue_chirps_upward_over_the_neighbors_rescue():
+    """Three rising notes, over about as long as the neighbor's rescue plays."""
+    track = pitch_track(rendered(RESCUE), lowest=300.0, highest=3000.0)
+
+    assert np.median(track[-EDGE_WINDOWS:]) >= 1.5 * np.median(track[:EDGE_WINDOWS])
+    assert seconds(RESCUE) == pytest.approx(SAVED_SECONDS, abs=0.05)
+
+
+def test_a_loss_wails_downward_over_the_neighbors_loss():
+    """A falling wail, as long as the neighbor's loss plays, then a thud."""
+    track = pitch_track(rendered(LOSS), lowest=300.0, highest=3000.0)
+
+    assert np.median(track[-EDGE_WINDOWS:]) <= 0.7 * np.median(track[:EDGE_WINDOWS])
+    assert LOST_SECONDS <= seconds(LOSS) <= LOST_SECONDS + 0.2
+
+
+def test_a_knockout_bonks_downward_inside_the_kids_knockout():
+    """A cartoon bonk: the pitch drops, done before the kid lands."""
+    track = pitch_track(rendered(KNOCKOUT), lowest=100.0, highest=2000.0)
+
+    assert np.median(track[-EDGE_WINDOWS:]) <= 0.5 * np.median(track[:EDGE_WINDOWS])
+    assert seconds(KNOCKOUT) <= KNOCKOUT_SECONDS
+
+
+def test_the_gate_creaks_as_it_swings():
+    """An iron creak: a wavering pitch in a creak's band, longer than the swing itself."""
+    track = pitch_track(rendered(GATE), lowest=150.0, highest=1000.0)
+
+    assert min(track) >= 250.0
+    assert max(track) <= 520.0
+    assert turns(track, swing=40.0) >= 3
+    assert seconds(GATE) >= OPENING_SECONDS
+
+
+def test_the_switch_off_falls_away_with_the_picture():
+    """A tube's whine falling from high to low over the picture's collapse."""
+    track = pitch_track(rendered(SWITCH_OFF), lowest=40.0, highest=3000.0)
+
+    assert np.median(track[:EDGE_WINDOWS]) >= 1000.0
+    assert np.median(track[-EDGE_WINDOWS:]) <= 300.0
+    assert seconds(SWITCH_OFF) == pytest.approx(SWITCH_OFF_SECONDS, abs=0.05)
 
 
 def test_the_sound_file_is_its_rigs_output():

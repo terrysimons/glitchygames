@@ -1,7 +1,7 @@
 # Linux image for `nox -s test-linux-x11` (and compare-drivers' x11-linux configuration): its SDL
 # opens real windows on an X server (XQuartz on the Mac host), so the suite runs on Linux with a
 # real framebuffer instead of SDL's dummy driver, and plays sound through the Mac's PulseAudio
-FROM python:3.14-slim
+FROM python:3.15-slim
 # X11 client libraries and PulseAudio's client library, which pygame-ce's bundled SDL loads at
 # start-up; a C++ compiler for miniaudio, which has no ARM Linux wheel; git for uv's version
 # detection; curl for tests/test_build_sdl_x11.py's real build steps (skipped without it)

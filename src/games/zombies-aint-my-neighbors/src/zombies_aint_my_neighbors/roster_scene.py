@@ -14,6 +14,7 @@ import pygame
 
 from glitchygames.color import BLACK
 from glitchygames.input.action_map import ActionMap
+from zombies_aint_my_neighbors.music import SCORE
 from zombies_aint_my_neighbors.pad_tolerant import PadTolerantScene
 from zombies_aint_my_neighbors.roster import DeviceIdentity, DeviceKind, JoinRoster
 from zombies_aint_my_neighbors.sounds import SOUND_REFERENCES
@@ -64,9 +65,10 @@ def as_roster(roster: JoinRoster | dict[str, Any] | None) -> JoinRoster:
 class RosterScene(PadTolerantScene):
     """A black screen that keeps the roster and reads start presses and unplugged pads."""
 
-    # Every sound the game plays, compiled while the game starts (feature plan 10; decision 11):
-    # the title and the neighborhood, the scenes the launcher hands the engine, inherit it
-    SOUNDS = SOUND_REFERENCES
+    # Every sound the game plays, compiled while the game starts (feature plans 10 and 11;
+    # decision 11): the effects and the score's mixes. The title and the neighborhood, the scenes
+    # the launcher hands the engine, inherit it
+    SOUNDS = (*SOUND_REFERENCES, *SCORE)
 
     @override
     def __init__(

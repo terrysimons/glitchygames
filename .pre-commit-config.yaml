@@ -69,12 +69,12 @@ repos:
       pass_filenames: false
       stages: [pre-push]
 
-    # The suite in a shuffled order (pytest-randomly, a new seed each push), on Python 3.14 and
-    # then 3.15, each in its own environment whatever the .venv's Python: order-dependent
+    # The suite in a shuffled order (pytest-randomly, a new seed each push), on Python 3.15, in
+    # its own environment whatever the .venv's Python: order-dependent
     # tests surface here, where CI's fixed order would hide them. A failure prints its seed and
     # the command that replays it; SKIP=test-random git push ... skips it
     - id: test-random
-      name: test-random (the suite, shuffled, on 3.14 and 3.15)
+      name: test-random (the suite, shuffled, on 3.15)
       language: system
       entry: uv run --extra dev nox -s test-random
       pass_filenames: false
