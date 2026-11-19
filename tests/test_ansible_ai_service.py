@@ -2426,6 +2426,10 @@ def test_an_unreadable_agent_template_leaves_its_settings_as_they_were(tmp_path:
     template = setup.program_root / 'share' / 'agents' / f'{reasoning}.env.template'
     template.chmod(0)
     try:
+        # Root (CI's containers often run as root) reads a file whatever its mode, so the failure
+        # this test needs can't happen there
+        if os.access(template, os.R_OK):
+            pytest.skip('this user can read a file without read permission (root, Windows)')
         result = setup.run()
     finally:
         template.chmod(0o644)
