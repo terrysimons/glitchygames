@@ -1,0 +1,172 @@
+{#
+The platform's part of every service script (plans/lucid-circuit-linux.md, section 5.3): the same
+shell functions on every platform, their bodies chosen when Ansible renders the script for the host.
+Nothing else in a script may test the platform, so the logic around these stays written once. A
+script imports this with context (the host's facts) and writes out the functions it calls:
+  {% import 'platform_functions.sh.j2' as platform with context %}
+  {{ platform.user_root() }}
+start_agent_process and forget_every_agent call user_root, so a script with either writes it too.
+#}
+
+{% macro user_root() %}
+# The folder holding the user's models, settings and keys: the engine's rule
+# (src/glitchygames/ai_link.py, service_locations). On a Mac the programs live in it too
+user_root() {
+{% if ansible_facts['system'] == 'Linux' %}
+    echo "${XDG_DATA_HOME:-$HOME/.local/share}/glitchygames/ai"
+{% else %}
+    echo "$HOME/Library/Application Support/GlitchyGames/AI"
+{% endif %}
+}
+{% endmacro %}
+
+{% macro cache_root() %}
+# Can be made again, so the system may clear it
+cache_root() {
+{% if ansible_facts['system'] == 'Linux' %}
+    echo "${XDG_CACHE_HOME:-$HOME/.cache}/glitchygames/ai"
+{% else %}
+    echo "$HOME/Library/Caches/GlitchyGames/AI"
+{% endif %}
+}
+{% endmacro %}
+
+{% macro log_root() %}
+log_root() {
+{% if ansible_facts['system'] == 'Linux' %}
+    echo "${XDG_STATE_HOME:-$HOME/.local/state}/glitchygames/ai/logs"
+{% else %}
+    echo "$HOME/Library/Logs/GlitchyGames/AI"
+{% endif %}
+}
+{% endmacro %}
+
+{% macro total_memory_mb() %}
+# Physical memory, in MB. AI_MEMORY_MB fakes it, for testing the choice
+total_memory_mb() {
+    if [ -n "${AI_MEMORY_MB:-}" ]; then
+        echo "$AI_MEMORY_MB"
+        return 0
+    fi
+{% if ansible_facts['system'] == 'Linux' %}
+    awk '/^MemTotal:/ { print int($2 / 1024) }' /proc/meminfo
+{% else %}
+    echo $(( $(sysctl -n hw.memsize) / 1048576 ))
+{% endif %}
+}
+{% endmacro %}
+
+{% macro available_memory_mb() %}
+# Memory free for a new program right now, in MB. AI_AVAILABLE_MB fakes it, for testing the choice
+available_memory_mb() {
+    if [ -n "${AI_AVAILABLE_MB:-}" ]; then
+        echo "$AI_AVAILABLE_MB"
+        return 0
+    fi
+{% if ansible_facts['system'] == 'Linux' %}
+    awk '/^MemAvailable:/ { print int($2 / 1024) }' /proc/meminfo
+{% else %}
+    # macOS reports what's free as a percentage of physical memory
+    echo $(( $(total_memory_mb) * $(sysctl -n kern.memorystatus_level) / 100 ))
+{% endif %}
+}
+{% endmacro %}
+
+{% macro agent_is_running() %}
+# Whether an agent's process is running: agent_is_running LABEL
+agent_is_running() {
+{% if ansible_facts['system'] == 'Linux' %}
+    systemctl --user is-active --quiet "$1.service"
+{% else %}
+    launchctl print "gui/$(id -u)/$1" >/dev/null 2>&1
+{% endif %}
+}
+{% endmacro %}
+
+{% macro start_agent_process() %}
+# Starts an agent, which then runs until stopped: start_agent_process LABEL
+start_agent_process() {
+{% if ansible_facts['system'] == 'Linux' %}
+    systemctl --user start "$1.service"
+{% else %}
+    # The plists live in the program folder and not in ~/Library/LaunchAgents, because launchd
+    # loads everything there at login. Bootstrapped from here they run only when asked, and launchd
+    # still restarts one that crashes. launchd refuses a job for about a second after it's stopped,
+    # so this tries for a while
+    start_attempts=0
+    until launchctl bootstrap "gui/$(id -u)" "$(user_root)/agents/$1.plist" 2>/dev/null; do
+        start_attempts=$(( start_attempts + 1 ))
+        [ "$start_attempts" -lt 30 ] || return 1
+        sleep 1
+    done
+{% endif %}
+}
+{% endmacro %}
+
+{% macro stop_agent_process() %}
+# stop_agent_process LABEL
+stop_agent_process() {
+{% if ansible_facts['system'] == 'Linux' %}
+    systemctl --user stop "$1.service"
+{% else %}
+    launchctl bootout "gui/$(id -u)/$1" 2>/dev/null
+{% endif %}
+}
+{% endmacro %}
+
+{% macro port_is_listening() %}
+# Whether anything listens on a local TCP port: port_is_listening PORT. Linux's ss sees every
+# user's sockets, so a port another user's service holds counts
+port_is_listening() {
+{% if ansible_facts['system'] == 'Linux' %}
+    [ -n "$(ss -Hltn "sport = :$1")" ]
+{% else %}
+    lsof -nP "-iTCP:$1" -sTCP:LISTEN >/dev/null 2>&1
+{% endif %}
+}
+{% endmacro %}
+
+{% macro sha256_of() %}
+# The file's SHA-256, in hex: sha256_of FILE
+sha256_of() {
+{% if ansible_facts['system'] == 'Linux' %}
+    sha256sum "$1" | cut -d ' ' -f 1
+{% else %}
+    shasum -a 256 "$1" | cut -d ' ' -f 1
+{% endif %}
+}
+{% endmacro %}
+
+{% macro forget_every_agent() %}
+# Stops every agent this service may have and forgets it, running or not
+forget_every_agent() {
+{% if ansible_facts['system'] == 'Linux' %}
+    # The unit files are the package's, and dpkg removes them
+    systemctl --user stop '{{ ai_service_label_prefix }}.*.service' 2>/dev/null
+{% else %}
+    # The models' agents, and the package's setup job or anything an older install left in
+    # LaunchAgents
+    for plist in "$(user_root)"/agents/*.plist "$HOME/Library/LaunchAgents"/{{ ai_service_label_prefix }}.*.plist; do
+        [ -e "$plist" ] || continue
+        label=$(basename "$plist" .plist)
+        launchctl bootout "gui/$(id -u)/$label" 2>/dev/null
+        launchctl enable "gui/$(id -u)/$label" 2>/dev/null
+        rm -f "$plist"
+    done
+{% endif %}
+    return 0
+}
+{% endmacro %}
+
+{% macro forget_package() %}
+# Forgets the installed package, if the user's own package database records it
+forget_package() {
+{% if ansible_facts['system'] == 'Linux' %}
+    # dpkg's database is the system's: an administrator removes the .deb
+    :
+{% else %}
+    pkgutil --volume "$HOME" --forget {{ ai_package_identifier }} >/dev/null 2>&1
+{% endif %}
+    return 0
+}
+{% endmacro %}

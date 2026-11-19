@@ -2,52 +2,77 @@
 # Checks every downloaded model, not only the selected ones, each in its own temporary llama-server
 # on a port clear of the agents', and reports speed, memory and where the model's layers ran. It's
 # slow and changes nothing, so it only runs when asked: --tags ai_validate
+# Each check runs llama-server with the service's own arguments (ai_service_llama_server_arguments,
+# which run-llama-server.sh passes too), so it checks what the service runs. Only the port differs,
+# clear of the agents', and --verbose, for the log the check reads. Each $NAME in the list is
+# looked up in ai_validate_settings, the value agent.env.j2 writes for that size, and anything else
+# stays as written
 - name: Describe each Bonsai size's check
+  vars:
+    ai_validate_port: "{{ ai_service_bonsai_ports[item] + ai_validate_port_offset }}"
+    ai_validate_arguments: >-
+      {{ ai_service_llama_server_arguments.every_model
+         + ai_service_llama_server_arguments.reasoning }}
+    ai_validate_settings:
+      $AI_PORT: "{{ ai_validate_port }}"
+      $AI_MODEL_FILE: "{{ ai_models_directory }}/{{ ai_models_bonsai[item].model.file }}"
+      $AI_ALIAS: "bonsai-2-{{ item }}"
+      $AI_GPU_LAYERS: "{{ llama_cpp_gpu_layers }}"
+      $AI_SLEEP_IDLE_SECONDS: "{{ ai_service_sleep_idle_seconds }}"
+      $AI_CACHE_TYPE_K: "{{ ai_service_cache_type_k }}"
+      $AI_CACHE_TYPE_V: "{{ ai_service_cache_type_v }}"
+      $AI_CONTEXT_SIZE: "{{ ai_service_bonsai_context_size }}"
+      $AI_VISION_FILE: "{{ ai_models_directory }}/{{ ai_models_bonsai[item].vision.file }}"
+      $AI_OUTPUT_LIMIT: "{{ ai_service_bonsai_output_limit }}"
+      $AI_CACHE_RAM_MIB: "{{ ai_service_bonsai_cache_ram_mib }}"
+      $AI_CHAT_TEMPLATE_KWARGS: "{{ ai_service_bonsai_chat_template_kwargs | to_json }}"
   ansible.builtin.set_fact:
     ai_validate_models: >-
       {{ (ai_validate_models | default([])) + [{
            'alias': 'bonsai-2-' ~ item,
            'role': 'reasoning',
-           'port': ai_service_bonsai_ports[item] + ai_validate_port_offset,
-           'arguments': [
-             '--host', '127.0.0.1',
-             '--port', (ai_service_bonsai_ports[item] + ai_validate_port_offset) | string,
-             '--model', ai_models_directory ~ '/' ~ ai_models_bonsai[item].model.file,
-             '--mmproj', ai_models_directory ~ '/' ~ ai_models_bonsai[item].vision.file,
-             '--alias', 'bonsai-2-' ~ item,
-             '--gpu-layers', llama_cpp_gpu_layers | string,
-             '--api-key-file', ai_service_api_key_file,
-             '--parallel', '1',
-             '--no-webui',
-             '--verbose',
-             '--flash-attn', 'on',
-             '--ctx-size', ai_service_bonsai_context_size | string,
-             '--n-predict', ai_service_bonsai_output_limit | string,
-             '--cache-ram', ai_service_bonsai_cache_ram_mib | string]}] }}
+           'port': ai_validate_port | int,
+           'arguments': ['--host', '127.0.0.1', '--api-key-file', ai_service_api_key_file]
+             + (ai_validate_arguments
+                | map('extract', dict(ai_validate_arguments | zip(ai_validate_arguments))
+                                 | combine(ai_validate_settings))
+                | map('string') | list)
+             + (['--threads', ai_service_threads | string]
+                if ai_service_threads | string | length > 0 else [])
+             + ['--verbose']}] }}
   loop: "{{ ai_models_bonsai_sizes }}"
 
 - name: Describe each Qwen size's check
+  vars:
+    ai_validate_port: "{{ ai_service_qwen_ports[item] + ai_validate_port_offset }}"
+    ai_validate_arguments: >-
+      {{ ai_service_llama_server_arguments.every_model
+         + ai_service_llama_server_arguments.embedding }}
+    ai_validate_settings:
+      $AI_PORT: "{{ ai_validate_port }}"
+      $AI_MODEL_FILE: "{{ ai_models_directory }}/{{ ai_models_qwen[item].model.file }}"
+      $AI_ALIAS: "qwen3-embedding-{{ item }}"
+      $AI_GPU_LAYERS: "{{ llama_cpp_gpu_layers }}"
+      $AI_SLEEP_IDLE_SECONDS: "{{ ai_service_sleep_idle_seconds }}"
+      $AI_CACHE_TYPE_K: "{{ ai_service_cache_type_k }}"
+      $AI_CACHE_TYPE_V: "{{ ai_service_cache_type_v }}"
+      $AI_CONTEXT_SIZE: "{{ ai_service_qwen_context_size }}"
+      $AI_MICRO_BATCH: "{{ ai_service_qwen_micro_batch }}"
   ansible.builtin.set_fact:
     ai_validate_models: >-
       {{ ai_validate_models + [{
            'alias': 'qwen3-embedding-' ~ item,
            'role': 'embedding',
            'dimensions': ai_models_qwen[item].dimensions,
-           'port': ai_service_qwen_ports[item] + ai_validate_port_offset,
-           'arguments': [
-             '--host', '127.0.0.1',
-             '--port', (ai_service_qwen_ports[item] + ai_validate_port_offset) | string,
-             '--model', ai_models_directory ~ '/' ~ ai_models_qwen[item].model.file,
-             '--alias', 'qwen3-embedding-' ~ item,
-             '--gpu-layers', llama_cpp_gpu_layers | string,
-             '--api-key-file', ai_service_api_key_file,
-             '--parallel', '1',
-             '--no-webui',
-             '--verbose',
-             '--embedding',
-             '--pooling', 'last',
-             '--ctx-size', ai_service_qwen_context_size | string,
-             '--ubatch-size', ai_service_qwen_micro_batch | string]}] }}
+           'port': ai_validate_port | int,
+           'arguments': ['--host', '127.0.0.1', '--api-key-file', ai_service_api_key_file]
+             + (ai_validate_arguments
+                | map('extract', dict(ai_validate_arguments | zip(ai_validate_arguments))
+                                 | combine(ai_validate_settings))
+                | map('string') | list)
+             + (['--threads', ai_service_threads | string]
+                if ai_service_threads | string | length > 0 else [])
+             + ['--verbose']}] }}
   loop: "{{ ai_models_qwen_sizes }}"
 
 - name: Make the cache directory

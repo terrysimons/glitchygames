@@ -43,23 +43,54 @@ ai_service_qwen_ports: {"0.6b": 23236, "4b": 23237, "8b": 23238}
 ai_service_label_prefix: ai.glitchygames
 ai_package_identifier: ai.glitchygames.service
 
-# The whole context the model supports (262K, its card), and no separate output limit (-1), by
-# the owner's choice: a small limit ends the model's reasoning before it answers, which returns
-# nothing. A request then ends when the model finishes, the context fills or it times out.
+# 128K of context on every system (the owner, 2026-11-18; before, the model's whole 262K, the
+# owner's choice of 2026-11-06): with the 8-bit cache below that halves Bonsai's KV cache again, to
+# about 816 MiB, and still leaves Prism's 8,192 output tokens room to reason many times over
+# (plans/lucid-circuit-linux.md, 6.5). No separate output limit (-1), by the owner's choice: a
+# small limit ends the model's reasoning before it answers, which returns nothing. A request then
+# ends when the model finishes, the context fills or it times out.
 # https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B-gguf/blob/main/KNOWN_ISSUES.md
 # Prism suggests a 24 GiB prompt cache for single-user use; this is lower because a game shares the
 # same memory
-ai_service_bonsai_context_size: 262144
+ai_service_bonsai_context_size: 131072
 ai_service_bonsai_output_limit: -1
 ai_service_bonsai_cache_ram_mib: 4096
 ai_service_bonsai_reasoning_effort: medium
+# Passed as --chat-template-kwargs, the JSON llama.cpp hands the model's chat template
+ai_service_bonsai_chat_template_kwargs: {reasoning_effort: "{{ ai_service_bonsai_reasoning_effort }}"}
 
 # https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF
 ai_service_qwen_micro_batch: 8192
 # Left to default, the context is the model's whole 32K, which reserved 3584 MiB on Metal for the
-# 0.6B (measured 2026-11-06, llama_kv_cache). Records are split up before embedding, so one batch
-# is all this needs
+# 0.6B (measured 2026-11-06, llama_kv_cache). One batch is all this holds: nothing splits a long
+# text, so the caller keeps each text under it (plans/lucid-circuit-linux.md, 10.3)
 ai_service_qwen_context_size: 8192
+
+# Every model's KV cache, keys and values, on every system, the Mac included (the owner,
+# 2026-11-18): 8-bit, about half f16's memory, and faster at depth in the owner's llama-bench run
+# on the Pi (plans/lucid-circuit-linux.md, 6.5). A quantized V cache needs flash attention
+# (llama.cpp b12167, src/llama-context.cpp:4340), so every model agent passes --flash-attn on. The
+# reserved figures above were measured with f16, so they overstate memory until measured again
+ai_service_cache_type_k: q8_0
+ai_service_cache_type_v: q8_0
+
+# The arguments run-llama-server.sh gives llama-server, and so the one list ai_validate checks
+# with: for every model agent, then for each role's. An item starting with $ is the agent setting
+# of that name (agent.env.j2), anything else is passed as written. Before them come the loopback
+# address and the key, fixed in the script so no setting can open a model to the network; after
+# them, --threads when the AI_THREADS setting isn't empty
+ai_service_llama_server_arguments:
+  every_model:
+    [--port, $AI_PORT, --model, $AI_MODEL_FILE, --alias, $AI_ALIAS,
+     --gpu-layers, $AI_GPU_LAYERS, --sleep-idle-seconds, $AI_SLEEP_IDLE_SECONDS,
+     --parallel, "1", --no-webui,
+     --flash-attn, "on", --cache-type-k, $AI_CACHE_TYPE_K, --cache-type-v, $AI_CACHE_TYPE_V,
+     --ctx-size, $AI_CONTEXT_SIZE]
+  reasoning:
+    [--mmproj, $AI_VISION_FILE, --n-predict, $AI_OUTPUT_LIMIT, --cache-ram, $AI_CACHE_RAM_MIB,
+     --chat-template-kwargs, $AI_CHAT_TEMPLATE_KWARGS]
+  embedding:
+    [--embedding, --pooling, last, --ubatch-size, $AI_MICRO_BATCH]
 
 # How long a model may take to load before the agent is called failed
 ai_service_ready_retries: 60

@@ -12,3 +12,9 @@ ai_log_root: "{{ ansible_facts['env']['XDG_STATE_HOME'] | default(ai_home ~ '/.l
 # Ansible never installs under /opt itself: it builds into the package's stage, and the .deb
 # installs it, so a run exercises exactly what a player's machine gets
 llama_cpp_install_root: "{{ ai_cache_root }}/package/stage{{ ai_program_root }}"
+# Every core but the game's and the mirror's, at least one, the same for both model servers
+# (plans/lucid-circuit-linux.md, 6.5). This is the host Ansible runs on; setup.sh writes each
+# machine's own
+ai_service_threads: "{{ [1, ansible_facts['processor_vcpus'] - 2] | max }}"
+# No GPU backend in the Linux build: every layer runs on the CPU
+llama_cpp_gpu_layers: 0

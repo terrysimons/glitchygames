@@ -102,8 +102,30 @@ def _search(value: str, pattern: str) -> bool:
     return re.search(pattern, value) is not None
 
 
-def _environment() -> jinja2.Environment:
+def _extract(item: Any, container: Any) -> Any:
+    """Ansible's `extract`, as `map('extract', container)` uses it.
+
+    Returns:
+        The container's value for the item.
+    """
+    return container[item]
+
+
+def _zip(first: Any, *others: Any) -> list[tuple[Any, ...]]:
+    """Ansible's `zip`.
+
+    Returns:
+        The lists' items paired up, as Python's zip pairs them.
+    """
+    return list(zip(first, *others, strict=False))
+
+
+def _environment(*, search_directory: Path | None = None) -> jinja2.Environment:
     """Build Jinja with the Ansible filters the roles use.
+
+    Args:
+        search_directory: Where `{% include %}` finds a template; Ansible's template module
+            searches the rendered template's own folder the same way.
 
     Returns:
         The environment.
@@ -111,9 +133,13 @@ def _environment() -> jinja2.Environment:
     environment = jinja2.Environment(  # ruff: ignore[jinja2-autoescape-false] - these render shell and plist text, not HTML
         undefined=jinja2.StrictUndefined,
         keep_trailing_newline=True,
+        # The template module's default: a block tag's own line break is dropped
+        trim_blocks=True,
+        loader=jinja2.FileSystemLoader(search_directory) if search_directory else None,
     )
     filters: dict[str, Callable[..., Any]] = {
-        'quote': shlex.quote,
+        # Ansible's quotes any value as its text
+        'quote': lambda value: shlex.quote(str(value)),
         'to_json': _to_json,
         'to_nice_json': _to_nice_json,
         'hash': _hash,
@@ -123,6 +149,8 @@ def _environment() -> jinja2.Environment:
         'regex_search': _regex_search,
         'regex_escape': re.escape,
         'basename': lambda path: Path(path).name,
+        'extract': _extract,
+        'zip': _zip,
     }
     for name, function in filters.items():
         environment.filters[name] = function
@@ -138,18 +166,20 @@ def _resolve_string(
     """Render the Jinja in a string, leaving one that names a missing variable as it is.
 
     Returns:
-        The rendered text, or an int when one expression renders to a whole number.
+        The rendered text, or, when the string is one expression, its value: Ansible keeps a lone
+        expression's type, so a number stays a number and a list a list.
     """
     if '{{' not in text and '{%' not in text:
         return text
+    lone_expression = re.fullmatch(r'\s*\{\{(?:(?!\{\{|\}\}).)*\}\}\s*', text, flags=re.DOTALL)
     try:
-        rendered = environment.from_string(text).render(variables)
+        if lone_expression:
+            inner = text.strip().removeprefix('{{').removesuffix('}}')
+            rendered = environment.from_string('{{ (' + inner + ') | to_json }}').render(variables)
+            return json.loads(rendered)
+        return environment.from_string(text).render(variables)
     except jinja2.UndefinedError:
         return text
-    # Ansible keeps a lone expression's type: a number stays one
-    if re.fullmatch(r'-?\d+', rendered.strip()) and text.strip().startswith('{{'):
-        return int(rendered)
-    return rendered
 
 
 def _resolve(*, value: Any, variables: dict[str, Any], environment: jinja2.Environment) -> Any:
@@ -214,9 +244,36 @@ def ansible_variables(
 
 
 def render_template(*, path: Path, variables: dict[str, Any]) -> str:
-    """Render one Jinja file with the variables.
+    """Render one Jinja file with the variables, finding what it includes beside it.
 
     Returns:
         The rendered text.
     """
-    return _environment().from_string(path.read_text(encoding='utf-8')).render(variables)
+    environment = _environment(search_directory=path.parent)
+    # As the template module does: an included template's last line break is dropped, and the
+    # rendered file keeps its own
+    environment.keep_trailing_newline = False
+    source = path.read_text(encoding='utf-8')
+    rendered = environment.from_string(source).render(variables)
+    return rendered + '\n' if source.endswith('\n') else rendered
+
+
+def render_value(*, value: Any, variables: dict[str, Any]) -> Any:
+    """Render the Jinja inside a task's value (a string, or a dict or list of them).
+
+    Returns:
+        The value with every reference replaced; a lone expression that renders to a whole
+        number becomes an int, as in Ansible.
+    """
+    return _resolve(value=value, variables=variables, environment=_environment())
+
+
+def render_expression(*, expression: str, variables: dict[str, Any]) -> Any:
+    """Evaluate one `{{ ... }}` expression, as a set_fact or a loop holds it, keeping its type.
+
+    Returns:
+        The expression's value: a list stays a list and a dict a dict.
+    """
+    inner = expression.strip().removeprefix('{{').removesuffix('}}')
+    template = _environment().from_string('{{ (' + inner + ') | to_json }}')
+    return json.loads(template.render(variables))

@@ -5,15 +5,28 @@ these only check what would go wrong quietly: a pin that isn't exact, two agents
 model a host can never get.
 """
 
+import configparser
+import contextlib
+import itertools
 import json
+import os
 import re
+import shutil
+import socket
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs the service's rendered scripts under sh
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import pytest
 import yaml
 
-from tests.ansible_rendering import ansible_variables, render_template
+from tests.ansible_rendering import (
+    ansible_variables,
+    render_expression,
+    render_template,
+    render_value,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -607,3 +620,493 @@ def test_the_run_time_variant_step_logs_at_the_verbosity_that_shows_the_backend_
     assert argv[argv.index('--log-verbosity') + 1] == '4'
     # Before --list-devices, which the parser may act on and exit at once
     assert argv.index('--log-verbosity') < argv.index('--list-devices')
+
+
+# The service's scripts, run as rendered for each platform (plans/lucid-circuit-linux.md, 5.3)
+TEMPLATES = ROLES / 'ai_service' / 'templates'
+SHELL_TEMPLATES = ['ai-service.sh.j2', 'run-llama-server.sh.j2', 'uninstall.sh.j2']
+SYSTEMS: list[Literal['Darwin', 'Linux']] = ['Darwin', 'Linux']
+ARCHITECTURES: list[Literal['aarch64', 'x86_64']] = ['aarch64', 'x86_64']
+# The inventory's macos value; Linux's is in group_vars/linux.yml
+MAC_GPU_LAYERS = 99
+# What runs in place of launchd's, systemd's and the package database's tools: each call is
+# recorded, and asking whether an agent runs says no. A test never reaches the real service
+SERVICE_TOOL_STUB = """#!/bin/sh
+printf '%s %s\\n' "$(basename "$0")" "$*" >> "$SERVICE_TOOL_LOG"
+for argument in "$@"; do
+    case "$argument" in
+        is-active|print) exit 3 ;;
+    esac
+done
+exit 0
+"""
+# Stands in for llama-server: prints each argument it was given on its own line
+LLAMA_SERVER_STUB = """#!/bin/sh
+for argument in "$@"; do
+    printf '%s\\n' "$argument"
+done
+"""
+needs_a_posix_shell = pytest.mark.skipif(
+    sys.platform == 'win32', reason="the service's scripts are POSIX sh"
+)
+
+
+class ServiceHome:
+    """One user's home with the service's scripts rendered for a platform, and fake tools."""
+
+    def __init__(self, *, system: Literal['Darwin', 'Linux'], home: Path, tools: Path) -> None:
+        """Make the home and the fake tools, and work out the platform's variables."""
+        self.system: Literal['Darwin', 'Linux'] = system
+        self.home = home
+        self.tools = tools
+        self.tool_log = tools / 'calls.log'
+        home.mkdir(parents=True, exist_ok=True)
+        tools.mkdir(parents=True, exist_ok=True)
+        self.variables = ansible_variables(system=system, architecture='aarch64', home=home)
+        self.variables['llama_cpp_install_directory'] = str(tools / 'runtime')
+        if system == 'Darwin':
+            self.variables['llama_cpp_gpu_layers'] = MAC_GPU_LAYERS
+        for tool in ('launchctl', 'systemctl', 'pkgutil'):
+            _write_executable(tools / tool, SERVICE_TOOL_STUB)
+        _write_executable(tools / 'runtime' / 'bin' / 'llama-server', LLAMA_SERVER_STUB)
+        self.tool_log.write_text('', encoding='utf-8')
+
+    @property
+    def user_root(self) -> Path:
+        """The folder the variables put the user's data in."""
+        return Path(self.variables['ai_user_root'])
+
+    @property
+    def config(self) -> Path:
+        """The user's config folder."""
+        return Path(self.variables['ai_service_config_directory'])
+
+    def script(self, *, template: str) -> Path:
+        """Render one of the service's shell templates into the tools folder.
+
+        Returns:
+            The rendered script.
+        """
+        rendered = self.tools / template.removesuffix('.j2')
+        rendered.write_text(
+            render_template(path=TEMPLATES / template, variables=self.variables),
+            encoding='utf-8',
+        )
+        return rendered
+
+    def run(
+        self, *, template: str, arguments: list[str], environment: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        """Run a rendered script with this home, its XDG folders and the fake tools first.
+
+        Returns:
+            The finished run.
+        """
+        return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - sh and a rendered script, as an argument list
+            ['/bin/sh', str(self.script(template=template)), *arguments],
+            env={
+                'HOME': str(self.home),
+                'XDG_DATA_HOME': str(self.home / '.local' / 'share'),
+                'XDG_CACHE_HOME': str(self.home / '.cache'),
+                'XDG_STATE_HOME': str(self.home / '.local' / 'state'),
+                'PATH': os.pathsep.join([
+                    str(self.tools),
+                    '/usr/bin',
+                    '/bin',
+                    '/usr/sbin',
+                    '/sbin',
+                ]),
+                'SERVICE_TOOL_LOG': str(self.tool_log),
+                **(environment or {}),
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+
+    def tool_calls(self) -> list[str]:
+        """Read every call the fake tools saw.
+
+        Returns:
+            One line per call: the tool's name and its arguments.
+        """
+        return self.tool_log.read_text(encoding='utf-8').splitlines()
+
+    def download_every_model(self) -> None:
+        """Leave an empty file wherever the picker looks for a model, for every size."""
+        models = Path(self.variables['ai_models_directory'])
+        models.mkdir(parents=True, exist_ok=True)
+        for model in [*self.variables['ai_models_bonsai'].values()]:
+            (models / model['model']['file']).touch()
+            (models / model['vision']['file']).touch()
+        for model in self.variables['ai_models_qwen'].values():
+            (models / model['model']['file']).touch()
+
+    def agents(self) -> list[dict[str, Any]]:
+        """Work out the agents the ai_service role installs, by running its own set_fact tasks.
+
+        Returns:
+            Each agent's description.
+        """
+        return run_set_fact_tasks(tasks=role_tasks(role='ai_service'), variables=self.variables)[
+            'ai_service_agents'
+        ]
+
+    def agent(self, *, role: str) -> dict[str, Any]:
+        """Find the agent the 2B and 0.6B sizes run for a role, or the API's.
+
+        Returns:
+            The agent's description.
+        """
+        aliases = {'reasoning': 'bonsai-2-2b', 'embedding': 'qwen3-embedding-0.6b', 'api': 'api'}
+        (agent,) = [agent for agent in self.agents() if agent['alias'] == aliases[role]]
+        return agent
+
+    def write_agent_settings(self, *, agent: dict[str, Any]) -> None:
+        """Render an agent's settings where its runner reads them, with its files present."""
+        self.config.mkdir(parents=True, exist_ok=True)
+        (self.config / f'{agent["label"]}.env').write_text(
+            render_template(
+                path=TEMPLATES / 'agent.env.j2', variables=self.variables | {'agent': agent}
+            ),
+            encoding='utf-8',
+        )
+        Path(self.variables['ai_service_api_key_file']).touch()
+        self.download_every_model()
+
+    def llama_server_arguments(
+        self, *, role: str, runtime_settings: str | None = None
+    ) -> list[str]:
+        """Run run-llama-server.sh for a role's agent, with llama-server replaced by the stub.
+
+        Returns:
+            The arguments the stub was given.
+        """
+        agent = self.agent(role=role)
+        self.write_agent_settings(agent=agent)
+        if runtime_settings is not None:
+            (self.config / f'{agent["label"]}.env.runtime').write_text(
+                runtime_settings, encoding='utf-8'
+            )
+        result = self.run(template='run-llama-server.sh.j2', arguments=[agent['label']])
+        assert result.returncode == 0, result.stderr
+        return result.stdout.splitlines()
+
+
+def _write_executable(path: Path, text: str) -> None:
+    """Write a script others can run."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding='utf-8')
+    path.chmod(0o755)
+
+
+def run_set_fact_tasks(*, tasks: list[dict[str, Any]], variables: dict[str, Any]) -> dict[str, Any]:
+    """Run a task file's set_fact tasks as Ansible would, loops and task variables included.
+
+    Returns:
+        The variables, with every fact the tasks set.
+    """
+    facts = dict(variables)
+    for task in walk_tasks(tasks=tasks):
+        if 'ansible.builtin.set_fact' not in task:
+            continue
+        items = (
+            render_expression(expression=task['loop'], variables=facts)
+            if 'loop' in task
+            else [None]
+        )
+        for item in items:
+            scope = facts | {'item': item}
+            for name, value in task.get('vars', {}).items():
+                scope[name] = render_value(value=value, variables=scope)
+            for name, expression in task['ansible.builtin.set_fact'].items():
+                facts[name] = render_expression(expression=expression, variables=scope)
+    return facts
+
+
+def parse_key_values(*, output: str) -> dict[str, str]:
+    """Read ai-service.sh's key=value lines.
+
+    Returns:
+        Each key's value.
+    """
+    return dict(line.split('=', 1) for line in output.splitlines() if '=' in line)
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+@pytest.mark.parametrize(
+    ('environment', 'expected'),
+    [
+        ({'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '9216'}, {'bonsai': '2b', 'qwen': '0.6b'}),
+        ({'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '6144'}, {'reason': 'nothing-fits'}),
+        ({'AI_MEMORY_MB': '8192', 'AI_AVAILABLE_MB': '6144'}, {'reason': 'nothing-fits'}),
+        (
+            {'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '9216', 'AI_BONSAI_SIZE': '4b'},
+            {'reason': 'nothing-fits'},
+        ),
+    ],
+)
+def test_the_picker_chooses_the_same_on_both_platforms(
+    tmp_path: Path,
+    system: Literal['Darwin', 'Linux'],
+    environment: dict[str, str],
+    expected: dict[str, str],
+):
+    """One choice on every platform: only how memory is read differs (section 6.4)."""
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    service.download_every_model()
+
+    result = service.run(template='ai-service.sh.j2', arguments=['select'], environment=environment)
+
+    values = parse_key_values(output=result.stdout)
+    assert expected.items() <= values.items(), result.stdout + result.stderr
+    assert result.returncode == (0 if 'bonsai' in expected else 3)
+    assert values['memory_mb'] == environment['AI_MEMORY_MB']
+    assert values['free_mb'] == environment['AI_AVAILABLE_MB']
+    assert service.tool_calls() == []
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+def test_a_port_held_by_another_user_exits_4_and_starts_nothing(
+    tmp_path: Path, system: Literal['Darwin', 'Linux']
+):
+    """A second user's start finds the first user's ports taken and leaves their models alone.
+
+    The port is checked with the platform's own tool (lsof on a Mac, ss on Linux), so each
+    rendering runs where its tool is installed: CircleCI's Linux image has neither.
+    """
+    port_tool = 'lsof' if system == 'Darwin' else 'ss'
+    if shutil.which(port_tool) is None:
+        pytest.skip(f'{port_tool} is not installed here')
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    service.download_every_model()
+    port = service.variables['ai_service_bonsai_ports']['2b']
+    holder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        # A bind refused means something here already listens there, which is the case under
+        # test; if nothing does, the start below finds the port free and the test fails
+        with contextlib.suppress(OSError):
+            holder.bind(('127.0.0.1', port))
+            holder.listen()
+
+        result = service.run(
+            template='ai-service.sh.j2',
+            arguments=['start'],
+            environment={'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '9216'},
+        )
+    finally:
+        holder.close()
+
+    assert f'reason=port-{port}-in-use' in result.stdout.splitlines(), result.stdout + result.stderr
+    assert result.returncode == 4
+    starts = [
+        call for call in service.tool_calls() if ' start ' in f'{call} ' or 'bootstrap' in call
+    ]
+    assert starts == []
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+def test_every_script_runs_from_a_home_with_spaces(
+    tmp_path: Path, system: Literal['Darwin', 'Linux']
+):
+    """A home with spaces and quotes reaches every command whole (Review focus 5)."""
+    home = tmp_path / 'a home' / "with 'quotes'"
+    service = ServiceHome(system=system, home=home, tools=tmp_path / 'tools')
+    service.download_every_model()
+    memory = {'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '9216'}
+    neighbour = home / 'kept.txt'
+    neighbour.write_text('not the service', encoding='utf-8')
+
+    select = service.run(template='ai-service.sh.j2', arguments=['select'], environment=memory)
+    stop = service.run(template='ai-service.sh.j2', arguments=['stop'])
+    status = service.run(template='ai-service.sh.j2', arguments=['status'])
+    arguments = service.llama_server_arguments(role='reasoning')
+    uninstall = service.run(template='uninstall.sh.j2', arguments=[])
+
+    assert parse_key_values(output=select.stdout)['bonsai'] == '2b', select.stderr
+    assert (stop.returncode, stop.stderr) == (0, '')
+    assert (status.returncode, status.stdout, status.stderr) == (0, '', '')
+    assert arguments[arguments.index('--model') + 1].startswith(str(home))
+    assert (uninstall.returncode, uninstall.stderr) == (0, '')
+    assert not service.config.exists()
+    assert neighbour.read_text(encoding='utf-8') == 'not the service'
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+@pytest.mark.parametrize('architecture', ARCHITECTURES)
+def test_every_rendered_script_passes_sh_n(
+    tmp_path: Path, system: Literal['Darwin', 'Linux'], architecture: Literal['aarch64', 'x86_64']
+):
+    """Each shell template, and each agent's settings (which a script sources), parses as sh."""
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    service.variables['ansible_facts']['architecture'] = architecture
+    rendered = [service.script(template=template) for template in SHELL_TEMPLATES]
+    for agent in service.agents():
+        service.write_agent_settings(agent=agent)
+        rendered.append(service.config / f'{agent["label"]}.env')
+
+    for script in rendered:
+        result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - sh -n on a rendered file, as an argument list
+            ['/bin/sh', '-n', str(script)], capture_output=True, text=True, check=False, timeout=60
+        )
+        assert (result.returncode, result.stderr) == (0, ''), script.name
+
+
+def rendered_units(*, tmp_path: Path) -> dict[str, configparser.ConfigParser]:
+    """Render every agent's systemd user unit for Linux and parse it.
+
+    Returns:
+        Each unit's parsed sections, by its file name.
+    """
+    service = ServiceHome(system='Linux', home=tmp_path / 'home', tools=tmp_path / 'tools')
+    units = {}
+    for agent in service.agents():
+        unit = configparser.ConfigParser(interpolation=None, strict=True)
+        unit.optionxform = str  # ty: ignore[invalid-assignment] - keep systemd's key case
+        unit.read_string(
+            render_template(
+                path=TEMPLATES / 'agent.service.j2', variables=service.variables | {'agent': agent}
+            )
+        )
+        units[f'{agent["label"]}.service'] = unit
+    return units
+
+
+def test_no_agent_unit_starts_at_login(tmp_path: Path):
+    """No [Install] section, so nothing is enabled; ai-service.sh starts each when a game asks."""
+    units = rendered_units(tmp_path=tmp_path)
+
+    assert units, 'no unit rendered'
+    for name, unit in units.items():
+        label = name.removesuffix('.service')
+        assert not unit.has_section('Install'), name
+        assert unit['Service']['Type'] == 'simple'
+        assert unit['Service']['Restart'] == 'on-failure'
+        assert unit['Service']['RestartSec'] == '10'
+        assert (
+            unit['Service']['ExecStart'] == f'/opt/glitchygames/ai/bin/run-llama-server.sh {label}'
+        )
+
+
+def test_the_model_units_yield_the_cpu_and_never_use_a_cpuset(tmp_path: Path):
+    """CPUWeight=20 on the models, the default on the API, and never AllowedCPUs=."""
+    units = rendered_units(tmp_path=tmp_path)
+    api_label = ansible_variables(system='Linux', architecture='aarch64', home=tmp_path)[
+        'ai_service_api_label'
+    ]
+    unit_templates = [*ANSIBLE.rglob('*.service*.j2'), *ANSIBLE.rglob('*.conf*.j2')]
+
+    for name, unit in units.items():
+        if name == f'{api_label}.service':
+            assert 'CPUWeight' not in unit['Service'], name
+        else:
+            assert unit['Service']['CPUWeight'] == '20', name
+    assert TEMPLATES / 'agent.service.j2' in unit_templates
+    for template in unit_templates:
+        assert 'AllowedCPUs' not in template.read_text(encoding='utf-8'), (
+            f'{template}: user services get no cpuset controller, so AllowedCPUs= would be '
+            'silently ignored; CPUAffinity= pins (plans/lucid-circuit-linux.md, 6.2)'
+        )
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+def test_run_llama_server_passes_threads_only_when_set(
+    tmp_path: Path, system: Literal['Darwin', 'Linux']
+):
+    """An empty AI_THREADS leaves llama.cpp's default, as on a Mac, where Metal does the work."""
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+
+    with_threads = service.llama_server_arguments(
+        role='reasoning', runtime_settings='AI_THREADS=3\n'
+    )
+    without = service.llama_server_arguments(role='reasoning', runtime_settings='AI_THREADS=\n')
+
+    assert with_threads[with_threads.index('--threads') + 1] == '3'
+    assert '--threads' not in without
+
+
+def test_the_threads_setting_is_empty_on_a_mac_and_leaves_two_cores_on_linux(tmp_path: Path):
+    """Linux's is the host's CPU count less two, at least one; setup.sh writes each machine's."""
+    mac = ansible_variables(system='Darwin', architecture='aarch64', home=tmp_path)
+    linux = ansible_variables(system='Linux', architecture='aarch64', home=tmp_path)
+
+    assert not mac['ai_service_threads']
+    assert isinstance(mac['ai_service_threads'], str)
+    assert linux['ansible_facts']['processor_vcpus'] == 4
+    assert linux['ai_service_threads'] == 2
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+def test_every_model_runs_an_8_bit_kv_cache_on_every_platform(
+    tmp_path: Path, system: Literal['Darwin', 'Linux']
+):
+    """q8_0 keys and values for both models, with the flash attention a quantized V cache needs."""
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    eight_bit_cache = ['--cache-type-k', 'q8_0', '--cache-type-v', 'q8_0']
+
+    for role in ('reasoning', 'embedding'):
+        arguments = service.llama_server_arguments(role=role)
+        pairs = list(itertools.pairwise(arguments))
+        assert ('--flash-attn', 'on') in pairs, role
+        assert ('--cache-type-k', 'q8_0') in pairs, role
+        assert ('--cache-type-v', 'q8_0') in pairs, role
+        if role == 'reasoning':
+            assert ('--ctx-size', '131072') in pairs
+    agent = service.agent(role='api')
+    service.write_agent_settings(agent=agent)
+    api_settings = (service.config / f'{agent["label"]}.env').read_text(encoding='utf-8')
+    assert 'AI_CACHE_TYPE' not in api_settings
+    assert not set(eight_bit_cache) & set(api_settings.split())
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+@pytest.mark.parametrize('role', ['reasoning', 'embedding'])
+def test_validation_runs_what_the_service_runs(
+    tmp_path: Path, system: Literal['Darwin', 'Linux'], role: str
+):
+    """ai_validate checks the settings the service runs with (the drift found 2026-11-18).
+
+    Only what the validation exists to vary differs: its port, clear of the agents', and the
+    --verbose log it reads.
+    """
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    agent = service.agent(role=role)
+    served = service.llama_server_arguments(role=role)
+    facts = run_set_fact_tasks(tasks=role_tasks(role='ai_validate'), variables=service.variables)
+    (checked,) = [
+        model for model in facts['ai_validate_models'] if model['alias'] == agent['alias']
+    ]
+    validated = list(checked['arguments'])
+
+    validated.remove('--verbose')
+    validated[validated.index('--port') + 1] = served[served.index('--port') + 1]
+    assert validated == served
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', SYSTEMS)
+def test_run_llama_server_reads_a_named_config_folder_in_place_of_the_users(
+    tmp_path: Path, system: Literal['Darwin', 'Linux']
+):
+    """scripts/ai_model_comparison.py runs a size from settings of its own, beside the installed."""
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    agent = service.agent(role='reasoning')
+    service.write_agent_settings(agent=agent)
+    named = tmp_path / 'comparison'
+    named.mkdir()
+    shutil.copy(service.config / f'{agent["label"]}.env', named / f'{agent["label"]}.env')
+    (named / f'{agent["label"]}.env.runtime').write_text('AI_PORT=23239\n', encoding='utf-8')
+
+    result = service.run(template='run-llama-server.sh.j2', arguments=[str(named), agent['label']])
+
+    arguments = result.stdout.splitlines()
+    assert result.returncode == 0, result.stderr
+    assert arguments[arguments.index('--port') + 1] == '23239'

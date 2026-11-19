@@ -10,3 +10,5 @@ ai_cache_root: "{{ ai_home }}/Library/Caches/GlitchyGames/AI"
 ai_log_root: "{{ ai_home }}/Library/Logs/GlitchyGames/AI"
 # Where the llama_cpp role installs a build: straight into the program folder
 llama_cpp_install_root: "{{ ai_program_root }}"
+# llama.cpp's own thread count: Metal does the work (plans/lucid-circuit-linux.md, 6.5)
+ai_service_threads: ""
