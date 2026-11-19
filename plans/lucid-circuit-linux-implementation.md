@@ -453,9 +453,19 @@ test in the task named.
 
 **Interfaces:**
 - Consumes: `llama_cpp_glibc_version` (Task 2), the stage (Tasks 2, 5), templates (Tasks 3, 4).
+- Contracts from Task 4 the staging must honour (found in its review, 2026-11-18): render
+  `share/agents/*.template` (`agent.env.j2`, `service.json.j2`) with `ai_user_root` and
+  `ai_program_root` set to the `ai_package_*_placeholder` defaults, as the tests' `LinuxSetup`
+  helper does, since `setup.sh` fills those placeholders per user; install the rendered
+  `uninstall.sh.j2` as `bin/uninstall-user.sh` (one uninstaller, Task 4 ruling 3); `ai-service.sh`
+  hands the resolved user root to the systemd user manager (`systemctl --user set-environment
+  GLITCHYGAMES_AI_USER_ROOT=...`) before starting units, so the units' runner finds the same
+  folder; stage `bin/*.so*` (the CPU variant modules) and `lib/` from the llama.cpp runtime, not
+  only `bin/llama-server` (Task 2); `Depends` gains `iproute2` (`ss`, which the port check needs:
+  an absent `ss` reads as "port free", Task 3 review).
 - Produces: `{{ ai_cache_root }}/package/glitchygames-ai_<ai_package_version>_<deb arch>.deb`;
   control `Package: glitchygames-ai`, `Architecture` from §4, `Depends: libc6 (>= <glibc>),
-  libstdc++6, libgcc-s1, systemd, curl, openssl, ca-certificates, coreutils`; postinst
+  libstdc++6, libgcc-s1, systemd, curl, openssl, ca-certificates, coreutils, iproute2`; postinst
   `systemctl --global enable ai.glitchygames.setup.service` then, with `SUDO_USER`,
   `systemctl --user --machine="$SUDO_USER@" start ai.glitchygames.setup.service`, else a line
   saying it runs at next login; prerm stops every `ai.glitchygames.*` unit of every logged-in
