@@ -100,6 +100,7 @@ from tests.world.test_gameplay_replay import (
     record_session,
     replay_session_with_arguments,
 )
+from tests.world.test_transition_input import running_game, step
 
 # The command line every engine in this file starts from: the default display's size
 ENGINE_TEST_ARGUMENTS = ('--resolution', '800x600', '--log-level', 'info')
@@ -127,6 +128,19 @@ class EngineTestGame(Scene):
         """
         parser.add_argument('--test-flag', action='store_true', help='a game option')
         return parser
+
+
+class RawEventGame(EngineTestGame):
+    """A game whose scene takes every raw pygame event itself (event_system.md's porting path)."""
+
+    def __init__(self, options=None, groups=None) -> None:
+        """Keep every raw event it is handed."""
+        super().__init__(options=options, groups=groups)
+        self.raw_events: list[pygame.event.Event] = []
+
+    def process_event(self, event: pygame.event.Event) -> None:
+        """Keep the event."""
+        self.raw_events.append(event)
 
 
 class NoIconGame(EngineTestGame):
@@ -1298,7 +1312,7 @@ class TestProcessEvents:
 
         mock_scene = mocker.Mock()
         mock_scene.process_event = mocker.Mock()
-        engine._active_scene = mock_scene
+        engine.scene_manager.active_scene = mock_scene
 
         result = engine.process_events()
         assert result is True
@@ -1310,7 +1324,7 @@ class TestProcessEvents:
     ):
         """Test process_events routes events through the engine's event_handlers."""
         engine = _make_engine(mocker)
-        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        engine.scene_manager.active_scene = mocker.Mock(spec=[])  # No process_event
 
         raw_event = _raw_event(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a')
         mocker.patch('pygame.event.get', return_value=[raw_event])
@@ -1337,7 +1351,7 @@ class TestProcessEvents:
     def test_process_events_unhandled_event(self, mocker):
         """Test process_events routes unhandled events to process_unimplemented_event."""
         engine = _make_engine(mocker)
-        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        engine.scene_manager.active_scene = mocker.Mock(spec=[])  # No process_event
         engine.unimplemented_events.clear()
 
         mocker.patch('pygame.event.get', return_value=[_raw_event(UNMAPPED_EVENT_TYPE)])
@@ -1352,7 +1366,7 @@ class TestProcessEvents:
     def test_process_events_unhandled_event_does_not_drop_rest_of_batch(self, mocker):
         """An unhandled event must not drop the key-down queued after it in the same batch."""
         engine = _make_engine(mocker)
-        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        engine.scene_manager.active_scene = mocker.Mock(spec=[])  # No process_event
 
         unhandled_raw_event = _raw_event(pygame.KEYUP, key=pygame.K_b)
         key_down_raw_event = _raw_event(pygame.KEYDOWN, key=pygame.K_a)
@@ -1374,6 +1388,45 @@ class TestProcessEvents:
         assert mock_unimplemented.call_args.args[0].type == pygame.KEYUP
         assert result is False
 
+    def test_the_scene_managers_raw_event_scene_gets_the_raw_events(self, mocker):
+        """A real scene with process_event, active where a run keeps it, gets the batch raw.
+
+        The scene manager holds the active scene; the engine once looked for process_event on
+        a field of its own that nothing assigned, so in a run no such scene got any event.
+        """
+        engine = _make_engine(mocker)
+        scene = RawEventGame(options={})
+        engine.scene_manager.active_scene = scene
+        raw_events = [
+            _raw_event(pygame.KEYDOWN, key=pygame.K_a),
+            _raw_event(pygame.KEYUP, key=pygame.K_a),
+        ]
+        mocker.patch('pygame.event.get', return_value=raw_events)
+
+        assert engine.process_events() is True
+        assert scene.raw_events == raw_events
+
+    def test_a_raw_event_game_gets_its_events_in_a_running_frame(self):
+        """In a game that is really running, a frame hands the raw-event scene its events."""
+        with running_game(RawEventGame) as manager:
+            step(manager, _raw_event(pygame.KEYDOWN, key=pygame.K_a, scancode=4, mod=0))
+            scene = manager.active_scene
+
+        assert isinstance(scene, RawEventGame)
+        assert [
+            (event.type, event.key) for event in scene.raw_events if event.type == pygame.KEYDOWN
+        ] == [(pygame.KEYDOWN, pygame.K_a)]
+
+    def test_the_engine_keeps_no_active_scene_of_its_own(self, mocker):
+        """The scene manager's active scene is the only one, so no copy can go stale.
+
+        A copy the engine kept (``_active_scene``) was never assigned in a run, and tests that
+        set it by hand passed while raw-event scenes got nothing.
+        """
+        engine = _make_engine(mocker)
+
+        assert not hasattr(engine, '_active_scene')
+
     def test_process_events_raw_event_scene_receives_every_event_in_order(self, mocker):
         """A scene with process_event receives all N events of a batch, in order."""
         engine = _make_engine(mocker)
@@ -1384,7 +1437,7 @@ class TestProcessEvents:
         ]
         mocker.patch('pygame.event.get', return_value=raw_events)
         mock_scene = mocker.Mock()
-        engine._active_scene = mock_scene
+        engine.scene_manager.active_scene = mock_scene
 
         result = engine.process_events()
 
@@ -1394,7 +1447,7 @@ class TestProcessEvents:
     def test_process_events_unmapped_type_after_handled_event_is_unhandled(self, mocker):
         """A type missing from the engine's event_handlers never inherits the previous result."""
         engine = _make_engine(mocker)
-        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        engine.scene_manager.active_scene = mocker.Mock(spec=[])  # No process_event
         unmapped_event_type = OTHER_UNMAPPED_EVENT_TYPE
         assert unmapped_event_type not in engine.event_handlers
 
@@ -1415,7 +1468,7 @@ class TestProcessEvents:
     def test_process_events_returns_true_only_when_every_event_handled(self, mocker):
         """The return value is True only if every event of the batch was handled."""
         engine = _make_engine(mocker)
-        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        engine.scene_manager.active_scene = mocker.Mock(spec=[])  # No process_event
         raw_events = [
             _raw_event(pygame.KEYDOWN, key=pygame.K_a),
             _raw_event(pygame.KEYUP, key=pygame.K_a),
@@ -1443,7 +1496,7 @@ class TestProcessEvents:
     def test_process_events_returns_false_when_every_event_is_discarded(self, mocker):
         """No event dispatched (all discarded) is reported as False, like an empty batch."""
         engine = _make_engine(mocker)
-        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        engine.scene_manager.active_scene = mocker.Mock(spec=[])  # No process_event
         raw_events = [_raw_event(pygame.KEYDOWN, key=pygame.K_a)]
         mocker.patch('pygame.event.get', return_value=raw_events)
         key_down_handler = mocker.Mock(return_value=True)
@@ -1459,7 +1512,7 @@ class TestProcessEvents:
     def test_process_events_discards_only_matching_events(self, mocker):
         """Kept events are dispatched and decide the result; discarded ones do not count."""
         engine = _make_engine(mocker)
-        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        engine.scene_manager.active_scene = mocker.Mock(spec=[])  # No process_event
         raw_events = [
             _raw_event(pygame.KEYDOWN, key=pygame.K_a),
             _raw_event(pygame.KEYUP, key=pygame.K_a),
