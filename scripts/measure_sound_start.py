@@ -56,16 +56,18 @@ def games() -> list[tuple[str, Sequence[SoundSource]]]:
     from clockwork_keep.game import ClockworkKeepScene
     from mr_muncher.game import MrMuncherScene
     from paddleslap import Game as PaddleSlapGame
+    from zombies_aint_my_neighbors.roster_scene import RosterScene
 
     return [
         ('clockwork-keep', ClockworkKeepScene.SOUNDS),
         ('mr-muncher', MrMuncherScene.SOUNDS),
         ('brave-adventurer', BraveAdventurerScene.SOUNDS),
         ('paddleslap', PaddleSlapGame.SOUNDS),
+        ('zombies-aint-my-neighbors', RosterScene.SOUNDS),
     ]
 
 
-def _audio_engine(*, disk: bool) -> AudioEngine:
+def audio_engine(*, disk: bool) -> AudioEngine:
     """A new audio engine with no channels (nothing is played), on the cache asked for.
 
     Returns:
@@ -90,7 +92,7 @@ def start_in_slices(sounds: Sequence[SoundSource], *, disk: bool) -> tuple[int, 
     from glitchygames.engine_context import EngineContext
 
     with EngineContext(name='start').active():
-        startup = StartupSounds(audio=_audio_engine(disk=disk), sources=sounds)
+        startup = StartupSounds(audio=audio_engine(disk=disk), sources=sounds)
         frames = 0
         longest = 0.0
         total = 0.0
@@ -114,7 +116,7 @@ def report_start(cache_root: Path | None) -> None:
         f'CRT power-on: {power_on_frames} frames, {IDLE_WORK_SECONDS * 1000:.1f} ms of idle work '
         f'each ({power_on_frames * IDLE_WORK_SECONDS * 1000:.0f} ms to hide a compile in)\n'
     )
-    _say(f'{"game":17s} {"sounds":>6s}   {"run":19s} {"frames":>7s} {"longest":>9s} {"total":>9s}')
+    _say(f'{"game":25s} {"sounds":>6s}   {"run":19s} {"frames":>7s} {"longest":>9s} {"total":>9s}')
     for name, sounds in games():
         runs = [('cold (compile)', False)]
         if cache_root is not None:
@@ -123,7 +125,7 @@ def report_start(cache_root: Path | None) -> None:
             ENGINE_SOUND_CACHE.clear()  # each run a new process: nothing compiled yet
             frames, longest, total = start_in_slices(sounds, disk=disk)
             _say(
-                f'{name:17s} {len(sounds):6d}   {run:19s} {frames:4d}/{power_on_frames} '
+                f'{name:25s} {len(sounds):6d}   {run:19s} {frames:4d}/{power_on_frames} '
                 f'{longest:7.2f}ms {total:7.2f}ms'
             )
 
@@ -143,7 +145,7 @@ def report_tiles() -> None:
     for tile in range(1, TILE_COUNT + 1):
         context = EngineContext(name=f'tile {tile}')
         with context.active():
-            audio = _audio_engine(disk=False)
+            audio = audio_engine(disk=False)
             StartupSounds(audio=audio, sources=MrMuncherScene.SOUNDS).finish()
             engines.append((context, audio))
         if tile in {1, TILE_COUNT}:
