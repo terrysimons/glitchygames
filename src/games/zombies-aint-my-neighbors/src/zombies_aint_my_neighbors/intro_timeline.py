@@ -65,33 +65,29 @@ class IntroCue(BaseModel):
         return self
 
 
-def _animate(at_seconds: float, actor: str, animation: str) -> IntroCue:
-    """Return an ANIMATE cue.
-
-    Returns:
-        The cue.
-    """
-    return IntroCue(at_seconds=at_seconds, kind=CueKind.ANIMATE, actor=actor, animation=animation)
-
-
-_BAGS: Final = ('intro_bag_dex', 'intro_bag_marisol', 'intro_bag_theo', 'intro_bag_june')
-
-# The plan's table (feature plan 12, "The intro, as a timeline"), in time order
+# The plan's table (feature plan 12, "The intro, as a timeline"), in time order: every cue spelled
+# out (frozen models, so the engine-context guard sees the table is immutable)
 INTRO_TIMELINE: Final[tuple[IntroCue, ...]] = (
     IntroCue(at_seconds=0.0, kind=CueKind.OVAL_FADE_IN),
-    *(_animate(0.0, bag, 'sit') for bag in _BAGS),
-    _animate(0.0, 'intro_tv', 'show'),
-    _animate(0.0, 'intro_lamp', 'still'),
-    _animate(0.0, 'intro_snacks', 'still'),
-    _animate(4.0, 'intro_tv', 'static'),
-    _animate(4.0, 'intro_lamp', 'flicker'),
-    _animate(5.5, 'intro_tv', 'bulge'),
-    _animate(6.0, 'intro_tv', 'burst'),
-    *(_animate(6.0, bag, 'startled') for bag in _BAGS),
+    IntroCue(at_seconds=0.0, kind=CueKind.ANIMATE, actor='intro_bag_dex', animation='sit'),
+    IntroCue(at_seconds=0.0, kind=CueKind.ANIMATE, actor='intro_bag_marisol', animation='sit'),
+    IntroCue(at_seconds=0.0, kind=CueKind.ANIMATE, actor='intro_bag_theo', animation='sit'),
+    IntroCue(at_seconds=0.0, kind=CueKind.ANIMATE, actor='intro_bag_june', animation='sit'),
+    IntroCue(at_seconds=0.0, kind=CueKind.ANIMATE, actor='intro_tv', animation='show'),
+    IntroCue(at_seconds=0.0, kind=CueKind.ANIMATE, actor='intro_lamp', animation='still'),
+    IntroCue(at_seconds=0.0, kind=CueKind.ANIMATE, actor='intro_snacks', animation='still'),
+    IntroCue(at_seconds=4.0, kind=CueKind.ANIMATE, actor='intro_tv', animation='static'),
+    IntroCue(at_seconds=4.0, kind=CueKind.ANIMATE, actor='intro_lamp', animation='flicker'),
+    IntroCue(at_seconds=5.5, kind=CueKind.ANIMATE, actor='intro_tv', animation='bulge'),
+    IntroCue(at_seconds=6.0, kind=CueKind.ANIMATE, actor='intro_tv', animation='burst'),
+    IntroCue(at_seconds=6.0, kind=CueKind.ANIMATE, actor='intro_bag_dex', animation='startled'),
+    IntroCue(at_seconds=6.0, kind=CueKind.ANIMATE, actor='intro_bag_marisol', animation='startled'),
+    IntroCue(at_seconds=6.0, kind=CueKind.ANIMATE, actor='intro_bag_theo', animation='startled'),
+    IntroCue(at_seconds=6.0, kind=CueKind.ANIMATE, actor='intro_bag_june', animation='startled'),
     IntroCue(at_seconds=6.0, kind=CueKind.SHAKE),
     IntroCue(at_seconds=6.0, kind=CueKind.RUMBLE),
-    _animate(6.3, 'intro_hands', 'reach'),
-    _animate(6.8, 'intro_zombie', 'climb-out'),
+    IntroCue(at_seconds=6.3, kind=CueKind.ANIMATE, actor='intro_hands', animation='reach'),
+    IntroCue(at_seconds=6.8, kind=CueKind.ANIMATE, actor='intro_zombie', animation='climb-out'),
     IntroCue(at_seconds=8.0, kind=CueKind.END),
 )
 # How long the intro runs: its END cue's time
