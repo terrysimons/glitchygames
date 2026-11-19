@@ -283,12 +283,22 @@ def test_only_the_streams_last_event_holds_counts():
     assert stream_line_timings(line='data: {"timings": {"prompt_n": 7}}') == {'prompt_n': 7}
 
 
+class FakeChatHTTPServer(ThreadingHTTPServer):
+    """Waits for every request's thread when it closes, so no answer outlives its test.
+
+    ThreadingHTTPServer's request threads are daemons, and ``server_close`` waits only for
+    threads that are not (socketserver's ``_Threads``).
+    """
+
+    daemon_threads = False
+
+
 class RunningChatServer:
     """A fake chat server serving on its own thread, and how to stop it."""
 
     def __init__(self) -> None:
         """Start serving on a free port."""
-        self._server = ThreadingHTTPServer(('127.0.0.1', 0), FakeChatServer)
+        self._server = FakeChatHTTPServer(('127.0.0.1', 0), FakeChatServer)
         self._thread = Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
         self.target = AskedOf(
@@ -376,8 +386,9 @@ def test_a_stopped_answer_hangs_up_and_the_server_ends_quietly(chat_server, mock
     """The server takes the hang-up as the end of its answer: nothing raised, nothing printed.
 
     A real server sees clients hang up mid-answer. The fake used to raise a broken pipe, which
-    the server printed to stderr from its request thread; on CircleCI macOS (#221) that write
-    failed on a closed descriptor and pytest failed the test's teardown with it.
+    the server printed to stderr from its request thread, a daemon the fixture never waited for;
+    on CircleCI macOS (#221) that write failed on a closed descriptor and pytest failed the
+    test's teardown with it.
     """
     FakeChatServer.runaway = True
     readings = iter([0.0, *[1000.0] * 5])
