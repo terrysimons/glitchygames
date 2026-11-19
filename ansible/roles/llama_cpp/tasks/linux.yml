@@ -105,7 +105,10 @@
     # The run-time proof that a variant loads: llama-server logs the module it picked
     - name: Run llama-server to see which CPU variant it loads
       ansible.builtin.command:
-        argv: ["{{ llama_cpp_install_directory }}/bin/llama-server", --list-devices]
+        # --log-verbosity 4: common's logger drops a ggml INFO message (the load_backend line) at
+        # llama-server's default threshold of 3 (b12167 common/log.cpp). It comes first: the
+        # parser may act on --list-devices and exit as soon as it reaches it
+        argv: ["{{ llama_cpp_install_directory }}/bin/llama-server", --log-verbosity, "4", --list-devices]
       register: llama_cpp_devices
       changed_when: false
 
@@ -121,7 +124,7 @@
       ansible.builtin.shell:
         cmd: |
           set -o pipefail
-          for file in bin/llama-server lib/*.so*; do objdump -T "$file"; done \
+          for file in bin/llama-server bin/*.so* lib/*.so*; do objdump -T "$file"; done \
             | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)*' | sed 's/GLIBC_//' | sort -Vu | tail -n 1
         executable: /bin/bash
         chdir: "{{ llama_cpp_install_directory }}"

@@ -588,3 +588,22 @@ def test_the_run_time_check_needs_the_cpu_variant_to_load_from_bin(tmp_path: Pat
     assert not holds(
         f'load_backend: loaded CPU backend from {LINUX_INSTALL}/lib/libggml-cpu-x64.so'
     )
+
+
+def test_the_glibc_floor_scans_the_binary_and_both_library_folders():
+    """The .deb's libc6 floor must count the variant modules in bin/ and the libraries in lib/."""
+    task = linux_task(name='Find the newest glibc the build needs')
+    command = task['ansible.builtin.shell']['cmd']
+
+    assert 'for file in bin/llama-server bin/*.so* lib/*.so*; do' in command
+
+
+def test_the_run_time_variant_step_logs_at_the_verbosity_that_shows_the_backend_load():
+    """The load_backend line is an INFO message that llama-server's default threshold hides."""
+    task = linux_task(name='Run llama-server to see which CPU variant it loads')
+
+    argv = task['ansible.builtin.command']['argv']
+
+    assert argv[argv.index('--log-verbosity') + 1] == '4'
+    # Before --list-devices, which the parser may act on and exit at once
+    assert argv.index('--log-verbosity') < argv.index('--list-devices')

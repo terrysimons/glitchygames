@@ -127,7 +127,8 @@ def _environment() -> jinja2.Environment:
     for name, function in filters.items():
         environment.filters[name] = function
     # Ansible's `is search(pattern)`, which `reject('search', pattern)` also uses
-    environment.tests['search'] = _search
+    tests: dict[str, Any] = environment.tests
+    tests['search'] = _search
     return environment
 
 
