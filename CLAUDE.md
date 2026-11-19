@@ -27,21 +27,19 @@ pixel-art editor (Bitmappy), example games, and exact gameplay recording and rep
 uv sync --all-extras --all-groups --all-packages   # everything development uses
 direnv allow        # optional: .envrc syncs on entry; on macOS installs PulseAudio, syft, grype
 uv sync --upgrade --all-extras --all-groups --all-packages   # deliberate upgrade; review uv.lock
-uv python pin 3.15.2   # optional: develop on 3.15 (.python-version is ignored: this checkout only)
+uv python pin 3.15.2   # optional: pin this checkout's Python (.python-version is ignored)
 ```
 
-Two Pythons are supported: 3.14, the oldest (the browser builds' Pyodide runs it, so
-`requires-python`, ruff's and the type checkers' targets stay there), and 3.15, the development
-version. Only 3.15 is tested for now: `noxfile.TEST_PYTHONS` has 3.14 commented out, so
-`test-3.14` and `coverage-combine-3.14` are gone until it returns (the owner, 2026-11-18).
-CircleCI runs 3.15 only, on every OS (`test-python-3-15-macos`,
-`-linux`, `-windows`); the 3.14 jobs (`build-and-test-linux`, `-windows`) are commented out of the
-workflow for now (the owner, 2026-11-18). Every other nox session (lint, types, docs, security,
-builds) runs on 3.15 too (`noxfile.PINNED_PYTHONS`); the tools still target 3.14. Each Linux and
-Windows job is split across two machines (`parallelism: 2`), as one Python alone ran past
-CircleCI's one-hour job limit on Linux (`noxfile.TEST_PYTHONS`, `PYTHON_NEXT_VERSION`). A split
-job's machines each run a share (`GLITCHYGAMES_TEST_SPLIT`, `tests/circleci_test_split.py`), and a
-`coverage-combine-*` job holds their coverage, combined, to 100%.
+Everything runs on Python 3.15: the tests (`noxfile.TEST_PYTHONS`), every other nox session
+(`noxfile.PINNED_PYTHONS`), the pre-push hooks and CircleCI (`PYTHON_VERSION`;
+`test-python-3-15-macos`, `-linux`, `-windows`). Python 3.14 was removed (the owner, 2026-11-19);
+it stays only the oldest the code must parse and type-check as (`requires-python`, ruff's
+`target-version`, the type checkers' python version), because the browser builds' Pyodide 314 runs
+it: nothing tests on 3.14, so keep to what 3.14 has. Move those to 3.15 when a Pyodide on 3.15
+ships. Each Linux and Windows job is split across two machines (`parallelism: 2`), as the suite
+alone ran past CircleCI's one-hour job limit on Linux. A split job's machines each run a share
+(`GLITCHYGAMES_TEST_SPLIT`, `tests/circleci_test_split.py`), and a `coverage-combine-*` job holds
+their coverage, combined, to 100%.
 
 The packages are not on PyPI yet: outside the repository, `uv build --all-packages` and install
 from `dist/` (extras: `games`, `apps`, `templates` for cookiecutter).
@@ -60,9 +58,8 @@ basedpyright                # pyrightconfig.json
 ```
 
 Nox (`nox -l` lists all; each session's docstring explains it):
-- `format`, `lint` (aggregates), `static-analysis` (basedpyright + ty), `test` (`test-3.15`;
-  `test-3.14` while 3.14 is commented out of `TEST_PYTHONS`), `test-random` (shuffled order on 3.15 only, the
-  pre-push hook; `-- SEED` repeats one), `performance-test`
+- `format`, `lint` (aggregates), `static-analysis` (basedpyright + ty), `test`
+  (`test-3.15`), `test-random` (shuffled order, the pre-push hook; `-- SEED` repeats one), `performance-test`
 - `compare-drivers` (N-way driver matrix, 4 workers per run, `-- --workers auto` for every
   core; pre-push runs `-- --drivers native --fail-on-difference --workers auto
   --skip-when-frames-cannot-change`, skipped when every pushed path is docs, plans or CI config;
@@ -340,7 +337,8 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
 
 ## Code Style
 
-Python 3.14 and 3.15 (code must run on 3.14: lint and type checks target it), ruff (100-character
+Python 3.15 (code must still parse and type-check as 3.14: lint and type checks target it, for
+the browser builds' Pyodide), ruff (100-character
 lines, import order), Google-style docstrings, basedpyright and ty. Data classes are pydantic
 models. Bugs: one file each in `bugs/` (`YYYY-MM-DD-short-slug.md`); the older numbered entries are
 in BUGS.md.

@@ -9,14 +9,13 @@ version: 2.1
 #     enum: [build, report]
 #     default: build
 parameters:
-  PYTHON_LATEST_VERSION:
-    type: string
-    default: "3.14.8"
-  # The development version, the one every running job uses (test-python-3-15-macos, -linux,
-  # -windows, the combine jobs, deploy-docs); the 3.14 jobs are off for now (noxfile.TEST_PYTHONS,
-  # PINNED_PYTHONS; tests/test_ci_config.py checks what each job installs and runs). 3.14 stays
-  # the oldest supported: the browser builds' Pyodide runs it
-  PYTHON_NEXT_VERSION:
+  # The one Python every job runs on and installs, and the Linux jobs' image (cimg/python): 3.15
+  # (noxfile.TEST_PYTHONS, PINNED_PYTHONS; tests/test_ci_config.py checks what each job installs
+  # and runs). Python 3.14 was removed from the tests and CI (the owner, 2026-11-19: "let's get rid
+  # of Python 3.14 altogether"); it stays only the oldest the code must parse and type-check as
+  # (requires-python, ruff's and the type checkers' targets), as the browser builds' Pyodide 314
+  # runs it
+  PYTHON_VERSION:
     type: string
     default: "3.15.2"
   XCODE_LATEST_VERSION:
@@ -102,7 +101,7 @@ commands:
   install-deps-posix:
     parameters:
       # The Pythons the job's nox sessions run on, and only those (the owner, 2026-11-18: "only
-      # targeting 3.15 with nox in the 3.15 jobs", the same for 3.14), named at every use
+      # targeting 3.15 with nox in the 3.15 jobs"), named at every use
       pythons:
         type: string
       no_output_timeout:
@@ -183,7 +182,7 @@ commands:
   nox-test:
     parameters:
       # One Python's test session (noxfile.TEST_PYTHONS), named at every use, never a default:
-      # test-3.14 (the browser builds' Python) or test-3.15
+      # test-3.15
       session:
         type: string
     steps:
@@ -354,7 +353,7 @@ commands:
           key: uv-cache-v4-windows-{{ checksum "uv.lock" }}
           when: always
           paths:
-            # The job's UV_CACHE_DIR (build-and-test-windows), not uv's default under AppData
+            # The job's UV_CACHE_DIR (test-python-3-15-windows), not uv's default under AppData
             - C:\uv-cache
             - C:\Users\circleci\AppData\Local\uv\python
 
@@ -426,14 +425,49 @@ commands:
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
-  build-and-test-linux:
-    # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
-    docker:
-      - image: cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>
-    # Add steps to the job
-    # See: https://circleci.com/docs/2.0/configuration-reference/#steps
+  test-python-3-15-macos:
+    macos:
+      xcode: << pipeline.parameters.XCODE_LATEST_VERSION >>
+    resource_class: m4pro.medium
 
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+      # The Bitmappy binary is built for this executor's architecture (arm64, Apple silicon):
+      # no PYINSTALLER_TARGET_ARCH. A universal2 build needs every compiled extension fat,
+      # and numpy, scipy, pandas, Pillow and pydantic-core ship arm64-only wheels for macOS
+      # (PyInstaller then fails: "... is not a fat binary!"; it does not fall back)
+
+    steps:
+      - checkout
+
+      - restore-uv-cache-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+      - nox-format
+      - nox-lint
+      - nox-static-analysis
+      - nox-lint-docs
+      - nox-timer-report
+      # 3.15, every session (noxfile.PINNED_PYTHONS; the owner, 2026-11-18: "Only 3.15 for macos
+      # too", "Just change that job's name to test-python-3-15-macos"). Linux and Windows run it
+      # in jobs of their own (test-python-3-15-linux, -windows), split across two machines: the
+      # suite alone took Linux 59 minutes on one (jobs 3635, 3705, 3707)
+      - nox-test:
+          session: test-3.15
+      - install-supply-chain-tools-macos
+      - nox-security-scan
+      - nox-performance-test
+      - nox-build
+      - save-uv-cache-posix
+
+  # The suite on Linux and Windows, a job each: only what differs by platform (the tests, the
+  # OS's build, and its uv cache, saved last: the owner, 2026-11-18, "Yes, let's move the uv
+  # cache"). Format, lint, type checks, docs, security scans and benchmarks give the same answer
+  # on every OS and run on macOS (the fastest runner; the committed SBOM is macOS's, so its drift
+  # check runs there)
+  test-python-3-15-linux:
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
     # small (1 vCPU, 2 GB): one process runs the machine's share of the suite. It grew past 2 GB
     # until the recording mocks in two timing and hardware tests were replaced (BUGS.md #85)
     resource_class: small
@@ -441,11 +475,6 @@ jobs:
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
-      # Two machines, each running its share of the suite, as CircleCI's splitter assigns them by
-      # past timings (tests/circleci_test_split.py): one ran past CircleCI's one-hour job limit
-      # (jobs 3705, 3707; the owner, 2026-11-18). The coverage rule is applied to the shares
-      # combined, by coverage-combine-<os> after this job
-      GLITCHYGAMES_TEST_SPLIT: "circleci"
       # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
       PYTEST_WORKERS: "0"
       # Stop the run past 1750 MiB of the container's memory (its page cache left out), naming the
@@ -454,6 +483,11 @@ jobs:
       # guard limit to 1750"), up from 1600 (2026-10-28): job 3686 stopped at 1604 MiB, 348 MiB
       # of it reclaimable kernel slab, which the reading still counts (memory_guard.py)
       GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"
+      # Two machines, each running its share of the suite, as CircleCI's splitter assigns them by
+      # past timings (tests/circleci_test_split.py): one ran past CircleCI's one-hour job limit
+      # (jobs 3705, 3707; the owner, 2026-11-18). The coverage rule is applied to the shares
+      # combined, by coverage-combine-<os> after this job
+      GLITCHYGAMES_TEST_SPLIT: "circleci"
 
     steps:
       - checkout
@@ -470,53 +504,15 @@ jobs:
 
       - restore-uv-cache-posix
       - install-deps-posix:
-          pythons: << pipeline.parameters.PYTHON_LATEST_VERSION >>
-      # Only what differs by platform; format, lint, type checks, docs, security scans and
-      # benchmarks give the same answer on every OS and run on macOS (the fastest runner; the
-      # committed SBOM is macOS's, so its drift check runs there). Its nox sessions are 3.14's
-      # only: the build and the timer report are 3.15's (noxfile.PINNED_PYTHONS)
-      - nox-test:
-          session: test-3.14
-      - save-coverage-share-posix:
-          share: linux-test-3.14
-      - save-uv-cache-posix
-
-  test-python-3-15-macos:
-    macos:
-      xcode: << pipeline.parameters.XCODE_LATEST_VERSION >>
-    resource_class: m4pro.medium
-
-    environment:
-      DISABLE_MKDOCS_2_WARNING: "true"
-      # The Bitmappy binary is built for this executor's architecture (arm64, Apple silicon):
-      # no PYINSTALLER_TARGET_ARCH. A universal2 build needs every compiled extension fat,
-      # and numpy, scipy, pandas, Pillow and pydantic-core ship arm64-only wheels for Python
-      # 3.14 (PyInstaller then fails: "... is not a fat binary!"; it does not fall back)
-
-    steps:
-      - checkout
-
-      - restore-uv-cache-posix
-      - install-deps-posix:
-          pythons: << pipeline.parameters.PYTHON_NEXT_VERSION >>
-      - nox-format
-      - nox-lint
-      - nox-static-analysis
-      - nox-lint-docs
-      - nox-timer-report
-      # 3.15 only, every session (noxfile.PINNED_PYTHONS; the owner, 2026-11-18: "Only 3.15 for
-      # macos too", "Just change that job's name to test-python-3-15-macos"). Linux and Windows
-      # run 3.15 in jobs of their own (test-python-3-15-linux, -windows), split across two
-      # machines: one Python alone took Linux 59 minutes (jobs 3635, 3705, 3707)
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
       - nox-test:
           session: test-3.15
-      - install-supply-chain-tools-macos
-      - nox-security-scan
-      - nox-performance-test
+      - save-coverage-share-posix:
+          share: linux-test-3.15
       - nox-build
       - save-uv-cache-posix
 
-  build-and-test-windows:
+  test-python-3-15-windows:
     executor:
       name: win/default
       size: medium
@@ -535,71 +531,7 @@ jobs:
 
       - restore-uv-cache-windows
       - install-deps-windows:
-          pythons: << pipeline.parameters.PYTHON_LATEST_VERSION >>
-      # Only what differs by platform, as on Linux; the rest runs on macOS. Its nox sessions are
-      # 3.14's only: the build and the timer report are 3.15's (noxfile.PINNED_PYTHONS)
-      - nox-test-windows:
-          session: test-3.14
-      - save-coverage-share-windows:
-          share: windows-test-3.14
-      - save-uv-cache-windows
-
-  # The suite on Python 3.15 (PYTHON_NEXT_VERSION) on Linux and Windows, a job each, beside the
-  # build-and-test jobs that ran it on 3.14 (off for now): one job can't hold both under CircleCI's
-  # one-hour job limit. The tests, the OS's build, and its uv cache, saved last (the owner,
-  # 2026-11-18: "Yes, let's move the uv cache"); the rest runs on macOS
-  test-python-3-15-linux:
-    # As build-and-test-linux: its image (uv installs 3.15 beside the image's 3.14), resource
-    # class, memory limits and system packages (tests/test_ci_config.py checks they match)
-    docker:
-      - image: cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>
-    resource_class: small
-    parallelism: 2
-
-    environment:
-      DISABLE_MKDOCS_2_WARNING: "true"
-      PYTEST_WORKERS: "0"
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"
-      GLITCHYGAMES_TEST_SPLIT: "circleci"
-
-    steps:
-      - checkout
-
-      - run:
-          name: "Install Linux system dependencies"
-          command: |
-            set -euo pipefail
-            sudo apt-get update
-            sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config
-
-      - restore-uv-cache-posix
-      - install-deps-posix:
-          pythons: << pipeline.parameters.PYTHON_NEXT_VERSION >>
-      - nox-test:
-          session: test-3.15
-      - save-coverage-share-posix:
-          share: linux-test-3.15
-      - nox-build
-      - save-uv-cache-posix
-
-  test-python-3-15-windows:
-    executor:
-      name: win/default
-      size: medium
-    parallelism: 2
-
-    environment:
-      DISABLE_MKDOCS_2_WARNING: "true"
-      GLITCHYGAMES_TEST_SPLIT: "circleci"
-      # As build-and-test-windows: the short uv cache, so source builds fit Windows' path limit
-      UV_CACHE_DIR: 'C:\uv-cache'
-
-    steps:
-      - checkout
-
-      - restore-uv-cache-windows
-      - install-deps-windows:
-          pythons: << pipeline.parameters.PYTHON_NEXT_VERSION >>
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
       - nox-test-windows:
           session: test-3.15
       - save-coverage-share-windows:
@@ -620,7 +552,7 @@ jobs:
       session:
         type: string
     docker:
-      - image: cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
     resource_class: small
     steps:
       - checkout
@@ -691,12 +623,10 @@ jobs:
       # 30m, not the default 10m: the first install on a cold uv cache compiles without printing
       # (build 2862 timed out in the timer report, the first step to install). nox-test keeps 120m
       - install-deps-posix:
-          pythons: << pipeline.parameters.PYTHON_LATEST_VERSION >> << pipeline.parameters.PYTHON_NEXT_VERSION >>
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
           no_output_timeout: 30m
       - nox-timer-report:
           no_output_timeout: 30m
-      - nox-test:
-          session: test-3.14
       - nox-test:
           session: test-3.15
       # After the tests: whether this run was slowed by heat or undervoltage. /dev/vcio is
@@ -788,7 +718,7 @@ jobs:
           keys:
             - pygame-ce-pyodide-wheel-v1-{{ checksum ".pygame-ce-commit" }}
       - install-deps-posix:
-          pythons: << pipeline.parameters.PYTHON_NEXT_VERSION >>
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
       - run:
           name: "Deploy the docs (nox -s docs-deploy -- --no-measure)"
           no_output_timeout: 60m
@@ -822,40 +752,21 @@ jobs:
 workflows:
   build-and-test:
     jobs:
-      # Off: the Python 3.14 jobs of Linux and Windows and their coverage (the owner, 2026-11-18:
-      # "Comment out the python 3.14 CI jobs"). macOS still runs 3.14 and 3.15. The Linux and
-      # Windows builds are 3.15's, in the 3.15 jobs
-      # - build-and-test-linux
       - test-python-3-15-macos
-      # - build-and-test-windows
       - test-python-3-15-linux
       - test-python-3-15-windows
       # Each split job's coverage, combined
-      # - coverage-combine-linux:
-      #     name: coverage-combine-linux-test-3-14
-      #     share: linux-test-3.14
-      #     pythons: << pipeline.parameters.PYTHON_LATEST_VERSION >>
-      #     session: coverage-combine-3.14
-      #     requires:
-      #       - build-and-test-linux
       - coverage-combine-linux:
           name: coverage-combine-linux-test-3-15
           share: linux-test-3.15
-          pythons: << pipeline.parameters.PYTHON_NEXT_VERSION >>
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
           session: coverage-combine-3.15
           requires:
             - test-python-3-15-linux
-      # - coverage-combine-windows:
-      #     name: coverage-combine-windows-test-3-14
-      #     share: windows-test-3.14
-      #     pythons: << pipeline.parameters.PYTHON_LATEST_VERSION >>
-      #     session: coverage-combine-3.14
-      #     requires:
-      #       - build-and-test-windows
       - coverage-combine-windows:
           name: coverage-combine-windows-test-3-15
           share: windows-test-3.15
-          pythons: << pipeline.parameters.PYTHON_NEXT_VERSION >>
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
           session: coverage-combine-3.15
           requires:
             - test-python-3-15-windows

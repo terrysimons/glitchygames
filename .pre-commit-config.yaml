@@ -69,8 +69,8 @@ repos:
       pass_filenames: false
       stages: [pre-push]
 
-    # The suite in a shuffled order (pytest-randomly, a new seed each push), on Python 3.15 only
-    # (3.14 is left to CI), in its own environment whatever the .venv's Python: order-dependent
+    # The suite in a shuffled order (pytest-randomly, a new seed each push), on Python 3.15, in
+    # its own environment whatever the .venv's Python: order-dependent
     # tests surface here, where CI's fixed order would hide them. A failure prints its seed and
     # the command that replays it; SKIP=test-random git push ... skips it
     - id: test-random

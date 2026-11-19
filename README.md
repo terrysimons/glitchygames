@@ -6,7 +6,8 @@ A Python 3.14+ game engine built on Pygame with an event-driven architecture. In
 
 ### Prerequisites
 
-- Python 3.14+
+- Python 3.15 (the code is also checked to parse and type-check as 3.14, which the browser
+  builds run)
 - [uv](https://docs.astral.sh/uv/) (recommended package manager)
 
 ### Installation
@@ -368,7 +369,7 @@ nox -s lint
 # Format code
 nox -s format
 
-# Run tests with coverage reports (HTML, XML, JSON, LCOV), on Python 3.14 then 3.15
+# Run tests with coverage reports (HTML, XML, JSON, LCOV), on Python 3.15
 nox -s test
 
 # Type checkers (basedpyright + ty)

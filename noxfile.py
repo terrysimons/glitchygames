@@ -215,7 +215,7 @@ def _lint_dead_code(session: nox.Session) -> None:
 # builds, complexity, the timer report): 3.15, the development version (the owner, 2026-11-18:
 # "Switch the builds over to 3.15", "Only 3.15 for macos too", "pin 3.15", "Also upgrade
 # deploy-docs to 3.15"). The tools still target 3.14 (ruff's target-version, the type checkers'
-# python-version), so code stays valid on the oldest supported Python
+# python-version), so code stays valid on the browser builds' Pyodide 314
 PINNED_PYTHONS = ['3.15']
 
 
@@ -739,17 +739,14 @@ def _usable_cpu_count() -> int:
     return max(1, min(cpus, int(quota) // int(period)))
 
 
-# The Pythons the suite runs on, each its own session (test-3.15; coverage-combine-3.15): 3.15,
-# the development version. 3.14, the oldest supported (the browser builds' Pyodide runs it), is
-# commented out for now with its sessions, test-3.14 and coverage-combine-3.14 (the owner,
-# 2026-11-18: "Remove the test-3.14 and combine 3.14 (comment out)"), as CircleCI's 3.14 jobs
-# are; the owner, 2026-11-16, had added 3.15 beside it ("Run both"). With both, nox -s test runs
-# them one after the other (two at once would share htmlcov/, test-results/ and the coverage
-# data, and each already uses every core). tests/test_ci_config.py checks what each job runs
-TEST_PYTHONS = (
-    # '3.14',
-    '3.15',
-)
+# The Pythons the suite runs on, each its own session (test-3.15, coverage-combine-3.15): 3.15
+# only. Python 3.14 was removed from the tests, CI and every session (the owner, 2026-11-19:
+# "let's get rid of Python 3.14 altogether"); it is still the oldest the code must parse and
+# type-check as (requires-python, ruff's target-version, the type checkers' python-version), as
+# the browser builds' Pyodide 314 runs it. More than one Python here runs them one after the
+# other (two at once would share htmlcov/, test-results/ and the coverage data, and each already
+# uses every core). tests/test_ci_config.py checks what each CircleCI job runs
+TEST_PYTHONS = ('3.15',)
 
 
 @nox.session(python=list(TEST_PYTHONS), reuse_venv=False)
@@ -851,9 +848,9 @@ def locked_version(*, package: str, lock: str) -> str:
 def coverage_combine(session: nox.Session) -> None:
     """Combine a split CI job's coverage data and apply the 100% rule to the whole.
 
-    One session a Python of TEST_PYTHONS (coverage-combine-3.15; -3.14 while 3.14 is off): a
-    split job's data is combined on the Python it was measured on, so a 3.15 job's CI runs only
-    3.15 (the owner, 2026-11-18: "only targeting 3.15 with nox in the 3.15 jobs").
+    One session a Python of TEST_PYTHONS (coverage-combine-3.15): a split job's data is combined
+    on the Python it was measured on (the owner, 2026-11-18: "only targeting 3.15 with nox in the
+    3.15 jobs").
     The data is the machines' ``.coverage.*`` files in ``coverage-data/`` (or the directory
     given: ``nox -s coverage-combine -- DIRECTORY``). Only coverage is installed, at uv.lock's
     version; the report reads pyproject.toml's settings and the checkout's source, and writes
@@ -885,9 +882,8 @@ SHUFFLED_RUN_ENVIRONMENT = (
     '--all-packages',
     '--python',
 )
-# The shuffled run's one Python: 3.15, the development version, the newest of TEST_PYTHONS (the
-# owner, 2026-11-18: "For the pre-commit checks only run python 3.15", "so that we can push more
-# quickly. The pipeline can catch 3.14 breakage": nox -s test and CircleCI still run both)
+# The shuffled run's one Python: the newest of TEST_PYTHONS, 3.15 (the owner, 2026-11-18: "For the
+# pre-commit checks only run python 3.15", "so that we can push more quickly")
 SHUFFLED_RUN_PYTHON = TEST_PYTHONS[-1]
 
 
@@ -898,8 +894,8 @@ def test_random(session: nox.Session) -> None:
     Each run shuffles the tests with a new seed (``-- SEED`` reuses one), so a test that passes
     only after, or only before, another fails in some run long before CI's fixed order meets it
     (BUGS.md: a named custom event type took FPSEVENT's id only after a pygame.quit()). It runs
-    once, on SHUFFLED_RUN_PYTHON (3.15, the development version), so a push waits for one run, not
-    one a Python; 3.14 is left to nox -s test and CircleCI. The run has a throwaway environment
+    once, on SHUFFLED_RUN_PYTHON (3.15), so a push waits for one run, not one a Python. The run
+    has a throwaway environment
     from uv.lock (``uv run --isolated --python``), never the project's .venv, so it tests 3.15
     whatever Python the .venv was synced on. On every core, under the
     dummy drivers only and without coverage (CI enforces coverage), so it costs a push a few
@@ -1195,7 +1191,7 @@ def test_linux_x11(session: nox.Session) -> None:
 # where the container's checkout goes and where its test-results/ come back to (git-ignored), the
 # uv cache kept between runs, and where the list of files to copy is mounted
 _CIRCLECI_CONFIG = Path('.circleci/config.yml')
-_CIRCLECI_LINUX_JOB = 'build-and-test-linux'
+_CIRCLECI_LINUX_JOB = 'test-python-3-15-linux'
 _CIRCLECI_DOCKER_RESOURCES = {'small': ('2g', '1'), 'medium': ('4g', '2'), 'large': ('8g', '4')}
 _LINUX_CI_RESULTS = Path('test-results/linux-ci')
 _LINUX_CI_PLATFORM = 'linux/amd64'
@@ -1238,7 +1234,7 @@ def _circleci_parameter(*, configuration: str, name: str) -> str:
 
     Args:
         configuration: The CircleCI configuration's text.
-        name: The parameter, e.g. ``PYTHON_LATEST_VERSION``.
+        name: The parameter, e.g. ``PYTHON_VERSION``.
 
     Returns:
         Its ``default``, without quotes.
@@ -1410,8 +1406,7 @@ def _linux_ci_script(
     """Return the container's shell script: the Linux job's steps, then the results copied out.
 
     Args:
-        python_versions: ``PYTHON_LATEST_VERSION`` and ``PYTHON_NEXT_VERSION``, installed in
-            that order.
+        python_versions: The job's Pythons (``PYTHON_VERSION``), installed in that order.
         apt_packages: The job's apt packages (``_linux_ci_job_packages``).
         uv_version: ``UV_VERSION``.
         nox_version: ``NOX_VERSION``.
@@ -1506,8 +1501,8 @@ def _linux_ci_script(
 def test_linux_ci(session: nox.Session) -> None:
     """Run the tests as CircleCI's Linux job does, in Docker, with its memory and CPUs.
 
-    Reads the job (``build-and-test-linux``) from .circleci/config.yml: its image
-    (``cimg/python:<PYTHON_LATEST_VERSION>``), its resource class's memory and CPUs (``small``:
+    Reads the job (``test-python-3-15-linux``) from .circleci/config.yml: its image
+    (``cimg/python:<PYTHON_VERSION>``), its resource class's memory and CPUs (``small``:
     2 GB and 1 CPU; the container gets no swap, as the job has none) and its environment
     (``PYTEST_WORKERS=0``: serial; ``GLITCHYGAMES_TEST_RSS_LIMIT_MB``: tests/memory_guard.py),
     plus ``CI=true`` and ``CIRCLECI=true`` as CircleCI sets them.
@@ -1518,10 +1513,10 @@ def test_linux_ci(session: nox.Session) -> None:
     directory, mounted read-only at its own path, so it runs from a worktree too. Its HEAD is this
     checkout's, on its branch, and its remote branches are this checkout's, as fresh as its last
     fetch (CircleCI fetches its own). Then it installs fontconfig, uv and Python at the job's
-    versions, then nox as a uv tool, and runs ``nox -s test-3.14`` then ``nox -s test-3.15``, as
-    the job does. Each one's test results come back to test-results/linux-ci/test-<python>/
-    (junit.xml). The uv cache is kept in a Docker volume
-    between runs.
+    versions, then nox as a uv tool, and runs each Python's test session (``nox -s test-3.15``),
+    as the job does (on one machine: the job's split is left out). Each one's test results come
+    back to test-results/linux-ci/test-<python>/ (junit.xml). The uv cache is kept in a Docker
+    volume between runs.
     The image is amd64, as CircleCI's machines are (the same wheels; emulated on Apple silicon, so
     slower than CI). Made on macOS; on a Linux host the results are made writable for any user.
     """
@@ -1534,7 +1529,7 @@ def test_linux_ci(session: nox.Session) -> None:
     script = _linux_ci_script(
         python_versions=[
             _circleci_parameter(configuration=configuration, name=name)
-            for name in ('PYTHON_LATEST_VERSION', 'PYTHON_NEXT_VERSION')
+            for name in ('PYTHON_VERSION',)
         ],
         uv_version=_circleci_parameter(configuration=configuration, name='UV_VERSION'),
         nox_version=_circleci_parameter(configuration=configuration, name='NOX_VERSION'),
