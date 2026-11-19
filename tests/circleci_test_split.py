@@ -6,16 +6,23 @@ copies of a job (``CIRCLE_NODE_INDEX`` 0 to ``CIRCLE_NODE_TOTAL`` - 1), and each
 (the owner, 2026-11-18: "yes", and "Do it for windows too").
 
 On only when ``GLITCHYGAMES_TEST_SPLIT`` is ``circleci`` (the split CI jobs set it); unset, it
-does nothing, and any other value stops the run. After collection, every collected test's file
-(``item.location[0]``: the name the JUnit report's ``file`` attribute carries, golden replays
-included) is written to ``test-results/test-split-input.txt`` and given to ``circleci tests split
---split-by=timings --timings-type=filename`` once (through ``glitchygames.process.run_command``),
-and
-the tests of the files it returns are kept; the rest are deselected. The list is what pytest
-collected, never a pattern written beside it, so no test can fall outside every share. CircleCI's
-timings come from the stored JUnit reports, which carry each file's name under
-``junit_family=xunit1`` (``noxfile.py`` sets it with this variable); without timings the splitter
-divides by name.
+does nothing, and any other value stops the run. Before collection, every test file pytest would
+collect is listed from the paths it was given (``candidate_test_files``: each ``python_files``
+module and each golden replay, ``glitchygames.testing.replays``' rule, in directories pytest
+recurses into), written to ``test-results/test-split-input-<pid>.txt`` and given to ``circleci
+tests split --split-by=timings --timings-type=filename`` once (through
+``glitchygames.process.run_command``). The files it returns are collected; every other listed
+file is skipped before pytest imports it (``pytest_ignore_collect``). Each machine once
+collected the whole suite and deselected the other half: importing every test module, and
+keeping every deselected item, cost each machine about 150 MiB more than collecting its half
+(2026-11-19, a 2 GB arm64 Ubuntu container; the owner: "Yes").
+
+No test may fall outside every share. Every listed file goes to the splitter, and after
+collection every collected test's file (``item.location[0]``: the name the JUnit report's
+``file`` attribute carries) must be one listed: a file the listing missed stops the run, naming
+it, rather than running on every machine unseen. CircleCI's timings come from the stored JUnit
+reports, which carry each file's name under ``junit_family=xunit1`` (``noxfile.py`` sets it with
+this variable); without timings the splitter divides by name.
 
 Each machine runs its share alone, so none reaches the 100% coverage rule: the test session turns
 the rule off with this variable, and a job after the split ones combines their coverage data and
@@ -29,6 +36,7 @@ Registered in the root conftest.py's ``pytest_plugins``. Tests: tests/test_circl
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import shutil
 from pathlib import Path
@@ -37,9 +45,11 @@ from typing import TYPE_CHECKING, Final
 import pytest
 
 from glitchygames.process import OutputCapture, run_command
+from glitchygames.testing.replays import RECORDING_SUFFIX, is_under_replay_fixtures
+from glitchygames.tracing import is_bookmarked_copy
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Iterator, Sequence
 
 SPLIT_VARIABLE: Final = 'GLITCHYGAMES_TEST_SPLIT'
 CIRCLECI_SPLIT: Final = 'circleci'
@@ -51,6 +61,63 @@ SPLIT_RECORD: Final = Path('test-results') / 'test-split.txt'
 SPLIT_INPUT: Final = Path('test-results') / f'test-split-input-{os.getpid()}.txt'
 # The splitter reads timings and prints names: seconds, never minutes
 SPLITTER_TIMEOUT_SECONDS: Final = 120.0
+# This machine's split, made as collection starts: every listed file, and the ones it keeps
+_SPLIT_KEY: Final = pytest.StashKey[tuple[tuple[str, ...], frozenset[str]]]()
+
+
+def _is_test_file(*, path: Path, python_files: Sequence[str]) -> bool:
+    if any(fnmatch.fnmatch(path.name, pattern) for pattern in python_files):
+        return True
+    # A golden replay, as glitchygames.testing.replays' pytest_collect_file takes one
+    return (
+        path.name.endswith(RECORDING_SUFFIX)
+        and is_under_replay_fixtures(directory=path.parent)
+        and not is_bookmarked_copy(path=path)
+    )
+
+
+def _walk(*, directory: Path, norecursedirs: Sequence[str]) -> Iterator[Path]:
+    for entry in sorted(directory.iterdir()):
+        if entry.is_dir():
+            # pytest's own skips: a norecursedirs name, or a virtual environment
+            if any(fnmatch.fnmatch(entry.name, pattern) for pattern in norecursedirs):
+                continue
+            if (entry / 'pyvenv.cfg').is_file():
+                continue
+            yield from _walk(directory=entry, norecursedirs=norecursedirs)
+        elif entry.is_file():
+            yield entry
+
+
+def candidate_test_files(
+    *,
+    start_paths: Sequence[Path],
+    root: Path,
+    python_files: Sequence[str],
+    norecursedirs: Sequence[str],
+) -> list[str]:
+    """Return every test file pytest would collect from the paths, without importing any.
+
+    Args:
+        start_paths: What pytest was given (its arguments, or ``testpaths``), resolved.
+        root: The rootdir the names are relative to (as ``item.location[0]`` is).
+        python_files: pytest's ``python_files`` patterns.
+        norecursedirs: pytest's ``norecursedirs`` patterns (directory names, any depth).
+
+    Returns:
+        Each file once, as a path relative to the root, in the order pytest finds them.
+
+    """
+    found: dict[str, None] = {}
+    for start in start_paths:
+        if start.is_file():
+            files: Iterator[Path] = iter((start,))
+        else:
+            files = _walk(directory=start, norecursedirs=norecursedirs)
+        for path in files:
+            if path == start or _is_test_file(path=path, python_files=python_files):
+                found[path.relative_to(root).as_posix()] = None
+    return list(found)
 
 
 def split_files(
@@ -139,16 +206,62 @@ def _write_record(*, collected_files: Sequence[str], kept: frozenset[str]) -> No
     SPLIT_RECORD.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
-@pytest.hookimpl(trylast=True)
-def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Keep this machine's share of the collected tests, deselecting the others."""
+def _start_paths(config: pytest.Config) -> list[Path]:
+    # config.args: the arguments, or testpaths when none were given, from the invocation folder
+    invocation = config.invocation_params.dir
+    return [(invocation / argument.split('::')[0]).resolve() for argument in config.args]
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection(session: pytest.Session) -> None:
+    """List every test file, and ask the splitter which this machine collects."""
+    config = session.config
     if not _split_requested():
         return
-    collected_files = [item.location[0] for item in items]
-    kept = split_files(collected_files=collected_files, run_splitter=run_circleci_splitter)
-    _write_record(collected_files=collected_files, kept=kept)
-    selected = [item for item in items if item.location[0] in kept]
-    deselected = [item for item in items if item.location[0] not in kept]
-    if deselected:
-        config.hook.pytest_deselected(items=deselected)
-    items[:] = selected
+    listed = candidate_test_files(
+        start_paths=_start_paths(config),
+        root=config.rootpath,
+        python_files=config.getini('python_files'),
+        norecursedirs=config.getini('norecursedirs'),
+    )
+    kept = split_files(collected_files=listed, run_splitter=run_circleci_splitter)
+    _write_record(collected_files=listed, kept=kept)
+    config.stash[_SPLIT_KEY] = (tuple(listed), kept)
+
+
+def pytest_ignore_collect(collection_path: Path, config: pytest.Config) -> bool | None:
+    """Skip a listed test file another machine runs, before pytest imports it.
+
+    Returns:
+        True to skip it; None leaves every other path to pytest.
+
+    """
+    split = config.stash.get(_SPLIT_KEY, None)
+    if split is None or not collection_path.is_file():
+        return None
+    listed, kept = split
+    name = collection_path.relative_to(config.rootpath).as_posix()
+    if name in listed and name not in kept:
+        return True
+    return None
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Stop the run if a test was collected from a file the split never listed.
+
+    Raises:
+        pytest.UsageError: Naming each such file: no machine's share accounts for it.
+
+    """
+    split = config.stash.get(_SPLIT_KEY, None)
+    if split is None:
+        return
+    listed = set(split[0])
+    unlisted = sorted({item.location[0] for item in items} - listed)
+    if unlisted:
+        message = (
+            'tests were collected from files the test split did not list (so no machine '
+            f'accounts for them; tests/circleci_test_split.py): {", ".join(unlisted)}'
+        )
+        raise pytest.UsageError(message)

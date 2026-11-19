@@ -167,6 +167,39 @@ def _python_files_patterns() -> list[str]:
     return python_files_patterns
 
 
+def test_the_test_split_lists_every_file_that_defines_tests_and_every_golden_replay():
+    """A split CI machine collects only the listed files it keeps, so none may be unlisted.
+
+    tests/circleci_test_split.py lists the test files before collection and skips the other
+    machine's; a test file it failed to list would run nowhere, or (collected anyway) stop the
+    run. Listed files that define no test (a ``test_*`` helper module) only cost nothing.
+    """
+    from tests.circleci_test_split import candidate_test_files
+
+    roots = collected_test_roots()
+    listed = set(
+        candidate_test_files(
+            start_paths=[PROJECT_ROOT / path for path in PYTEST_SETTINGS['testpaths']],
+            root=PROJECT_ROOT,
+            python_files=_python_files_patterns(),
+            norecursedirs=PYTEST_SETTINGS.get('norecursedirs', []),
+        )
+    )
+    defining_tests = {
+        test_file.relative_to(PROJECT_ROOT).as_posix()
+        for _root, test_file in _test_defining_files(roots=roots)
+    }
+    golden_replays = {
+        replay.relative_to(PROJECT_ROOT).as_posix()
+        for root in roots
+        for replay in root.glob('fixtures/replays/**/*.jsonl.gz')
+    }
+
+    assert defining_tests - listed == set()
+    assert golden_replays - listed == set()
+    assert golden_replays
+
+
 def test_every_test_file_matches_python_files():
     """Every file that defines tests (tests/ and every member's) has a name pytest collects."""
     python_files_patterns = _python_files_patterns()

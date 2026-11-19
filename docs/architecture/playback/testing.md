@@ -178,9 +178,12 @@ one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs
 - It is on only when `GLITCHYGAMES_TEST_SPLIT` is `circleci`; the split jobs set it, and any
   other value stops the run. It needs CircleCI's `CIRCLE_NODE_TOTAL`, `CIRCLE_NODE_INDEX` and
   `circleci` command, so it is never set locally (`nox -s test-linux-ci` leaves it out).
-- After collection, every collected test's file, golden replays included, goes to `circleci tests
-  split --split-by=timings`, and the tests of the files it returns run; the rest are deselected.
-  The share is written to `test-results/test-split.txt`.
+- Before collection, every test file pytest would collect, golden replays included, is listed
+  without importing any and goes to `circleci tests split --split-by=timings`. Only the files it
+  returns are collected; the rest are skipped before pytest imports them, which saves each
+  machine about 150 MiB over collecting everything and deselecting half. A test collected from a
+  file the listing missed stops the run, naming it. The share is written to
+  `test-results/test-split.txt`.
 - CircleCI's timings come from the JUnit reports, which name each test's file
   (`junit_family=xunit1`, which the test session adds for a split job).
 - No share reaches the 100% coverage rule alone, so the test session turns it off for a share;

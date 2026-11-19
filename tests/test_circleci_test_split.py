@@ -20,6 +20,7 @@ from tests.circleci_test_split import (
     SPLIT_RECORD,
     SPLIT_VARIABLE,
     SPLITTER_COMMAND,
+    candidate_test_files,
     run_circleci_splitter,
     split_files,
 )
@@ -122,7 +123,7 @@ def test_unset_the_plugin_runs_every_test(pytester, monkeypatch):
 
 
 def test_set_the_plugin_runs_only_the_kept_files_tests_and_records_the_share(pytester, monkeypatch):
-    """The kept file's two tests run, the other's is deselected, and the share is written."""
+    """The kept file's two tests run, the other file is never collected; the share is written."""
     split_environment(monkeypatch, node_index=1)
     splitter = StandInSplitter('test_kept.py')
     monkeypatch.setattr(circleci_test_split, 'run_circleci_splitter', splitter)
@@ -130,7 +131,7 @@ def test_set_the_plugin_runs_only_the_kept_files_tests_and_records_the_share(pyt
 
     result = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS)
 
-    result.assert_outcomes(passed=2, deselected=1)
+    result.assert_outcomes(passed=2)
     assert splitter.given == [['test_kept.py', 'test_left_out.py']]
     record = (pytester.path / SPLIT_RECORD).read_text(encoding='utf-8').splitlines()
     assert record == [
@@ -151,8 +152,106 @@ def test_an_xdist_worker_after_the_first_writes_no_record(pytester, monkeypatch)
 
     result = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS)
 
-    result.assert_outcomes(passed=2, deselected=1)
+    result.assert_outcomes(passed=2)
     assert not (pytester.path / SPLIT_RECORD).exists()
+
+
+def test_a_file_another_machine_runs_is_never_imported(pytester, monkeypatch):
+    """A file outside this machine's share is skipped before pytest imports it.
+
+    Importing every test module and keeping every deselected test cost each CI machine about
+    150 MiB more than collecting its own half (2026-11-19).
+    """
+    split_environment(monkeypatch)
+    monkeypatch.setattr(
+        circleci_test_split, 'run_circleci_splitter', StandInSplitter('test_kept.py')
+    )
+    pytester.makepyfile(
+        test_kept=INNER_TESTS['test_kept'],
+        test_left_out='raise RuntimeError("imported on the wrong machine")\n',
+    )
+
+    result = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS)
+
+    result.assert_outcomes(passed=2)
+    assert 'imported on the wrong machine' not in result.stdout.str()
+
+
+def test_a_test_from_a_file_the_split_did_not_list_stops_the_run(pytester, monkeypatch):
+    """A test collected from a file the listing missed would run on every machine, unseen."""
+    split_environment(monkeypatch)
+    monkeypatch.setattr(
+        circleci_test_split, 'run_circleci_splitter', StandInSplitter('test_kept.py')
+    )
+    pytester.makeconftest(
+        """
+        import pytest
+
+        class CheckItem(pytest.Item):
+            def runtest(self):
+                pass
+
+        class CheckFile(pytest.File):
+            def collect(self):
+                yield CheckItem.from_parent(self, name='check')
+
+        def pytest_collect_file(file_path, parent):
+            if file_path.suffix == '.check':
+                return CheckFile.from_parent(parent, path=file_path)
+            return None
+        """
+    )
+    pytester.makepyfile(test_kept=INNER_TESTS['test_kept'])
+    pytester.makefile('.check', data='')
+
+    result = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS)
+
+    assert result.ret == pytest.ExitCode.USAGE_ERROR
+    assert 'the test split did not list' in result.stderr.str()
+    assert 'data.check' in result.stderr.str()
+
+
+def test_the_listing_finds_test_modules_and_golden_replays_where_pytest_looks(tmp_path):
+    """Test modules and replays are listed; helpers, skipped folders and venvs are not."""
+    for name in (
+        'tests/test_one.py',
+        'tests/helpers.py',
+        'tests/deep/test_two.py',
+        'tests/build/test_built.py',
+        'tests/environment/pyvenv.cfg',
+        'tests/environment/test_installed.py',
+        'tests/fixtures/replays/golden.jsonl.gz',
+        'tests/elsewhere/golden.jsonl.gz',
+    ):
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text('', encoding='utf-8')
+
+    listed = candidate_test_files(
+        start_paths=[tmp_path / 'tests'],
+        root=tmp_path,
+        python_files=['test_*.py'],
+        norecursedirs=['build'],
+    )
+
+    assert listed == [
+        'tests/deep/test_two.py',
+        'tests/fixtures/replays/golden.jsonl.gz',
+        'tests/test_one.py',
+    ]
+
+
+def test_a_file_pytest_was_given_by_name_is_listed_whatever_its_name(tmp_path):
+    """A file named on pytest's command line is collected (and listed), matching or not."""
+    (tmp_path / 'check_this.py').write_text('', encoding='utf-8')
+
+    listed = candidate_test_files(
+        start_paths=[tmp_path / 'check_this.py', tmp_path / 'check_this.py'],
+        root=tmp_path,
+        python_files=['test_*.py'],
+        norecursedirs=[],
+    )
+
+    assert listed == ['check_this.py']
 
 
 def test_any_other_value_of_the_variable_stops_the_run(pytester, monkeypatch):
