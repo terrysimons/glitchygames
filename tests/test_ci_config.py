@@ -1061,11 +1061,99 @@ def test_a_one_python_job_installs_and_runs_only_its_python(name, python):
         assert pythons_of_session[session] == [python], (name, session)
 
 
+def build_step_command(*, command_name: str) -> str:
+    """Return the script of a CircleCI build command's build step.
+
+    Returns:
+        The step's ``command`` text.
+    """
+    configuration = yaml.safe_load(CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8'))
+    steps = configuration['commands'][command_name]['steps']
+    return next(step['run']['command'] for step in steps if 'run' in step)
+
+
+# (CIRCLE_NODE_INDEX, CIRCLE_NODE_TOTAL) and whether that machine builds: an unsplit job (the
+# macOS job) on its only machine, a split job (Linux, Windows) on its last, never twice
+BUILD_MACHINE_LAYOUTS = [
+    pytest.param(None, None, True, id='no-split-variables'),
+    pytest.param('0', '1', True, id='unsplit'),
+    pytest.param('0', '2', False, id='split-first-machine'),
+    pytest.param('1', '2', True, id='split-last-machine'),
+]
+
+
+def run_build_step(
+    *,
+    interpreter: list[str],
+    script: str,
+    node_index: str | None,
+    node_total: str | None,
+    home: Path,
+) -> str:
+    """Run a build step's script with ``nox -s build`` replaced by a marker, as one machine.
+
+    Returns:
+        What it printed.
+    """
+    environment = {'PATH': '/usr/bin:/bin', 'HOME': str(home), 'USERPROFILE': str(home)}
+    if node_index is not None and node_total is not None:
+        environment |= {'CIRCLE_NODE_INDEX': node_index, 'CIRCLE_NODE_TOTAL': node_total}
+    completed = run_command(
+        command=[*interpreter, script.replace('nox -s build', 'echo BUILDING')],
+        environment=environment,
+        timeout_seconds=60,
+        capture_output=OutputCapture.TOGETHER,
+    )
+    assert completed.returncode == 0, completed.stdout
+    return completed.stdout
+
+
+@pytest.mark.parametrize(('node_index', 'node_total', 'builds'), BUILD_MACHINE_LAYOUTS)
+def test_a_job_builds_on_its_last_machine_only(tmp_path, node_index, node_total, builds):
+    """The Linux and macOS build step: machine 1 of a split job, the only machine of the rest.
+
+    The owner, 2026-11-19: "move building the binary and wheel over to machine 1 for windows and
+    linux to help balance the build time out" (machine 0 also ran the build after its share of
+    the tests: 53 of the Linux job's 60 minutes on 66df986e). The last machine, not machine 1:
+    the macOS job is not split, and "machine 1" would never build there.
+    """
+    printed = run_build_step(
+        interpreter=['bash', '-c'],
+        script=build_step_command(command_name='nox-build'),
+        node_index=node_index,
+        node_total=node_total,
+        home=tmp_path,
+    )
+
+    assert ('BUILDING' in printed) is builds
+
+
+@pytest.mark.skipif(
+    shutil.which('pwsh') is None and shutil.which('powershell') is None,
+    reason='PowerShell is not installed here (the Windows job and macOS with pwsh run it)',
+)
+@pytest.mark.parametrize(('node_index', 'node_total', 'builds'), BUILD_MACHINE_LAYOUTS)
+def test_a_windows_job_builds_on_its_last_machine_only(tmp_path, node_index, node_total, builds):
+    """The Windows build step, run by PowerShell: as the Linux one (machine 1 of a split job)."""
+    powershell = shutil.which('pwsh') or shutil.which('powershell')
+    assert powershell is not None
+    printed = run_build_step(
+        interpreter=[powershell, '-NoProfile', '-NonInteractive', '-Command'],
+        script=build_step_command(command_name='nox-build-windows'),
+        node_index=node_index,
+        node_total=node_total,
+        home=tmp_path,
+    )
+
+    assert ('BUILDING' in printed) is builds
+
+
 def test_the_builds_are_on_3_15_once_an_os():
     """Build and build-binary run on 3.15; each OS builds in one running job, on one machine.
 
     The owner, 2026-11-18: "Switch the builds over to 3.15". A split job runs every step on each
-    machine, so its build runs on machine 0 only.
+    machine, so its build runs on one machine only (its last:
+    ``test_a_job_builds_on_its_last_machine_only``).
     """
     import noxfile
 
