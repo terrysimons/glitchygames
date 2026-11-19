@@ -181,21 +181,25 @@ def recorded_environment(*, record: Path) -> dict[str, str]:
     return dict(line.split('=', 1) for line in lines if '=' in line)
 
 
-@pytest.mark.parametrize('variables_set', [True, False], ids=['set', 'unset'])
+@pytest.mark.parametrize('variables', ['set', 'empty', 'unset'])
 def test_the_control_script_gets_the_folders_and_the_user_bus_and_nothing_else(
-    variables_set, tmp_path, monkeypatch
+    variables, tmp_path, monkeypatch
 ):
     """The script finds the user's folder as the engine does, and can reach systemctl --user.
 
     Without XDG_RUNTIME_DIR or DBUS_SESSION_BUS_ADDRESS, systemctl --user can't find the user's
     bus (systemd 257: "$DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR not defined"). Anything
     else in the game's environment stays behind, and a variable that isn't set isn't invented.
+    An empty one counts as unset, as it does for the engine and the scripts, so it isn't passed on.
     """
+    variables_set = variables == 'set'
     record = tmp_path / 'environment'
     install(root=tmp_path, environment_record=record)
     for name, value in FORWARDED_TO_THE_CONTROL_SCRIPT.items():
-        if variables_set:
+        if variables == 'set':
             monkeypatch.setenv(name, value)
+        elif variables == 'empty':
+            monkeypatch.setenv(name, '')
         else:
             monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv('GLITCHYGAMES_UNRELATED_SETTING', 'stays with the game')
@@ -633,6 +637,34 @@ def test_one_variable_alone_completes_a_platform_without_defaults(
     assert service_locations() == ServiceLocations(
         program_root=tmp_path / 'programs', user_root=tmp_path / 'user'
     )
+
+
+@pytest.mark.parametrize('platform', ['darwin', 'linux'])
+def test_an_empty_location_variable_counts_as_unset(
+    platform, no_location_variables, tmp_path, monkeypatch, mocker
+):
+    """An empty variable is no folder at all, not Path('') (the current folder), as in the scripts.
+
+    platform_functions.sh.j2 tests each with ``[ -n ... ]``, so the engine must too, or the two
+    would look for the service in different places.
+    """
+    mocker.patch.object(ai_link.sys, 'platform', platform)
+    monkeypatch.setenv('XDG_DATA_HOME', str(LINUX_DATA_HOME))
+    platform_default = service_locations()
+    for name in (
+        INSTALL_ROOT_ENVIRONMENT_VARIABLE,
+        ai_link.PROGRAM_ROOT_ENVIRONMENT_VARIABLE,
+        ai_link.USER_ROOT_ENVIRONMENT_VARIABLE,
+    ):
+        monkeypatch.setenv(name, '')
+
+    all_empty = service_locations()
+
+    monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
+    only_one_folder = service_locations()
+    assert platform_default is not None
+    assert all_empty == platform_default
+    assert only_one_folder == ServiceLocations.in_one_folder(root=tmp_path)
 
 
 @pytest.mark.parametrize('platform', ['win32', 'emscripten'])

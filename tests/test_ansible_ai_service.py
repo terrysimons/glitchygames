@@ -2304,6 +2304,26 @@ USER_ROOT_CASES = [
         },
         id='user-root-over-install-root',
     ),
+    # An empty variable is unset, in the engine and in every script
+    pytest.param(
+        {'XDG_DATA_HOME': 'xdg data', 'GLITCHYGAMES_AI_USER_ROOT': ''}, id='empty-user-root'
+    ),
+    pytest.param(
+        {
+            'XDG_DATA_HOME': 'xdg data',
+            'GLITCHYGAMES_AI_INSTALL_ROOT': '',
+            'GLITCHYGAMES_AI_USER_ROOT': '',
+        },
+        id='empty-install-and-user-roots',
+    ),
+    pytest.param(
+        {
+            'XDG_DATA_HOME': 'xdg data',
+            'GLITCHYGAMES_AI_INSTALL_ROOT': 'one folder',
+            'GLITCHYGAMES_AI_USER_ROOT': '',
+        },
+        id='empty-user-root-over-install-root',
+    ),
 ]
 USER_ROOT_VARIABLES = (
     'XDG_DATA_HOME',
@@ -2328,7 +2348,7 @@ def test_the_engine_and_the_scripts_agree_on_the_user_root(
     """
     setup = LinuxSetup(tmp_path=tmp_path)
     setup.set_cores(count=4, capacities={})
-    variables = {name: str(tmp_path / folder) for name, folder in folders.items()}
+    variables = {name: str(tmp_path / folder) if folder else '' for name, folder in folders.items()}
     mocker.patch.object(ai_link.sys, 'platform', 'linux')
     monkeypatch.setenv('HOME', str(setup.service.home))
     for name in (*USER_ROOT_VARIABLES, ai_link.PROGRAM_ROOT_ENVIRONMENT_VARIABLE):

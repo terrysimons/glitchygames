@@ -55,7 +55,8 @@ PROGRAM_ROOT_ENVIRONMENT_VARIABLE = 'GLITCHYGAMES_AI_PROGRAM_ROOT'
 USER_ROOT_ENVIRONMENT_VARIABLE = 'GLITCHYGAMES_AI_USER_ROOT'
 # Where the Linux package puts the programs; the user's data is under platform_data_home()
 LINUX_PROGRAM_ROOT = Path('/opt/glitchygames/ai')
-# What the control script gets of the game's environment beyond HOME and PATH, each only when set:
+# What the control script gets of the game's environment beyond HOME and PATH, each only when set
+# and not empty (an empty variable counts as unset, here and in the scripts):
 # the variables that choose the service's folders, so the script resolves the same user folder as
 # service_locations, and the two that lead systemctl --user to the user manager's bus, without
 # which it can't start a unit (plans/lucid-circuit-linux.md, 6.2)
@@ -130,17 +131,34 @@ class ServiceLocations(BaseModel):
         return self.user_root / 'history'
 
 
+def _environment_value(*, name: str) -> str | None:
+    """Return an environment variable's value, with an empty one counting as unset.
+
+    The scripts test each with ``[ -n ... ]`` (platform_functions.sh.j2), so the engine must too:
+    ``Path('')`` would be the current folder.
+
+    Args:
+        name: The variable.
+
+    Returns:
+        Its value, or None when it is unset or empty.
+
+    """
+    return os.environ.get(name) or None
+
+
 def service_locations() -> ServiceLocations | None:
     """Return where the service is installed on this machine.
 
     Returns:
-        The locations the environment variables choose, else this platform's: one folder on
-        macOS, split programs and user data on Linux. None on any other platform.
+        The locations the environment variables choose (an empty one counts as unset), else this
+        platform's: one folder on macOS, split programs and user data on Linux. None on any other
+        platform.
 
     """
-    one_folder = os.environ.get(INSTALL_ROOT_ENVIRONMENT_VARIABLE)
-    program_override = os.environ.get(PROGRAM_ROOT_ENVIRONMENT_VARIABLE)
-    user_override = os.environ.get(USER_ROOT_ENVIRONMENT_VARIABLE)
+    one_folder = _environment_value(name=INSTALL_ROOT_ENVIRONMENT_VARIABLE)
+    program_override = _environment_value(name=PROGRAM_ROOT_ENVIRONMENT_VARIABLE)
+    user_override = _environment_value(name=USER_ROOT_ENVIRONMENT_VARIABLE)
     if sys.platform == 'darwin':
         program_default = user_default = platform_data_home() / 'GlitchyGames' / 'AI'
     elif sys.platform.startswith('linux'):
@@ -161,15 +179,15 @@ def control_script_environment() -> dict[str, str]:
     """Build the environment every caller runs the control script with.
 
     Returns:
-        HOME, a fixed PATH, and each of CONTROL_SCRIPT_ENVIRONMENT_VARIABLES that is set here.
+        HOME, a fixed PATH, and each of CONTROL_SCRIPT_ENVIRONMENT_VARIABLES that is set here and
+        not empty.
 
     """
     environment = {'HOME': str(Path.home()), 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'}
-    environment.update({
-        name: os.environ[name]
-        for name in CONTROL_SCRIPT_ENVIRONMENT_VARIABLES
-        if name in os.environ
-    })
+    for name in CONTROL_SCRIPT_ENVIRONMENT_VARIABLES:
+        value = _environment_value(name=name)
+        if value is not None:
+            environment[name] = value
     return environment
 
 
