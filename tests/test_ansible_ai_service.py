@@ -930,10 +930,12 @@ def rendered_options(
 
 def test_no_role_names_the_old_install_root():
     """Programs and a user's data are two folders on Linux, so one name for both can't stay."""
+    # As bytes: ansible/ also holds files that aren't UTF-8 text (a role's __pycache__, since
+    # main's raspberry_pi_desktop role brought a Python helper)
     holders = [
         path.relative_to(PROJECT_ROOT)
         for path in ANSIBLE.rglob('*')
-        if path.is_file() and 'ai_install_root' in path.read_text(encoding='utf-8')
+        if path.is_file() and b'ai_install_root' in path.read_bytes()
     ]
 
     assert holders == []
@@ -4850,10 +4852,15 @@ def registered_command(*, rc: int, stdout: str, stderr: str = '') -> dict[str, A
 
 
 def test_on_linux_only_the_package_steps_take_root():
-    """The plays run as the user; root is raised for apt alone: build tools and the .deb."""
+    """The plays run as the user; root is raised for apt alone: build tools and the .deb.
+
+    The AI playbook's roles only: the Raspberry Pi runner's own roles (ansible/raspberry_pi_runner.yml)
+    set up a machine, and take root for it.
+    """
     raised = sorted(
         (str(path.relative_to(ROLES)), task['name'])
-        for path in ROLES.glob('*/tasks/*.yml')
+        for role in AI_ROLES
+        for path in (ROLES / role).glob('tasks/*.yml')
         for task in walk_tasks(tasks=yaml.safe_load(path.read_text(encoding='utf-8')) or [])
         if task.get('become')
     )
@@ -5577,6 +5584,8 @@ def ansible_playbook() -> list[str]:
     Returns:
         The command's first words.
     """
+    if sys.platform == 'win32':
+        pytest.skip('Ansible has no Windows control node')
     command = ansible_playbook_command()
     if command is None:
         pytest.skip(
