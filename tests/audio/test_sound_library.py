@@ -10,15 +10,16 @@ from glitchygames.audio.assets import clear_sound_file_cache
 from glitchygames.audio.effects import Effect, Tone
 from glitchygames.audio.exceptions import SoundAssetError, SoundRenderError
 from glitchygames.audio.instrument import Instrument
-from glitchygames.audio.library import CacheMode
+from glitchygames.audio.library import CacheMode, compile_sound
 from glitchygames.audio.spec import PlaybackDefaults
-from glitchygames.audio.synth import Envelope, Waveform
+from glitchygames.audio.synth import Envelope, Waveform, to_pcm16
 from glitchygames.audio.waves import Harmonics, Wave, current_wave_registry
 from glitchygames.engine_context import EngineContext
 from tests.audio.library_support import (
     FIXTURE_SOUNDS,
     FIXTURES,
     PULSE_INSTRUMENT,
+    float_render,
     make_library,
     start_mixer,
     stop_mixer,
@@ -74,7 +75,7 @@ def no_mixer():
 
 
 def test_an_instrument_compiles_to_a_named_sound_with_samples_and_a_peak():
-    """An instrument compiles to a sound with float and int16 samples, a peak and a length."""
+    """An instrument compiles to a sound with its int16 samples, a peak and a length."""
     library, _ = make_library()
 
     sound = library.sound(PULSE_INSTRUMENT, scene_sound_directory=None, pitch='C5')
@@ -82,12 +83,30 @@ def test_an_instrument_compiles_to_a_named_sound_with_samples_and_a_peak():
     assert sound.name.startswith('instrument-')
     assert sound.is_compiled
     assert not sound.is_live
-    assert sound.samples_float.dtype == np.float64
     assert sound.samples_int16.dtype == np.int16
-    assert len(sound.samples_float) == len(sound.samples_int16)
-    assert sound.length == pytest.approx(len(sound.samples_float) / 44100)
+    assert sound.length == pytest.approx(len(sound.samples_int16) / 44100)
     assert 0.0 < sound.peak <= 1.0 + 1e-9
     assert sound.playback_defaults == PlaybackDefaults()
+
+
+def test_a_compiled_sound_keeps_its_int16_samples_only_as_a_disk_hit_does():
+    """The float64 render is dropped once the int16 samples and the peak are made from it.
+
+    It was four times the int16 samples' size and only an offline render read it, which compiles
+    a copy when a sound holds none (as for a disk hit): the zombies game held 10.7 of its 19.8 MiB
+    of sound in it on a first launch (scripts/measure_sound_memory.py; the owner, 2026-11-18).
+    """
+    library, _ = make_library()
+
+    sound = library.sound(PULSE_INSTRUMENT, scene_sound_directory=None, pitch='C5')
+    reference = sound.fresh_copy()
+    compile_sound(reference)
+
+    assert sound.samples_float is None
+    assert reference.samples_float is not None
+    np.testing.assert_array_equal(sound.samples_int16, reference.samples_int16)
+    assert sound.peak == reference.peak
+    assert sound.retained_bytes == sound.samples_int16.nbytes
 
 
 def test_the_generated_name_of_an_instrument_is_stable():
@@ -103,7 +122,7 @@ def test_the_generated_name_of_an_instrument_is_stable():
 
     assert first.name == again.name
     assert first.name != different.name
-    np.testing.assert_array_equal(first.samples_float, again.samples_float)
+    np.testing.assert_array_equal(first.samples_int16, again.samples_int16)
 
 
 def test_notes_chords_length_and_transpose_are_part_of_the_identity():
@@ -207,9 +226,9 @@ def test_v0_recipes_compile_bit_identical_to_today():
 
     compiled = library.sound('crunch_like', scene_sound_directory=None)
 
-    np.testing.assert_array_equal(
-        compiled.samples_float, MUNCHER_LIKE_RECIPE.render(sample_rate=44100)
-    )
+    rendered = MUNCHER_LIKE_RECIPE.render(sample_rate=44100)
+    np.testing.assert_array_equal(float_render(compiled), rendered)
+    np.testing.assert_array_equal(compiled.samples_int16, to_pcm16(rendered))
     assert compiled.name == 'crunch_like'
     assert compiled.peak == pytest.approx(0.9)
     assert library.sound('crunch_like', scene_sound_directory=None) is compiled
@@ -225,7 +244,9 @@ def test_v0_recipe_files_in_a_directory_compile_bit_identical():
     from glitchygames.audio.assets import load_sound_file
 
     recipe = load_sound_file(FIXTURE_SOUNDS / 'legacy_recipes.toml').sounds['sugar_rush'].effect
-    np.testing.assert_array_equal(compiled.samples_float, recipe.render(sample_rate=44100))
+    rendered = recipe.render(sample_rate=44100)
+    np.testing.assert_array_equal(float_render(compiled), rendered)
+    np.testing.assert_array_equal(compiled.samples_int16, to_pcm16(rendered))
 
 
 def test_a_name_in_add_effects_and_in_the_directory_names_both():
@@ -404,10 +425,10 @@ def test_a_recorded_wav_decodes_without_a_mixer(tmp_path, no_mixer):
     sound = library.sound(str(path), scene_sound_directory=None)
 
     assert sound.samples_int16 is not None
-    assert sound.samples_float is not None
+    assert sound.samples_float is None
     assert sound.length == pytest.approx(0.01)
     assert sound.samples_int16[0] == -20000
-    assert sound.samples_float[0] == pytest.approx(-20000 / 32767)
+    assert float_render(sound)[0] == pytest.approx(-20000 / 32767)
     assert sound.mixer_sound() is None
 
 
@@ -537,8 +558,8 @@ def test_a_48000_hz_mixer_compiles_at_its_rate_with_another_identity():
     assert at_48000.spec.sample_rate == 48000
     assert at_48000 is not at_44100
     assert at_48000.identity_key != at_44100.identity_key
-    assert len(at_48000.samples_float) == pytest.approx(
-        len(at_44100.samples_float) * 48000 / 44100, abs=2
+    assert len(at_48000.samples_int16) == pytest.approx(
+        len(at_44100.samples_int16) * 48000 / 44100, abs=2
     )
     assert library.statistics().compiles == 2
 
@@ -585,9 +606,9 @@ def test_an_effect_object_is_a_source_and_compiles_to_its_render():
 
     compiled = library.sound(MUNCHER_LIKE_RECIPE, scene_sound_directory=None)
 
-    np.testing.assert_array_equal(
-        compiled.samples_float, MUNCHER_LIKE_RECIPE.render(sample_rate=44100)
-    )
+    rendered = MUNCHER_LIKE_RECIPE.render(sample_rate=44100)
+    np.testing.assert_array_equal(float_render(compiled), rendered)
+    np.testing.assert_array_equal(compiled.samples_int16, to_pcm16(rendered))
     assert compiled.name == MUNCHER_LIKE_RECIPE.name
     assert library.sound(MUNCHER_LIKE_RECIPE, scene_sound_directory=None) is compiled
     assert library.statistics().compiles == 1

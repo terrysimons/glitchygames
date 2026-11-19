@@ -114,15 +114,15 @@ DISK_LAYER_REQUIRED_MESSAGE: Final[str] = 'cache disk needs a disk cache to keep
 class CompiledSamples:
     """A compiled sound's samples and what a game may read of them, shared read-only.
 
+    Only the int16 samples are kept, however the sound was made: compiled (its float64 render
+    dropped, ``Sound.release_float_samples``) or read from the disk layer.
+
     Attributes:
-        samples_float: Mono float64 samples (read-only), or None for samples read from the disk
-            layer, which keeps only int16 samples.
-        samples_int16: The same as signed 16-bit PCM (read-only).
+        samples_int16: Mono signed 16-bit PCM (read-only).
         peak: The loudest magnitude before clipping.
         sample_rate: The rate of the samples.
     """
 
-    samples_float: FloatArray | None
     samples_int16: Int16Array
     peak: float
     sample_rate: int
@@ -198,11 +198,8 @@ class SharedSoundCache:
         """
         assert sound.samples_int16 is not None
         # Shared by every context's Sound: nothing may write them in place
-        if sound.samples_float is not None:
-            sound.samples_float.flags.writeable = False
         sound.samples_int16.flags.writeable = False
         compiled = CompiledSamples(
-            samples_float=sound.samples_float,
             samples_int16=sound.samples_int16,
             peak=sound.peak,
             sample_rate=sound.sample_rate,
@@ -231,13 +228,12 @@ class SharedSoundCache:
 
 
 def _compiled_bytes(compiled: CompiledSamples) -> int:
-    """The bytes a kept sound's arrays hold.
+    """The bytes a kept sound's samples hold.
 
     Returns:
         The byte count.
     """
-    float_bytes = 0 if compiled.samples_float is None else compiled.samples_float.nbytes
-    return compiled.samples_int16.nbytes + float_bytes
+    return compiled.samples_int16.nbytes
 
 
 # The process's one cache of compiled sounds, the engine's own pinned (SharedSoundCache)
@@ -701,6 +697,17 @@ class Sound:
         self._mixer_settings = pygame.mixer.get_init() if mixer_sound is not None else None
         self._mixer_bytes = len(mixer_sound.get_raw()) if mixer_sound is not None else 0
 
+    def release_float_samples(self) -> None:
+        """Drop the float64 samples, keeping the int16 ones and the peak made from them.
+
+        What a library-compiled sound holds, as a disk hit does: playing needs only the int16
+        samples, and the float64 render was four times their size (the zombies game held 10.7 of
+        its 19.8 MiB of sound in it on a first launch: scripts/measure_sound_memory.py; the
+        owner, 2026-11-18). An offline render compiles a copy when a sound holds none
+        (``offline._samples_at``).
+        """
+        self.samples_float = None
+
     def release(self) -> None:
         """Drop the samples and the pygame sound (the memory limit's eviction; cache ``none``).
 
@@ -1161,7 +1168,7 @@ class SoundLibrary:
             if shared is not None:
                 self._shared_hits += 0 if pinned else 1
                 sound.install(
-                    samples_float=shared.samples_float,
+                    samples_float=None,
                     samples_int16=shared.samples_int16,
                     peak=shared.peak,
                     sample_rate=shared.sample_rate,
@@ -1221,10 +1228,16 @@ class SoundLibrary:
             self._disk_writes += 1
 
     def _compile(self, sound: Sound) -> None:
-        """Compile a sound into itself, timed and counted."""
+        """Compile a sound into itself, timed and counted, keeping its int16 samples only.
+
+        The float64 render is dropped (``Sound.release_float_samples``): a library sound then
+        holds what a disk hit holds, whichever way it was made. ``compile_sound`` itself keeps
+        both, for an offline render.
+        """
         kind = 'decode' if sound.recorded_file is not None else 'compile'
         with self._accountant.measure(kind, sound.name):
             compile_sound(sound)
+            sound.release_float_samples()
         self._compiles += 1
 
     def _lookup(self, request: SoundRequest) -> tuple[Sound, bool]:

@@ -16,7 +16,7 @@ from glitchygames.audio.library import ENGINE_SOUND_CACHE, CacheMode
 from glitchygames.audio.mix import Mix, MixPart
 from glitchygames.audio.render import render_sound
 from glitchygames.audio.synth import to_pcm16
-from tests.audio.library_support import PULSE_INSTRUMENT, make_library
+from tests.audio.library_support import PULSE_INSTRUMENT, float_render, make_library
 
 SINE_INSTRUMENT = Instrument(wave='sine', envelope='pad')
 LOOP_SECONDS = 2.0
@@ -86,19 +86,18 @@ def test_a_looping_mix_is_exactly_its_loop_long():
 def test_a_looping_mix_folds_what_rings_past_its_end_onto_its_start():
     """The tails ring on into the next pass: frame i holds every pass's frame i added."""
     library, _ = make_library()
-    open_ended = _request(library, _mix())
-    looping = _request(library, _mix(loop_seconds=LOOP_SECONDS))
-    assert open_ended.samples_float is not None
-    assert looping.samples_float is not None
-    loop_frames = round(LOOP_SECONDS * looping.sample_rate)
-    assert len(open_ended.samples_float) > loop_frames, 'the parts must ring past the loop'
+    open_ended = float_render(_request(library, _mix()))
+    looping_sound = _request(library, _mix(loop_seconds=LOOP_SECONDS))
+    looping = float_render(looping_sound)
+    loop_frames = round(LOOP_SECONDS * looping_sound.sample_rate)
+    assert len(open_ended) > loop_frames, 'the parts must ring past the loop'
 
     expected = np.zeros(loop_frames)
-    for start in range(0, len(open_ended.samples_float), loop_frames):
-        chunk = open_ended.samples_float[start : start + loop_frames]
+    for start in range(0, len(open_ended), loop_frames):
+        chunk = open_ended[start : start + loop_frames]
         expected[: len(chunk)] += chunk
 
-    np.testing.assert_allclose(looping.samples_float, expected, atol=1e-12)
+    np.testing.assert_allclose(looping, expected, atol=1e-12)
 
 
 def test_the_same_mix_asked_for_again_is_the_built_copy():
