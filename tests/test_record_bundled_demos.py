@@ -30,7 +30,12 @@ from scripts.demo_inputs import (
 from scripts.golden_inputs import mr_muncher_script
 from scripts.record_bundled_demos import DEMO_RECIPES, DemoRecipe, demo_path, record_demo
 
-from glitchygames.ai_link import INSTALL_ROOT_ENVIRONMENT_VARIABLE
+from glitchygames import ai_link
+from glitchygames.ai_link import (
+    INSTALL_ROOT_ENVIRONMENT_VARIABLE,
+    ServiceLocations,
+    service_locations,
+)
 from glitchygames.bundled_demos import console_script_in_module
 from glitchygames.input.devices import JOYSTICK_KIND
 from glitchygames.replay.tools.golden_traces import (
@@ -421,6 +426,7 @@ def record_with_the_recorder_patched(mocker):
         root = Path(os.environ[INSTALL_ROOT_ENVIRONMENT_VARIABLE])
         seen['root'] = root
         seen['root_is_an_empty_directory'] = root.is_dir() and not any(root.iterdir())
+        seen['locations'] = service_locations()
         seen['drivers'] = {name: os.environ[name] for name in JOYSTICK_DRIVER_VARIABLES}
 
     recorded.side_effect = look_around
@@ -428,11 +434,22 @@ def record_with_the_recorder_patched(mocker):
     return recorded, seen
 
 
-def test_a_demo_session_never_reaches_the_ai_service(mocker):
-    """The session's AI install root is an empty directory, so no service is found."""
+def test_a_demo_session_never_reaches_the_ai_service(monkeypatch, mocker):
+    """The session's AI install root is an empty directory, so no service is found.
+
+    The program and user root variables each win over it, so the session clears them too, and
+    puts them back afterwards.
+    """
+    monkeypatch.setenv(ai_link.PROGRAM_ROOT_ENVIRONMENT_VARIABLE, '/a/real/install/programs')
+    monkeypatch.setenv(ai_link.USER_ROOT_ENVIRONMENT_VARIABLE, '/a/real/install/user')
+
     _recorded, seen = record_with_the_recorder_patched(mocker)
+
     assert seen['root_is_an_empty_directory']
+    assert seen['locations'] == ServiceLocations.in_one_folder(root=Path(str(seen['root'])))
     assert not Path(str(seen['root'])).exists()
+    assert os.environ[ai_link.PROGRAM_ROOT_ENVIRONMENT_VARIABLE] == '/a/real/install/programs'
+    assert os.environ[ai_link.USER_ROOT_ENVIRONMENT_VARIABLE] == '/a/real/install/user'
 
 
 def test_a_demo_session_never_reaches_a_real_pad(mocker):

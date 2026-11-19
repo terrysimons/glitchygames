@@ -14,8 +14,13 @@ import pytest
 from hypothesis import settings
 
 # No test reaches the real AI service, which would load gigabytes of models on a machine that
-# has it, and only there: every client gets "not installed" unless a test names an install
-os.environ.setdefault('GLITCHYGAMES_AI_INSTALL_ROOT', '/nonexistent/glitchygames-ai-service')
+# has it, and only there: every client gets "not installed" unless a test names an install. Set,
+# not defaulted, and the program and user root variables removed, as each wins over this one in
+# glitchygames/ai_link.py's service_locations. So nothing a developer's shell exports reaches the
+# suite, as tests/test_ai_service_isolation_guard.py checks
+os.environ['GLITCHYGAMES_AI_INSTALL_ROOT'] = '/nonexistent/glitchygames-ai-service'
+os.environ.pop('GLITCHYGAMES_AI_PROGRAM_ROOT', None)
+os.environ.pop('GLITCHYGAMES_AI_USER_ROOT', None)
 
 # No test writes to the user's sound cache folder: an empty root turns cache disk's disk layer off
 # (glitchygames/audio/disk_cache.py, rule 6), so disk runs as ram. Set, not defaulted, so a value
