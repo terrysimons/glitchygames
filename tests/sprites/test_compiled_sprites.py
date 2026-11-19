@@ -42,6 +42,7 @@ def _compiled(*, byte_count: int, name: str = 'kept') -> CompiledSprite:
         pixel_rows_source='kept.toml',
         color_map={},
         color_order=(),
+        frame_interval=None,
         drawn_surfaces={('idle', 0): surface},
         byte_count=byte_count,
     )

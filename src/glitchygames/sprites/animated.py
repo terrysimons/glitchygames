@@ -56,7 +56,9 @@ from .sprite_toml import write_sprite_toml
 from .tags import TAGS_KEY, normalize_sprite_tags
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Sequence
+
+    from glitchygames.sprites.compiled_sprites import CompiledSprite
 
 # The toml_* writers live in sprite_toml; they stay importable from here for existing importers
 toml_basic_string = sprite_toml.toml_basic_string
@@ -594,6 +596,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         # the index alone would keep the old animation's frame 0 image
         self._last_drawn_frame: tuple[str, int] | None = None
         self._surface_cache: dict[str, pygame.Surface] = {}
+        # The compile this sprite's frames share, or None for a sprite not loaded from text
+        self._compiled_sprite: CompiledSprite | None = None
 
         # Initialize with default surface
         self._gg_image = pygame.Surface((32, 32))
@@ -698,12 +702,14 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             pygame.Surface: The result.
 
         """
-        if hasattr(frame, 'pixels') and frame.pixels:
-            width, height = frame.image.get_size()
-            return AnimatedSprite._create_surface_from_toml_pixels(width, height, frame.pixels)
+        if frame.read_only_pixels:
+            width, height = frame.read_only_image.get_size()
+            return AnimatedSprite._create_surface_from_toml_pixels(
+                width, height, frame.read_only_pixels
+            )
 
         # Fallback to frame's existing surface
-        return frame.image.copy()
+        return frame.read_only_image.copy()
 
     # Animation state properties (read-only)
     @property
@@ -1329,10 +1335,125 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         The one path a sprite loads by: a file's load reads its text and calls this, so a sprite
         from text and from a file are the same sprite.
 
+        A text compiles once per process (glitchygames/sprites/compiled_sprites.py): every
+        sprite loaded from it, by the same source, gets frames of its own that share the
+        compile's surfaces and pixels, copied on their first public read (SpriteFrame), and its
+        own copies of everything else the load set. A text the loader refuses raises every time
+        and is never kept.
+
         Args:
             text: The sprite file's TOML text.
             source_name: What the text came from (a file name, a console); it names the text in
                 an error and in the warnings about pixel rows the loader repaired.
+
+        """
+        # Imported here: compiled_sprites imports this module (its compile runs this loader)
+        from glitchygames.sprites.compiled_sprites import (
+            ENGINE_SPRITE_CACHE,
+            compile_sprite_text,
+            sprite_key,
+        )
+
+        key = sprite_key(text=text, source_name=source_name)
+        compiled = ENGINE_SPRITE_CACHE.compiled(key=key)
+        if compiled is None:
+            compiled = ENGINE_SPRITE_CACHE.keep(
+                key=key, compiled=compile_sprite_text(text=text, source_name=source_name)
+            )
+        self._apply_compiled_sprite(compiled)
+
+    @classmethod
+    def compiled_from_text(cls, *, text: str, source_name: str) -> CompiledSprite:
+        """Load text once on a private sprite, uncached, and return what the load set.
+
+        Its frames become the compile's templates, their pixels a tuple; each frame's drawn
+        surface at scale 1 is made now (glitchygames/sprites/compiled_sprites.py).
+
+        Args:
+            text: The sprite file's TOML text.
+            source_name: What the text came from (a file name, a console).
+
+        Returns:
+            CompiledSprite: The compile.
+
+        """
+        sprite = cls(groups=None)
+        sprite._load_text_uncached(text=text, source_name=source_name)
+        return sprite._compile_of_this_load()
+
+    def _compile_of_this_load(self: Self) -> CompiledSprite:
+        """Return what this sprite's load set, read-only, its frames the compile's templates.
+
+        Returns:
+            CompiledSprite: The compile.
+
+        """
+        from glitchygames.sprites.compiled_sprites import CompiledSprite, compiled_sprite_bytes
+
+        animations: dict[str, tuple[SpriteFrame, ...]] = {}
+        drawn_surfaces: dict[tuple[str, int], pygame.Surface] = {}
+        for name, frames in self._animations.items():
+            for index, frame in enumerate(frames):
+                drawn_surfaces[name, index] = AnimatedSprite._create_optimized_surface(frame)
+                frame.pixels = tuple(frame.read_only_pixels)
+            animations[name] = tuple(frames)
+        return CompiledSprite(
+            name=self.name,
+            description=self.description,
+            tags=tuple(self.tags),
+            default_hitbox=self._default_hitbox,
+            frame_anchor=self.frame_anchor,
+            animations=animations,
+            animation_order=tuple(self._animation_order or ()),
+            animation_frame_intervals=dict(self._animation_frame_intervals),
+            loop_flags=dict(self._loop_flags),
+            animations_without_frame_index=frozenset(self._animations_without_frame_index),
+            game_tables=self._game_tables,
+            transition_data=tuple(self.transition_data),
+            pixel_row_repairs=tuple(self.pixel_row_repairs),
+            pixel_rows_source=self._pixel_rows_source,
+            color_map=dict(self._color_map),
+            color_order=tuple(self._color_order or ()),
+            frame_interval=getattr(self, '_frame_interval', None),
+            drawn_surfaces=drawn_surfaces,
+            byte_count=compiled_sprite_bytes(animations=animations, drawn_surfaces=drawn_surfaces),
+        )
+
+    def _apply_compiled_sprite(self: Self, compiled: CompiledSprite) -> None:
+        """Take what a compile holds: frames of this sprite's own sharing it, copies of the rest."""
+        self.name = compiled.name
+        self.description = compiled.description
+        self.tags = list(compiled.tags)
+        self._default_hitbox = (
+            None if compiled.default_hitbox is None else compiled.default_hitbox.copy()
+        )
+        self.frame_anchor = compiled.frame_anchor
+        self._animations = {
+            name: [SpriteFrame.sharing(template) for template in templates]
+            for name, templates in compiled.animations.items()
+        }
+        self._animation_order = list(compiled.animation_order)
+        self._animation_frame_intervals = dict(compiled.animation_frame_intervals)
+        self._loop_flags = dict(compiled.loop_flags)
+        self._animations_without_frame_index = set(compiled.animations_without_frame_index)
+        self._game_tables = copy.deepcopy(compiled.game_tables)
+        self.transition_data = [dict(transition) for transition in compiled.transition_data]
+        self.pixel_row_repairs = list(compiled.pixel_row_repairs)
+        self._pixel_rows_source = compiled.pixel_rows_source
+        self._color_map = dict(compiled.color_map)
+        self._color_order = list(compiled.color_order)
+        if compiled.frame_interval is not None:
+            self._frame_interval = compiled.frame_interval
+        self._compiled_sprite = compiled
+        # The compile logged the warnings and the missing animations once
+        self._finish_load(transitions=self.transition_data, log_missing_animations=False)
+
+    def _load_text_uncached(self: Self, *, text: str, source_name: str) -> None:
+        """Load animated sprite from the text of a sprite file, as load_text's compile does.
+
+        Args:
+            text: The sprite file's TOML text.
+            source_name: What the text came from (a file name, a console).
 
         """
         data = sprite_toml.parse_sprite_toml(text=text, source_name=source_name)
@@ -1378,16 +1499,28 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         self.log.debug('Found %s animation(s) in TOML file', len(animations))
 
         self._animation_order.extend(self._load_toml_animations(data, color_map, animations))
+        self._finish_load(
+            transitions=data.get('transition', []), log_missing_animations=not animations
+        )
 
+    def _finish_load(
+        self: Self, *, transitions: list[dict[str, Any]], log_missing_animations: bool
+    ) -> None:
+        """Build the sprite's own state machine, set its first animation and draw its image.
+
+        Args:
+            transitions: The [[transition]] tables, in file order.
+            log_missing_animations: Log when the sprite has no animations (the file listed none).
+
+        """
         # Auto-create animation state machine if [[transition]] sections exist
         self.state_machine: AnimationStateMachine | None = None
-        transitions = data.get('transition', [])
         if transitions:
             self.state_machine = AnimationStateMachine(self)
             self.state_machine.load_from_toml(transitions)
 
         # Log if no animations found
-        if not animations and not self._animations:
+        if log_missing_animations and not self._animations:
             self.log.info('NO ANIMATIONS FOUND IN FILE')
 
         self._set_initial_animation()
@@ -2593,21 +2726,23 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             self.frame_manager.current_animation,
             self.frame_manager.current_frame,
             frame,
-            frame.image.get_size(),
+            frame.read_only_image.get_size(),
         )
 
         self._debug_frame_pixel_data(frame)
 
     def _debug_frame_pixel_data(self: Self, frame: SpriteFrame) -> None:
-        """Debug pixel data for a frame."""
-        if hasattr(frame, 'pixels') and frame.pixels:
+        """Debug pixel data for a frame (any object with an image or pixels will do)."""
+        # Read without copying (a SpriteFrame's pixels copy on a public read)
+        pixels = getattr(frame, 'read_only_pixels', None)
+        if pixels:
             # Create hash of frame pixel data for debugging
-            pixel_data_str = str(frame.pixels)
+            pixel_data_str = str(pixels)
             pixel_hash = hashlib.sha256(pixel_data_str.encode()).hexdigest()[:8]
             self.log.debug(
                 '  Frame %s pixel hash: %s', self.frame_manager.current_frame, pixel_hash
             )
-            self.log.debug('  Total pixels: %s', len(frame.pixels))
+            self.log.debug('  Total pixels: %s', len(pixels))
         elif hasattr(frame, 'image'):
             self._debug_frame_image_data(frame)
         else:
@@ -2616,11 +2751,11 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
     def _debug_frame_image_data(self: Self, frame: SpriteFrame) -> None:
         """Debug image data for a frame."""
         try:
-            pixel_array = pygame.surfarray.array3d(frame.image)
+            pixel_array = pygame.surfarray.array3d(frame.read_only_image)
         except (ValueError, pygame.error) as e:
             self.log.debug('  Could not get pixel data from image: %s', e)
             return
-        self.log.debug('  Image surface size: %s', frame.image.get_size())
+        self.log.debug('  Image surface size: %s', frame.read_only_image.get_size())
         self.log.debug('  Pixel array shape: %s', pixel_array.shape)
         # Show a small sample of pixel data
         if pixel_array.size > 0:
@@ -2675,7 +2810,7 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
     def _create_surface_from_toml_pixels(
         width: int,
         height: int,
-        pixels: list[tuple[int, ...]],
+        pixels: Sequence[tuple[int, ...]],
     ) -> pygame.Surface:
         """Create a drawable pygame surface from TOML RGB or RGBA pixel data.
 

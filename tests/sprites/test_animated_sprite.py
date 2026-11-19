@@ -27,12 +27,14 @@ from glitchygames.sprites import (
     SpriteFactory,
 )
 from glitchygames.sprites import animated as animated_module
+from glitchygames.sprites import compiled_sprites as compiled_sprites_module
 from glitchygames.sprites import pixel_utils as pixel_utils_module
 from glitchygames.sprites.animated import (
     AnimatedSprite,
     FrameAnchor,
     frame_tables_in_load_order,
 )
+from glitchygames.sprites.compiled_sprites import ENGINE_SPRITE_CACHE, SHARED_SPRITE_FIELDS
 from glitchygames.sprites.frame import SpriteFrame
 from glitchygames.sprites.pixel_utils import (
     OPAQUE_FRAME_DEPTH,
@@ -2189,10 +2191,7 @@ class TestAnimatedSpriteDebugFrameInfo:
         frame = SpriteFrame(surface)
         sprite.add_animation('idle', [frame])
         sprite.set_animation('idle')
-        # Remove pixels if present
-        if hasattr(frame, 'pixels'):
-            del frame.pixels
-        # Use a mock frame without 'image' attribute to trigger the 'no pixel data' branch
+        # Use a mock frame with neither pixels nor an image to trigger the 'no pixel data' branch
         mock_frame = mocker.Mock(spec=[])
         sprite._debug_frame_pixel_data(mock_frame)
 
@@ -4693,3 +4692,283 @@ class TestLoadedFramesShareOneTuplePerColor:
         for frame in frames:
             assert len(frame.pixels) == 12
             assert len({id(pixel) for pixel in frame.pixels}) == len(set(frame.pixels))
+
+
+# Shared frames (plans/2026-11-18-shared-sprite-frames.md): every sprite loaded from one text
+# shares its compiled surfaces and pixels; a frame's public image and pixels copy on first read
+
+SHARED_SPRITES_ROOT = Path(__file__).parents[2] / 'src'
+SHIPPED_SPRITE_FILES = sorted(SHARED_SPRITES_ROOT.glob('**/resources/sprites/*.toml'))
+
+TWO_ANIMATIONS_TOML = (
+    '[sprite]\nname = "walker"\n\n'
+    '[[animation]]\nnamespace = "walk"\nframe_interval = 0.1\n\n'
+    '[[animation.frame]]\nframe_index = 0\npixels = """\nxa\nmb\n"""\n\n'
+    '[[animation.frame]]\nframe_index = 1\npixels = """\nax\nbm\n"""\n\n'
+    '[[animation]]\nnamespace = "rest"\nframe_interval = 0.1\n\n'
+    '[[animation.frame]]\nframe_index = 0\npixels = """\ncc\ndd\n"""\n\n'
+    f'{TABLE_COLORS_TOML}[colors."m"]\nred = 255\ngreen = 0\nblue = 255\n\n'
+)
+
+
+def _shared_frame_pair() -> tuple[SpriteFrame, SpriteFrame, SpriteFrame]:
+    """Return a template frame (as a compile keeps) and two frames sharing it.
+
+    Returns:
+        tuple: The template, then the two sharing frames.
+
+    """
+    surface = pygame.Surface((2, 2))
+    surface.fill((10, 20, 30))
+    template = SpriteFrame(surface, hitbox=pygame.Rect(0, 0, 1, 1))
+    template.pixels = [(10, 20, 30)] * 4
+    template.pixels = tuple(template.read_only_pixels)
+    return template, SpriteFrame.sharing(template), SpriteFrame.sharing(template)
+
+
+class TestSpriteFrameCopyOnWrite:
+    """A frame sharing a compile's surface and pixels copies them on their first public read."""
+
+    def test_a_sharing_frame_copies_its_surface_on_first_read(self):
+        """The copy is the frame's own from then on; the other frame still shares."""
+        template, first, second = _shared_frame_pair()
+
+        image = first.image
+
+        assert image is not template.read_only_image
+        assert pygame.image.tobytes(image, 'RGBA') == pygame.image.tobytes(
+            template.read_only_image, 'RGBA'
+        )
+        assert first.image is image
+        assert second.is_sharing
+        assert not first.is_sharing
+
+    @pytest.mark.parametrize(
+        'draw',
+        [
+            lambda surface: surface.set_colorkey((10, 20, 30)),
+            lambda surface: surface.fill((200, 0, 0)),
+            lambda surface: pygame.draw.rect(surface, (0, 200, 0), (0, 0, 2, 2)),
+            lambda surface: pygame.PixelArray(surface).close(),
+        ],
+        ids=['set_colorkey', 'fill', 'pygame.draw', 'PixelArray'],
+    )
+    def test_drawing_on_a_read_image_reaches_only_that_frame(self, draw):
+        """Every kind of write lands on the copy, C writes included."""
+        template, first, _second = _shared_frame_pair()
+        before = pygame.image.tobytes(template.read_only_image, 'RGBA')
+        colorkey_before = template.read_only_image.get_colorkey()
+
+        draw(first.image)
+
+        assert pygame.image.tobytes(template.read_only_image, 'RGBA') == before
+        assert template.read_only_image.get_colorkey() == colorkey_before
+
+    def test_a_sharing_frame_copies_its_pixels_on_first_read(self):
+        """An in-place edit, as Bitmappy's canvas makes, changes only that frame's list."""
+        template, first, second = _shared_frame_pair()
+
+        pixels = first.pixels
+        pixels[0] = (1, 2, 3)
+
+        assert isinstance(pixels, list)
+        assert first.pixels[0] == (1, 2, 3)
+        assert template.read_only_pixels[0] == (10, 20, 30)
+        assert second.read_only_pixels[0] == (10, 20, 30)
+
+    def test_read_only_accessors_never_copy(self):
+        """The engine's reads keep a frame sharing."""
+        template, first, _second = _shared_frame_pair()
+
+        assert first.read_only_image is template.read_only_image
+        assert first.read_only_pixels is template.read_only_pixels
+        assert first.is_sharing
+
+    def test_assigning_a_sharing_frames_image_changes_only_it(self):
+        """Each sprite owns its frame objects: an assignment replaces one frame's surface."""
+        template, first, second = _shared_frame_pair()
+        replacement = pygame.Surface((2, 2))
+
+        first.image = replacement
+
+        assert first.read_only_image is replacement
+        assert second.read_only_image is template.read_only_image
+
+    def test_a_sharing_frames_hitbox_is_its_own(self):
+        """A hitbox changed in place on one frame changes no other (Review Focus 2)."""
+        template, first, second = _shared_frame_pair()
+
+        first.hitbox.x += 1
+
+        assert second.hitbox.x == template.hitbox.x
+
+
+class TestSharedFrames:
+    """Sprites loaded from one text share one compile's surfaces and pixels."""
+
+    @staticmethod
+    def _load(tmp_path: Path, toml_content: str = TWO_ANIMATIONS_TOML) -> AnimatedSprite:
+        toml_file = tmp_path / 'walker.toml'
+        toml_file.write_text(toml_content, encoding='utf-8')
+        return AnimatedSprite(str(toml_file))
+
+    @staticmethod
+    def _frames(sprite: AnimatedSprite) -> list[SpriteFrame]:
+        return [frame for frames in sprite.animation_data.values() for frame in frames]
+
+    def test_two_sprites_from_one_file_share_their_surfaces_and_pixels(self, tmp_path):
+        """Each sprite's frames are its own objects; what they point at is one compile's."""
+        first = self._load(tmp_path)
+        second = self._load(tmp_path)
+
+        for mine, theirs in zip(self._frames(first), self._frames(second), strict=True):
+            assert mine is not theirs
+            assert mine.read_only_image is theirs.read_only_image
+            assert mine.read_only_pixels is theirs.read_only_pixels
+
+    def test_a_second_load_compiles_nothing(self, tmp_path, mocker):
+        """The second sprite comes from the cache."""
+        compiles = mocker.spy(compiled_sprites_module, 'compile_sprite_text')
+
+        self._load(tmp_path)
+        self._load(tmp_path)
+
+        assert compiles.call_count == 1
+        assert len(ENGINE_SPRITE_CACHE) == 1
+
+    @pytest.mark.parametrize(
+        'sprite_file',
+        SHIPPED_SPRITE_FILES,
+        ids=[str(path.relative_to(SHARED_SPRITES_ROOT)) for path in SHIPPED_SPRITE_FILES],
+    )
+    def test_cached_and_uncached_loads_agree_for_every_shipped_sprite(self, sprite_file):
+        """The conservation property: a load from the cache is the sprite the loader makes."""
+        text = sprite_file.read_bytes().decode('utf-8')
+        cached = AnimatedSprite(groups=None)
+        cached.load_text(text=text, source_name=str(sprite_file))
+        uncached = AnimatedSprite(groups=None)
+        uncached._load_text_uncached(text=text, source_name=str(sprite_file))
+
+        for field in SHARED_SPRITE_FIELDS:
+            assert getattr(cached, field) == getattr(uncached, field), field
+        cached_frames = cached.animation_data
+        uncached_frames = uncached.animation_data
+        assert list(cached_frames) == list(uncached_frames)
+        for name, frames in cached_frames.items():
+            for mine, theirs in zip(frames, uncached_frames[name], strict=True):
+                assert list(mine.read_only_pixels) == list(theirs.read_only_pixels)
+                assert pygame.image.tobytes(mine.read_only_image, 'RGBA') == (
+                    pygame.image.tobytes(theirs.read_only_image, 'RGBA')
+                )
+                assert (mine.duration, mine.loaded_pixel_rows) == (
+                    theirs.duration,
+                    theirs.loaded_pixel_rows,
+                )
+                assert mine.has_explicit_hitbox == theirs.has_explicit_hitbox
+                assert mine.hitbox == theirs.hitbox
+
+    def test_a_played_sprite_stays_shared(self, tmp_path):
+        """Playing, drawing and colliding read frames without copying (Review Focus 1)."""
+        group = pygame.sprite.LayeredDirty()
+        sprites = [self._load(tmp_path), self._load(tmp_path)]
+        for sprite in sprites:
+            group.add(sprite)
+            sprite.is_looping = True
+            sprite.play()
+        canvas = pygame.Surface((64, 64))
+
+        for tick in range(60):
+            if tick == 30:
+                sprites[0].set_animation('rest')
+            for sprite in sprites:
+                sprite.update(dt=0.05)
+                _ = sprite.hitbox
+            group.draw(canvas)
+
+        for sprite in sprites:
+            assert all(frame.is_sharing for frame in self._frames(sprite))
+
+    def test_each_sprite_keeps_its_own_playback(self, tmp_path):
+        """Two sprites from one file show different frames when set to."""
+        first = self._load(tmp_path)
+        second = self._load(tmp_path)
+
+        second.set_animation('rest')
+
+        assert first.current_animation == 'walk'
+        assert second.current_animation == 'rest'
+        assert pygame.image.tobytes(first.image, 'RGBA') != pygame.image.tobytes(
+            second.image, 'RGBA'
+        )
+
+    def test_a_sprite_changing_its_hitbox_changes_no_other(self, tmp_path):
+        """A hitbox changed in place on one sprite's frame leaves the other's (Review Focus 2)."""
+        first = self._load(tmp_path)
+        second = self._load(tmp_path)
+        before = self._frames(second)[0].hitbox.copy()
+
+        self._frames(first)[0].hitbox.x += 1
+
+        assert self._frames(second)[0].hitbox == before
+
+    def test_a_cached_load_logs_no_repair_warning_but_keeps_the_repairs(self, tmp_path, caplog):
+        """The compile warns once; every later load still reports the repairs."""
+        toml_content = (
+            '[sprite]\nname = "rows"\n\n[[animation]]\nnamespace = "walk"\nframe_interval = 1\n\n'
+            '[[animation.frame]]\nframe_index = 0\npixels = """\nab\na\n"""\n\n'
+            f'{TABLE_COLORS_TOML}'
+        )
+        with caplog.at_level(logging.WARNING):
+            first = self._load(tmp_path, toml_content)
+            compile_warnings = [r for r in caplog.records if 'pixel rows repaired' in r.message]
+            caplog.clear()
+            second = self._load(tmp_path, toml_content)
+
+        assert len(compile_warnings) == 1
+
+        assert not [record for record in caplog.records if 'pixel rows repaired' in record.message]
+        assert second.pixel_row_repairs == first.pixel_row_repairs != []
+
+    def test_a_text_that_fails_is_not_kept(self, tmp_path):
+        """A sprite text the loader refuses raises on every load, and nothing is cached."""
+        toml_file = tmp_path / 'broken.toml'
+        toml_file.write_text('[sprite]\nname = 3\n', encoding='utf-8')
+
+        for _ in range(2):
+            with pytest.raises(ValueError, match=r'broken\.toml'):
+                AnimatedSprite(str(toml_file))
+
+        assert len(ENGINE_SPRITE_CACHE) == 0
+
+    def test_papyrus_style_preparation_leaves_other_sprites_unchanged(self, tmp_path):
+        """A game converting its frames in place changes only its own sprite.
+
+        The steps of brave-adventurer Papyrus's prepare_papyrus_sprite, written inline (an engine
+        test imports no member): set the colorkey on each frame's image, then assign a converted
+        surface.
+        """
+        prepared = self._load(tmp_path)
+        other = self._load(tmp_path)
+        before = [
+            (
+                pygame.image.tobytes(frame.read_only_image, 'RGBA'),
+                frame.read_only_image.get_colorkey(),
+            )
+            for frame in self._frames(other)
+        ]
+
+        for frames in prepared.animation_data.values():
+            for frame in frames:
+                frame.image.set_colorkey((255, 0, 255))
+                converted = pygame.Surface(frame.image.get_size(), pygame.SRCALPHA)
+                converted.blit(frame.image, (0, 0))
+                frame.image = converted
+
+        assert all(frame.is_sharing for frame in self._frames(other))
+        assert before == [
+            (
+                pygame.image.tobytes(frame.read_only_image, 'RGBA'),
+                frame.read_only_image.get_colorkey(),
+            )
+            for frame in self._frames(other)
+        ]

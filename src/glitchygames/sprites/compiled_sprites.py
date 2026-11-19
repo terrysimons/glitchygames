@@ -26,11 +26,34 @@ from typing import Any, Final
 import pygame  # ruff: ignore[typing-only-third-party-import] - pydantic resolves CompiledSprite's surfaces and rects at runtime
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.sprites.animated import FrameAnchor  # ruff: ignore[typing-only-first-party-import] - pydantic resolves CompiledSprite.frame_anchor at runtime
+from glitchygames.sprites.animated import AnimatedSprite, FrameAnchor
 from glitchygames.sprites.frame import SpriteFrame  # ruff: ignore[typing-only-first-party-import] - pydantic resolves CompiledSprite.animations at runtime
 
 # Past this many bytes of compiled frames, the least recently used compiles are dropped
 DEFAULT_SPRITE_CACHE_LIMIT_BYTES: Final = 64 * 1024 * 1024
+
+# The AnimatedSprite attributes a load sets from the text alone, which a compile captures and every
+# load from it copies (frames shared): measured as every attribute a load of each shipped sprite
+# changes, less the ones each sprite sets for itself (its state machine, first animation, image,
+# surface cache and draw tracking). The conservation test compares a cached load with the loader's
+# own on each of them (tests/sprites/test_animated_sprite.py, TestSharedFrames)
+SHARED_SPRITE_FIELDS: Final = (
+    'name',
+    'description',
+    'tags',
+    '_default_hitbox',
+    'frame_anchor',
+    '_animation_order',
+    '_animation_frame_intervals',
+    '_loop_flags',
+    '_animations_without_frame_index',
+    '_game_tables',
+    'transition_data',
+    'pixel_row_repairs',
+    '_pixel_rows_source',
+    '_color_map',
+    '_color_order',
+)
 
 # A compile's key: the sha256 of the sprite file's text, and the source it was loaded from (the
 # compile's pixel-row repair warnings name its source, so another source compiles anew)
@@ -78,8 +101,48 @@ class CompiledSprite(BaseModel):
     pixel_rows_source: str
     color_map: dict[str, tuple[int, ...]]
     color_order: tuple[str, ...]
+    # The loader's last [[animation]] frame_interval, or None when it set none (written, never
+    # read: carried so a cached load is the loader's sprite exactly)
+    frame_interval: float | None
     drawn_surfaces: dict[tuple[str, int], pygame.Surface]
     byte_count: int
+
+
+def compile_sprite_text(*, text: str, source_name: str) -> CompiledSprite:
+    """Compile a sprite file's text: run the loader once and keep what it set, read-only.
+
+    The loader is AnimatedSprite's own, run on a private sprite (``AnimatedSprite.compiled_from_
+    text``), so a sprite loaded from the compile and one loaded without it cannot differ. A text
+    the loader refuses raises here, and nothing is made.
+
+    Args:
+        text: The sprite file's TOML text.
+        source_name: What the text came from (a file name, a console).
+
+    Returns:
+        CompiledSprite: The compile.
+
+    """
+    return AnimatedSprite.compiled_from_text(text=text, source_name=source_name)
+
+
+def compiled_sprite_bytes(
+    *,
+    animations: dict[str, tuple[SpriteFrame, ...]],
+    drawn_surfaces: dict[tuple[str, int], pygame.Surface],
+) -> int:
+    """Return what a compile holds: its surfaces' pixel bytes and 8 bytes per pixel reference.
+
+    Returns:
+        int: The byte count.
+
+    """
+    frames = [frame for frames in animations.values() for frame in frames]
+    surfaces = [frame.read_only_image for frame in frames] + list(drawn_surfaces.values())
+    surface_bytes = sum(
+        surface.get_width() * surface.get_height() * surface.get_bytesize() for surface in surfaces
+    )
+    return surface_bytes + sum(8 * len(frame.read_only_pixels) for frame in frames)
 
 
 class SharedSpriteCache:
