@@ -20,7 +20,9 @@ yard to be rescued: a kid's touch rescues one and a zombie's loses one. Each kid
 When every neighbor is rescued or lost and at least one was rescued, a gate opens in the top
 hedge; a kid through it clears the stage, and the next stage brings back only the neighbors
 rescued. Every life lost, or a stage with nobody rescued, and the TV switches off: game over.
-Every moment of a stage has its sound, and a theremin-and-organ score plays under it.
+Every moment of a stage has its sound, and a theremin-and-organ score plays under it. An intro
+opens every launch: the kids at their sleepover, the TV bursting and a Lawn Zombie climbing out;
+it plays again, unattended, whenever the title stands idle, as an arcade cabinet's would.
 The design, its decisions and
 the engine wishlist are in the master plan, `plans/2026-11-14-zombies-aint-my-neighbors.md`.
 
@@ -42,6 +44,7 @@ The game adds no options of its own; the engine's are in
 
 | Action | Keyboard | Gamepad |
 | --- | --- | --- |
+| Skip the intro | any key | any button |
 | Join (a device that holds no slot) | `Enter` or keypad `Enter` | `START` |
 | Begin (a joined device), and skip the feature card | `Enter` or keypad `Enter` | `START` |
 | Back from the feature card to the title (between stages the run is kept: the next start returns to the same stage) | `Backspace` | `BACK` |
@@ -70,6 +73,10 @@ button presses one key, so a diagonal takes two fingers.
 
 ```mermaid
 flowchart LR
+    Launch(["launch"]) --> Title
+    Title -- "first frame, at launch" --> Intro["IntroScene<br/>the sleepover, the TV bursts"]
+    Title -- "20 s idle, nobody joined" --> Intro
+    Intro -- "8 s, or any key or button" --> Title
     Title["TitleScene<br/>4 slots: join"] -- "joined player's start" --> Card["FeatureCardScene<br/>who is playing"]
     Card -- "2 s, or start" --> Yard["NeighborhoodScene<br/>the kids walk"]
     Card -- "back" --> Title
@@ -93,6 +100,27 @@ stage, which takes each sprite out of it instead of loading its file: the stage 
 every random number, so a replay that starts on a stage rebuilds it exactly. A cleared stage
 hands the kit on to the next card, and a scene given no kit (a replay's rebuilt stage) makes its
 own.
+
+### The intro and the idle loop
+
+Feature plan 12 (`plans/2026-11-19-zombies-aint-my-neighbors-12-intro-and-idle-loop.md`). The
+intro (`intro.py`) plays one table of timed cues (`intro_timeline.py`): the four kids sit in
+their sleeping bags before the TV, the horror host on screen; at 4 s static, at 5.5 s the screen
+bulges, at 6 s it bursts (the kids start, the screen shakes), the monster's hands reach out, a
+Lawn Zombie climbs out, and at 8 s the title. Each frame acts on the cues it crossed, so a hitch
+fires each once, in order. Its nine sprites are drawn by `art/intro_rig.py`.
+
+- **At every launch** the title the engine builds (`TitleScene(opening=True)`) hands over to the
+  intro on its first frame wherever the CRT power-on would play (`launch_showing.py`: not on the
+  dummy driver, in a replay, recording, audit or rebaseline, or with `--crt-power-on off`), and
+  every connected pad rumbles at the burst. Every other place that builds a title passes
+  `opening=False`, so leaving a stage never replays it.
+- **The idle loop:** a title left `IDLE_SECONDS` (20 s) with no key, pad button or join, nobody
+  joined and no run held, plays the intro unattended: nothing rumbles. The attract demo will
+  follow it (feature plan 13).
+- **Any key or pad button skips it**, P included. The title it hands back ignores the keys and
+  buttons held as it opens, each until it is seen up (`awaiting_release`), so the skipping press
+  never joins anyone while every other key and button works at once.
 
 The title is the game's class for now, so its golden replay stays in one scene, as
 `tests/replay/test_golden_replays.py` requires. When gameplay arrives, the golden moves to the

@@ -295,16 +295,20 @@ commands:
             nox -s performance-test
 
   # The Bitmappy binary and the wheels, on Python 3.15 (noxfile.BUILD_PYTHONS; the owner,
-  # 2026-11-18: "Switch the builds over to 3.15"). A split job builds on its first machine only:
-  # every step of a job runs on each of its machines, and both built the same thing
+  # 2026-11-18: "Switch the builds over to 3.15"). A job builds on its last machine only: every
+  # step of a job runs on each of its machines, and both built the same thing. The last, so a
+  # split job (Linux, Windows) builds on machine 1, beside the share of tests that leaves it
+  # time (the owner, 2026-11-19: machine 0 also built, 53 of Linux's 60 minutes), and an
+  # unsplit job (macOS) on its only machine (tests/test_ci_config.py)
   nox-build:
     steps:
       - run:
           name: "Build binary and wheel"
           command: |
             set -euo pipefail
-            if [ "${CIRCLE_NODE_INDEX:-0}" != "0" ]; then
-              echo "Built on machine 0 only"
+            last_machine=$(( ${CIRCLE_NODE_TOTAL:-1} - 1 ))
+            if [ "${CIRCLE_NODE_INDEX:-0}" != "$last_machine" ]; then
+              echo "Built on machine $last_machine only"
               exit 0
             fi
             export PATH="$HOME/.local/bin:$PATH"
@@ -321,8 +325,10 @@ commands:
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
-            if ($env:CIRCLE_NODE_INDEX -and $env:CIRCLE_NODE_INDEX -ne "0") {
-              Write-Output "Built on machine 0 only"
+            $total = if ($env:CIRCLE_NODE_TOTAL) { [int]$env:CIRCLE_NODE_TOTAL } else { 1 }
+            $index = if ($env:CIRCLE_NODE_INDEX) { [int]$env:CIRCLE_NODE_INDEX } else { 0 }
+            if ($index -ne $total - 1) {
+              Write-Output "Built on machine $($total - 1) only"
               exit 0
             }
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"

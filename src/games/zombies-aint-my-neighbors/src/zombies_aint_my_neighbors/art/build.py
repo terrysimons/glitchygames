@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Final
 
 from zombies_aint_my_neighbors.art import (
     door_rig,
+    intro_rig,
     neighbor_rig,
     palettes,
     poses,
@@ -389,6 +390,54 @@ def door_sprite_text() -> str:
     )
 
 
+# Character BOM section 7: what each intro sprite is, and its kind for its tags
+INTRO_DESCRIPTIONS: Final = {
+    **{
+        f'intro_bag_{look.name}': (
+            f'The intro: {look.name.title()} sits up in a sleeping bag, VR headset on',
+            'kid',
+        )
+        for look in palettes.KIDS
+    },
+    'intro_tv': ('The intro: the TV, showing the horror host until the monster bursts out', 'tv'),
+    'intro_hands': ("The intro: the monster's hands pushing out through the screen", 'monster'),
+    'intro_zombie': ('The intro: a Lawn Zombie climbing out of the TV', 'monster'),
+    'intro_lamp': ('The intro: the lamp beside the sleeping bags', 'prop'),
+    'intro_snacks': ('The intro: a bowl of popcorn', 'prop'),
+}
+
+
+def intro_sprite_text(*, sprite: str) -> str:
+    """Return one intro sprite's file, as TOML (feature plan 12).
+
+    Its hitbox is its whole canvas: intro sprites are never collided with, but a TOML animated
+    sprite keeps magenta opaque, so it gives one (CLAUDE.md, Sprites).
+
+    Args:
+        sprite: The sprite file's stem (a key of ``intro_rig.INTRO_ANIMATIONS``).
+
+    Returns:
+        The file's text.
+
+    """
+    frames = intro_rig.intro_frames(sprite=sprite)
+    first = next(iter(frames.values()))[0]
+    description, kind = INTRO_DESCRIPTIONS[sprite]
+    return character_sprite_text(
+        header=(
+            "Written by zombies_aint_my_neighbors.art.build from the intro's rig: edit the rig",
+            f'and {_BUILT_HEADER} (plans/2026-11-14-zombies-aint-my-neighbors-2-character-bom.md)',
+        ),
+        name=sprite,
+        description=description,
+        tags=('intro', kind),
+        hitbox={'offset_x': 0, 'offset_y': 0, 'width': len(first[0]), 'height': len(first)},
+        palette=intro_rig.intro_palette(sprite=sprite),
+        frames=frames,
+        specs=intro_rig.INTRO_ANIMATIONS[sprite],
+    )
+
+
 def build(*, directory: Path, kids: Sequence[KidLook] = KIDS_TO_BUILD) -> list[Path]:
     """Write each kid's sprite file, the Lawn Zombie's, the TV's and the weapons' into a directory.
 
@@ -410,6 +459,9 @@ def build(*, directory: Path, kids: Sequence[KidLook] = KIDS_TO_BUILD) -> list[P
         'exit_door.toml': door_sprite_text(),
         'laser_pointer.toml': laser_pointer_sprite_text(),
         'laser_dot.toml': laser_dot_sprite_text(),
+    }
+    texts |= {
+        f'{sprite}.toml': intro_sprite_text(sprite=sprite) for sprite in intro_rig.INTRO_ANIMATIONS
     }
     written: list[Path] = []
     for file_name, text in texts.items():
