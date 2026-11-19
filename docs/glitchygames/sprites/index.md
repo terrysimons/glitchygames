@@ -53,6 +53,35 @@
       inherited_members: false
       show_submodules: false
 
+## Shared frames
+
+A sprite file's text compiles once per process and sprite class: every sprite of one class loaded
+from the same text gets frames of its own that share the compile's surfaces and pixels, as
+compiled sounds are shared (`compiled_sprites`, `ENGINE_SPRITE_CACHE`). The compile is the loader
+run on the first such sprite, so a subclass that changes how a file loads loads as it always did.
+Sixteen sprites of one file hold one copy of its frames, and the second load parses nothing, not
+even for `SpriteFactory.load_sprite`'s content check, which the compile keeps. Each sprite keeps
+its own playback and its own copies of everything else the load set, and an Arcade tile reuses
+what another game compiled. The compile's load logs the file's warnings (a skipped transition,
+say) once; the sprites loaded from it log none.
+
+A frame's `image` and `pixels` copy the shared surface and pixels on their first read
+(copy-on-write), so whatever a game or the editor then does with them, drawing into the surface
+included, changes only that sprite. Engine code reads frames through `read_only_image` and
+`read_only_pixels`, which never copy: a sprite that is only played keeps sharing. Assigning a
+frame's `image`, `rect`, `hitbox` or `pixels` changes that sprite's frame only.
+
+!!! warning "Never change `drawn_frame_surface()` in place"
+
+    At scale 1 the surface a sprite draws is the compile's, shared by every sprite of that file.
+    A game that changes its image in place (`set_alpha`, `fill`) copies it first, as
+    Brave Adventurer Papyrus's fade does.
+
+::: glitchygames.sprites.compiled_sprites
+    options:
+      heading_level: 2
+      show_submodules: false
+
 ## Sprites as text
 
 A sprite file is TOML text, and these modules read and write that text in memory, with no

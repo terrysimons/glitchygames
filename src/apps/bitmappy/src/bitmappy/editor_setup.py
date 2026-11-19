@@ -255,7 +255,6 @@ class EditorSetup:
         # Use the proper method to set up animations with single frame
         animation_name = 'strip_1'  # Use a generic name for new sprites
         animated_sprite._animations = {animation_name: [frame1]}  # type: ignore[reportPrivateUsage]
-        animated_sprite._frame_interval = 0.5  # type: ignore[reportPrivateUsage]
         animated_sprite._is_looping = True  # type: ignore[reportPrivateUsage]  # Enable looping for the animation
 
         # Set up the frame manager properly

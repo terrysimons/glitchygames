@@ -11,6 +11,7 @@ import pytest
 from PIL import Image
 
 from glitchygames.services.renderer_service import RendererService, RenderResult
+from glitchygames.sprites.frame import SpriteFrame
 
 
 class TestRenderResult:
@@ -378,6 +379,22 @@ class TestRenderSpriteFile:
         assert set(first_pixels) == {(255, 255, 255, 255)}
         assert set(second_pixels) == {(0, 0, 0, 255)}
 
+    def test_rendering_reads_frames_without_copying_them(self, renderer, mocker):
+        """A loaded frame's ``image`` copies its shared surface on first read: rendering never does.
+
+        Rendering only reads, so it reads ``read_only_image`` (glitchygames.sprites.frame).
+        """
+
+        def copying_read(_frame: SpriteFrame) -> pygame.Surface:
+            pytest.fail('the renderer read a frame through its copying image property')
+
+        mocker.patch.object(SpriteFrame, 'image', new=property(copying_read))
+
+        result = renderer.render_from_toml(TWO_FRAME_ANIMATED_TOML, render_all_frames=True)
+
+        assert result.success is True
+        assert len(result.rendered_frames) == 2
+
     def test_without_render_all_frames_only_the_first_frame(self, renderer):
         """Frames are counted but not rendered unless asked."""
         result = renderer.render_from_toml(TWO_FRAME_ANIMATED_TOML)
@@ -390,6 +407,17 @@ class TestRenderSpriteFile:
         """No current frame: 'Failed to get sprite frame'."""
         sprite = mocker.Mock(name='sprite')
         sprite.get_current_frame.return_value = None
+        mocker.patch('glitchygames.sprites.SpriteFactory.load_sprite', return_value=sprite)
+
+        result = renderer.render_from_toml('[sprite]')
+
+        assert result.success is False
+        assert result.error == 'Failed to get sprite frame'
+
+    def test_current_frame_without_a_surface_fails(self, renderer, mocker):
+        """A current frame with no image: 'Failed to get sprite frame'."""
+        frame = types.SimpleNamespace(image=None, get_size=lambda: (2, 3))
+        sprite = types.SimpleNamespace(get_current_frame=lambda: frame)
         mocker.patch('glitchygames.sprites.SpriteFactory.load_sprite', return_value=sprite)
 
         result = renderer.render_from_toml('[sprite]')

@@ -137,7 +137,15 @@ class FrameManager:
 
 
 class SpriteFrame:
-    """Represents a single frame of an animated sprite."""
+    """Represents a single frame of an animated sprite.
+
+    A frame made by ``sharing`` points at a compiled sprite's surface and pixels, shared with
+    every sprite loaded from the same text (glitchygames/sprites/compiled_sprites.py). Its public
+    ``image`` and ``pixels`` copy them on their first read (copy-on-write, the owner, 2026-11-18):
+    whatever a caller then does, drawing into the surface from C included, reaches only this
+    frame's copy. The engine reads through ``read_only_image`` and ``read_only_pixels``, which
+    never copy, so a sprite that is only played keeps sharing (``is_sharing``).
+    """
 
     # Presence-based "image is stale" flag used by an editor canvas's drag fast path (Bitmappy's
     # animated canvas sets it while pixels are edited). It is intentionally declared without a
@@ -162,9 +170,15 @@ class SpriteFrame:
 
         """
         self._image = surface
+        # True while _image is a compiled sprite's surface, shared with other frames (sharing)
+        self._image_is_shared = False
         self._rect = pygame.Rect((0, 0), surface.get_size())
         self.duration = duration
-        self.pixels: list[tuple[int, ...]] = []
+        # A list of this frame's own, or a compiled sprite's tuple while _pixels_are_shared
+        self._pixels: Sequence[tuple[int, ...]] = []
+        self._pixels_are_shared = False
+        # The compile's drawn surface of these pixels at scale 1, for a frame made by sharing
+        self._shared_drawn_surface: pygame.Surface | None = None
         # The pixel rows this frame was loaded from, glyph for glyph, or None for a frame built
         # in code or whose rows the load had to repair. A save writes them back while the
         # frame's pixels still match them (AnimatedSprite._rows_kept_from_load), so two glyphs
@@ -174,15 +188,92 @@ class SpriteFrame:
         # (surface measured, its visible-pixel bounds); see opaque_bounds()
         self._opaque_bounds_cache: tuple[pygame.Surface, pygame.Rect] | None = None
 
+    @classmethod
+    def sharing(
+        cls, template: SpriteFrame, *, drawn_surface: pygame.Surface | None = None
+    ) -> SpriteFrame:
+        """Return a new frame pointing at template's surface and pixels, copied on first read.
+
+        The rect and hitbox are the new frame's own copies; the duration and loaded pixel rows
+        are template's values.
+
+        Args:
+            template: A compiled sprite's frame.
+            drawn_surface: The compile's drawn surface of template at scale 1, shared while the
+                pixels are (``shared_drawn_surface``).
+
+        Returns:
+            SpriteFrame: The new frame, sharing.
+
+        """
+        hitbox = None if template._hitbox is None else template._hitbox.copy()
+        frame = cls(template._image, duration=template.duration, hitbox=hitbox)
+        frame._image_is_shared = True
+        frame._rect = template._rect.copy()
+        frame._pixels = template._pixels
+        frame._pixels_are_shared = True
+        frame._shared_drawn_surface = drawn_surface
+        frame.loaded_pixel_rows = template.loaded_pixel_rows
+        # Measured from the same surface, so still true of it (opaque_bounds copies its rect)
+        frame._opaque_bounds_cache = template._opaque_bounds_cache
+        return frame
+
+    @property
+    def is_sharing(self) -> bool:
+        """Whether this frame still points at a compiled sprite's surface and pixels, both."""
+        return self._image_is_shared and self._pixels_are_shared
+
     @property
     def image(self) -> pygame.Surface:
-        """The flattened sprite stack image."""
+        """The frame's surface, the frame's own: a shared one is copied on this first read."""
+        if self._image_is_shared:
+            self._image = self._image.copy()
+            self._image_is_shared = False
         return self._image
 
     @image.setter
     def image(self, new_image: pygame.Surface) -> None:
         """Set the image."""
         self._image = new_image
+        self._image_is_shared = False
+
+    @property
+    def read_only_image(self) -> pygame.Surface:
+        """The frame's current surface, shared or its own, never copied: never change it."""
+        return self._image
+
+    @property
+    def pixels(self) -> list[tuple[int, ...]]:
+        """The frame's pixels as a list of its own: shared ones are copied on this first read.
+
+        Always a list the caller may change in place: pixels given as a tuple (as a compile's
+        templates hold them) read back as an equal list, the frame's own, so a write in place
+        never reaches pixels another frame may share.
+        """
+        if self._pixels_are_shared or not isinstance(self._pixels, list):
+            self._pixels = list(self._pixels)
+            self._pixels_are_shared = False
+        return self._pixels
+
+    @pixels.setter
+    def pixels(self, new_pixels: Sequence[tuple[int, ...]]) -> None:
+        """Set the pixels (kept as given, as a plain attribute would keep them)."""
+        self._pixels = new_pixels
+        self._pixels_are_shared = False
+
+    @property
+    def shared_drawn_surface(self) -> pygame.Surface | None:
+        """The compile's drawn surface at scale 1 while the pixels are still shared, else None.
+
+        Shared by every sprite drawing this frame: never change it in place (as for
+        AnimatedSprite.drawn_frame_surface).
+        """
+        return self._shared_drawn_surface if self._pixels_are_shared else None
+
+    @property
+    def read_only_pixels(self) -> Sequence[tuple[int, ...]]:
+        """The frame's current pixels, shared or its own, never copied: never change them."""
+        return self._pixels
 
     @property
     def rect(self) -> pygame.Rect:
@@ -285,8 +376,8 @@ class SpriteFrame:
             list[tuple[int, ...]]: The pixel data.
 
         """
-        if self.pixels:
-            return self.pixels.copy()
+        if self._pixels:
+            return list(self._pixels)
         # Extract pixels from the surface
         width, height = self._image.get_size()
         extracted_pixels: list[tuple[int, int, int, int]] = []
@@ -306,18 +397,19 @@ class SpriteFrame:
         The input is always copied into a new list.
         """
         self.pixels = list(pixels)
-        # Update the surface with the new pixel data
-        width, height = self._image.get_size()
+        # Update the surface with the new pixel data (image: a shared surface is copied first)
+        image = self.image
+        width, height = image.get_size()
         for i, pixel in enumerate(pixels):
             if i < width * height:
                 x = i % width
                 y = i // width
                 if len(pixel) == RGBA_COMPONENT_COUNT:
                     # RGBA pixel
-                    self._image.set_at((x, y), pixel)
+                    image.set_at((x, y), pixel)
                 else:
                     # RGB pixel
-                    self._image.set_at((x, y), pixel)
+                    image.set_at((x, y), pixel)
 
     @override
     def __repr__(self) -> str:

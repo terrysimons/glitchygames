@@ -260,7 +260,8 @@ class BitmappySprite(Sprite):
         """
         # Read the raw file content first
         raw_content = Path(filename).read_text(encoding='utf-8')
-        self.log.debug('Raw file content (%s bytes):\n%s', len(raw_content), raw_content)
+        # The size, never the text: pytest keeps every record it captures
+        self.log.debug('Read %s (%s characters)', filename, len(raw_content))
 
         # Parse TOML, then check every value once (sprite_file_schema.py)
         data = tomllib.loads(raw_content)
@@ -298,7 +299,7 @@ class BitmappySprite(Sprite):
 
         # Get pixel data
         pixel_text = str(data['sprite']['pixels'])
-        self.log.debug('Raw pixel text (%s bytes):\n%s', len(pixel_text), pixel_text)
+        self.log.debug('Pixel text: %s characters', len(pixel_text))
 
         # The engine's one pixel-row rule (normalize_pixel_rows), so this fallback draws what
         # AnimatedSprite draws: rows padded with transparent pixels to the longest
@@ -607,7 +608,7 @@ class BitmappySprite(Sprite):
                     self.log.error('Color %s not found in color_map', pixel_color)
                 row += char
             pixel_rows.append(row)
-            self.log.debug("Row %s: '%s' (len=%s)", y, row, len(row))
+        self.log.debug('Wrote %s pixel rows', len(pixel_rows))
         return pixel_rows
 
     def _generate_pixel_rows(
@@ -738,7 +739,8 @@ class BitmappySprite(Sprite):
         """
         # Read the raw file content first
         raw_content = Path(filename).read_text(encoding='utf-8')
-        self.log.debug('Raw file content (%s bytes):\n%s', len(raw_content), raw_content)
+        # The size, never the text: pytest keeps every record it captures
+        self.log.debug('Read %s (%s characters)', filename, len(raw_content))
 
         # Parse TOML, then check every value once (sprite_file_schema.py)
         data = tomllib.loads(raw_content)
