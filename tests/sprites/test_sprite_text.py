@@ -323,6 +323,22 @@ def test_the_factory_loads_static_text_as_an_animated_sprite():
     assert sprite.name == 'dex'
 
 
+def test_the_text_loader_builds_the_class_it_is_given():
+    """A subclass of AnimatedSprite gets the same load, by the same path."""
+
+    class Labelled(AnimatedSprite):
+        pass
+
+    sprite = SpriteFactory.load_sprite_from_text(
+        text=SHORT_ROW_TEXT, source_name='dex', sprite_class=Labelled
+    )
+    default = SpriteFactory.load_sprite_from_text(text=SHORT_ROW_TEXT, source_name='dex')
+
+    assert type(sprite) is Labelled
+    assert type(default) is AnimatedSprite
+    assert sprite.name == default.name == 'dex'
+
+
 def test_text_with_static_and_animated_content_is_refused_as_a_file_is(tmp_path):
     """The factory refuses mixed text, and refuses the same content in a file the same way."""
     mixed_file = tmp_path / 'mixed.toml'

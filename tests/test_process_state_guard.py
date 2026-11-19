@@ -1019,6 +1019,9 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             'happen.'
         ),
     },
+    'events/sprite_spawn.py': {
+        'SPRITE_SPAWN_EVENT': EVENT_TYPE_TABLE,
+    },
     'events/midi.py': {'MIDI_MODULE': "R5: an import's result, the same in every context."},
     'fonts/font_manager.py': {
         'FontManager._font_cache': (

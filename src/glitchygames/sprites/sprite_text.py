@@ -9,7 +9,7 @@ temporary file is involved.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, overload
 
 import pygame
 
@@ -47,7 +47,19 @@ class SpriteColorLimitError(ValueError):
         self.limit = limit
 
 
-def sprite_from_text(*, text: str, source_name: str) -> AnimatedSprite:
+@overload  # pragma: no cover - a typing stub, never called (the implementation below is)
+def sprite_from_text(*, text: str, source_name: str) -> AnimatedSprite: ...
+
+
+@overload  # pragma: no cover - a typing stub, never called (the implementation below is)
+def sprite_from_text[SpriteType: AnimatedSprite](
+    *, text: str, source_name: str, sprite_class: type[SpriteType]
+) -> SpriteType: ...
+
+
+def sprite_from_text(
+    *, text: str, source_name: str, sprite_class: type[AnimatedSprite] = AnimatedSprite
+) -> AnimatedSprite:
     """Build a sprite from the text of a sprite file.
 
     The sprite is what ``SpriteFactory.load_sprite`` returns for the same text in a file: an
@@ -59,13 +71,15 @@ def sprite_from_text(*, text: str, source_name: str) -> AnimatedSprite:
         text: The sprite file's TOML text.
         source_name: What the text came from (a file name, a console); it names the text in an
             error and in the warnings about pixel rows the loader repaired.
+        sprite_class: The class built: ``AnimatedSprite`` or a subclass that adds what belongs
+            to the game (``SpawnedSprite`` adds a world position).
 
     Returns:
         The loaded sprite. Text that is not valid TOML is refused with a ValueError naming
         ``source_name``.
 
     """
-    sprite = AnimatedSprite(groups=None)
+    sprite = sprite_class(groups=None)
     sprite.load_text(text=text, source_name=source_name)
     return sprite
 

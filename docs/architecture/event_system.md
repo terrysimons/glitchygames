@@ -33,7 +33,8 @@ per frame, and whatever another reader takes never reaches the engine.
 - **Custom event types** — three engine-level event types (`FPSEVENT`,
   `GAMEEVENT`, `MENUEVENT`) allocated by name (`named_custom_event_type`), plus an
   extensible `GAMEEVENT` bus for posting arbitrary game-specific events with
-  per-subtype callbacks.
+  per-subtype callbacks. A fourth, `SPRITE_SPAWN_EVENT`, is the engine's alone (see
+  [The sprite spawn event](#the-sprite-spawn-event)).
 - **An unhandled event safety net** — every `on_*_event()` has a default stub
   that reports the event as unhandled (a warning once per type, or an
   `UnhandledEventError` under `--no-unhandled-events`), and the engine counts
@@ -205,6 +206,18 @@ registration raises `CustomEventNameTakenError`). A type allocated straight from
 replay in a shifted process cannot move it. It can also collide: `pygame.quit()` restarts
 pygame's allocation at `USEREVENT + 1`, so the first raw `custom_type()` after a quit returns
 FPSEVENT's id. `named_custom_event_type` skips every id a name already holds.
+
+### The sprite spawn event
+
+`SPRITE_SPAWN_EVENT` (`glitchygames.sprite_spawn`, in `src/glitchygames/events/sprite_spawn.py`)
+carries a sprite's file text and a world point. The AI console's `/sprite DESCRIPTION` posts one
+with `recording.post_input_event` once a generated sprite is ready, so a recording keeps it,
+text and all, and a replay adds the same sprite at the same frame and place with no AI and no
+saved file. `GameEngine.process_events` handles it itself, before anything else sees the event:
+it builds a world-space `SpawnedSprite` (`sprites/spawned.py`) centered on the point and adds it
+to the active scene's game (`debug_subject`: under the pause screen, the paused game). It never
+reaches a game's handlers, so every game gets `/sprite` with no code of its own. Text that
+cannot build a sprite is logged as one warning and adds nothing.
 
 `GAMEEVENT` is intentionally generic — game code posts events with arbitrary
 payloads via `GameEngine.post_game_event()`, and can register per-subtype

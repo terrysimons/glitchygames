@@ -7,11 +7,11 @@ for loading and saving both static and animated sprites.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, overload
+
+from glitchygames.sprites.animated import AnimatedSprite
 
 if TYPE_CHECKING:
-    from glitchygames.sprites.animated import AnimatedSprite
-
     from .bitmappy_sprite import BitmappySprite
 
 from .constants import DEFAULT_FILE_FORMAT
@@ -54,14 +54,24 @@ class SpriteFactory:
 
         # Always return AnimatedSprite - it handles both static and animated content. The load
         # checks the content on its own parse, or on its compile's record of it: no parse twice
-        from glitchygames.sprites.animated import AnimatedSprite
-
         sprite = AnimatedSprite(groups=None)
         sprite.load(filename, require_sprite_content=True)
         return sprite
 
+    @overload  # pragma: no cover - a typing stub, never called (the implementation below is)
     @staticmethod
-    def load_sprite_from_text(*, text: str, source_name: str) -> AnimatedSprite:
+    def load_sprite_from_text(*, text: str, source_name: str) -> AnimatedSprite: ...
+
+    @overload  # pragma: no cover - a typing stub, never called (the implementation below is)
+    @staticmethod
+    def load_sprite_from_text[SpriteType: AnimatedSprite](
+        *, text: str, source_name: str, sprite_class: type[SpriteType]
+    ) -> SpriteType: ...
+
+    @staticmethod
+    def load_sprite_from_text(
+        *, text: str, source_name: str, sprite_class: type[AnimatedSprite] = AnimatedSprite
+    ) -> AnimatedSprite:
         """Load a sprite from the text of a sprite file, as load_sprite loads a file.
 
         The text gets the content checks a file gets, on the load's own parse, and loads by the
@@ -72,6 +82,7 @@ class SpriteFactory:
             text: The sprite file's TOML text.
             source_name: What the text came from (a file name, a console), named in errors and in
                 the warnings about pixel rows the loader repaired.
+            sprite_class: The class built: ``AnimatedSprite`` or a subclass of it.
 
         Returns:
             AnimatedSprite (static text is converted to a single-frame animation).
@@ -79,10 +90,8 @@ class SpriteFactory:
             ValueError.
 
         """
-        from glitchygames.sprites.animated import AnimatedSprite
-
         # sprite_from_text's load, with the content check on its one parse
-        sprite = AnimatedSprite(groups=None)
+        sprite = sprite_class(groups=None)
         sprite.load_text(text=text, source_name=source_name, require_sprite_content=True)
         return sprite
 

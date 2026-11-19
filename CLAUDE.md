@@ -99,7 +99,8 @@ Installed by Ansible (`ansible/macos_ai_service.yml`; plans/lucid-circuit.md), i
 Games reach it only over a socket (127.0.0.1:23231) through `src/glitchygames/ai_link.py` and
 `ai_host.py`: on by default (`--ai`/`--no-ai`), never with `--headless`, in a replay or browser.
 The test harness points `GLITCHYGAMES_AI_INSTALL_ROOT` at nowhere. The backtick key opens the
-read-only AI console (`src/glitchygames/ai_console.py`).
+AI console (`src/glitchygames/ai_console.py`): read-only, except `/sprite DESCRIPTION`, which
+adds a generated sprite through a recorded spawn event (`events/sprite_spawn.py`).
 
 ## Architecture Overview
 
