@@ -1,13 +1,14 @@
-"""The Ansible setup for the local AI service (ansible/ai_service.yml).
+"""The Ansible setup for the local AI service (ansible/ai_service.yml), on a Mac and on Linux.
 
-Its plan is plans/lucid-circuit.md. Running it takes a Mac, gigabytes of downloads and a GPU, so
-these only check what would go wrong quietly: a pin that isn't exact, two agents on one port, or a
-model a host can never get.
+Its plans are plans/lucid-circuit.md and plans/lucid-circuit-linux.md. Running it takes a real
+host and gigabytes of downloads, so these only check what would go wrong quietly: a pin that isn't
+exact, two agents on one port, or a model a host can never get.
 """
 
 import configparser
 import contextlib
 import hashlib
+import importlib.util
 import itertools
 import json
 import os
@@ -26,6 +27,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames import ai_link, clock
+from glitchygames.process import OutputCapture, run_command
 from tests.ansible_rendering import (
     ansible_variables,
     render_expression,
@@ -535,37 +537,223 @@ def test_a_plist_holds_no_shell_script():
     assert '/bin/sh' not in plist
 
 
-def test_the_ai_service_is_on_by_default_and_off_on_the_raspberry_pis():
-    """Every host gets the service unless its platform turns ai_enabled off, as the Pis do."""
-    inventory = yaml.safe_load(
-        (PROJECT_ROOT / 'ansible' / 'inventory.yml').read_text(encoding='utf-8'),
-    )
-    raspberry_pis = inventory['all']['children']['raspberry_pis']
+PLAYBOOK = ANSIBLE / 'ai_service.yml'
+# The memory, in GB, from which a Linux host runs the models (plans/lucid-circuit-linux.md, 8.2)
+LINUX_AI_MEMORY_GB = 16
 
-    assert inventory['all']['vars']['ai_enabled'] is True
-    assert raspberry_pis['vars']['ai_enabled'] is False
-    # No Pi turns it back on for itself
-    assert all('ai_enabled' not in host for host in raspberry_pis['hosts'].values())
+
+def inventory_groups() -> dict[str, dict[str, Any]]:
+    """Read every group of ansible/inventory.yml, wherever it is written, merged as Ansible does.
+
+    A group may be defined in one place and named as another group's child in a second.
+
+    Returns:
+        Each group's hosts (name to host variables), children (names) and variables.
+    """
+    inventory = yaml.safe_load((ANSIBLE / 'inventory.yml').read_text(encoding='utf-8'))
+    groups: dict[str, dict[str, Any]] = {}
+
+    def visit(*, name: str, definition: dict[str, Any] | None) -> None:
+        group = groups.setdefault(name, {'hosts': {}, 'children': [], 'vars': {}})
+        definition = definition or {}
+        for host, host_variables in (definition.get('hosts') or {}).items():
+            group['hosts'][host] = group['hosts'].get(host, {}) | (host_variables or {})
+        group['vars'] |= definition.get('vars') or {}
+        for child, child_definition in (definition.get('children') or {}).items():
+            group['children'].append(child)
+            visit(name=child, definition=child_definition)
+
+    visit(name='all', definition=inventory['all'])
+    return groups
+
+
+def group_host_names(*, groups: dict[str, dict[str, Any]], group: str) -> set[str]:
+    """Name every host in a group, its children's included.
+
+    Returns:
+        The host names.
+    """
+    names = set(groups[group]['hosts'])
+    for child in groups[group]['children']:
+        names |= group_host_names(groups=groups, group=child)
+    return names
+
+
+def host_variable(*, groups: dict[str, dict[str, Any]], host: str, name: str) -> Any:
+    """Read a host's value of a variable: its own, else its nearest group's, else all's.
+
+    Returns:
+        The value, or None if nothing sets it.
+    """
+    holders = [group for group in groups.values() if host in group['hosts']]
+    for holder in holders:
+        if name in holder['hosts'][host]:
+            return holder['hosts'][host][name]
+    for holder in holders:
+        if name in holder['vars']:
+            return holder['vars'][name]
+    return groups['all']['vars'].get(name)
+
+
+def test_every_linux_host_states_its_memory_and_opts_in_at_16_gb():
+    """Each Linux host says how much memory it has, and only those with 16 GB or more opt in.
+
+    Nothing in the roles reads a board's name: the inventory says which hosts run the models
+    (plans/lucid-circuit-linux.md, 6.9 and 8.2). The Raspberry Pis' group stays off, and each
+    16 GB Pi turns the service on for itself.
+    """
+    groups = inventory_groups()
+    linux_hosts = group_host_names(groups=groups, group='linux')
+
+    assert linux_hosts, 'the inventory has no linux group, or it holds no host'
+    assert group_host_names(groups=groups, group='raspberry_pis') <= linux_hosts
+    assert groups['raspberry_pis']['vars']['ai_enabled'] is False
+    for host in sorted(linux_hosts):
+        memory = host_variable(groups=groups, host=host, name='host_memory_gb')
+        assert type(memory) is int, f'{host} states no integer host_memory_gb: {memory!r}'
+        enabled = host_variable(groups=groups, host=host, name='ai_enabled')
+        assert enabled is (memory >= LINUX_AI_MEMORY_GB), (
+            f'{host}: {memory} GB, ai_enabled {enabled}'
+        )
+    # The 16 GB Pi 5 is the first Linux host to run the models
+    assert host_variable(groups=groups, host='raspberry-pi-5', name='ai_enabled') is True
+    assert groups['all']['vars']['ai_enabled'] is True
+
+
+MAC_SERVICE_ROLES = [
+    {'role': 'llama_cpp', 'tags': ['llama_cpp', 'ai_service', 'ai_package', 'ai_validate']},
+    {'role': 'ai_models', 'tags': ['ai_models']},
+    {'role': 'ai_sidecar', 'tags': ['ai_sidecar', 'ai_service', 'ai_package']},
+    {'role': 'ai_service', 'tags': ['ai_service', 'ai_package']},
+    {'role': 'ai_package', 'tags': ['ai_package']},
+    {'role': 'ai_validate', 'tags': ['never', 'ai_validate']},
+    {'role': 'ai_uninstall', 'tags': ['never', 'ai_uninstall']},
+]
 
 
 def test_only_hosts_with_ai_enabled_get_the_ai_service():
-    """The hosts are sorted without connecting, then only enabled Macs get the service.
+    """The hosts are sorted without connecting, then only enabled Macs and Linux hosts get it.
 
-    Checked by hand with ansible-playbook: a host with ai_enabled false is never contacted.
+    Checked by hand with ansible-playbook: a host with ai_enabled false is never contacted. Both
+    service plays run as the host's user; the Linux one raises to root only for the package.
     """
-    sorting_play, service_play = yaml.safe_load(
-        (PROJECT_ROOT / 'ansible' / 'ai_service.yml').read_text(encoding='utf-8'),
-    )
+    sorting_play, mac_play, linux_play = yaml.safe_load(PLAYBOOK.read_text(encoding='utf-8'))
 
     assert sorting_play['hosts'] == 'all'
     assert sorting_play['gather_facts'] is False
-    # Every --tags run needs the groups, or the service play would match no host
+    # Every --tags run needs the groups, or the service plays would match no host
     assert sorting_play['tags'] == ['always']
     (sorting_task,) = sorting_play['tasks']
     assert sorting_task['ansible.builtin.group_by']['key'] == (
         "{{ 'ai_enabled' if ai_enabled | bool else 'ai_disabled' }}"
     )
-    assert service_play['hosts'] == 'macos:&ai_enabled'
+    assert mac_play['hosts'] == 'macos:&ai_enabled'
+    assert mac_play['become'] is False
+    assert mac_play['roles'] == MAC_SERVICE_ROLES
+    assert linux_play['hosts'] == 'linux:&ai_enabled'
+    assert linux_play['become'] is False
+
+
+def test_the_linux_play_builds_the_package_before_the_service_installs_it():
+    """On Linux the service is the installed .deb, so ai_package comes before ai_service.
+
+    Every tag that installs the service builds the package first, and validation and uninstall
+    still run only when asked.
+    """
+    *_, linux_play = yaml.safe_load(PLAYBOOK.read_text(encoding='utf-8'))
+    roles = {entry['role']: entry['tags'] for entry in linux_play['roles']}
+    order = [entry['role'] for entry in linux_play['roles']]
+
+    assert order == [
+        'llama_cpp',
+        'ai_models',
+        'ai_sidecar',
+        'ai_package',
+        'ai_service',
+        'ai_validate',
+        'ai_uninstall',
+    ]
+    for builder in ('llama_cpp', 'ai_sidecar', 'ai_package'):
+        assert {'ai_service', 'ai_package'} <= set(roles[builder]), builder
+    assert roles['ai_service'] == ['ai_service']
+    assert roles['ai_validate'] == ['never', 'ai_validate']
+    assert roles['ai_uninstall'] == ['never', 'ai_uninstall']
+
+
+# Words naming a board or a CPU model, which no AI role may test for (plans/lucid-circuit-linux.md,
+# 6.9): the Pi's board and SoC, and the ARM cores and server CPUs it could be mistaken for
+BOARD_OR_CPU_WORDS = re.compile(
+    r'raspberry|\bpi ?[45]\b|\brpi|bcm27\d\d|cortex|\ba7[26]\b|neoverse|graviton', re.IGNORECASE
+)
+# Every way a play could read the host's architecture
+ARCHITECTURE_FACT = re.compile(
+    r"ansible_(architecture|machine)\b|ansible_facts\s*(\[\s*['\"](architecture|machine)['\"]\s*\]"
+    r'|\.(architecture|machine)\b)'
+)
+AI_ROLES = sorted(
+    path.name for path in ROLES.iterdir() if path.name.startswith('ai_') or path.name == 'llama_cpp'
+)
+
+
+def test_no_ai_role_tests_for_a_board():
+    """The roles choose by architecture alone, so a new board needs only an inventory entry."""
+    board_mentions: list[str] = []
+    architecture_reads: list[str] = []
+    for role in AI_ROLES:
+        for path in sorted((ROLES / role).rglob('*')):
+            if not path.is_file() or '__pycache__' in path.parts:
+                continue
+            text = path.read_text(encoding='utf-8')
+            where = str(path.relative_to(PROJECT_ROOT))
+            board_mentions += [f'{where}: {match}' for match in BOARD_OR_CPU_WORDS.findall(text)]
+            architecture_reads += [
+                f'{where}: {match.group(0)}'
+                for match in ARCHITECTURE_FACT.finditer(text)
+                if match.group(0) != "ansible_facts['architecture']"
+            ]
+
+    assert AI_ROLES == [
+        'ai_models',
+        'ai_package',
+        'ai_service',
+        'ai_sidecar',
+        'ai_uninstall',
+        'ai_validate',
+        'llama_cpp',
+    ]
+    assert board_mentions == []
+    assert architecture_reads == []
+
+
+# The playbook's and this file's names before the Linux port (plans/ keeps them where they record
+# what was true then)
+OLD_NAMES = ('macos_ai_service.yml', 'test_ansible_macos_ai_service.py')
+GIT_TIMEOUT_SECONDS = 60.0
+
+
+def test_no_document_names_the_old_playbook():
+    """Every live reference follows the rename; only plans/ (history) may keep the old names."""
+    completed = run_command(
+        command=['git', 'ls-files', '-z'],
+        environment=os.environ,
+        working_directory=PROJECT_ROOT,
+        capture_output=OutputCapture.APART,
+        timeout_seconds=GIT_TIMEOUT_SECONDS,
+    )
+    tracked = [name for name in completed.stdout.split('\0') if name]
+    holders = [
+        name
+        for name in tracked
+        if name.endswith(('.md', '.py', '.yml'))
+        and not name.startswith(('plans/', '.superpowers/'))
+        # This file names them to look for them
+        and name != str(Path(__file__).relative_to(PROJECT_ROOT))
+        and (PROJECT_ROOT / name).is_file()
+        and any(old in (PROJECT_ROOT / name).read_text(encoding='utf-8') for old in OLD_NAMES)
+    ]
+
+    assert 'ansible/ai_service.yml' in tracked
+    assert holders == []
 
 
 def walk_tasks(*, tasks: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
@@ -1099,9 +1287,10 @@ class ServiceHome:
         Returns:
             Each agent's description.
         """
-        return run_set_fact_tasks(tasks=role_tasks(role='ai_service'), variables=self.variables)[
-            'ai_service_agents'
-        ]
+        return run_set_fact_tasks(
+            tasks=role_tasks(role='ai_service', file_name='list_agents.yml'),
+            variables=self.variables,
+        )['ai_service_agents']
 
     def agent(self, *, role: str) -> dict[str, Any]:
         """Find the agent the 2B and 0.6B sizes run for a role, or the API's.
@@ -1151,6 +1340,26 @@ def _write_executable(path: Path, text: str) -> None:
     path.chmod(0o755)
 
 
+LONE_EXPRESSION = re.compile(r'\s*\{\{(?:(?!\{\{|\}\}).)*\}\}\s*', flags=re.DOTALL)
+
+
+def set_fact_value(*, expression: Any, variables: dict[str, Any]) -> Any:
+    """Work out one set_fact value as Ansible does, failing on a name Ansible wouldn't have.
+
+    A lone expression keeps its type; text around expressions renders to text; a literal (an
+    empty list) is taken as written.
+
+    Returns:
+        The value.
+    """
+    if isinstance(expression, str) and LONE_EXPRESSION.fullmatch(expression):
+        return render_expression(expression=expression, variables=variables)
+    value = render_value(value=expression, variables=variables)
+    # render_value leaves a reference it can't resolve as written: that is a missing name here
+    assert '{{' not in json.dumps(value), f'unresolved: {value}'
+    return value
+
+
 def run_set_fact_tasks(*, tasks: list[dict[str, Any]], variables: dict[str, Any]) -> dict[str, Any]:
     """Run a task file's set_fact tasks as Ansible would, loops and task variables included.
 
@@ -1171,7 +1380,7 @@ def run_set_fact_tasks(*, tasks: list[dict[str, Any]], variables: dict[str, Any]
             for name, value in task.get('vars', {}).items():
                 scope[name] = render_value(value=value, variables=scope)
             for name, expression in task['ansible.builtin.set_fact'].items():
-                facts[name] = render_expression(expression=expression, variables=scope)
+                facts[name] = set_fact_value(expression=expression, variables=scope)
     return facts
 
 
@@ -2279,7 +2488,8 @@ class PackageStaging:
             'llama_cpp_libstdcxx_version': '14.1.0',
             # Set by the ai_service role (set_fact)
             'ai_service_agents': run_set_fact_tasks(
-                tasks=role_tasks(role='ai_service'), variables=variables
+                tasks=role_tasks(role='ai_service', file_name='list_agents.yml'),
+                variables=variables,
             )['ai_service_agents'],
             # The inventory's macos value (Linux's is a group variable)
             **({'llama_cpp_gpu_layers': MAC_GPU_LAYERS} if system == 'Darwin' else {}),
@@ -2403,9 +2613,20 @@ class PackageStaging:
                 include_variables=include_variables,
             )
         elif include:
-            file_name = include if isinstance(include, str) else include['file']
+            file_name = render_value(
+                value=include if isinstance(include, str) else include['file'],
+                variables=variables,
+            )
+            if Path(file_name).is_absolute():
+                # Another role's task file (the agents' list): its facts, as Ansible sets them
+                tasks = yaml.safe_load(Path(file_name).read_text(encoding='utf-8'))
+                facts = run_set_fact_tasks(tasks=tasks, variables=variables)
+                for listed in walk_tasks(tasks=tasks):
+                    for name in listed.get('ansible.builtin.set_fact', {}):
+                        self.facts[name] = facts[name]
+                return
             self._walk(
-                file_name=render_value(value=file_name, variables=variables),
+                file_name=file_name,
                 block_variables=block_variables,
                 # An include's variables win over facts
                 include_variables={**include_variables, **task.get('vars', {})},
@@ -3393,3 +3614,448 @@ def test_the_libstdcxx_tables_follow_gccs_abi_list():
         releases = [tuple(int(part) for part in release.split('.')) for release in table.values()]
         assert all(len(release) == 3 for release in releases)
         assert releases == sorted(releases)
+
+
+# The Linux install (plans/lucid-circuit-linux.md, 5.1, 6.3 and 6.9): Ansible installs the .deb it
+# built, runs the installed setup.sh for the owner, waits for setup to finish, then smoke-tests
+INSTALL_PACKAGE_TASK = 'Install the package'
+REMOVE_PACKAGE_TASK = 'Remove the package'
+RUN_SETUP_TASK = 'Run setup for the owner, waiting out a run already going'
+SETUP_FINISHED_TASK = 'Check that setup finished, with the models in place'
+SMOKE_TEST_TASK = 'Check that the models answer correctly'
+RUN_USER_UNINSTALLER_TASK = "Run the owner's uninstaller while the package still holds it"
+
+
+def named_task(*, role: str, file_name: str, name: str) -> dict[str, Any]:
+    """Find one task of a role's task file by name, inside blocks too.
+
+    Returns:
+        The task.
+    """
+    (task,) = [
+        task
+        for task in walk_tasks(tasks=role_tasks(role=role, file_name=file_name))
+        if task.get('name') == name
+    ]
+    return task
+
+
+def registered_command(*, rc: int, stdout: str, stderr: str = '') -> dict[str, Any]:
+    """A command task's registered result, in the shape ansible.builtin.command gives it.
+
+    Returns:
+        The result.
+    """
+    return {
+        'rc': rc,
+        'stdout': stdout.rstrip('\n'),
+        'stdout_lines': stdout.splitlines(),
+        'stderr': stderr.rstrip('\n'),
+        'stderr_lines': stderr.splitlines(),
+        'changed': False,
+        'failed': rc != 0,
+    }
+
+
+def test_on_linux_only_the_package_steps_take_root():
+    """The plays run as the user; root is raised for apt alone: build tools and the .deb."""
+    raised = sorted(
+        (str(path.relative_to(ROLES)), task['name'])
+        for path in ROLES.glob('*/tasks/*.yml')
+        for task in walk_tasks(tasks=yaml.safe_load(path.read_text(encoding='utf-8')) or [])
+        if task.get('become')
+    )
+
+    assert raised == [
+        ('ai_service/tasks/linux.yml', INSTALL_PACKAGE_TASK),
+        ('ai_uninstall/tasks/linux.yml', REMOVE_PACKAGE_TASK),
+        ('llama_cpp/tasks/linux.yml', 'Install the build tools'),
+    ]
+
+
+def test_linux_installs_the_package_then_waits_for_setup_then_smoke_tests():
+    """The smoke test needs the models, which only a finished setup has.
+
+    The .deb's postinst starts the owner's setup in the background, so Ansible's own run usually
+    finds that run holding the lock and leaves at once: the wait sits between the install and the
+    smoke test.
+    """
+    names = [task['name'] for task in role_tasks(role='ai_service', file_name='linux.yml')]
+
+    assert (
+        names.index(INSTALL_PACKAGE_TASK)
+        < names.index(RUN_SETUP_TASK)
+        < names.index(SETUP_FINISHED_TASK)
+        < names.index(SMOKE_TEST_TASK)
+    )
+    setup = named_task(role='ai_service', file_name='linux.yml', name=RUN_SETUP_TASK)
+    assert setup['ansible.builtin.command']['argv'] == ['{{ ai_service_bin_directory }}/setup.sh']
+    assert setup['register'] == 'ai_service_setup'
+    assert 'become' not in setup
+
+
+def test_both_platforms_list_the_agents_and_run_the_same_smoke_test():
+    """One list of agents and one smoke test: only the install between them is the platform's."""
+    tasks = role_tasks(role='ai_service')
+    platform_include = tasks[-1]['ansible.builtin.include_tasks']
+    mac_tasks = role_tasks(role='ai_service', file_name='macos.yml')
+    linux_tasks = role_tasks(role='ai_service', file_name='linux.yml')
+
+    assert any(task.get('ansible.builtin.import_tasks') == 'list_agents.yml' for task in tasks)
+    assert platform_include == {
+        'file': "{{ 'macos' if ansible_facts['system'] == 'Darwin' else 'linux' }}.yml"
+    }
+    for platform_tasks in (mac_tasks, linux_tasks):
+        assert platform_tasks[-1] == {
+            'name': SMOKE_TEST_TASK,
+            'ansible.builtin.include_tasks': 'smoke_test.yml',
+        }
+
+
+def install_needed(*, status: str, recorded: str, built: str) -> bool:
+    """Evaluate the install task's condition with what its registered tasks would hold.
+
+    Returns:
+        Whether Ansible installs the package.
+    """
+    task = named_task(role='ai_service', file_name='linux.yml', name=INSTALL_PACKAGE_TASK)
+    return render_expression(
+        expression=task['when'],
+        variables={
+            'ai_service_package_status': registered_command(rc=0 if status else 1, stdout=status),
+            'ai_service_installed_package': registered_command(
+                rc=0 if recorded else 1, stdout=recorded
+            ),
+            'ai_service_package': {'stat': {'exists': True, 'checksum': built}},
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    ('status', 'recorded', 'built', 'installs'),
+    [
+        # Never installed: dpkg-query knows no such package and nothing was recorded
+        ('', '', 'abc', True),
+        # Installed from this very .deb
+        ('install ok installed', 'abc', 'abc', False),
+        # Rebuilt since, at the same version, which apt alone would skip
+        ('install ok installed', 'abc', 'def', True),
+        # Removed by hand since: only its configuration is left
+        ('deinstall ok config-files', 'abc', 'abc', True),
+        # Installed, but by something other than this Ansible
+        ('install ok installed', '', 'abc', True),
+    ],
+)
+def test_a_rebuilt_package_of_the_same_version_is_installed_again(
+    status: str, recorded: str, built: str, *, installs: bool
+):
+    """A rebuilt .deb keeps its version, so Ansible compares checksums, not versions."""
+    assert install_needed(status=status, recorded=recorded, built=built) is installs
+    task = named_task(role='ai_service', file_name='linux.yml', name=INSTALL_PACKAGE_TASK)
+    assert task['become'] is True
+    argv = task['ansible.builtin.command']['argv']
+    assert argv[:4] == ['apt-get', 'install', '--yes', '--reinstall']
+
+
+def setup_retries(*, result: subprocess.CompletedProcess[str]) -> bool:
+    """Evaluate the setup task's until condition on a real setup.sh run.
+
+    Returns:
+        Whether Ansible runs setup.sh again.
+    """
+    task = named_task(role='ai_service', file_name='linux.yml', name=RUN_SETUP_TASK)
+    registered = registered_command(
+        rc=result.returncode, stdout=result.stdout, stderr=result.stderr
+    )
+    return not render_expression(
+        expression=task['until'], variables={'ai_service_setup': registered}
+    )
+
+
+def setup_finished(*, result: subprocess.CompletedProcess[str]) -> tuple[bool, str]:
+    """Evaluate the check after setup on a real setup.sh run, with its message.
+
+    Returns:
+        Whether the check passes, and what it would say if not.
+    """
+    task = named_task(role='ai_service', file_name='linux.yml', name=SETUP_FINISHED_TASK)
+    variables = ansible_variables(system='Linux', architecture='aarch64', home=Path('/home/pi'))
+    variables['ai_service_setup'] = registered_command(
+        rc=result.returncode, stdout=result.stdout, stderr=result.stderr
+    )
+    passes = all(
+        render_expression(expression=condition, variables=variables)
+        for condition in task['ansible.builtin.assert']['that']
+    )
+    message = render_value(value=task['ansible.builtin.assert']['fail_msg'], variables=variables)
+    return passes, message
+
+
+@needs_a_posix_shell
+def test_ansible_waits_out_a_setup_run_already_going_and_needs_its_own_to_finish(
+    tmp_path: Path,
+):
+    """Exit 0 from a run that found the lock taken means nothing is ready yet.
+
+    The real setup.sh, as Ansible meets it after the postinst started one: the second run's
+    output makes Ansible run setup again, and only a run that did the job itself passes the
+    check, so the smoke test never starts before the models are here.
+    """
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    first = start_setup(setup=setup, extra={'CURL_DELAY_SECONDS': '1'})
+    try:
+        wait_until_downloading(setup=setup)
+        second = start_setup(setup=setup, extra={})
+        second_output, second_errors = second.communicate(timeout=120)
+        first_output, first_errors = first.communicate(timeout=120)
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(first.pid, signal.SIGKILL)
+        first.wait(timeout=10)
+    found_the_lock_taken = subprocess.CompletedProcess(
+        args=[], returncode=second.returncode, stdout=second_output, stderr=second_errors
+    )
+    own_run = setup.run()
+
+    assert found_the_lock_taken.returncode == 0
+    assert setup_retries(result=found_the_lock_taken) is True
+    assert setup_finished(result=found_the_lock_taken)[0] is False
+    assert first.returncode == 0, first_output + first_errors
+    assert own_run.returncode == 0, own_run.stdout + own_run.stderr
+    assert setup_retries(result=own_run) is False
+    assert setup_finished(result=own_run)[0] is True
+
+
+@needs_a_posix_shell
+def test_a_failed_setup_stops_the_install_and_says_why(tmp_path: Path):
+    """A download that fails ends the wait at once, and the check names setup's own words."""
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+
+    failed = setup.run(extra={'CURL_FAILS_AFTER_BYTES': '5'})
+    passes, message = setup_finished(result=failed)
+
+    assert failed.returncode == 1
+    assert setup_retries(result=failed) is False
+    assert passes is False
+    assert 'setup.sh failed (exit 1)' in message
+    assert 'it resumes on the next run' in message
+
+
+def test_a_setup_still_running_at_the_timeout_says_so():
+    """When another run holds the lock to the end, the message says it was still going."""
+    lock_taken = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout='setup: another setup run for /home/pi/.local/share/glitchygames/ai is already'
+        ' running; it finishes the job\n',
+        stderr='',
+    )
+    defaults = role_defaults(role='ai_service')
+    waited = defaults['ai_service_setup_retries'] * defaults['ai_service_setup_delay_seconds']
+
+    passes, message = setup_finished(result=lock_taken)
+
+    assert passes is False
+    assert f'still running after {waited} seconds' in message
+    assert 'journalctl --user -u ai.glitchygames.setup.service' in message
+
+
+def test_on_linux_ansible_downloads_no_model_but_fetches_the_notices():
+    """setup.sh downloads each user's models; the package still carries the licenses."""
+    tasks = role_tasks(role='ai_models')
+    (downloads,) = [task for task in tasks if 'block' in task]
+    block_names = [task['name'] for task in downloads['block']]
+    outside = [task['name'] for task in tasks if 'block' not in task]
+
+    assert downloads['when'] == "ansible_facts['system'] == 'Darwin'"
+    assert 'Download and verify the models' in block_names
+    assert "Refuse to start a download that won't fit" in block_names
+    assert outside == [
+        'Make the notices directory',
+        "Fetch each Bonsai size's license and notice at its pinned revision",
+    ]
+
+
+def test_linux_validation_checks_the_installed_runtime_and_only_the_downloaded_models(
+    tmp_path: Path,
+):
+    """setup.sh downloads only the selected sizes, so validation checks what is there.
+
+    It runs the server the .deb installed, through the runtime link, at the verbosity that logs
+    which CPU variant loaded.
+    """
+    service = ServiceHome(system='Linux', home=tmp_path / 'home', tools=tmp_path / 'tools')
+    facts = run_set_fact_tasks(tasks=role_tasks(role='ai_validate'), variables=service.variables)
+    present = {'bonsai-2-2b', 'qwen3-embedding-0.6b'}
+    registered = {
+        'results': [
+            {'item': model, 'stat': {'exists': model['alias'] in present}}
+            for model in facts['ai_validate_models']
+        ]
+    }
+    chosen = run_set_fact_tasks(
+        tasks=role_tasks(role='ai_validate', file_name='linux.yml'),
+        variables=facts | {'ai_validate_present': registered},
+    )
+
+    assert [model['alias'] for model in chosen['ai_validate_checked_models']] == [
+        'bonsai-2-2b',
+        'qwen3-embedding-0.6b',
+    ]
+    assert chosen['ai_validate_server'] == '/opt/glitchygames/ai/runtime/current/bin/llama-server'
+    assert all('--verbose' in model['arguments'] for model in chosen['ai_validate_checked_models'])
+    stat_task = named_task(
+        role='ai_validate', file_name='linux.yml', name='Find which models setup downloaded'
+    )
+    model = facts['ai_validate_models'][0]
+    path = render_value(value=stat_task['ansible.builtin.stat']['path'], variables={'item': model})
+    assert path == model['arguments'][model['arguments'].index('--model') + 1]
+
+
+def test_the_mac_validation_still_checks_every_model_with_the_build_ansible_installed(
+    tmp_path: Path,
+):
+    """A Mac downloads every size, so every one is checked, with llama_cpp's own build."""
+    service = ServiceHome(system='Darwin', home=tmp_path / 'home', tools=tmp_path / 'tools')
+    variables = service.variables | {'llama_cpp_install_directory': '/runtime/llama.cpp-b1'}
+    facts = run_set_fact_tasks(tasks=role_tasks(role='ai_validate'), variables=variables)
+    chosen = run_set_fact_tasks(
+        tasks=role_tasks(role='ai_validate', file_name='macos.yml'), variables=facts
+    )
+
+    assert chosen['ai_validate_checked_models'] == facts['ai_validate_models']
+    assert chosen['ai_validate_server'] == '/runtime/llama.cpp-b1/bin/llama-server'
+
+
+def test_the_checks_run_on_the_host_not_the_controller():
+    """Over SSH the controller's Python and the playbook's folder aren't on the host.
+
+    The checks are copied to the host and run by its own Python, on both platforms.
+    """
+    runners: list[str] = []
+    for role in ('ai_service', 'ai_validate'):
+        for path in sorted((ROLES / role / 'tasks').glob('*.yml')):
+            for task in walk_tasks(tasks=yaml.safe_load(path.read_text(encoding='utf-8'))):
+                argv = task.get('ansible.builtin.command', {}).get('argv', [])
+                text = json.dumps(argv)
+                if (
+                    'ansible_playbook_python' in text
+                    or 'role_path' in text
+                    or ('playbook_dir' in text)
+                ):
+                    runners.append(f'{path.name}: {task["name"]}')
+    copy = named_task(role='ai_service', file_name='checks.yml', name='Put the checks on the host')
+
+    assert runners == []
+    assert copy['ansible.builtin.copy']['src'] == (
+        '{{ playbook_dir }}/roles/ai_service/files/{{ item }}'
+    )
+    assert copy['loop'] == ['smoke_test.py', 'api_smoke_test.py']
+
+
+def smoke_test_module(*, mocker: MockerFixture) -> Any:
+    """Load the smoke test as a module: it is a script beside the role, not a package.
+
+    No bytecode is written beside it, where the role's folder would carry it.
+
+    Returns:
+        The module.
+
+    Raises:
+        ImportError: Python can't make a module of the file.
+    """
+    mocker.patch.object(sys, 'dont_write_bytecode', new=True)
+    path = ROLES / 'ai_service' / 'files' / 'smoke_test.py'
+    specification = importlib.util.spec_from_file_location('smoke_test', path)
+    if specification is None or specification.loader is None:
+        message = f'cannot load {path}'
+        raise ImportError(message)
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
+# /proc/PID/status as Linux writes it (proc_pid_status(5)): one "Name:<tab>value" per line, memory
+# in kB
+PROC_STATUS = """Name:\tllama-server
+Umask:\t0022
+State:\tS (sleeping)
+Tgid:\t4242
+Pid:\t4242
+VmPeak:\t 7654321 kB
+VmSize:\t 7600000 kB
+VmHWM:\t 3500000 kB
+VmRSS:\t 3456789 kB
+RssAnon:\t  123456 kB
+RssFile:\t 3333333 kB
+Threads:\t7
+voluntary_ctxt_switches:\t150
+"""
+# llama.cpp b12167's own words: ggml/src/ggml-backend-reg.cpp:259 and common/common.cpp:445, at
+# --log-verbosity 4 or --verbose
+SYSTEM_INFO_LINE = (
+    'system_info: n_threads = 2 (n_threads_batch = 2) / 4 | CPU : NEON = 1 | ARM_FMA = 1 |'
+)
+
+
+def test_the_check_reports_linux_resident_memory_and_threads(mocker: MockerFixture):
+    """Linux has no footprint tool, as a Mac has: /proc gives the resident memory and threads."""
+    smoke_test = smoke_test_module(mocker=mocker)
+
+    report = smoke_test.linux_process_report(status_text=PROC_STATUS)
+
+    assert report == {'resident_mib': round(3456789 / 1024, 1), 'process_threads': 7}
+    assert smoke_test.linux_process_report(status_text='Name:\tgone\n') == {
+        'resident_mib': None,
+        'process_threads': None,
+    }
+
+
+def test_the_check_keeps_the_cpu_variant_and_thread_lines_of_the_log(mocker: MockerFixture):
+    """The validation's evidence on Linux: which variant loaded, and the threads used."""
+    pattern = smoke_test_module(mocker=mocker).LOG_LINES_OF_INTEREST
+
+    assert pattern.search(GOOD_LOAD_LINE)
+    assert pattern.search(SYSTEM_INFO_LINE)
+    assert not pattern.search('srv  log_server_r: request: GET /health 127.0.0.1 200')
+
+
+def test_linux_uninstall_runs_the_users_uninstaller_before_removing_the_package():
+    """The package holds uninstall-user.sh, so the owner's part goes first, then the package."""
+    tasks = role_tasks(role='ai_uninstall', file_name='linux.yml')
+    names = [task['name'] for task in tasks]
+    uninstaller = named_task(
+        role='ai_uninstall', file_name='linux.yml', name=RUN_USER_UNINSTALLER_TASK
+    )
+    removal = named_task(role='ai_uninstall', file_name='linux.yml', name=REMOVE_PACKAGE_TASK)
+
+    assert names.index(RUN_USER_UNINSTALLER_TASK) < names.index(REMOVE_PACKAGE_TASK)
+    assert uninstaller['ansible.builtin.command']['argv'] == (
+        "{{ [ai_service_bin_directory ~ '/' ~ ai_package_uninstaller_name]\n"
+        "   + (['--remove-models'] if ai_uninstall_models | bool else []) }}"
+    )
+    assert 'become' not in uninstaller
+    assert removal['become'] is True
+    assert removal['ansible.builtin.apt'] == {
+        'name': '{{ ai_package_deb_name }}',
+        'state': 'absent',
+    }
+
+
+def test_no_include_names_its_file_in_a_free_form_argument_with_an_equals_sign():
+    """Ansible reads `name=value` in a free-form include as options and refuses the task.
+
+    A platform include written as one string, with `==` in its expression, passed every rendering
+    test here and failed only in ansible-playbook --syntax-check; the file: form avoids it.
+    """
+    free_form = [
+        f'{path.relative_to(ROLES)}: {task["name"]}'
+        for path in sorted(ROLES.glob('*/tasks/*.yml'))
+        for task in walk_tasks(tasks=yaml.safe_load(path.read_text(encoding='utf-8')) or [])
+        for key in ('ansible.builtin.include_tasks', 'ansible.builtin.import_tasks')
+        if isinstance(task.get(key), str) and '=' in task[key]
+    ]
+
+    assert free_form == []

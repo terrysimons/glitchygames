@@ -27,7 +27,7 @@ uv sync --extra dev --all-packages
 
 ### Install the Local AI Service
 
-The server gets its answers from the local AI service, and nothing leaves the machine. Install it with `ansible/macos_ai_service.yml` or its package (Apple Silicon only for now). It starts by itself on the first request.
+The server gets its answers from the local AI service, and nothing leaves the machine. Install it with `ansible/ai_service.yml` or its package (Apple Silicon only for now). It starts by itself on the first request.
 
 ### Environment Variables
 

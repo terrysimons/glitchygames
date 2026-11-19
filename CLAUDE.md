@@ -79,7 +79,7 @@ with a tool option. Reference: docs/architecture/gameplay_replay.md.
 
 ### Local AI service
 
-Installed by Ansible (`ansible/macos_ai_service.yml`; plans/lucid-circuit.md), its own project in
+Installed by Ansible (`ansible/ai_service.yml`; plans/lucid-circuit.md), its own project in
 `services/ai-service/` (own tests, lock file, 100% coverage) that shares no code with the engine.
 Games reach it only over a socket (127.0.0.1:23231) through `src/glitchygames/ai_link.py` and
 `ai_host.py`: on by default (`--ai`/`--no-ai`), never with `--headless`, in a replay or browser.

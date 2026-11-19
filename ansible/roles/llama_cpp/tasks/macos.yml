@@ -5,8 +5,11 @@
   ansible.builtin.assert:
     that:
       - ansible_facts['system'] == 'Darwin'
-      - ansible_facts['machine'] == 'arm64'
-    fail_msg: "This builds for Apple Silicon only; this is {{ ansible_facts['system'] }} {{ ansible_facts['machine'] }}"
+      # The architecture fact, as every platform's choice is (plans/lucid-circuit-linux.md, 4). On
+      # an Apple Silicon Mac it reads arm64, as the machine fact this used to read does (both
+      # checked with ansible-core's setup module, 2026-11-19)
+      - ansible_facts['architecture'] == 'arm64'
+    fail_msg: "This builds for Apple Silicon only; this is {{ ansible_facts['system'] }} {{ ansible_facts['architecture'] }}"
 
 - name: Get ready to build for the Mac
   when: llama_cpp_phase == 'prepare'

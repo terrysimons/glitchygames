@@ -2,8 +2,9 @@
 
 - **Date:** 2026-11-06
 - **Status:** In progress on branch `worktree-ai-service-ansible` (uncommitted). Built: the Ansible
-  setup for the model service and its `.pkg` (`ansible/macos_ai_service.yml`), the service itself, and
-  the engine's connection to it, and a read-only console (section 7, Stages 0-4).
+  setup for the model service and its `.pkg` (`ansible/ai_service.yml`, `macos_ai_service.yml`
+  until the Linux port), the service itself, and the engine's connection to it, and a read-only
+  console (section 7, Stages 0-4).
   Agents and everything after are not built.
 - **Source:** the owner's brief, `/Users/terry/Documents/glitchygames-embedding-service-instructions.md`
   ("GlitchyGames AI platform"), plus the owner's decisions in the 2026-11-06 planning session. The
@@ -323,10 +324,10 @@ installed plists invalid); `plutil -lint` validates before install; `127.0.0.1` 
 launchd would otherwise restart the job forever; no speculative-decoding block (Prism: `ngram` has no
 effect, and its drafters need the fork).
 
-**Ansible (built):** `ansible/macos_ai_service.yml`, `hosts: macos`, run through `uvx --from
-ansible-core` like the Pi playbook. Every directory, download and agent comes from it. It doesn't
-install Xcode or CMake, only checks for them. Ansible runs only where the package is built; players
-never need it.
+**Ansible (built):** `ansible/ai_service.yml` (its Mac play; `macos_ai_service.yml` until the
+Linux port), `hosts: macos`, run through `uvx --from ansible-core` like the Pi playbook. Every
+directory, download and agent comes from it. It doesn't install Xcode or CMake, only checks for
+them. Ansible runs only where the package is built; players never need it.
 
 | Role | What it does |
 |---|---|

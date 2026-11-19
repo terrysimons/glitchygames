@@ -1,5 +1,8 @@
 ---
 # Starts what a game would get, checks it, and stops it again, so an install leaves nothing running
+- name: Put the checks on the host
+  ansible.builtin.include_tasks: checks.yml
+
 - name: Start the models this machine would pick now
   ansible.builtin.command:
     argv: ["{{ ai_service_control }}", start]
@@ -43,8 +46,8 @@
     - name: Ask the running models questions with known answers
       ansible.builtin.command:
         argv:
-          - "{{ ansible_playbook_python }}"
-          - "{{ role_path }}/files/smoke_test.py"
+          - "{{ ansible_facts['python']['executable'] }}"
+          - "{{ ai_service_checks_directory }}/smoke_test.py"
           - --config
           - "{{ ai_cache_root }}/smoke-test.json"
       register: ai_service_smoke_test
@@ -65,7 +68,7 @@
       ansible.builtin.command:
         argv:
           - "{{ ai_sidecar_directory }}/python/bin/python3.14"
-          - "{{ role_path }}/files/api_smoke_test.py"
+          - "{{ ai_service_checks_directory }}/api_smoke_test.py"
           - --port
           - "{{ ai_service_api_port }}"
           - --key-file

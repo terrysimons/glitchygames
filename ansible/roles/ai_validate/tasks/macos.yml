@@ -1,0 +1,7 @@
+---
+# A Mac checks every size: Ansible downloaded them all, and the llama_cpp role says which build it
+# installed (the play runs it under --tags ai_validate too)
+- name: Check every model with the build Ansible installed
+  ansible.builtin.set_fact:
+    ai_validate_server: "{{ llama_cpp_install_directory }}/bin/llama-server"
+    ai_validate_checked_models: "{{ ai_validate_models }}"

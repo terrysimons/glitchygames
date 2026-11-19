@@ -1,0 +1,32 @@
+---
+# Linux checks what the .deb installed and what setup.sh downloaded: the program folder's server,
+# through the runtime link every user's settings name, and the sizes this machine runs (setup.sh
+# downloads only those). The --verbose every check runs with logs the CPU variant llama.cpp loaded
+# (load_backend) and its threads (system_info), which b12167's default verbosity drops
+- name: Find which models setup downloaded
+  ansible.builtin.stat:
+    path: "{{ item.arguments[item.arguments.index('--model') + 1] }}"
+    get_checksum: false
+  loop: "{{ ai_validate_models }}"
+  loop_control:
+    label: "{{ item.alias }}"
+  register: ai_validate_present
+
+- name: Check the downloaded models with the installed server
+  ansible.builtin.set_fact:
+    ai_validate_server: "{{ ai_program_root }}/runtime/{{ ai_package_runtime_link }}/bin/llama-server"
+    ai_validate_checked_models: >-
+      {{ ai_validate_present.results | selectattr('stat.exists') | map(attribute='item') | list }}
+
+- name: Say which sizes aren't here to check
+  ansible.builtin.debug:
+    msg: >-
+      Not downloaded on this machine, so not checked:
+      {{ ai_validate_present.results | rejectattr('stat.exists') | map(attribute='item.alias') | list }}
+
+- name: Refuse to check nothing
+  ansible.builtin.assert:
+    that: ai_validate_checked_models | length > 0
+    fail_msg: >-
+      No model is downloaded yet: --tags ai_service installs the service and runs setup.sh, which
+      downloads them

@@ -1,0 +1,73 @@
+---
+# The Mac's install (plans/lucid-circuit.md, section 6): Ansible writes the user's settings, scripts
+# and launchd agents itself, as it always has, then checks the models answer
+- name: Make the service's directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ ai_cache_root }}"
+    - "{{ ai_service_bin_directory }}"
+    - "{{ ai_service_config_directory }}"
+    - "{{ ai_service_agents_directory }}"
+    - "{{ ai_log_root }}"
+
+- name: Record a size chosen by hand
+  ansible.builtin.copy:
+    content: "bonsai_override={{ ai_service_bonsai_size | quote }}\n"
+    dest: "{{ ai_service_config_directory }}/selection.env"
+    mode: "0644"
+  when: ai_service_bonsai_size | length > 0
+
+- name: Otherwise let each run choose
+  ansible.builtin.file:
+    path: "{{ ai_service_config_directory }}/selection.env"
+    state: absent
+  when: ai_service_bonsai_size | length == 0
+
+- name: Generate the API keys
+  ansible.builtin.shell:
+    cmd: umask 077 && openssl rand -hex 32 > {{ item | quote }}
+    creates: "{{ item }}"
+  loop:
+    - "{{ ai_service_api_key_file }}"
+    - "{{ ai_service_service_key_file }}"
+  no_log: true
+
+- name: Write the service's settings
+  ansible.builtin.template:
+    src: service.json.j2
+    dest: "{{ ai_service_config_directory }}/service.json"
+    mode: "0644"
+
+- name: Install the script each agent runs
+  ansible.builtin.template:
+    src: run-llama-server.sh.j2
+    dest: "{{ ai_service_runner }}"
+    mode: "0755"
+    validate: sh -n %s
+
+- name: Install the script that starts and stops the models
+  ansible.builtin.template:
+    src: ai-service.sh.j2
+    dest: "{{ ai_service_control }}"
+    mode: "0755"
+    validate: sh -n %s
+
+- name: Install the uninstaller
+  ansible.builtin.template:
+    src: uninstall.sh.j2
+    dest: "{{ ai_service_bin_directory }}/uninstall.sh"
+    mode: "0755"
+    validate: sh -n %s
+
+- name: Install each agent, ready to start on demand
+  ansible.builtin.include_tasks: agent.yml
+  loop: "{{ ai_service_agents }}"
+  loop_control:
+    loop_var: agent
+    label: "{{ agent.label }}"
+
+- name: Check that the models answer correctly
+  ansible.builtin.include_tasks: smoke_test.yml

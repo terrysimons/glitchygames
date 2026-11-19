@@ -2,6 +2,12 @@
 # Linux's .deb (plans/lucid-circuit-linux.md, 6.7): the user units, Debian's control file and
 # maintainer scripts, and dpkg-deb (the handler). llama.cpp and the sidecar are already in the
 # stage, built there by their roles, so a change to either is found by its files' times
+
+# On Linux the ai_service role installs this package, so it runs after this role: the agents the
+# package holds are listed here, by the same tasks
+- name: List the agents the package holds
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/roles/ai_service/tasks/list_agents.yml"
+
 - name: Name where the runtime installs
   ansible.builtin.set_fact:
     ai_package_installed_runtime: "{{ ai_program_root }}/runtime/{{ ai_package_runtime_name }}"

@@ -272,7 +272,7 @@ The other replay options (`--replay-fps`, `--audit`, `--compare-processing`, `--
 
 ## AI Sprite Generation
 
-GlitchyGames generates sprites from text with local models, through the local AI service (`ansible/macos_ai_service.yml` or its package; Apple Silicon only for now). Nothing leaves the machine. Cloud models are planned for later (`plans/lucid-circuit.md`).
+GlitchyGames generates sprites from text with local models, through the local AI service (`ansible/ai_service.yml` or its package; Apple Silicon only for now). Nothing leaves the machine. Cloud models are planned for later (`plans/lucid-circuit.md`).
 
 ### Configuration
 

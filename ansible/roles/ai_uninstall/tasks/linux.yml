@@ -1,0 +1,24 @@
+---
+# Linux's service is the .deb plus each user's part (plans/lucid-circuit-linux.md, 6.9): the owner's
+# part goes first, by the uninstall-user.sh the package holds (it stops the owner's units and
+# removes what setup.sh wrote), then the package. The other way round, removing the package would
+# take the uninstaller with it. Another user's part stays until they run it themselves
+- name: Look for the owner's uninstaller
+  ansible.builtin.stat:
+    path: "{{ ai_service_bin_directory }}/{{ ai_package_uninstaller_name }}"
+    get_checksum: false
+  register: ai_uninstall_script
+
+- name: Run the owner's uninstaller while the package still holds it
+  ansible.builtin.command:
+    argv: >-
+      {{ [ai_service_bin_directory ~ '/' ~ ai_package_uninstaller_name]
+         + (['--remove-models'] if ai_uninstall_models | bool else []) }}
+  when: ai_uninstall_script.stat.exists
+  changed_when: true
+
+- name: Remove the package
+  ansible.builtin.apt:
+    name: "{{ ai_package_deb_name }}"
+    state: absent
+  become: true

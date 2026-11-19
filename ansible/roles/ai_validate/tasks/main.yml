@@ -1,7 +1,9 @@
 ---
 # Checks every downloaded model, not only the selected ones, each in its own temporary llama-server
-# on a port clear of the agents', and reports speed, memory and where the model's layers ran. It's
-# slow and changes nothing, so it only runs when asked: --tags ai_validate
+# on a port clear of the agents', and reports speed, memory and where the model ran: on a Mac where
+# its layers went (Metal), on Linux its resident memory, the threads used and the CPU variant
+# llama.cpp loaded (plans/lucid-circuit-linux.md, 6.9). It's slow and changes nothing, so it only
+# runs when asked: --tags ai_validate
 # Each check runs llama-server with the service's own arguments (ai_service_llama_server_arguments,
 # which run-llama-server.sh passes too), so it checks what the service runs. Only the port differs,
 # clear of the agents', and --verbose, for the log the check reads. Each $NAME in the list is
@@ -75,17 +77,22 @@
              + ['--verbose']}] }}
   loop: "{{ ai_models_qwen_sizes }}"
 
-- name: Make the cache directory
-  ansible.builtin.file:
-    path: "{{ ai_cache_root }}"
-    state: directory
-    mode: "0755"
+# The platform says which server checks and which models: a Mac downloads every size and checks
+# them with the build Ansible installed; Linux checks what setup.sh downloaded, with the server the
+# package installed
+- name: Choose the server and the models this platform checks
+  ansible.builtin.include_tasks:
+    # The file: form, as a free-form argument holding = is read as key=value options
+    file: "{{ 'macos' if ansible_facts['system'] == 'Darwin' else 'linux' }}.yml"
+
+- name: Put the checks on the host
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/roles/ai_service/tasks/checks.yml"
 
 - name: Write the checks' description
   ansible.builtin.copy:
     content: >-
-      {{ {'server': [llama_cpp_install_directory ~ '/bin/llama-server'],
-          'models': ai_validate_models,
+      {{ {'server': [ai_validate_server],
+          'models': ai_validate_checked_models,
           'api_key_file': ai_service_api_key_file} | to_nice_json }}
     dest: "{{ ai_cache_root }}/validate.json"
     mode: "0600"
@@ -94,8 +101,8 @@
 - name: Check every model
   ansible.builtin.command:
     argv:
-      - "{{ ansible_playbook_python }}"
-      - "{{ playbook_dir }}/roles/ai_service/files/smoke_test.py"
+      - "{{ ansible_facts['python']['executable'] }}"
+      - "{{ ai_service_checks_directory }}/smoke_test.py"
       - --config
       - "{{ ai_cache_root }}/validate.json"
   register: ai_validate_result
@@ -111,5 +118,5 @@
     that:
       - ai_validate_result.rc == 0
       # An empty report isn't a pass: every model has to have answered for itself
-      - ai_validate_result.stdout_lines | length == ai_validate_models | length
+      - ai_validate_result.stdout_lines | length == ai_validate_checked_models | length
     fail_msg: "{{ ai_validate_result.stderr }} {{ ai_validate_result.stdout }}"

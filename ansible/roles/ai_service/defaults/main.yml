@@ -95,6 +95,11 @@ ai_service_llama_server_arguments:
 # How long a model may take to load before the agent is called failed
 ai_service_ready_retries: 60
 ai_service_ready_delay_seconds: 5
+# How long Ansible waits on Linux for a setup run already going (the .deb's postinst starts one in
+# the background) to download the models, before it calls the install failed: two hours, as the
+# 2B, its vision part and the Compact Qwen are 1.55 GB, which takes that long at about 1.7 Mbit/s
+ai_service_setup_retries: 720
+ai_service_setup_delay_seconds: 10
 
 ai_service_config_directory: "{{ ai_user_root }}/config"
 ai_service_bin_directory: "{{ ai_program_root }}/bin"
@@ -107,3 +112,8 @@ ai_service_service_key_file: "{{ ai_service_config_directory }}/service-api-key"
 ai_service_api_label: "{{ ai_service_label_prefix }}.api"
 ai_service_runner: "{{ ai_service_bin_directory }}/run-llama-server.sh"
 ai_service_control: "{{ ai_service_bin_directory }}/ai-service.sh"
+# Where the checks are copied to on the host, which over SSH isn't the machine running Ansible
+ai_service_checks_directory: "{{ ai_cache_root }}/checks"
+# On Linux, the SHA-256 of the .deb Ansible installed last: apt skips a rebuilt package of the same
+# version, so this says whether the built one is already installed
+ai_service_installed_package_checksum_file: "{{ ai_package_directory }}/installed.sha256"

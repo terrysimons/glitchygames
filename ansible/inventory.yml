@@ -1,7 +1,7 @@
 ---
 all:
   vars:
-    # Whether a host gets the local AI service (ansible/macos_ai_service.yml). A platform that
+    # Whether a host gets the local AI service (ansible/ai_service.yml). A host or group that
     # can't run it turns it off here, and the AI playbook then leaves that host alone
     ai_enabled: true
   children:
@@ -12,7 +12,8 @@ all:
       vars:
         ansible_user: terry
         ansible_python_interpreter: /usr/bin/python3
-        # A Raspberry Pi has neither the memory nor the GPU for the models
+        # Off for the group: a Pi with less than 16 GB can't hold the models, so each 16 GB Pi
+        # turns the service on for itself (plans/lucid-circuit-linux.md, 8.2)
         ai_enabled: false
       hosts:
         raspberry-pi-4:
@@ -21,12 +22,21 @@ all:
           # .circleci/config.yml's build-and-test-raspberry-pi-4 names this (tests/test_ci_config.py)
           raspberry_pi_resource_class: terrysimons/raspberry-pi-4
           raspberry_pi_description: Raspberry Pi 4 with a real display
+          host_memory_gb: 4
         raspberry-pi-5:
           ansible_host: 172.23.23.161
           raspberry_pi_hostname: rpi5-ubuntu-2604
           # .circleci/config.yml's build-and-test-raspberry-pi-5 names this (tests/test_ci_config.py)
           raspberry_pi_resource_class: terrysimons/raspberry-pi-5
           raspberry_pi_description: Raspberry Pi 5 (16 GB) with a real display
+          host_memory_gb: 16
+          ai_enabled: true
+    # Every Linux host (group_vars/linux.yml holds where the AI service lives on one). Each states
+    # its memory in host_memory_gb, and those with 16 GB or more set ai_enabled: true for
+    # themselves: the AI roles never test for a board (plans/lucid-circuit-linux.md, 6.9)
+    linux:
+      children:
+        raspberry_pis:
     macos:
       vars:
         # llama.cpp's Metal options:

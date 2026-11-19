@@ -1,11 +1,14 @@
 ---
-# The GlitchyGames local AI service on a Mac (plans/lucid-circuit.md): llama.cpp built from source
-# with Metal, the models, the per-user launchd agents and the .pkg. From the repository root:
+# The GlitchyGames local AI service (plans/lucid-circuit.md, plans/lucid-circuit-linux.md). On a Mac:
+# llama.cpp built from source with Metal, the models, the per-user launchd agents and the .pkg. On
+# Linux: llama.cpp and the sidecar built on the host, the .deb built from them and installed, then
+# the installed setup.sh run for the owner, which downloads the models. From the repository root:
 #   uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/ai_service.yml
-# One piece at a time with --tags llama_cpp (or ai_models, ai_sidecar, ai_service, ai_package). No root: this
-# installs for the user running it. Running it again changes nothing unless something did.
-# --tags ai_validate checks every model, and --tags ai_uninstall removes the service.
-# Only hosts whose ai_enabled is true (ansible/inventory.yml) get it; the others are never contacted.
+# A Linux host needs -K (--ask-become-pass): only apt takes root. One piece at a time with --tags
+# llama_cpp (or ai_models, ai_sidecar, ai_service, ai_package). Running it again changes nothing
+# unless something did. --tags ai_validate checks every model, and --tags ai_uninstall removes the
+# service. Only hosts whose ai_enabled is true (ansible/inventory.yml) get it; the others are never
+# contacted.
 - name: Sort the hosts by whether they get the AI service
   hosts: all
   # group_by runs on the controller, so a host that is off (or unreachable) is never connected to
@@ -17,7 +20,7 @@
         key: "{{ 'ai_enabled' if ai_enabled | bool else 'ai_disabled' }}"
       changed_when: false
 
-- name: Build and install the local AI service
+- name: Build and install the local AI service on a Mac
   hosts: macos:&ai_enabled
   become: false
   roles:
@@ -35,6 +38,31 @@
     - role: ai_package
       tags: [ai_package]
     # Only when asked: --tags ai_validate
+    - role: ai_validate
+      tags: [never, ai_validate]
+    # Only when asked: --tags ai_uninstall
+    - role: ai_uninstall
+      tags: [never, ai_uninstall]
+
+# On Linux the service is the .deb (plans/lucid-circuit-linux.md, 5.1): the package is built before
+# ai_service installs it, so every tag that installs the service builds the package first. The play
+# runs as the host's user and raises to root per task, for apt alone (6.9)
+- name: Build and install the local AI service on Linux
+  hosts: linux:&ai_enabled
+  become: false
+  roles:
+    - role: llama_cpp
+      tags: [llama_cpp, ai_service, ai_package]
+    # On Linux only the models' notices, which the package carries: setup.sh downloads the models
+    - role: ai_models
+      tags: [ai_models, ai_service, ai_package]
+    - role: ai_sidecar
+      tags: [ai_sidecar, ai_service, ai_package]
+    - role: ai_package
+      tags: [ai_package, ai_service]
+    - role: ai_service
+      tags: [ai_service]
+    # Only when asked: --tags ai_validate. It checks the installed package's server
     - role: ai_validate
       tags: [never, ai_validate]
     # Only when asked: --tags ai_uninstall
