@@ -2,7 +2,9 @@
 all:
   vars:
     # Whether a host gets the local AI service (ansible/ai_service.yml). A host or group that
-    # can't run it turns it off here, and the AI playbook then leaves that host alone
+    # can't run it turns it off here, and the AI playbook then leaves that host alone. Every Pi
+    # gets it (the owner, 2026-11-19): the memory tiers pick what each runs from its
+    # host_memory_gb (plans/lucid-circuit-linux.md, 6.4.1), so no group or host below sets it
     ai_enabled: true
   children:
     # The Raspberry Pis (ansible/raspberry_pi_runner.yml sets each up): CircleCI machine runners
@@ -13,9 +15,6 @@ all:
       vars:
         ansible_user: terry
         ansible_python_interpreter: /usr/bin/python3
-        # Off for the group: a Pi with less than 16 GB can't hold the models, so each 16 GB Pi
-        # turns the service on for itself (plans/lucid-circuit-linux.md, 8.2)
-        ai_enabled: false
         # The runner's display: 1920x1080 at 120 Hz, the standard 1080p120 timing both boards offer
         # (a Pi 5 also offers 120.04, a Pi 4 doesn't), so all three drive the display alike; the
         # highest rate at that size if 120 isn't offered (the owner, 2026-11-14)
@@ -84,7 +83,6 @@ all:
               raspberry_pi_resource_class: terrysimons/raspberry-pi-5-16gb-ubuntu
               raspberry_pi_description: Raspberry Pi 5 (16 GB, overclocked to 3.0 GHz) with a real display
               host_memory_gb: 16
-              ai_enabled: true
               raspberry_pi_os_release: "26.04"
               raspberry_pi_board: pi5
               # Overclocked by hand to 3000 MHz at over_voltage 6 (read 2026-11-14). The GPU's
@@ -133,7 +131,6 @@ all:
               raspberry_pi_resource_class: terrysimons/raspberry-pi-5-16gb-raspberry-pi-os
               raspberry_pi_description: Raspberry Pi 5 (16 GB, overclocked to 3.0 GHz) on Raspberry Pi OS with a real display
               host_memory_gb: 16
-              ai_enabled: true
               raspberry_pi_os_release: "13"
               raspberry_pi_board: pi5
               # The Ubuntu 16 GB Pi's overclock (stock until now: read 2026-11-16). Values found
@@ -153,8 +150,8 @@ all:
               # MemoryMax is not enforced; its boot arguments are left alone for now (a to-do:
               # plans/future-work.md, "The Raspberry Pi OS Pi's memory cgroup")
     # Every Linux host (group_vars/linux.yml holds where the AI service lives on one). Each states
-    # its memory in host_memory_gb, and those with 16 GB or more set ai_enabled: true for
-    # themselves: the AI roles never test for a board (plans/lucid-circuit-linux.md, 6.9)
+    # its memory in host_memory_gb, from which the memory tiers pick the models it runs: the AI
+    # roles never test for a board (plans/lucid-circuit-linux.md, 6.4.1 and 6.9)
     linux:
       children:
         raspberry_pis:

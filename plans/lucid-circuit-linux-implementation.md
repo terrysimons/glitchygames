@@ -505,7 +505,8 @@ test in the task named.
 - Rename: `ansible/macos_ai_service.yml` → `ansible/ai_service.yml`;
   `tests/test_ansible_macos_ai_service.py` → `tests/test_ansible_ai_service.py`
 - Modify: `ansible/inventory.yml` (a `linux` group; `host_memory_gb` on every Linux host;
-  `ai_enabled: true` on the 16 GB Pi 5 host(s))
+  `ai_enabled: true` on the 16 GB Pi 5 host(s); since the owner's 2026-11-19 decision no group or
+  host sets it, so every Pi has `all`'s true)
 - Modify: `ansible/roles/ai_models/tasks/main.yml` (on Linux only the notices; `setup.sh`
   downloads models), `ansible/roles/ai_service/tasks/main.yml` (on Linux: install the `.deb` with
   `become`, run the installed `setup.sh` as the owner, then the smoke test)
@@ -525,7 +526,10 @@ test in the task named.
   - `test_every_linux_host_states_its_memory_and_opts_in_at_16_gb` (replaces
     `test_the_ai_service_is_on_by_default_and_off_on_the_raspberry_pis`): every `linux` host has an
     integer `host_memory_gb`; `ai_enabled` is true exactly where it is ≥ 16; the `raspberry_pis`
-    group's own `ai_enabled` stays false.
+    group's own `ai_enabled` stays false. Superseded (the owner, 2026-11-19: the AI on every Pi):
+    now `test_every_linux_host_states_its_memory_and_gets_the_ai` (every `linux` host states an
+    integer `host_memory_gb` and is `ai_enabled`; nothing below `all` sets it) and
+    `test_ansible_itself_gives_every_linux_host_the_ai` (the same through `ansible-inventory --list`).
   - `test_no_ai_role_tests_for_a_board`: no file under the `ai_*`/`llama_cpp` roles mentions
     `raspberry`, `pi5` or a CPU model; architecture appears only as
     `ansible_facts['architecture']`.

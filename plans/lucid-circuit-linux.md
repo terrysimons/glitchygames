@@ -332,7 +332,8 @@ The tiers (`ai_service_bonsai_tiers`) and reserved figures stay shared. Linux ge
 `ai_service_bonsai_reserved_mib` and `ai_service_qwen_reserved_mib` once 8.3 runs, in
 `group_vars/linux.yml`; until then the Mac's figures stand, marked provisional. Memory decides, not
 the machine: a 4 GB board installs the service and gets "not enough memory" at each game start, as
-a small Mac does; the inventory's `ai_enabled` only spares such a host the download. 6.4.1's
+a small Mac does; the inventory's `ai_enabled` only spares such a host the download (since the
+owner's 2026-11-19 decision every Pi has it on, 8.2). 6.4.1's
 tiers, built in Task 11, change that for 8 GB and 4 GB machines: the reserved figures are per tier
 (by context), and a machine below the smallest tier gets nothing at all, downloads included.
 
@@ -671,8 +672,10 @@ playbook. Nothing here depends on the architecture.
   installs that, as each Mac builds its own `.pkg`. A `.deb` therefore always matches its host's
   architecture and distribution release.
 - **Inventory:** a new `linux` group holds every Linux host (no such group exists today). Every
-  `linux` host states an explicit `host_memory_gb`, and those with 16 or more set
-  `ai_enabled: true` for themselves. Nothing in the AI roles tests for a board or a CPU model; only
+  `linux` host states an explicit `host_memory_gb`, and every one gets the AI (the owner,
+  2026-11-19): `all`'s `ai_enabled: true` applies, with no group or host override, and the memory
+  tiers (6.4.1) pick what each runs. (First built as "those with 16 or more set `ai_enabled: true`
+  for themselves", under the `raspberry_pis` group's false.) Nothing in the AI roles tests for a board or a CPU model; only
   `ansible_facts['architecture']`, and only for the values in section 4.
 - **`ai_validate`:** a `linux.yml` beside `macos.yml`: each model in its own temporary server, its
   answers, its resident memory, the threads used and the CPU variant loaded, instead of Metal's
@@ -723,11 +726,11 @@ In `tests/test_ansible_macos_ai_service.py`, renamed with the playbook to
 - The build directory is emptied before configure (10.1).
 - The `.deb`'s control file depends on what its binaries link, and its contents hold every CPU
   variant for its architecture and no model.
-- The inventory: every `linux` host states `host_memory_gb`, and a host has `ai_enabled: true`
-  exactly when that is 16 or more (replaces
-  `test_the_ai_service_is_on_by_default_and_off_on_the_raspberry_pis`; the owner's 2026-11-17
-  decision changes that spec). The play test checks a `macos` and a `linux` service play, each
-  `&ai_enabled`.
+- The inventory: every `linux` host states an integer `host_memory_gb` and is `ai_enabled`, with
+  no group or host below `all` setting it (the owner, 2026-11-19; it was "exactly when that is 16
+  or more", which replaced `test_the_ai_service_is_on_by_default_and_off_on_the_raspberry_pis`).
+  Checked twice: by the suite's inventory merge and by `ansible-inventory --list` itself. The play
+  test checks a `macos` and a `linux` service play, each `&ai_enabled`.
 - The rendered `setup.sh` for Linux carries every pinned model's revision and SHA-256 from
   `ai_models`, as the Mac's does.
 
@@ -813,10 +816,12 @@ Scripts: `scripts/raspberry_pi_llama_cpp/` (`build_llama_cpp.sh`, `benchmark_lla
 
 ### 8.2 Pi-specific facts the design relies on
 
-- **Which Pis:** the 16 GB Pi 5s set `ai_enabled: true`. The 8 GB Pi 5 and the 4 GB Pi 4 don't;
-  the picker would refuse them anyway. First host: the 16 GB Ubuntu 26.04 Pi 5; the 16 GB Raspberry
-  Pi OS 13 Pi when it is in this branch's inventory (it is only on another branch today). The
-  `raspberry_pis` group keeps `ai_enabled: false`; each 16 GB Pi turns it on for itself.
+- **Which Pis:** every Pi (the owner, 2026-11-19): the 16 GB Pi 5s, the 8 GB Pi 5 and the 4 GB
+  Pi 4 all get the AI, and the memory tiers (6.4.1) pick what each runs from its memory. The
+  `raspberry_pis` group no longer sets `ai_enabled`, so `all`'s true applies, and no host sets it
+  for itself. (Until then only the 16 GB Pi 5s set it, under the group's false.) First host: the
+  16 GB Ubuntu 26.04 Pi 5. The 4 GB Pi 4 (Cortex-A72, llama.cpp's `armv8.0_1` build, no fan, has
+  throttled) is unmeasured for speed (13.2).
 - **Distributions:** Ubuntu 26.04, Ubuntu 26.10 and Raspberry Pi OS 13 (Debian 13). Each Pi builds
   its own `.deb` (6.9), so differing glibc versions don't matter now.
 - **Page size:** the 16 GB Ubuntu Pi runs a 16K-page kernel (`7.0.0-999-raspi`), and a 64K-page
@@ -949,7 +954,7 @@ changes for x86_64.
 
 | Decision | Made by |
 |---|---|
-| 16 GB Pi 5s get the service; 2B and 0.6B, as on a Mac | The owner, 2026-11-17 |
+| 16 GB Pi 5s get the service; 2B and 0.6B, as on a Mac (superseded 2026-11-19: every Pi, below) | The owner, 2026-11-17 |
 | A `.deb` like the `.pkg` | The owner, 2026-11-17 |
 | A branch of its own, `feature/ai-service-raspberry-pi` | The owner, 2026-11-17 |
 | The Vulkan and CPU builds measured separately | The owner, 2026-11-17 |
@@ -1003,6 +1008,7 @@ changes for x86_64.
 | The `.deb` depends on `libstdc++6 (>=` the release its GLIBCXX/CXXABI symbols need`)`, read from the build like the glibc floor (Task 6 review) | Designer's call |
 | Fix, in this branch, the Mac `.pkg` naming the builder's runtime instead of the player's (`bugs/2026-11-18-mac-package-settings-name-builders-runtime.md`) | The owner, 2026-11-19 |
 | The `.deb`'s Maintainer: `GlitchyGames <terry.simons@gmail.com>` | The owner, 2026-11-19 |
+| The AI on every Pi: the `raspberry_pis` group's `ai_enabled: false` and the 16 GB Pis' own `ai_enabled: true` are removed, so `all`'s true applies to every Linux host; the memory tiers (6.4.1) pick what each runs (6.9, 8.2). Dropping the override rather than flipping it to true leaves one place that says it | The owner, 2026-11-19 |
 | CI installs no separate ansible-core: the Linux job's `uv tool install "ansible-core==2.22.0"` step, its `test-linux-ci` mirror and the pin half of their drift test are removed; `uv.lock`'s `dev` extra (main's #215) is the one install, which the syntax checks already ran first. The check that the Linux image installs `iproute2` and `lsof` stays (13.1, plan Task 12) | The owner, 2026-11-19 |
 
 ## 13. Open questions, pending measurements, and facts to keep (2026-11-18)
@@ -1034,6 +1040,9 @@ Resolved since (kept for the history):
 ### 13.2 Measurements still to make
 
 - **The two 4 GB reruns** (13.1), on the 16 GB Pi through `MEMORY_LIMIT=2500M BONSAI_CONTEXT=32768`.
+- **The 4 GB Pi 4's speed:** it gets the AI since 2026-11-19 (8.2) but is unmeasured: a Cortex-A72
+  (llama.cpp's `armv8.0_1` build, slower than the Pi 5's `armv8.2_2`), no fan, and it has throttled
+  under load (`get_throttled 0xe0000`, 2026-11-14).
 - **The game beside the models, pinned** (game core 0, models 2-3): frame times through the
   performance overlay (F3, F4) and audio underruns against `--no-ai`; whether one core is enough
   for the game's main loop, SDL's audio thread and the AI link's thread.

@@ -670,8 +670,6 @@ def test_a_plist_holds_no_shell_script():
 
 
 PLAYBOOK = ANSIBLE / 'ai_service.yml'
-# The memory, in GB, from which a Linux host runs the models (plans/lucid-circuit-linux.md, 8.2)
-LINUX_AI_MEMORY_GB = 16
 
 
 def inventory_groups() -> dict[str, dict[str, Any]]:
@@ -711,12 +709,13 @@ def group_host_names(*, groups: dict[str, dict[str, Any]], group: str) -> set[st
     return names
 
 
-def test_every_linux_host_states_its_memory_and_opts_in_at_16_gb():
-    """Each Linux host says how much memory it has, and only those with 16 GB or more opt in.
+def test_every_linux_host_states_its_memory_and_gets_the_ai():
+    """Each Linux host says how much memory it has, and every one gets the AI.
 
-    Nothing in the roles reads a board's name: the inventory says which hosts run the models
-    (plans/lucid-circuit-linux.md, 6.9 and 8.2). The Raspberry Pis' group stays off, and each
-    16 GB Pi turns the service on for itself.
+    The owner, 2026-11-19: all Pis get the AI, and the memory tiers (plans/lucid-circuit-linux.md,
+    6.4.1) pick what each runs from its memory. Nothing in the roles reads a board's name
+    (6.9 and 8.2). No group or host below ``all`` sets ai_enabled, so ``all``'s true is the one
+    place it is said.
     """
     groups = inventory_groups()
     linux_hosts = group_host_names(groups=groups, group='linux')
@@ -725,18 +724,52 @@ def test_every_linux_host_states_its_memory_and_opts_in_at_16_gb():
 
     assert linux_hosts, 'the inventory has no linux group, or it holds no host'
     assert group_host_names(groups=groups, group='raspberry_pis') <= linux_hosts
-    assert groups['raspberry_pis']['vars']['ai_enabled'] is False
+    assert groups['all']['vars']['ai_enabled'] is True
+    overrides = sorted(
+        [
+            f'group {name}'
+            for name, group in groups.items()
+            if name != 'all' and 'ai_enabled' in group['vars']
+        ]
+        + [
+            f'host {host}'
+            for group in groups.values()
+            for host, host_variables in group['hosts'].items()
+            if 'ai_enabled' in host_variables
+        ]
+    )
+    assert overrides == []
     for host in sorted(linux_hosts):
         memory = variables[host].get('host_memory_gb')
         assert type(memory) is int, f'{host} states no integer host_memory_gb: {memory!r}'
-        enabled = variables[host]['ai_enabled']
-        assert enabled is (memory >= LINUX_AI_MEMORY_GB), (
-            f'{host}: {memory} GB, ai_enabled {enabled}'
-        )
-    # The 16 GB Pi 5s are the first Linux hosts to run the models
-    assert variables['raspberry-pi-5-16gb-ubuntu']['ai_enabled'] is True
-    assert variables['raspberry-pi-5-16gb-raspberry-pi-os']['ai_enabled'] is True
-    assert groups['all']['vars']['ai_enabled'] is True
+        assert variables[host]['ai_enabled'] is True, f'{host}: {memory} GB'
+
+
+def test_ansible_itself_gives_every_linux_host_the_ai(ansible_playbook: list[str]):
+    """ansible-inventory, reading the real inventory and group_vars, says ai_enabled on each.
+
+    The test above reads the inventory with this suite's own merge (tests/ansible_inventory.py);
+    this one asks Ansible, so a variable set somewhere that merge doesn't look (group_vars, a
+    host_vars folder) can't hide an off switch.
+    """
+    *prefix, playbook_program = ansible_playbook
+    inventory_program = str(Path(playbook_program).with_name('ansible-inventory'))
+    completed = run_command(
+        command=[*prefix, inventory_program, '-i', str(ANSIBLE / 'inventory.yml'), '--list'],
+        environment=os.environ | {'ANSIBLE_NOCOLOR': '1'},
+        timeout_seconds=ANSIBLE_TIMEOUT_SECONDS,
+        capture_output=OutputCapture.APART,
+        working_directory=PROJECT_ROOT,
+    )
+    assert completed.returncode == 0, completed.stderr
+    listing = json.loads(completed.stdout)
+    host_variables = listing['_meta']['hostvars']
+    linux_hosts = group_host_names(groups=inventory_groups(), group='linux')
+
+    assert linux_hosts
+    assert {
+        host: host_variables[host]['ai_enabled'] for host in sorted(linux_hosts)
+    } == dict.fromkeys(sorted(linux_hosts), True)
 
 
 MAC_SERVICE_ROLES = [
