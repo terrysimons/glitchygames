@@ -1,4 +1,4 @@
-"""The Ansible setup for the local AI service (ansible/macos_ai_service.yml).
+"""The Ansible setup for the local AI service (ansible/ai_service.yml).
 
 Its plan is plans/lucid-circuit.md. Running it takes a Mac, gigabytes of downloads and a GPU, so
 these only check what would go wrong quietly: a pin that isn't exact, two agents on one port, or a
@@ -554,7 +554,7 @@ def test_only_hosts_with_ai_enabled_get_the_ai_service():
     Checked by hand with ansible-playbook: a host with ai_enabled false is never contacted.
     """
     sorting_play, service_play = yaml.safe_load(
-        (PROJECT_ROOT / 'ansible' / 'macos_ai_service.yml').read_text(encoding='utf-8'),
+        (PROJECT_ROOT / 'ansible' / 'ai_service.yml').read_text(encoding='utf-8'),
     )
 
     assert sorting_play['hosts'] == 'all'
