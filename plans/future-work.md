@@ -739,6 +739,13 @@ only replays; Part 2 Task 1).
   the game's frame times); its own measured reserved-memory figures if they differ from ARM's; and a check of
   Bonsai's known AVX-512 crash on load (Prism's `KNOWN_ISSUES.md`, `PQ2_0` files) against the `skylakex` and later
   variants.
+- **Driver difference on main: the power-on idle-time sound test** (found 2026-11-19 by the Linux
+  port's gate, reproduced on origin/main decdd379): `tests/audio/test_audio_engine_integration.py::
+  test_the_declared_sounds_compile_in_the_power_ons_idle_time` differs between the dummy and the
+  native (cocoa) driver at present 12 (4 of 76,800 pixels on a quiet machine; thousands in frames
+  12-13 under heavy load), passing on both. Either a real rendering difference in the CRT power-on
+  frames or a test whose frames legitimately vary and lacks `@pytest.mark.frames_vary`: triage on a
+  quiet machine (the pixels in test-results/driver-comparison/pytest/differences/).
 - **Memory tiers for the AI service** (the owner's decision, plans/lucid-circuit-linux.md 6.4.1
   and 12, 2026-11-18; decided, not built). The picker chooses a tier by total memory: 16 GB and up,
   Bonsai at 128K (131,072) with Qwen at 8K (8,192); 8 GB, Bonsai at 32K (32,768) with Qwen at 8K

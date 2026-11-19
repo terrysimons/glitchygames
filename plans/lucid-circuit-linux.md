@@ -927,6 +927,12 @@ changes for x86_64.
 | 4 GB fallback, if a measured run doesn't fit everything: turn-taking (6.4.1) | The owner, 2026-11-18 |
 | Qwen's agent passes `--flash-attn on`, which a quantized V cache needs (6.5) | Designer's call |
 | Smaller-memory machines: memory tiers (6.4.1); 16 GB, 8 GB and 4 GB rows decided, the 4 GB "everything" route open (13.1) | The owner, 2026-11-18 |
+| The memory tiers are built in this branch (plan Task 11), not later | The owner, 2026-11-19 |
+| `ai_service_game_reserve_mib` 768, provisional until one figure is measured from every game's peak on the Pi | The owner, 2026-11-19 |
+| The nine per-line ruff suppressions the build added (subprocess calls in tests) | Approved by the owner, 2026-11-19 |
+| `ansible-core` becomes a development dependency so CI runs the Ansible syntax checks; `iproute2` and `lsof` in the CircleCI Linux image (plan Task 12) | The owner, 2026-11-19 |
+| Uninstalling keeps `history/` (no change) | The owner, 2026-11-19 |
+| The Pi's speed (15-25 s for a short question) is acceptable: go | The owner, 2026-11-19 |
 | Keep the per-line `jinja2-autoescape-false` suppression in `tests/ansible_rendering.py` (autoescape would corrupt shell templates) | The owner, 2026-11-18 |
 | Accept slower embeddings on 4 GB machines for Qwen's `--no-repack` (13.1) | The owner, 2026-11-18 |
 | The CPU variant modules beside `llama-server` in `bin/`, not `lib/` (6.5) | Designer's call, from the b12167 source |

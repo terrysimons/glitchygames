@@ -579,6 +579,94 @@ test in the task named.
 
 ---
 
+### Task 11: Memory tiers: Bonsai's context, the prompt cache and Qwen chosen by total memory (§6.4.1)
+
+Added 2026-11-19: the owner wants the tiers in this branch (they were decided 2026-11-18 and
+recorded, not built). Every system, the Mac included: the tier settings are shared.
+
+**Files:**
+- Modify: `ansible/roles/ai_service/defaults/main.yml` (the tier table; the reserved figures per
+  tier; `ai_service_game_reserve_mib` 768, provisional), `ai-service.sh.j2` (the picker),
+  `ansible/roles/ai_package/templates/setup.sh.j2` (no Qwen download on a Bonsai-only machine; the
+  setup job's own units without the user-root drop-in)
+- Modify: `services/ai-service/src/glitchygames_ai_service/app.py` and its settings (readiness and
+  `/v1/embeddings` without an embedding model); its tests in `services/ai-service/tests/` (own lock,
+  own 100% coverage)
+- Modify: plans/future-work.md (the tiers item it holds is now built: remove it), the design's
+  §6.4.1 header ("decided, built")
+- Test: `tests/test_ansible_ai_service.py`, `services/ai-service/tests/`
+
+**Interfaces:**
+- `ai_service_memory_tiers` (shared default), smallest first, each `{minimum_memory_mb,
+  bonsai_context_size, bonsai_cache_ram_mib, qwen}`:
+  | minimum | Bonsai context | prompt cache | Qwen |
+  |---|---|---|---|
+  | 3,072 MiB (a 4 GB machine; total memory reported is below 4,096) | 32,768 | 512 | none |
+  | 6,144 MiB (8 GB) | 32,768 | 1,024 | `0.6b` |
+  | 12,288 MiB (16 GB and up) | 131,072 | 4,096 | `0.6b` |
+  Below the smallest: nothing (exit 3, as today). The thresholds are below the nominal sizes because
+  `MemTotal` reports less than the board's size; check them against a real 4 GB, 8 GB and 16 GB
+  reading (the 16 GB Pi reports 16,179 MiB) and record the source.
+- The picker chooses the tier by **total** memory, then checks **available** memory against the
+  tier's reserved figures plus `ai_service_game_reserve_mib`, as today. It writes the tier's
+  Bonsai context and prompt cache to Bonsai's `config/<label>.env.runtime` (the existing per-run
+  override the runner already reads), and starts Qwen only when the tier names one. "Bonsai alone"
+  is a valid result, printed as such (`qwen=none`), exit 0.
+- Reserved figures per tier, estimates until the Pi measures them (Task 10): Bonsai at 128K about
+  2,560 MiB, at 32K about 1,948 MiB; Qwen 0.6b about 1,464 MiB (the design's §6.5 table). The Mac's
+  larger Bonsai sizes keep their per-size figures scaled the same way, marked provisional.
+- `ai_service_game_reserve_mib`: 768 (the owner, 2026-11-19, provisional until one figure is
+  measured from every game's peak on the Pi).
+- setup.sh: on a machine whose tier has no Qwen, it downloads no Qwen model and writes no Qwen
+  settings. Its own setup unit gets no `user-root.conf` drop-in (controller ruling, 2026-11-19: the
+  setup job computes its root each run; with the drop-in a later `XDG_DATA_HOME` change would be
+  ignored at login); every other AI unit keeps it.
+- The API sidecar: `/health/ready` is ready when every model the selection names answers — a
+  reasoning model alone when the selection has no embedding model; `/v1/embeddings` without an
+  embedding model answers 503 with code `no_embedding_model` and the message "this machine has no
+  embedding model" (the service's error shape, `ServiceError`).
+
+- [ ] **Step 1: Write the failing tests**
+  - `test_the_picker_chooses_the_tier_by_total_memory`, parametrized Darwin/Linux over: 16,179 MiB
+    total with 9 GB free → Bonsai 128K, cache 4,096, Qwen; 7,800 total with 5.5 GB free → Bonsai
+    32K, cache 1,024, Qwen; 3,800 total with 2.6 GB free → Bonsai 32K, cache 512, `qwen=none`,
+    exit 0; 1,900 total → exit 3; a tier whose models don't fit what's free → exit 3. The
+    `.env.runtime` written holds exactly the tier's context and cache; no Qwen start on the 4 GB
+    tier (the systemctl/launchctl stub's calls).
+  - `test_setup_downloads_no_qwen_on_a_bonsai_only_machine` (nproc/memory stubs, curl counts).
+  - `test_the_setup_job_has_no_user_root_drop_in` and every other AI unit has one.
+  - In `services/ai-service/tests/`: ready with only a reasoning model when the selection names no
+    embedding model; not ready when the selection names one that doesn't answer;
+    `/v1/embeddings` → 503 `no_embedding_model` without one.
+  - The tier table's invariant: thresholds increasing, contexts never decreasing, every row's
+    reserved figures defined.
+- [ ] **Step 2: Run them and see them fail.**
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Gates**, the service's own (`cd services/ai-service && uv run ...` per its README)
+  and the repository's; every new Ansible conditional proven in real Ansible or the Debian container.
+- [ ] **Step 5: Checkpoint.**
+
+---
+
+### Task 12: CI runs the Ansible checks (the owner, 2026-11-19)
+
+**Files:** `pyproject.toml` (a dependency group holding `ansible-core`), `uv.lock`, the SBOM
+(`docs/sbom.cyclonedx.json`, regenerated by `nox -s security-scan`), `.circleci/config.yml`
+(install `iproute2` and `lsof` in the Linux test image or job), tests/test_ci_config.py if it pins
+the job's packages.
+
+- [ ] `ansible-core` in a development dependency group the test runs install (check how
+  `uv sync --all-groups` and the CircleCI jobs install groups), so
+  `test_every_playbook_passes_ansibles_syntax_check` and the role-file check run in CI instead of
+  skipping; the license check accepts it (GPL-3.0; it is a development tool, not shipped — if
+  `scripts/check_licenses.py` refuses it, report that to the owner rather than adding an exception).
+- [ ] `iproute2` and `lsof` in the CircleCI Linux image, so the real-socket port test runs there.
+- [ ] `nox -s security-scan` regenerates the SBOM; commit it with `uv.lock`.
+- [ ] Show the two test groups no longer skip on Linux (a `nox -s test-linux-ci` run if it is
+  practical here, or the CircleCI run after the owner pushes).
+
+---
+
 ### Task 10 (after the power fix; the owner runs or authorizes it): first install and validation on the Pi (§8.3)
 
 Not code. On the 16 GB Ubuntu Pi 5, once `vcgencmd get_throttled` stays `0x0` under a full
