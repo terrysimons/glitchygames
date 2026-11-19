@@ -3,7 +3,15 @@
 # models and settings (ansible/roles/ai_models and ai_service defaults: keep them equal):
 #   [AI_CORES=N[,N...]|none] [GAME=NAME] [THREADS=N[,N...]] [DEPTHS=N[,N...]] \
 #       [CACHE_TYPE_K=T[,T...]] [CACHE_TYPE_V=T[,T...]] [BONSAI_CONTEXT=N] [QWEN_CONTEXT=N] \
-#       benchmark_llama_cpp.sh [WORK_ROOT] [CONFIGURATION...]
+#       [MEMORY_LIMIT=SIZE] benchmark_llama_cpp.sh [WORK_ROOT] [CONFIGURATION...]
+# MEMORY_LIMIT (such as 2500M) runs this script, and so both servers, in a systemd user scope
+# with that much memory and no swap (MemoryMax, MemorySwapMax=0; the user manager is handed the
+# memory controller), to stand in for a smaller Pi on a bigger one: what a 4 GB Pi with a desktop
+# and a game has left for the models. The page cache of the model files counts against it, so the
+# kernel drops and re-reads model pages as a small Pi would. With it, once both servers are up,
+# they take turns (Bonsai answers, Qwen embeds, an image, again), each step timed with the
+# servers' major page faults (model pages read back from disk) and the scope's memory, peak and
+# out-of-memory kills. The game named with GAME stays outside the limit.
 # WORK_ROOT defaults to ~/ai-spike; with no configurations it measures each llama.cpp-*-* folder
 # there that holds a build. Cores are placed as the service places them
 # (plans/lucid-circuit-linux.md 6.2: ranked by cpu_capacity, the game on the first, the mirror on
@@ -47,6 +55,16 @@
 # Results: WORK_ROOT/results/<time>/ (summary.txt, power.csv, the raw llama-bench JSON, each
 # server's log). Nothing else should be busy beyond the game named with GAME.
 set -u
+
+# A memory limit means running again inside a scope that has it, with the same arguments
+if [ -n "${MEMORY_LIMIT:-}" ] && [ -z "${BENCHMARK_MEMORY_SCOPE:-}" ]; then
+    if ! [[ "$MEMORY_LIMIT" =~ ^[1-9][0-9]*[KMG]$ ]]; then
+        echo "MEMORY_LIMIT must be a size such as 2500M or 3G" >&2
+        exit 64
+    fi
+    exec systemd-run --user --scope --quiet -p MemoryMax="$MEMORY_LIMIT" -p MemorySwapMax=0 \
+        env BENCHMARK_MEMORY_SCOPE=1 "$0" "$@"
+fi
 
 work_root=${1:-$HOME/ai-spike}
 shift $(( $# > 0 ? 1 : 0 ))
@@ -205,6 +223,12 @@ fi
 
 say "host: $(hostname)  $(uname -sr)  page size $(getconf PAGESIZE)  $(nproc) cores"
 say "memory: $(free -m | awk '/^Mem:/ {print $2 " MiB total, " $7 " MiB available"}')"
+# This script's cgroup: the limited scope when MEMORY_LIMIT is set
+cgroup=/sys/fs/cgroup$(sed -n 's/^0:://p' /proc/self/cgroup)
+if [ -n "${MEMORY_LIMIT:-}" ]; then
+    say "memory limit: $(cat "$cgroup/memory.max") bytes, swap $(cat "$cgroup/memory.swap.max") (the servers and this script; the game outside)"
+fi
+say "models on: $(findmnt -no SOURCE --target "$models")"
 say "load before: $(cut -d' ' -f1-3 /proc/loadavg)"
 say "configurations: ${configurations[*]}"
 say "cores: AI ${ai_cores:-not pinned}; the service would place game ${game_cores:-none}, AI $(awk '$1 == "ai" {print $2}' <<< "$placement")"
@@ -218,9 +242,12 @@ say "llama-bench: KV cache ${cache_pairs[*]}; depths $depths"
 say "servers: $server_settings"
 
 # Where each server's memory goes, from its log at verbosity 4: model, KV cache, recurrent state and
-# compute buffers, without the log's timestamp and level
+# compute buffers, without the log's timestamp and level, nor the empty per-layer mapped buffers
+# Qwen's log lists. "CPU_Mapped" is the model file mapped (pages the kernel can drop and re-read);
+# "CPU_REPACK" is weights copied into a faster layout, ordinary memory that must stay
 memory_lines() {  # log
     grep -E 'model buffer size|KV buffer size|RS buffer size|compute buffer size|llama_kv_cache: size|llama_memory_recurrent: size' "$1" \
+        | grep -v '=  *0\.00 MiB$' \
         | sed -E 's/^[0-9.]+ [A-Z] +//; s/^/  memory: /' | tee -a "$summary"
 }
 
@@ -233,6 +260,22 @@ wait_ready() {  # port log pid
     say "  not ready after 180 s"; return 1
 }
 resident() { ps -o rss= -p "$1" | awk '{printf "%d MiB", $1/1024}'; }
+# Pages a process had to read back from disk (field 12 of /proc/PID/stat; the name has no spaces)
+major_faults() { awk '{print $12}' "/proc/$1/stat" 2>/dev/null; }
+# How many more since an earlier reading, or "?" once the process is gone
+faults_since() {  # pid earlier
+    local now
+    now=$(major_faults "$1")
+    if [[ "$now" =~ ^[0-9]+$ && "$2" =~ ^[0-9]+$ ]]; then echo "+$(( now - $2 ))"; else echo "?"; fi
+}
+# The scope's memory now and at its peak, its out-of-memory kills, and how much is file pages
+scope_memory() {
+    awk -v current="$(cat "$cgroup/memory.current")" -v peak="$(cat "$cgroup/memory.peak" 2>/dev/null || echo 0)" \
+        '$1 == "anon" {anon = $2} $1 == "file" {file = $2}
+         END {printf "scope %d MiB (anon %d, file %d), peak %d MiB", current/1048576, anon/1048576, file/1048576, peak/1048576}' \
+        "$cgroup/memory.stat"
+    printf ', oom kills %s' "$(awk '$1 == "oom_kill" {print $2}' "$cgroup/memory.events")"
+}
 
 image=$(python3 "$helper" image)
 
@@ -305,6 +348,26 @@ for configuration in "${configurations[@]}"; do
             -d '{"input":["a red apple","a green apple","a diesel locomotive"]}' \
             | python3 "$helper" embeddings | tee -a "$summary"
         kill -0 "$bonsai" 2>/dev/null && say "  both loaded: Bonsai $(resident "$bonsai"), Qwen $(resident "$qwen"); $(free -m | awk '/^Mem:/ {print $7}') MiB available"
+        if [ -n "${MEMORY_LIMIT:-}" ] && kill -0 "$bonsai" 2>/dev/null; then
+            phase "$configuration-taking-turns"
+            say "-- taking turns under the limit: $(scope_memory)"
+            embed() {
+                curl -s -o /dev/null -w '%{http_code} in %{time_total} s' "http://127.0.0.1:$qwen_port/v1/embeddings" \
+                    -H 'Content-Type: application/json' -d '{"input":["a red apple","a green apple","a diesel locomotive"]}'
+            }
+            for step in sum embed image embed fact embed; do
+                bonsai_faults=$(major_faults "$bonsai"); qwen_faults=$(major_faults "$qwen")
+                case "$step" in
+                    sum) ask turns-sum 391 '{"messages":[{"role":"user","content":"What is 17 times 23? Reply with the number only."}]}' ;;
+                    fact) ask turns-fact canberra '{"messages":[{"role":"user","content":"What is the capital of Australia? One word."}]}' ;;
+                    image) ask turns-image blue "{\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What two colours are in this image, left then right? Answer in a few words.\"},{\"type\":\"image_url\",\"image_url\":{\"url\":\"data:image/png;base64,$image\"}}]}]}" ;;
+                    embed) say "  embed: $(embed)" ;;
+                esac
+                say "    pages read back: Bonsai $(faults_since "$bonsai" "$bonsai_faults"), Qwen $(faults_since "$qwen" "$qwen_faults"); $(scope_memory)"
+                kill -0 "$bonsai" 2>/dev/null || { say "  Bonsai is gone (killed)"; break; }
+                kill -0 "$qwen" 2>/dev/null || { say "  Qwen is gone (killed)"; break; }
+            done
+        fi
     fi
     kill "$bonsai" "$qwen" 2>/dev/null
     # Only the servers: a bare wait would also wait for the sampler, which never ends
