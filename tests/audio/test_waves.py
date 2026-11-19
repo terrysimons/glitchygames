@@ -462,7 +462,12 @@ def test_measuring_the_band_limited_peak_keeps_no_table_it_only_measured():
     Each table is WAVE_TABLE_LENGTH samples (16 KiB). Kept, they made the instrument catalog's
     test keep 85 MiB in the test process, and pushed CircleCI's 2 GB Linux job past its memory
     limit (2026-11-17). A game reads a few bands per wave: those stay cached.
+
+    Measured on a second wave: the process's first measurement imports numpy's fft module (numpy
+    loads it on first use), about 120 KiB this would count as kept. The test passed only when an
+    earlier test had used it, and failed alone or shuffled first (seed 2502609099, 2026-11-18)
     """
+    Wave.mix(square=1.0).band_limited_peak(sample_rate=44100)
     wave = Wave.mix(saw=1.0)
     tracemalloc.start()
     try:
