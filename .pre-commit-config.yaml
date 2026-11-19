@@ -10,7 +10,7 @@ exclude: '\.md$'
 repos:
 - repo: local
   hooks:
-    # Also measures what is being pushed on the Raspberry Pis, both at once, and copies their rows
+    # Also measures what is being pushed on the Raspberry Pis, all at once, and copies their rows
     # of its code tree here, staged; one push at a time per Pi, under a lock beside its clone
     # (scripts/measure_on_raspberry_pi.py, by hand: nox -s measure-on-raspberry-pi).
     # First, and
@@ -69,11 +69,12 @@ repos:
       pass_filenames: false
       stages: [pre-push]
 
-    # The suite in a shuffled order (pytest-randomly, a new seed each push): order-dependent
+    # The suite in a shuffled order (pytest-randomly, a new seed each push), on Python 3.15, in
+    # its own environment whatever the .venv's Python: order-dependent
     # tests surface here, where CI's fixed order would hide them. A failure prints its seed and
     # the command that replays it; SKIP=test-random git push ... skips it
     - id: test-random
-      name: test-random (the suite, shuffled)
+      name: test-random (the suite, shuffled, on 3.15)
       language: system
       entry: uv run --extra dev nox -s test-random
       pass_filenames: false

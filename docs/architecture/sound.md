@@ -1,9 +1,9 @@
 # Sound
 
 The sound engine's first milestone (M1) gives every game one call for sound:
-`scene_manager.audio.sound(...)`. It takes a short name, a path or an `Instrument`, compiles the
-sound the first time it is asked for, and hands back the same compiled sound on every later
-request. Getting a sound never plays it.
+`scene_manager.audio.sound(...)`. It takes a short name, a path, an `Instrument` or a `Mix`,
+compiles the sound the first time it is asked for, and hands back the same compiled sound on
+every later request. Getting a sound never plays it.
 
 The design is in two specifications:
 
@@ -54,8 +54,9 @@ class Game(Scene):
   wave registry.
 
 Declare every sound the game plays on the scene class it hands `GameEngine`, as `SOUNDS`
-(effects, a sound file's `path#name` entries, live instruments and unpitched ones; a pitched
-sound needs a sound file's entry, which holds its pitch): the engine compiles them when the game starts,
+(effects, a sound file's `path#name` entries, mixes, live instruments and unpitched ones; a
+pitched sound needs a sound file's entry or a mix's part, which holds its notes): the engine
+compiles them when the game starts,
 in the CRT power-on's spare time, a slice a frame, and finishes them before the game is built (at
 once where the power-on is skipped). The game's own requests then find each one compiled. A game
 that declares none makes no audio engine for them. A sound first asked for during gameplay still
@@ -134,6 +135,41 @@ envelope = { attack = 0.005, decay = 0.03, sustain_level = 0.6, release = 0.05 }
 `audio.sounds.add_effects([...])` registers effects by name, looked up before the sound directory.
 Each tone is oscillator, distortion, filters, tremolo, envelope, volume; the tones are mixed at
 their offsets and normalized to `peak`, or left exactly as summed with `normalize=False`.
+
+## Mixes
+
+A `Mix` is several instrument parts compiled into one sound (`src/glitchygames/audio/mix.py`):
+a score's layers, say, played as one buffer on one channel instead of a sound and a channel each.
+Its parts are rendered and added at their volumes, and the result is cached as every sound is
+(the process's memory, then the disk layer, else compiled and written), so the first request
+builds it and every later request, in this launch or a later one, gets the built copy.
+
+```python
+from glitchygames.audio import Mix, MixPart, instruments
+
+loop = audio.sound(Mix(
+    name='stage',
+    parts=(
+        MixPart(instrument=instruments.get('theremin'), notes='D5:1 A4:1 _:2', volume=0.3),
+        MixPart(instrument=instruments.get('timpani'), notes='D2:1 _:3', volume=0.3),
+    ),
+    loop_seconds=2.0,
+))
+loop.play(loop=True, bus='music')
+```
+
+With `loop_seconds` the mix is exactly that long, so `play(loop=True)` repeats it in time, sample
+for sample. A melody rendered alone can't loop in time: its length drops a trailing rest and adds
+the instrument's release tail. A looping mix keeps the rest as silence and adds every frame past
+its end back onto its start, as a tail would ring into the next pass. Without `loop_seconds` it is
+as long as its longest part, tail included.
+
+Its identity is a digest of its parts' own keys, their volumes, the loop and the mixer's rate, so
+changing any part's notes or volume builds a new mix. Each part is seeded from
+`<mix name>-part-<index>`. A mix takes no `pitch`, `notes`, `chord`, `length` or `transpose`
+(its parts carry their notes), and a live instrument can't be a part. A mix may be declared in
+`SOUNDS`, so a score on catalog instruments is built while the game starts. Zombies Ain't My
+Neighbors' score is three mixes, declared so (feature plan 11).
 
 ## Live sounds
 
@@ -227,6 +263,13 @@ mode):
 | `ram` | Compiled sounds stay in memory. Above `--sound-cache-memory` (256 MB) the least recently played sounds that are not playing are dropped, and compiled again on their next request (counted). |
 | `none` | Nothing is kept: every `play()` compiles in its frame. This is the switch that shows what compiling in gameplay costs. Getting a sound renders nothing, and a sound played 5 times compiles 5 times. What a game reads of a sound never depends on the cache (a replay may run under another mode): a synthesized sound's `length` is worked out without rendering, exactly as a compile would size it; whatever only a compile can tell (every `peak`, and a recorded file's `length` and rate) comes from one compile on its first read, counted like any compile, then kept. A play's compile gives them too, so a read after a play compiles nothing more. |
 | `disk` (default) | As `ram`, and each compiled sound is also kept as a file in the game's own folder, `<root>/<game package>/sounds/<render version>/<key[:2]>/<key>.wav`, so a later launch reads it back instead of compiling (faster on every machine measured, a Raspberry Pi's SD card included: `scripts/benchmark_sound_cache.py`). A read writes nothing; each game's folder is limited to 64 MB, oldest written files pruned at startup. `GLITCHYGAMES_SOUND_CACHE_ROOT` names the root (unset: the platform's cache folder; empty: no disk layer, so `ram`; the test harness sets it empty). In the browser it runs as `ram`. Compiled sounds are also shared by every engine context in a process (an Arcade tile's restart compiles nothing). |
+
+Whichever way a sound is made, compiled or read from the disk, it keeps only its int16 samples
+(and its peak): the float64 render is dropped once those are made from it
+(`Sound.release_float_samples`), as it was four times their size and only an offline render reads
+it, which compiles a copy. Playing makes one more copy, the mixer's stereo 16-bit sound.
+`uv run python -m scripts.measure_sound_memory` reports what each game's declared sounds hold and
+where (the zombies game: 9 MiB on a first launch, down from 20 MiB with the float64 renders kept).
 
 A game's start also removes its own folders for older render versions: only an older engine
 wrote them. A newer version's folder is kept, since another engine on the machine (a branch with

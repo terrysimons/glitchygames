@@ -966,7 +966,7 @@ module looked for in the current directory first. `--controls-tail MODULE:NAME` 
 names the keys played after the script's frames, ending with the game's own quit. A golden
 trace runs the game's scene in a headless harness at 1/60 second per frame and samples every
 sprite each frame; a session runs the game for real, at its own pace, with `--record-trace`.
-Our five games' scripts and controls tails are test data in `scripts/golden_inputs.py`
+Our six games' scripts and controls tails are test data in `scripts/golden_inputs.py`
 (`--input-script scripts.golden_inputs:paddleslap_script`, run from the repository root);
 `scripts/record_golden_traces.py` and `scripts/record_scripted_session.py` keep only our
 games' tables and call the engine.

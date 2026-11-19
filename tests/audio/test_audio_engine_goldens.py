@@ -70,6 +70,8 @@ SOUND_FOLDERS = {
     ('dt-demo', 'timing.jsonl.gz'): None,
     ('joystick-demo', 'pad.jsonl.gz'): None,
     ('text-input-demo', 'typing.jsonl.gz'): None,
+    ('zombies-aint-my-neighbors', 'golden.jsonl.gz'): 'zombies_aint_my_neighbors',
+    ('zombies-aint-my-neighbors', 'golden-neighborhood.jsonl.gz'): 'zombies_aint_my_neighbors',
 }
 
 

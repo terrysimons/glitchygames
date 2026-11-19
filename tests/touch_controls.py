@@ -30,7 +30,10 @@ SCANCODE_BY_CODE = {
     'KeyW': pygame.KSCAN_W,
     'KeyS': pygame.KSCAN_S,
     'KeyP': pygame.KSCAN_P,
+    'Enter': pygame.KSCAN_RETURN,
     'ShiftLeft': pygame.KSCAN_LSHIFT,
+    'KeyJ': pygame.KSCAN_J,
+    'KeyK': pygame.KSCAN_K,
 }
 
 # The shared pause and game-over screens' keys (scenes/builtin_scenes: Space, Esc)

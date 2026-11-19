@@ -17,7 +17,7 @@ measured so far: a Raspberry Pi 4, a Raspberry Pi 5 and an Apple M4 Max.
 | --- | --- | --- |
 | Each game's frame work in the replay benchmark (its typical p99, unless you pick another measure below) | Under the frame budget: 16.7 ms at 60 FPS, 33.3 ms at 30 | Under 60% of it (10 ms at 60 FPS), leaving the rest to draw the frame on screen |
 | Operating system | Ubuntu 26.04 LTS or later, or macOS 27 | Same |
-| Python and pygame-ce | Python 3.14 and pygame-ce 2.5.8 (uv installs both) | Same |
+| Python and pygame-ce | Python 3.15 and pygame-ce 2.5.8 (uv installs both) | Same: 3.15 is the one tested (the browser builds run 3.14, which only lint and type checks cover) |
 | Memory | 4 GB, the smallest machine measured | Same |
 
 The 60% recommended line (10 ms at 60 FPS) is a proposal. The benchmark doesn't time drawing to the screen, so the

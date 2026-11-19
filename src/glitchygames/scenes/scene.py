@@ -86,9 +86,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from glitchygames.audio.accounting import AudioFrameAccount
-    from glitchygames.audio.effects import Effect
     from glitchygames.audio.engine import AudioEngine
-    from glitchygames.audio.instrument import Instrument
+    from glitchygames.audio.library import SoundSource
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
     from glitchygames.input.input_devices import InputDevice
@@ -3168,12 +3167,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # Every sound the game plays, on the class it hands GameEngine: compiled when the game
     # starts, in the CRT power-on's idle time, so none compiles mid-frame (and under
     # --sound-cache disk a later launch reads them back). Complete sounds only: effects, a sound
-    # file's 'path#name' entries, live instruments (which compile nothing) and unpitched ones. A
-    # short name resolves through a scene, and none is active yet; a pitched instrument that is
-    # not live needs a pitch, which only a sound file's entry gives here (refused otherwise).
+    # file's 'path#name' entries, mixes (a score on catalog instruments: audio/mix.py), live
+    # instruments (which compile nothing) and unpitched ones. A short name resolves through a
+    # scene, and none is active yet; a pitched instrument that is not live needs a pitch, which
+    # only a sound file's entry or a mix's part gives here (refused otherwise).
     # Empty: a game that declares none makes no audio engine for them
     # (glitchygames/audio/startup.py; plans/2026-11-14-sound-migration.md decision 6)
-    SOUNDS: ClassVar[Sequence[str | Instrument | Effect]] = ()
+    SOUNDS: ClassVar[Sequence[SoundSource]] = ()
 
     def __init__(
         self: Self,

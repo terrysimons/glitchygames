@@ -51,7 +51,7 @@ from glitchygames.engine_context import EngineContext
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.scenes import Scene
 from tests import demo_runs
-from tests.audio.library_support import make_library, start_mixer, stop_mixer
+from tests.audio.library_support import float_render, make_library, start_mixer, stop_mixer
 from tests.audio.voice_support import (
     LEGACY_CHANNELS,
     LIBRARY_CHANNELS,
@@ -430,9 +430,9 @@ def strongest_frequency(sound: Sound, *, rate: int) -> float:
     Returns:
         Hertz.
     """
-    assert sound.samples_float is not None
-    magnitudes = np.abs(np.fft.rfft(sound.samples_float))
-    return float(np.fft.rfftfreq(len(sound.samples_float), 1.0 / rate)[np.argmax(magnitudes)])
+    samples = float_render(sound)
+    magnitudes = np.abs(np.fft.rfft(samples))
+    return float(np.fft.rfftfreq(len(samples), 1.0 / rate)[np.argmax(magnitudes)])
 
 
 def test_the_tail_loops_without_a_seam():
@@ -443,15 +443,13 @@ def test_the_tail_loops_without_a_seam():
         (BackgroundPattern.CHANNEL_THREE, CHANNEL_THREE_HISS),
     ):
         cues = CrtPowerOnSound(audio=audio, background=background)
-        samples = cues.sounds[name].samples_float
-        assert samples is not None
+        samples = float_render(cues.sounds[name])
         steps = np.abs(np.diff(samples))
         seam = abs(samples[0] - samples[-1])
         assert seam <= steps.max()
     # The tone's seam is a sine's own step
     tone = CrtPowerOnSound(audio=audio, background=BackgroundPattern.TEST_PATTERN)
-    samples = tone.sounds[BARS_TONE].samples_float
-    assert samples is not None
+    samples = float_render(tone.sounds[BARS_TONE])
     assert abs(samples[0] - samples[-1]) == pytest.approx(abs(samples[1] - samples[0]), rel=0.01)
 
 
@@ -472,12 +470,13 @@ def test_the_static_never_draws_from_engine_random_streams(mocker):
     random_stream.assert_not_called()
     numpy_stream.assert_not_called()
     # The same static every time, in any context
-    first_static = cues.sounds[STATIC].samples_float
+    first_static = cues.sounds[STATIC].samples_int16
+    assert first_static is not None
     with EngineContext(name='another run').active():
         again = CrtPowerOnSound(
             audio=recording_audio_engine(), background=BackgroundPattern.TEST_PATTERN
         )
-        assert np.array_equal(again.sounds[STATIC].samples_float, first_static)
+        assert np.array_equal(again.sounds[STATIC].samples_int16, first_static)
 
 
 # --- AUD-CRT-001: the offline render ---
@@ -642,8 +641,7 @@ def bars_tone_samples() -> tuple[np.ndarray, int]:
         audio=recording_audio_engine(), background=BackgroundPattern.TEST_PATTERN
     )
     tone = cues.sounds[BARS_TONE]
-    assert tone.samples_float is not None
-    return np.asarray(tone.samples_float), tone.sample_rate
+    return float_render(tone), tone.sample_rate
 
 
 def test_the_device_fade_steps_a_pure_tone_in_chunk_plateaus():
@@ -1195,11 +1193,11 @@ def test_each_context_gets_its_own_sound_sharing_the_compiled_samples():
     assert second_tone is not first_tone
     assert second_tone.identity_key == first_tone.identity_key
     assert second_tone.samples_int16 is first_tone.samples_int16
-    assert second_tone.samples_float is first_tone.samples_float
     assert first_tone.samples_int16 is not None
     assert not first_tone.samples_int16.flags.writeable
-    assert first_tone.samples_float is not None
-    assert not first_tone.samples_float.flags.writeable
+    # Only the int16 samples are kept (Sound.release_float_samples)
+    assert first_tone.samples_float is None
+    assert second_tone.samples_float is None
     first.close(wait_seconds=0.0)
     second.close(wait_seconds=0.0)
 

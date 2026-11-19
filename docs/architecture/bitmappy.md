@@ -218,15 +218,17 @@ run).
 
 `DirtySprite` is pygame's base for all sprites that support dirty-rect
 rendering. GlitchyGames extends it through `RootSprite` → `Sprite` → `BitmappySprite` to add
-mouse events, non-optional `image`/`rect`, named parent tracking and TOML load/save.
-`AnimatedSprite` derives from `DirtySprite` directly. `DirtySprite` is pygame's, outside both
-boxes; the Bitmappy box holds the editor's own sprites.
+mouse and keyboard events, non-optional `image`/`rect`, named parent tracking and TOML
+load/save. `AnimatedSprite` stands on `RootSprite` too, so it has every mouse and keyboard
+handler (silent by default; before 2026-11-15 it derived from `DirtySprite` directly and had
+none, and the pointer over one ended the game). `DirtySprite` is pygame's, outside both boxes;
+the Bitmappy box holds the editor's own sprites.
 
 ```mermaid
 flowchart TD
     DS["DirtySprite\ndirty, image, rect"]
     subgraph ENGINE_SPRITE_HIERARCHY["Engine"]
-        RS["RootSprite\nmouse event support\nnon-optional image/rect"]
+        RS["RootSprite\nmouse and keyboard handlers\nnon-optional image/rect"]
         RS --> SP["Sprite\nx, y, name, parent"]
         SP --> BS["BitmappySprite\nload#40;#41;, save#40;#41;"]
         AS["AnimatedSprite\n_animations, frame_manager\nset_animation#40;#41;, set_frame#40;#41;"]
@@ -236,7 +238,7 @@ flowchart TD
         FSS["FilmStripSprite\nfilm_strip_widget\non_left_mouse_button_down_event#40;#41;"]
     end
     DS --> RS
-    DS --> AS
+    RS --> AS
     BS --> ACS
     BS --> FSS
 ```
