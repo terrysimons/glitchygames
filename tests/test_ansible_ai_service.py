@@ -2071,10 +2071,10 @@ def test_a_port_held_by_another_user_exits_4_and_starts_nothing(
     """A start finds a port taken by a real listening socket, exits 4 and starts nothing.
 
     The port is checked with the platform's own tool (lsof on a Mac, ss on Linux), so each
-    rendering runs where its tool is installed: CircleCI's Linux image has neither, and a Mac has
-    no ss. The socket is this user's, so this can't show that a Mac's lsof sees another user's
-    socket (ss on Linux reads every user's); the stub-driven test below covers the control flow
-    on every platform.
+    rendering runs where its tool is installed: CircleCI's Linux job installs ss (iproute2)
+    and lsof, and a Mac has no ss. The socket is this user's, so this can't show that a Mac's
+    lsof sees another user's socket (ss on Linux reads every user's); the stub-driven test below
+    covers the control flow on every platform.
     """
     port_tool = 'lsof' if system == 'Darwin' else 'ss'
     if shutil.which(port_tool) is None:
@@ -5255,9 +5255,9 @@ def test_no_include_names_its_file_in_a_free_form_argument_with_an_equals_sign()
 
 
 # Ansible's own parser, for what the rendering tests above can't see (a task Ansible refuses at
-# parse time, a YAML error). ansible-core isn't one of this project's dependencies: the playbooks
-# run through `uvx --from ansible-core` (their headers), so the test takes an installed
-# ansible-playbook, else uvx's cached copy with no network, and skips only when neither runs
+# parse time, a YAML error). ansible-core is not a project dependency (ansible/ runs under
+# Ansible's own Python) and CI installs it as a tool; the test takes the one beside this Python,
+# else any on the PATH, else uvx's cached copy with no network, and skips only when none runs
 ANSIBLE_TIMEOUT_SECONDS = 120.0
 PLAYBOOKS = sorted(
     path
@@ -5350,8 +5350,10 @@ def ansible_playbook() -> list[str]:
     command = ansible_playbook_command()
     if command is None:
         pytest.skip(
-            'no ansible-playbook runs here: none beside this Python or on PATH, and uvx has no '
-            'cached ansible-core (uvx --from ansible-core ansible-playbook --version fetches it)'
+            'no ansible-playbook runs here: ansible-core is not a project dependency and CI '
+            'installs it as a tool (uv tool install ansible-core==2.22.0); none beside this '
+            'Python or on PATH, and uvx has no cached copy (uvx --from ansible-core '
+            'ansible-playbook --version fetches it)'
         )
     return command
 

@@ -1313,7 +1313,7 @@ def _linux_ci_script(
         f'if [ -f {common}/info/exclude ]; then cp {common}/info/exclude .git/info/exclude; fi',
         # "Install Linux system dependencies"
         'sudo apt-get update -qq',
-        'sudo apt-get install -y -qq fontconfig > /dev/null',
+        'sudo apt-get install -y -qq fontconfig iproute2 lsof > /dev/null',
         # install-deps-posix
         f'curl -LsSf https://astral.sh/uv/{uv_version}/install.sh | sh',
         'export PATH="$HOME/.local/bin:$PATH"',
@@ -1321,6 +1321,8 @@ def _linux_ci_script(
         f'uv python install "{python_version}"',
         # install-deps-posix installs nox as a uv tool, run directly (no uvx parent process)
         f'uv tool install "nox[uv]=={nox_version}"',
+        # "Install ansible-core (tool)": not a project dependency (the owner, 2026-11-19)
+        'uv tool install "ansible-core==2.22.0"',
         # nox-test, then the job's store_test_results (to this checkout's test-results/linux-ci),
         # writable by the host's user whatever its id (a Linux host's is not the container's)
         'status=0',

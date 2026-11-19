@@ -308,10 +308,23 @@ jobs:
           command: |
             set -euo pipefail
             sudo apt-get update
-            sudo apt-get install -y fontconfig
+            # iproute2 (ss) and lsof: the real-socket port test (tests/test_ansible_ai_service.py)
+            # skips without the platform's port tool
+            sudo apt-get install -y fontconfig iproute2 lsof
 
       - restore-uv-cache-posix
       - install-deps-posix
+      # ansible-core as a tool of its own, not a project dependency (the owner, 2026-11-19):
+      # ansible/ runs under Ansible's own Python (pyproject's deptry note), and its GPL-3.0
+      # licence stays out of uv.lock and the SBOM. The tests/test_ansible_ai_service.py syntax
+      # checks find it in uv's tool bin directory (~/.local/bin, on nox-test's PATH)
+      - run:
+          name: "Install ansible-core (tool)"
+          command: |
+            set -euo pipefail
+            export PATH="$HOME/.local/bin:$PATH"
+            uv tool install "ansible-core==2.22.0"
+            ansible-playbook --version
       # Only what differs by platform; format, lint, type checks, docs, security scans and
       # benchmarks give the same answer on every OS and run on macOS (the fastest runner; the
       # committed SBOM is macOS's, so its drift check runs there)
