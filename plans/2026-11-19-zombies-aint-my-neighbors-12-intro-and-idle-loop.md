@@ -13,17 +13,17 @@ settled as Claude's calls (marked below); not built.
 The game is pitched as a four-player arcade cabinet (the title's four blinking PRESS START
 slots, decision 10). The intro tells its story: four kids at a sleepover, VR headsets on, and the
 monsters come out of the TV. The owner wants it to behave as a cabinet's does: it plays by
-itself when nobody is playing, a press always gets you straight back to the title, and a new
-player sees it once on the first launch. Rumble is for someone holding a pad, never for pads
-lying on a table.
+itself when nobody is playing, a press always gets you straight back to the title, and it
+opens every launch, skippable with any key or button. Rumble is for someone holding a pad, never
+for pads lying on a table.
 
 ## Decisions (the owner, 2026-11-19)
 
 | # | Decision | Why |
 |---|----------|-----|
 | 1 | **The intro plays in the title's idle loop**, arcade style: the game opens on the title; after the title has stood idle, the intro plays, then the attract demo (feature 13), then the title again, round and round. Any key or button returns to the title | The cabinet pitch; nobody waits at start-up; the intro and the demo share one home |
-| 2 | **And once on the very first launch**, before the title (option 2 added to option 1: "With 2") | A new player gets the story before they see the title |
-| 3 | **No rumble while unattended**: nothing in the idle loop rumbles, neither the intro nor the demo ("No rumble on the demo"). The first-launch showing rumbles every connected pad, in controller mode (decision 15) | Someone is clearly there on the first launch; in the loop the pads may be on a table |
+| 2 | **And at every launch**, before the title; any key or button skips it. First "once on the very first launch" (option 2 added to option 1: "With 2"), with a saved flag; changed the same day ("lets always run it then, but let the user skip with a button press"; "Yes, what you heard") once a side agent noted that a browser whose saves fail would never show it. No saved flag | Every player gets the story; a skip costs one press; nothing depends on saves working |
+| 3 | **No rumble while unattended**: nothing in the idle loop rumbles, neither the intro nor the demo ("No rumble on the demo"). The launch showing rumbles every connected pad, in controller mode (decision 15) | Someone has just started the game; in the loop the pads may be on a table |
 | 4 | **Built as a timeline in one scene** (approach A, Claude's recommendation, taken) | The whole intro reads top to bottom; retiming is editing numbers; tests can ask "at 6.0 s the TV bursts" |
 
 ## Approaches considered
@@ -35,18 +35,18 @@ lying on a table.
   it ends, and the scene reacts to animation ends. Follows the BOM literally, but the order is
   spread across many sprites and callbacks: hard to retime, hard to test as a whole.
 - **C. A recording played back.** A replay drives a game from its input, and the intro has none;
-  rumbling on the first launch only would be awkward. Rejected.
+  rumbling at launch only would be awkward. Rejected.
 
 ## Goals
 
 - The idle loop: TITLE, idle for `IDLE_SECONDS`, then INTRO, then (feature 13) the ATTRACT DEMO,
   then TITLE; any key or button at any point returns to the title.
-- The first-launch showing: CRT power-on, then INTRO, then TITLE, once per install (a saved
-  flag), skipped wherever the CRT power-on is skipped.
+- The launch showing: CRT power-on, then INTRO, then TITLE, at every launch, skipped wherever
+  the CRT power-on is skipped.
 - The intro itself, as the master plan's "The intro" section describes: vignettes of the
   sleepover framed in a dark oval; the TV flickers, bulges and bursts; hands reach out; a Lawn
-  Zombie climbs out; the screen shakes; on the first launch every connected pad rumbles; cut to
-  the title.
+  Zombie climbs out; the screen shakes; at launch every connected pad rumbles; cut to the
+  title.
 - The intro's 9 sprites, 46 frames (BOM section 7), drawn the way this game draws its art (rigs in
   `zombies_aint_my_neighbors/art/` writing TOML), checked against the sprite schema like every
   shipped sprite.
@@ -63,7 +63,8 @@ lying on a table.
 
 - A pad rumbling when nobody touched the game since it was last idle.
 - A press that wakes the game also joining a player, or starting a stage.
-- The intro ever delaying the title after the first launch.
+- The intro playing again when a title is rebuilt (after the intro, Back from a STAGE n card,
+  quitting a stage, the game over): it opens a launch only.
 - A golden replay or bundled demo that crosses into the loop without meaning to. The loop is
   deterministic game logic (it runs on `Scene.game_time`), so a recording that idles past
   `IDLE_SECONDS` records the intro and replays it faithfully; the goldens must simply stay
@@ -101,34 +102,29 @@ CRT power-on → TITLE ──(idle IDLE_SECONDS)──► INTRO ──► ATTRAC
 - The intro returns to a fresh title whose idle count starts at zero, with an empty roster and
   no run (the only title that loops).
 
-### The first-launch showing
+### The launch showing
 
 ```
-First launch ever:   CRT power-on → INTRO (rumble) → TITLE      saves: intro_seen = true
-Every launch after:  CRT power-on → TITLE
+Every launch:  CRT power-on → INTRO (rumble; any key or button skips) → TITLE
 ```
 
-- The flag lives in the game's own saves (`glitchygames.state.open_saves(app_name=...)`),
-  the game's first use of saves (decision 7 plans high scores there too). Replays use an
-  in-memory sandbox, so a replay never sees or changes it.
-- It is set when the intro **starts**, so a player who skips it on the first launch is not
-  shown it at every start; the idle loop is there for them.
-- The first-launch showing happens only where the CRT power-on would. The game asks the
-  engine's public functions the same question the engine asks:
+- No saved flag (decision 2, as changed): nothing depends on saves working, so the browser,
+  whose saves may fail, shows it like every other platform.
+- It plays only where the CRT power-on would. The game asks the engine's public functions the
+  same question the engine asks:
   `crt_power_on.should_play(mode=crt_power_on.resolve_mode(option=options.get('crt_power_on'),
   environment=os.environ), video_driver=<the SDL video driver>, options=options)` (not on the
-  dummy video driver, not with `replay_trace`, `record_trace`, `audit` or `rebaseline`). That
-  repeats one engine call in the game (no engine change, decision 12); a public "would the
-  power-on play" answer goes in the master plan's wishlist. In a run where it is skipped, the
-  flag is not set.
-- The flag is the key `intro_seen` in the game's saves. If the saves cannot be read or written
-  (a read-only folder, the browser), the intro counts as seen: it is never shown at every
-  launch (Claude's call). There is no reset option: deleting the game's saves resets it, and
-  waiting on the title shows the intro anyway.
+  dummy video driver, not with `replay_trace`, `record_trace`, `audit` or `rebaseline`, not with
+  `--crt-power-on off`). That repeats one engine call in the game (no engine change, decision
+  12); a public "would the power-on play" answer goes in the master plan's wishlist.
 - The launcher's `first_scene` stays the title (or the neighborhood for a recording made
-  there); the title, on its first frame, hands over to the intro when the flag is unset and the
-  showing is allowed (Claude's call: keeps `first_scene` and the goldens' starting scene as
-  they are).
+  there); the title, on its first frame, hands over to the intro when it is the **opening**
+  title and the showing is allowed (Claude's call: keeps `first_scene` and the goldens' starting
+  scene as they are).
+- The opening title is the one the engine builds at launch: `TitleScene` gains
+  `opening: bool = True`, and every other place that builds a title passes `opening=False` (the
+  intro's hand-back, the STAGE n card's Back, quitting a stage, the game over), so a rebuilt
+  title never plays the intro again. A test checks each of those hand-offs.
 
 ### The intro, as a timeline
 
@@ -140,7 +136,7 @@ frame timings fix each animation's own length); tuning them is editing the table
 | 0.0 | the oval fades in; the four kids `sit` in their bags, the TV plays `show` (the host), the lamp and the snack bowl `still` |
 | 4.0 | TV `static`; lamp `flicker` |
 | 5.5 | TV `bulge` |
-| 6.0 | TV `burst`; kids `startled`; screen shake; **rumble every connected pad, first launch only** |
+| 6.0 | TV `burst`; kids `startled`; screen shake; **rumble every connected pad, launch showing only** |
 | 6.3 | hands `reach` |
 | 6.8 | Lawn Zombie `climb-out` |
 | 8.0 | to the title (the loop: the demo, once feature 13 lands); the zombie's `climb-out` ends near 7.3 s, and the beat it holds before the cut is meant |
@@ -154,10 +150,10 @@ frame timings fix each animation's own length); tuning them is editing the table
   zombie's groan from the game's existing sounds where one fits; any new one is a TOML version 1
   sound requested in `setup()` (decision 11). The intro is silent of the stage loop.
 - Shake: `Scene.shake(Shake(...), targets=ShakeTarget.SCREEN)` at the burst.
-- Rumble: on the first launch only, every pad `Scene.input_devices` holds then, through the
+- Rumble: in the launch showing only, every pad `Scene.input_devices` holds then, through the
   same `rumble(low_frequency=, high_frequency=, duration_milliseconds=)` call the neighborhood's
   `_tv_destroyed` makes, with the intro's own strength and length constants. "Controller mode"
-  (decision 15) means a pad is connected: nobody has joined on a first launch, so no joined
+  (decision 15) means a pad is connected: nobody has joined at launch, so no joined
   device can be asked, and the engine has no keyboard-only mode (`InputMode` is auto, joystick,
   controller). No pad, no rumble. In the loop the rumble cue does nothing.
 - Skipping: any key or button on any frame ends the intro at once, to the title; the press is
@@ -188,11 +184,12 @@ frame timings fix each animation's own length); tuning them is editing the table
 - The idle loop: the title hands over to the intro after exactly `IDLE_SECONDS` idle; any press
   or join restarts the count; a joined title never hands over; the intro returns to a title
   whose count starts at zero.
-- The first launch: with no flag and the showing allowed, the title hands over to the intro on
-  its first frame and the flag is set; with the flag set it never does; on the dummy driver and
-  under each of `replay_trace`, `record_trace`, `audit`, `rebaseline` it never does and the flag
-  stays unset.
-- Rumble: the first-launch showing rumbles every connected pad, once, at the burst; the loop's
+- The launch: the opening title, with the showing allowed, hands over to the intro on its first
+  frame, at every launch; on the dummy driver, under each of `replay_trace`, `record_trace`,
+  `audit`, `rebaseline`, and with `--crt-power-on off`, it never does; a title built with
+  `opening=False` never does, and each place that builds one (the intro, the card's Back,
+  quitting a stage, the game over) passes it.
+- Rumble: the launch showing rumbles every connected pad, once, at the burst; the loop's
   intro rumbles nothing; with no pad connected nothing rumbles and nothing raises (stand-in
   devices, `tests/input/stand_in_devices.py`).
 - The shake is asked for at the burst (screen target).
@@ -202,7 +199,6 @@ frame timings fix each animation's own length); tuning them is editing the table
   is shorter than `IDLE_SECONDS` of frames.
 - A title holding a run, or with a slot joined, never loops; the new title after a skip ignores
   a key still held, and a key-up, until everything is up.
-- Saves that can't be read or written: the intro is not shown, and nothing raises.
 - Pixels, not calls: the oval's corners are dark and its centre shows the scene.
 
 ## Left to the builder
@@ -211,8 +207,8 @@ frame timings fix each animation's own length); tuning them is editing the table
   sheet for the owner to look at before they ship (as the other features did).
 - The oval's exact shape and fade time.
 - Which existing sounds fit; any new ones' design.
-- The intro's code layout beyond `intro.py`, and how the title passes "first launch" or "loop"
-  to the intro.
+- The intro's code layout beyond `intro.py`, and how the title passes "launch" or "loop" to
+  the intro.
 
 ---
 
@@ -222,17 +218,17 @@ frame timings fix each animation's own length); tuning them is editing the table
 > (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
 > checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** the title's idle loop, the first-launch showing and the intro scene above, with the
+**Goal:** the title's idle loop, the launch showing and the intro scene above, with the
 intro's 9 sprites drawn.
 
 **Architecture:** a pure timeline (`intro_timeline.py`: cues and which ones a frame crosses), an
-`IntroScene` that owns the sprites and acts on crossed cues (`intro.py`), a small first-launch
-module for the saved flag and the "may we show it" question (`first_launch.py`), and the title
-gaining an idle count, a first-frame hand-over and a wait for released input. The art follows the
+`IntroScene` that owns the sprites and acts on crossed cues (`intro.py`), the "may we show it"
+question (`launch_showing.py`), and the title gaining `opening`, an idle count, a first-frame
+hand-over and a wait for released input. The art follows the
 game's rigs: `art/intro_rig.py` draws, `art/build.py` writes TOML.
 
 **Tech stack:** Python 3.15 (parses as 3.14), pygame-ce, the GlitchyGames engine (scenes, sprites,
-`Shake`, `InputDevices`, `open_saves`, `crt_power_on`), pydantic, pytest with `mocker`.
+`Shake`, `InputDevices`, `crt_power_on`), pydantic, pytest with `mocker`.
 
 **Spec:** this file's design above (the sections from "Intent" to "Left to the builder").
 
@@ -263,8 +259,9 @@ Paths below are relative to `src/games/zombies-aint-my-neighbors/` unless they s
    pins it (`test_a_pad_plugged_in_or_out_during_the_intro_changes_nothing`).
 3. A very long frame (a hitch of several seconds) mid-intro: every cue it crosses fires once, in
    order, and the hand-over still happens once. Task 2 and Task 3 pin it.
-4. Saves that raise on read or on write (read-only folder, corrupt file): no intro at every
-   launch, no crash. Task 4 pins it.
+4. A title rebuilt anywhere (the intro, a card's Back, quitting a stage, the game over) playing
+   the intro again. Task 4 pins each hand-off
+   (`test_every_title_built_after_the_launch_is_not_the_opening_one`).
 5. Pause during the title's idle count, or during the intro: the count and the timeline freeze
    with `game_time`. Task 5 pins the title's; Task 3 the intro's
    (`test_pausing_the_intro_holds_its_timeline`).
@@ -362,7 +359,7 @@ Paths below are relative to `src/games/zombies-aint-my-neighbors/` unless they s
 - Consumes: `INTRO_TIMELINE`, `cues_crossed`, `CueKind` (Task 2); the stems (Task 1);
   `TitleScene` (`Z/title.py`, gaining `awaiting_release` in Task 5: until then pass nothing).
 - Produces:
-  - `class IntroShowing(StrEnum)`: `FIRST_LAUNCH`, `LOOP`.
+  - `class IntroShowing(StrEnum)`: `LAUNCH`, `LOOP`.
   - `class IntroScene(PadTolerantScene)`: `__init__(self, options: dict[str, Any] | None = None, groups: pygame.sprite.LayeredDirty[Any] | None = None, showing: IntroShowing | str = IntroShowing.LOOP)`;
     `replay_arguments() -> dict[str, Any]` returns `{'showing': <value>}`; `actors: Mapping[str, AnimatedSprite]`;
     `fired: tuple[IntroCue, ...]` (the cues fired so far, for tests and the debug overlay).
@@ -376,7 +373,7 @@ Paths below are relative to `src/games/zombies-aint-my-neighbors/` unless they s
   the TV, lamp and snacks beside them, hands and zombie over the TV, hidden until their cue), the
   oval (a full-screen sprite with a transparent oval hole, alpha fading in over the first 0.5 s),
   and requests its sounds. `dt_tick` fires `cues_crossed(before=previous game_time, now=game_time)`.
-  `RUMBLE` rumbles every device in `self.input_devices` only when `showing` is `FIRST_LAUNCH`.
+  `RUMBLE` rumbles every device in `self.input_devices` only when `showing` is `LAUNCH`.
   `SHAKE` calls `self.shake(INTRO_BURST_SHAKE, targets=ShakeTarget.SCREEN)`. Key down, controller
   and joystick button down skip; key up, button up, axes, hats and device added or removed are
   handled and do nothing (pad events through `PadTolerantScene`).
@@ -387,7 +384,7 @@ Paths below are relative to `src/games/zombies-aint-my-neighbors/` unless they s
   - `test_at_six_seconds_the_tv_bursts_the_kids_start_and_the_screen_shakes`: actors' current
     animations, and `scene.shake` called once with `INTRO_BURST_SHAKE` and the screen target
     (`mocker.spy`).
-  - `test_the_first_launch_rumbles_every_pad_once_at_the_burst` and
+  - `test_the_launch_showing_rumbles_every_pad_once_at_the_burst` and
     `test_the_loop_rumbles_nothing`: two stand-in pads (`tests/input/stand_in_devices.py`); spy
     on each device's `rumble`; called once with the three constants, or never.
   - `test_no_pad_no_rumble_and_nothing_raises`.
@@ -406,44 +403,40 @@ Paths below are relative to `src/games/zombies-aint-my-neighbors/` unless they s
 - [ ] **Step 4: Run; expect passes.**
 - [ ] **Step 5: Commit.**
 
-### Task 4: The first launch
+### Task 4: The launch showing
 
 **Files:**
-- Create: `Z/first_launch.py`.
-- Modify: `Z/title.py` (on its first frame: hand over to `IntroScene(showing=FIRST_LAUNCH)` when
-  allowed and not seen, marking it seen first).
-- Test: `T/test_zombies_aint_my_neighbors_intro.py`, `T/test_zombies_aint_my_neighbors_title.py`.
+- Create: `Z/launch_showing.py`.
+- Modify: `Z/title.py` (`opening: bool = True`, in `replay_arguments` only when False; on the
+  opening title's first frame, hand over to `IntroScene(showing=IntroShowing.LAUNCH)` when
+  allowed), and every place that builds a title, to pass `opening=False`: `Z/intro.py`,
+  `Z/feature_card.py:244`, `Z/neighborhood.py:956`, `Z/game_over.py:232`.
+- Test: `T/test_zombies_aint_my_neighbors_title.py` (and the hand-off tests beside each scene's
+  own: `..._intro.py`, `..._feature_card.py`, `..._neighborhood.py`, `..._game_over.py`).
 
 **Interfaces:**
 - Produces:
-  - `SAVE_APP_NAME: Final = 'zombies-aint-my-neighbors'`; `INTRO_SLOT: Final = 'intro'`
-    (data `{'intro_seen': True}`).
-  - `first_launch_allowed(*, options: Mapping[str, Any], video_driver: str) -> bool`: returns
+  - `launch_showing_allowed(*, options: Mapping[str, Any], video_driver: str) -> bool`: returns
     `crt_power_on.should_play(mode=crt_power_on.resolve_mode(option=options.get('crt_power_on'), environment=os.environ), video_driver=video_driver, options=options)`.
   - `current_video_driver() -> str` (`pygame.display.get_driver()`; the one place tests patch).
-  - `intro_seen(*, saves: SaveManager) -> bool`: True when the slot holds the flag, and True on
-    any `SaveError` or `OSError` (counts as seen).
-  - `mark_intro_seen(*, saves: SaveManager) -> None`: writes the slot; swallows `SaveError` and
-    `OSError` (logged at WARNING once).
-- The title opens saves (`open_saves(app_name=SAVE_APP_NAME)`) only when
-  `first_launch_allowed` is True, so headless runs and tests never touch the disk.
+  - `TitleScene(..., opening: bool = True)`.
 
-- [ ] **Step 1: Write the failing tests** (saves in `tmp_path` by patching
-  `glitchygames.state.manager.get_save_directory`, as Mr. Muncher's `save_directory` fixture
-  does; the driver by patching `first_launch.current_video_driver`):
-  - `test_the_first_launch_hands_over_to_the_intro_and_marks_it_seen`: driver `'cocoa'`, no
-    saves: the title's first tick sets `next_scene` to an `IntroScene` with `FIRST_LAUNCH`, and
-    the slot now holds the flag.
-  - `test_a_seen_intro_never_hands_over`: flag present: no hand-over, ever.
-  - `test_the_first_launch_is_skipped_where_the_power_on_is` (parametrized: driver `'dummy'`;
+- [ ] **Step 1: Write the failing tests** (the driver by patching
+  `launch_showing.current_video_driver`):
+  - `test_the_opening_title_hands_over_to_the_intro_at_launch`: driver `'cocoa'`: the title's
+    first tick sets `next_scene` to an `IntroScene` with `LAUNCH`.
+  - `test_the_launch_showing_plays_at_every_launch`: two fresh opening titles in turn (two
+    launches) both hand over.
+  - `test_the_launch_showing_is_skipped_where_the_power_on_is` (parametrized: driver `'dummy'`;
     `replay_trace`, `record_trace`, `audit`, `rebaseline` each set; `crt_power_on='off'`): no
-    hand-over, no save directory created.
-  - `test_saves_that_fail_count_the_intro_as_seen` (Review focus 4; parametrized: `load` raises
-    `SaveCorruptedError`, `save` raises `OSError`): no hand-over on the next launch, nothing raises.
-  - `test_a_rebuilt_title_never_shows_the_first_launch_intro_again`: after the hand-over, a new
-    `TitleScene` with the same saves does not.
+    hand-over.
+  - `test_a_title_that_is_not_the_opening_one_never_plays_the_intro`: `opening=False`, driver
+    `'cocoa'`: no hand-over; `replay_arguments` carries `opening: False`.
+  - `test_every_title_built_after_the_launch_is_not_the_opening_one` (Review focus 4;
+    parametrized: the intro's end, the intro's skip, the STAGE n card's Back, quitting a stage,
+    the game over's return): the `TitleScene` each hands to has `opening` False.
 - [ ] **Step 2: Run; expect failures.**
-- [ ] **Step 3: Implement `first_launch.py` and the title's first-frame check.**
+- [ ] **Step 3: Implement `launch_showing.py`, `opening`, and the four `opening=False` sites.**
 - [ ] **Step 4: Run; expect passes; the title's golden still replays** (run its replay item).
 - [ ] **Step 5: Commit.**
 
@@ -491,13 +484,13 @@ Paths below are relative to `src/games/zombies-aint-my-neighbors/` unless they s
 **Files:**
 - Modify: `plans/2026-11-14-zombies-aint-my-neighbors.md` (feature 12 BUILT; the "Test controller
   rumble in the browser build" item answered; wishlist #4 updated; a new wishlist row: a public
-  "would the power-on play" answer, `first_launch.first_launch_allowed` repeating the engine's
+  "would the power-on play" answer, `launch_showing.launch_showing_allowed` repeating the engine's
   call), this file's Status.
 - Check the game's docs page (`docs/`, generated member pages: `scripts/gen_ref_pages.py`)
   lists the new modules.
 
 - [ ] **Step 1: Build the browser bundle (`nox -s browser -- zombies-aint-my-neighbors`), plug in a
-  pad, let the first-launch intro play (clear the browser's saves first), and record whether it
+  pad, let the launch intro play, and record whether it
   rumbled.** This needs the owner at a browser with a pad: ask them, and record their answer.
 - [ ] **Step 2: Update the plans above.**
 - [ ] **Step 3: Run the whole gate** (ruff format and check over `src tests scripts noxfile.py`,

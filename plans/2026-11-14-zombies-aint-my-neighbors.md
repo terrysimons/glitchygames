@@ -429,8 +429,8 @@ Each feature gets its own plan in `plans/`, linked here and linking back to this
    "build it, then play the built copy. Same as our other caching layer.").
 12. [The intro and the title's idle loop](2026-11-19-zombies-aint-my-neighbors-12-intro-and-idle-loop.md):
    DESIGN, not built (2026-11-19). The title plays the intro after 20 s idle, then (feature 13)
-   the attract demo, arcade style; the intro also plays once on the first launch; pads rumble
-   only then, never while unattended; built as one timeline of cues.
+   the attract demo, arcade style; the intro also opens every launch, any key or button
+   skipping it; pads rumble only then, never while unattended; built as one timeline of cues.
 
 ## Sources
 
