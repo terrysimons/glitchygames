@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 """OS-level accuracy tests for the FastTimer backend."""
 
+import json
+import os
 import sys
 import time
 from math import comb
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from glitchygames.timing import FastTimer, create_timer
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 # The accuracy tests compare the engine's timer with the OS's own sleep, in pairs: each pair is
 # one timer sleep and one plain time.sleep of the same length, taken back to back (alternating
@@ -46,6 +53,16 @@ INDEPENDENT_SAMPLES = 100
 SAMPLE_SPACING_SECONDS = 0.075
 # Scheduling jitter allowed between the two sleeps of a pair
 PAIRED_TOLERANCE_NS = 1_000_000
+# The same on a CI machine (the CI variable is "true"; CircleCI sets it): a shared virtual machine
+# can pre-empt the timer's spinning thread for long stretches, many pairs in a row, which the
+# OS's own sleep does not feel. CircleCI's Windows job measured 1.86 ms (job 2269, 2026-10-25)
+# and 1.55 ms (job 3835, 2026-11-19); the owner, 2026-11-19: 3 ms on CI (BUGS.md #226). Each
+# run writes its bound to test-results/timer-accuracy-<pid>.jsonl, passing or not, so the CI
+# value can be tightened from what CI measures
+CONTINUOUS_INTEGRATION_PAIRED_TOLERANCE_NS = 3_000_000
+# Where each accuracy test writes its measured bound, one JSON line per test, one file per
+# process (xdist workers never share one). CI keeps test-results/ as an artifact on every OS
+MEASUREMENTS_DIRECTORY = Path('test-results')
 
 
 def _median_upper_bound_rank(*, samples: int, confidence: float) -> int:
@@ -121,6 +138,91 @@ def _paired_difference_upper_bound_ns(*, timer: FastTimer, sleep_ns: int) -> int
     return sorted(differences)[MEDIAN_UPPER_BOUND_RANK - 1]
 
 
+def paired_tolerance_ns(*, environment: Mapping[str, str]) -> int:
+    """Return the paired tolerance for this run: wider on CI, where the CI variable is "true".
+
+    Returns:
+        CONTINUOUS_INTEGRATION_PAIRED_TOLERANCE_NS on CI, otherwise PAIRED_TOLERANCE_NS.
+
+    """
+    if environment.get('CI') == 'true':
+        return CONTINUOUS_INTEGRATION_PAIRED_TOLERANCE_NS
+    return PAIRED_TOLERANCE_NS
+
+
+def test_ci_runs_allow_three_milliseconds():
+    """With CI=true (as CircleCI sets it) the pairs may differ by 3 ms."""
+    assert paired_tolerance_ns(environment={'CI': 'true'}) == 3_000_000
+
+
+@pytest.mark.parametrize('environment', [{}, {'CI': ''}, {'CI': 'false'}, {'CI': '1'}])
+def test_other_runs_allow_one_millisecond(environment: dict[str, str]):
+    """Without CI=true exactly (unset, empty, false, or another value) the bound stays 1 ms."""
+    assert paired_tolerance_ns(environment=environment) == 1_000_000
+
+
+def write_measurement(*, directory: Path, test_name: str, difference: int, tolerance: int) -> Path:
+    """Append one accuracy test's measured bound to this process's measurements file.
+
+    Returns:
+        The file written: ``timer-accuracy-<pid>.jsonl`` in the directory.
+
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f'timer-accuracy-{os.getpid()}.jsonl'
+    record = {
+        'test': test_name,
+        'platform': sys.platform,
+        'paired_difference_upper_bound_ns': difference,
+        'tolerance_ns': tolerance,
+    }
+    with path.open('a', encoding='utf-8') as measurements:
+        measurements.write(json.dumps(record) + '\n')
+    return path
+
+
+def test_a_measurement_is_one_json_line_per_test(tmp_path: Path):
+    """Each accuracy test appends one line naming the test, its bound and its tolerance."""
+    first = write_measurement(
+        directory=tmp_path / 'results', test_name='a', difference=5, tolerance=1_000_000
+    )
+    second = write_measurement(
+        directory=tmp_path / 'results', test_name='b', difference=7, tolerance=3_000_000
+    )
+
+    assert first == second == tmp_path / 'results' / f'timer-accuracy-{os.getpid()}.jsonl'
+    lines = [json.loads(line) for line in first.read_text(encoding='utf-8').splitlines()]
+    assert lines == [
+        {
+            'test': 'a',
+            'platform': sys.platform,
+            'paired_difference_upper_bound_ns': 5,
+            'tolerance_ns': 1_000_000,
+        },
+        {
+            'test': 'b',
+            'platform': sys.platform,
+            'paired_difference_upper_bound_ns': 7,
+            'tolerance_ns': 3_000_000,
+        },
+    ]
+
+
+def _assert_within_the_paired_tolerance(*, test_name: str, difference: int) -> None:
+    """Write the measured bound to test-results/, then hold it to this run's tolerance."""
+    tolerance = paired_tolerance_ns(environment=os.environ)
+    write_measurement(
+        directory=MEASUREMENTS_DIRECTORY,
+        test_name=test_name,
+        difference=difference,
+        tolerance=tolerance,
+    )
+    assert difference < tolerance, (
+        f'the timer trailed the OS sleep by {difference} ns (median upper bound), '
+        f"over this run's {tolerance} ns"
+    )
+
+
 def test_median_upper_bound_rank_is_the_sign_test_rank():
     """100 samples at 99.999%: the 72nd smallest (P(Binomial(100, 1/2) >= 72) is about 6.3e-6)."""
     assert MEDIAN_UPPER_BOUND_RANK == 72
@@ -154,14 +256,18 @@ def test_fast_timer_basic_sleep_accuracy():
     """The engine's default timer (auto) wakes no later than the OS's own sleep (3 ms)."""
     t = _calibrated_auto_timer(windows_timer_1ms=False)
     difference = _paired_difference_upper_bound_ns(timer=t, sleep_ns=3_000_000)
-    assert difference < PAIRED_TOLERANCE_NS
+    _assert_within_the_paired_tolerance(
+        test_name='test_fast_timer_basic_sleep_accuracy', difference=difference
+    )
 
 
 def test_fast_timer_spin_tighten_accuracy():
     """Spin-only mode wakes no later than the OS's own sleep of the same length (1 ms)."""
     t = FastTimer(sleep_granularity_ns=0, windows_timer_1ms=False)
     difference = _paired_difference_upper_bound_ns(timer=t, sleep_ns=1_000_000)
-    assert difference < PAIRED_TOLERANCE_NS
+    _assert_within_the_paired_tolerance(
+        test_name='test_fast_timer_spin_tighten_accuracy', difference=difference
+    )
 
 
 @pytest.mark.skipif(
@@ -172,4 +278,6 @@ def test_fast_timer_windows_1ms_option_tighter():
     """With the Windows 1 ms timer resolution, auto wakes no later than the OS sleep (3 ms)."""
     t = _calibrated_auto_timer(windows_timer_1ms=True)
     difference = _paired_difference_upper_bound_ns(timer=t, sleep_ns=3_000_000)
-    assert difference < PAIRED_TOLERANCE_NS
+    _assert_within_the_paired_tolerance(
+        test_name='test_fast_timer_windows_1ms_option_tighter', difference=difference
+    )
