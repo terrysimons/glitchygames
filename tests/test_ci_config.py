@@ -2139,17 +2139,16 @@ def test_taplo_leaves_the_worktrees_nested_in_this_checkout_alone():
 def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():
     """The Linux job (2 GB, serial) stops a run past 1500 MiB, naming the test (memory_guard.py).
 
-    The Raspberry Pi's (real hardware, 3.7 GB with its desktop) stops past 1750 MiB: the two
-    differ because the Pi runs the whole suite on one machine, and so holds pytest's
-    bookkeeping for every test, while each Linux machine runs half (the owner, 2026-11-19). The
-    macOS and Windows jobs have the memory, and the plugin needs Linux's ``/proc/self/statm``
-    anyway. The Linux job's resource class and worker count stay as they were.
+    So does the Raspberry Pi's (real hardware, 3.7 GB with its desktop): one limit for every
+    Linux job (the owner, 2026-11-19). The macOS and Windows jobs have the memory, and the
+    plugin needs Linux's ``/proc/self/statm`` anyway. The Linux job's resource class and worker
+    count stay as they were.
     """
     linux_jobs = jobs_that_run_tests(platform_marker=LINUX_IMAGE_MARKER)
 
     # Every test job on the Linux image, so a new one can't miss them
     assert set(linux_jobs) == {'test-python-3-15-linux'}
-    assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"\n' in raspberry_pi_job()
+    assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1500"\n' in raspberry_pi_job()
     for name, job in linux_jobs.items():
         assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1500"\n' in job, name
         assert '    resource_class: small\n' in job, name
