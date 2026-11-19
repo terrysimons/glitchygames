@@ -211,12 +211,20 @@ def _lint_dead_code(session: nox.Session) -> None:
     session.run('vulture', *_SOURCE_PACKAGE_DIRS, 'vulture_whitelist.py', '--min-confidence=80')
 
 
+# The Python every other session runs on (format, lint, type checks, docs, security, benchmarks,
+# builds, complexity, the timer report): 3.15, the development version (the owner, 2026-11-18:
+# "Switch the builds over to 3.15", "Only 3.15 for macos too", "pin 3.15", "Also upgrade
+# deploy-docs to 3.15"). The tools still target 3.14 (ruff's target-version, the type checkers'
+# python-version), so code stays valid on the oldest supported Python
+PINNED_PYTHONS = ['3.15']
+
+
 # ---------------------------------------------------------------------------
 # Aggregate sessions
 # ---------------------------------------------------------------------------
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='format')
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='format')
 def format_all(session: nox.Session) -> None:
     """Run all formatters (code + TOML)."""
     _install_from_lockfile(session)
@@ -224,7 +232,7 @@ def format_all(session: nox.Session) -> None:
     _format_toml(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint')
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='lint')
 def lint_all(session: nox.Session) -> None:
     """Run all linters (code, docs, YAML, TOML, deps, dead code)."""
     _install_from_lockfile(session)
@@ -243,7 +251,7 @@ def lint_all(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='format-code', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='format-code', default=False)
 def format_code(session: nox.Session) -> None:
     """Format Python code with ruff (import sorting + black-style formatting)."""
     _install_from_lockfile(session)
@@ -261,14 +269,14 @@ def format_toml(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-code', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='lint-code', default=False)
 def lint_code(session: nox.Session) -> None:
     """Lint Python code with ruff."""
     _install_from_lockfile(session)
     _lint_code(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-docs', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='lint-docs', default=False)
 def lint_docs(session: nox.Session) -> None:
     """Lint documentation with mkdocs strict build."""
     _install_from_lockfile(session)
@@ -394,7 +402,7 @@ def measure_staged(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='docs-deploy', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='docs-deploy', default=False)
 def docs_deploy(session: nox.Session) -> None:
     """Measure the replays, build the docs strictly and publish them to GitHub Pages.
 
@@ -605,7 +613,7 @@ def docs_serve(session: nox.Session) -> None:
         '--all-packages',
         '--all-extras',
         '--python',
-        '3.14',
+        *PINNED_PYTHONS,
         'mkdocs',
         'serve',
         '--strict',
@@ -649,14 +657,14 @@ def lint_toml(session: nox.Session) -> None:
     _lint_toml(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-dependencies', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='lint-dependencies', default=False)
 def lint_dependencies(session: nox.Session) -> None:
     """Check for dependency issues with deptry."""
     _install_from_lockfile(session)
     _lint_dependencies(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-dead-code', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='lint-dead-code', default=False)
 def lint_dead_code(session: nox.Session) -> None:
     """Detect dead code with vulture."""
     _install_from_lockfile(session)
@@ -678,21 +686,23 @@ def _static_analysis_ty(session: nox.Session) -> None:
     session.run('ty', 'check')
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='static-analysis-basedpyright', default=False)
+@nox.session(
+    python=PINNED_PYTHONS, reuse_venv=False, name='static-analysis-basedpyright', default=False
+)
 def static_analysis_basedpyright(session: nox.Session) -> None:
     """Run static type analysis with basedpyright."""
     _install_from_lockfile(session)
     _static_analysis_basedpyright(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='static-analysis-ty', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='static-analysis-ty', default=False)
 def static_analysis_ty(session: nox.Session) -> None:
     """Run static type analysis with ty (Astral's type checker)."""
     _install_from_lockfile(session)
     _static_analysis_ty(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='static-analysis')
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='static-analysis')
 def static_analysis(session: nox.Session) -> None:
     """Run all static type analysis (basedpyright + ty)."""
     _install_from_lockfile(session)
@@ -729,13 +739,17 @@ def _usable_cpu_count() -> int:
     return max(1, min(cpus, int(quota) // int(period)))
 
 
-# The Pythons the suite runs on: 3.14, the oldest supported (the browser builds' Pyodide runs it),
-# and 3.15, the development version (the owner, 2026-11-16: "Add 3.15 support to nox ... Run
-# both"). Each is its own session, test-3.14 and test-3.15; nox -s test runs both, one after the
-# other (two at once would share htmlcov/, test-results/ and the coverage data, and each already
-# uses every core). CircleCI runs both on macOS and 3.15 on Linux and Windows, whose 3.14 jobs are
-# off for now (tests/test_ci_config.py checks every one is installed and what each job runs)
-TEST_PYTHONS = ('3.14', '3.15')
+# The Pythons the suite runs on, each its own session (test-3.15; coverage-combine-3.15): 3.15,
+# the development version. 3.14, the oldest supported (the browser builds' Pyodide runs it), is
+# commented out for now with its sessions, test-3.14 and coverage-combine-3.14 (the owner,
+# 2026-11-18: "Remove the test-3.14 and combine 3.14 (comment out)"), as CircleCI's 3.14 jobs
+# are; the owner, 2026-11-16, had added 3.15 beside it ("Run both"). With both, nox -s test runs
+# them one after the other (two at once would share htmlcov/, test-results/ and the coverage
+# data, and each already uses every core). tests/test_ci_config.py checks what each job runs
+TEST_PYTHONS = (
+    # '3.14',
+    '3.15',
+)
 
 
 @nox.session(python=list(TEST_PYTHONS), reuse_venv=False)
@@ -837,9 +851,9 @@ def locked_version(*, package: str, lock: str) -> str:
 def coverage_combine(session: nox.Session) -> None:
     """Combine a split CI job's coverage data and apply the 100% rule to the whole.
 
-    One session a Python of TEST_PYTHONS (coverage-combine-3.14, coverage-combine-3.15): a split
-    job's data is combined on the Python it was measured on, so a 3.15 job's CI runs only 3.15
-    (the owner, 2026-11-18: "only targeting 3.15 with nox in the 3.15 jobs", the same for 3.14).
+    One session a Python of TEST_PYTHONS (coverage-combine-3.15; -3.14 while 3.14 is off): a
+    split job's data is combined on the Python it was measured on, so a 3.15 job's CI runs only
+    3.15 (the owner, 2026-11-18: "only targeting 3.15 with nox in the 3.15 jobs").
     The data is the machines' ``.coverage.*`` files in ``coverage-data/`` (or the directory
     given: ``nox -s coverage-combine -- DIRECTORY``). Only coverage is installed, at uv.lock's
     version; the report reads pyproject.toml's settings and the checkout's source, and writes
@@ -2293,7 +2307,7 @@ def browser(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='timer-report', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='timer-report', default=False)
 def timer_report(session: nox.Session) -> None:
     """Report this machine's timer accuracy (diagnostic; always succeeds).
 
@@ -2314,7 +2328,7 @@ _BENCHMARK_PATHS = [
 ]
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='performance-test', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='performance-test', default=False)
 def performance_test(session: nox.Session) -> None:
     """Run performance benchmarks."""
     _install_from_lockfile(session)
@@ -2355,7 +2369,7 @@ def _bandit_scan(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='bandit-scan', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='bandit-scan', default=False)
 def bandit_scan(session: nox.Session) -> None:
     """Run bandit security scan."""
     _install_from_lockfile(session)
@@ -2434,7 +2448,7 @@ def _supply_chain_scan(session: nox.Session) -> None:
         )
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='security-scan', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='security-scan', default=False)
 def security_scan(session: nox.Session) -> None:
     """Run all security scans: bandit, then the syft SBOM, grype CVEs and the license check."""
     _install_from_lockfile(session)
@@ -2525,12 +2539,7 @@ def _build_wheel(session: nox.Session) -> None:
     session.run('uv', 'build', '--all-packages', '--wheel', '--out-dir', 'dist', external=True)
 
 
-# The Python the binary and the wheels are built on (the owner, 2026-11-18: "Switch the builds over
-# to 3.15"); CircleCI builds in the 3.15 jobs
-BUILD_PYTHONS = ['3.15']
-
-
-@nox.session(python=BUILD_PYTHONS, reuse_venv=False, name='build-binary', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='build-binary', default=False)
 def build_binary(session: nox.Session) -> None:
     """Build a standalone Bitmappy binary with PyInstaller.
 
@@ -2558,7 +2567,7 @@ def build_wheel(session: nox.Session) -> None:
         _build_wheel(session)
 
 
-@nox.session(python=BUILD_PYTHONS, reuse_venv=False, name='build', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='build', default=False)
 def build_all(session: nox.Session) -> None:
     """Build the Bitmappy binary and the wheel of every workspace package.
 
@@ -2576,7 +2585,7 @@ def build_all(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='code-complexity', default=False)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='code-complexity', default=False)
 def code_complexity(session: nox.Session) -> None:
     """Analyze code complexity with wily and optionally generate the docs' complexity explorer data.
 

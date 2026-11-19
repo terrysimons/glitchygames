@@ -30,12 +30,14 @@ uv sync --upgrade --all-extras --all-groups --all-packages   # deliberate upgrad
 uv python pin 3.15.2   # optional: develop on 3.15 (.python-version is ignored: this checkout only)
 ```
 
-Two Pythons are supported and tested: 3.14, the oldest (the browser builds' Pyodide runs it, so
+Two Pythons are supported: 3.14, the oldest (the browser builds' Pyodide runs it, so
 `requires-python`, ruff's and the type checkers' targets stay there), and 3.15, the development
-version. `nox -s test` tests both, each in its own environment (the pre-push shuffled run tests
-3.15 only, so a push is quicker). CircleCI runs both on macOS, in one job; Linux and Windows run
-3.15 (`test-python-3-15-*`), their 3.14 jobs (`build-and-test-linux`, `-windows`, which also build
-the Bitmappy binary) commented out of the workflow for now (the owner, 2026-11-18). Each Linux and
+version. Only 3.15 is tested for now: `noxfile.TEST_PYTHONS` has 3.14 commented out, so
+`test-3.14` and `coverage-combine-3.14` are gone until it returns (the owner, 2026-11-18).
+CircleCI runs 3.15 only, on every OS (`test-python-3-15-macos`,
+`-linux`, `-windows`); the 3.14 jobs (`build-and-test-linux`, `-windows`) are commented out of the
+workflow for now (the owner, 2026-11-18). Every other nox session (lint, types, docs, security,
+builds) runs on 3.15 too (`noxfile.PINNED_PYTHONS`); the tools still target 3.14. Each Linux and
 Windows job is split across two machines (`parallelism: 2`), as one Python alone ran past
 CircleCI's one-hour job limit on Linux (`noxfile.TEST_PYTHONS`, `PYTHON_NEXT_VERSION`). A split
 job's machines each run a share (`GLITCHYGAMES_TEST_SPLIT`, `tests/circleci_test_split.py`), and a
@@ -58,8 +60,8 @@ basedpyright                # pyrightconfig.json
 ```
 
 Nox (`nox -l` lists all; each session's docstring explains it):
-- `format`, `lint` (aggregates), `static-analysis` (basedpyright + ty), `test` (`test-3.14`
-  then `test-3.15`; `-s test-3.15` runs one), `test-random` (shuffled order on 3.15 only, the
+- `format`, `lint` (aggregates), `static-analysis` (basedpyright + ty), `test` (`test-3.15`;
+  `test-3.14` while 3.14 is commented out of `TEST_PYTHONS`), `test-random` (shuffled order on 3.15 only, the
   pre-push hook; `-- SEED` repeats one), `performance-test`
 - `compare-drivers` (N-way driver matrix, 4 workers per run, `-- --workers auto` for every
   core; pre-push runs `-- --drivers native --fail-on-difference --workers auto
@@ -70,9 +72,8 @@ Nox (`nox -l` lists all; each session's docstring explains it):
 - `security-scan` (bandit, syft SBOM `docs/sbom.cyclonedx.json`, grype, license check; commit
   the regenerated SBOM with any `uv.lock` change; exceptions in `.grype.yaml` and
   `scripts/check_licenses.py` are the owner's)
-- `build`, `build-wheel`, `build-binary` (on 3.15; stamp the commit into `_build_info.json`
-  around the build)
-- `coverage-combine-3.14`, `-3.15` (a split CI job's machines' coverage data, `coverage-data/` or
+- `build`, `build-wheel`, `build-binary` (stamp the commit into `_build_info.json` around the build)
+- `coverage-combine-3.15` (a split CI job's machines' coverage data, `coverage-data/` or
   `-- DIRECTORY`, combined on the job's Python and held to 100%; installs only uv.lock's coverage)
 - `docs-serve` (isolated env; refuses a taken address), `docs-deploy` (CircleCI runs it after
   every merge to main; refused unless HEAD is on origin/main), `code-complexity`

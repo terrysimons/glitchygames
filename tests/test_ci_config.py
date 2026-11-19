@@ -516,7 +516,8 @@ def test_docs_deploy_with_no_measure_measures_nothing():
 
 
 # How ``nox -s docs-serve`` runs mkdocs: in a fresh environment of its own from uv.lock, removed
-# when it ends (noxfile.docs_serve)
+# when it ends (noxfile.docs_serve), on 3.15 as every session but the tests (the owner, 2026-11-18:
+# "Migrate docs-serve to 3.15")
 DOCS_SERVE_IN_A_FRESH_ENVIRONMENT = (
     'uv',
     'run',
@@ -526,7 +527,7 @@ DOCS_SERVE_IN_A_FRESH_ENVIRONMENT = (
     '--all-packages',
     '--all-extras',
     '--python',
-    '3.14',
+    '3.15',
 )
 
 
@@ -674,7 +675,7 @@ def test_the_docs_deploy_after_main_passes_on_macos():
     """
     entry = circleci_workflow_job(name='deploy-docs')
 
-    assert 'requires:\n            - build-and-test-macos\n' in entry
+    assert 'requires:\n            - test-python-3-15-macos\n' in entry
     assert 'branches:\n              only: main\n' in entry
     assert 'serial-group:' in entry
 
@@ -796,12 +797,12 @@ def test_the_test_session_fails_when_it_cannot_find_its_installed_engine():
         noxfile.test(session)
 
 
-def test_circleci_runs_every_test_python_on_macos_and_3_15_on_every_os():
-    """Each Python of noxfile.TEST_PYTHONS is installed by CircleCI; macOS runs both, all run 3.15.
+def test_circleci_runs_3_15_on_every_os():
+    """Each Python of noxfile.TEST_PYTHONS has its pipeline parameter; every OS runs test-3.15.
 
     Every test step names its session, never a default (the owner: "Be explicit about the 3.14
-    testing, too"). Linux and Windows run test-3.15 only while their 3.14 jobs are off (the owner,
-    2026-11-18: "Comment out the python 3.14 CI jobs"); macOS still runs test-3.14 and test-3.15.
+    testing, too"). The 3.14 jobs are off (the owner, 2026-11-18: "Comment out the python 3.14 CI
+    jobs", "Only 3.15 for macos too"), so no running job tests 3.14.
     """
     import noxfile
 
@@ -810,7 +811,7 @@ def test_circleci_runs_every_test_python_on_macos_and_3_15_on_every_os():
         pipeline_parameter_default(name=name).rsplit('.', 1)[0]
         for name in ('PYTHON_LATEST_VERSION', 'PYTHON_NEXT_VERSION')
     }
-    assert installed == set(noxfile.TEST_PYTHONS)
+    assert set(noxfile.TEST_PYTHONS) <= installed
     assert noxfile.test.python == list(noxfile.TEST_PYTHONS)
     assert re.search(r'^\s+- nox-test(-windows)?$', configuration, flags=re.MULTILINE) is None
     assert 'default: test-3' not in configuration
@@ -832,12 +833,7 @@ def test_circleci_runs_every_test_python_on_macos_and_3_15_on_every_os():
                 flags=re.MULTILINE,
             )
         }
-        expected = (
-            {f'test-{python}' for python in noxfile.TEST_PYTHONS}
-            if operating_system == 'macos'
-            else {f'test-{noxfile.TEST_PYTHONS[-1]}'}
-        )
-        assert sessions == expected, operating_system
+        assert sessions == {f'test-{noxfile.TEST_PYTHONS[-1]}'}, operating_system
 
 
 # Windows' path limit: 260 characters with the terminating null, so 259 usable (MAX_PATH)
@@ -1038,7 +1034,7 @@ def test_a_one_python_job_installs_and_runs_only_its_python(name, python):
     pythons_of_session = {
         'timer-report': noxfile.timer_report.python,
         'build': noxfile.build_all.python,
-        **{f'test-{version}': [version] for version in noxfile.TEST_PYTHONS},
+        **{f'test-{version}': [version] for version in PYTHON_PARAMETERS},
     }
 
     assert re.findall(r'          pythons: (.+)\n', job) == [PYTHON_PARAMETERS[python]]
@@ -1057,7 +1053,7 @@ def test_the_builds_are_on_3_15_once_an_os():
     """
     import noxfile
 
-    assert noxfile.BUILD_PYTHONS == ['3.15']
+    assert noxfile.PINNED_PYTHONS == ['3.15']
     assert noxfile.build_all.python == noxfile.build_binary.python == ['3.15']
     jobs = circleci_job_texts()
     building = {
@@ -1066,7 +1062,7 @@ def test_the_builds_are_on_3_15_once_an_os():
         if re.search(r'^      - nox-build(-windows)?$', jobs[name], flags=re.MULTILINE)
     }
     assert building == {
-        'build-and-test-macos',
+        'test-python-3-15-macos',
         'test-python-3-15-linux',
         'test-python-3-15-windows',
     }
@@ -1082,6 +1078,34 @@ def test_a_coverage_combine_session_runs_on_each_test_python():
     import noxfile
 
     assert noxfile.coverage_combine.python == list(noxfile.TEST_PYTHONS)
+
+
+def test_every_session_but_the_tests_is_pinned_to_3_15():
+    """Only the test and coverage-combine sessions are one a Python; every other is 3.15's.
+
+    The owner, 2026-11-18: "pin 3.15", "Also upgrade deploy-docs to 3.15". The macOS job and
+    deploy-docs, which run those sessions, install 3.15 alone.
+    """
+    import noxfile
+
+    pinned = {
+        name: session.python
+        for name, session in vars(noxfile).items()
+        if callable(session) and isinstance(getattr(session, 'python', None), list)
+    }
+    assert pinned, 'no nox session found'
+    for name, python in pinned.items():
+        expected = (
+            list(noxfile.TEST_PYTHONS)
+            if getattr(noxfile, name).__name__ in {'test', 'coverage_combine'}
+            else noxfile.PINNED_PYTHONS
+        )
+        assert python == expected, name
+    jobs = circleci_job_texts()
+    for job in ('test-python-3-15-macos', 'deploy-docs'):
+        assert re.findall(r'          pythons: (.+)\n', jobs[job]) == [PYTHON_PARAMETERS['3.15']], (
+            job
+        )
 
 
 def test_a_split_share_turns_off_the_coverage_rule_and_names_test_files():
@@ -1124,8 +1148,8 @@ def test_a_package_the_lock_does_not_pin_is_refused():
 
 
 def test_the_macos_job_is_not_split_and_holds_its_own_coverage():
-    """The macOS job runs both Pythons whole, under the hour, with pytest's own 100% rule."""
-    job = circleci_job_texts()['build-and-test-macos']
+    """The macOS job runs 3.15's suite whole, under the hour, with pytest's own 100% rule."""
+    job = circleci_job_texts()['test-python-3-15-macos']
 
     assert 'parallelism:' not in job
     assert 'GLITCHYGAMES_TEST_SPLIT' not in job
@@ -2042,7 +2066,7 @@ def macos_job() -> str:
     """
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     return configuration[
-        configuration.index('\n  build-and-test-macos:\n') : configuration.index(
+        configuration.index('\n  test-python-3-15-macos:\n') : configuration.index(
             '\n  build-and-test-windows:\n'
         )
     ]
