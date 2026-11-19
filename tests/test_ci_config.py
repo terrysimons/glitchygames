@@ -1106,7 +1106,11 @@ class AptScriptRun(BaseModel):
 
 
 def run_apt_install_script(
-    *, tmp_path: Path, cache_hit: bool, mirror_up: bool, failed_updates: int = 0
+    *,
+    tmp_path: Path,
+    cache_hit: bool,
+    mirror_up: bool,
+    failed_updates: int = 0,
 ) -> AptScriptRun:
     """Run the step's script with stand-ins for sudo, apt-get and sleep.
 
@@ -1192,23 +1196,34 @@ apt_script_needs_bash = pytest.mark.skipif(
 
 
 @apt_script_needs_bash
-def test_a_restored_apt_cache_installs_without_updating(tmp_path):
-    """A cache hit installs from the cached lists and packages: no mirror is asked."""
+def test_every_run_first_refreshes_from_the_mirror_and_prunes_before_the_save(tmp_path):
+    """Each run updates first, so its install takes our packages' newest versions, then prunes.
+
+    The owner, 2026-11-19: "Make the update/upgrade non-fatal if it fails", "But attempt it
+    every run", "just do it with the packages we care about": the install line upgrades an
+    installed package to the fresh lists' version, so no apt-get upgrade touches the image's
+    others. autoclean drops the packages the fresh lists no longer name, before the save.
+    """
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=True, mirror_up=True)
+
+    assert (run.status, run.commands) == (0, ['update', 'install', 'autoclean'])
+
+
+@apt_script_needs_bash
+def test_a_failed_refresh_installs_from_the_cache(tmp_path):
+    """The mirror down: the first update fails, is reported, and the cache installs anyway."""
     run = run_apt_install_script(tmp_path=tmp_path, cache_hit=True, mirror_up=False)
 
-    assert (run.status, run.commands) == (0, ['install'])
+    assert (run.status, run.commands) == (0, ['update', 'install'])
+    assert 'Refreshing from the mirror failed' in run.output
 
 
 @apt_script_needs_bash
 def test_a_failed_cached_install_updates_from_the_mirror_and_installs_again(tmp_path):
-    """No cache (a new key) or a stale one: the fallback updates, installs, then autocleans.
-
-    autoclean drops the packages the fresh lists no longer name, so the week's new cache holds
-    no outdated ones.
-    """
+    """No cache (a new key) and the mirror up: the first refresh fetches the lists to install."""
     run = run_apt_install_script(tmp_path=tmp_path, cache_hit=False, mirror_up=True)
 
-    assert (run.status, run.commands) == (0, ['install', 'update', 'install', 'autoclean'])
+    assert (run.status, run.commands) == (0, ['update', 'install', 'autoclean'])
 
 
 @apt_script_needs_bash
@@ -1220,19 +1235,31 @@ def test_no_cache_and_no_mirror_fails_the_step_after_its_last_update(tmp_path):
     run = run_apt_install_script(tmp_path=tmp_path, cache_hit=False, mirror_up=False)
 
     assert run.status != 0
-    assert run.commands == ['install'] + ['update'] * APT_UPDATE_ATTEMPTS
+    assert run.commands == ['update', 'install'] + ['update'] * APT_UPDATE_ATTEMPTS
     assert 'giving up' in run.output
 
 
 @apt_script_needs_bash
 def test_the_fallback_outlasts_a_few_failed_updates(tmp_path):
-    """A mirror answering on the third try: the job goes on (job 3840 died on one HTTP 520)."""
+    """The fallback's mirror answering on its third try: the job goes on.
+
+    Job 3840 died on one HTTP 520. The run's first refresh failed too, so its cache could not
+    install.
+    """
     run = run_apt_install_script(
-        tmp_path=tmp_path, cache_hit=False, mirror_up=True, failed_updates=2
+        tmp_path=tmp_path, cache_hit=False, mirror_up=True, failed_updates=3
     )
 
     assert run.status == 0
-    assert run.commands == ['install', 'update', 'update', 'update', 'install', 'autoclean']
+    assert run.commands == [
+        'update',
+        'install',
+        'update',
+        'update',
+        'update',
+        'install',
+        'autoclean',
+    ]
     assert len(run.sleeps) == 2
     assert run.output.count('apt-get update failed') == 2
 
