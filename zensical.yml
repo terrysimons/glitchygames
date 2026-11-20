@@ -97,8 +97,13 @@ extra_css:
 extra_javascript:
   # Pinned: an unversioned URL took every new Mermaid release unannounced. Material draws the
   # mermaid fences itself (a unique id and shadow root each) with this Mermaid, since it loads its
-  # own only when none is loaded; js/mermaid-config.js keeps the diagrams' click links working
-  - https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js
+  # own only when none is loaded; js/mermaid-config.js keeps the diagrams' click links working.
+  # Mermaid 11, the major version Material is built for (its own fallback is mermaid@11): 12 made
+  # each diagram type default to its "redux-color" theme and "neo" look, which Material's
+  # initialize (fonts and themeCSS, no theme) does not override, so sequence participants were
+  # light pastel boxes, notes light yellow, with Material's light text in the dark scheme (the
+  # owner, 2026-11-20). Move to 12 only with each diagram type's theme and look set for Material
+  - https://unpkg.com/mermaid@11.17.2/dist/mermaid.min.js
   - js/mermaid-config.js
   - js/requirements.js
   # The Replay Performance explorer (quality/performance.md): loads plotly.js only on that page
@@ -164,7 +169,8 @@ theme:
     - search.share
     - search.suggest
     - toc.follow
-    - toc.integrate
+    # No toc.integrate: the left sidebar is the site's navigation and the right one the page's own
+    # table of contents (the owner, 2026-11-20)
 
 markdown_extensions:
   - abbr
