@@ -51,13 +51,16 @@ all:
               # Stock: 1800 MHz (read 2026-11-14)
               raspberry_pi_overclock_enabled: false
               raspberry_pi_overclock_settings: {}
-              # No fan yet; it has throttled under load (get_throttled 0xe0000, 2026-11-14)
+              # No fan. History: it throttled under load with no cooling at all (get_throttled
+              # 0xe0000, 2026-11-14); it has had passive heatsinks since 2026-11-20 (the owner)
               raspberry_pi_fan:
                 kind: none
               # The cooling as a whole, in the requirements page's words (it may add a reading)
-              raspberry_pi_cooling: None added
+              raspberry_pi_cooling: Passive (heatsinks)
             # The owner's third Pi (2026-11-14): a Raspberry Pi 5 with 8 GB, on Ubuntu 26.10
             raspberry-pi-5-8gb-ubuntu:
+              # Its address, not its .local name: rpi5-8gb-ubuntu-2610.local does not resolve
+              # (read 2026-11-20) although avahi runs on it
               ansible_host: 172.23.23.140
               raspberry_pi_hostname: rpi5-8gb-ubuntu-2610
               # .circleci/config.yml's build-and-test-raspberry-pi-5-8gb-ubuntu names this
@@ -76,7 +79,10 @@ all:
                 levels: []
               raspberry_pi_cooling: Active cooling; the official cooled case
             raspberry-pi-5-16gb-ubuntu:
-              ansible_host: 172.23.23.161
+              # Its address is a DHCP lease (it moved from 172.23.23.161 to 172.23.23.135 after
+              # a power cut, 2026-11-20), so it is reached by its mDNS name, which the hostname
+              # below keeps
+              ansible_host: rpi5-ubuntu-2604.local
               raspberry_pi_hostname: rpi5-ubuntu-2604
               # .circleci/config.yml's build-and-test-raspberry-pi-5-16gb-ubuntu names this
               # (tests/test_ci_config.py)
@@ -97,6 +103,13 @@ all:
               # by the first run, 2026-11-14; kept so a run on a restored config.txt still works)
               raspberry_pi_firmware_hand_typed_patterns:
                 - '^\[pi5\]\narm_freq=3000\ngpu_fre=1100\nover_voltage=6\n\n'
+              # The CPU governor, held by a systemd unit that sets every cpufreq policy at boot
+              # (the firmware role; the owner, 2026-11-20: "Set the Pi 5 16GB to performance").
+              # The kernel here offers conservative ondemand userspace powersave performance
+              # schedutil. power-profiles-daemon is enabled on it but has only placeholder
+              # balanced and power-saver profiles, so it does not touch cpufreq. A Pi that sets
+              # no raspberry_pi_cpu_governor keeps whatever governor it has
+              raspberry_pi_cpu_governor: performance
               # The Active Cooler on the firmware's default curve, until a measurement under
               # load says the overclock needs more (the owner, 2026-11-14)
               raspberry_pi_fan:

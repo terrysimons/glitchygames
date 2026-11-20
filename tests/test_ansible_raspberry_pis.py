@@ -18,6 +18,7 @@ line check runs with the real awk on the owner's Pis' own config.txt (read 2026-
 from __future__ import annotations
 
 import ast
+import base64
 import importlib.util
 import json
 import os
@@ -55,6 +56,9 @@ ANSIBLE_TEMPLATES = jinja2.Environment(
     undefined=jinja2.StrictUndefined,
     autoescape=jinja2.select_autoescape(default_for_string=False, default=False),
 )
+# Ansible's b64decode filter (https://docs.ansible.com/ansible/latest/collections/ansible/builtin/b64decode_filter.html):
+# base64 text to text, as the tasks decode what slurp reads
+ANSIBLE_TEMPLATES.filters['b64decode'] = lambda value: base64.b64decode(value).decode('utf-8')
 
 UBUNTU_HEAD = """[all]
 os_prefix=current/
@@ -1953,8 +1957,8 @@ REQUIREMENTS_PLATFORM_OF_HOST = {PI4: 'raspberry-pi-4', PI5_16GB: 'raspberry-pi-
 @pytest.mark.parametrize(
     ('host', 'cooling'),
     [
-        # Read 2026-11-14: no fan, no heat sink
-        (PI4, 'None added'),
+        # No fan; passive heatsinks since 2026-11-20 (it had no cooling when read, 2026-11-14)
+        (PI4, 'Passive (heatsinks)'),
         # The official Raspberry Pi 5 case with its fan
         (PI5_8GB, 'Active cooling; the official cooled case'),
         # The Active Cooler, booting from an NVMe SSD in a case that is itself a heat sink
@@ -1968,11 +1972,12 @@ def test_each_pi_says_how_it_is_cooled(host, cooling):
     assert raspberry_pi_hosts()[host]['raspberry_pi_cooling'] == cooling
 
 
-def test_a_pi_without_a_fan_says_it_has_no_added_cooling():
-    """The cooling and the fan agree: no fan is no added cooling, a fan is active cooling."""
+def test_a_pi_without_a_fan_is_cooled_passively_or_not_at_all():
+    """The cooling and the fan agree: no fan is passive or no added cooling, a fan is active."""
     for host, variables in raspberry_pi_hosts().items():
         no_fan = variables['raspberry_pi_fan']['kind'] == 'none'
-        assert variables['raspberry_pi_cooling'].startswith('None' if no_fan else 'Active'), host
+        expected = ('None', 'Passive') if no_fan else ('Active',)
+        assert variables['raspberry_pi_cooling'].startswith(expected), host
 
 
 def test_the_requirements_page_describes_each_pis_cooling_as_the_inventory_does():
@@ -2014,6 +2019,147 @@ def test_the_raspberry_pi_os_pi_is_reached_by_its_lasting_name_and_keeps_it():
     assert variables['raspberry_pi_resource_class'] == (
         'terrysimons/raspberry-pi-5-16gb-raspberry-pi-os'
     )
+
+
+def test_the_16gb_ubuntu_pi_is_reached_by_its_mdns_name():
+    """Its address is a DHCP lease (it moved after a power cut, 2026-11-20): reached by name."""
+    variables = raspberry_pi_hosts()[PI5_16GB]
+
+    assert variables['ansible_host'] == f'{variables["raspberry_pi_hostname"]}.local'
+
+
+# --- The CPU governor ----------------------------------------------------------------------
+
+GOVERNOR_UNIT_TASK = 'Install the unit that sets the CPU governor at boot'
+GOVERNOR_TASKS = [
+    'Read the governors the kernel offers',
+    'Refuse a governor the kernel does not offer',
+    GOVERNOR_UNIT_TASK,
+    'Enable the governor unit and run it now',
+    "Read every cpufreq policy's governor",
+]
+# Read on the 16 GB Pi 5, 2026-11-20 (cpu0's scaling_available_governors)
+PI5_AVAILABLE_GOVERNORS = 'conservative ondemand userspace powersave performance schedutil'
+
+
+def available_governors_content(text: str = PI5_AVAILABLE_GOVERNORS) -> str:
+    """Return what slurp reports for the kernel's governor file: base64 of its text."""
+    return base64.b64encode(f'{text}\n'.encode()).decode()
+
+
+def test_only_the_16gb_ubuntu_pi_sets_a_governor():
+    """Unset elsewhere means untouched: only this Pi names one (the owner, 2026-11-20)."""
+    governors = {
+        host: variables.get('raspberry_pi_cpu_governor')
+        for host, variables in raspberry_pi_hosts().items()
+    }
+
+    assert governors[PI5_16GB] == 'performance'
+    assert {host for host, governor in governors.items() if governor is not None} == {PI5_16GB}
+
+
+def test_every_governor_task_waits_for_a_governor_and_becomes_root():
+    """No governor named, nothing done; each task writes /sys or /etc, so each becomes root."""
+    tasks = role_tasks('raspberry_pi_firmware')
+
+    for name in GOVERNOR_TASKS:
+        found = task(tasks, name)
+        assert found['when'] == 'raspberry_pi_cpu_governor is defined', name
+        if name != 'Refuse a governor the kernel does not offer':
+            assert found['become'] is True, name
+
+
+@pytest.mark.parametrize(
+    ('governor', 'offered'),
+    [('performance', True), ('powersave', True), ('turbo', False), ('Performance', False)],
+)
+def test_a_governor_the_kernel_does_not_offer_is_refused(governor, offered):
+    """The check reads the kernel's own list: a typo never reaches the unit."""
+    (condition,) = task(role_tasks('raspberry_pi_firmware'), GOVERNOR_TASKS[1])[
+        'ansible.builtin.assert'
+    ]['that']
+    variables = {
+        'raspberry_pi_cpu_governor': governor,
+        'raspberry_pi_available_governors': {'content': available_governors_content()},
+    }
+
+    assert holds(condition, **variables) is offered
+
+
+def governor_unit(governor: str = 'performance') -> str:
+    """Return the governor unit's rendered content."""
+    content = task(role_tasks('raspberry_pi_firmware'), GOVERNOR_UNIT_TASK)['ansible.builtin.copy'][
+        'content'
+    ]
+    return render(content, raspberry_pi_cpu_governor=governor)
+
+
+def test_the_governor_unit_writes_the_governor_to_every_policy_at_boot():
+    """A oneshot, kept as active, wanted by multi-user: it runs at every boot."""
+    unit = governor_unit()
+
+    assert 'Type=oneshot' in unit
+    assert 'RemainAfterExit=yes' in unit
+    assert 'WantedBy=multi-user.target' in unit
+    assert 'for policy in /sys/devices/system/cpu/cpufreq/policy*; do' in unit
+    assert 'echo performance > "$$policy/scaling_governor" || exit 1' in unit
+    assert 'Description=Set the CPU governor to performance' in unit
+
+
+def test_the_governor_units_shell_variable_survives_systemd():
+    """Systemd expands $NAME in ExecStart itself: a shell variable must be written $$NAME."""
+    exec_start = next(
+        line for line in governor_unit().splitlines() if line.startswith('ExecStart=')
+    )
+
+    assert re.findall(r'(?<!\$)\$(?!\$)\w', exec_start) == []
+
+
+def test_the_governor_unit_is_a_root_owned_system_unit():
+    """It lives in /etc/systemd/system, owned by root, mode 0644."""
+    copy = task(role_tasks('raspberry_pi_firmware'), GOVERNOR_UNIT_TASK)['ansible.builtin.copy']
+
+    assert copy['dest'] == '/etc/systemd/system/raspberry-pi-cpu-governor.service'
+    assert (copy['owner'], copy['mode']) == ('root', '0644')
+
+
+def test_the_governor_unit_is_enabled_and_run_now_and_every_policy_is_checked_after():
+    """No policy read, or any not on the governor, fails the run."""
+    tasks = role_tasks('raspberry_pi_firmware')
+    enable = task(tasks, GOVERNOR_TASKS[3])['ansible.builtin.systemd_service']
+    check = task(tasks, GOVERNOR_TASKS[4])
+    condition = check['failed_when']
+
+    assert enable['name'] == 'raspberry-pi-cpu-governor'
+    assert enable['enabled'] is True
+    assert enable['daemon_reload'] is True
+    assert 'cpufreq/policy*/scaling_governor' in check['ansible.builtin.shell']['cmd']
+    assert holds(condition, raspberry_pi_applied_governors={'stdout_lines': []}, **host_governor())
+    assert holds(
+        condition,
+        raspberry_pi_applied_governors={'stdout_lines': ['performance', 'schedutil']},
+        **host_governor(),
+    )
+    assert not holds(
+        condition,
+        raspberry_pi_applied_governors={'stdout_lines': ['performance'] * 4},
+        **host_governor(),
+    )
+
+
+def host_governor() -> dict[str, str]:
+    """Return the governor the checks compare with."""
+    return {'raspberry_pi_cpu_governor': 'performance'}
+
+
+def test_a_changed_unit_is_restarted_so_the_new_governor_applies_now():
+    """A new governor must apply on this run, not at the next boot."""
+    state = task(role_tasks('raspberry_pi_firmware'), GOVERNOR_TASKS[3])[
+        'ansible.builtin.systemd_service'
+    ]['state']
+
+    assert render(state, raspberry_pi_governor_unit={'changed': True}) == 'restarted'
+    assert render(state, raspberry_pi_governor_unit={'changed': False}) == 'started'
 
 
 # --- hidapi's source build, on every Pi ----------------------------------------------------
