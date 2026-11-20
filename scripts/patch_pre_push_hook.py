@@ -45,14 +45,23 @@ PATCH_MARKER: Final = '# glitchygames: clear O_NONBLOCK'
 # The line of pre-commit's shim before which the clearing step goes: the one that starts
 # pre-commit (pre-commit's hook template, ``hook-tmpl``)
 SHIM_ANCHOR: Final = 'if [ -x "$INSTALL_PYTHON" ]; then'
-# Run before pre-commit starts: the first interpreter found clears the flag on fd 1 and fd 2
-# (never redirected here: the redirect would be the descriptor cleared). Without one the hook
-# still runs, as before
+# What the step runs. It must never fail or block the hook: a descriptor that cannot be made
+# blocking (on Windows, where Git for Windows runs this same shim through its bash,
+# ``os.set_blocking`` only works on pipes and raises ``OSError`` on a console or a file) is
+# left as it is, silently. On POSIX it clears the flag on a pipe, a terminal or a file alike
+CLEARING_CODE: Final = """import os
+for descriptor in (1, 2):
+    try:
+        os.set_blocking(descriptor, True)
+    except OSError:
+        pass"""
+# Run before pre-commit starts: the first interpreter found runs CLEARING_CODE (stdout and
+# stderr never redirected here: the redirect would be the descriptor cleared). Without an
+# interpreter, or if it fails, the hook still runs, as before
 CLEARING_STEP: Final = f"""{PATCH_MARKER} on stdout and stderr (scripts/patch_pre_push_hook.py)
 for blocking_python in "$INSTALL_PYTHON" python3; do
     if command -v "$blocking_python" > /dev/null; then
-        "$blocking_python" -c \\
-            'import os; os.set_blocking(1, True); os.set_blocking(2, True)' || true
+        "$blocking_python" -c '{CLEARING_CODE}' || true
         break
     fi
 done

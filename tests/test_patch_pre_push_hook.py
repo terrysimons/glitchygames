@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 import pytest
 from scripts import patch_pre_push_hook
 from scripts.patch_pre_push_hook import (
+    CLEARING_CODE,
     CLEARING_STEP,
     PATCH_MARKER,
     SHIM_ANCHOR,
@@ -104,7 +105,7 @@ class TestPatching:
         patched = hook.read_text(encoding='utf-8')
         assert patched.replace(CLEARING_STEP, '') == original
         assert patched.index(PATCH_MARKER) < patched.index(SHIM_ANCHOR)
-        assert 'os.set_blocking(1, True); os.set_blocking(2, True)' in patched
+        assert CLEARING_CODE in patched
 
     def test_patching_twice_changes_nothing_the_second_time(self, repository: Path):
         hook = installed_hook(repository=repository)
@@ -116,6 +117,7 @@ class TestPatching:
         assert hook.read_text(encoding='utf-8') == once
         assert once.count(PATCH_MARKER) == 1
 
+    @pytest.mark.skipif(sys.platform == 'win32', reason='Windows files have no executable bit')
     def test_the_hook_stays_executable(self, repository: Path):
         hook = installed_hook(repository=repository)
         mode = hook.stat().st_mode
@@ -265,6 +267,14 @@ def run_hook_on(*, hook: Path, environment: dict[str, str], output: TextIO) -> i
         stop_command(process=process)
 
 
+@pytest.mark.skipif(
+    sys.platform == 'win32',
+    reason=(
+        'O_NONBLOCK on an inherited pipe and the sh stand-ins are POSIX (os.set_blocking only '
+        'reaches pipes on Windows, with other semantics); the step itself is checked on every '
+        'platform by TestTheStepNeverFailsTheHook'
+    ),
+)
 class TestTheBlockingPipeFailure:
     """Reproduction: the unpatched hook dies writing a burst; the patched one does not."""
 
@@ -302,23 +312,33 @@ class TestTheBlockingPipeFailure:
         assert code == 0
         assert received == BURST_BYTES
 
+
+class TestThePatchedHookStillRuns:
+    """The step is never in the way of pre-commit, on every platform.
+
+    Windows runs the shim through Git for Windows' bash.
+    """
+
     def test_the_patched_hook_still_runs_pre_commit_and_passes_its_arguments(
         self, repository: Path, tmp_path: Path
     ):
         hook = installed_hook(repository=repository)
         record = tmp_path / 'arguments.txt'
         stand_in = tmp_path / 'python-stand-in'
+        # Forward slashes: sh (Git for Windows' bash too) reads backslashes as escapes
         stand_in.write_text(
             '#!/bin/sh\n'
-            f'case "$1" in -c) exec {sys.executable} "$@";; esac\n'
-            f'echo "$@" > {record}\n'
+            f'case "$1" in -c) exec {Path(sys.executable).as_posix()} "$@";; esac\n'
+            f'echo "$@" > {record.as_posix()}\n'
             'exit 7\n',
             encoding='utf-8',
         )
         stand_in.chmod(0o755)
         text = hook.read_text(encoding='utf-8')
         installed = next(line for line in text.splitlines() if line.startswith('INSTALL_PYTHON='))
-        hook.write_text(text.replace(installed, f'INSTALL_PYTHON={stand_in}'), encoding='utf-8')
+        hook.write_text(
+            text.replace(installed, f'INSTALL_PYTHON={stand_in.as_posix()}'), encoding='utf-8'
+        )
         patch_hook(path=hook)
 
         finished = run_command(
@@ -357,6 +377,64 @@ class TestTheBlockingPipeFailure:
         assert finished.returncode == 1
         assert '`pre-commit` not found' in finished.stdout
         assert 'command not found' not in finished.stdout
+
+
+class TestTheStepNeverFailsTheHook:
+    """The step swallows what a descriptor that cannot be made blocking raises."""
+
+    def run_step(self, *, failure: str) -> tuple[int, str]:
+        """Run the step's code with ``os.set_blocking`` replaced by one that fails.
+
+        Returns:
+            The code's exit code and what it wrote to standard output and error.
+
+        """
+        program = (
+            'import os\n'
+            'attempted = []\n'
+            'def set_blocking(descriptor, blocking):\n'
+            '    attempted.append(descriptor)\n'
+            f'    raise {failure}\n'
+            'os.set_blocking = set_blocking\n'
+            f'exec({CLEARING_CODE!r})\n'
+            'print(attempted)\n'
+        )
+        finished = run_command(
+            command=[sys.executable, '-c', program],
+            environment=clean_environment(),
+            timeout_seconds=GIT_TIMEOUT_SECONDS,
+            capture_output=OutputCapture.TOGETHER,
+        )
+        return finished.returncode, finished.stdout.strip()
+
+    def test_an_oserror_on_a_console_or_file_is_swallowed_and_both_descriptors_are_tried(self):
+        code, output = self.run_step(failure="OSError('not a pipe (Windows console)')")
+
+        assert code == 0
+        assert output == '[1, 2]'
+
+    def test_the_real_call_on_a_pipe_and_on_a_file_writes_nothing_and_succeeds(
+        self, tmp_path: Path
+    ):
+        on_a_pipe = run_command(
+            command=[sys.executable, '-c', CLEARING_CODE],
+            environment=clean_environment(),
+            timeout_seconds=GIT_TIMEOUT_SECONDS,
+            capture_output=OutputCapture.TOGETHER,
+        )
+        output_path = tmp_path / 'out.txt'
+        with output_path.open('w') as target:
+            process = start_command(
+                command=[sys.executable, '-c', CLEARING_CODE],
+                environment=clean_environment(),
+                output=target,
+            )
+            on_a_file = process.wait(timeout=HOOK_TIMEOUT_SECONDS)
+
+        assert on_a_pipe.returncode == 0
+        assert not on_a_pipe.stdout
+        assert on_a_file == 0
+        assert not output_path.read_text(encoding='utf-8')
 
 
 class TestCommandLine:
