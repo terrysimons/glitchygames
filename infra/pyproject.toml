@@ -1,0 +1,24 @@
+[project]
+name = "glitchy-site"
+version = "1.0.0"
+description = "The glitchy.games website on AWS: its CDK app and its publisher (docs/specs/2026-10-27-glitchy-games-website-design.md)"
+requires-python = ">=3.14,<4.0"
+dependencies = ["aws-cdk-lib", "boto3", "constructs"]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/glitchy_site"]
+
+# Its own workspace root, so it is not a member of the repository's workspace: the engine's
+# uv.lock never holds the CDK's dependencies, and this project has its own lock
+[tool.uv.workspace]
+members = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

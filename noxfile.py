@@ -1,5 +1,6 @@
 """Nox session definitions for linting, testing, security scanning, and benchmarks."""
 
+import argparse
 import contextlib
 import dataclasses
 import json
@@ -49,6 +50,9 @@ _CODE_DIRS = [
     'src/apps/bitmappy',
     'scripts',
     'tests',
+    # The website's CDK app and publisher: its own uv project (docs/specs/2026-10-27-glitchy-games-
+    # website-design.md), formatted and linted by the same ruff rules
+    'infra',
 ]
 # The source packages vulture and bandit scan: the engine's and each workspace member's
 _SOURCE_PACKAGE_DIRS = [
@@ -417,10 +421,11 @@ def docs_deploy(session: nox.Session) -> None:
     gh-pages and pushes it. Only after that succeeded are the now-published pending rows
     removed (``glitchygames clear-published``), and only when the pending ledger holds rows: a
     deploy without any (CircleCI's) skips it, and so the editable install it would build first.
-    Before the docs, every game's browser build (``python -m scripts.build_browser_bundle
-    all``: the pygame-ce wheel is built first when the submodule changed) goes into the site as
-    play/. Run it from what should be published (usually main after a merge); a warning stops
-    it before anything is pushed.
+    Every game's browser build (``python -m scripts.build_browser_bundle all``: the pygame-ce
+    wheel is built first when the submodule changed) goes into the site as play/, built afresh
+    by the deploy itself (scripts/mkdocs_hooks.py; ``--build-only`` builds them here first). Run
+    it from what should be published (usually main after a merge); a warning stops it before
+    anything is pushed.
 
     ``--no-measure`` skips the measurement (CircleCI's deploy after a merge to main: its machines
     vary, so their timings would be noise in the run ledger); the published ledger and any
@@ -453,11 +458,14 @@ def docs_deploy(session: nox.Session) -> None:
     )
     if measure:
         _glitchygames(session, 'measure', '--skip-dirty')
-    # The browser games, published with the docs as play/ (scripts/mkdocs_hooks.py)
-    session.run('python', '-m', 'scripts.build_browser_bundle', 'all')
     if build_only:
+        # A local build builds no games itself (scripts/mkdocs_hooks.py): build them here, so
+        # the site holds this commit's play/ as a deploy's does
+        session.run('python', '-m', 'scripts.build_browser_bundle', 'all')
         session.run('mkdocs', 'build', '--strict', '--config-file', _DOCS_CONFIGURATION)
         return
+    # gh-deploy builds the browser games afresh itself (scripts/mkdocs_hooks.py), however it is
+    # run, and publishes them as play/
     session.run('mkdocs', 'gh-deploy', '--strict', '--config-file', _DOCS_CONFIGURATION)
     # Only rows waiting here can have been published. Without any (CircleCI's deploy: a fresh
     # checkout that never measures) there is nothing to clear, and ``uv run`` would first build
@@ -1607,6 +1615,118 @@ def test_linux_ci(session: nox.Session) -> None:
         )
 
 
+# The .deb's container check (plans/lucid-circuit-linux.md, section 7): the Pi 5 that builds it runs
+# Ubuntu 26.04 (ansible/inventory.yml), and 24.04's glibc is older
+_DEB_PACKAGE_DIRECTORY = Path('scripts/deb_package')
+_DEB_PACKAGE_PLATFORM = 'linux/arm64'
+_DEB_PACKAGE_RELEASE = 'ubuntu:26.04'
+_DEB_PACKAGE_OLDER_RELEASE = 'ubuntu:24.04'
+
+
+@nox.session(venv_backend='none', name='deb-package', default=False)
+def deb_package(session: nox.Session) -> None:
+    """Check a .deb of the local AI service, built on a Pi, in arm64 containers.
+
+    On the release that built it (an image with systemd running and a user, player, whose
+    manager runs): the install and the setup job enabled for every user, `llama-server
+    --version` and the CPU variant it loads (its `load_backend` line), the sidecar importing
+    glitchygames_ai_service, an upgrade to the same package with a newer version while a unit
+    runs (the unit stops; player's models, keys and history stay: Review focus 4), and `dpkg -r`
+    leaving nothing under /opt/glitchygames/ai or among the user units. Then, on an older
+    release, that apt refuses it. The checks are scripts/deb_package/check_package.sh. Manual:
+    it needs Docker and a .deb (`ansible/roles/ai_package` builds one on each Linux host).
+
+    Usage:
+        nox -s deb-package -- PATH_TO_DEB
+        nox -s deb-package -- PATH_TO_DEB --release debian:trixie --older-release debian:bookworm
+    """
+    parser = argparse.ArgumentParser(prog='nox -s deb-package --')
+    parser.add_argument('deb', type=Path, help='the .deb to check')
+    parser.add_argument(
+        '--release', default=_DEB_PACKAGE_RELEASE, help='the image of the release that built it'
+    )
+    parser.add_argument(
+        '--older-release',
+        default=_DEB_PACKAGE_OLDER_RELEASE,
+        help='the image of an older release, whose glibc the package must refuse',
+    )
+    arguments = parser.parse_args(session.posargs)
+    deb = arguments.deb.resolve()
+    if not deb.is_file():
+        session.error(f'{deb} is not a file')
+    checks = _DEB_PACKAGE_DIRECTORY.resolve()
+    image = f'glitchygames-deb-package:{arguments.release.replace(":", "-").replace("/", "-")}'
+    session.run(
+        'docker',
+        'build',
+        '--quiet',
+        f'--platform={_DEB_PACKAGE_PLATFORM}',
+        '--build-arg',
+        f'RELEASE={arguments.release}',
+        '--tag',
+        image,
+        str(checks),
+        external=True,
+    )
+    mounts = ['--volume', f'{deb.parent}:/debs:ro', '--volume', f'{checks}:/checks:ro']
+    container_name = f'glitchygames-deb-package-{os.getpid()}'
+    try:
+        # systemd as PID 1, so the maintainer scripts reach real user managers
+        session.run(
+            'docker',
+            'run',
+            '--detach',
+            '--name',
+            container_name,
+            f'--platform={_DEB_PACKAGE_PLATFORM}',
+            '--privileged',
+            '--cgroupns=host',
+            '--volume',
+            '/sys/fs/cgroup:/sys/fs/cgroup:rw',
+            '--tmpfs',
+            '/run',
+            '--tmpfs',
+            '/run/lock',
+            *mounts,
+            image,
+            external=True,
+            silent=True,
+        )
+        session.run(
+            'docker',
+            'exec',
+            container_name,
+            'sh',
+            '/checks/check_package.sh',
+            'installed',
+            f'/debs/{deb.name}',
+            external=True,
+        )
+    finally:
+        session.run(
+            'docker',
+            'rm',
+            '--force',
+            container_name,
+            external=True,
+            silent=True,
+            success_codes=[0, 1],
+        )
+    session.run(
+        'docker',
+        'run',
+        '--rm',
+        f'--platform={_DEB_PACKAGE_PLATFORM}',
+        *mounts,
+        arguments.older_release,
+        'sh',
+        '/checks/check_package.sh',
+        'refused',
+        f'/debs/{deb.name}',
+        external=True,
+    )
+
+
 @nox.session(venv_backend='none', name='build-sdl-x11', default=False)
 def build_sdl_x11(session: nox.Session) -> None:
     """Build SDL with x11 for macOS, so pygame-ce draws on XQuartz (compare-drivers' x11-macos).
@@ -2322,6 +2442,7 @@ def timer_report(session: nox.Session) -> None:
 _BENCHMARK_PATHS = [
     'tests/benchmarks',
     'src/apps/bitmappy/tests/test_bitmappy_benchmarks.py',
+    'src/games/drawing-fire/tests/test_drawing_fire_benchmarks.py',
 ]
 
 
@@ -2610,3 +2731,122 @@ def code_complexity(session: nox.Session) -> None:
     # Optional: generate graphs for documentation
     if '--graphs' in session.posargs:
         session.run('python', 'scripts/generate_complexity_graphs.py')
+
+
+# ---------------------------------------------------------------------------
+# Website (infra/: docs/specs/2026-10-27-glitchy-games-website-design.md)
+# ---------------------------------------------------------------------------
+
+# infra/ is its own uv project with its own lock (not a workspace member), so these sessions
+# run its locked environment with `uv run --project infra` instead of a nox venv
+_INFRA_PROJECT = 'infra'
+# The CDK CLI, run with npx (Node is already needed: the CDK's Python library runs on it). npm's
+# `latest` on 2026-10-28; it must be at least as new as the cloud assembly aws-cdk-lib writes
+# (infra/uv.lock), or the CLI refuses the app
+_AWS_CDK_CLI_VERSION = '2.1146.1'
+# Where infra-diff and infra-deploy read the budget alert's address: it is never written in this
+# public repository (glitchy_site/settings.py, BUDGET_EMAIL_ENVIRONMENT_VARIABLE)
+_BUDGET_EMAIL_ENVIRONMENT_VARIABLE = 'GLITCHY_SITE_BUDGET_EMAIL'
+
+
+def _run_cdk(session: nox.Session, *cdk_arguments: str) -> None:
+    """Run the CDK CLI on infra/'s app, passing the budget email from the environment.
+
+    Args:
+        session: The nox session.
+        *cdk_arguments: The CLI's command and options (``diff``, ``deploy --all``, ...).
+
+    """
+    budget_email = os.environ.get(_BUDGET_EMAIL_ENVIRONMENT_VARIABLE, '')
+    if not budget_email:
+        session.error(
+            f'Set {_BUDGET_EMAIL_ENVIRONMENT_VARIABLE} to the address AWS Budgets alerts '
+            '(it is never written in the repository)'
+        )
+    with session.chdir(_INFRA_PROJECT):
+        session.run(
+            'npx',
+            '--yes',
+            f'aws-cdk@{_AWS_CDK_CLI_VERSION}',
+            *cdk_arguments,
+            '--context',
+            f'budget_alert_email={budget_email}',
+            external=True,
+        )
+
+
+@nox.session(venv_backend='none', name='infra-test', default=False)
+def infra_test(session: nox.Session) -> None:
+    """Test the website's CDK app and publisher (pytest), and its CloudFront Function (node).
+
+    Usage:
+        nox -s infra-test
+    """
+    session.run(
+        'uv', 'run', '--project', _INFRA_PROJECT, '--frozen', 'pytest', 'infra/tests', external=True
+    )
+    # The CloudFront Function is JavaScript: Node's own test runner, no packages to install. A
+    # glob, which node expands itself (no shell runs here): Node 24, CircleCI's, loads a folder
+    # named after --test as one module ("Cannot find module"); only newer Nodes search it
+    session.run('node', '--test', 'infra/tests/functions/**/*.test.mjs', external=True)
+
+
+@nox.session(venv_backend='none', name='infra-diff', default=False)
+def infra_diff(session: nox.Session) -> None:
+    """Show what infra-deploy would change in AWS (cdk diff); needs AWS credentials.
+
+    Usage:
+        GLITCHY_SITE_BUDGET_EMAIL=... nox -s infra-diff
+        GLITCHY_SITE_BUDGET_EMAIL=... nox -s infra-diff -- GlitchyGamesSite   # One stack
+    """
+    _run_cdk(session, 'diff', *session.posargs)
+
+
+@nox.session(venv_backend='none', name='infra-deploy', default=False)
+def infra_deploy(session: nox.Session) -> None:
+    """Deploy the website's stacks (cdk deploy) from the owner's Mac, with admin credentials.
+
+    Deploy GlitchyGamesDnsZones first and set its name servers at Namecheap: the other stacks'
+    certificates validate through those zones (docs/specs/2026-10-27-glitchy-games-website-
+    design.md, Manual steps). A change that widens IAM permissions asks for approval first.
+
+    Usage:
+        GLITCHY_SITE_BUDGET_EMAIL=... nox -s infra-deploy -- GlitchyGamesDnsZones
+        GLITCHY_SITE_BUDGET_EMAIL=... nox -s infra-deploy              # Every stack
+    """
+    stacks = session.posargs or ['--all']
+    _run_cdk(session, 'deploy', *stacks, '--require-approval', 'broadening')
+
+
+# What site-publish publishes when given nothing: the website (for now its page and the mockup)
+# (docs/specs/2026-10-27-glitchy-games-website-design.md, What gets published at launch)
+_SITE_DEFAULT_SOURCE = 'src/website'
+
+
+@nox.session(venv_backend='none', name='site-publish', default=False)
+def site_publish(session: nox.Session) -> None:
+    """Publish a directory to play.glitchy.games (glitchy_site.publish); needs AWS credentials.
+
+    CircleCI's deploy-site job runs it after a merge to main (OIDC credentials); the owner can
+    run it from the Mac with their own profile.
+
+    Usage:
+        nox -s site-publish                                   # src/website
+        nox -s site-publish -- --source build/browser/site    # Another directory
+        nox -s site-publish -- --dry-run                      # Print the plan, change nothing
+    """
+    arguments = list(session.posargs)
+    if '--source' not in arguments:
+        arguments = ['--source', _SITE_DEFAULT_SOURCE, *arguments]
+    session.run(
+        'uv',
+        'run',
+        '--project',
+        _INFRA_PROJECT,
+        '--frozen',
+        'python',
+        '-m',
+        'glitchy_site.publish',
+        *arguments,
+        external=True,
+    )

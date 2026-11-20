@@ -42,11 +42,26 @@ def hosts_of_group(
         Each host's variables, by host name.
 
     """
-    variables = {**(inherited or {}), **group.get('vars', {})}
-    hosts = {name: {**variables, **host} for name, host in (group.get('hosts') or {}).items()}
+    variables = {**(inherited or {}), **(group.get('vars') or {})}
+    hosts = {
+        name: {**variables, **(host or {})} for name, host in (group.get('hosts') or {}).items()
+    }
     for child in (group.get('children') or {}).values():
-        hosts |= hosts_of_group(child, inherited=variables)
+        # A child named with no body (linux's raspberry_pis) refers to a group written elsewhere,
+        # whose hosts that definition already gave
+        hosts |= hosts_of_group(child or {}, inherited=variables)
     return hosts
+
+
+def every_host() -> dict[str, dict[str, Any]]:
+    """Return every host in the inventory, with the variables it sees from all down.
+
+    Returns:
+        Each host's variables, by host name.
+
+    """
+    inventory = yaml.safe_load(INVENTORY_PATH.read_text(encoding='utf-8'))
+    return hosts_of_group(inventory['all'])
 
 
 def _load_natural_order() -> ModuleType:

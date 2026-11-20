@@ -8,6 +8,7 @@ import pygame
 
 from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.input.state import current_input
+from glitchygames.render_target import display_surface
 from glitchygames.sprites import BitmappySprite, SpriteFactory
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.sprites.file_format import detect_file_format
@@ -1620,16 +1621,24 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             self.log.warning('Cannot access parent or debug_text - description not updated')
 
     def _resize_canvas_to_sprite_size(self, sprite_width: int, sprite_height: int) -> None:
-        """Resize the canvas to match the sprite dimensions."""
+        """Resize the canvas to match the sprite dimensions, fitted to the scene's own screen.
+
+        Raises:
+            RuntimeError: There is no screen yet (no display and no render target).
+
+        """
         self.log.debug('Resizing canvas to %sx%s', sprite_width, sprite_height)
 
         # Update canvas dimensions
         self.pixels_across = sprite_width
         self.pixels_tall = sprite_height
 
-        # Get screen dimensions directly from pygame display
-        screen = pygame.display.get_surface()
-        assert screen is not None
+        # The scene's own screen: the window, or a render target when Bitmappy runs inside another
+        # game (an Arcade tile), where pygame.display.get_surface() is the host's window
+        screen = display_surface()
+        if screen is None:
+            message = 'Bitmappy has no screen: display_surface() is None (no display, no target)'
+            raise RuntimeError(message)
         screen_width = screen.get_width()
         screen_height = screen.get_height()
 

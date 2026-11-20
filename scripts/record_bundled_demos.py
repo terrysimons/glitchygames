@@ -24,7 +24,8 @@ The rules every demo follows:
   devices). A pad a demo needs is a stand-in, which the recording's header holds and its replay
   opens again.
 - A recording session never reaches the AI service (``GLITCHYGAMES_AI_INSTALL_ROOT`` names an
-  empty temporary directory for the session, so no service is found and the game builds plain
+  empty temporary directory for the session, and the program and user root variables, which would
+  win over it, are unset, so no service is found and the game builds plain
   host sources). SDL's real joystick drivers are also off for the session, as for a test run
   (tests/sdl_defaults.py; Ruling R5): kept as defence in depth behind the stand-in doors. Both
   settings are for the session only: the environment is put back exactly afterwards (a variable
@@ -61,7 +62,11 @@ from pydantic import BaseModel, ConfigDict
 os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
-from glitchygames.ai_link import INSTALL_ROOT_ENVIRONMENT_VARIABLE
+from glitchygames.ai_link import (
+    INSTALL_ROOT_ENVIRONMENT_VARIABLE,
+    PROGRAM_ROOT_ENVIRONMENT_VARIABLE,
+    USER_ROOT_ENVIRONMENT_VARIABLE,
+)
 from glitchygames.input.devices import DeviceDescriptor
 from glitchygames.replay.tools.golden_traces import (
     RANDOM_SEED,
@@ -76,6 +81,8 @@ from scripts.demo_inputs import (
     JOYSTICK_DEMO_FRAME_COUNT,
     MR_MUNCHER_DEMO_FRAME_COUNT,
     TEXT_INPUT_DEMO_FRAME_COUNT,
+    ZOMBIES_DEMO_FRAME_COUNT,
+    ZOMBIES_DEMO_PADS,
 )
 
 if TYPE_CHECKING:
@@ -197,6 +204,16 @@ DEMO_RECIPES: dict[str, DemoRecipe] = {
         package='text_input_demo',
         name='typing.jsonl.gz',
     ),
+    # The attract demo (feature plan 13): four kids clear stage 1; P2 to P4 are stand-in pads
+    'zombies_aint_my_neighbors_four_kids': DemoRecipe(
+        scene='zombies_aint_my_neighbors.demo_neighborhood:DemoNeighborhoodScene',
+        script='scripts.demo_inputs:zombies_demo_script',
+        frame_count=ZOMBIES_DEMO_FRAME_COUNT,
+        package='zombies_aint_my_neighbors',
+        name='neighborhood_four_kids.jsonl.gz',
+        polled_input=True,
+        stand_in_devices=ZOMBIES_DEMO_PADS,
+    ),
 }
 
 
@@ -226,19 +243,23 @@ def demo_path(*, recipe: DemoRecipe) -> Path:
 def recording_session_environment() -> Generator[None]:
     """Keep the AI service and every real pad away from a recording, then put the environment back.
 
-    Sets ``GLITCHYGAMES_AI_INSTALL_ROOT`` to an empty temporary directory (removed afterwards)
-    and SDL's three joystick drivers to off. On exit, even after an error, each variable has the
-    value it had before, and one that was unset is unset again.
+    Sets ``GLITCHYGAMES_AI_INSTALL_ROOT`` to an empty temporary directory (removed afterwards),
+    unsets the program and user root variables (each wins over it), and sets SDL's three joystick
+    drivers to off. On exit, even after an error, each variable has the value it had before, and
+    one that was unset is unset again.
 
     Yields:
         Nothing: the settings are in the environment while the block runs.
 
     """
-    names = (INSTALL_ROOT_ENVIRONMENT_VARIABLE, *SDL_JOYSTICK_DRIVER_VARIABLES)
+    winning_roots = (PROGRAM_ROOT_ENVIRONMENT_VARIABLE, USER_ROOT_ENVIRONMENT_VARIABLE)
+    names = (INSTALL_ROOT_ENVIRONMENT_VARIABLE, *winning_roots, *SDL_JOYSTICK_DRIVER_VARIABLES)
     previous_values = {name: os.environ.get(name) for name in names}
     try:
         with tempfile.TemporaryDirectory(prefix='glitchygames-demo-ai-root-') as empty_directory:
             os.environ[INSTALL_ROOT_ENVIRONMENT_VARIABLE] = empty_directory
+            for name in winning_roots:
+                os.environ.pop(name, None)
             for name in SDL_JOYSTICK_DRIVER_VARIABLES:
                 os.environ[name] = SDL_DRIVER_OFF
             yield

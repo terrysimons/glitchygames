@@ -17,7 +17,12 @@ from websockets.sync.server import serve
 from glitchygames import ai_link
 from glitchygames.ai_console import AiConsole
 from glitchygames.ai_host import AiHostSources
-from glitchygames.ai_link import INSTALL_ROOT_ENVIRONMENT_VARIABLE, AiLink, LinkState
+from glitchygames.ai_link import (
+    INSTALL_ROOT_ENVIRONMENT_VARIABLE,
+    AiLink,
+    LinkState,
+    ServiceLocations,
+)
 from glitchygames.engine import ExitCode, GameEngine
 from glitchygames.host import HostSources
 from glitchygames.recording import post_input_event
@@ -308,7 +313,10 @@ def test_the_debug_overlay_shows_the_consoles_status(scene):
     manager.game_engine = engine
     assert manager._ai_status() == ()
 
-    engine.ai_console = AiConsole(link=AiLink(install_root=Path()), install_root=Path())
+    engine.ai_console = AiConsole(
+        link=AiLink(locations=ServiceLocations.in_one_folder(root=Path())),
+        locations=ServiceLocations.in_one_folder(root=Path()),
+    )
     assert manager._ai_status()[0].startswith('Link: ')
 
     manager.game_engine = None

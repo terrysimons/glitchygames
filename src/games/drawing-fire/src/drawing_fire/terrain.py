@@ -38,11 +38,19 @@ class Terrain:
             The ground's y at x.
 
         """
-        clamped_x = min(max(x, 0.0), float(len(self.ground) - 1))
+        # Same arithmetic as min(max(x, 0.0), last) and min(left + 1, last), written as
+        # comparisons: the line-of-sight check calls this about 570 times a frame
+        ground = self.ground
+        last_index = len(ground) - 1
+        clamped_x = x
+        if clamped_x < 0.0:
+            clamped_x = 0.0
+        elif clamped_x > last_index:
+            clamped_x = float(last_index)
         left_index = math.floor(clamped_x)
-        right_index = min(left_index + 1, len(self.ground) - 1)
+        right_index = left_index + 1 if left_index < last_index else last_index
         fraction = clamped_x - left_index
-        return self.ground[left_index] * (1.0 - fraction) + self.ground[right_index] * fraction
+        return ground[left_index] * (1.0 - fraction) + ground[right_index] * fraction
 
 
 def build_terrain(*, width: int, height: int, random: Random) -> Terrain:

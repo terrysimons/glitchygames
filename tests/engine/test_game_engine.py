@@ -676,6 +676,18 @@ class TestGameEngineSystemInfo:
         assert pygame.display.get_caption() == (expected_caption, expected_caption)
 
 
+class TestGameEngineRegistersItsQuit:
+    """A default-context engine registers quit_game with pygame, once (pygame cannot undo it)."""
+
+    def test_a_default_context_engine_registers_quit_game_once(self, mocker):
+        """The host's own engine is the one that posts QUIT when pygame quits."""
+        register_quit = mocker.patch('pygame.register_quit')
+
+        engine = _make_engine(mocker)
+
+        register_quit.assert_called_once_with(engine.quit_game)
+
+
 class TestGameEngineIconWithSurface:
     """Test GameEngine.initialize_icon with a pygame.Surface."""
 

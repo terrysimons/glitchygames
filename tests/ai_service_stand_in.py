@@ -32,13 +32,21 @@ def python_twin(*, control_script: Path) -> Path:
     return control_script.with_suffix(PYTHON_TWIN_SUFFIX)
 
 
-def install(*, root: Path, exit_code: int = 0, waits_for: Path | None = None) -> Path:
+def install(
+    *,
+    root: Path,
+    exit_code: int = 0,
+    waits_for: Path | None = None,
+    environment_record: Path | None = None,
+) -> Path:
     """Lay out an install: a real control script that records its calls, its twin, and the key.
 
     Args:
         root: Where the install goes.
         exit_code: What the control script exits with.
         waits_for: A file the control script waits to exist before it exits, or None.
+        environment_record: A file the control script writes its environment to, one
+            NAME=value line each, or None.
 
     Returns:
         The file the control script records its calls in.
@@ -48,8 +56,10 @@ def install(*, root: Path, exit_code: int = 0, waits_for: Path | None = None) ->
     script = root / 'bin' / CONTROL_SCRIPT_NAME
     script.parent.mkdir(parents=True)
     shell_wait = '' if waits_for is None else f'while [ ! -e "{waits_for}" ]; do sleep 0.01; done\n'
+    shell_record = '' if environment_record is None else f'env > "{environment_record}"\n'
     script.write_text(
-        f'#!/bin/sh\necho "$1" >> "{calls}"\n{shell_wait}exit {exit_code}\n', encoding='utf-8'
+        f'#!/bin/sh\necho "$1" >> "{calls}"\n{shell_record}{shell_wait}exit {exit_code}\n',
+        encoding='utf-8',
     )
     script.chmod(script.stat().st_mode | stat.S_IEXEC)
     python_wait = (
@@ -61,10 +71,20 @@ def install(*, root: Path, exit_code: int = 0, waits_for: Path | None = None) ->
             '    time.sleep(0.01)\n'
         )
     )
+    python_record = (
+        ''
+        if environment_record is None
+        else (
+            'import os\n'
+            f'with open({str(environment_record)!r}, "w", encoding="utf-8") as record:\n'
+            '    record.writelines(f"{name}={value}\\n" for name, value in os.environ.items())\n'
+        )
+    )
     python_twin(control_script=script).write_text(
         'import sys\n'
         f'with open({str(calls)!r}, "a", encoding="utf-8") as calls:\n'
         '    calls.write(sys.argv[1] + "\\n")\n'
+        f'{python_record}'
         f'{python_wait}'
         f'sys.exit({exit_code})\n',
         encoding='utf-8',

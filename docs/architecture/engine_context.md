@@ -143,8 +143,8 @@ private queue is all it reads). What an inner game can still change in the proce
 demo's tile changes the outer game's), text input start and stop (the engine's text widgets),
 the mouse cursor's visibility (Bitmappy's canvas), pygame's default font resolution (an inner
 `FontManager` sets it from its `--font-dpi`), `SDL_MOUSE_FOCUS_CLICKTHROUGH` when unset
-(`os.environ.setdefault`), and `pygame.register_quit` (every engine build adds one, never
-removed). The proof is
+(`os.environ.setdefault`). (An inner game registers nothing with `pygame.register_quit`: pygame
+can't undo it, so only the host's own engine does.) The proof is
 `tests/test_every_recording_replays_inside_an_inner_game.py`: every golden and bundled demo,
 replayed as an inner game beside another, unevenly interleaved, inside an outer window of
 another size, matches its solo headless replay's digests frame for frame and draws the pixels it

@@ -1,0 +1,22 @@
+---
+# The service's and each agent's settings, rendered with a player's folders as placeholders that
+# setup.sh fills in on each machine. The platform's task file includes this with the variables
+# that make the placeholders: ai_home on a Mac; on Linux, the user's folder and the program folder,
+# as each user's folder follows their own XDG_DATA_HOME (plans/lucid-circuit-linux.md, 6.3)
+- name: Stage the service's settings
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/roles/ai_service/templates/service.json.j2"
+    dest: "{{ ai_package_agents_stage }}/service.json.template"
+    mode: "0644"
+  notify: Build the package
+
+- name: Stage each agent's settings
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/roles/ai_service/templates/agent.env.j2"
+    dest: "{{ ai_package_agents_stage }}/{{ agent.label }}.env.template"
+    mode: "0644"
+  loop: "{{ ai_service_agents }}"
+  loop_control:
+    loop_var: agent
+    label: "{{ agent.label }}"
+  notify: Build the package

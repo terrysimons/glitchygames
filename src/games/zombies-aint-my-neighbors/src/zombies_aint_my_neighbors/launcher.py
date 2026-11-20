@@ -20,6 +20,7 @@ from glitchygames.logical_names import logical_name
 from glitchygames.replay.driver import GAME_HEADER_FIELD
 from glitchygames.replay.rebuild import REPLAY_TRACE_OPTION
 from glitchygames.tracing import TraceReader
+from zombies_aint_my_neighbors.demo_neighborhood import DemoNeighborhoodScene
 from zombies_aint_my_neighbors.neighborhood import NeighborhoodScene
 from zombies_aint_my_neighbors.title import TitleScene
 
@@ -61,7 +62,7 @@ def recorded_game(*, path: Path) -> str | None:
 
 
 def first_scene(*, arguments: Sequence[str]) -> type[Scene]:
-    """Return the scene to start: the neighborhood to replay a recording made there, else the title.
+    """Return the scene to start: the neighborhood a recording was made in, else the title.
 
     A recording that cannot be read, or that names another game, starts on the title too: the
     engine then refuses it with its own exit code and message, as any game's would.
@@ -81,8 +82,9 @@ def first_scene(*, arguments: Sequence[str]) -> type[Scene]:
     # A TraceFormatError is a ValueError
     except OSError, ValueError:
         return TitleScene
-    if game == logical_name(scene_class=NeighborhoodScene):
-        return NeighborhoodScene
+    for scene_class in (NeighborhoodScene, DemoNeighborhoodScene):
+        if game == logical_name(scene_class=scene_class):
+            return scene_class
     return TitleScene
 
 

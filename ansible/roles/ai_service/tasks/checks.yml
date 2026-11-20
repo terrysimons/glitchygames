@@ -1,0 +1,16 @@
+---
+# The checks run on the host, which over SSH isn't the machine running Ansible: neither the
+# controller's Python nor the playbook's folder is there. So they're copied to the host and run by
+# its own Python (and the API's by the sidecar's). Included by ai_validate too
+- name: Make the checks' folder
+  ansible.builtin.file:
+    path: "{{ ai_service_checks_directory }}"
+    state: directory
+    mode: "0755"
+
+- name: Put the checks on the host
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/roles/ai_service/files/{{ item }}"
+    dest: "{{ ai_service_checks_directory }}/{{ item }}"
+    mode: "0644"
+  loop: [smoke_test.py, api_smoke_test.py]

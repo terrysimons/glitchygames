@@ -587,6 +587,10 @@ class BitmappySprite(Sprite):
         Returns:
             List of pixel rows as strings
 
+        Raises:
+            ValueError: If a pixel's color is not in the color map (writing it as another glyph,
+                such as '.', would save a different sprite).
+
         """
         if pixels_across is None:
             pixels_across = int(self.pixels_across)
@@ -599,13 +603,15 @@ class BitmappySprite(Sprite):
             for x in range(pixels_across):
                 pixel_color = self.pixels[y * pixels_across + x]
                 # Find the character for this color
-                char = '.'
                 for ch, color in color_map.items():
                     if color == pixel_color:
                         char = ch
                         break
                 else:
-                    self.log.error('Color %s not found in color_map', pixel_color)
+                    message = (
+                        f'Pixel ({x}, {y}) has color {pixel_color}, which is not in the color map'
+                    )
+                    raise ValueError(message)
                 row += char
             pixel_rows.append(row)
         self.log.debug('Wrote %s pixel rows', len(pixel_rows))

@@ -1,0 +1,21 @@
+# {{ agent.label }}.service: a systemd user unit, the Linux counterpart of agent.plist.j2
+# (plans/lucid-circuit-linux.md, section 6.2). One file serves every user: run-llama-server.sh
+# finds the user's settings itself. No [Install] section, so nothing starts at login: ai-service.sh
+# starts it with systemctl --user start when a game asks, and stops it after the last game.
+[Unit]
+Description=GlitchyGames local AI: {{ agent.alias }}
+
+[Service]
+Type=simple
+ExecStart={{ ai_service_runner }} {{ agent.label }}
+WorkingDirectory=%h
+# An exit 0 from run-llama-server.sh's refuse stops it, as launchd's SuccessfulExit=false does
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+LimitNOFILE=65536
+{% if agent.role != 'api' %}
+# A sixth of a contended core beside the default 100, so an unpinned game comes first. Never a
+# cgroup cpuset: user services get no cpuset controller; setup.sh pins with a CPUAffinity drop-in
+CPUWeight=20
+{% endif %}

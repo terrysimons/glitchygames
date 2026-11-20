@@ -1,20 +1,28 @@
 ---
 # Starts what a game would get, checks it, and stops it again, so an install leaves nothing running
+- name: Put the checks on the host
+  ansible.builtin.include_tasks: checks.yml
+
 - name: Start the models this machine would pick now
   ansible.builtin.command:
     argv: ["{{ ai_service_control }}", start]
   register: ai_service_started
   changed_when: false
 
+# A machine whose memory tier runs no Qwen prints qwen=none, and Bonsai is then the one model
+# running, and the API one with no embedding model (plans/lucid-circuit-linux.md, 6.4.1)
 - name: Read which sizes it picked
+  vars:
+    ai_service_picked_bonsai: >-
+      {{ ai_service_started.stdout | regex_search('^bonsai=(.+)$', '\1', multiline=True) | first }}
+    ai_service_picked_qwen: >-
+      {{ ai_service_started.stdout | regex_search('^qwen=(.+)$', '\1', multiline=True) | first }}
   ansible.builtin.set_fact:
-    ai_service_running_labels:
-      - >-
-        {{ ai_service_label_prefix }}.bonsai-2-{{
-           ai_service_started.stdout | regex_search('^bonsai=(.+)$', '\1', multiline=True) | first }}.llama-cpp
-      - >-
-        {{ ai_service_label_prefix }}.qwen3-embedding-{{
-           ai_service_started.stdout | regex_search('^qwen=(.+)$', '\1', multiline=True) | first }}.llama-cpp
+    ai_service_running_labels: >-
+      {{ [ai_service_label_prefix ~ '.bonsai-2-' ~ ai_service_picked_bonsai ~ '.llama-cpp']
+         + ([ai_service_label_prefix ~ '.qwen3-embedding-' ~ ai_service_picked_qwen ~ '.llama-cpp']
+            if ai_service_picked_qwen != 'none' else []) }}
+    ai_service_runs_an_embedding_model: "{{ ai_service_picked_qwen != 'none' }}"
 
 - name: Check the running models, and stop them whatever happens
   block:
@@ -43,8 +51,8 @@
     - name: Ask the running models questions with known answers
       ansible.builtin.command:
         argv:
-          - "{{ ansible_playbook_python }}"
-          - "{{ role_path }}/files/smoke_test.py"
+          - "{{ ansible_facts['python']['executable'] }}"
+          - "{{ ai_service_checks_directory }}/smoke_test.py"
           - --config
           - "{{ ai_cache_root }}/smoke-test.json"
       register: ai_service_smoke_test
@@ -65,11 +73,12 @@
       ansible.builtin.command:
         argv:
           - "{{ ai_sidecar_directory }}/python/bin/python3.14"
-          - "{{ role_path }}/files/api_smoke_test.py"
+          - "{{ ai_service_checks_directory }}/api_smoke_test.py"
           - --port
           - "{{ ai_service_api_port }}"
           - --key-file
           - "{{ ai_service_service_key_file }}"
+          - "{{ '--embedding-model' if ai_service_runs_an_embedding_model | bool else '--no-embedding-model' }}"
       environment:
         PYTHONPATH: "{{ ai_sidecar_directory }}/site"
       register: ai_service_api_smoke_test

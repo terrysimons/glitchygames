@@ -22,11 +22,13 @@ from glitchygames.pixel_snap import (
     active_default_snap_mode,
     resolve_snap_mode,
     set_active_default_snap_mode,
+    snap_to_pixel,
 )
 from glitchygames.world import (
     CULL_MARGIN_PIXELS,
     CoordinateSpace,
     WorldPositioned,
+    camera_snap_terms,
     is_world_positioned,
     position_world_sprites,
     screen_position_for,
@@ -604,3 +606,88 @@ def test_each_engine_context_has_its_own_default_snap_mode():
 
     assert active_default_snap_mode() is PixelSnapMode.FLOOR
     assert resolve_snap_mode(sprite=object()) is PixelSnapMode.FLOOR
+
+
+# --- The frame snaps the camera and shake once per snap mode (a performance hoist) ---
+
+HOIST_CAMERA_POSITIONS = [
+    (0.0, 0.0),
+    (10.5, -3.5),
+    (-0.5, 0.5),
+    (0.49999999999999994, 1.5000000000000002),
+    (-123.75, 4096.25),
+    (7.0, -7.0),
+]
+HOIST_SHAKE_OFFSETS = [(0.0, 0.0), (0.5, -0.5), (-2.5, 2.5), (3.25, -1.75)]
+HOIST_WORLD_POSITIONS = [(0.0, 0.0), (-0.5, 0.5), (100.5, -40.25), (33.3, 77.7)]
+
+
+@pytest.mark.parametrize('shake_offset', HOIST_SHAKE_OFFSETS)
+@pytest.mark.parametrize('camera_position', HOIST_CAMERA_POSITIONS)
+@pytest.mark.parametrize('default_mode', list(PixelSnapMode))
+def test_frame_positions_equal_the_per_sprite_snap_of_every_term(
+    camera: Camera2D,
+    mocker: MockerFixture,
+    default_mode: PixelSnapMode,
+    camera_position: tuple[float, float],
+    shake_offset: tuple[float, float],
+) -> None:
+    """The once-per-mode camera snap gives every sprite what snapping each term itself gives.
+
+    Sprites of every snap mode and sprites on the active default share one frame, in several
+    orders, so the per-mode reuse is checked across a mixed group. The expected position is
+    worked from the spec, snap(world) - snap(camera) - snap(shake) + draw_offset, term by term.
+    """
+    set_active_default_snap_mode(default_mode)
+    camera.world_x, camera.world_y = camera_position
+    patch_world_shake(mocker, shake_offset)
+    sprites: list[WorldSprite] = []
+    for world_x, world_y in HOIST_WORLD_POSITIONS:
+        sprites.extend((
+            WorldSprite(world_x=world_x, world_y=world_y),
+            OffsetWorldSprite(world_x=world_x, world_y=world_y),
+        ))
+        for mode in PixelSnapMode:
+            moded_sprite = WorldSprite(world_x=world_x, world_y=world_y)
+            moded_sprite.pixel_snap_mode = mode
+            sprites.append(moded_sprite)
+
+    position_world_sprites(sprites=sprites, camera=camera, screen_size=SCREEN_SIZE)
+
+    for sprite in sprites:
+        mode = resolve_snap_mode(sprite=sprite)
+        draw_offset_x, draw_offset_y = getattr(sprite, 'draw_offset', (0, 0))
+        expected = (
+            snap_to_pixel(sprite.world_x, mode)
+            - snap_to_pixel(camera_position[0], mode)
+            - snap_to_pixel(shake_offset[0], mode)
+            + draw_offset_x,
+            snap_to_pixel(sprite.world_y, mode)
+            - snap_to_pixel(camera_position[1], mode)
+            - snap_to_pixel(shake_offset[1], mode)
+            + draw_offset_y,
+        )
+        assert sprite.rect.topleft == expected
+        assert screen_position_for(sprite=sprite, camera=camera) == expected
+
+
+@pytest.mark.parametrize('shake_offset', HOIST_SHAKE_OFFSETS)
+@pytest.mark.parametrize('camera_position', HOIST_CAMERA_POSITIONS)
+@pytest.mark.parametrize('mode', list(PixelSnapMode))
+def test_camera_snap_terms_are_the_camera_and_shake_snapped_with_the_mode(
+    camera: Camera2D,
+    mocker: MockerFixture,
+    mode: PixelSnapMode,
+    camera_position: tuple[float, float],
+    shake_offset: tuple[float, float],
+) -> None:
+    """camera_snap_terms returns the four snapped values in camera x, y, shake x, y order."""
+    camera.world_x, camera.world_y = camera_position
+    patch_world_shake(mocker, shake_offset)
+
+    assert camera_snap_terms(camera=camera, mode=mode) == (
+        snap_to_pixel(camera_position[0], mode),
+        snap_to_pixel(camera_position[1], mode),
+        snap_to_pixel(shake_offset[0], mode),
+        snap_to_pixel(shake_offset[1], mode),
+    )

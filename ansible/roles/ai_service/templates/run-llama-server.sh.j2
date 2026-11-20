@@ -1,20 +1,36 @@
 #!/bin/sh
-# Starts one llama-server for one launchd agent: run-llama-server.sh CONFIG_DIRECTORY LABEL.
-# This is a file and not a script inside the plist, because a raw & in a plist's XML makes the whole
-# plist invalid. Settings: LABEL.env from the install, then LABEL.env.runtime if it exists.
+# Starts one llama-server, or the API, for one agent: run-llama-server.sh [CONFIG_DIRECTORY] LABEL.
+# launchd and systemd both run it. This is a file and not a script inside the plist, because a raw &
+# in a plist's XML makes the whole plist invalid. Settings, from the config folder, each later file
+# beating the earlier: LABEL.env (Ansible's or setup.sh's), LABEL.env.tier if it exists (this
+# machine's memory tier, written by ai-service.sh at each start), then LABEL.env.runtime if it
+# exists (the user's own overrides, which nothing else writes). The folder is the user's unless
+# named: a systemd unit can't know the user's XDG folders, and scripts/ai_model_comparison.py
+# names a folder of its own, to run a size with changed settings beside the installed agent.
 set -u
 
-config_directory=$1
-label=$2
+{% import 'platform_functions.sh.j2' as platform with context %}
+{{ platform.user_root() }}
+
+if [ "$#" -ge 2 ]; then
+    config_directory=$1
+    label=$2
+else
+    config_directory="$(user_root)/config"
+    label=$1
+fi
 
 . "$config_directory/$label.env"
+if [ -f "$config_directory/$label.env.tier" ]; then
+    . "$config_directory/$label.env.tier"
+fi
 if [ -f "$config_directory/$label.env.runtime" ]; then
     . "$config_directory/$label.env.runtime"
 fi
 
-# launchd restarts this job after any failure, so waiting 10 seconds and failing the same way
-# forever would help nobody. Exiting 0 stops it (KeepAlive's SuccessfulExit is false) and the log
-# says why.
+# The service manager restarts this job after any failure, so waiting 10 seconds and failing the
+# same way forever would help nobody. Exiting 0 stops it (launchd's KeepAlive SuccessfulExit is
+# false; systemd's Restart is on-failure) and the log says why.
 refuse() {
     echo "$label: $1" >&2
     exit 0
@@ -33,38 +49,35 @@ fi
 [ -f "$AI_MODEL_FILE" ] || refuse "no model at $AI_MODEL_FILE"
 [ -f "$AI_API_KEY_FILE" ] || refuse "no API key at $AI_API_KEY_FILE"
 
-set -- \
-    --host 127.0.0.1 \
-    --port "$AI_PORT" \
-    --model "$AI_MODEL_FILE" \
-    --alias "$AI_ALIAS" \
-    --gpu-layers "$AI_GPU_LAYERS" \
-    --api-key-file "$AI_API_KEY_FILE" \
-    --sleep-idle-seconds "$AI_SLEEP_IDLE_SECONDS" \
-    --parallel 1 \
-    --no-webui
+{#- An item of ai_service_llama_server_arguments as a shell word: $NAME is that setting #}
+{% macro shell_word(item) %}{{ ('"' ~ item ~ '"') if item.startswith('$') else (item | quote) }}{% endmacro %}
+# Loopback only, behind a key, fixed here and not in the settings, so no setting can open a model
+# to the network. The rest is ai_service_llama_server_arguments, which ai_validate checks with too
+set -- --host 127.0.0.1 --api-key-file "$AI_API_KEY_FILE"
+{% for item in ai_service_llama_server_arguments.every_model %}
+set -- "$@" {{ shell_word(item) }}
+{% endfor %}
 
 case "$AI_ROLE" in
     reasoning)
         [ -f "$AI_VISION_FILE" ] || refuse "no vision file at $AI_VISION_FILE"
-        set -- "$@" \
-            --mmproj "$AI_VISION_FILE" \
-            --flash-attn on \
-            --ctx-size "$AI_CONTEXT_SIZE" \
-            --n-predict "$AI_OUTPUT_LIMIT" \
-            --cache-ram "$AI_CACHE_RAM_MIB" \
-            --chat-template-kwargs "{\"reasoning_effort\":\"$AI_REASONING_EFFORT\"}"
+{% for item in ai_service_llama_server_arguments.reasoning %}
+        set -- "$@" {{ shell_word(item) }}
+{% endfor %}
         ;;
     embedding)
-        set -- "$@" \
-            --embedding \
-            --pooling last \
-            --ctx-size "$AI_CONTEXT_SIZE" \
-            --ubatch-size "$AI_MICRO_BATCH"
+{% for item in ai_service_llama_server_arguments.embedding %}
+        set -- "$@" {{ shell_word(item) }}
+{% endfor %}
         ;;
     *)
         refuse "unknown role $AI_ROLE"
         ;;
 esac
+
+# Empty leaves llama.cpp's own choice, as on a Mac, where Metal does the work
+if [ -n "${AI_THREADS:-}" ]; then
+    set -- "$@" --threads "$AI_THREADS"
+fi
 
 exec "$AI_LLAMA_SERVER" "$@"

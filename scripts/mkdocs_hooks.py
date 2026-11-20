@@ -24,11 +24,16 @@ afresh for each rebuild, so every old build stayed alive: about 330 MB per rebui
 at 14.5 GB after a long session (griffe 2.4.1, mkdocstrings-python 2.0.10; BUGS.md #213). They only
 speed up work within a build, so emptying them between builds costs nothing.
 
-After the build, ``on_post_build`` copies the browser games (build/browser/site, which
-``nox -s docs-deploy`` builds first with
-``python -m scripts.build_browser_bundle all``) into the site as play/. A build without them
-(``lint-docs``, ``docs-serve``) leaves play/ out: building them needs the pygame-ce wheel's
-WebAssembly toolchain.
+After the build, ``on_post_build`` copies the browser games (build/browser/site, from
+``python -m scripts.build_browser_bundle all``) into the site as play/. A deploy (``gh-deploy``,
+however it is run: ``nox -s docs-deploy`` or a bare ``mkdocs gh-deploy``) builds them afresh
+first, every time, as a game may have changed (the owner, 2026-11-19), and publishes them only
+when the site's stamp (``SITE_STAMP_NAME``) says they were built from this commit with every game
+it lists; otherwise the deploy stops before anything is pushed (2026-11-19: a deploy copied a
+games site built six days earlier, and Zombies Ain't My Neighbors' play/ page vanished). A local
+build (``lint-docs``, ``docs-serve``) builds no games, as that needs the pygame-ce wheel's
+WebAssembly toolchain: it copies a games site built from this commit and otherwise leaves play/
+out, saying why.
 
 Last, ``on_post_build`` checks the explorers' pages (``EXPLORER_PAGES``: requirements, replay
 performance, code complexity) without a browser: each built page must hold its explorer, and
@@ -39,7 +44,9 @@ site (``missing_explorer_files``), or the build stops naming what is missing.
 from __future__ import annotations
 
 import importlib.util
+import json
 import logging
+import os
 import posixpath
 import shutil
 import sys
@@ -49,6 +56,7 @@ from typing import TYPE_CHECKING, Literal, Protocol, override
 
 from mkdocs.exceptions import PluginError
 
+from glitchygames.process import run_command
 from glitchygames.replay.tools.performance_pages import UnreadableLedgerError
 
 if TYPE_CHECKING:
@@ -68,6 +76,13 @@ LOCAL_BUILD_COMMANDS = frozenset({'build', 'serve'})
 # The browser games' site (python -m scripts.build_browser_bundle all) and where the docs serve it
 BROWSER_GAMES_DIRECTORY = SCRIPTS_DIRECTORY.parent / 'build' / 'browser' / 'site'
 PLAY_DIRECTORY_NAME = 'play'
+# The games site's stamp, written by the builder (scripts/build_browser_bundle.py, whose
+# SITE_STAMP_NAME a test holds equal: mkdocs loads this file by path, so it cannot import it)
+SITE_STAMP_NAME = 'site_build.json'
+# The builder's command, run from the repository root, and how long a deploy waits for it (the
+# first build of the pygame-ce wheel takes several minutes)
+BROWSER_GAMES_BUILD = ('-m', 'scripts.build_browser_bundle', 'all')
+BROWSER_GAMES_BUILD_TIMEOUT_SECONDS = 60 * 60
 
 LOG = logging.getLogger('mkdocs.hooks.glitchygames')
 # The packages whose module caches ``on_post_build`` empties (the griffe and mkdocstrings
@@ -214,21 +229,96 @@ def on_pre_build(config: MkDocsConfig) -> None:
     generate_performance_graphs()
 
 
-def copy_browser_games(*, games_directory: Path, site_directory: Path) -> bool:
-    """Copy the browser games' site into the docs site as play/, when it was built.
+def repository_head_commit() -> str:
+    """Return the commit the docs are built from (the repository's HEAD).
+
+    Returns:
+        Its full hash.
+
+    """
+    graph_script = load_graph_script()
+    return graph_script.head_commit(project_root=graph_script.PROJECT_ROOT)
+
+
+def build_browser_games() -> None:
+    """Build every browser game afresh (``python -m scripts.build_browser_bundle all``).
+
+    Its output goes to this process's, so a deploy shows the build's progress.
+
+    Raises:
+        PluginError: The build failed; the deploy stops before anything is pushed.
+
+    """
+    result = run_command(
+        command=[sys.executable, *BROWSER_GAMES_BUILD],
+        environment=os.environ,
+        timeout_seconds=BROWSER_GAMES_BUILD_TIMEOUT_SECONDS,
+        working_directory=SCRIPTS_DIRECTORY.parent,
+    )
+    if result.returncode != 0:
+        message = (
+            f'python {" ".join(BROWSER_GAMES_BUILD)} failed (exit status {result.returncode}): '
+            'no browser games to publish'
+        )
+        raise PluginError(message)
+
+
+def games_site_problem(*, games_directory: Path, head_commit: str) -> str | None:
+    """Return why a games site is not this commit's games, or None when it is.
+
+    Returns:
+        The reason (no site, no stamp, another commit's, a game it lists missing), or None.
+
+    """
+    if not (games_directory / 'index.html').is_file():
+        return f'No browser games in {games_directory}'
+    stamp_path = games_directory / SITE_STAMP_NAME
+    if not stamp_path.is_file():
+        return (
+            f'{games_directory} has no {SITE_STAMP_NAME}: it was built before games sites '
+            'were stamped'
+        )
+    stamp = json.loads(stamp_path.read_text(encoding='utf-8'))
+    if stamp.get('commit') != head_commit:
+        return f'{games_directory} was built from {stamp.get("commit")}, not {head_commit}'
+    missing = [
+        game
+        for game in stamp.get('games', [])
+        if not (games_directory / game / 'index.html').is_file()
+    ]
+    if missing:
+        return f'{games_directory} lacks games its stamp lists: {", ".join(missing)}'
+    return None
+
+
+def copy_browser_games(
+    *, games_directory: Path, site_directory: Path, head_commit: str, publishing: bool
+) -> bool:
+    """Copy the browser games' site into the docs site as play/, when it is this commit's.
 
     Args:
         games_directory: The games' site (``python -m scripts.build_browser_bundle all``).
         site_directory: The built docs site.
+        head_commit: The commit the docs are built from.
+        publishing: Whether the site is being deployed: then games that are not this commit's
+            stop the build rather than leave play/ out.
 
     Returns:
-        Whether the games were copied (False: none built).
+        Whether the games were copied (False: none built from this commit, on a local build).
+
+    Raises:
+        PluginError: A deploy's games site is not this commit's (``games_site_problem``).
 
     """
-    if not (games_directory / 'index.html').is_file():
-        LOG.info(
-            'No browser games in %s: the site has no %s/', games_directory, PLAY_DIRECTORY_NAME
-        )
+    problem = games_site_problem(games_directory=games_directory, head_commit=head_commit)
+    if problem is not None:
+        if publishing:
+            message = (
+                f'Not publishing {PLAY_DIRECTORY_NAME}/: {problem}. Build the games with '
+                f'uv run python {" ".join(BROWSER_GAMES_BUILD)}'
+            )
+            raise PluginError(message)
+        LOG.info('%s: the site has no %s/', problem, PLAY_DIRECTORY_NAME)
         return False
     shutil.copytree(games_directory, site_directory / PLAY_DIRECTORY_NAME, dirs_exist_ok=True)
     return True
@@ -328,20 +418,29 @@ def missing_explorer_files(*, site_directory: Path) -> list[str]:
 def on_post_build(config: MkDocsConfig) -> None:
     """Copy the browser games in, empty the documentation caches, then check the explorers.
 
-    mkdocs runs this after a build, before ``gh-deploy`` publishes the site. The games:
-    ``copy_browser_games``; the caches would keep this build alive (see the module docstring);
+    mkdocs runs this after a build, before ``gh-deploy`` publishes the site. The games: a deploy
+    builds them afresh (``build_browser_games``), then ``copy_browser_games``; the caches
+    would keep this build alive (see the module docstring);
     the explorers: ``missing_explorer_files``.
 
     Args:
         config: The mkdocs configuration (its ``site_dir``).
 
     Raises:
-        PluginError: An explorer's page, its explorer or a file it names is missing from the
-            built site.
+        PluginError: A deploy's games failed to build or are not this commit's, or an
+            explorer's page, its explorer or a file it names is missing from the built site.
 
     """
     site_directory = Path(config.site_dir)
-    copy_browser_games(games_directory=BROWSER_GAMES_DIRECTORY, site_directory=site_directory)
+    publishing = BUILD_STATE.command not in {*LOCAL_BUILD_COMMANDS, None}
+    if publishing:
+        build_browser_games()
+    copy_browser_games(
+        games_directory=BROWSER_GAMES_DIRECTORY,
+        site_directory=site_directory,
+        head_commit=repository_head_commit(),
+        publishing=publishing,
+    )
     for cache in documentation_caches():
         cache.cache_clear()
     missing = missing_explorer_files(site_directory=site_directory)

@@ -614,6 +614,10 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         # each frame as authored. When set, rect must include draw_offset: the engine adds it
         # for world sprites, a game placing rect itself must (see FrameAnchor's contract)
         self.frame_anchor: FrameAnchor = FrameAnchor.NONE
+        # The optional [sprite] profile and color_space strings, carried untouched so a save writes
+        # them back (their values are part 2 of plans/2026-11-17-sprite-color-profiles.md)
+        self.profile: str | None = None
+        self.color_space: str | None = None
         # (frames it was built from, union of their hitboxes); see _frame_anchor_reference
         self._frame_anchor_reference_cache: tuple[tuple[SpriteFrame, ...], pygame.Rect] | None = (
             None
@@ -1120,9 +1124,10 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
     def copy_sprite_metadata_from(self: Self, source: AnimatedSprite) -> None:
         """Copy every sprite-level field the TOML writers save from another sprite.
 
-        name, description, tags, frame_anchor, the sprite-level default hitbox, the
-        transitions, the game's own top-level tables (Drawing Fire's ``[swatches]``), and the
-        loaded color glyphs and their order (so a save reuses the source file's characters).
+        name, description, tags, frame_anchor, profile, color_space, the sprite-level default
+        hitbox, the transitions, the game's own top-level tables (Drawing Fire's ``[swatches]``),
+        and the loaded color glyphs and their order (so a save reuses the source file's
+        characters).
         Bitmappy uses it when it builds a new sprite to save from a loaded one.
 
         Args:
@@ -1133,6 +1138,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         self.description = source.description
         self.tags = list(source.tags)
         self.frame_anchor = source.frame_anchor
+        self.profile = source.profile
+        self.color_space = source.color_space
         self.default_hitbox = (
             None if source.default_hitbox is None else source.default_hitbox.copy()
         )
@@ -1436,6 +1443,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             tags=tuple(self.tags),
             default_hitbox=self._default_hitbox,
             frame_anchor=self.frame_anchor,
+            profile=self.profile,
+            color_space=self.color_space,
             animations=MappingProxyType(animations),
             animation_order=tuple(self._animation_order or ()),
             animation_frame_intervals=MappingProxyType(dict(self._animation_frame_intervals)),
@@ -1461,6 +1470,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             None if compiled.default_hitbox is None else compiled.default_hitbox.copy()
         )
         self.frame_anchor = compiled.frame_anchor
+        self.profile = compiled.profile
+        self.color_space = compiled.color_space
         self._animations = {
             name: [
                 SpriteFrame.sharing(
@@ -1528,6 +1539,9 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         self.frame_anchor = AnimatedSprite._parse_frame_anchor(
             data.get('sprite', {}).get('frame_anchor')
         )
+        # Optional [sprite] profile and color_space: kept as read, so a save writes them back
+        self.profile = data.get('sprite', {}).get('profile')
+        self.color_space = data.get('sprite', {}).get('color_space')
 
         self._animations = {}
         self._animation_order = []
@@ -2123,6 +2137,10 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             sprite_section[TAGS_KEY] = list(self.tags)
         if self.frame_anchor is not FrameAnchor.NONE:
             sprite_section['frame_anchor'] = self.frame_anchor.value
+        if self.profile is not None:
+            sprite_section['profile'] = self.profile
+        if self.color_space is not None:
+            sprite_section['color_space'] = self.color_space
         # Every row ends in a line break, as a loaded sprite's pixels do (toml_pixel_block writes
         # the text as given)
         sprite_section['pixels'] = '\n'.join(pixel_rows) + '\n'
@@ -2431,6 +2449,10 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             sprite_section[TAGS_KEY] = list(self.tags)
         if self.frame_anchor is not FrameAnchor.NONE:
             sprite_section['frame_anchor'] = self.frame_anchor.value
+        if self.profile is not None:
+            sprite_section['profile'] = self.profile
+        if self.color_space is not None:
+            sprite_section['color_space'] = self.color_space
 
         # Write the sprite-level hitbox only when one was defined (loaded or set); without
         # one, collision uses the visible pixels, which a written hitbox would freeze

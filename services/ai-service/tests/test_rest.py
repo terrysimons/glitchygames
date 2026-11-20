@@ -55,6 +55,104 @@ def test_ready_when_a_reasoning_and_an_embedding_model_answer(client, worker):
     assert response.json()['ready'] is True
 
 
+# ai-service.sh writes the models it started to the selection file; a machine whose memory tier
+# has no embedding model starts a reasoning model alone (plans/lucid-circuit-linux.md, 6.4.1)
+def select(settings, *aliases):
+    settings.selection_file.write_text(json.dumps({'models': list(aliases)}), encoding='utf-8')
+
+
+def client_with_models(settings, *models):
+    return TestClient(create_app(settings=settings.model_copy(update={'models': models})))
+
+
+def live_reasoning(port):
+    return ModelEntry(alias='bonsai-2-2b', role=ModelRole.REASONING, port=port)
+
+
+def embedding_at(port):
+    return ModelEntry(
+        alias='qwen3-embedding-0.6b', role=ModelRole.EMBEDDING, port=port, dimensions=DIMENSIONS
+    )
+
+
+def test_ready_with_only_a_reasoning_model_when_the_selection_names_no_embedding_model(
+    settings, worker, running_worker
+):
+    _fake, port = running_worker
+    select(settings, 'bonsai-2-2b')
+
+    with client_with_models(settings, live_reasoning(port), embedding_at(free_port())) as client:
+        response = client.get('/health/ready')
+
+    assert response.status_code == 200
+    assert response.json()['ready'] is True
+
+
+def test_not_ready_when_the_selection_names_an_embedding_model_that_does_not_answer(
+    settings, worker, running_worker
+):
+    _fake, port = running_worker
+    select(settings, 'bonsai-2-2b', 'qwen3-embedding-0.6b')
+
+    with client_with_models(settings, live_reasoning(port), embedding_at(free_port())) as client:
+        response = client.get('/health/ready')
+
+    assert response.status_code == 503
+    assert response.json()['ready'] is False
+
+
+def test_not_ready_until_the_selected_size_answers_whatever_else_does(client, settings, worker):
+    # bonsai-2-27b answers, but the run picked 2B, which doesn't yet
+    select(settings, 'bonsai-2-2b', 'qwen3-embedding-0.6b')
+
+    response = client.get('/health/ready')
+
+    assert response.status_code == 503
+
+
+def test_not_ready_when_the_selection_names_no_reasoning_model(client, settings, worker):
+    select(settings, 'qwen3-embedding-0.6b')
+
+    assert client.get('/health/ready').status_code == 503
+
+
+def test_a_selection_file_that_cannot_be_read_falls_back_to_one_of_each_role(
+    client, settings, worker, caplog
+):
+    settings.selection_file.write_text('not json', encoding='utf-8')
+
+    response = client.get('/health/ready')
+
+    assert response.status_code == 200
+    assert 'selection' in caplog.text
+
+
+def test_embeddings_without_an_embedding_model_say_this_machine_has_none(client, settings, worker):
+    select(settings, 'bonsai-2-27b')
+
+    response = client.post('/v1/embeddings', headers=AUTHORIZED, json={'input': 'a small cat'})
+
+    assert response.status_code == 503
+    assert response.json()['error'] == {
+        'code': 'no_embedding_model',
+        'message': 'this machine has no embedding model',
+    }
+    assert worker.requests == []
+    assert client.app.state.slots.in_use == 0
+
+
+def test_embeddings_on_an_install_with_no_embedding_model_say_so_too(
+    settings, worker, running_worker
+):
+    _fake, port = running_worker
+
+    with client_with_models(settings, live_reasoning(port)) as client:
+        response = client.post('/v1/embeddings', headers=AUTHORIZED, json={'input': 'a'})
+
+    assert response.status_code == 503
+    assert response.json()['error']['code'] == 'no_embedding_model'
+
+
 def test_not_ready_while_models_load(client, worker):
     worker.health_status = 503
 
@@ -347,6 +445,52 @@ def test_settings_load_from_the_file_the_environment_names(tmp_path, settings, m
     monkeypatch.setenv(CONFIG_ENVIRONMENT_VARIABLE, str(path))
 
     assert load_settings() == settings
+
+
+def test_a_service_json_naming_no_selection_file_reads_the_one_beside_it(
+    tmp_path, settings, worker, running_worker, monkeypatch
+):
+    # Written before the selection file existed (or by a setup that hasn't run again since): no
+    # selection_file key. ai-service.sh still writes selected-models.json beside it, so a
+    # Bonsai-only machine is ready on Bonsai alone and has no embedding model
+    _fake, port = running_worker
+    installed = settings.model_copy(
+        update={'models': (live_reasoning(port), embedding_at(free_port()))}
+    )
+    written = json.loads(installed.model_dump_json())
+    del written['selection_file']
+    path = tmp_path / 'config' / 'service.json'
+    path.parent.mkdir()
+    path.write_text(json.dumps(written), encoding='utf-8')
+    (path.parent / 'selected-models.json').write_text(
+        json.dumps({'models': ['bonsai-2-2b']}), encoding='utf-8'
+    )
+    monkeypatch.setenv(CONFIG_ENVIRONMENT_VARIABLE, str(path))
+
+    with TestClient(create_app(settings=load_settings())) as client:
+        ready = client.get('/health/ready')
+        embeddings = client.post('/v1/embeddings', headers=AUTHORIZED, json={'input': 'a'})
+
+    assert ready.status_code == 200
+    assert ready.json()['ready'] is True
+    assert embeddings.status_code == 503
+    assert embeddings.json()['error']['code'] == 'no_embedding_model'
+    assert worker.requests == []
+
+
+def test_the_selection_file_is_beside_the_settings_whatever_they_name(
+    tmp_path, settings, monkeypatch
+):
+    # One rule: a selection_file key (written by an earlier build) is never followed
+    path = tmp_path / 'config' / 'service.json'
+    path.parent.mkdir()
+    path.write_text(
+        json.dumps({**json.loads(settings.model_dump_json()), 'selection_file': '/elsewhere.json'}),
+        encoding='utf-8',
+    )
+    monkeypatch.setenv(CONFIG_ENVIRONMENT_VARIABLE, str(path))
+
+    assert load_settings().selection_file == path.parent / 'selected-models.json'
 
 
 def test_settings_refuse_an_unknown_key(tmp_path, settings, monkeypatch):

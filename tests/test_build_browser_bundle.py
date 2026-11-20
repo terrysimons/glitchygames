@@ -32,6 +32,7 @@ from scripts.build_browser_bundle import (
     TAB_ICON_LINK,
     TOUCH_LAYOUTS,
     BundleRequestHandler,
+    DistributionMetadata,
     PortUnavailableError,
     bind_server,
     boot_config,
@@ -48,12 +49,15 @@ from scripts.build_browser_bundle import (
 )
 from scripts.git_checkout import NotAGitCheckoutError, run_git
 from scripts.workspace_packages import (
+    WorkspaceMember,
+    canonical_distribution_name,
     declared_console_scripts,
     members_in_layer,
     workspace_members,
 )
 
 from glitchygames.process import OutputCapture, run_command
+from glitchygames.replay.tools.children import game_entry_point
 
 COMMIT = 'a' * 40
 WHEEL_NAME = 'pygame_ce-2.5.8.post1-cp314-cp314-pyemscripten_2026_0_wasm32.whl'
@@ -177,7 +181,9 @@ class TestEngineArchive:
         unpacked = tmp_path / 'unpacked'
 
         write_engine_archive(
-            package_directory=package, archive_path=archive_path, engine_version='1.2.3'
+            package_directory=package,
+            archive_path=archive_path,
+            distribution=DistributionMetadata(name='glitchygames', version='1.2.3'),
         )
         with zipfile.ZipFile(archive_path) as archive:
             archive.extractall(unpacked)
@@ -194,6 +200,42 @@ class TestEngineArchive:
         )
 
         assert installed_engine_version() is None
+
+    def test_without_package_metadata_the_engine_archive_holds_none(self, mocker):
+        mocker.patch.object(build_browser_bundle, 'installed_engine_version', return_value=None)
+
+        assert build_browser_bundle.engine_distribution() is None
+
+    def test_a_members_metadata_goes_only_with_its_first_package(self):
+        """Brave Adventurer's four packages are one distribution: its metadata ships once."""
+        first = build_browser_bundle.member_distribution(import_package='brave_adventurer_core')
+
+        assert first is not None
+        assert first.name == 'brave-adventurer'
+        assert first.console_scripts == {'brave-adventurer': 'brave_adventurer_modes:main'}
+        assert (
+            build_browser_bundle.member_distribution(import_package='brave_adventurer_modes')
+            is None
+        )
+
+    def test_a_member_without_a_version_is_refused_by_name(self, tmp_path, mocker):
+        member_directory = tmp_path / 'src' / 'games' / 'no-version'
+        (member_directory / 'no_version').mkdir(parents=True)
+        (member_directory / 'pyproject.toml').write_text(
+            '[project]\nname = "no-version"\n', encoding='utf-8'
+        )
+        member = WorkspaceMember(
+            directory=member_directory,
+            distribution='no-version',
+            import_packages=('no_version',),
+            console_scripts=(),
+        )
+        mocker.patch.object(build_browser_bundle, 'workspace_members', return_value=[member])
+
+        with pytest.raises(
+            TypeError, match=r'^no-version has no \[project\] version in its pyproject.toml$'
+        ):
+            build_browser_bundle.member_distribution(import_package='no_version')
 
     def test_the_same_sources_make_the_same_archive(self, tmp_path):
         """Fixed timestamps and order: a rebuild of unchanged sources is byte-identical."""
@@ -518,7 +560,11 @@ class TestMain:
         status = main(['all', '--wheel', str(wheel), '--output', str(output)])
 
         assert status == 0
-        assert sorted(path.name for path in output.iterdir()) == sorted([*GAMES, 'index.html'])
+        assert sorted(path.name for path in output.iterdir()) == sorted([
+            *GAMES,
+            'index.html',
+            build_browser_bundle.SITE_STAMP_NAME,
+        ])
         index = (output / 'index.html').read_text()
         assert TAB_ICON_LINK in index
         for game, specification in GAMES.items():
@@ -970,6 +1016,168 @@ def test_every_browser_game_imports_with_only_the_browser_packages(game: str):
             BROWSER_IMPORT_PROBE,
             json.dumps(sorted(browser_modules())),
             GAMES[game].module,
+        ],
+        environment=os.environ,
+        timeout_seconds=120,
+        capture_output=OutputCapture.TOGETHER,
+    )
+
+    assert result.returncode == 0, result.stdout
+
+
+def test_the_games_site_is_stamped_with_its_commit_and_its_games(tmp_path, mocker):
+    """``all`` stamps the site: the docs publish it only when it is the deploying commit's."""
+    mocker.patch.object(build_browser_bundle, 'write_bundle')
+    mocker.patch.object(build_browser_bundle, 'repository_commit', return_value=COMMIT)
+    site = tmp_path / 'site'
+
+    build_browser_bundle.write_site(output_directory=site, wheel_path=tmp_path / WHEEL_NAME)
+
+    stamp = json.loads((site / build_browser_bundle.SITE_STAMP_NAME).read_text())
+    assert stamp == {'commit': COMMIT, 'games': list(GAMES)}
+    assert 'zombies-aint-my-neighbors' in stamp['games']
+
+
+def test_the_repository_commit_is_heads(tmp_path):
+    """The stamp's commit is the repository's HEAD, as git names it."""
+    returncode, head = run_git(arguments=['rev-parse', 'HEAD'], directory=REPOSITORY_DIRECTORY)
+
+    assert returncode == 0
+    assert build_browser_bundle.repository_commit() == head.strip()
+
+
+def test_a_commit_git_cannot_name_stops_the_build(mocker):
+    """No stamp is better than a wrong one: the build stops, naming git's complaint."""
+    mocker.patch.object(build_browser_bundle, 'run_git', return_value=(128, 'fatal: not a repo\n'))
+
+    with pytest.raises(
+        build_browser_bundle.CommitUnreadableError, match=r'git rev-parse HEAD failed.*not a repo'
+    ):
+        build_browser_bundle.repository_commit()
+
+
+def unpacked_bundle(*, game: str, directory: Path) -> Path:
+    """Build a game's bundle (with a stand-in wheel) and unpack its archives, as PyScript does.
+
+    Returns:
+        The directory the archives were unpacked into, as the page's working directory holds
+        them.
+
+    """
+    wheel_path = directory / WHEEL_NAME
+    wheel_path.write_bytes(b'')
+    site = directory / 'site'
+    build_browser_bundle.write_bundle(
+        game=game, output_directory=site, wheel_path=wheel_path, arguments=[]
+    )
+    unpacked = directory / 'unpacked'
+    for archive_path in sorted(site.glob('*.zip')):
+        with zipfile.ZipFile(archive_path) as archive:
+            archive.extractall(unpacked)
+    return unpacked
+
+
+@pytest.mark.parametrize('game', sorted(GAMES))
+def test_each_bundle_names_its_games_command_as_the_installed_game_does(game: str, tmp_path):
+    """Unpacked, a game's bundle holds its console script, pointing where the installed one does.
+
+    An inner game finds the game it replays by its command (``game_entry_point``), in the
+    installed package metadata. The bundle unpacks the packages without installing them, so it
+    must carry that metadata itself: without it the attract demo failed at once in the browser
+    and the idle loop showed only the intro.
+    """
+    unpacked = unpacked_bundle(game=game, directory=tmp_path)
+
+    bundled_commands = {
+        entry_point.name: entry_point.value
+        for distribution in importlib.metadata.distributions(path=[str(unpacked)])
+        for entry_point in distribution.entry_points.select(group='console_scripts')
+    }
+
+    assert bundled_commands.get(game) == game_entry_point(console_script=game).value
+
+
+def browser_distributions() -> set[str]:
+    """Return the canonical names of the distributions a browser page has installed.
+
+    Returns:
+        The bundle's pygame-ce wheel's and PYODIDE_PACKAGES' with every distribution they
+        require (extras and other platforms' markers left out), recursively.
+
+    """
+    names: set[str] = set()
+    pending = ['pygame-ce', *PYODIDE_PACKAGES]
+    while pending:
+        name = canonical_distribution_name(name=pending.pop())
+        if name in names:
+            continue
+        names.add(name)
+        for requirement_text in importlib.metadata.requires(name) or []:
+            requirement = Requirement(requirement_text)
+            if requirement.marker is None or requirement.marker.evaluate({'extra': ''}):
+                pending.append(requirement.name)
+    return names
+
+
+# Run in a child Python: see only the distributions the browser has (the unpacked bundle's and
+# the installed browser_distributions'), with the unpacked bundle first on sys.path, then find a
+# game by its command as an inner game does and load its entry point from the bundle
+BROWSER_COMMAND_PROBE = """
+import importlib.machinery, json, re, sys
+from pathlib import Path
+
+bundle = Path(sys.argv[1]).resolve()
+allowed = set(json.loads(sys.argv[2]))
+command = sys.argv[3]
+sys.path.insert(0, str(bundle))
+find_every_distribution = importlib.machinery.PathFinder.find_distributions
+
+
+def find_the_browsers_distributions(*args, **kwargs):
+    for distribution in find_every_distribution(*args, **kwargs):
+        in_bundle = Path(distribution.locate_file('')).resolve() == bundle
+        name = re.sub(r'[-_.]+', '-', distribution.metadata['Name'] or '').lower()
+        if in_bundle or name in allowed:
+            yield distribution
+
+
+importlib.machinery.PathFinder.find_distributions = staticmethod(find_the_browsers_distributions)
+
+from glitchygames.replay.tools.children import game_entry_point
+
+try:
+    entry_point = game_entry_point(console_script=command)
+except KeyError:
+    print(f'{command}: no command of that name in the bundle')
+    sys.exit(1)
+entry_point.load()
+module_file = Path(sys.modules[entry_point.module].__file__).resolve()
+if not module_file.is_relative_to(bundle):
+    print(f'{command}: {entry_point.value} loaded from {module_file}, not the bundle')
+    sys.exit(1)
+"""
+
+
+@pytest.mark.parametrize('game', sorted(GAMES))
+def test_every_browser_game_is_found_by_its_command_with_only_the_bundle(game: str, tmp_path):
+    """In the browser's Python, a game's command finds the game, loaded from the bundle.
+
+    The sibling of the import check above, for what is looked up at run time rather than
+    imported: package metadata. A child Python sees only the distributions the page has, the
+    unpacked bundle first on its path, and finds the game by its command as an inner game does
+    (``game_entry_point``, then ``load``). On the desktop the installed metadata answers; the
+    attract demo failed in the browser because the bundle carried none.
+    """
+    unpacked = unpacked_bundle(game=game, directory=tmp_path)
+
+    result = run_command(
+        command=[
+            sys.executable,
+            '-c',
+            BROWSER_COMMAND_PROBE,
+            str(unpacked),
+            json.dumps(sorted(browser_distributions())),
+            game,
         ],
         environment=os.environ,
         timeout_seconds=120,

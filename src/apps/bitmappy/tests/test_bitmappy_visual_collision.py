@@ -1,5 +1,7 @@
 """Tests for visual collision functionality and coverage."""
 
+import logging
+
 from bitmappy.indicators.collision import (
     IndicatorShape,
     LocationType,
@@ -786,3 +788,28 @@ class TestIndicatorChangesForUnknownControllers:
         manager.remove_controller_indicator_for_location(5, LocationType.SLIDER)
 
         assert manager.slider_indicators == {0: indicator}
+
+
+class TestCollisionAvoidanceLogging:
+    """Collision avoidance logs one line per pass over a group, not one per controller."""
+
+    CONTROLLER_COUNT = 40
+
+    def _add_controllers_at_one_position(self, manager):
+        for controller_id in range(self.CONTROLLER_COUNT):
+            manager.add_controller_indicator(
+                controller_id=controller_id,
+                instance_id=controller_id,
+                color=(255, 0, 0),
+                position=(15, 15),
+            )
+
+    def test_adding_indicators_logs_linearly_not_quadratically(self, caplog):
+        """Adding N indicators at one position logs about N lines, not N squared over 2."""
+        manager = VisualCollisionManager()
+
+        with caplog.at_level(logging.DEBUG, logger='game.tools.visual_collision_manager'):
+            self._add_controllers_at_one_position(manager)
+
+        applied = [record for record in caplog.records if 'Applied' in record.getMessage()]
+        assert 0 < len(applied) <= self.CONTROLLER_COUNT

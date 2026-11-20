@@ -48,7 +48,7 @@ BACK_ACTION: Final = 'back'
 class FeatureCardScene(RosterScene):
     """The title card before the neighborhood: who is playing."""
 
-    NAME = 'Feature Presentation'
+    NAME = f'{text.GAME_NAME} - Feature Presentation'
     VERSION = '1.0'
 
     @override

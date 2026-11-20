@@ -26,6 +26,8 @@ from bitmappy.controllers.event_handler import ControllerEventHandler
 from bitmappy.editor import BitmapEditorScene
 from bitmappy.models import AIRequestState, AIResponse
 from bitmappy.slider_manager import SliderManager
+from glitchygames.engine_context import EngineContext
+from glitchygames.render_target import set_render_target
 
 
 def _make_event(**kwargs):
@@ -2283,6 +2285,30 @@ class TestCalculateFilmStripDimensions:
         )
         # Canvas rect right is 320, so film_strip_x = 324
         assert film_strip_x == 324
+
+    def test_inside_another_game_the_strip_runs_to_its_own_screen(self, mock_editor):
+        """In an Arcade tile the strip ends at the tile's render target, not the host's window.
+
+        Bitmappy once read pygame.display.get_surface(), the host's window inside a tile, and its
+        tile diverged at frame 0 (bugs/2026-11-20-bitmappy-tile-read-the-hosts-window.md).
+        """
+        inner = EngineContext(name='tile')
+        with inner.active():
+            set_render_target(surface=pygame.Surface((700, 480)))
+            _film_strip_x, film_strip_width = (
+                mock_editor.film_strip_coordinator._calculate_film_strip_dimensions()
+            )
+
+        # Color well right is 340, so the strip starts at 341 and runs to the target's 700
+        assert pygame.display.get_surface().get_width() != 700
+        assert film_strip_width == 700 - 341
+
+    def test_with_no_screen_it_says_so(self, mock_editor, mocker):
+        """No display and no render target: an error naming it, not an assert stripped by -O."""
+        mocker.patch('bitmappy.film_strip_coordinator.display_surface', return_value=None)
+
+        with pytest.raises(RuntimeError, match='Bitmappy has no screen'):
+            mock_editor.film_strip_coordinator._calculate_film_strip_dimensions()
 
 
 # ===========================================================================

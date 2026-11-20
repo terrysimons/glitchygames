@@ -28,9 +28,15 @@ from typing import TYPE_CHECKING, Protocol
 import pygame
 
 from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
-from glitchygames.replay.tools.golden_traces import InputScript, release
+from glitchygames.replay.tools.golden_traces import InputScript, press, release
 from glitchygames.testing.keys import qwerty_scancode
-from scripts.golden_inputs import LEFT_MOUSE_BUTTON, MuncherSteering, mr_muncher_script
+from scripts.golden_inputs import (
+    LEFT_MOUSE_BUTTON,
+    NEIGHBORHOOD_KEYS,
+    MuncherSteering,
+    mr_muncher_script,
+)
+from scripts.plan_neighborhood_route import DEMO_KEYS_X, DEMO_KEYS_Y
 
 if TYPE_CHECKING:
     from glitchygames.scenes import Scene
@@ -558,3 +564,141 @@ def bitmappy_demo_script() -> InputScript:
             )
         )
     return script
+
+
+# Zombies Ain't My Neighbors' attract demo (feature plan 13): four kids clear stage 1. P1 is the
+# keyboard; P2 to P4 are stand-in pads (unmapped joysticks that exist only in the recording
+# session, read on their joystick layer: stick axes 0 and 1, the fire button 0), their instance
+# ids the demo neighborhood's (DEMO_PAD_INSTANCE_IDS)
+ZOMBIES_DEMO_PAD_INSTANCE_IDS = (0, 1, 2)
+ZOMBIES_DEMO_PADS = tuple(
+    DeviceDescriptor(
+        kind=JOYSTICK_KIND,
+        device_index=index,
+        instance_id=instance_id,
+        name=f'GlitchyGames Demo Pad {index + 2}',
+        guid=None,
+        axis_count=DEMO_PAD.axis_count,
+        button_count=DEMO_PAD.button_count,
+        hat_count=DEMO_PAD.hat_count,
+        ball_count=0,
+    )
+    for index, instance_id in enumerate(ZOMBIES_DEMO_PAD_INSTANCE_IDS)
+)
+# A pad's fire button on its joystick layer (zombies_aint_my_neighbors.controls.FIRE_BUTTON, A)
+ZOMBIES_DEMO_FIRE_BUTTON = pygame.CONTROLLER_BUTTON_A
+# How many frames the demo records: the clear and half the cheer, as
+# ``uv run python -m scripts.plan_neighborhood_route --demo`` estimates it (re-plan and
+# re-record whenever gameplay changes; the demo's tests fail until then)
+ZOMBIES_DEMO_FRAME_COUNT = 1538
+
+
+class ZombiesDemoSteering:
+    """Steer the demo's four kids from the running stage, frame by frame.
+
+    Before each frame it asks the planner's steering (``plan_neighborhood_route.demo_steering``,
+    the one the plan is made with) where each kid heads, and posts only what changed: P1's keys
+    (``NEIGHBORHOOD_KEYS``), and each pad's stick axes (-1.0, 0.0 or 1.0) and fire button. Every
+    kid holds fire from the first frame it may post input (``FIRST_DEMO_INPUT_FRAME``) until
+    the stage clears; then everything is let go, so the demo ends with nothing held. Steering
+    live, the recording follows the game as it runs, at its real frame times. Nothing is posted
+    while another scene is active.
+    """
+
+    def __init__(self) -> None:
+        """Start with nothing held."""
+        self.frame_number = 0
+        self.held_keys: frozenset[str] = frozenset()
+        self.held_pads: dict[int, tuple[tuple[int, int], bool]] = dict.fromkeys(
+            ZOMBIES_DEMO_PAD_INSTANCE_IDS, ((0, 0), False)
+        )
+
+    def __call__(self, scene: Scene) -> list[pygame.event.Event]:
+        """Return the events that steer the kids this frame.
+
+        Args:
+            scene: The active scene.
+
+        Returns:
+            Key presses and releases, stick motions and fire button presses and releases.
+
+        """
+        from scripts.plan_neighborhood_route import FIRST_DEMO_INPUT_FRAME, demo_steering
+        from zombies_aint_my_neighbors.neighborhood import NeighborhoodScene
+
+        frame_number = self.frame_number
+        self.frame_number += 1
+        if not isinstance(scene, NeighborhoodScene):
+            return []
+        playing = frame_number >= FIRST_DEMO_INPUT_FRAME and not scene.stage_cleared
+        steering = demo_steering(scene) if playing else {}
+        return [
+            *self._keyboard_events(direction=steering.get(0, (0, 0)), fire=playing),
+            *(
+                event
+                for slot_index, instance_id in enumerate(ZOMBIES_DEMO_PAD_INSTANCE_IDS, start=1)
+                for event in self._pad_events(
+                    instance_id=instance_id,
+                    direction=steering.get(slot_index, (0, 0)),
+                    fire=playing,
+                )
+            ),
+        ]
+
+    def _keyboard_events(
+        self, *, direction: tuple[int, int], fire: bool
+    ) -> list[pygame.event.Event]:
+        """Return P1's key releases and presses for a direction and fire.
+
+        Returns:
+            Releases of the keys let go, then presses of the keys newly held.
+
+        """
+        direction_x, direction_y = direction
+        wanted: set[str] = set()
+        if direction_x:
+            wanted.add(DEMO_KEYS_X[direction_x])
+        if direction_y:
+            wanted.add(DEMO_KEYS_Y[direction_y])
+        if fire:
+            wanted.add('J')
+        events = [release(NEIGHBORHOOD_KEYS[key]) for key in sorted(self.held_keys - wanted)]
+        events += [press(NEIGHBORHOOD_KEYS[key]) for key in sorted(wanted - self.held_keys)]
+        self.held_keys = frozenset(wanted)
+        return events
+
+    def _pad_events(
+        self, *, instance_id: int, direction: tuple[int, int], fire: bool
+    ) -> list[pygame.event.Event]:
+        """Return a pad's stick motions and fire button change for a direction and fire.
+
+        Returns:
+            One JOYAXISMOTION per axis that moved, and the fire button's down or up if it changed.
+
+        """
+        held_direction, held_fire = self.held_pads[instance_id]
+        events = [
+            pygame.event.Event(
+                pygame.JOYAXISMOTION, instance_id=instance_id, axis=axis, value=float(value)
+            )
+            for axis, (value, before) in enumerate(zip(direction, held_direction, strict=True))
+            if value != before
+        ]
+        if fire != held_fire:
+            kind = pygame.JOYBUTTONDOWN if fire else pygame.JOYBUTTONUP
+            events.append(
+                pygame.event.Event(kind, instance_id=instance_id, button=ZOMBIES_DEMO_FIRE_BUTTON)
+            )
+        self.held_pads[instance_id] = (direction, fire)
+        return events
+
+
+def zombies_demo_script() -> InputScript:
+    """Zombies Ain't My Neighbors' attract demo: four kids clear stage 1 together.
+
+    Returns:
+        A script steered live by ``ZombiesDemoSteering``. The neighborhood reads its controls
+        from the frame's polled input, so the recipe records with ``polled_input=True``.
+
+    """
+    return InputScript(per_frame=ZombiesDemoSteering())

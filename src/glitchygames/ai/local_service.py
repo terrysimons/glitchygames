@@ -14,15 +14,20 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from http import HTTPStatus
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 import httpx2
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock, process
-from glitchygames.ai_link import install_root as default_install_root
+from glitchygames.ai_link import (
+    EXIT_NOT_ENOUGH_MEMORY,
+    ServiceLocations,
+    control_script_environment,
+    service_locations,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
@@ -38,8 +43,6 @@ HEALTH_TIMEOUT_SECONDS = 2.0
 START_TIMEOUT_SECONDS = 60.0
 READY_TIMEOUT_SECONDS = 120.0
 READY_POLL_SECONDS = 0.25
-# bin/ai-service.sh's exit code when no model fits in the memory free right now
-EXIT_NOT_ENOUGH_MEMORY = 3
 
 
 class LocalAIServiceError(Exception):
@@ -189,7 +192,7 @@ class LocalAIClient:
     def __init__(
         self,
         *,
-        install_root: Path | None = None,
+        locations: ServiceLocations | None = None,
         base_url: str = DEFAULT_BASE_URL,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         sleep: Callable[[float], None] | None = None,
@@ -197,8 +200,8 @@ class LocalAIClient:
         """Prepare the client. Nothing is contacted or started until a request.
 
         Args:
-            install_root: Where the service is installed. None is this machine's
-                (``glitchygames.ai_link.install_root``).
+            locations: Where the service is installed. None is this machine's
+                (``glitchygames.ai_link.service_locations``).
             base_url: Where it listens.
             timeout_seconds: The longest one chat request may take.
             sleep: The wait between readiness checks. None is ``clock.raw_sleep``, looked up at
@@ -208,16 +211,24 @@ class LocalAIClient:
             LocalAIServiceNotInstalledError: If the service isn't installed.
 
         """
-        self.install_root = default_install_root() if install_root is None else install_root
+        if locations is None:
+            locations = service_locations()
+        if locations is None:
+            message = (
+                f'The local AI service is not installed (not supported on {sys.platform}). '
+                'Install it with ansible/ai_service.yml or its package.'
+            )
+            raise LocalAIServiceNotInstalledError(message)
+        self.locations = locations
         self.base_url = base_url
         self.timeout_seconds = timeout_seconds
         self.sleep = sleep
-        self.control_script = self.install_root / 'bin' / 'ai-service.sh'
-        self.key_file = self.install_root / 'config' / 'service-api-key'
+        self.control_script = locations.control_script
+        self.key_file = locations.key_file
         if not self.control_script.is_file():
             message = (
                 f'The local AI service is not installed (no {self.control_script}). '
-                'Install it with ansible/macos_ai_service.yml or its package.'
+                'Install it with ansible/ai_service.yml or its package.'
             )
             raise LocalAIServiceNotInstalledError(message)
         # client.chat.completions.create(...), the shape every caller uses
@@ -335,7 +346,7 @@ class LocalAIClient:
         LOG.info('Starting the local AI service')
         result = process.run_command(
             command=[str(self.control_script), 'start'],
-            environment={'HOME': str(Path.home()), 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'},
+            environment=control_script_environment(),
             timeout_seconds=START_TIMEOUT_SECONDS,
             capture_output=process.OutputCapture.TOGETHER,
         )

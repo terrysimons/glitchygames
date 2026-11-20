@@ -1446,6 +1446,15 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 "when it starts, which replace SDL's"
             )
 
+    def _register_quit_with_pygame(self: Self) -> None:
+        """Have pygame call ``quit_game`` when it quits, unless this engine is an inner game's.
+
+        pygame can't unregister a quit callback, so an inner game (one per tile, built again on
+        every loop) would add one for the life of the process; the host's own engine registers it.
+        """
+        if not is_inner_context():
+            pygame.register_quit(self.quit_game)
+
     @_clear_a_half_made_engine
     def __init__(  # ruff: ignore[too-many-statements]
         self: Self,
@@ -1561,7 +1570,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         self.unhandled_events: dict[int, UnhandledEventRecord] = {}
 
         # Pygame stuff.
-        pygame.register_quit(self.quit_game)
+        self._register_quit_with_pygame()
         self.fps: float = options.get('target_fps', DEFAULT_TARGET_FPS)
         self.update_type: str = options.get('update_type', 'update')
         self.use_gfxdraw = options.get('use_gfxdraw')
@@ -1639,6 +1648,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 # is built before recording starts (glitchygames/scene_start.py)
                 captures_scene_starts=options.get('record_trace') is not None,
             )
+            # On Linux the AI's doors pin the game to its cores once the service has started, as
+            # glitchygames/cpu_placement.py says
             self.ai_link = create_link(options=options)
             self.host = GameHost(
                 # Live play against OLD draws OLD over each presented frame

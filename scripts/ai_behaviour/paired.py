@@ -35,7 +35,7 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Self
 
-from glitchygames.ai_link import install_root
+from glitchygames.ai_link import service_locations
 from scripts.ai_behaviour.capture import FIXTURES_DIRECTORY
 from scripts.ai_behaviour.questions import QUESTIONS, BehaviourQuestion
 from scripts.ai_behaviour.run import DEFAULT_CONFIGURATION, DEFAULT_REPEATS, summary
@@ -309,8 +309,11 @@ def main(arguments: list[str] | None = None) -> int:
 
     """
     options = parse_options(arguments)
-    root = install_root()
-    if service_is_running(root=root):
+    locations = service_locations()
+    if locations is None:
+        say('The local AI service is not installed on this platform.')
+        return EXIT_OPTIONS_REFUSED
+    if service_is_running(locations=locations):
         say('The AI service is running: stop it first (ai-service.sh stop).')
         return EXIT_OPTIONS_REFUSED
     refs = {'old': options.old, 'new': options.new}
@@ -333,7 +336,7 @@ def main(arguments: list[str] | None = None) -> int:
         }
         target, load_seconds, read_footprint = stack.enter_context(
             running_server(
-                root=root,
+                locations=locations,
                 configuration=configuration,
                 port=COMPARISON_PORT,
                 log_path=options.output / f'server-{configuration.name}.log',

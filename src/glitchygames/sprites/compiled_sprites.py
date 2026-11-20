@@ -51,6 +51,8 @@ SHARED_SPRITE_FIELDS: Final = (
     'tags',
     '_default_hitbox',
     'frame_anchor',
+    'profile',
+    'color_space',
     '_animation_order',
     '_animation_frame_intervals',
     '_loop_flags',
@@ -104,6 +106,8 @@ class CompiledSprite(BaseModel):
     tags: tuple[str, ...]
     default_hitbox: pygame.Rect | None
     frame_anchor: FrameAnchor
+    profile: str | None
+    color_space: str | None
     animations: MappingProxyType[str, tuple[SpriteFrame, ...]]
     animation_order: tuple[str, ...]
     animation_frame_intervals: MappingProxyType[str, float]

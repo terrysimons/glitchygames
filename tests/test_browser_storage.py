@@ -3,8 +3,10 @@
 The module runs only in Pyodide: it imports ``js``, ``pyodide_js`` and ``pyodide.ffi``. These
 tests load it with stand-ins built from Emscripten's contract for ``FS.syncfs(populate,
 callback)``: the work is asynchronous, and the callback is called once, with JS null (Pyodide's
-``jsnull``) on success or an error object. Only ``flush_soon``'s scheduling is tested here; the
-storage itself was checked across reloads in Chromium and WebKit (the branch's pull request).
+``jsnull``) on success or an error object. The stand-in finishes a write-back only when a test
+says so (``finish_one``), so no wall-clock time decides an outcome. Only ``flush_soon``'s
+scheduling is tested here; the storage itself was checked across reloads in Chromium and WebKit
+(the branch's pull request).
 """
 
 from __future__ import annotations
@@ -22,12 +24,16 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 BROWSER_STORAGE_PATH = PROJECT_ROOT / 'browser' / 'browser_storage.py'
-# How long the stand-in's write-back takes, in seconds of the event loop
-SYNC_SECONDS = 0.01
+# Event-loop turns a test may take to settle; past it the test fails loudly instead of hanging
+TURN_LIMIT = 1000
 
 
 class StandInFileSystem:
-    """Emscripten's FS as far as browser_storage uses it: syncfs, asynchronous, counted."""
+    """Emscripten's FS as far as browser_storage uses it: syncfs, asynchronous, counted.
+
+    ``syncfs`` returns at once and keeps the callback; ``finish_one`` calls the oldest pending
+    callback (once, with JS null), from the event loop as Emscripten does, never inside syncfs.
+    """
 
     def __init__(self, *, jsnull: object) -> None:
         """Start with no write-backs."""
@@ -35,19 +41,22 @@ class StandInFileSystem:
         self.write_backs = 0
         self.in_flight = 0
         self.most_in_flight = 0
+        self.pending_callbacks: list[Callable[[object], None]] = []
 
     def syncfs(self, populate: bool, callback: Callable[[object], None]) -> None:  # ruff: ignore[boolean-type-hint-positional-argument] - Emscripten's positional signature
-        """Start a write-back (populate False) that finishes after SYNC_SECONDS."""
+        """Start a write-back (populate False); it finishes when finish_one is called."""
         assert populate is False
         self.write_backs += 1
         self.in_flight += 1
         self.most_in_flight = max(self.most_in_flight, self.in_flight)
 
-        def finish() -> None:
-            self.in_flight -= 1
-            callback(self._jsnull)
+        self.pending_callbacks.append(callback)
 
-        asyncio.get_running_loop().call_later(SYNC_SECONDS, finish)
+    def finish_one(self) -> None:
+        """Finish the oldest pending write-back: its callback runs on the event loop's next turn."""
+        callback = self.pending_callbacks.pop(0)
+        self.in_flight -= 1
+        asyncio.get_running_loop().call_soon(callback, self._jsnull)
 
 
 def load_browser_storage(*, mocker: MockerFixture) -> tuple[types.ModuleType, StandInFileSystem]:
@@ -84,10 +93,34 @@ def load_browser_storage(*, mocker: MockerFixture) -> tuple[types.ModuleType, St
     return module, file_system
 
 
-async def settle() -> None:
-    """Let every scheduled flush and its passes finish."""
-    for _ in range(20):
-        await asyncio.sleep(SYNC_SECONDS)
+async def run_until(condition: Callable[[], bool]) -> None:
+    """Give the event loop turns until the condition holds.
+
+    Raises:
+        AssertionError: If it does not hold within TURN_LIMIT turns.
+    """
+    for _ in range(TURN_LIMIT):
+        if condition():
+            return
+        await asyncio.sleep(0)
+    message = f'the condition did not hold within {TURN_LIMIT} event-loop turns'
+    raise AssertionError(message)
+
+
+async def settle(*, storage: types.ModuleType, file_system: StandInFileSystem) -> None:
+    """Finish write-backs as they start, until no flush is scheduled, running or pending.
+
+    Raises:
+        AssertionError: If it has not settled within TURN_LIMIT turns.
+    """
+    for _ in range(TURN_LIMIT):
+        await asyncio.sleep(0)
+        if file_system.pending_callbacks:
+            file_system.finish_one()
+        elif not storage._sound_flush_state and not storage._pending_flushes:
+            return
+    message = f'storage did not settle within {TURN_LIMIT} event-loop turns'
+    raise AssertionError(message)
 
 
 def test_a_burst_of_requests_in_one_turn_is_one_write_back(mocker: MockerFixture) -> None:
@@ -97,7 +130,7 @@ def test_a_burst_of_requests_in_one_turn_is_one_write_back(mocker: MockerFixture
     async def burst() -> None:
         for _ in range(10):
             storage.flush_soon()
-        await settle()
+        await settle(storage=storage, file_system=file_system)
 
     asyncio.run(burst())
 
@@ -116,11 +149,13 @@ def test_requests_while_a_flush_runs_get_one_more_pass_and_never_overlap(
 
     async def spread_out() -> None:
         storage.flush_soon()
-        await asyncio.sleep(0)  # the flush starts
+        await run_until(lambda: len(file_system.pending_callbacks) == 1)  # the pass is running
         for _ in range(5):
             storage.flush_soon()  # during the running pass: one more pass owed
-            await asyncio.sleep(SYNC_SECONDS / 10)
-        await settle()
+            await asyncio.sleep(0)
+        assert file_system.write_backs == 1  # none started while the first is unfinished
+        file_system.finish_one()
+        await settle(storage=storage, file_system=file_system)
 
     asyncio.run(spread_out())
 
@@ -134,9 +169,9 @@ def test_after_everything_settles_a_new_request_flushes_again(mocker: MockerFixt
 
     async def two_bursts() -> None:
         storage.flush_soon()
-        await settle()
+        await settle(storage=storage, file_system=file_system)
         storage.flush_soon()
-        await settle()
+        await settle(storage=storage, file_system=file_system)
 
     asyncio.run(two_bursts())
 

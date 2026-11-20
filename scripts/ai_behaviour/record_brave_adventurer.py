@@ -19,8 +19,11 @@ from typing import TYPE_CHECKING
 
 os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
-# No AI: a recording session must never reach for the service
+# No AI: a recording session must never reach for the service. The program and user root
+# variables each win over the install root (glitchygames/ai_link.py), so they go too
 os.environ['GLITCHYGAMES_AI_INSTALL_ROOT'] = '/nonexistent-glitchygames-ai'
+os.environ.pop('GLITCHYGAMES_AI_PROGRAM_ROOT', None)
+os.environ.pop('GLITCHYGAMES_AI_USER_ROOT', None)
 
 import pygame
 

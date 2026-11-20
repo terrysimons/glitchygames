@@ -1,9 +1,10 @@
 # Raspberry Pi Rows From Before numpy 2 Were Never Checked for the Corruption Bug
 
 - **Description**: numpy 1.26.4 on Python 3.14 on Linux ARM64 changed a local array in place once it reached 32,768 8-byte elements (`other = values + 1.0` changed `values`); #153 moved to numpy 2.5.4, which does not. The Raspberry Pi 4's replay rows measured before #153 ran on 1.26.4. Whether any of them measured a corrupted run (wrong numbers, or a replay that took another path) was never checked. Recordings that play the CRT power-on sound crashed outright (`audio/render.py`, `_table_samples`, `IndexError` on index 2048), so the danger is in rows whose runs did not crash
-- **Status**: Open (not investigated)
+- **Status**: Closed (2026-11-20): checked, no sign of corruption
 - **Priority**: Low (affects only the Pi's history on the Performance page)
 - **Reporter**: Claude, from the numpy 2 work (#153)
 - **Date Reported**: 2026-11-14
 - **Details**: Ways to check: compare the Pi's last rows before #153 with its first after it, per recording, for frames whose content hash changed (`glitchygames report`), and look for the Pi's rows standing apart from the Mac's before #153 but not after. macOS was not affected on the same versions; Linux x86 was never tested
 - **Files**: `quality/replay-ledger/` (the Pi 4's rows before #153)
+- **Closed**: needs no Pi: `content_hash` is the hash of the replayed run's per-frame hashes (`recording_metrics.recording_content_hash`), so a corrupted or diverging run changes it. Over all 6006 rows in `quality/replay-ledger/` (overnight triage 2026-11-20), the Pi 4 rows measured before #153 (merged 2026-11-06T03:14-08:00) are 21: 7 recordings x 3 code trees (4982f14f, 7bea5812, 88ca49c5, 2026-11-05 to 06), all Python 3.14.8, `frames_changed` 0, rebaseline SUCCESS. Each row's `content_hash` equals the Mac's row for the same code tree and recording (one distinct hash per key) and the frame counts match. Caveats: the rows record no numpy version (1.26.4 is assumed from the date); only 7 recordings were measured then, and recordings that crashed left no rows; Linux x86 untested. Optional follow-up: a check that one code tree and recording give one `content_hash` on every machine.

@@ -1142,7 +1142,7 @@ class MultiLineTextBox(BitmappySprite):
             self.image,
             self.cursor_color,
             (cursor_x, cursor_y),
-            (cursor_x, cursor_y + 20),
+            (cursor_x, cursor_y + line_height),
             2,
         )
 
