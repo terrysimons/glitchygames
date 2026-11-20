@@ -60,13 +60,13 @@ def load_browser_storage(*, mocker: MockerFixture) -> tuple[types.ModuleType, St
     jsnull = object()
     file_system = StandInFileSystem(jsnull=jsnull)
     pyodide_ffi = types.ModuleType('pyodide.ffi')
-    pyodide_ffi.create_once_callable = lambda function: function  # ty: ignore[unresolved-attribute]
-    pyodide_ffi.create_proxy = lambda function: function  # ty: ignore[unresolved-attribute]
-    pyodide_ffi.jsnull = jsnull  # ty: ignore[unresolved-attribute]
+    pyodide_ffi.create_once_callable = lambda function: function
+    pyodide_ffi.create_proxy = lambda function: function
+    pyodide_ffi.jsnull = jsnull
     pyodide = types.ModuleType('pyodide')
-    pyodide.ffi = pyodide_ffi  # ty: ignore[unresolved-attribute]
+    pyodide.ffi = pyodide_ffi
     pyodide_js = types.ModuleType('pyodide_js')
-    pyodide_js.FS = file_system  # ty: ignore[unresolved-attribute]
+    pyodide_js.FS = file_system
     mocker.patch.dict(
         'sys.modules',
         {
