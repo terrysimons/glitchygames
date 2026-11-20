@@ -692,6 +692,16 @@ only replays; Part 2 Task 1).
 - A changed-pixels-only canvas redraw (the canvas repaints every pixel on each redraw). The old
   `dirty_pixels` list was removed unread (BUGS.md #178.15, 2026-11-01); a new design must also
   mark everything on pan, frame switch, hover and onion-skin changes.
+- **In the browser, Save works like Load** (the owner, 2026-11-20). Load already skips the in-game
+  dialog and opens the browser's file picker (`editor.py` `on_load_dialog_event`, through
+  `glitchygames.user_files`), but Save still opens the in-game dialog, asks for a typed name
+  (on a phone, with no keyboard) and then downloads (`ui/dialogs.py` `on_confirm_event`). In the
+  browser, Save skips the dialog: Chromium browsers get the real "Save as" dialog
+  (`showSaveFilePicker`) with a suggested name; Safari and Firefox get a download with that
+  name (on iPhone, the share sheet's Save to Files). The suggested name is the name the sprite
+  was loaded with, or `sprite.toml`. The desktop keeps its dialog. Check in Chrome, Safari and
+  on a phone. The phone keyboard for other text input is in
+  `plans/2026-11-20-window-owner-events.md` (question 8).
 
 ## AI (Lucid Circuit; plans/lucid-circuit.md)
 

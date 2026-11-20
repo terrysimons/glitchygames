@@ -280,6 +280,38 @@ Together the audit estimated 250 to 300 lines removed across the two games.
 
 ## Open questions for the owner
 
+### Decided by the owner (2026-11-20)
+
+These answers win over the question text below wherever they differ.
+
+1. **HUD labels become sprites in Brave and Clockwork, option (c).** Re-record the six
+   recordings that compare their sprites (goldens: Brave's `golden-classic` and
+   `golden-papyrus`, Clockwork's `golden`; demos: Brave's `classic` and `papyrus`, Clockwork's
+   `climb`) as one reviewed step, gated by a check that replays each old and new recording side
+   by side and fails unless every difference is one of the new HUD label sprites: every other
+   sprite matches frame for frame and the pixels are identical. Zombies' HUD (already sprites,
+   pre-rendered) is the model; title, pause and game-over text already render once. The
+   measured gain from no longer re-rendering text each frame: Clockwork 2.3 %, Brave 0.6 % of
+   the frame on the M4 Max (more on a Pi, unmeasured).
+2. **Names and homes as proposed:** the font helpers are functions in `font_manager.py`;
+   `HighScoreTable` in `state/`; `HudLabel` in `sprites/`, and it absorbs `ShadowedText` (one
+   text mechanism, now that HUDs are sprites); `IdleDemo` in `scenes/`; `ActionRouter` in
+   `input/`; `physics_field` and `respawn_with_fade` in a `platformer/` package.
+3. **Stop at `ActionRouter`;** no `Scene.bind_actions`.
+4. **`IdleDemo`: PaddleSlap first,** then Brave, Clockwork, Drawing Fire and Mr. Muncher as
+   separate small pull requests the owner approves.
+5. **High-score entries are strict pydantic models:** a frozen base (`name`, `score`,
+   `extra='forbid'`) that each game subclasses for its own fields, with `model_dump` and
+   `model_validate` at the disk and `GameOverScene` boundaries.
+6. **Per-player tables wait for the player roster** (`plans/2026-10-28-player-roster-design.md`);
+   no `player_slot` field now.
+7. **Sequencing, in risk order:** Sub-plans 1 and 2 at any time; the HUD re-record lands between
+   Arcade sub-plans 5 and 6, together with the `drawing` and `typing` demo re-records of
+   `plans/2026-11-20-window-owner-events.md` (its question 5); `IdleDemo` and the platformer kit
+   after, at any gap.
+
+### The questions as asked
+
 1. **Do HUD labels become sprites?** Worked example: Brave's HUD is three `Font.render` and six
    blits per frame in `render()`. As three `HudLabel` sprites it would redraw only when the score
    or lives change and would show in the AI's introspection and the debug overlay (the "every

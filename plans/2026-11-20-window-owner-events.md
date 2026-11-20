@@ -314,6 +314,46 @@ Hand-off (sub-plan 5):
 
 ## Open questions for the owner
 
+### Decided by the owner (2026-11-20)
+
+These answers win over the question text and the decisions above wherever they differ.
+
+1. **The engine's own widgets call the shared apply function directly; games go through the
+   API below.** One apply path underneath both.
+2. **The cursor shape is a fourth setting now,** and an animated sprite can be a cursor. A
+   cursor is an image or an `AnimatedSprite` plus a hotspot. By default the engine makes SDL
+   color cursors (`SDL_CreateColorCursor`, full RGBA on macOS, Windows, X11, Wayland and
+   KMSDRM's cursor plane) from each frame once and switches them as the animation advances; where
+   that does not work (the browser, if a check shows it cannot, or a size the platform refuses)
+   it hides the system cursor and draws the sprite at the polled mouse position. The cursor is
+   drawn outside the compared sprites, so it never changes a golden. Checked per platform,
+   including flicker when frames switch. Font resolution stays a font option.
+3. **Unset means untouched.**
+4. **Several active text boxes: fix it** (the owner has seen a box stop taking typing). Text
+   input and key repeat stay on while any box wants them and stop when the last lets go
+   (owner counting). It is its own step after the per-context mechanism lands, so the
+   refactor and the behaviour change are reviewed apart, with a bug record and a regression
+   test (two active boxes, one deactivates, the other still types) proven to fail first.
+5. **The `drawing` and `typing` demos are re-recorded together with the HUD re-record**
+   (`plans/2026-11-20-game-code-into-the-engine.md`, between Arcade sub-plans 5 and 6), under
+   the same only-expected-differences check; the old-recording tolerance then goes.
+6. **The engine re-applies automatically** (revised from the launcher's explicit calls): when
+   window ownership changes, the engine applies the new owner's settings, from the one place
+   ownership changes, so it has a single tested trigger.
+7. **One event type with a discriminated payload, behind a plain API.** Games call
+   `self.window.hide_cursor()`, `set_key_repeat(delay_milliseconds=..., interval_milliseconds=...)`,
+   `set_cursor(sprite_file=..., hotspot=...)` and so on, and never build events; the engine
+   posts one recorded `WINDOW_SETTING_EVENT` whose `setting` is a frozen pydantic model
+   (`CursorVisible`, `KeyRepeat`, `TextInput`, `CursorShape`) tagged by `kind`. Declarative
+   conveniences sit on top: a sprite's `CURSOR_WHILE_HOVERED` (applied on enter, restored on
+   leave) and a scene's `KEY_REPEAT` and the like (applied on enter, undone on exit).
+8. **In the browser, text input raises the phone keyboard** (only text input; it closes when
+   the last box lets go; checked on a real phone, with a hidden input element if the canvas
+   needs one). Bitmappy's Save in the browser stops asking for a typed name and works like
+   Load (plans/future-work.md, Bitmappy).
+
+### The questions as asked
+
 1. **Do the engine's own widgets post the event, or call the shared function?** Worked example: a
    click in a Bitmappy text box today calls `start_text_input()` and `set_repeat(500, 50)` in the
    handler. As posts they would add two recorded internal events to every click in every
