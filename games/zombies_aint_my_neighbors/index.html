@@ -801,6 +801,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="The screens">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-intro-and-the-idle-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The intro and the idle loop
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2993,7 +3010,9 @@ yard to be rescued: a kid's touch rescues one and a zombie's loses one. Each kid
 When every neighbor is rescued or lost and at least one was rescued, a gate opens in the top
 hedge; a kid through it clears the stage, and the next stage brings back only the neighbors
 rescued. Every life lost, or a stage with nobody rescued, and the TV switches off: game over.
-Every moment of a stage has its sound, and a theremin-and-organ score plays under it.
+Every moment of a stage has its sound, and a theremin-and-organ score plays under it. An intro
+opens every launch: the kids at their sleepover, the TV bursting and a Lawn Zombie climbing out;
+it plays again, unattended, whenever the title stands idle, as an arcade cabinet's would.
 The design, its decisions and
 the engine wishlist are in the master plan, <code>plans/2026-11-14-zombies-aint-my-neighbors.md</code>.</p>
 <p>Its package: <code>src/games/zombies-aint-my-neighbors/</code>, a workspace member
@@ -3015,6 +3034,11 @@ the engine wishlist are in the master plan, <code>plans/2026-11-14-zombies-aint-
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>Skip the intro</td>
+<td>any key</td>
+<td>any button</td>
+</tr>
 <tr>
 <td>Join (a device that holds no slot)</td>
 <td><code>Enter</code> or keypad <code>Enter</code></td>
@@ -3080,6 +3104,10 @@ D-pad on the left presses the arrows, <strong>Fire</strong> holds <code>J</code>
 button presses one key, so a diagonal takes two fingers.</p>
 <h2 id="the-screens">The screens<a class="headerlink" href="#the-screens" title="Permanent link">#</a></h2>
 <pre class="mermaid"><code>flowchart LR
+    Launch(["launch"]) --&gt; Title
+    Title -- "first frame, at launch" --&gt; Intro["IntroScene&lt;br/&gt;the sleepover, the TV bursts"]
+    Title -- "20 s idle, nobody joined" --&gt; Intro
+    Intro -- "8 s, or any key or button" --&gt; Title
     Title["TitleScene&lt;br/&gt;4 slots: join"] -- "joined player's start" --&gt; Card["FeatureCardScene&lt;br/&gt;who is playing"]
     Card -- "2 s, or start" --&gt; Yard["NeighborhoodScene&lt;br/&gt;the kids walk"]
     Card -- "back" --&gt; Title
@@ -3100,6 +3128,26 @@ stage, which takes each sprite out of it instead of loading its file: the stage 
 every random number, so a replay that starts on a stage rebuilds it exactly. A cleared stage
 hands the kit on to the next card, and a scene given no kit (a replay's rebuilt stage) makes its
 own.</p>
+<h3 id="the-intro-and-the-idle-loop">The intro and the idle loop<a class="headerlink" href="#the-intro-and-the-idle-loop" title="Permanent link">#</a></h3>
+<p>Feature plan 12 (<code>plans/2026-11-19-zombies-aint-my-neighbors-12-intro-and-idle-loop.md</code>). The
+intro (<code>intro.py</code>) plays one table of timed cues (<code>intro_timeline.py</code>): the four kids sit in
+their sleeping bags before the TV, the horror host on screen; at 4 s static, at 5.5 s the screen
+bulges, at 6 s it bursts (the kids start, the screen shakes), the monster's hands reach out, a
+Lawn Zombie climbs out, and at 8 s the title. Each frame acts on the cues it crossed, so a hitch
+fires each once, in order. Its nine sprites are drawn by <code>art/intro_rig.py</code>.</p>
+<ul>
+<li><strong>At every launch</strong> the title the engine builds (<code>TitleScene(opening=True)</code>) hands over to the
+  intro on its first frame wherever the <abbr title="Cathode-ray tube: the old television the power-on sequence imitates">CRT</abbr> power-on would play (<code>launch_showing.py</code>: not on the
+  dummy driver, in a replay, recording, audit or rebaseline, or with <code>--crt-power-on off</code>), and
+  every connected pad rumbles at the burst. Every other place that builds a title passes
+  <code>opening=False</code>, so leaving a stage never replays it.</li>
+<li><strong>The idle loop:</strong> a title left <code>IDLE_SECONDS</code> (20 s) with no key, pad button or join, nobody
+  joined and no run held, plays the intro unattended: nothing rumbles. The attract demo will
+  follow it (feature plan 13).</li>
+<li><strong>Any key or pad button skips it</strong>, P included. The title it hands back ignores the keys and
+  buttons held as it opens, each until it is seen up (<code>awaiting_release</code>), so the skipping press
+  never joins anyone while every other key and button works at once.</li>
+</ul>
 <p>The title is the game's class for now, so its golden replay stays in one scene, as
 <code>tests/replay/test_golden_replays.py</code> requires. When gameplay arrives, the golden moves to the
 gameplay scene.</p>
@@ -3279,7 +3327,7 @@ resumes, opens the feature card with keypad Enter and comes back with Enter, the
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 09:56:14 UTC">November 19, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 22:26:28 UTC">November 19, 2026</span>
   </span>
 
     
