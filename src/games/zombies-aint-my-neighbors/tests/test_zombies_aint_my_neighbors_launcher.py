@@ -6,7 +6,11 @@ from pathlib import Path
 
 import pytest
 
+from glitchygames.logical_names import logical_name
+from glitchygames.replay.driver import GAME_HEADER_FIELD
+from glitchygames.tracing import TraceWriter
 from zombies_aint_my_neighbors import launcher
+from zombies_aint_my_neighbors.demo_neighborhood import DemoNeighborhoodScene
 from zombies_aint_my_neighbors.neighborhood import NeighborhoodScene
 from zombies_aint_my_neighbors.title import TitleScene
 
@@ -30,6 +34,19 @@ def test_a_neighborhood_recording_replays_from_the_neighborhood():
     arguments = ['--replay-trace', str(NEIGHBORHOOD_GOLDEN), '--headless']
 
     assert launcher.first_scene(arguments=arguments) is NeighborhoodScene
+
+
+def test_a_recording_made_in_the_demo_neighborhood_starts_there(tmp_path):
+    """The attract demo was recorded in the demo neighborhood (feature plan 13); it starts there."""
+    recording = tmp_path / 'demo.jsonl.gz'
+    TraceWriter(
+        path=recording,
+        header={GAME_HEADER_FIELD: logical_name(scene_class=DemoNeighborhoodScene)},
+    ).close()
+
+    assert (
+        launcher.first_scene(arguments=['--replay-trace', str(recording)]) is DemoNeighborhoodScene
+    )
 
 
 @pytest.mark.parametrize('content', [None, b'not a recording'])

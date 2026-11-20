@@ -1360,8 +1360,11 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   - Not done: folding `test-random` into the comparison (shuffling one dummy run). The comparison
     passes on failing tests (`_PYTEST_FINISHED_CODES = [0, 1]`), and order-dependent frames would
     read as "varies between runs" rather than fail; little to save (80 s).
-- **Upgrade every locked dependency, then generate sounds on first use: one branch,
-  `chore/upgrade-and-sounds-on-first-use`** (the owner, 2026-11-14: one upgrade, not a
+- ~~**Upgrade every locked dependency, then generate sounds on first use: one branch,
+  `chore/upgrade-and-sounds-on-first-use`**~~ **Done**: the upgrade and the disk sound cache in
+  #213 (2026-11-15), the cache subcommands (`sound-cache-{list,size,verify,clear,fill}`) and the
+  listening WAVs in #214; a later upgrade on `chore/dependency-upgrade` (2026-11-20) moved 18
+  packages, none major. (The owner, 2026-11-14: one upgrade, not a
   tornado-only branch; sounds and the instrument and demo WAVs made on first use, never stored
   in the repository; the two combined). The upgrade lands first, as its own commit with every
   gate green, so a replay or sound that changes afterwards points at the cache code alone.
@@ -1858,6 +1861,15 @@ discussing it found and decided:
 
 ## Code quality
 
+- **The replay silencer stops every channel once, so a live voice's queued chunk can play under
+  it** (found 2026-11-19 with the harness's mixer leak, tests/harness.py `silence_every_channel`).
+  pygame starts a channel's queued sound the moment the channel is halted, so one stop leaves a
+  streamed sound's next chunk playing; the engine stops a live voice twice for that reason
+  (`audio/live.py` `stop_now`, `audio/voices.py`). `replay/silence.py` (rebuild and fast-forward)
+  calls `pygame.mixer.stop()` once, which may let a live sound's chunk be heard during a silent
+  rebuild. Not reproduced: reproduce it with a live voice playing at a rebuild, then stop twice
+  there too, and sweep `audio/voices.py`'s single `channel.stop()` calls for channels a live voice
+  can hold.
 - **Bitmappy's AI sprites load from text, not a temp file** (shared sprite frames review,
   2026-11-19). `ai_manager._detect_and_load_ai_sprite` writes the model's TOML to a temp file and
   loads it with `SpriteFactory.load_sprite`; `load_sprite_from_text` gives the same sprite and
