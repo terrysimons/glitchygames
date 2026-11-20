@@ -1,0 +1,14 @@
+# {{ ai_package_setup_label }}.service: the .deb's setup job, the one unit enabled for every user
+# (plans/lucid-circuit-linux.md, 6.2). It runs setup.sh at each login, which downloads the models
+# this machine can run, makes the keys and writes the settings, and when everything is in place
+# exits in well under a second. The package's postinst enables it with systemctl --global enable.
+[Unit]
+Description=GlitchyGames local AI: this user's setup
+
+[Service]
+Type=oneshot
+ExecStart={{ ai_service_bin_directory }}/setup.sh
+WorkingDirectory=%h
+
+[Install]
+WantedBy=default.target

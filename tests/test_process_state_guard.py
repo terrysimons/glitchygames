@@ -763,12 +763,6 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             'type(None), which the rules do not list.'
         ),
     },
-    'ai_link.py': {
-        'DEFAULT_INSTALL_ROOT': (
-            "R16: a Path (the user's home directory joined with constants), immutable; the "
-            'rules cannot prove Path.home() returns one.'
-        ),
-    },
     'api/dependencies.py': {
         'get_config': API_SERVER,
         'get_sprite_generation_service': API_SERVER,
@@ -788,6 +782,12 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         '_DEFINITIONS_CACHE': (
             "R17: a sound file's parsed definitions (frozen _Definitions) by path, reloaded when "
             'the file changes; a value computed from its key, one cache per process.'
+        ),
+    },
+    'audio/disk_cache.py': {
+        '_SOUND_WRITE_OBSERVERS': (
+            "S11: the browser's IndexedDB flush, registered once by its page; no desktop code "
+            'registers one.'
         ),
     },
     'audio/engine.py': {

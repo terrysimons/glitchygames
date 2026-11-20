@@ -31,9 +31,14 @@ TEST_IMAGE_SIZE = 256
 TEST_IMAGE_COLOR = (0, 0, 255)
 OUTPUT_LIMIT = 16384
 NORM_TOLERANCE = 0.01
+# Where the model ran: on a Mac its layers on Metal; on Linux the CPU variant llama.cpp loaded and
+# the threads it used (ggml/src/ggml-backend-reg.cpp's load_backend and common/common.cpp's
+# system_info at b12167, both logged only at --log-verbosity 4 or --verbose)
 LOG_LINES_OF_INTEREST = re.compile(
-    r'offloaded \d+/\d+ layers|graph splits|buffer size|recommendedMaxWorkingSetSize|using device',
+    r'offloaded \d+/\d+ layers|graph splits|buffer size|recommendedMaxWorkingSetSize|using device'
+    r'|load_backend: |system_info: n_threads',
 )
+KIBIBYTES_PER_MEBIBYTE = 1024
 
 
 def solid_color_png_base64(*, size: int, color: tuple[int, int, int]) -> str:
@@ -184,6 +189,35 @@ def memory_footprint_mib(*, process_id: int) -> float | None:
     return round(int(match.group(1)) / (1024 * 1024), 1) if match else None
 
 
+def linux_process_report(*, status_text: str) -> dict[str, float | int | None]:
+    """Read a process's resident memory and thread count from its /proc/PID/status.
+
+    The format is proc_pid_status(5)'s: one `Name:<tab>value` per line, memory in kB.
+
+    Returns:
+        Its resident memory in MiB and its thread count, each None if the file lacks it.
+    """
+    fields = dict(line.split(':', 1) for line in status_text.splitlines() if ':' in line)
+    resident = fields.get('VmRSS', '').split()
+    threads = fields.get('Threads', '').strip()
+    return {
+        'resident_mib': round(int(resident[0]) / KIBIBYTES_PER_MEBIBYTE, 1) if resident else None,
+        'process_threads': int(threads) if threads else None,
+    }
+
+
+def memory_report(*, process_id: int) -> dict[str, float | int | None]:
+    """Measure what a running server holds, by the platform's own means.
+
+    Returns:
+        On a Mac its physical footprint; on Linux its resident memory and thread count.
+    """
+    if sys.platform == 'darwin':
+        return {'footprint_mib': memory_footprint_mib(process_id=process_id)}
+    status = Path(f'/proc/{process_id}/status').read_text(encoding='utf-8')
+    return linux_process_report(status_text=status)
+
+
 def wait_until_healthy(*, base_url: str, process: subprocess.Popen[bytes]) -> None:
     """Wait for a started server to finish loading.
 
@@ -235,7 +269,7 @@ def check_with_own_server(
             load_seconds = round(time.monotonic() - started, 1)
             result = check_model(model=model, api_key=api_key)
             result['load_seconds'] = load_seconds
-            result['footprint_mib'] = memory_footprint_mib(process_id=process.pid)
+            result.update(memory_report(process_id=process.pid))
         finally:
             process.terminate()
             try:

@@ -22,6 +22,10 @@ if TYPE_CHECKING:
 type Colour = tuple[int, int, int]
 
 # Fonts never get smaller than this when fitted to a width
+# The game's name: the window's title on the title, a stage and the game over, and the start of
+# every other scene's, "<game name> - <part>" (an f-string in each scene's NAME, which the
+# process-state guard reads as immutable; tests/test_process_state_guard.py)
+GAME_NAME = "Zombies Ain't My Neighbors"
 SMALLEST_FONT_SIZE = 8
 # The space between stacked lines of text, in pixels
 LINE_GAP = 4

@@ -1639,6 +1639,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 # is built before recording starts (glitchygames/scene_start.py)
                 captures_scene_starts=options.get('record_trace') is not None,
             )
+            # On Linux the AI's doors pin the game to its cores once the service has started, as
+            # glitchygames/cpu_placement.py says
             self.ai_link = create_link(options=options)
             self.host = GameHost(
                 # Live play against OLD draws OLD over each presented frame

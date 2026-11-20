@@ -8,8 +8,11 @@ directory. This bootstrap then:
 
 1. gives SDL the page's canvas;
 2. mounts IndexedDB-backed storage over ~/.local/share, where glitchygames.state keeps saves on
-   this platform, loads what earlier visits stored, and flushes after every save
-   (``observe_disk_save_changes``) and when the page is hidden; installs the page's clipboard
+   this platform, and over the sound cache's root (``sound_cache_root()``: ~/.cache/glitchygames
+   here), where compiled sounds are kept, so a later visit reads them instead of compiling; loads
+   what earlier visits stored, and flushes after every save (``observe_disk_save_changes``),
+   after each burst of written sounds (``observe_sound_writes``) and when the page is hidden;
+   installs the page's clipboard
    (browser_clipboard.py) and the player's own files (browser_user_files.py: a file picker to
    open, downloads to save);
 3. waits for a click on the page (browsers start audio only after a user gesture);
@@ -100,6 +103,11 @@ def flush_soon(_path: Path) -> None:
     browser_storage.flush_in_background()
 
 
+def flush_after_written_sounds(_path: Path) -> None:
+    """Flush the sound cache once a burst of written sounds is over (glitchygames.audio)."""
+    browser_storage.flush_soon()
+
+
 def read_boot_config() -> dict[str, object]:
     """Read boot_config.json (written by `python -m scripts.build_browser_bundle`).
 
@@ -149,6 +157,13 @@ async def main() -> None:
 
     storage_report = await browser_storage.mount_persistent_directory(str(SAVE_ROOT))
     LOG.info('Save storage: %s', storage_report)
+    from glitchygames.audio.disk_cache import observe_sound_writes, sound_cache_root
+
+    sound_root = sound_cache_root()
+    if sound_root is not None:
+        sound_report = await browser_storage.mount_persistent_directory(str(sound_root))
+        LOG.info('Sound cache storage: %s', sound_report)
+        observe_sound_writes(observer=flush_after_written_sounds)
     browser_storage.flush_on_page_hide()
 
     # The engine parses its command line when it is constructed

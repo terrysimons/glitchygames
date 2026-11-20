@@ -1,0 +1,110 @@
+---
+# Linux's install (plans/lucid-circuit-linux.md, 5.1, 6.3 and 6.9): the .deb ai_package built on
+# this host, installed with apt, then the installed setup.sh run for the owner, which downloads the
+# models and writes the owner's settings, then the same smoke test as a Mac's. Only the install
+# takes root (-K); everything of the owner's is done as the owner
+- name: Read the package's checksum
+  ansible.builtin.stat:
+    path: "{{ ai_package_deb_output }}"
+    checksum_algorithm: sha256
+  register: ai_service_package
+
+- name: Ask dpkg whether the package is installed
+  ansible.builtin.command:
+    argv: [dpkg-query, --show, "--showformat=${Status}", "{{ ai_package_deb_name }}"]
+  register: ai_service_package_status
+  changed_when: false
+  # Exit 1 is dpkg-query's answer for a package it has never seen
+  failed_when: ai_service_package_status.rc not in [0, 1]
+
+- name: Read the checksum of the package this Ansible installed last
+  ansible.builtin.command:
+    argv: [cat, "{{ ai_service_installed_package_checksum_file }}"]
+  register: ai_service_installed_package
+  changed_when: false
+  # No record yet: the package was never installed from here
+  failed_when: false
+
+# apt skips a package whose version is already installed, and a rebuilt .deb keeps its version, so
+# Ansible compares checksums
+- name: Install the package when it is new or rebuilt
+  when: >-
+    ai_service_package_status.stdout != 'install ok installed'
+    or ai_service_installed_package.stdout != ai_service_package.stat.checksum
+  become: true
+  block:
+    # The package's Depends come from the package lists, which on a fresh Pi are as old as its
+    # image, and an install from them can 404: they're refreshed first when an hour old or more
+    - name: Refresh apt's package lists for the package's Depends
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    # apt-get, not dpkg -i, so the Depends are installed too. The postinst starts the owner's
+    # setup in the background (SUDO_USER is the user Ansible connects as)
+    - name: Install the package
+      ansible.builtin.command:
+        argv: [apt-get, install, --yes, --reinstall, "{{ ai_package_deb_output }}"]
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      changed_when: true
+
+- name: Record which package is installed
+  ansible.builtin.copy:
+    content: "{{ ai_service_package.stat.checksum }}"
+    dest: "{{ ai_service_installed_package_checksum_file }}"
+    mode: "0644"
+
+# uninstall-user.sh masks the setup job for its user, or the package's --global enable would set
+# everything up again at their next login. Running this install is asking for the service back, so
+# the owner's mask goes; the postinst leaves masks alone, as it runs at every apt upgrade too.
+# Removing a mask is what changes something (systemctl says "Removed ..."), and unmasking a job
+# never masked succeeds quietly
+- name: Unmask the setup job for the owner
+  ansible.builtin.command:
+    argv: [systemctl, --user, unmask, "{{ ai_package_setup_label }}.service"]
+  register: ai_service_setup_unmask
+  changed_when: ai_service_setup_unmask.rc == 0 and ai_service_setup_unmask.stderr is search('Removed')
+  # With no user manager to reach (an SSH session without one), the install still completes, as
+  # the next task runs setup.sh itself; the warning says what that leaves undone
+  failed_when: false
+
+- name: Warn when the setup job could not be unmasked
+  ansible.builtin.debug:
+    msg: >-
+      Could not reach the owner's systemd user manager to unmask
+      {{ ai_package_setup_label }}.service ({{ ai_service_setup_unmask.stderr }}). If an earlier
+      uninstall masked it, it won't run at login until unmasked: systemctl --user unmask
+      {{ ai_package_setup_label }}.service
+  when: ai_service_setup_unmask.rc != 0
+
+# The postinst's setup run usually holds setup's lock by now, and a run that finds the lock taken
+# leaves at once with exit 0, before any model is here. So Ansible runs setup.sh again until a run
+# is its own: that run checks every selected model's SHA-256 (downloading any still missing) and
+# ends with "setup: done". Exit 0 alone never means the models are ready
+- name: Run setup for the owner, waiting out a run already going
+  ansible.builtin.command:
+    argv: ["{{ ai_service_bin_directory }}/setup.sh"]
+  register: ai_service_setup
+  until: ai_service_setup.stdout is not search('is already running')
+  retries: "{{ ai_service_setup_retries }}"
+  delay: "{{ ai_service_setup_delay_seconds }}"
+  changed_when: ai_service_setup.stdout is search('(?m)^setup. downloading ')
+  # The check below says what went wrong
+  failed_when: false
+
+- name: Check that setup finished, with the models in place
+  ansible.builtin.assert:
+    that:
+      - ai_service_setup.stdout is not search('is already running')
+      - ai_service_setup.rc == 0
+      - "'setup: done' in ai_service_setup.stdout_lines"
+    fail_msg: >-
+      {% if ai_service_setup.stdout is search('is already running') %}Another setup run was
+      still running after {{ (ai_service_setup_retries | int) * (ai_service_setup_delay_seconds | int) }}
+      seconds; follow it with: journalctl --user -u {{ ai_package_setup_label }}.service{% else %}setup.sh
+      failed (exit {{ ai_service_setup.rc }}): {{ ai_service_setup.stdout }}
+      {{ ai_service_setup.stderr }}{% endif %}
+
+- name: Check that the models answer correctly
+  ansible.builtin.include_tasks: smoke_test.yml

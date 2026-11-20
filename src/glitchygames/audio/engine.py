@@ -119,12 +119,10 @@ def _disk_layer(*, game_name: str, root: Path | None) -> DiskSoundCache | None:
             ``sound_cache_root()``'s.
 
     Returns:
-        The layer under ``sound_cache_root()``, or None in the browser (no lasting files) or with
-        ``GLITCHYGAMES_SOUND_CACHE_ROOT`` empty (the test harness's setting).
+        The layer under ``sound_cache_root()``, or None with ``GLITCHYGAMES_SOUND_CACHE_ROOT``
+        empty (the test harness's setting). The browser has one too: its page keeps the files in
+        IndexedDB (disk_cache.py, rule 7).
     """
-    if sys.platform == 'emscripten':
-        log.info('--sound-cache disk runs as ram in the browser, which keeps no files')
-        return None
     root = sound_cache_root() if root is None else root
     if root is None:
         log.info(

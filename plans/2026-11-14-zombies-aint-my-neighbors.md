@@ -306,6 +306,15 @@ designs are not.
   calls the Gamepad API's `vibrationActuator`, since `src/glitchygames/` is off-limits. The
   intro's rumble (decision 15) depends on the answer, so check it before the intro is built.
 
+- [ ] **Four-player split screen** (the owner, 2026-11-19: "In the zombies game, I'd like to
+  eventually do a 4-player split screen if the players move out of each other's camera"). Today
+  the kids share one camera (decision 5, "on one screen, with a shared camera"), and the group's
+  span keeps them inside one screen (`neighborhood.py`). This would split the view into two or
+  four once kids are too far apart, and merge it again when they come back together. That
+  changes decision 5 and removes the span rule. It depends on the dynamic resolution (Engine
+  wishlist #16): a quarter of 800x480 is 400x240, which is small for this art. It needs its
+  own feature plan. Not started.
+
 ### What is left of level 1 (written 2026-11-19, before the context was cleared)
 
 Branch `feature/zombies-finish-level-1` (worktree `../glitchygames-zombies-finish-level-1`),
@@ -343,7 +352,10 @@ while #215 is open, saying it is stacked; rebase onto `main` once #215 lands.
   demos). Each needs its own feature plan (12 and on). **The intro is BUILT (feature plan 12,
   2026-11-19):** it opens every launch and plays in the title's idle loop; the browser rumble
   check (its Task 6, step 1) waits for the owner at a browser with a pad. **The attract demo is
-  feature plan 13** (not started): it fills the idle loop's second slot, after the intro.
+  BUILT (feature plan 13, 2026-11-19, branch `feature/zombies-attract-demo`):** four kids clear
+  stage 1 in the idle loop's second slot, after the intro (the owner approved its contact sheet:
+  "Looks great"). Still open: whether the demo plays in the browser build (no inner game has run
+  under Pyodide yet) and its build time on the Pi (down while it was built).
 - [ ] **Listen to the score and the effects, and watch a real launch** (feature plan 11): nobody
   has listened to the finished score, and the CRT power-on frame that builds it on a first launch
   has only been measured, not watched (`scripts/measure_sound_start.py`).
@@ -389,6 +401,7 @@ when filed; this table links to them.
 | 8 | 2026-11-14 | bug (repo tooling) | `scripts/build_browser_bundle.py` `render_page` puts a game's title into the page's `<title>` unescaped (the index page escapes it). Harmless for this title, but a title with `&` or `<` would make invalid HTML | not yet |
 | 12 | 2026-11-15 | feature | The engine keeps no cache of loaded sprite files: every `AnimatedSprite(filename=...)` reads and parses its TOML and rebuilds its frame surfaces, so a game that creates sprites mid-play drops frames (a Lawn Zombie: 27 to 41 ms). A shared, read-only cache of parsed files (frames and surfaces), keyed by path, would let every game spawn freely. This game works around it with pools (feature plan 6) | not yet |
 | 15 | 2026-11-19 | feature | The engine keeps "would the CRT power-on play this run?" private (`GameEngine._power_on_plays`), so a game that wants to do something only where someone can see it (this game's launch intro, feature plan 12) repeats the engine's call to `crt_power_on.resolve_mode` and `should_play` (`launch_showing.launch_showing_allowed`). A public answer (a property on the engine or the active sources) would keep the rule in one place. It would also cover the Arcade's live inner games (its sub-plan 7): `pygame.display.get_driver()` reports the window's real driver there, so the game's own check would open each live tile with the intro and its rumble (today inner games only replay, so it cannot happen yet) | not yet |
+| 16 | 2026-11-19 | feature | The resolution is fixed at 800x480 (the engine's `--resolution` default, chosen for the Raspberry Pi's 7" screen). The owner wants it detected from the display, up to a maximum (2026-11-19). The window is already `SCALED`, so a bigger monitor shows the same 800x480 enlarged. A bigger canvas would show more of the world or sharper text, and each game lays itself out for it. Recordings keep their own size, and an inner game replays only at its recorded size. Needed by the split screen (Game TODOs) | future-features #92 |
 | 7 | 2026-11-14 | to consider | `tests/replay/test_golden_replays.py` assumes a game is one scene (header game == gameplay scene; the recording ends in it). A title in front of gameplay has to be left out of the golden. The tests could accept a start scene that differs from the gameplay scene | not yet |
 
 ## Feature plans
@@ -436,6 +449,11 @@ Each feature gets its own plan in `plans/`, linked here and linking back to this
    good."); the browser rumble check waits for the owner. The title plays the intro after 20 s idle, then (feature 13)
    the attract demo, arcade style; the intro also opens every launch, any key or button
    skipping it; pads rumble only then, never while unattended; built as one timeline of cues.
+13. [The attract demo](2026-11-19-zombies-aint-my-neighbors-13-attract-demo.md): BUILT
+   (2026-11-19), committed on `feature/zombies-attract-demo`. The bundled demo
+   `demos/neighborhood_four_kids.jsonl.gz` (four kids clear stage 1, steered live by the route
+   planner's steering) replays inside the game as an inner game, under a DEMO label, after the
+   loop's intro; any key or button returns to the title. The browser and the Pi are unchecked.
 
 ## Sources
 

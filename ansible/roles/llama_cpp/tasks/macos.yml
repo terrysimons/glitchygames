@@ -1,0 +1,63 @@
+---
+# The Mac's steps of the llama_cpp role (main.yml includes this file in three phases)
+- name: Refuse anything but an Apple Silicon Mac
+  when: llama_cpp_phase == 'prepare'
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['system'] == 'Darwin'
+      # The architecture fact, as every platform's choice is (plans/lucid-circuit-linux.md, 4). On
+      # an Apple Silicon Mac it reads arm64, as the machine fact this used to read does (both
+      # checked with ansible-core's setup module, 2026-11-19)
+      - ansible_facts['architecture'] == 'arm64'
+    fail_msg: "This builds for Apple Silicon only; this is {{ ansible_facts['system'] }} {{ ansible_facts['architecture'] }}"
+
+- name: Get ready to build for the Mac
+  when: llama_cpp_phase == 'prepare'
+  block:
+    # Plain `xcrun --show-sdk-version` can follow a stale path to the Command Line Tools' SDK while
+    # `--sdk macosx` finds Xcode's, so the build names the SDK it found this way
+    - name: Find the macOS SDK
+      ansible.builtin.command:
+        argv: [xcrun, --sdk, macosx, --show-sdk-path]
+      register: llama_cpp_sdk
+      changed_when: false
+
+    - name: Check that CMake is installed
+      ansible.builtin.command:
+        argv: [cmake, --version]
+      changed_when: false
+
+    - name: Work out this build's options
+      ansible.builtin.set_fact:
+        llama_cpp_all_cmake_options: >-
+          {{ llama_cpp_base_cmake_options
+             | combine(llama_cpp_cmake_options)
+             | combine({'CMAKE_OSX_ARCHITECTURES': 'arm64',
+                        'CMAKE_OSX_DEPLOYMENT_TARGET': llama_cpp_macos_deployment_target,
+                        'CMAKE_OSX_SYSROOT': llama_cpp_sdk.stdout}) }}
+        llama_cpp_install_subdirectories: [bin, notices]
+
+- name: Check the Mac build
+  when: llama_cpp_phase == 'verify'
+  block:
+    - name: List the devices the build can use
+      ansible.builtin.command:
+        argv: ["{{ llama_cpp_install_directory }}/bin/llama-server", --list-devices]
+      register: llama_cpp_devices
+      changed_when: false
+
+    - name: List the libraries it links
+      ansible.builtin.command:
+        argv: [otool, -L, "{{ llama_cpp_install_directory }}/bin/llama-server"]
+      register: llama_cpp_linked_libraries
+      changed_when: false
+
+    - name: Check that it has Metal and needs nothing from Homebrew
+      ansible.builtin.assert:
+        that:
+          - "'MTL' in (llama_cpp_devices.stdout ~ llama_cpp_devices.stderr)"
+          - "'/opt/homebrew' not in llama_cpp_linked_libraries.stdout"
+          - "'/usr/local' not in llama_cpp_linked_libraries.stdout"
+        fail_msg: >-
+          {{ llama_cpp_devices.stdout }} {{ llama_cpp_devices.stderr }}
+          {{ llama_cpp_linked_libraries.stdout }}

@@ -95,8 +95,8 @@ if TYPE_CHECKING:
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Every golden, then every bundled demo: (console script, recording)
 RECORDINGS = every_golden_and_bundled_demo(project_root=PROJECT_ROOT)
-# Eight goldens and ten bundled demos (tests/workspace_expectations.py)
-EXPECTED_RECORDING_COUNT = 18
+# Eight goldens and eleven bundled demos (tests/workspace_expectations.py)
+EXPECTED_RECORDING_COUNT = 19
 # The recordings known to diverge inside a tile, by (console script, file name), each with the
 # plans/future-work.md entry that says why
 DIVERGES_INSIDE_A_TILE: dict[tuple[str, str], str] = {
@@ -148,6 +148,7 @@ PLAYS_SOUNDS = frozenset({
     ('paddleslap', 'golden.jsonl.gz'),
     ('paddleslap', 'rally.jsonl.gz'),
     ('zombies-aint-my-neighbors', 'golden-neighborhood.jsonl.gz'),
+    ('zombies-aint-my-neighbors', 'neighborhood_four_kids.jsonl.gz'),
 })
 
 
@@ -797,7 +798,7 @@ def test_a_tile_leaves_the_outer_key_repeat_as_it_was(
 
 
 def test_the_recordings_are_every_golden_and_bundled_demo():
-    """Eighteen recordings, each known divergence among them: an empty list would prove nothing."""
+    """Nineteen recordings, each known divergence among them: an empty list would prove nothing."""
     names = {(console_script, recording.name) for console_script, recording in RECORDINGS}
 
     assert len(names) == len(RECORDINGS) == EXPECTED_RECORDING_COUNT

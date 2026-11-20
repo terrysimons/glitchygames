@@ -77,7 +77,7 @@ def switch_off_picture(*, size: tuple[int, int], seconds: float) -> pygame.Surfa
 class GameOverScene(RosterScene):
     """The TV switching off, then GAME OVER, then the title."""
 
-    NAME = "Zombies Ain't My Neighbors"
+    NAME = text.GAME_NAME
     VERSION = '1.0'
 
     @override

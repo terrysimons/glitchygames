@@ -14,8 +14,13 @@ import pytest
 from hypothesis import settings
 
 # No test reaches the real AI service, which would load gigabytes of models on a machine that
-# has it, and only there: every client gets "not installed" unless a test names an install
-os.environ.setdefault('GLITCHYGAMES_AI_INSTALL_ROOT', '/nonexistent/glitchygames-ai-service')
+# has it, and only there: every client gets "not installed" unless a test names an install. Set,
+# not defaulted, and the program and user root variables removed, as each wins over this one in
+# glitchygames/ai_link.py's service_locations. So nothing a developer's shell exports reaches the
+# suite, as tests/test_ai_service_isolation_guard.py checks
+os.environ['GLITCHYGAMES_AI_INSTALL_ROOT'] = '/nonexistent/glitchygames-ai-service'
+os.environ.pop('GLITCHYGAMES_AI_PROGRAM_ROOT', None)
+os.environ.pop('GLITCHYGAMES_AI_USER_ROOT', None)
 
 # No test writes to the user's sound cache folder: an empty root turns cache disk's disk layer off
 # (glitchygames/audio/disk_cache.py, rule 6), so disk runs as ram. Set, not defaulted, so a value
@@ -737,6 +742,41 @@ def run_sdl_driver_state() -> SdlDriverState:
     return live_sdl_driver_state()
 
 
+def busy_mixer_channels() -> list[int]:
+    """Return the mixer's channels that are playing (none when the mixer is not running).
+
+    Returns:
+        Their indices.
+
+    """
+    if pygame.mixer.get_init() is None:
+        return []
+    return [
+        index
+        for index in range(pygame.mixer.get_num_channels())
+        if pygame.mixer.Channel(index).get_busy()
+    ]
+
+
+def silence_every_channel() -> None:
+    """Stop every mixer channel after a test, so no sound plays on into the next one.
+
+    Twice, as the engine stops a live voice (glitchygames/audio/live.py ``stop_now``): pygame
+    starts a channel's queued sound the moment the channel is halted, so the first stop starts
+    each streamed sound's queued chunk and the second stops it. One stop left a chunk playing
+    into the next test, whose engine then could not partition the mixer at construction
+    (BUGS.md #145's guard; tests/test_harness_silences_the_mixer.py). A channel still playing
+    after both fails the test that left it (``pytest.fail``), not a later test on the worker.
+    """
+    if pygame.mixer.get_init() is None:
+        return
+    pygame.mixer.stop()
+    pygame.mixer.stop()
+    still_playing = busy_mixer_channels()
+    if still_playing:
+        pytest.fail(f'Mixer channels still playing after two stops: {still_playing}')
+
+
 @pytest.fixture(autouse=True)
 def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
     """Give every test an initialized pygame showing the canvas pattern; isolate its sound.
@@ -768,8 +808,7 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
 
     yield
 
-    if pygame.mixer.get_init() is not None:
-        pygame.mixer.stop()
+    silence_every_channel()
     restore_run_sdl_drivers(
         run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
         run_state=run_sdl_driver_state,

@@ -18,7 +18,7 @@ REQUEST_TIMEOUT_SECONDS = 900.0
 
 
 def wait_until_ready(*, base_url: str) -> None:
-    """Wait for the API and both models to answer.
+    """Wait for the API and every model the start started to answer.
 
     Raises:
         RuntimeError: If they don't in time.
@@ -36,7 +36,35 @@ def wait_until_ready(*, base_url: str) -> None:
     raise RuntimeError(message)
 
 
-def check_rest(*, base_url: str, headers: dict[str, str]) -> list[str]:
+def check_embeddings(
+    *, client: httpx2.Client, headers: dict[str, str], embedding_model: bool
+) -> list[str]:
+    """Ask for an embedding: vectors where an embedding model runs, a clear refusal where none does.
+
+    A machine whose memory tier runs no Qwen answers 503 with the code no_embedding_model
+    (plans/lucid-circuit-linux.md, 6.4.1).
+
+    Returns:
+        What failed, if anything.
+
+    """
+    response = client.post(
+        '/v1/embeddings', headers=headers, json={'model': 'embedding', 'input': 'a small cat'}
+    )
+    if not embedding_model:
+        code = response.json().get('error', {}).get('code')
+        print('embedding:', response.status_code, code)
+        if response.status_code != httpx2.codes.SERVICE_UNAVAILABLE or code != 'no_embedding_model':
+            return [f'a machine with no embedding model answered {response.status_code} {code}']
+        return []
+    if response.status_code != httpx2.codes.OK:
+        return [f'the embedding request answered {response.status_code}: {response.text}']
+    vector = response.json()['data'][0]['embedding']
+    print('embedding dimensions:', len(vector))
+    return [] if vector else ['the embedding was empty']
+
+
+def check_rest(*, base_url: str, headers: dict[str, str], embedding_model: bool) -> list[str]:
     """Exercise the REST API.
 
     Returns:
@@ -55,7 +83,9 @@ def check_rest(*, base_url: str, headers: dict[str, str]) -> list[str]:
         headers=headers,
         json={
             'model': 'reasoning',
-            'messages': [{'role': 'user', 'content': 'What is 17 + 25? Reply with only the number.'}],
+            'messages': [
+                {'role': 'user', 'content': 'What is 17 + 25? Reply with only the number.'}
+            ],
             'reasoning_effort': 'medium',
         },
     ).json()['choices'][0]['message']['content']
@@ -70,7 +100,9 @@ def check_rest(*, base_url: str, headers: dict[str, str]) -> list[str]:
         headers=headers,
         json={
             'stream': True,
-            'messages': [{'role': 'user', 'content': 'What is 17 + 25? Reply with only the number.'}],
+            'messages': [
+                {'role': 'user', 'content': 'What is 17 + 25? Reply with only the number.'}
+            ],
         },
     ) as response:
         for line in response.iter_lines():
@@ -81,12 +113,7 @@ def check_rest(*, base_url: str, headers: dict[str, str]) -> list[str]:
     if not re.search(r'\b42\b', streamed):
         problems.append(f'streaming answered {streamed!r}')
 
-    vector = client.post(
-        '/v1/embeddings', headers=headers, json={'model': 'embedding', 'input': 'a small cat'}
-    ).json()['data'][0]['embedding']
-    print('embedding dimensions:', len(vector))
-    if not vector:
-        problems.append('the embedding was empty')
+    problems += check_embeddings(client=client, headers=headers, embedding_model=embedding_model)
 
     if 'scalar.js' not in client.get('/docs').text:
         problems.append('/docs names no local script')
@@ -134,13 +161,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, required=True)
     parser.add_argument('--key-file', type=Path, required=True)
+    # Whether this machine's memory tier runs an embedding model (ai-service.sh's qwen=)
+    parser.add_argument('--embedding-model', action=argparse.BooleanOptionalAction, required=True)
     arguments = parser.parse_args()
     base_url = f'http://127.0.0.1:{arguments.port}'
     key = arguments.key_file.read_text(encoding='utf-8').strip()
     headers = {'Authorization': f'Bearer {key}'}
 
     wait_until_ready(base_url=base_url)
-    problems = check_rest(base_url=base_url, headers=headers)
+    problems = check_rest(
+        base_url=base_url, headers=headers, embedding_model=arguments.embedding_model
+    )
     problems += asyncio.run(
         check_session(url=f'ws://127.0.0.1:{arguments.port}/v1/session', headers=headers)
     )

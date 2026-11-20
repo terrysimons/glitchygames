@@ -1,5 +1,6 @@
 """Nox session definitions for linting, testing, security scanning, and benchmarks."""
 
+import argparse
 import contextlib
 import dataclasses
 import json
@@ -1611,6 +1612,118 @@ def test_linux_ci(session: nox.Session) -> None:
         )
 
 
+# The .deb's container check (plans/lucid-circuit-linux.md, section 7): the Pi 5 that builds it runs
+# Ubuntu 26.04 (ansible/inventory.yml), and 24.04's glibc is older
+_DEB_PACKAGE_DIRECTORY = Path('scripts/deb_package')
+_DEB_PACKAGE_PLATFORM = 'linux/arm64'
+_DEB_PACKAGE_RELEASE = 'ubuntu:26.04'
+_DEB_PACKAGE_OLDER_RELEASE = 'ubuntu:24.04'
+
+
+@nox.session(venv_backend='none', name='deb-package', default=False)
+def deb_package(session: nox.Session) -> None:
+    """Check a .deb of the local AI service, built on a Pi, in arm64 containers.
+
+    On the release that built it (an image with systemd running and a user, player, whose
+    manager runs): the install and the setup job enabled for every user, `llama-server
+    --version` and the CPU variant it loads (its `load_backend` line), the sidecar importing
+    glitchygames_ai_service, an upgrade to the same package with a newer version while a unit
+    runs (the unit stops; player's models, keys and history stay: Review focus 4), and `dpkg -r`
+    leaving nothing under /opt/glitchygames/ai or among the user units. Then, on an older
+    release, that apt refuses it. The checks are scripts/deb_package/check_package.sh. Manual:
+    it needs Docker and a .deb (`ansible/roles/ai_package` builds one on each Linux host).
+
+    Usage:
+        nox -s deb-package -- PATH_TO_DEB
+        nox -s deb-package -- PATH_TO_DEB --release debian:trixie --older-release debian:bookworm
+    """
+    parser = argparse.ArgumentParser(prog='nox -s deb-package --')
+    parser.add_argument('deb', type=Path, help='the .deb to check')
+    parser.add_argument(
+        '--release', default=_DEB_PACKAGE_RELEASE, help='the image of the release that built it'
+    )
+    parser.add_argument(
+        '--older-release',
+        default=_DEB_PACKAGE_OLDER_RELEASE,
+        help='the image of an older release, whose glibc the package must refuse',
+    )
+    arguments = parser.parse_args(session.posargs)
+    deb = arguments.deb.resolve()
+    if not deb.is_file():
+        session.error(f'{deb} is not a file')
+    checks = _DEB_PACKAGE_DIRECTORY.resolve()
+    image = f'glitchygames-deb-package:{arguments.release.replace(":", "-").replace("/", "-")}'
+    session.run(
+        'docker',
+        'build',
+        '--quiet',
+        f'--platform={_DEB_PACKAGE_PLATFORM}',
+        '--build-arg',
+        f'RELEASE={arguments.release}',
+        '--tag',
+        image,
+        str(checks),
+        external=True,
+    )
+    mounts = ['--volume', f'{deb.parent}:/debs:ro', '--volume', f'{checks}:/checks:ro']
+    container_name = f'glitchygames-deb-package-{os.getpid()}'
+    try:
+        # systemd as PID 1, so the maintainer scripts reach real user managers
+        session.run(
+            'docker',
+            'run',
+            '--detach',
+            '--name',
+            container_name,
+            f'--platform={_DEB_PACKAGE_PLATFORM}',
+            '--privileged',
+            '--cgroupns=host',
+            '--volume',
+            '/sys/fs/cgroup:/sys/fs/cgroup:rw',
+            '--tmpfs',
+            '/run',
+            '--tmpfs',
+            '/run/lock',
+            *mounts,
+            image,
+            external=True,
+            silent=True,
+        )
+        session.run(
+            'docker',
+            'exec',
+            container_name,
+            'sh',
+            '/checks/check_package.sh',
+            'installed',
+            f'/debs/{deb.name}',
+            external=True,
+        )
+    finally:
+        session.run(
+            'docker',
+            'rm',
+            '--force',
+            container_name,
+            external=True,
+            silent=True,
+            success_codes=[0, 1],
+        )
+    session.run(
+        'docker',
+        'run',
+        '--rm',
+        f'--platform={_DEB_PACKAGE_PLATFORM}',
+        *mounts,
+        arguments.older_release,
+        'sh',
+        '/checks/check_package.sh',
+        'refused',
+        f'/debs/{deb.name}',
+        external=True,
+    )
+
+
 @nox.session(venv_backend='none', name='build-sdl-x11', default=False)
 def build_sdl_x11(session: nox.Session) -> None:
     """Build SDL with x11 for macOS, so pygame-ce draws on XQuartz (compare-drivers' x11-macos).
@@ -2279,8 +2392,10 @@ def browser(session: nox.Session) -> None:
 
     scripts/build_browser_bundle.py writes build/browser/<game>: the page, the engine and our
     pygame-ce wheel. The wheel is built from the third_party/pygame-ce submodule the first time
-    (several minutes; run ``git submodule update --init`` first) and reused while the submodule
-    stays at the same commit. The page opens in the default browser; click it to play. Design:
+    (several minutes) and reused while the submodule stays at the same commit. A submodule not
+    checked out yet (a new worktree's) is checked out first; ``-- --wheel PATH`` uses a wheel
+    built elsewhere instead (another checkout's dist-pyodide/) and needs no submodule. The page
+    opens in the default browser; click it to play. Design:
     plans/2026-10-23-game-host-and-browser-runner.md.
 
     Usage:

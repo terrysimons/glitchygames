@@ -24,6 +24,11 @@ from glitchygames.tracing import StableSpriteIds
 from tests.input.stand_in_devices import STAND_IN_PAD
 from zombies_aint_my_neighbors import groans as groans_module
 from zombies_aint_my_neighbors import music
+from zombies_aint_my_neighbors.demo_neighborhood import (
+    DEMO_PAD_INSTANCE_IDS,
+    DemoNeighborhoodScene,
+    demo_roster,
+)
 from zombies_aint_my_neighbors.exit_door import DOOR_SIZE, OPENING_SECONDS
 from zombies_aint_my_neighbors.feature_card import CARD_SECONDS, FeatureCardScene
 from zombies_aint_my_neighbors.game_over import GameOverScene
@@ -2235,3 +2240,40 @@ def test_the_stage_music_has_no_sound_before_it_is_prepared(sound):
 
     with pytest.raises(RuntimeError, match='not prepared'):
         getattr(stage_music, sound)
+
+
+def test_the_demo_roster_joins_the_keyboard_then_three_pads_as_slots_one_to_four():
+    """The attract demo's players (feature plan 13): the keyboard is P1, stand-in pads P2 to P4."""
+    assert DEMO_PAD_INSTANCE_IDS == (0, 1, 2)
+    assert [player.device for player in demo_roster().joined_players] == [
+        KEYBOARD,
+        gamepad(0),
+        gamepad(1),
+        gamepad(2),
+    ]
+    assert [player.slot_index for player in demo_roster().joined_players] == [0, 1, 2, 3]
+
+
+def test_the_demo_neighborhood_starts_with_four_kids():
+    """Built from options alone, as a recording's first scene is, it has all four kids."""
+    scene = DemoNeighborhoodScene(options=dict(OPTIONS))
+    scene.setup()
+
+    assert {slot: kid.look_name for slot, kid in scene.kids.items()} == {
+        0: 'dex',
+        1: 'marisol',
+        2: 'theo',
+        3: 'june',
+    }
+
+
+def test_the_demo_neighborhood_rebuilds_from_its_replay_arguments():
+    """A replay rebuilds it from its recorded scene start, the four players included."""
+    scene = DemoNeighborhoodScene(options=dict(OPTIONS))
+
+    rebuilt = DemoNeighborhoodScene(
+        options=dict(OPTIONS), **json.loads(json.dumps(scene.replay_arguments()))
+    )
+
+    assert rebuilt.roster == demo_roster()
+    assert rebuilt.replay_arguments() == scene.replay_arguments()
