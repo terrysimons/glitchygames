@@ -164,12 +164,15 @@ port_is_listening() {
 {% endmacro %}
 
 {% macro sha256_of() %}
-# The file's SHA-256, in hex: sha256_of FILE
+# The file's SHA-256, in hex: sha256_of FILE. The file is read on standard input, so the line
+# names no file: given a name holding a backslash or a line break, both tools escape it and start
+# the line with a backslash, which the cut would keep in the hash
+# (bugs/2026-11-19-model-checksum-kept-the-escape-mark.md)
 sha256_of() {
 {% if ansible_facts['system'] == 'Linux' %}
-    sha256sum "$1" | cut -d ' ' -f 1
+    sha256sum < "$1" | cut -d ' ' -f 1
 {% else %}
-    shasum -a 256 "$1" | cut -d ' ' -f 1
+    shasum -a 256 < "$1" | cut -d ' ' -f 1
 {% endif %}
 }
 {% endmacro %}

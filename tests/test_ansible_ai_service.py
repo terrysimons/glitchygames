@@ -1505,6 +1505,30 @@ done
 needs_a_posix_shell = pytest.mark.skipif(
     sys.platform == 'win32', reason="the service's scripts are POSIX sh"
 )
+# Linux's sha256sum as GNU coreutils documents its output, for a host whose own sha256sum (the
+# Mac's, /sbin/sha256sum) prints names as they are: each line is the hash, two spaces and the
+# name, "-" for standard input; a name holding a backslash, newline or carriage return has each
+# escaped with a backslash, and the line then starts with a backslash
+# (https://www.gnu.org/software/coreutils/manual/html_node/md5sum-invocation.html). uutils
+# coreutils, Ubuntu 26.04's, prints the same (checked in cimg/python:3.15.2, 2026-11-19). Any
+# option is refused, so a changed call is caught
+GNU_SHA256SUM_STUB = f"""#!{sys.executable} -I
+import hashlib
+import sys
+
+names = sys.argv[1:] or ['-']
+if any(name.startswith('-') and name != '-' for name in names):
+    sys.exit('unexpected: sha256sum ' + ' '.join(names))
+for name in names:
+    if name == '-':
+        content = sys.stdin.buffer.read()
+    else:
+        with open(name, 'rb') as file:
+            content = file.read()
+    escaped = name.replace('\\\\', '\\\\\\\\').replace('\\n', '\\\\n').replace('\\r', '\\\\r')
+    start = '\\\\' if escaped != name else ''
+    sys.stdout.write(start + hashlib.sha256(content).hexdigest() + '  ' + escaped + '\\n')
+"""
 
 
 class ServiceHome:
@@ -1526,6 +1550,8 @@ class ServiceHome:
             self.variables['llama_cpp_gpu_layers'] = MAC_GPU_LAYERS
         for tool in ('launchctl', 'systemctl', 'pkgutil'):
             _write_executable(tools / tool, SERVICE_TOOL_STUB)
+        if system == 'Linux' and sys.platform != 'linux':
+            _write_executable(tools / 'sha256sum', GNU_SHA256SUM_STUB)
         _write_executable(tools / 'runtime' / 'bin' / 'llama-server', LLAMA_SERVER_STUB)
         self.tool_log.write_text('', encoding='utf-8')
 
@@ -3342,6 +3368,45 @@ def systemd_environment(*, drop_in: Path) -> dict[str, str]:
             name, value = word.split('=', 1)
             variables[name] = value.replace('%%', '%')
     return variables
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', ['Linux', 'Darwin'])
+@pytest.mark.parametrize('folder_name', ['back\\slash', 'new\nline', 'carriage\rreturn'])
+def test_sha256_of_gives_the_bare_hash_whatever_the_file_is_called(
+    tmp_path: Path, system: Literal['Linux', 'Darwin'], folder_name: str
+):
+    """setup.sh's checksum is the file's hash alone, even for a name the tool would escape.
+
+    Given a file name, GNU sha256sum and the Mac's shasum print a name holding a backslash,
+    newline or carriage return escaped, and start the line with a backslash, which a hash cut
+    from the line keeps: setup.sh then discarded every model it downloaded, for good, for a
+    user whose home has such a name (bugs/2026-11-19-model-checksum-kept-the-escape-mark.md).
+    """
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    model = tmp_path / folder_name / 'model.gguf'
+    model.parent.mkdir()
+    model.write_bytes(b'model bytes\n')
+    template = tmp_path / 'sha256_of.sh.j2'
+    template.write_text(
+        "{% import 'roles/ai_service/templates/platform_functions.sh.j2' as platform"
+        ' with context %}\n'
+        '{{ platform.sha256_of() }}\n'
+        'sha256_of "$1"\n',
+        encoding='utf-8',
+    )
+    script = tmp_path / 'sha256_of.sh'
+    script.write_text(render_template(path=template, variables=service.variables), encoding='utf-8')
+
+    result = run_command(
+        command=['/bin/sh', str(script), str(model)],
+        environment=service.environment(),
+        timeout_seconds=60,
+        capture_output=OutputCapture.APART,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == hashlib.sha256(b'model bytes\n').hexdigest() + '\n'
 
 
 @needs_a_posix_shell
