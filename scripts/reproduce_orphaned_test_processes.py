@@ -69,6 +69,29 @@ POLL_SECONDS = 0.05
 SWEPT_SECTION_TITLE = 'processes left running by this run (now killed)'
 
 
+def rootdir_options(*, test: str) -> list[str]:
+    """Pin the run's rootdir to the folder of a test given by an absolute path.
+
+    Left alone, pytest takes the common ancestor of the working directory and the test as the
+    rootdir when no config file is found. A checkout under /private/tmp and a test under
+    /private/var/... share /private, and a run rooted there took seconds to start its workers
+    (0.4 s rooted at the test's folder), longer than the reproducer waits
+    (bugs/2026-11-13-never-ready-test-fails-under-private-tmp.md). A test named relative to the
+    checkout (the default) keeps the checkout's own config and rootdir.
+
+    Args:
+        test: The test file or node id, as given to ``--test``.
+
+    Returns:
+        The ``--rootdir`` option, or nothing for a relative test.
+
+    """
+    test_file = Path(test.partition('::')[0])
+    if not test_file.is_absolute():
+        return []
+    return [f'--rootdir={test_file.parent}']
+
+
 def run_command_line(*, test: str, basetemp: Path) -> list[str]:
     """The stopped run's command: two xdist workers, dummy drivers' settings, no coverage.
 
@@ -90,6 +113,7 @@ def run_command_line(*, test: str, basetemp: Path) -> list[str]:
         '--no-cov',
         '-q',
         f'--basetemp={basetemp}',
+        *rootdir_options(test=test),
     ]
 
 
