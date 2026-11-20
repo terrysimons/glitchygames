@@ -239,6 +239,32 @@ class ActionMap:
 
     # --- Binding API ---
 
+    @staticmethod
+    def _check_bind_arguments(
+        *, action: str, controller_axis: tuple[int, float] | None, trigger: bool
+    ) -> None:
+        """Refuse an action named ``SETTINGS_KEY`` and an unusable ``trigger=True`` binding.
+
+        Raises:
+            ValueError: For the settings key as an action, or a trigger with no
+                ``controller_axis`` or a threshold of 0 or less (a trigger rests at 0.0).
+
+        """
+        if action == SETTINGS_KEY:
+            message = f"{SETTINGS_KEY!r} names a saved map's settings, not an action"
+            raise ValueError(message)
+        if not trigger:
+            return
+        if controller_axis is None:
+            message = 'trigger=True declares controller_axis a trigger, but there is none'
+            raise ValueError(message)
+        if controller_axis[1] <= 0:
+            message = (
+                f'A trigger rests at 0.0, so its threshold must be positive (a fraction '
+                f'of its travel), not {controller_axis[1]}'
+            )
+            raise ValueError(message)
+
     def bind(  # ruff: ignore[too-many-arguments]
         self,
         action: str,
@@ -255,7 +281,9 @@ class ActionMap:
         """Bind physical inputs to a named action.
 
         Multiple inputs can be bound to the same action by calling
-        bind() multiple times or by passing multiple keyword arguments.
+        bind() multiple times or by passing multiple keyword arguments. A ValueError refuses an
+        action named ``SETTINGS_KEY`` (a saved map's settings), and ``trigger`` without
+        ``controller_axis`` or with a threshold of 0 or less.
 
         Args:
             action: The game action name.
@@ -286,17 +314,12 @@ class ActionMap:
                 1.0), not a stick (rest 0.0, -1.0 to 1.0). The joystick layer reports a
                 trigger from -1.0 at rest, so for a trigger it is stretched to 0.0..1.0
                 (``(value + 1) / 2``, unclamped) before the deadzone and the threshold; the
-                controller layer is already 0.0..1.0 and is unchanged. A trigger's threshold is
-                positive (a fraction of its travel). Ignored without ``controller_axis``
+                controller layer is already 0.0..1.0 and is unchanged. A trigger's threshold must be
+                positive (a fraction of its travel), and ``controller_axis`` is required
                 (BUGS.md #248).
 
-        Raises:
-            ValueError: If the action is named ``SETTINGS_KEY`` (a saved map's settings).
-
         """
-        if action == SETTINGS_KEY:
-            message = f"{SETTINGS_KEY!r} names a saved map's settings, not an action"
-            raise ValueError(message)
+        self._check_bind_arguments(action=action, controller_axis=controller_axis, trigger=trigger)
         if keyboard is not None:
             self._add_binding(
                 Binding(
@@ -748,12 +771,21 @@ class ActionMap:
         if binding_type == 'AxisMotion':
             axis = entry.get('axis')
             threshold = entry.get('threshold')
+            is_trigger = entry.get('trigger') is True
+            if is_trigger and threshold is not None and float(threshold) <= 0:
+                log.warning(
+                    'The saved action map has a trigger binding for %r with a threshold of %r '
+                    'that is not positive; skipping it',
+                    action_name,
+                    threshold,
+                )
+                return
             if axis is not None and threshold is not None:
                 action_map.bind(
                     action_name,
                     controller_axis=(int(axis), float(threshold)),
                     instance_id=instance_id,
-                    trigger=entry.get('trigger') is True,
+                    trigger=is_trigger,
                 )
             return
 

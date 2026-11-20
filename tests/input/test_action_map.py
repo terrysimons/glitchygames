@@ -1110,11 +1110,12 @@ class TestTriggerAxisBinding:
         assert reading == pytest.approx(expected, abs=1e-3)
 
     def test_trigger_is_not_held_at_rest_on_the_joystick_layer(self) -> None:
-        """A negative-threshold trigger binding is not held by a resting joystick trigger."""
+        """A resting joystick trigger (-1.0) holds neither a trigger binding nor reads pushed."""
         actions = ActionMap(input_mode='joystick')
-        actions.bind('release', controller_axis=(TRIGGER_AXIS, -0.5), trigger=True)
+        actions.bind('fire', controller_axis=(TRIGGER_AXIS, 0.05), trigger=True)
         actions.handle_event(_joy_axis_motion(TRIGGER_AXIS, -1.0))
-        assert actions.is_held('release') is False
+        assert actions.is_held('fire') is False
+        assert actions.axis_value('fire') == 0.0
 
     @pytest.mark.parametrize('layer', ['controller', 'joystick'])
     def test_half_pull_fires_a_half_threshold_binding(self, layer: str) -> None:
@@ -1181,3 +1182,28 @@ class TestTriggerAxisBinding:
         )
         restored_joystick.handle_event(_joy_axis_motion(TRIGGER_AXIS, 0.0))
         assert restored_joystick.axis_value('fire') == 0.0
+
+    def test_trigger_without_an_axis_is_refused(self) -> None:
+        """trigger=True with no controller_axis is an error, not silently ignored."""
+        with pytest.raises(ValueError, match='trigger=True'):
+            ActionMap().bind('fire', keyboard=pygame.K_SPACE, trigger=True)
+
+    @pytest.mark.parametrize('threshold', [-0.5, 0.0])
+    def test_trigger_with_a_threshold_that_is_not_positive_is_refused(
+        self, threshold: float
+    ) -> None:
+        """A trigger rests at 0.0, so a threshold of 0 or less would fire at rest."""
+        with pytest.raises(ValueError, match='must be positive'):
+            ActionMap().bind('fire', controller_axis=(TRIGGER_AXIS, threshold), trigger=True)
+
+    def test_a_saved_trigger_with_a_threshold_that_is_not_positive_is_skipped(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A bad saved trigger is skipped with a warning, like other unusable saved data."""
+        restored = ActionMap.from_dict({
+            'fire': [
+                {'type': 'AxisMotion', 'axis': TRIGGER_AXIS, 'threshold': -0.5, 'trigger': True}
+            ]
+        })
+        assert 'fire' not in restored.to_dict()
+        assert 'not positive' in caplog.text
