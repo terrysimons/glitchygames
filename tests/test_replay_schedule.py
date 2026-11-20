@@ -25,7 +25,7 @@ from scripts.replay_schedule import (
 
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.controls import CONTROL_TICK_SECONDS
-from glitchygames.replay.viewer import ReplayViewer
+from glitchygames.replay.pacer import RecordedFramePacer
 from glitchygames.tracing import write_trace
 
 if TYPE_CHECKING:
@@ -61,12 +61,12 @@ STUTTER_FRAME_SECONDS = (
 
 @pytest.fixture
 def without_rule_two(mocker):
-    """Turn rule 2's one-frame limit off (glitchygames/replay/viewer.py), as before it existed.
+    """Turn rule 2's one-frame limit off (glitchygames/replay/pacer.py), as before it existed.
 
     The behind condition the viewer reports stays; only the deferral that uses it goes, so the
     tool must still find the frames that limit protects.
     """
-    mocker.patch.object(ReplayViewer, '_defers_to_the_next_tick', return_value=False)
+    mocker.patch.object(RecordedFramePacer, '_defers_to_the_next_tick', return_value=False)
 
 
 def write_recording(*, path: Path, frame_seconds: tuple[float, ...]) -> Path:
@@ -541,7 +541,7 @@ def test_the_tool_derives_behind_from_the_schedule_itself():
 
 
 def without_the_speed_in_owes_beyond_a_tick(
-    viewer: ReplayViewer, *, inner_frame_seconds: float
+    pacer: RecordedFramePacer, *, frame_seconds: float, speed: float
 ) -> bool:
     """A broken behind condition: a whole real tick of inner time, not the speed times it.
 
@@ -549,13 +549,14 @@ def without_the_speed_in_owes_beyond_a_tick(
         True when the accumulator holds the frame plus CONTROL_TICK_SECONDS.
 
     """
-    return viewer.accumulated_seconds >= inner_frame_seconds + CONTROL_TICK_SECONDS
+    del speed
+    return pacer.accumulated_seconds >= frame_seconds + CONTROL_TICK_SECONDS
 
 
 def test_a_behind_condition_without_the_speed_fails_at_half_speed(mocker, tmp_path, capsys):
     """At 0.5x the viewer's flag then disagrees with the tool's own condition: a failure."""
     mocker.patch.object(
-        ReplayViewer,
+        RecordedFramePacer,
         '_owes_beyond_a_tick',
         autospec=True,
         side_effect=without_the_speed_in_owes_beyond_a_tick,
@@ -572,7 +573,7 @@ def test_a_behind_condition_without_the_speed_fails_at_half_speed(mocker, tmp_pa
 
 def test_above_normal_speed_a_long_frame_sharing_a_tick_is_hidden(mocker):
     """Rule 2 off: at 2x the 34.02 ms frame (17 ms real, over a tick) shares a tick, hidden."""
-    mocker.patch.object(ReplayViewer, '_defers_to_the_next_tick', return_value=False)
+    mocker.patch.object(RecordedFramePacer, '_defers_to_the_next_tick', return_value=False)
 
     schedule = simulate_schedule(frame_seconds=STUTTER_FRAME_SECONDS, speed=2.0)
 

@@ -111,6 +111,11 @@ Before each inner frame the scene manager asks `hold_frame`:
    0.95).
 3. **Otherwise** the tick closes and the frame is presented.
 
+The accumulator, the owed limit and the one-frame rule of step 2 are `RecordedFramePacer`, and each
+tick's budget a `TickBudget` (`src/glitchygames/replay/pacer.py`, where the constants above live),
+shared by every player of a recording: the viewer tells the pacer the speed and its 60 Hz tick
+period, and keeps the keys, the cadence and the start screen.
+
 So at 1x a 60 FPS recording runs one inner frame per tick, at 8x eight, and at 1/4x one every fourth
 tick (the viewer's docstring). The speed keys double or halve the speed (`SPEED_STEP_FACTOR` = 2.0),
 within `MIN_SPEED` = 0.25 and `MAX_SPEED` = 8.0 (`ReplayControls`,
