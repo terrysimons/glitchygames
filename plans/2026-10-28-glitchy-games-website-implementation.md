@@ -622,4 +622,9 @@ nothing is done without the owner at the keyboard.
   `plans/future-work.md` if anything new came up, and `CLAUDE.md` with a short "Website
   (`infra/`)" section naming the nox sessions and the spec. The docs' "Play in the Browser" link
   stays on GitHub Pages (the games aren't on `play.glitchy.games` yet).
+  - 2026-11-20: the Website section moved out of `CLAUDE.md` into the path-scoped rule
+    `.claude/rules/website.md` (the owner's call), which Claude Code loads only when it reads or
+    edits a file under `infra/` or `src/website/` (or this plan, or the design). `CLAUDE.md` was
+    already at `tests/test_claude_md.py`'s 360-line limit, which merging main had made the
+    section break.
 - [ ] **Step 11: Checkpoint** for the owner.

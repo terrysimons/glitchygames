@@ -160,6 +160,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | Undoing an animation delete loses its per-frame hitboxes and rebuilds frames on surfaces without SRCALPHA (alpha lost); frame-add and animation-create undo captures still copy `frame.pixels`, which is fragile | `src/glitchygames/bitmappy/history/commands.py` | Found while fixing BUGS.md #53; same family as #51/#53. |
 | `CollisionManager.check_overlap` computes each sprite's rect once per pass, so a callback that moves a sprite leaves later pairs using its old rect | `src/glitchygames/collision/layers.py` (documented in the docstring) | Harmless in PaddleSlap; matters for generic reuse. |
 | Frame-anchor reference cache doesn't notice a frame hitbox edited in place (only frame add/remove/replace) | `src/glitchygames/sprites/animated.py` (documented) | Nothing edits in place today. |
+| `test_requests_while_a_flush_runs_get_one_more_pass_and_never_overlap` depends on the wall clock: the stand-in `syncfs` takes a real 10 ms (`SYNC_SECONDS`) and the test assumes five requests 1 ms apart all land during the first pass. Under the full parallel suite the sleeps stretch, a request lands in the second pass, and a third runs (`assert 3 == 2`; seed 4023912552 failed the website branch's pre-push gate, 2026-11-20; passes alone, with its file, and under that seed alone) | `tests/test_browser_storage.py` (from #238) | Fix: the test completes the stand-in's write-back itself (an event it sets), so "during the running pass" holds by construction. Then sweep the suite for other tests that sleep against a real-time stand-in (the wall-clock rule in CLAUDE.md's Testing Guidelines). |
 | Frames loaded from TOML keep magenta (255, 0, 255) opaque (no colorkey, alpha 255), so the visible-pixel hitbox fallback of a magenta-keyed sprite is its whole frame (ghosty: `Rect(0, 0, 32, 32)`) | `src/glitchygames/sprites/animated.py` (loader), `src/glitchygames/collision/bounds.py` | Found while testing the viewport-save hitbox rule; confirm whether games rely on explicit hitboxes or set a colorkey themselves. |
 | A real AI request has not been run in the packaged binary (needs an API key or network) | `dist/bitmappy` | Do once by hand to fully close BUGS.md #47. |
 | `scripts/raw_sprite_loader.py` cannot start: `BitmappyLegacySprite` calls `Sprite.__init__` without x and y, and `inflate` draws zero-size rects (nothing) | `scripts/raw_sprite_loader.py:~41, ~84` | Found while deleting `legacy_sprite_loader.py` (BUGS.md #46). Tests use only its `deflate`; fix or fold into Galimore import (sub-plan E). |
@@ -1181,6 +1182,24 @@ changes the outer game's key repeat (the plan's Review Focus 4).
 - Do not redistribute the FF3 reference tile rips or the third-party sound samples from the archives.
 
 ## Developer environment
+
+- **A leaner CLAUDE.md through path-scoped rules** (the owner, 2026-11-20; after #117, which
+  moved the Website section to `.claude/rules/website.md`). CLAUDE.md sits at
+  `tests/test_claude_md.py`'s 360-line limit. Sections that matter only in their own folders
+  become `.claude/rules/<area>.md` with `paths:` (loaded only when Claude reads or edits a
+  matching file): Sound Synthesis (~30 lines, `src/glitchygames/audio/**`), sprite files and
+  the compiled-sprite cache (~10), the Local AI service (~10, `services/ai-service/**`,
+  `ansible/**`, `src/glitchygames/ai_*.py`), Bitmappy (~8), Browser (~6), Docs (~6). The
+  engine-wide rules (doors, randomness, clocks, world space, engine context, sprites as game
+  objects), Testing Guidelines and the commands stay in CLAUDE.md.
+  - One CLAUDE.md line indexes the rules (a rule loads only once a matching file is touched,
+    so a question asked first wouldn't see it), and a test holds every rule file to the index.
+  - Worktrees: a rule's `paths` are relative to the folder holding its `.claude/`, so a session
+    started in the main checkout that edits `.claude/worktrees/<name>/...` matches nothing.
+    Mitigations: start sessions in the worktree (or `/cd` there); write patterns as
+    `**/infra/**` so they also match worktree paths (unverified: test with the
+    `InstructionsLoaded` hook, which logs each rule that loads, before relying on it), and give
+    `.claude/rules/website.md` the same patterns.
 
 - **Name the CI jobs for what they run** (the owner, 2026-11-18: "so it's more obvious what's
   running in CI"). The 3.15 jobs are `test-python-3-15-linux` and `-windows`, but the 3.14 ones are
