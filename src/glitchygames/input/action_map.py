@@ -16,6 +16,8 @@ Usage:
                  controller_axis=(pygame.CONTROLLER_AXIS_LEFTX, 0.3))
     # A physical key position: the same place on every keyboard layout
     actions.bind('move_left', scancode=pygame.KSCAN_A)
+    # An analog trigger: declare it, since the joystick layer rests it at -1.0, not 0.0
+    actions.bind('fire', controller_axis=(pygame.CONTROLLER_AXIS_TRIGGERRIGHT, 0.5), trigger=True)
 
     # In event handlers:
     actions.handle_event(event)
@@ -69,22 +71,31 @@ INPUT_MODE_SETTING: str = 'input_mode'
 DEADZONE_SETTING: str = 'deadzone'
 
 
-def normalized_axis_value(*, event_type: int, value: float) -> float:
-    """Return an axis motion's position as a float from -1.0 to 1.0.
+def normalized_axis_value(*, event_type: int, value: float, trigger: bool = False) -> float:
+    """Return an axis motion's position as a float, before any deadzone.
 
-    Controller axis values are raw SDL ints (-32767 to 32767).
+    Controller axis values are raw SDL ints (-32767 to 32767; a trigger's 0 to 32767).
     Joystick axis values are already normalized floats (-1.0 to 1.0).
+
+    A trigger rests at 0.0 on the controller layer but at -1.0 on the joystick layer (SDL's raw
+    axis, -32768 at rest to 32767 fully pressed; BUGS.md #248), so a ``trigger`` axis on the
+    joystick layer is stretched linearly to 0.0 (rest) to 1.0 (fully pressed), unclamped:
+    ``(value + 1) / 2``. The controller layer is unchanged.
 
     Args:
         event_type: CONTROLLERAXISMOTION or JOYAXISMOTION.
         value: The event's value.
+        trigger: True when the axis is a trigger (``bind(trigger=True)``).
 
     Returns:
-        The normalized position (before any deadzone).
+        The normalized position (before any deadzone): -1.0 to 1.0, or for a trigger 0.0 to 1.0
+        on both layers.
 
     """
     if event_type == pygame.CONTROLLERAXISMOTION:
         return float(value) / _SDL_AXIS_MAX
+    if trigger:
+        return (float(value) + 1.0) / 2.0
     return float(value)
 
 
@@ -125,6 +136,9 @@ class AxisBinding:
         axis: The pygame axis constant (e.g. CONTROLLER_AXIS_LEFTX).
         threshold: The activation threshold (sign encodes direction).
         instance_id: Controller instance filter (None accepts any controller).
+        trigger: True for a trigger (``bind(trigger=True)``): the joystick layer's -1.0 (rest)
+            to 1.0 is stretched to 0.0 to 1.0 before the deadzone and threshold, so it reads
+            the same as on the controller layer (BUGS.md #248). Saved with the binding.
 
     """
 
@@ -132,6 +146,7 @@ class AxisBinding:
     axis: int
     threshold: float
     instance_id: int | None = None
+    trigger: bool = False
 
 
 class ActionMap:
@@ -235,6 +250,7 @@ class ActionMap:
         joystick_button: int | None = None,
         controller_layer_button: int | None = None,
         instance_id: int | None = None,
+        trigger: bool = False,
     ) -> None:
         """Bind physical inputs to a named action.
 
@@ -266,6 +282,13 @@ class ActionMap:
                 in 'joystick' mode, which dispatches no controller-layer events.
             instance_id: Controller instance filter for button/axis
                 bindings. None accepts any controller.
+            trigger: Declares ``controller_axis`` an analog trigger (rest 0.0, fully pressed
+                1.0), not a stick (rest 0.0, -1.0 to 1.0). The joystick layer reports a
+                trigger from -1.0 at rest, so for a trigger it is stretched to 0.0..1.0
+                (``(value + 1) / 2``, unclamped) before the deadzone and the threshold; the
+                controller layer is already 0.0..1.0 and is unchanged. A trigger's threshold is
+                positive (a fraction of its travel). Ignored without ``controller_axis``
+                (BUGS.md #248).
 
         Raises:
             ValueError: If the action is named ``SETTINGS_KEY`` (a saved map's settings).
@@ -308,6 +331,7 @@ class ActionMap:
                 axis=axis_constant,
                 threshold=threshold,
                 instance_id=instance_id,
+                trigger=trigger,
             )
             self._axis_bindings.append(axis_binding)
 
@@ -569,16 +593,28 @@ class ActionMap:
         for axis_binding in self._axis_bindings:
             if axis_binding.action not in result:
                 result[axis_binding.action] = []
-            entry = {
-                'type': 'AxisMotion',
-                'axis': axis_binding.axis,
-                'threshold': axis_binding.threshold,
-            }
-            if axis_binding.instance_id is not None:
-                entry['instance_id'] = axis_binding.instance_id
-            result[axis_binding.action].append(entry)
+            result[axis_binding.action].append(self._axis_binding_entry(axis_binding))
 
         return result
+
+    @staticmethod
+    def _axis_binding_entry(axis_binding: AxisBinding) -> dict[str, Any]:
+        """Return an axis binding's saved form (``instance_id`` and ``trigger`` only when set).
+
+        Returns:
+            The binding's serialized dict.
+
+        """
+        entry: dict[str, Any] = {
+            'type': 'AxisMotion',
+            'axis': axis_binding.axis,
+            'threshold': axis_binding.threshold,
+        }
+        if axis_binding.instance_id is not None:
+            entry['instance_id'] = axis_binding.instance_id
+        if axis_binding.trigger:
+            entry['trigger'] = True
+        return entry
 
     @classmethod
     def from_dict(
@@ -717,6 +753,7 @@ class ActionMap:
                     action_name,
                     controller_axis=(int(axis), float(threshold)),
                     instance_id=instance_id,
+                    trigger=entry.get('trigger') is True,
                 )
             return
 
@@ -860,24 +897,29 @@ class ActionMap:
     def _handle_axis_event(self, event: HashableEvent) -> None:
         """Process a controller axis motion event.
 
-        Normalizes the raw SDL value, applies deadzone, and updates
-        held/pressed/released state based on axis thresholds.
+        Normalizes the raw SDL value (a trigger binding's joystick-layer value is stretched
+        to 0.0..1.0 first), applies the deadzone, and updates held/pressed/released state
+        based on axis thresholds. Each binding filters its own value, since a trigger's and a
+        stick's differ on the joystick layer.
 
         Args:
             event: A CONTROLLERAXISMOTION or JOYAXISMOTION HashableEvent.
 
         """
-        raw_value = normalized_axis_value(event_type=event.type, value=event.value)
-
-        # Apply deadzone
-        if abs(raw_value) < self._deadzone:
-            raw_value = 0.0
-
         for axis_binding in self._axis_bindings:
             if axis_binding.axis != event.axis:
                 continue
             if not self._instance_matches(axis_binding.instance_id, event):
                 continue
+
+            raw_value = normalized_axis_value(
+                event_type=event.type,
+                value=event.value,
+                trigger=axis_binding.trigger,
+            )
+            # Apply deadzone
+            if abs(raw_value) < self._deadzone:
+                raw_value = 0.0
 
             # Store filtered value
             self._axis_values[axis_binding.action] = raw_value
