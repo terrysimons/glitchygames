@@ -8,8 +8,10 @@ import functools
 import html
 import importlib.metadata
 import json
+import os
 import re
 import socket
+import sys
 import threading
 import tomllib
 import urllib.request
@@ -18,11 +20,13 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+from packaging.requirements import Requirement
 from scripts import build_browser_bundle
 from scripts.build_browser_bundle import (
     DOCS_COLOR_SCHEMES,
     GAMES,
     PACKAGE_DIRECTORY,
+    PYODIDE_PACKAGES,
     PYSCRIPT_RELEASE,
     REPOSITORY_DIRECTORY,
     TAB_ICON_LINK,
@@ -47,6 +51,8 @@ from scripts.workspace_packages import (
     members_in_layer,
     workspace_members,
 )
+
+from glitchygames.process import OutputCapture, run_command
 
 COMMIT = 'a' * 40
 WHEEL_NAME = 'pygame_ce-2.5.8.post1-cp314-cp314-pyemscripten_2026_0_wasm32.whl'
@@ -856,3 +862,116 @@ def test_every_game_has_a_browser_build():
 
     assert 'dt-demo' in demo_console_scripts
     assert set(GAMES) == set(scripts) - NOT_GAME_CONSOLE_SCRIPTS - demo_console_scripts
+
+
+# The browser's own Python packages: the pygame-ce wheel the bundle builds (pygame) and the engine
+# package. Everything else a game imports must be the standard library, a workspace member the
+# bundle ships, or a module of PYODIDE_PACKAGES and what they depend on
+BROWSER_WHEEL_MODULES = frozenset({'pygame', 'glitchygames'})
+
+# Run in a child Python: refuse every third-party module the browser lacks, then import a game's
+# first scene module as the page does. A refused module raises ModuleNotFoundError, as Pyodide
+# does, so an import guarded by try/except ImportError (miniaudio, hid) still passes
+BROWSER_IMPORT_PROBE = """
+import importlib, json, sys
+
+allowed = set(json.loads(sys.argv[1]))
+refused = []
+
+
+class RefuseWhatTheBrowserLacks:
+    def find_spec(self, name, path=None, target=None):
+        top = name.partition('.')[0]
+        if (
+            top in allowed
+            or top in sys.stdlib_module_names
+            or top in sys.builtin_module_names
+            or top.startswith('_sysconfigdata')
+        ):
+            return None
+        refused.append(top)
+        raise ModuleNotFoundError(f'No module named {top!r} (not in the browser bundle)')
+
+
+sys.meta_path.insert(0, RefuseWhatTheBrowserLacks())
+try:
+    importlib.import_module(sys.argv[2])
+except ModuleNotFoundError as error:
+    print(f'{sys.argv[2]}: {error}; refused before it: {refused}')
+    sys.exit(1)
+"""
+
+
+def distribution_modules(*, distribution: str) -> set[str]:
+    """Return the top-level modules an installed distribution and its dependencies provide.
+
+    Returns:
+        The import names of the distribution and of every distribution it requires (extras and
+        other platforms' markers left out), recursively.
+
+    """
+    provided_by: dict[str, set[str]] = {}
+    for module, distributions in importlib.metadata.packages_distributions().items():
+        for name in distributions:
+            provided_by.setdefault(name.lower().replace('_', '-'), set()).add(module)
+    modules: set[str] = set()
+    pending = [distribution]
+    seen: set[str] = set()
+    while pending:
+        name = pending.pop().lower().replace('_', '-')
+        if name in seen:
+            continue
+        seen.add(name)
+        modules |= provided_by.get(name, set())
+        for requirement_text in importlib.metadata.requires(name) or []:
+            requirement = Requirement(requirement_text)
+            if requirement.marker is None or requirement.marker.evaluate({'extra': ''}):
+                pending.append(requirement.name)
+    return modules
+
+
+def test_a_distribution_brings_its_dependencies_modules():
+    """The modules of pydantic include pydantic_core's, which pydantic requires."""
+    assert {'pydantic', 'pydantic_core'} <= distribution_modules(distribution='pydantic')
+
+
+def browser_modules() -> set[str]:
+    """Return the top-level modules a browser page can import beyond the standard library.
+
+    Returns:
+        The bundle's own wheel's, every bundled workspace member's, and PYODIDE_PACKAGES' with
+        their dependencies'.
+
+    """
+    modules = set(BROWSER_WHEEL_MODULES)
+    for specification in GAMES.values():
+        modules |= set(specification.member_packages)
+    for package in PYODIDE_PACKAGES:
+        modules |= distribution_modules(distribution=package)
+    return modules
+
+
+@pytest.mark.parametrize('game', sorted(GAMES))
+def test_every_browser_game_imports_with_only_the_browser_packages(game: str):
+    """A game's page imports only what the bundle installs (every game crashed on filelock).
+
+    disk_cache.py imported filelock at its top (#213), which every game reaches through the
+    engine, and the bundle installs only PYODIDE_PACKAGES: each play page stopped with
+    ModuleNotFoundError at startup while every desktop test passed. This imports each game's
+    first scene module in a child Python that refuses, as Pyodide does, any third-party module
+    the bundle does not install.
+    """
+    result = run_command(
+        command=[
+            sys.executable,
+            '-c',
+            BROWSER_IMPORT_PROBE,
+            json.dumps(sorted(browser_modules())),
+            GAMES[game].module,
+        ],
+        environment=os.environ,
+        timeout_seconds=120,
+        capture_output=OutputCapture.TOGETHER,
+    )
+
+    assert result.returncode == 0, result.stdout
