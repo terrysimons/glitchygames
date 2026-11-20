@@ -558,7 +558,7 @@ nothing is done without the owner at the keyboard.
     ns-726.awsdns-26.net; `glitchygames.ai`: ns-1697.awsdns-20.co.uk, ns-546.awsdns-04.net,
     ns-482.awsdns-60.com, ns-1224.awsdns-25.org. Each zone answers for its domain. The CDK's
     jsii warns that Node 26 is untested (22 and 24 are supported); it worked.
-- [ ] **Step 4: Namecheap.** For `glitchy.games` and `glitchygames.ai`: Domain List → Manage →
+- [x] **Step 4: Namecheap.** For `glitchy.games` and `glitchygames.ai`: Domain List → Manage →
   Nameservers → Custom DNS → the four servers from Step 3. Check:
   `dig +short NS glitchy.games` and `dig +short NS glitchygames.ai` show the `awsdns` servers
   (may take hours).
@@ -566,17 +566,46 @@ nothing is done without the owner at the keyboard.
     Namecheap matched "Today's DNS" in the design (parking page on `@` and `www`, email
     forwarding MX and SPF, no DS record); the zones copy neither, as decided there. The
     registrations stay at Namecheap (the owner, 2026-11-09).
-- [ ] **Step 5: Everything else.** `GLITCHY_SITE_BUDGET_EMAIL=<address> nox -s infra-deploy`.
+  - Done 2026-11-20. The 2026-11-09 change had never been saved: eleven days later both
+    registries (asked directly, `dig +norec NS <domain> @<the TLD's server>`) still delegated
+    to `dns1/dns2.registrar-servers.com`. Namecheap keeps a Custom DNS entry only after the
+    green checkmark beside it is clicked. Set again, both registries delegated to the zones'
+    `awsdns` servers within minutes, and each zone answered SOA from its own servers.
+- [x] **Step 5: Everything else.** `GLITCHY_SITE_BUDGET_EMAIL=<address> nox -s infra-deploy`.
   Certificate validation waits for Step 4 to propagate. Check: five stacks `CREATE_COMPLETE`;
   the `DeployRoleArn` output.
-- [ ] **Step 6: Free plans.** CloudFront console → each distribution → Pricing plan → Free;
+  - Done 2026-11-20, from the owner's terminal (the deploy role's IAM change asks for a `y`,
+    which a Claude Code `!` command can't answer): `infra-deploy -- --all --profile <name>`,
+    after an `infra-diff` that showed only additions (zones unchanged). 940 s in all, about
+    350 s for each distribution, certificates validated through the new delegation. The four new
+    stacks are `CREATE_COMPLETE`; `GlitchyGamesDnsZones` became `UPDATE_COMPLETE` (CDK
+    metadata only). Both distributions `Deployed`, each with its stack's web ACL; the
+    `DeployRoleArn` output is the role `glitchy-games-site-deploy`. The CLI printed an empty
+    Outputs block for `GlitchyGamesSite`, though the stack has all four
+    (`describe-stacks`). From outside, before the first publish: every redirect in Step 9 already
+    answers 301 with path and query kept, and `http://` 301s to `https://`;
+    `https://play.glitchy.games/` answers 403 (the bucket is empty, and an OAC origin answers a
+    missing key with 403). The `glitchygames.ai` redirects carry no HSTS: the spec asks for
+    security headers on the site's distribution only (`plans/future-work.md`, Website).
+- [x] **Step 6: Free plans.** CloudFront console → each distribution → Pricing plan → Free;
   Manage Plan → attach `glitchy.games` zone to distribution 1 and `glitchygames.ai` zone to
   distribution 2. Keep each distribution's own web ACL (from its stack) when asked. Check: both
   distributions show "Free" and the attached zone, and `nox -s infra-diff` then shows no
   distribution changes (the plan adopted the stacks' web ACLs rather than attaching new ones).
   If AWS refuses a feature, note it in the spec and remove it (fallback: pay-as-you-go, about
   $1 / month once the web ACLs are removed).
-- [ ] **Step 7: Budget email.** Confirm the subscription email AWS Budgets sends.
+  - Done 2026-11-20 by the owner in the console. Subscribing a distribution to Free attached its
+    hosted zone as well (there was no separate step); AWS refused nothing. Read back with
+    `aws pricing-plan-manager list-subscriptions` (us-east-1): two `FREE` subscriptions, both
+    `ACTIVE`, each holding its distribution, its stack's own web ACL (`glitchy-games-site`,
+    `glitchygames-ai-redirect`: the physical IDs of the stacks' `WebAcl`) and its zone. The
+    docs name the zone's place as the distribution's "Manage Plan" section, and the API as
+    `associate-resources-to-subscription`. `infra-diff` afterwards: no differences in the
+    zones, site, redirect or deploy-role stacks (the budget differed only by the placeholder
+    address the check ran with).
+- [x] **Step 7: Budget email.** Confirm the subscription email AWS Budgets sends.
+  - Not needed: AWS Budgets emails an address directly, with no subscription to confirm
+    (`plans/future-work.md`, Website).
 - [ ] **Step 8: CircleCI.** In CircleCI, Project Settings > Environment Variables, add
   `SITE_DEPLOY_ROLE_ARN` = the `DeployRoleArn` output (never in `.circleci/config.yml`: it names
   the AWS account). The owner commits and merges the branch. Check: the `deploy-site` job is

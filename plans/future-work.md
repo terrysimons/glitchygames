@@ -699,6 +699,10 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   - CircleCI: give `test-infra`/`deploy-site` a uv cache key with `infra/uv.lock`; a missing
     `CIRCLE_OIDC_TOKEN_V2` should fail with a clear message, not "unbound variable".
   - Plan Task 8 Step 7: AWS Budgets email subscribers need no confirmation.
+  - The `glitchygames.ai` redirect distribution sends no HSTS (found at go-live, 2026-11-20:
+    the `glitchy.games` hosts' 301s carry `strict-transport-security`, the `.ai` ones don't), so
+    a browser's first `http://glitchygames.ai` request isn't upgraded by the browser itself.
+    Give `GlitchyGamesAiRedirect`'s behavior the same security headers policy as the site's.
 - **Email at the domains** (the owner, 2026-10-28: "a later task"; needs a plan). The Route 53
   move drops Namecheap's email forwarding (unused today); a provider (e.g. Amazon SES) would
   add MX, SPF, DKIM and DMARC records to the zones.
