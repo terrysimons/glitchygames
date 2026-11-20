@@ -658,6 +658,15 @@ convention. An engine started off the main thread cannot install its handlers, s
 ends it the system's default way, without the teardown. An exception raised before the run
 starts (while the engine is being constructed) exits with Python's default status 1.
 
+A crash (SIGSEGV, SIGBUS, SIGFPE, or SIGQUIT) ends the process at once, by the signal, with
+every thread's traceback on stderr (faulthandler): no teardown, no recording closed.
+
+pygame's own crash handler is not used. It is installed when `pygame` is imported and calls
+`pygame.quit()` before dying. On a thread without the GIL (SDL's audio thread) it hangs the
+process forever instead (bugs/2026-11-20-a-crash-on-the-audio-thread-hung-the-process.md).
+The engine (`report_fatal_signals_with_faulthandler`) puts those signals back to their
+defaults and enables faulthandler as it is constructed, unless faulthandler is already on.
+
 ## Comparing processing time (`--compare-processing`)
 
 A recording holds each frame's **processing time** (`processing_seconds`): the frame's work

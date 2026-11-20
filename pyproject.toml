@@ -310,6 +310,11 @@ norecursedirs = [
   "__pycache__",
 ]
 addopts = "--import-mode=importlib -p no:randomly -n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=zombies_aint_my_neighbors --cov=dt_demo --cov=joystick_demo --cov=sound_board_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+# A test still running after this many seconds (its fixtures included) gets every thread's
+# traceback printed, once, so a hang names its test and where it waits; the test is not stopped.
+# Far past any test's own time. A crash is reported at once instead (tests/harness.py,
+# bugs/2026-11-20-a-crash-on-the-audio-thread-hung-the-process.md)
+faulthandler_timeout = 600
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
