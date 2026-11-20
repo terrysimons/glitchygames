@@ -30,4 +30,106 @@ llama_cpp_base_cmake_options:
 # The inventory's macos group sets the Metal options
 llama_cpp_cmake_options: {}
 
-llama_cpp_source_directory: "{{ ai_cache_root }}/llama.cpp/source-{{ llama_cpp_tag }}"
+# Added on Linux, over the base options, and the same on both architectures: one build holds every
+# CPU variant of its architecture (llama_cpp_cpu_variants) and llama-server loads the best one the
+# CPU supports when it starts, so nothing here names a CPU, and GGML_CPU_ARM_ARCH, which
+# GGML_CPU_ALL_VARIANTS refuses, is never set. The shared libraries sit in the runtime's lib/, found
+# by the $ORIGIN-relative RPATH (the last two options); the CPU variant modules sit in bin/. Options at the pinned tag:
+# https://github.com/ggml-org/llama.cpp/blob/b12167/ggml/CMakeLists.txt
+llama_cpp_linux_cmake_options:
+  GGML_NATIVE: "OFF"
+  GGML_BACKEND_DL: "ON"
+  GGML_CPU_ALL_VARIANTS: "ON"
+  BUILD_SHARED_LIBS: "ON"
+  GGML_VULKAN: "OFF"
+  GGML_OPENMP: "OFF"
+  CMAKE_BUILD_WITH_INSTALL_RPATH: "ON"
+  CMAKE_INSTALL_RPATH: "$ORIGIN/../lib"
+
+# The CPU variants GGML_CPU_ALL_VARIANTS builds at b12167, by architecture (read from
+# ggml/src/CMakeLists.txt; plans/lucid-circuit-linux.md section 4). A build missing one is refused
+llama_cpp_cpu_variants:
+  aarch64: [armv8.0_1, armv8.2_1, armv8.2_2, armv8.2_3, armv8.6_1, armv8.6_2, armv9.2_1, armv9.2_2]
+  x86_64:
+    - x64
+    - sse42
+    - sandybridge
+    - ivybridge
+    - piledriver
+    - haswell
+    - skylakex
+    - cannonlake
+    - cascadelake
+    - icelake
+    - cooperlake
+    - zen4
+    - alderlake
+    - sapphirerapids
+
+# What ldd may list for the Linux build's binary and libraries, besides the runtime's own: the
+# loader and vdso, and glibc's, libstdc++ and libgcc, resolved from the system's /lib or /usr/lib
+# (never /usr/local, and never "not found")
+llama_cpp_system_link_pattern: '^\s*(linux-vdso\S* |/lib\S*/ld-linux\S* |(lib(c|m|dl|pthread|rt)\.so|libstdc\+\+\.so|libgcc_s\.so|ld-linux)\S* => /(usr/)?lib)'
+
+# The first GCC release whose libstdc++ has each symbol version, so the .deb can depend on a
+# libstdc++6 at least that new (Debian's and Ubuntu's libstdc++6 is versioned by the GCC release it
+# comes from). From GCC's ABI policy, the symbol versioning list
+# (https://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html, read 2026-11-18). A version the build
+# needs that is missing here is refused: add it from that list. GLIBCXX_3.4.28 came with 9.3.0 and
+# again 10.1.0; GCC 16.1.0 added CXXABI_1.3.17 and no GLIBCXX version, so both kinds are read
+llama_cpp_glibcxx_releases:
+  "3.4": 3.4.0
+  "3.4.1": 3.4.1
+  "3.4.2": 3.4.2
+  "3.4.3": 3.4.3
+  "3.4.4": 4.0.0
+  "3.4.5": 4.0.1
+  "3.4.6": 4.0.2
+  "3.4.7": 4.0.3
+  "3.4.8": 4.1.1
+  "3.4.9": 4.2.0
+  "3.4.10": 4.3.0
+  "3.4.11": 4.4.0
+  "3.4.12": 4.4.1
+  "3.4.13": 4.4.2
+  "3.4.14": 4.5.0
+  "3.4.15": 4.6.0
+  "3.4.16": 4.6.1
+  "3.4.17": 4.7.0
+  "3.4.18": 4.8.0
+  "3.4.19": 4.8.3
+  "3.4.20": 4.9.0
+  "3.4.21": 5.1.0
+  "3.4.22": 6.1.0
+  "3.4.23": 7.1.0
+  "3.4.24": 7.2.0
+  "3.4.25": 8.1.0
+  "3.4.26": 9.1.0
+  "3.4.27": 9.2.0
+  "3.4.28": 9.3.0
+  "3.4.29": 11.1.0
+  "3.4.30": 12.1.0
+  "3.4.31": 13.1.0
+  "3.4.32": 13.2.0
+  "3.4.33": 14.1.0
+  "3.4.34": 15.1.0
+# CXXABI_1.3.16 is RISC-V's only, from 15.1.0
+llama_cpp_cxxabi_releases:
+  "1.3": 3.4.0
+  "1.3.1": 4.0.0
+  "1.3.2": 4.3.0
+  "1.3.3": 4.4.0
+  "1.3.4": 4.5.0
+  "1.3.5": 4.6.0
+  "1.3.6": 4.7.0
+  "1.3.7": 4.8.0
+  "1.3.8": 4.9.0
+  "1.3.9": 5.1.0
+  "1.3.10": 6.1.0
+  "1.3.11": 7.1.0
+  "1.3.12": 9.1.0
+  "1.3.13": 11.1.0
+  "1.3.14": 13.1.0
+  "1.3.15": 14.1.0
+  "1.3.16": 15.1.0
+  "1.3.17": 16.1.0

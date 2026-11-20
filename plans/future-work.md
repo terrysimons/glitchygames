@@ -748,6 +748,46 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   Part 2b) with deliberately ambiguous questions: one with a clear likeliest meaning, which should
   be answered, and one with no clear winner, which should be asked about.
 
+- **Stop the AI at the start of a Pi CI job** (plans/lucid-circuit-linux.md 8.4, 2026-11-18): the pre-push
+  measurement already stops the local AI models after taking its lock (`measure_script`), but no workflow runs
+  the Pi jobs yet (`ansible/raspberry_pi_runner.yml`'s header). When one does, add the same guarded stop
+  (`/opt/glitchygames/ai/bin/ai-service.sh stop || true` when the file is executable) at the start of that job,
+  so its timings and its 1750 MiB test memory guard have the models' memory and cores.
+
+- **Keep the game, the mirror and the AI apart on macOS too** (the owner, 2026-11-18), as
+  plans/lucid-circuit-linux.md 6.2 does on Linux (game on the fastest core, mirror on the next, the
+  AI on the rest). macOS has no hard CPU affinity: `thread_policy_set` with
+  `THREAD_AFFINITY_POLICY` is only a hint and does nothing on Apple Silicon. The levers it has are
+  quality-of-service classes: launchd's `ProcessType` (`Interactive`, `Standard`, `Adaptive`,
+  `Background`) in each agent's plist, `taskpolicy -c utility|background` or `setpriority` with
+  `PRIO_DARWIN_BG` for a process, and per-thread QoS (`pthread_set_qos_class_self_np`). On Apple
+  Silicon a background-class thread runs only on the efficiency cores, and the user-interactive
+  class prefers the performance cores, so: the game's threads user-interactive, the mirror
+  utility, the model agents utility or background. Measure first: on a Mac, llama.cpp computes on
+  the GPU (Metal) and uses little CPU, so the game may not suffer at all; compare its frame times
+  with the models busy against `--no-ai` before changing anything, and check that a background-class
+  llama-server doesn't slow the GPU work it feeds. Same rule as Linux: one record of the placement
+  (`setup.sh`), the engine applying the game's part itself, only for a live run with AI.
+
+- **x86_64 Linux support for the AI service** (plans/lucid-circuit-linux.md 9.2, 2026-11-19): designed for, not
+  supported until an x86_64 host is in the inventory (`linux` group, with its `host_memory_gb`) and has had the
+  Ansible run, the `.deb`'s package tests and an 8.3-style validation (speed, answers, memory, the variant loaded,
+  the game's frame times); its own measured reserved-memory figures if they differ from ARM's; and a check of
+  Bonsai's known AVX-512 crash on load (Prism's `KNOWN_ISSUES.md`, `PQ2_0` files) against the `skylakex` and later
+  variants.
+- **Driver difference on main: the power-on idle-time sound test** (found 2026-11-19 by the Linux
+  port's gate, reproduced on origin/main decdd379): `tests/audio/test_audio_engine_integration.py::
+  test_the_declared_sounds_compile_in_the_power_ons_idle_time` differs between the dummy and the
+  native (cocoa) driver at present 12 (4 of 76,800 pixels; the frame index and the two runs'
+  frame counts vary with load, because the idle-time compile follows wall-clock time), passing on
+  both. Either a real rendering difference in the CRT power-on
+  frames or a test whose frames legitimately vary and lacks `@pytest.mark.frames_vary`: triage on a
+  quiet machine (the pixels in test-results/driver-comparison/pytest/differences/).
+- **GPU backends for the AI service** (plans/lucid-circuit-linux.md 9.2 step 5, 2026-11-19): Vulkan on capable
+  Linux GPUs, then CUDA (and ROCm), as runtime-loaded llama.cpp backends that load only when their device works, so
+  the CPU path stays as is. Needs its own design: which backends, how the picker counts GPU memory, and how the game
+  and the AI share the GPU.
+
 - **Deferred: choosing 2B's context by free memory** (the owner, 2026-11-07: "we're just going to
   stick with the 2B model for the foreseeable future"). Every run already uses 2B
   (`ai_service_default_bonsai_size`, plans/lucid-circuit.md section 5), at its full context, or

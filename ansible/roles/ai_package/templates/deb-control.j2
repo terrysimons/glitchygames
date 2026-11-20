@@ -1,0 +1,12 @@
+Package: {{ ai_package_deb_name }}
+Version: {{ ai_package_version }}
+Architecture: {{ ai_package_deb_architecture }}
+Maintainer: {{ ai_package_deb_maintainer }}
+Depends: {{ ai_package_deb_depends | join(', ') }}
+Section: games
+Priority: optional
+Homepage: {{ ai_package_deb_homepage }}
+Description: GlitchyGames local AI service
+ llama.cpp, built for every CPU of this architecture, and the service games reach it through,
+ started when a game asks and stopped after the last one. It holds no model: each user's models
+ download at their first login after install, as many as the machine's memory can run.

@@ -114,7 +114,8 @@ commands:
           command: |
             set -euo pipefail
 
-            # The installer for one uv version (https://docs.astral.sh/uv/getting-started/installation/)
+            # The installer for one uv version:
+            # https://docs.astral.sh/uv/getting-started/installation/
             curl -LsSf https://astral.sh/uv/<< pipeline.parameters.UV_VERSION >>/install.sh | sh
             export PATH="$HOME/.local/bin:$PATH"
 
@@ -524,8 +525,8 @@ jobs:
 
       - restore_cache:
           keys:
-            - apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-{{ checksum "test-results/apt-cache-week" }}
-            - apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-
+            - apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-{{ checksum "test-results/apt-cache-week" }}
+            - apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-
 
       - run:
           name: "Install Linux system dependencies"
@@ -556,8 +557,11 @@ jobs:
             install_packages() {
               # fontconfig: the suite's text tests. pkg-config, libudev-dev, libusb-1.0-0-dev:
               # hidapi's source build on Python 3.15, which has no manylinux wheel for it (job
-              # 3629); the Raspberry Pis install the same. nox -s test-linux-ci reads this line
-              sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config
+              # 3629); the Raspberry Pis install the same. iproute2 (ss) and lsof: the real-socket
+              # port test (tests/test_ansible_ai_service.py) skips without the platform's port
+              # tool. Each split machine is its own container, so each installs them. nox -s
+              # test-linux-ci reads this line
+              sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config iproute2 lsof
             }
             # The fallback's update, tried 5 times. It complements the cache, never replaces it
             # (retries alone were turned down above): it runs only when the cache cannot
@@ -617,7 +621,7 @@ jobs:
             sudo chown -R "$(id -u):$(id -g)" "$HOME/apt-cache"
 
       - save_cache:
-          key: apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-{{ checksum "test-results/apt-cache-week" }}
+          key: apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-{{ checksum "test-results/apt-cache-week" }}
           paths:
             - ~/apt-cache
 

@@ -1,0 +1,40 @@
+---
+# The agents a host runs, one per installed size and the API's: the ai_service role installs them on
+# a Mac, and ai_package packages them on both platforms (plans/lucid-circuit-linux.md, 6.7). Each
+# run starts from an empty list, so listing them twice in one play gives the same list
+- name: Start the list of agents
+  ansible.builtin.set_fact:
+    ai_service_agents: []
+
+- name: List an agent for each installed Bonsai size
+  ansible.builtin.set_fact:
+    ai_service_agents: >-
+      {{ ai_service_agents + [{
+           'label': ai_service_label_prefix ~ '.bonsai-2-' ~ item ~ '.llama-cpp',
+           'role': 'reasoning',
+           'alias': 'bonsai-2-' ~ item,
+           'port': ai_service_bonsai_ports[item],
+           'model_file': ai_models_bonsai[item].model.file,
+           'vision_file': ai_models_bonsai[item].vision.file}] }}
+  loop: "{{ ai_models_bonsai_sizes }}"
+
+- name: List an agent for each installed Qwen size
+  ansible.builtin.set_fact:
+    ai_service_agents: >-
+      {{ ai_service_agents + [{
+           'label': ai_service_label_prefix ~ '.qwen3-embedding-' ~ item ~ '.llama-cpp',
+           'role': 'embedding',
+           'alias': 'qwen3-embedding-' ~ item,
+           'port': ai_service_qwen_ports[item],
+           'model_file': ai_models_qwen[item].model.file,
+           'dimensions': ai_models_qwen[item].dimensions}] }}
+  loop: "{{ ai_models_qwen_sizes }}"
+
+- name: List the API's agent
+  ansible.builtin.set_fact:
+    ai_service_agents: >-
+      {{ ai_service_agents + [{
+           'label': ai_service_api_label,
+           'role': 'api',
+           'alias': 'api',
+           'port': ai_service_api_port}] }}

@@ -763,12 +763,6 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             'type(None), which the rules do not list.'
         ),
     },
-    'ai_link.py': {
-        'DEFAULT_INSTALL_ROOT': (
-            "R16: a Path (the user's home directory joined with constants), immutable; the "
-            'rules cannot prove Path.home() returns one.'
-        ),
-    },
     'api/dependencies.py': {
         'get_config': API_SERVER,
         'get_sprite_generation_service': API_SERVER,

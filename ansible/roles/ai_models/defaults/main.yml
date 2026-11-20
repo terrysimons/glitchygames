@@ -86,4 +86,4 @@ ai_models_qwen_sizes: ["0.6b"]
 # Left free after the downloads
 ai_models_free_margin_bytes: 5368709120
 
-ai_models_directory: "{{ ai_install_root }}/models"
+ai_models_directory: "{{ ai_user_root }}/models"

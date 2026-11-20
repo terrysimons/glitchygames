@@ -42,7 +42,7 @@ from pydantic import BaseModel, ConfigDict
 from glitchygames import clock
 from glitchygames.ai.local_service import pieces_of_stream_line
 from glitchygames.ai_console import REASONING_EFFORT, SYSTEM_PROMPT
-from glitchygames.ai_link import install_root
+from glitchygames.ai_link import ServiceLocations, service_locations
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import OutputCapture, run_command, start_command, stop_command
 
@@ -369,10 +369,12 @@ def agent_label(*, size: str) -> str:
     return f'ai.glitchygames.bonsai-2-{size}.llama-cpp'
 
 
-def write_settings(*, root: Path, configuration: Configuration, port: int, directory: Path) -> None:
+def write_settings(
+    *, locations: ServiceLocations, configuration: Configuration, port: int, directory: Path
+) -> None:
     """Copy a size's installed settings, changing only the port, context and any prompt cache."""
     label = agent_label(size=configuration.size)
-    shutil.copy(root / 'config' / f'{label}.env', directory / f'{label}.env')
+    shutil.copy(locations.user_root / 'config' / f'{label}.env', directory / f'{label}.env')
     runtime = f'AI_PORT={port}\nAI_CONTEXT_SIZE={configuration.context}\n'
     if configuration.cache_mebibytes is not None:
         runtime += f'AI_CACHE_RAM_MIB={configuration.cache_mebibytes}\n'
@@ -398,7 +400,7 @@ def memory_footprint_mebibytes(*, process_id: int) -> float | None:
 
 @contextlib.contextmanager
 def running_server(
-    *, root: Path, configuration: Configuration, port: int, log_path: Path
+    *, locations: ServiceLocations, configuration: Configuration, port: int, log_path: Path
 ) -> Generator[tuple[AskedOf, float, Callable[[], float | None]]]:
     """Start a size's llama-server through the installed script, and stop it afterwards.
 
@@ -412,10 +414,17 @@ def running_server(
     label = agent_label(size=configuration.size)
     base_url = f'http://127.0.0.1:{port}'
     with tempfile.TemporaryDirectory() as directory, log_path.open('w', encoding='utf-8') as log:
-        write_settings(root=root, configuration=configuration, port=port, directory=Path(directory))
+        write_settings(
+            locations=locations, configuration=configuration, port=port, directory=Path(directory)
+        )
         started = clock.raw_counter_seconds()
         process = start_command(
-            command=['/bin/sh', str(root / 'bin' / 'run-llama-server.sh'), directory, label],
+            command=[
+                '/bin/sh',
+                str(locations.program_root / 'bin' / 'run-llama-server.sh'),
+                directory,
+                label,
+            ],
             environment=os.environ,
             output=log,
         )
@@ -433,7 +442,11 @@ def running_server(
                 message = f'{label} did not load in {SERVER_LOAD_TIMEOUT_SECONDS} s'
                 raise RuntimeError(message)
             load_seconds = round(clock.raw_counter_seconds() - started, 1)
-            api_key = (root / 'config' / 'worker-api-key').read_text(encoding='utf-8').strip()
+            api_key = (
+                (locations.user_root / 'config' / 'worker-api-key')
+                .read_text(encoding='utf-8')
+                .strip()
+            )
             target = AskedOf(
                 base_url=base_url, api_key=api_key, alias=f'bonsai-2-{configuration.size}'
             )
@@ -608,7 +621,7 @@ def answers_page(*, questions: Sequence[Question], results: Sequence[QuestionRes
 
 def compare(
     *,
-    root: Path,
+    locations: ServiceLocations,
     configurations: Sequence[Configuration],
     questions: Sequence[Question],
     repeats: int,
@@ -632,7 +645,10 @@ def compare(
             log_path = output / f'server-{configuration.name}.log'
             say(f'{configuration.name}: loading')
             with running_server(
-                root=root, configuration=configuration, port=COMPARISON_PORT, log_path=log_path
+                locations=locations,
+                configuration=configuration,
+                port=COMPARISON_PORT,
+                log_path=log_path,
             ) as (target, load_seconds, read_footprint):
                 for repeat in range(repeats):
                     for question in questions:
@@ -664,7 +680,7 @@ def compare(
     return rows
 
 
-def service_is_running(*, root: Path) -> bool:
+def service_is_running(*, locations: ServiceLocations) -> bool:
     """Ask the installed script whether any of the service is up.
 
     Returns:
@@ -672,7 +688,7 @@ def service_is_running(*, root: Path) -> bool:
 
     """
     result = run_command(
-        command=['/bin/sh', str(root / 'bin' / 'ai-service.sh'), 'status'],
+        command=['/bin/sh', str(locations.control_script), 'status'],
         environment=os.environ,
         timeout_seconds=STATUS_TIMEOUT_SECONDS,
         capture_output=OutputCapture.TOGETHER,
@@ -697,12 +713,15 @@ def main(arguments: Sequence[str] | None = None) -> int:
     parser.add_argument('--repeats', type=int, default=DEFAULT_REPEATS, help='Times each is asked')
     parser.add_argument('--only', default='', help='Only questions with this in their name')
     options = parser.parse_args(arguments)
-    root = install_root()
-    if service_is_running(root=root):
+    locations = service_locations()
+    if locations is None:
+        say('The local AI service is not installed on this platform.')
+        return ExitCode.OPTIONS_REFUSED
+    if service_is_running(locations=locations):
         say('The AI service is running: stop it first (ai-service.sh stop).')
         return ExitCode.OPTIONS_REFUSED
     rows = compare(
-        root=root,
+        locations=locations,
         configurations=[parse_configuration(text) for text in options.configurations.split(',')],
         questions=[question for question in load_questions() if options.only in question.name],
         repeats=options.repeats,
