@@ -876,11 +876,6 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   diverged**: a replay given another `--random-seed` (the reseeded summary), and a truncated
   recording that matched up to its cut-off (alone it exits UNUSABLE_INPUT, but `diverged` is
   False). Say so in `inner_game.py`'s docstring, or make `diverged` cover them.
-- **No guard stops a direct `pygame.event.set_allowed` or `set_blocked` in the engine.** Every
-  engine call that changes SDL's blocked types goes through `events.set_event_types_allowed`
-  (sub-plan 3's fix: an inner context never changes them), except `EventTypeBlock`. A future
-  direct call would bring the bug back quietly. Add a source-guard test like
-  `tests/test_engine_doors.py`'s.
 - Minor, from the same ledgers: refusal by prefix can over-refuse (a game's own flag that is a
   strict prefix of a refused one, such as `--rec`, would be refused; no engine flag is one), and
   an empty run is not handled specially (`step()` checks `should_run_frames()` only after each
