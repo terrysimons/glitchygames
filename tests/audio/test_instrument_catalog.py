@@ -13,7 +13,7 @@ import pytest
 
 from glitchygames.audio import instruments
 from glitchygames.audio.instrument import Filter, Instrument
-from glitchygames.audio.instruments import CatalogEntry, Family, Tag
+from glitchygames.audio.instruments import CatalogEntry, Family, Tag, registry
 from glitchygames.audio.instruments.free_reeds import FREE_REED_LEVELS
 from glitchygames.audio.instruments.organs import FLUTE_STOP_LEVELS, compound_stop_levels
 from glitchygames.audio.instruments.registry import (
@@ -263,6 +263,23 @@ def test_unpitched_entries_ignore_the_pitch():
     assert instruments.entry('kick drum').playing_range is None
     assert instruments.entry('kick drum').middle_note() == Note('A4')
     assert np.array_equal(rendered(kick, pitch='A4'), rendered(kick, pitch='C2'))
+
+
+@pytest.mark.parametrize('test_order', ['first', 'second'])
+def test_every_test_starts_with_no_catalog_instrument_built(test_order):
+    """The harness empties the catalog's builds after each test, so their wave tables go too.
+
+    Each built instrument keeps a band-limited table for every band a note has read
+    (``Wave.band_limited_table``): 26 MiB over the audio tests when the builds were kept for the
+    whole run (2026-11-19, the Linux CI container). Within a test, a build is still shared.
+    """
+    # The catalog's build cache (registry._built), which the harness empties
+    assert registry._built.cache_info().currsize == 0, test_order
+
+    violin = instruments.get('violin')
+
+    assert instruments.get('violin') is violin
+    assert registry._built.cache_info().currsize == 1
 
 
 def test_get_builds_once_and_names_are_looked_up_with_suggestions():
