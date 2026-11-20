@@ -978,17 +978,24 @@ class TestDiskCacheMode:
         notes = [record for record in caplog.records if SOUND_CACHE_ROOT_VARIABLE in record.message]
         assert len(notes) == 1
 
-    def test_in_the_browser_it_runs_as_ram_and_says_so_once(self, tmp_path, monkeypatch, caplog):
+    def test_in_the_browser_sounds_are_kept_on_disk_as_on_the_desktop(self, tmp_path, monkeypatch):
+        """The browser's files are in memory until its page flushes them to IndexedDB.
+
+        The page mounts IndexedDB at the cache root (browser/boot.py), so the engine keeps its
+        disk layer there as anywhere else (disk_cache.py, rule 7). It once refused the browser
+        one, and every page load compiled every sound again.
+        """
         from glitchygames.audio import engine as engine_module
         from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
         from glitchygames.audio.library import CacheMode
+        from glitchygames.audio.spec import AUDIO_RENDER_VERSION
 
         monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, str(tmp_path))
         monkeypatch.setattr(engine_module.sys, 'platform', 'emscripten')
-        with caplog.at_level(logging.INFO, logger='game.audio'):
-            engine = AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK)
+        engine = AudioEngine(partition=self.NO_CHANNELS, cache=CacheMode.DISK, game_name='page')
 
-        assert engine.cache_mode is CacheMode.RAM
-        assert not list(tmp_path.rglob('*'))
-        notes = [record for record in caplog.records if 'browser' in record.message]
-        assert len(notes) == 1
+        engine.sound(Instrument(wave='square'), pitch='C5')
+
+        assert engine.cache_mode is CacheMode.DISK
+        assert engine.sounds.statistics().disk_writes == 1
+        assert list((tmp_path / 'page' / 'sounds' / str(AUDIO_RENDER_VERSION)).rglob('*.wav'))
