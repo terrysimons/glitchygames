@@ -1,6 +1,6 @@
 # Arcade Sub-plan 5: One Playback Core, Then `DemoPlayer` — Implementation Plan
 
-Status: PLAN, for the owner's review (written 2026-11-20 against main at 4e6c7144; audited the
+Status: APPROVED by the owner (2026-11-20), with decisions 1 to 6 below; not built yet. PLAN (written 2026-11-20 against main at 4e6c7144; audited the
 same day against main at b7c2abd3, after #235, #237, #238 and #239: every file:line below was
 re-checked and still holds; nothing built).
 Decided by the owner on 2026-11-20: the viewer's own-context move is a later sub-plan (question 1),
