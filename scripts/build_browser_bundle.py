@@ -96,6 +96,10 @@ BROWSER_PAGE_SCRIPTS = ('touch_controls.js',)
 EXCLUDED_SUBPACKAGES = frozenset({'api', 'services', 'testing', 'templates'})
 # glitchygames/assets PNGs are the window icon (1 MB)
 EXCLUDED_ASSET_SUFFIXES = frozenset({'.png'})
+# The stamp ``all`` writes into the games site: the commit it was built from and its games. The
+# docs (scripts/mkdocs_hooks.py, whose SITE_STAMP_NAME a test holds equal) publish a site only
+# when it is the deploying commit's
+SITE_STAMP_NAME = 'site_build.json'
 # Every archive member gets this timestamp, so the same sources make the same archive
 ARCHIVE_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
 
@@ -1056,8 +1060,33 @@ def site_index_page() -> str:
     )
 
 
+class CommitUnreadableError(RuntimeError):
+    """git could not name the repository's commit, which the games site's stamp records."""
+
+
+def repository_commit() -> str:
+    """Return the commit the games are built from (the repository's HEAD).
+
+    Returns:
+        Its full hash.
+
+    Raises:
+        CommitUnreadableError: git could not name it.
+
+    """
+    returncode, output = run_git(arguments=['rev-parse', 'HEAD'], directory=REPOSITORY_DIRECTORY)
+    if returncode != 0:
+        message = f'git rev-parse HEAD failed in {REPOSITORY_DIRECTORY}: {output.strip()}'
+        raise CommitUnreadableError(message)
+    return output.strip()
+
+
 def write_site(*, output_directory: Path, wheel_path: Path) -> None:
-    """Write every game's bundle into ``output_directory/<game>`` and an index linking them."""
+    """Write every game's bundle, an index linking them, and the site's stamp.
+
+    Each game goes to ``output_directory/<game>``; the stamp (``SITE_STAMP_NAME``) holds the
+    commit the site was built from and its games.
+    """
     if output_directory.exists():
         shutil.rmtree(output_directory)
     output_directory.mkdir(parents=True)
@@ -1066,6 +1095,10 @@ def write_site(*, output_directory: Path, wheel_path: Path) -> None:
             game=game, output_directory=output_directory / game, wheel_path=wheel_path, arguments=[]
         )
     (output_directory / 'index.html').write_text(site_index_page(), encoding='utf-8')
+    (output_directory / SITE_STAMP_NAME).write_text(
+        json.dumps({'commit': repository_commit(), 'games': list(GAMES)}, indent=2) + '\n',
+        encoding='utf-8',
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

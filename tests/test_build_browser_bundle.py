@@ -560,7 +560,11 @@ class TestMain:
         status = main(['all', '--wheel', str(wheel), '--output', str(output)])
 
         assert status == 0
-        assert sorted(path.name for path in output.iterdir()) == sorted([*GAMES, 'index.html'])
+        assert sorted(path.name for path in output.iterdir()) == sorted([
+            *GAMES,
+            'index.html',
+            build_browser_bundle.SITE_STAMP_NAME,
+        ])
         index = (output / 'index.html').read_text()
         assert TAB_ICON_LINK in index
         for game, specification in GAMES.items():
@@ -1019,6 +1023,37 @@ def test_every_browser_game_imports_with_only_the_browser_packages(game: str):
     )
 
     assert result.returncode == 0, result.stdout
+
+
+def test_the_games_site_is_stamped_with_its_commit_and_its_games(tmp_path, mocker):
+    """``all`` stamps the site: the docs publish it only when it is the deploying commit's."""
+    mocker.patch.object(build_browser_bundle, 'write_bundle')
+    mocker.patch.object(build_browser_bundle, 'repository_commit', return_value=COMMIT)
+    site = tmp_path / 'site'
+
+    build_browser_bundle.write_site(output_directory=site, wheel_path=tmp_path / WHEEL_NAME)
+
+    stamp = json.loads((site / build_browser_bundle.SITE_STAMP_NAME).read_text())
+    assert stamp == {'commit': COMMIT, 'games': list(GAMES)}
+    assert 'zombies-aint-my-neighbors' in stamp['games']
+
+
+def test_the_repository_commit_is_heads(tmp_path):
+    """The stamp's commit is the repository's HEAD, as git names it."""
+    returncode, head = run_git(arguments=['rev-parse', 'HEAD'], directory=REPOSITORY_DIRECTORY)
+
+    assert returncode == 0
+    assert build_browser_bundle.repository_commit() == head.strip()
+
+
+def test_a_commit_git_cannot_name_stops_the_build(mocker):
+    """No stamp is better than a wrong one: the build stops, naming git's complaint."""
+    mocker.patch.object(build_browser_bundle, 'run_git', return_value=(128, 'fatal: not a repo\n'))
+
+    with pytest.raises(
+        build_browser_bundle.CommitUnreadableError, match=r'git rev-parse HEAD failed.*not a repo'
+    ):
+        build_browser_bundle.repository_commit()
 
 
 def unpacked_bundle(*, game: str, directory: Path) -> Path:
