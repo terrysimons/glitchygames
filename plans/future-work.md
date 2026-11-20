@@ -852,13 +852,6 @@ only replays; Part 2 Task 1).
 The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0, and a tile
 changes the outer game's key repeat (the plan's Review Focus 4).
 
-- **Every engine build adds a `pygame.register_quit` entry that is never removed.**
-  `GameEngine.__init__` registers its `quit_game` (`src/glitchygames/engine/game_engine.py`,
-  `pygame.register_quit(self.quit_game)`, a classmethod), and pygame has no way to unregister
-  one, so every `InnerGame` adds one for the life of the process: an Arcade looping ten tiles
-  adds ten per loop, each called once at `pygame.quit()`. Harmless today (the classmethod holds
-  no engine), but the list only grows. Register once per process, or not at all in an inner
-  context (the host's own engine registers it).
 - **The hosted start skips `_begin_start` (and `_begin_run`).** An inner game's `start()`
   builds the game and returns (`render_target.hosted_start_requested()`), so the startup options
   block is never logged for it, and `--profile` (`_begin_start`) and `--list-input-devices`

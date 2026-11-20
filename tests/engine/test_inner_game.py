@@ -824,6 +824,19 @@ class TestAReplayInsideItsContext:
         assert outcome.error is not None
         assert 'no replay sources' in outcome.error
 
+    def test_building_an_inner_game_registers_nothing_with_pygames_quit(
+        self, stand_in: StandInGame, recording: Path, mocker: MockerFixture
+    ):
+        """Pygame cannot unregister a quit callback, so each tile would add one for good."""
+        register_quit = mocker.patch('pygame.register_quit')
+
+        first = replay_stand_in(game=stand_in, path=recording, name='first')
+        second = replay_stand_in(game=stand_in, path=recording, name='second')
+
+        register_quit.assert_not_called()
+        first.finish()
+        second.finish()
+
     def test_a_game_whose_timer_failed_to_start_still_finishes(
         self, stand_in: StandInGame, recording: Path, mocker: MockerFixture
     ):
