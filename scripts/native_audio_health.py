@@ -1,8 +1,10 @@
 r"""Is this machine's native audio working, and which failed tests say it was not?
 
 ``nox -s compare-drivers`` runs the suite on the native driver (cocoa on macOS). On 2026-11-20
-macOS CoreAudio broke under that run twice: once ``pygame.mixer.init`` deadlocked (the run hung
-until it was killed by hand), once every mixer start failed with ``CoreAudio error
+macOS CoreAudio broke under that run twice: once ``pygame.mixer.init`` hung (SDL's audio thread
+crashed in AudioQueueNewOutput and pygame-ce's parachute handler spun forever on it, bugs/
+2026-11-20-a-crash-on-the-audio-thread-hung-the-process.md, #252; the run hung until it was
+killed by hand), once every mixer start failed with ``CoreAudio error
 (AudioQueueStart): -66681`` (the run took 7202 s instead of 341 s, and the session blamed 235
 tests for "different frames" that really had no audio). Both are this machine's audio, not the
 change being pushed. Two commands here keep them from looking like a frame difference:
@@ -52,7 +54,7 @@ MIXER_FREQUENCY: Final = 44100
 MIXER_SIZE: Final = -16
 MIXER_CHANNELS: Final = 2
 MIXER_BUFFER: Final = 512
-# A healthy mixer start takes well under a second; a deadlocked CoreAudio never returns
+# A healthy mixer start takes well under a second; a hung mixer start never returns
 PROBE_TIMEOUT_SECONDS: Final = 30.0
 DUMMY_AUDIO_DRIVER: Final = 'dummy'
 # What pygame and SDL say when the audio device could not start, or no mixer is running: the
@@ -126,7 +128,7 @@ def probe_native_audio(
     Args:
         configuration: The configuration's name (for the message).
         environment: The variables its runs set (SDL_AUDIODRIVER), over this process's.
-        timeout_seconds: Kill the child after this long: a deadlocked CoreAudio never returns.
+        timeout_seconds: Kill the child after this long: a hung mixer start never returns.
         command: The child's command line (None: ``child_command()``; a test passes a fake).
 
     Returns:

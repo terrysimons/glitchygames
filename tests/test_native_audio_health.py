@@ -2,7 +2,7 @@
 
 The probe's children are real processes: a real pygame mixer on the dummy audio driver (success)
 and on an SDL audio driver that does not exist (pygame's own ``pygame.error``), and a child that
-sleeps past the time limit (CoreAudio's deadlock). The junit reports follow pytest's xunit
+sleeps past the time limit (a hung mixer start). The junit reports follow pytest's xunit
 format: a failure's text is its ``message`` attribute and its body.
 """
 

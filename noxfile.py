@@ -1986,8 +1986,10 @@ class _DifferingTests:
 # NATIVE_CONFIGURATIONS; the noxfile cannot import it, CI's nox lacks the project's packages)
 _NATIVE_CONFIGURATION_NAMES = ('cocoa', 'windows', 'wayland', 'x11')
 # A test on the native run that takes longer than this fails (pytest-timeout, the thread method).
-# Native runs only, never CI or a plain pytest: on 2026-11-20 a deadlocked CoreAudio
-# (pygame.mixer.init) hung the native run until it was killed by hand. The slowest healthy test
+# Native runs only, never CI or a plain pytest: on 2026-11-20 a hung
+# pygame.mixer.init (SDL's audio thread crashed and pygame-ce's parachute handler spun on it,
+# #252) held the native run until it was killed by hand. A crash now fails at once; this limit
+# still catches a hang that is not a crash. The slowest healthy test
 # takes about 30 s, so 120 s is four times that. The thread method ends the worker process (xdist
 # reports the crash and replaces the worker) where the signal method would not interrupt a call
 # stuck inside a C library. Caveat: `os._exit` runs no fixture teardown, so a hung test's

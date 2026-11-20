@@ -101,7 +101,7 @@ are kept in `test-results/driver-comparison/nox-failed/`.
 
 ### When the machine's audio is broken
 
-macOS CoreAudio has broken under the native run (2026-11-20): once `pygame.mixer.init` hung, once
+macOS CoreAudio has broken under the native run (2026-11-20): once `pygame.mixer.init` hung (SDL's audio thread crashed and pygame-ce's parachute handler spun forever on it; #252, `bugs/2026-11-20-a-crash-on-the-audio-thread-hung-the-process.md`), once
 every mixer start failed with `CoreAudio error (AudioQueueStart): -66681` (a 7202 s run instead of
 341 s, and 235 tests blamed for "different frames" that really had no audio). Two guards in
 `scripts/native_audio_health.py` keep that from looking like a change's fault:
