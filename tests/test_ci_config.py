@@ -425,6 +425,28 @@ def test_docs_deploy_measures_the_replays_by_default(mocker, tmp_path):
     assert measuring < deploying < clearing
 
 
+BUILD_THE_BROWSER_GAMES = ('python', '-m', 'scripts.build_browser_bundle', 'all')
+
+
+def test_docs_deploy_leaves_the_browser_games_to_gh_deploy(mocker, tmp_path):
+    """gh-deploy builds the games afresh itself (scripts/mkdocs_hooks.py): not twice."""
+    pending_ledger(mocker=mocker, tmp_path=tmp_path, text=None)
+
+    commands = docs_deploy_commands(posargs=['--no-measure'])
+
+    assert BUILD_THE_BROWSER_GAMES not in commands
+    assert ('mkdocs', 'gh-deploy', '--strict', '--config-file', 'zensical.yml') in commands
+
+
+def test_docs_deploy_build_only_builds_the_browser_games_before_the_docs():
+    """A local build builds no games itself, so --build-only builds them first, as a deploy does."""
+    commands = docs_deploy_commands(posargs=['--build-only', '--no-measure'])
+
+    building_games = commands.index(BUILD_THE_BROWSER_GAMES)
+    building_docs = commands.index(('mkdocs', 'build', '--strict', '--config-file', 'zensical.yml'))
+    assert building_games < building_docs
+
+
 @pytest.mark.parametrize('text', [None, '', '\n  \n'])
 def test_docs_deploy_without_pending_rows_clears_nothing(mocker, tmp_path, text):
     """No pending rows (CircleCI's fresh checkout): no ``clear-published``, so no member builds.
@@ -512,7 +534,6 @@ def test_docs_deploy_with_no_measure_measures_nothing():
     commands = docs_deploy_commands(posargs=['--no-measure'])
 
     assert not any('measure' in command for command in commands)
-    assert ('python', '-m', 'scripts.build_browser_bundle', 'all') in commands
     assert ('mkdocs', 'gh-deploy', '--strict', '--config-file', 'zensical.yml') in commands
 
 

@@ -417,10 +417,11 @@ def docs_deploy(session: nox.Session) -> None:
     gh-pages and pushes it. Only after that succeeded are the now-published pending rows
     removed (``glitchygames clear-published``), and only when the pending ledger holds rows: a
     deploy without any (CircleCI's) skips it, and so the editable install it would build first.
-    Before the docs, every game's browser build (``python -m scripts.build_browser_bundle
-    all``: the pygame-ce wheel is built first when the submodule changed) goes into the site as
-    play/. Run it from what should be published (usually main after a merge); a warning stops
-    it before anything is pushed.
+    Every game's browser build (``python -m scripts.build_browser_bundle all``: the pygame-ce
+    wheel is built first when the submodule changed) goes into the site as play/, built afresh
+    by the deploy itself (scripts/mkdocs_hooks.py; ``--build-only`` builds them here first). Run
+    it from what should be published (usually main after a merge); a warning stops it before
+    anything is pushed.
 
     ``--no-measure`` skips the measurement (CircleCI's deploy after a merge to main: its machines
     vary, so their timings would be noise in the run ledger); the published ledger and any
@@ -453,11 +454,14 @@ def docs_deploy(session: nox.Session) -> None:
     )
     if measure:
         _glitchygames(session, 'measure', '--skip-dirty')
-    # The browser games, published with the docs as play/ (scripts/mkdocs_hooks.py)
-    session.run('python', '-m', 'scripts.build_browser_bundle', 'all')
     if build_only:
+        # A local build builds no games itself (scripts/mkdocs_hooks.py): build them here, so
+        # the site holds this commit's play/ as a deploy's does
+        session.run('python', '-m', 'scripts.build_browser_bundle', 'all')
         session.run('mkdocs', 'build', '--strict', '--config-file', _DOCS_CONFIGURATION)
         return
+    # gh-deploy builds the browser games afresh itself (scripts/mkdocs_hooks.py), however it is
+    # run, and publishes them as play/
     session.run('mkdocs', 'gh-deploy', '--strict', '--config-file', _DOCS_CONFIGURATION)
     # Only rows waiting here can have been published. Without any (CircleCI's deploy: a fresh
     # checkout that never measures) there is nothing to clear, and ``uv run`` would first build
