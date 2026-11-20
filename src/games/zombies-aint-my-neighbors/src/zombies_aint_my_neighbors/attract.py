@@ -1,6 +1,7 @@
 """The attract demo: the idle loop's second slot, after the intro (feature plan 13).
 
-When nobody plays, the title loops: the title, the intro, then this demo, then the title again.
+When nobody plays, the title loops: after each idle it shows this demo or the intro, in turn,
+the demo first (``title.Attraction``), and each hands back to the title.
 The demo is the game's bundled demo, ``demos/neighborhood_four_kids.jsonl.gz``: four kids
 clearing stage 1 (recorded by ``scripts/record_bundled_demos.py``). The scene replays it as an
 inner game (``glitchygames.inner_game.InnerGame.replay``, as the Arcade replays its tiles) on a
@@ -12,8 +13,9 @@ Any key press or pad button ends it at once, P and Esc included; releases, stick
 arriving or leaving do not. The title that follows a press waits for that input's release, so
 the press joins nobody. At the demo's end the title follows too, and a demo that can't play
 (not installed, unreadable, another size, failing mid-way) sends the game straight back to the
-title with a warning. Every way it ends finishes the inner game exactly once, which gives its
-sound channels back for the next showing.
+title with a warning. However it ends, the title it hands back owes the intro next. Every way
+it ends finishes the inner game exactly once, which gives its sound channels back for the next
+showing.
 """
 
 from __future__ import annotations
@@ -229,10 +231,13 @@ class AttractScene(PadTolerantScene):
         if self.next_scene is not None:
             return
         # Imported here: the title builds the intro, which builds this scene
-        from zombies_aint_my_neighbors.title import TitleScene
+        from zombies_aint_my_neighbors.title import Attraction, TitleScene
 
         self.next_scene = TitleScene(
-            options=self.options, opening=False, awaiting_release=awaiting_release
+            options=self.options,
+            opening=False,
+            awaiting_release=awaiting_release,
+            next_attraction=Attraction.INTRO,
         )
 
     def _finish_the_demo(self) -> None:

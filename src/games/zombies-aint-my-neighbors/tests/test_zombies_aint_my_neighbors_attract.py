@@ -33,7 +33,7 @@ from zombies_aint_my_neighbors.attract import (
     fitted_rect,
 )
 from zombies_aint_my_neighbors.demo_neighborhood import DemoNeighborhoodScene
-from zombies_aint_my_neighbors.title import TitleScene
+from zombies_aint_my_neighbors.title import Attraction, TitleScene
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -236,6 +236,7 @@ def test_the_demo_ends_into_a_fresh_title():
     assert isinstance(scene.next_scene, TitleScene)
     assert not scene.next_scene.opening
     assert scene.next_scene.replay_arguments().get('awaiting_release') is None
+    assert scene.next_scene.next_attraction is Attraction.INTRO
 
 
 def unreadable(tmp_path: Path) -> Path:
@@ -263,7 +264,11 @@ FAILING_DEMOS = {
 def test_a_missing_or_failing_demo_returns_to_the_title_with_a_warning(
     demo, tmp_path, mocker, caplog
 ):
-    """No demo, or one that can't play, goes straight back to the title, with one warning."""
+    """No demo, or one that can't play, goes straight back to the title, with one warning.
+
+    That title owes the intro next, as after a demo that played: a broken demo is not tried
+    again at every idle, and the intro still gets its turn.
+    """
     mocker.patch.object(attract, 'attract_demo_path', return_value=demo(tmp_path))
 
     with caplog.at_level('WARNING', logger=attract.LOG.name):
@@ -272,6 +277,7 @@ def test_a_missing_or_failing_demo_returns_to_the_title_with_a_warning(
 
     assert isinstance(scene.next_scene, TitleScene)
     assert not scene.next_scene.opening
+    assert scene.next_scene.next_attraction is Attraction.INTRO
     assert [record.levelname for record in caplog.records if record.name == attract.LOG.name] == [
         'WARNING'
     ]
@@ -309,6 +315,7 @@ def test_any_key_or_pad_button_returns_to_the_title(press, after_frames):
     assert isinstance(scene.next_scene, TitleScene)
     assert not scene.next_scene.opening
     assert scene.next_scene.replay_arguments().get('awaiting_release') is True
+    assert scene.next_scene.next_attraction is Attraction.INTRO
 
 
 @pytest.mark.usefixtures('short_demo')

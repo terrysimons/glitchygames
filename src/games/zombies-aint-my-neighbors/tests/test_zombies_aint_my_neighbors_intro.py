@@ -178,15 +178,21 @@ def test_the_intro_fires_its_timeline_and_hands_over_to_the_title():
     assert not scene.next_scene.opening
 
 
-def test_the_loop_intro_ends_into_the_demo():
-    """In the idle loop, the intro's end hands over to the attract demo (feature plan 13)."""
-    from zombies_aint_my_neighbors.attract import AttractScene
+def test_the_loop_intro_ends_into_a_title_that_shows_the_demo_next():
+    """In the idle loop, the intro's end hands back to the title, which owes the demo next.
+
+    The demo and the intro take turns at the title's idles (the owner, 2026-11-19): the intro
+    never leads straight into the demo.
+    """
+    from zombies_aint_my_neighbors.title import Attraction, TitleScene
 
     scene = intro(IntroShowing.LOOP)
     run(scene, seconds=INTRO_SECONDS + 0.1)
 
     assert scene.fired == INTRO_TIMELINE
-    assert isinstance(scene.next_scene, AttractScene)
+    assert isinstance(scene.next_scene, TitleScene)
+    assert not scene.next_scene.opening
+    assert scene.next_scene.next_attraction is Attraction.DEMO
 
 
 def test_a_skip_from_the_loop_intro_goes_to_the_title_not_the_demo():
@@ -303,22 +309,22 @@ def test_a_key_or_button_skips_at_any_moment(press, at_seconds):
 
 @pytest.mark.parametrize('press', SKIPS.values(), ids=SKIPS.keys())
 def test_a_press_on_the_hand_over_frame_still_returns_to_the_title(press):
-    """A press on the frame the loop's intro hands over to the demo still gets the title.
+    """A press on the frame the loop's intro ends gets a title that waits for its release.
 
-    The intro hands over in a frame's logic; the frame's events come after it, so a press then
-    must still win: the title follows, waiting for the release, and the demo never starts.
+    The intro hands over in a frame's logic; the frame's events come after it, so the title
+    chosen at the end must already wait for the release of a press that comes then.
     """
-    from zombies_aint_my_neighbors.attract import AttractScene
     from zombies_aint_my_neighbors.title import TitleScene
 
     scene = intro(IntroShowing.LOOP)
     run(scene, seconds=INTRO_SECONDS + 0.01)
-    assert isinstance(scene.next_scene, AttractScene)
+    title = scene.next_scene
 
     press(scene)
 
-    assert isinstance(scene.next_scene, TitleScene)
-    assert scene.next_scene.replay_arguments().get('awaiting_release') is True
+    assert isinstance(title, TitleScene)
+    assert scene.next_scene is title
+    assert title.replay_arguments().get('awaiting_release') is True
 
 
 def test_the_loop_intros_end_never_replaces_a_skip():

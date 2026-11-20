@@ -8,9 +8,9 @@ a hitch. A dark oval frames the shot. At the burst the screen shakes, and at lau
 (``IntroShowing.LOOP``) nothing rumbles: nobody may be holding a pad (the owner, 2026-11-19).
 
 Any key press or pad button ends it at once, P included (the intro has no pause); releases,
-sticks, hats and pads arriving or leaving do not. A skip always leads to the title. At its end the
-title follows at launch, and in the loop the attract demo (feature plan 13, ``attract.py``); a
-press on the very frame the loop's intro ends still leads to the title.
+sticks, hats and pads arriving or leaving do not. A skip and the end both lead to the title, which
+waits for the release of whatever was pressed; in the idle loop that title owes the attract demo
+next (feature plan 13, ``title.Attraction``: the demo and the intro take turns).
 """
 
 from __future__ import annotations
@@ -250,7 +250,7 @@ class IntroScene(PadTolerantScene):
             self._rumble()
         else:
             # CueKind.END, the one kind left
-            self._to_what_follows()
+            self._to_the_title()
 
     def _rumble(self) -> None:
         """At launch, rumble every connected pad; in the idle loop nothing: nobody may hold one."""
@@ -263,28 +263,18 @@ class IntroScene(PadTolerantScene):
                 duration_milliseconds=INTRO_RUMBLE_MILLISECONDS,
             )
 
-    def _to_what_follows(self) -> None:
-        """At the end: in the idle loop the attract demo (feature plan 13), at launch the title."""
-        if self.showing is IntroShowing.LAUNCH:
-            self._to_the_title()
-            return
-        # Imported here: the demo's scene leads back to the title, which builds the intro
-        from zombies_aint_my_neighbors.attract import AttractScene
-
-        if self.next_scene is None:
-            self.next_scene = AttractScene(options=self.options)
-
     def _to_the_title(self) -> None:
-        """Hand over to the title (once), even over the demo the end just chose.
+        """Hand over to the title (once), at the end or on a skip.
 
-        The end hands over in a frame's logic and the frame's events come after it, so a press
-        on that very frame finds the demo chosen but not begun: the title replaces it.
+        The title waits for the release of whatever is held as it opens: the end hands over in a
+        frame's logic and the frame's events come after it, so a press on that very frame finds
+        the title chosen, and it must not join anyone. That title owes the demo next (its
+        default): the demo and the intro take turns at the title's idles.
         """
         # Imported here: the title builds the intro in turn
-        from zombies_aint_my_neighbors.attract import AttractScene
         from zombies_aint_my_neighbors.title import TitleScene
 
-        if self.next_scene is not None and not isinstance(self.next_scene, AttractScene):
+        if self.next_scene is not None:
             return
         self.next_scene = TitleScene(options=self.options, opening=False, awaiting_release=True)
 

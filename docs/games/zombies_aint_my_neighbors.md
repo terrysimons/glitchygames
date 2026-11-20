@@ -22,8 +22,8 @@ hedge; a kid through it clears the stage, and the next stage brings back only th
 rescued. Every life lost, or a stage with nobody rescued, and the TV switches off: game over.
 Every moment of a stage has its sound, and a theremin-and-organ score plays under it. An intro
 opens every launch: the kids at their sleepover, the TV bursting and a Lawn Zombie climbing out;
-it plays again, unattended, whenever the title stands idle, followed by a demo of four kids
-clearing stage 1, as an arcade cabinet's would.
+whenever the title then stands idle, unattended, it shows a demo of four kids clearing stage 1
+or the intro again, in turn, as an arcade cabinet would.
 The design, its decisions and
 the engine wishlist are in the master plan, `plans/2026-11-14-zombies-aint-my-neighbors.md`.
 
@@ -76,9 +76,9 @@ button presses one key, so a diagonal takes two fingers.
 flowchart LR
     Launch(["launch"]) --> Title
     Title -- "first frame, at launch" --> Intro["IntroScene<br/>the sleepover, the TV bursts"]
-    Title -- "20 s idle, nobody joined" --> Intro
-    Intro -- "8 s at launch, or any key or button" --> Title
-    Intro -- "8 s, in the idle loop" --> Demo["AttractScene<br/>four kids clear stage 1"]
+    Title -- "20 s idle, nobody joined:<br/>the demo and the intro in turn" --> Demo["AttractScene<br/>four kids clear stage 1"]
+    Title -- "20 s idle, its next turn" --> Intro
+    Intro -- "8 s, or any key or button" --> Title
     Demo -- "its end, or any key or button" --> Title
     Title["TitleScene<br/>4 slots: join"] -- "joined player's start" --> Card["FeatureCardScene<br/>who is playing"]
     Card -- "2 s, or start" --> Yard["NeighborhoodScene<br/>the kids walk"]
@@ -119,9 +119,10 @@ fires each once, in order. Its nine sprites are drawn by `art/intro_rig.py`.
   every connected pad rumbles at the burst. Every other place that builds a title passes
   `opening=False`, so leaving a stage never replays it.
 - **The idle loop:** a title left `IDLE_SECONDS` (20 s) with no key, pad button or join, nobody
-  joined and no run held, plays the intro unattended: nothing rumbles. The attract demo follows
-  it, then the title again.
-- **Any key or pad button skips it**, P included, even on the frame it hands over to the demo. The title it hands back ignores the keys and
+  joined and no run held, shows an attraction unattended, then returns to the title: the attract
+  demo and the intro take turns, the demo first, since the intro has just played at launch
+  (`title.Attraction`, the title's `next_attraction`). In the loop the intro rumbles nothing.
+- **Any key or pad button skips it**, P included, even on the frame it ends. The title it hands back ignores the keys and
   buttons held as it opens, each until it is seen up (`awaiting_release`), so the skipping press
   never joins anyone while every other key and button works at once.
 

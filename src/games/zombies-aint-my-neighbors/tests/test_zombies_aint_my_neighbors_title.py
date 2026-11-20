@@ -26,7 +26,7 @@ from zombies_aint_my_neighbors.roster import (
     DeviceKind,
     JoinRoster,
 )
-from zombies_aint_my_neighbors.title import BLINK_SECONDS, TitleScene
+from zombies_aint_my_neighbors.title import BLINK_SECONDS, Attraction, TitleScene
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -559,9 +559,12 @@ def awaiting_title() -> TitleScene:
     return title
 
 
-def test_an_idle_title_hands_over_to_the_intro_after_twenty_seconds(scene):
-    """Not a frame before IDLE_SECONDS; on the frame that reaches it, the intro, unattended."""
-    from zombies_aint_my_neighbors.intro import IntroScene, IntroShowing
+def test_an_idle_title_shows_the_demo_first_after_twenty_seconds(scene):
+    """Not a frame before IDLE_SECONDS; on the frame that reaches it, the attract demo.
+
+    The demo comes first: the intro has just played at launch (the owner, 2026-11-19).
+    """
+    from zombies_aint_my_neighbors.attract import AttractScene
     from zombies_aint_my_neighbors.title import IDLE_SECONDS
 
     tick_to(scene, seconds=IDLE_SECONDS - FRAME_SECONDS)
@@ -570,8 +573,38 @@ def test_an_idle_title_hands_over_to_the_intro_after_twenty_seconds(scene):
     tick_to(scene, seconds=IDLE_SECONDS)
 
     assert IDLE_SECONDS == 20.0
-    assert isinstance(scene.next_scene, IntroScene)
-    assert scene.next_scene.showing is IntroShowing.LOOP
+    assert scene.next_attraction is Attraction.DEMO
+    assert isinstance(scene.next_scene, AttractScene)
+
+
+def test_a_title_owing_the_intro_shows_it_after_twenty_seconds():
+    """The title the demo hands back shows the intro at its next idle: the two alternate."""
+    from zombies_aint_my_neighbors.intro import IntroScene, IntroShowing
+    from zombies_aint_my_neighbors.title import IDLE_SECONDS
+
+    title = TitleScene(
+        options={'input_mode': 'auto', 'no_unhandled_events': True},
+        opening=False,
+        next_attraction=Attraction.INTRO,
+    )
+    title.setup()
+
+    tick_to(title, seconds=IDLE_SECONDS)
+
+    assert isinstance(title.next_scene, IntroScene)
+    assert title.next_scene.showing is IntroShowing.LOOP
+
+
+def test_a_title_owing_the_intro_replays_owing_it():
+    """The attraction owed is a replay argument; a title owing the demo writes none (as before)."""
+    owing_the_intro = TitleScene(opening=False, next_attraction=Attraction.INTRO)
+    owing_the_demo = TitleScene(opening=False)
+
+    arguments = json.loads(json.dumps(owing_the_intro.replay_arguments()))
+
+    assert arguments['next_attraction'] == 'intro'
+    assert TitleScene(**arguments).next_attraction is Attraction.INTRO
+    assert 'next_attraction' not in owing_the_demo.replay_arguments()
 
 
 PRESSES = {
@@ -587,8 +620,8 @@ PRESSES = {
 
 @pytest.mark.parametrize('press', PRESSES.values(), ids=PRESSES.keys())
 def test_any_press_starts_the_count_again(scene, press):
-    """A press at 15 s: no intro at 20 s, and the count reaches 20 s again only at 35 s."""
-    from zombies_aint_my_neighbors.intro import IntroScene
+    """A press at 15 s: no demo at 20 s, and the count reaches 20 s again only at 35 s."""
+    from zombies_aint_my_neighbors.attract import AttractScene
 
     tick_to(scene, seconds=15.0)
     press(scene)
@@ -598,12 +631,12 @@ def test_any_press_starts_the_count_again(scene, press):
 
     tick_to(scene, seconds=35.0)
 
-    assert isinstance(scene.next_scene, IntroScene)
+    assert isinstance(scene.next_scene, AttractScene)
 
 
 def test_stick_movement_is_not_activity(scene):
     """A stick or a hat moving (a resting stick drifts) leaves the count running."""
-    from zombies_aint_my_neighbors.intro import IntroScene
+    from zombies_aint_my_neighbors.attract import AttractScene
 
     tick_to(scene, seconds=15.0)
     scene.on_controller_axis_motion_event(
@@ -614,7 +647,7 @@ def test_stick_movement_is_not_activity(scene):
     )
     tick_to(scene, seconds=20.0)
 
-    assert isinstance(scene.next_scene, IntroScene)
+    assert isinstance(scene.next_scene, AttractScene)
 
 
 def test_a_title_with_a_joined_slot_never_loops(scene):
@@ -750,10 +783,11 @@ def test_a_pad_start_held_after_a_skip_never_joins(press):
 
 
 def test_a_recorded_run_that_idles_into_the_demo_replays(tmp_path, mocker, caplog):
-    """A recorded run that idles into the attract demo and back replays matching.
+    """A recorded run that idles round the loop, demo and intro in turn, replays matching.
 
-    The run starts on the title and goes through the intro into the demo and back to the title;
-    its replay matches, the demo inside it included (feature plan 13, Review focus 4).
+    The run starts on the title, idles into the demo, back to the title, into the intro, back to
+    the title and into the demo again; its replay matches, the demo inside it included (feature
+    plan 13, Review focus 4).
 
     The idle wait, the intro and the demo are shortened (patched) so the round trip takes about
     a hundred frames: 0.3 s idle, an intro of 0.2 s, and the shipped demo's first 40 frames.
@@ -791,7 +825,7 @@ def test_a_recorded_run_that_idles_into_the_demo_replays(tmp_path, mocker, caplo
             for outcome in finished.spy_return_list
         )
 
-    frames = 120
+    frames = 130
     session = tmp_path / 'idle.jsonl.gz'
 
     with running_scene(TitleScene) as manager:
@@ -807,13 +841,14 @@ def test_a_recorded_run_that_idles_into_the_demo_replays(tmp_path, mocker, caplo
         manager.terminate()
     assert the_demo_played_to_its_end_matching()
     finished.reset_mock()
-    # The loop, round once and into its second round: title, intro, demo, title, intro, ...
-    assert [name for name, _ in itertools.groupby(seen)][:5] == [
+    # The loop, round once and into its second round: the demo and the intro take turns
+    assert [name for name, _ in itertools.groupby(seen)][:6] == [
         'TitleScene',
-        'IntroScene',
         'AttractScene',
         'TitleScene',
         'IntroScene',
+        'TitleScene',
+        'AttractScene',
     ]
 
     with running_scene(
