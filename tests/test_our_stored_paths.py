@@ -6,7 +6,8 @@ committed: each tracked recording's header and each tracked ledger row, every st
 any depth. An absolute path there (a POSIX root, a home directory, a Windows drive) would hold
 a user name, a home or a scratch directory, and mean nothing on another machine. The recording
 renames table (``[tool.glitchygames.recording-renames]``) is checked here too: each new path
-exists.
+exists. So is the plan workspaces' scratch (``.superpowers/``): none of it is committed, and the
+project's own .gitignore ignores it.
 """
 
 from __future__ import annotations
@@ -182,3 +183,58 @@ def test_every_recording_rename_ends_at_a_committed_recording():
     assert sorted(set(settings.recording_renames.values()) - tracked) == []
     assert all(target.endswith(RECORDING_SUFFIX) for target in settings.recording_renames.values())
     assert sorted(set(settings.recording_renames) & tracked) == []
+
+
+# Where the superpowers skills keep a plan's scratch: its ledger, briefs, test logs and review
+# packages (one folder per plan under sdd/), never part of a branch
+PLAN_WORKSPACES_DIRECTORY = '.superpowers'
+
+
+def test_no_tracked_file_is_in_a_plan_workspace():
+    """Nothing under .superpowers/ is committed: it is a plan's scratch, not the project's.
+
+    #184 committed batch 9's final fix report there: only one machine's ``.git/info/exclude``
+    ignored the folder, which a fresh clone does not have, and ``git add --force`` passes any
+    ignore rule.
+    """
+    tracked = tracked_files()
+
+    assert tracked
+    assert [name for name in tracked if name.startswith(f'{PLAN_WORKSPACES_DIRECTORY}/')] == []
+
+
+def test_the_projects_gitignore_ignores_plan_workspaces(tmp_path):
+    """The project's own .gitignore ignores a plan's files, with no help from local settings.
+
+    The check runs in an empty repository holding only a copy of the .gitignore, with no
+    global excludes file, so a checkout's ``.git/info/exclude`` or a user's ignore list cannot
+    pass it.
+    """
+    (tmp_path / '.gitignore').write_text(
+        (PROJECT_ROOT / '.gitignore').read_text(encoding='utf-8'), encoding='utf-8'
+    )
+    initialized = run_command(
+        command=['git', 'init', '--quiet', str(tmp_path)],
+        environment=os.environ,
+        capture_output=OutputCapture.TOGETHER,
+        timeout_seconds=GIT_TIMEOUT_SECONDS,
+    )
+    assert initialized.returncode == 0, initialized.stdout
+
+    checked = run_command(
+        command=[
+            'git',
+            '-c',
+            'core.excludesFile=',
+            'check-ignore',
+            '--verbose',
+            f'{PLAN_WORKSPACES_DIRECTORY}/sdd/2026-11-19-a-plan/progress.md',
+        ],
+        environment=os.environ,
+        working_directory=tmp_path,
+        capture_output=OutputCapture.TOGETHER,
+        timeout_seconds=GIT_TIMEOUT_SECONDS,
+    )
+
+    assert checked.returncode == 0, checked.stdout
+    assert checked.stdout.startswith('.gitignore:'), checked.stdout
