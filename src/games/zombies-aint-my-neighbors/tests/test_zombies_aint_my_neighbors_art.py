@@ -321,7 +321,8 @@ BOM_INTRO_SPRITES: dict[str, tuple[tuple[int, int], IntroAnimations, int]] = {
     # The BOM says 14, "as in play": the play zombie's palette holds 15 (feature plan 12, a ruling)
     'intro_zombie': ((64, 64), {'climb-out': (4, 0.12, False)}, 15),
     'intro_lamp': ((32, 32), {'still': (1, None, None), 'flicker': (2, 0.08, True)}, 15),
-    'intro_snacks': ((32, 32), {'still': (1, None, None)}, 15),
+    # A still (one animation, one frame) is in the static layout: its animation is the sprite's
+    'intro_snacks': ((32, 32), {'intro_snacks': (1, None, None)}, 15),
 }
 BOM_INTRO_FRAMES = 46
 
@@ -342,6 +343,29 @@ def intro_document(stem: str) -> dict:
         The TOML document.
     """
     return tomllib.loads(intro_file(stem).read_text(encoding='utf-8'))
+
+
+def intro_animations(stem: str) -> list[dict]:
+    """Return an intro sprite's animations as its file holds them.
+
+    A still in the static layout (its pixels in ``[sprite]``) is one animation named after the
+    sprite, with one frame and no timing, as the engine loads it.
+
+    Returns:
+        Each animation's table: namespace, frames, and its interval and loop when it has them.
+    """
+    document = intro_document(stem)
+    if 'animation' in document:
+        return document['animation']
+    sprite = document['sprite']
+    return [
+        {
+            'namespace': sprite['name'],
+            'frame': [{'frame_index': 0, 'pixels': sprite['pixels']}],
+            'frame_interval': None,
+            'loop': None,
+        }
+    ]
 
 
 def test_the_intro_bom_totals_46_frames():
@@ -368,7 +392,7 @@ def test_each_intro_file_holds_every_bom_animation_with_its_timing_and_loop(stem
             animation['frame_interval'],
             animation['loop'],
         )
-        for animation in intro_document(stem)['animation']
+        for animation in intro_animations(stem)
     }
 
     assert set(found) == set(animations)
@@ -384,7 +408,7 @@ def test_every_intro_frame_has_its_bom_size_and_keeps_to_its_palette(stem):
     (width, height), _, limit = BOM_INTRO_SPRITES[stem]
     document = intro_document(stem)
 
-    for animation in document['animation']:
+    for animation in intro_animations(stem):
         for frame in animation['frame']:
             rows = frame['pixels'].strip('\n').split('\n')
             assert len(rows) == height, (animation['namespace'], frame['frame_index'])
@@ -397,16 +421,53 @@ def test_every_intro_frame_has_its_bom_size_and_keeps_to_its_palette(stem):
 
 @pytest.mark.parametrize('stem', BOM_INTRO_SPRITES)
 def test_every_shipped_intro_sprite_passes_the_engines_checks(stem, tmp_path):
-    """The schema, equal rows, tags, and a save keeping timings, hitboxes and pixels."""
+    """The schema, equal rows, tags, and a save keeping the document, pixels and timings.
+
+    The timing check skips a one-frame sprite (a save writes it without timing), and a skip
+    ends the test: it runs last, so every other check still runs for the snack bowl.
+    """
     sprite_file = intro_file(stem)
 
     sprite_files.check_values_match_the_schema(sprite_file=sprite_file)
     sprite_files.check_rows_have_equal_lengths(sprite_file=sprite_file)
     sprite_files.check_sprite_tags_are_well_formed(sprite_file=sprite_file)
+    sprite_files.check_pixels_survive_a_save_round_trip(sprite_file=sprite_file, directory=tmp_path)
+    sprite_files.check_save_keeps_the_parsed_document(sprite_file=sprite_file)
     sprite_files.check_animation_timings_survive_a_save_round_trip(
         sprite_file=sprite_file, directory=tmp_path
     )
-    sprite_files.check_pixels_survive_a_save_round_trip(sprite_file=sprite_file, directory=tmp_path)
+
+
+def test_every_file_the_build_writes_survives_a_save(tmp_path):
+    """A save of each built file gives back the document it parses to (the engine's save format).
+
+    The test gap behind main going red after #227: #220 made a save write a one-animation,
+    one-frame sprite in the static layout, while the build still wrote the snack bowl with an
+    ``[[animation]]`` table. Checked here on the build's own output, not only the committed files.
+    """
+    for sprite_file in build.build(directory=tmp_path):
+        sprite_files.check_save_keeps_the_parsed_document(sprite_file=sprite_file)
+
+
+def test_a_still_must_name_its_animation_after_its_sprite():
+    """The engine names a still's one animation after its sprite: the build refuses another name."""
+    with pytest.raises(ValueError, match="the still 'bowl' must name its one animation 'bowl'"):
+        build.character_sprite_text(
+            header=(),
+            name='bowl',
+            description='A still',
+            tags=('prop',),
+            hitbox={'offset_x': 0, 'offset_y': 0, 'width': 1, 'height': 1},
+            palette={'.': (255, 0, 255)},
+            frames={'still': (('.',),)},
+            specs=(),
+        )
+
+
+@pytest.mark.parametrize('stem', BOM_INTRO_SPRITES)
+def test_each_committed_intro_file_is_what_the_rig_writes(stem):
+    """Each shipped intro sprite is the build's output exactly: rebuilt, never hand-edited."""
+    assert intro_file(stem).read_text(encoding='utf-8') == build.intro_sprite_text(sprite=stem)
 
 
 @pytest.mark.parametrize('stem', BOM_INTRO_SPRITES)
