@@ -1,8 +1,9 @@
 # Arcade Sub-plan 5: One Playback Core, Then `DemoPlayer` — Implementation Plan
 
 Status: PLAN, for the owner's review (written 2026-11-20 against main at 4e6c7144; nothing built).
-Three decisions are the owner's (Open questions, below); the rest are rulings the owner may
-overturn.
+Decided by the owner on 2026-11-20: the viewer's own-context move is a later sub-plan (question 1)
+and the playback scope stays in its engine (question 2). One question is open (question 3, recast
+after a root-cause triage of Bitmappy's tile); the rest are rulings the owner may overturn.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task (execution is subagent-driven for every Arcade sub-plan: decision 4 of plans/2026-10-25-engine-context.md). Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -21,8 +22,8 @@ what a host needs to pace it (the next frame's recorded duration, the frame coun
 fast-forward), and `DemoPlayer` (engine module, no game imports) joins them: tick, surface,
 sound, outcome, loop, fast-forward, poster frame. The viewer is moved onto the pacer in this
 sub-plan; moving the viewer's inner game into a context of its own (engine context sub-plan 8)
-is a larger change the Arcade does not need, so it is scoped as the second half (Open question
-1).
+is a larger change the Arcade does not need, so it is a later sub-plan (decided by the owner,
+2026-11-20).
 
 **Tech Stack:** Python 3.14 (runs on 3.15), pygame-ce, pydantic (frozen, `extra='forbid'`),
 pytest + pytest-mock + xdist + pytest-benchmark, ruff, basedpyright, ty.
@@ -134,8 +135,7 @@ The spike has no budget, no slow motion, no fast-forward and no poster frame; th
   goes in `tests/benchmarks/`, never a one-off script.
 - Branch `arcade-5-playback-core` from main (all of 1-4 are merged), one PR, commits local until
   the owner says; commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-  The viewer's own-context half (Open question 1) is a second branch stacked on it, only if
-  the owner chooses it.
+  The viewer's own-context half is a later sub-plan (decided 2026-11-20).
 
 ## Decisions (the owner reviews them with the plan)
 
@@ -207,7 +207,7 @@ The spike has no budget, no slow motion, no fast-forward and no poster frame; th
     length divergence, which `ReplaySources.finish_run` makes `FAILED`: Task 4 tests both);
     and `LOOPED` as the transient state after a restart (the spec's "looped"; it reads as
     `PLAYING` from the next tick). The error text and the replay's report are kept for the
-    Arcade's label. What a diverged demo does next is Open question 3.
+    Arcade's label. What a diverged demo does next is the recast question 3.
 11. **Muted is the default and is the context's route.** A new `DemoPlayer` is silent (a new
     `InnerGame` is, rule 5). `audible` and `set_audible(*, audible)` delegate to the current
     `InnerGame`, and a looped player's new game gets the player's setting before its first
@@ -225,57 +225,123 @@ The spike has no budget, no slow motion, no fast-forward and no poster frame; th
     questions 1 and 2). What they share is made shared: the time slice (decision 3), the frame
     count function and the silencer, with guard tests that no second copy exists.
 
-## Open questions for the owner
+## Decided by the owner (2026-11-20)
 
-**1. Does the viewer's inner game move into a context of its own in this sub-plan (engine
-context sub-plan 8), or in its own sub-plan after Arcade 6?** Recommendation: its own, later.
+**1. The viewer's inner game moves into a context of its own (engine context sub-plan 8) in a
+later sub-plan, not in this one (the owner, 2026-11-20).** The reasoning, in plain words:
 
-The example: today, pressing `,` at frame 300 of PaddleSlap's golden replay ends the process,
-and a supervisor relaunches `paddleslap --replay-trace ... --replay-pause-at-frame 299` as a
-child, which rebuilds 299 frames silently before pausing (`rebuild.py`, steps 1-4). Moving the
-inner game into a context would make that an in-process new `InnerGame` plus `fast_forward(to_frame=299)`,
-deleting the supervisor, the handoff file and `--replay-restart-handoff`, and would make
-`--compare-trace`'s OLD stream possible in-process (plans/future-work.md). But the watched replay
-is one engine whose doors are the viewer (audit above), so the move means a new outer
-viewer game in the default context (window, keys, `ReplayControls`, status bar, bookmarks,
-onion skin, frame sink) around an `InnerGame` that today refuses to be watched (rule 1 of
-`inner_game.py`), with the known bug that a watched inner replay would drop real key presses
-(plans/future-work.md), a restructure of how `GameEngine` starts a watched replay
-(`game_engine.py:1520, 1647-1649, 3762`), and 45 viewer and 33 rebuild tests as the guard. The
-Arcade (sub-plans 6 to 8) needs none of it. This plan therefore puts the viewer on the shared
-pacer (Task 5, still in its own engine, no behaviour change) and leaves the own-context move
-as a later sub-plan, written once `DemoPlayer` and the pacer exist and show what it needs.
-The alternative: do it here as a second stacked branch; it delays the Arcade screen behind a
-change nothing in the Arcade uses, and the owner's "at most two branches in flight" rule would
-be spent on it.
+Today, `uv run paddleslap --replay-trace run.jsonl.gz` starts one engine: PaddleSlap's own. The
+"viewer" is not a second game; it is part of that engine's doors (`ReplaySources.viewer`,
+driver.py:1426), which decide before each PaddleSlap frame whether it runs now or waits for the
+next 60 Hz tick, and draw the status bar over it. Pressing `,` at frame 300 ends the process, and
+a supervisor relaunches `paddleslap --replay-trace ... --replay-pause-at-frame 299` as a child,
+which rebuilds 299 frames silently before pausing (`rebuild.py`, steps 1-4).
 
-**2. Is it right that the playback scope (demos inside a game, instant replay) stays in its
-engine and is not rebuilt on `InnerGame`?** Recommendation: yes, leave it.
+The alternative is the viewer as an outer game in the default context (window, keys, status bar,
+bookmarks) that holds PaddleSlap as an `InnerGame` in its own context, the way the Arcade will
+hold ten tiles. What it gains: step back becomes a new `InnerGame` plus `fast_forward(to_frame=299)`
+in the same process, which deletes the supervisor, the handoff file and
+`--replay-restart-handoff`, and makes `--compare-trace`'s OLD stream possible in-process
+(plans/future-work.md); and the watched replay is then the first user of the Arcade's own design.
+What it costs: a new outer viewer game around an `InnerGame` that today refuses to be watched
+(rule 1 of `inner_game.py`), the known bug that a watched inner replay would drop real key
+presses (plans/future-work.md), a restructure of how `GameEngine` starts a watched replay
+(`game_engine.py:1520, 1647-1649, 3762`), and 45 viewer and 33 rebuild tests as the guard.
+The Arcade (sub-plans 6 to 8) needs none of it, so it should not delay them. This sub-plan puts
+the viewer on the shared pacer (Task 5, still in its own engine, no behaviour change); the
+own-context move is planned afterwards, from what `DemoPlayer` and the pacer show it needs.
 
-The example: PaddleSlap scores a goal at frame 1,200 and calls `instant_replay`. The scope
-stashes the live scene, rebuilds the recorded scene into the same `SceneManager` from the
-journal's `scene_start`, plays the last 5 s, then restores the live scene exactly as it was,
-with the live game's devices, saves and pause screen untouched (`playback.py` rules 2 and 4).
-An `InnerGame` is a second game in a second context; it cannot return to the first game's live
-scene, and rebuilding the scope on it would be a rewrite whose only gain is a name. What the
-scope does share (a time slice, `fast_forward_frame_count`, `FrameSilencer`) is shared. The
-alternative is to force it onto the core anyway to satisfy the spec's wording, at the cost of
-the scope's semantics.
+**2. The playback scope and instant replay stay in their engine and are not rebuilt on
+`InnerGame` (the owner, 2026-11-20).** Example: PaddleSlap scores a goal at frame 1,200 and calls
+`instant_replay`. The scope stashes the live scene, rebuilds the recorded scene into the same
+`SceneManager` from the journal's `scene_start`, plays the last 5 s, then restores the live scene
+exactly as it was, with the live game's devices, saves and pause screen untouched
+(`playback.py` rules 2 and 4). An `InnerGame` is a second game in a second context; it cannot
+return to the first game's live scene. What the scope does share (a time slice,
+`fast_forward_frame_count`, `FrameSilencer`) is shared.
 
-**3. What does a tile do when its demo diverges?** Recommendation: restart once; if the next
-run diverges at the same frame, freeze on the last frame with the "error" label and stop
-restarting. The spec's "the tile restarts its demo and goes on, logged once" means a restart
-every time.
+**Also agreed (the owner, 2026-11-20):** the three `assert`s in `inner_game.py` become raises in
+Task 2 (the sweep of the rest is in Follow-ups); and the master plan's sentence about
+`MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS` is corrected in the spec itself (done in this commit:
+it is a cap on a whole journal checked once when instant replay is requested,
+`scenes/scene.py:3158` and `replay/playback.py:1346`, not a fast-forward).
 
-The example (today's Bitmappy tile, the strict xfail in
-`tests/test_every_recording_replays_inside_an_inner_game.py`): its demo diverges at frame 0, so
-the player ends after one frame. Restarting at once builds Bitmappy again (73 to 180 ms
-measured here) every other Arcade frame, forever: the screen would run at a few frames a second
-and no one would see why, because the log line is "once". With the recommendation the tile
-shows its one drawn frame and a label after the second divergence, the other nine tiles run
-normally, and fixing Bitmappy's bug (plans/future-work.md) un-freezes it with no change to the
-player. The alternative follows the spec literally and relies on tests catching divergences
-"long before" (the spec's Errors section), which does not hold for the tile that diverges today.
+## Root cause: why Bitmappy's tile diverges at frame 0 (triage, 2026-11-20)
+
+Reproduced, instrumented and measured with scratch scripts (not kept; Apple M4 Max, dummy
+drivers, this worktree), without changing any engine or Bitmappy code.
+
+1. **Reproduction.** The bundled demo `bitmappy/demos/drawing.jsonl.gz` replayed as an
+   `InnerGame` inside an outer window of 1280x720: `Replay diverged at frame 0: sprite
+   FilmStripSprite#0 rect expected [350, 24, 450, 124], got [350, 24, 930, 124]`, outcome ended
+   after 1 frame. Inside an outer window of 800x480 (the demo's own size) the same replay
+   matches all 900 frames. This is the strict xfail in
+   `tests/test_every_recording_replays_inside_an_inner_game.py` (`DIVERGES_INSIDE_A_TILE`).
+2. **The first differing value is one field of one sprite: the film strip's width**, 450 recorded
+   and 930 in the tile. The recorded 450 is 800 - 350 (the tile's width less the strip's left
+   edge); 930 is 1280 - 350 (the outer window's width less the same edge).
+3. **The door is not an engine door: it is a direct pygame call.** A spy on
+   `pygame.display.get_surface` (scratch, restored after) saw Bitmappy call it at
+   `film_strip_coordinator.py:348` (`_calculate_film_strip_dimensions`, once, at frame 0, answered
+   with the 1280x720 outer window) and at `controllers/visual_indicators.py:326` (every frame,
+   900 times in the matching run). `animated_canvas.py:1631` was not reached by this demo.
+   `film_strip_coordinator.py:348` computes `film_strip_width = max(300, window width - film_strip_x)`.
+4. **Proof that this is the whole cause.** In a scratch run only, `get_surface` was answered with
+   the inner context's render target (`glitchygames.render_target.display_surface()`, which the
+   engine already reads instead of `pygame.display.get_surface()`, `render_target.py:95`): the
+   tile in the 1280x720 window then matched all 900 frames.
+
+So the divergence is deterministic and has nothing to do with the replay's pacing, the
+recording or the demo: Bitmappy sizes itself from the process's one display surface, and in a
+tile that is the host's window. pygame has one display surface per process, and a game's direct
+`pygame.display.get_surface()` cannot be answered per context by an engine that replaces no pygame
+function (sub-plan 3's rule).
+
+**The other strict xfail is the same family, a different direction.** The text-input demo's tile
+changes the outer game's key repeat. Measured: the outer set `(0, 0)`; after the tile's build
+`pygame.key.get_repeat()` was `(350, 350)` (the demo's own `setup()`, `text_input_demo/__init__.py:69`);
+after its 600 frames `(200, 200)` (17 calls of the engine's `ui/inputs.py:195` on key releases).
+Its replay still matched all 600 frames. The class, stated as a property: **code running in a
+context calls a pygame function whose state is the process's, not the context's**. Bitmappy
+*reads* one (the answer is the host's, so the tile misbehaves: it diverges); the text-input demo
+*writes* one (the tile is right, the host's state is changed). The same class is the remaining
+rows of `plans/future-work.md`: text input start and stop (`ui/text_widgets.py:1218-1511`), the
+mouse cursor (`bitmappy/animated_canvas.py:1156, 1178`), the font resolution, and a third member
+found here: **Bitmappy's `main()` calls `multiprocessing.set_start_method('spawn', force=True)`**
+(`editor.py:1643`), and a tile run changed the host's start method from None to `spawn` (measured
+below). Sweeping for siblings, the callers of the display, key and mouse state in `src/` that
+engine code makes are `ui/inputs.py:195` and `ui/text_widgets.py` (the engine's own, fixable
+in the engine); the rest are game or app code (Bitmappy, the text-input demo).
+
+### Question 3, recast: is a diverging demo a policy question or a bug? (open)
+
+It is a bug, for the demos that diverge today; the divergence policy is a small defence for a
+demo that drifts later. The fix options for the bug:
+
+- **A (recommended): a context-scoped answer for the process-global pygame calls**, installed by
+  `InnerGame` while an inner context's code runs and removed after (the display surface answers
+  with the render target; the key repeat, text input and cursor calls act on the context's own
+  copy and reach SDL only for the context that owns the window). It fixes Bitmappy and the
+  text-input demo with no game change, which the owner's rule requires, and the whole class at
+  one place. Its cost: it replaces pygame functions for the duration of a tile's frames, which
+  sub-plan 3 and 4 ruled out ("no pygame function is replaced", written about the mixer). The
+  owner would have to say that rule does not cover this scoped case. It is not this sub-plan's
+  work; it is a small sub-plan of its own, before the Arcade screen needs Bitmappy.
+- **B: Bitmappy reads its scene's screen** (`display_surface()` or `self.screen`) at the three
+  sites (`film_strip_coordinator.py:348`, `visual_indicators.py:326`, `animated_canvas.py:1631`),
+  and the demo drops its `set_repeat`. It is the cleaner code, and the app is a member of this
+  repository, but it breaks "wrapping a game needs no changes to the game". Bitmappy's bug exists
+  outside the Arcade too (a window not 800x480).
+- **C: keep the strict xfails and hold the policy.** The Arcade would show Bitmappy frozen after
+  one frame from its first run.
+
+Then the divergence policy, for a demo that drifts after it was recorded: **restart once, and
+if the next run diverges at the same frame, freeze on the last frame with the "error" label and
+stop restarting** (recommended), against the spec's "the tile restarts its demo and goes on,
+logged once". With today's Bitmappy and no fix, "restart each time" would rebuild it (73 to 180
+ms measured, 3.1 s in one run) every other Arcade frame. With fix A the policy is rarely
+reached, and the recommendation costs a few lines. The owner decides A, B or C first; the
+policy follows.
 
 ## Review Focus
 
@@ -336,7 +402,7 @@ constants moved from `viewer.py`: `MAX_OWED_INNER_FRAMES`, `INNER_FRAME_BUDGET_S
 `ReplaySources.next_frame_seconds`; `hold_frame` calls it), `src/glitchygames/inner_game.py`
 (`next_frame_seconds`, `frame_count`, `frame_index`; the two `assert engine is not None` at
 610 and 643 and the one at 792 become raises of `InnerGameStartError`-style errors, since
-the global rule forbids `assert` outside tests and this task edits those functions), tests in
+the owner agreed 2026-11-20 that these are a rule breach; the sweep of the rest is below), tests in
 `tests/engine/test_inner_game.py` and the driver's test file.
 
 - [ ] Tests: `next_frame_seconds` equals the viewer's rule (the next frame's recorded `dt`, the
@@ -396,7 +462,7 @@ tests in `tests/engine/test_inner_game.py` and `tests/replay/test_rebuild.py` (u
     that behaves differently from its recording is `DIVERGED` (a mismatched frame, and a
     recording longer than the run: the length divergence that arrives as `FAILED`); the other
     players are unaffected by any of these.
-  - the Open question 3 behaviour as the owner decides (restart once then freeze, or restart).
+  - the divergence policy as the owner decides (question 3: restart once then freeze, or restart).
   - guard: the module imports no game and reads no clock but the budget's.
 - [ ] Implement; full suite; commit (`Demo player: a recorded game that loops, fast-forwards and paces itself`).
 
@@ -440,9 +506,9 @@ warm; the ten posters' fast-forward in total; `nox -s performance-test` runs the
 
 ---
 
-## The viewer's own context (engine context sub-plan 8): what it needs, if the owner wants it
+## The viewer's own context (engine context sub-plan 8): a later sub-plan
 
-Not planned in tasks here (Open question 1). Its design questions, found by the audit, so the
+Decided by the owner 2026-11-20 to be later; not planned in tasks here. Its design questions, found by the audit, so the
 later plan starts from them: where the outer viewer game lives (an outer `GameEngine` in the
 default context that hosts the game's engine in a context, instead of the game's own engine
 being the viewer's doors: `game_engine.py:1520, 1647-1649, 3762`); how a watched `InnerGame`
@@ -466,19 +532,44 @@ stays valid. Its guard is every watched-replay test and golden replay, unchanged
 - **8 (browser):** `tick` is synchronous and takes elapsed time as an argument, so one Arcade
   tick runs its players inside `with player.context.active()` without an `await` between.
 
-## Bugs and oddities found while planning
+## Follow-ups and bugs found while planning (2026-11-20)
 
-- `src/glitchygames/inner_game.py:610, 643, 792`: `assert` outside tests (the owner's global
-  rule: raise; bandit B101). Fixed in Task 2 where the function is touched; line 792 is
-  `_settle_replay_report`, edited with it.
-- The spec says `MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS` is a fast-forward the core shares;
-  it is a cap on the whole journal checked once when instant replay is requested
-  (`scenes/scene.py:3158`, `replay/playback.py:1346`), not a time slice. The master plan's
-  sentence is corrected in Task 6.
-- A scratch measurement script without a `__main__` guard was re-run by child processes
-  three times (its output showed three process ids) while it built every bundled demo as an
-  inner game. The likely cause is Bitmappy's tile: `src/apps/bitmappy/src/bitmappy/ai_worker.py`
-  (lines 39, 732-819) uses `multiprocessing` queues, and a spawned worker re-imports the
-  host's `__main__`. Not confirmed (I did not trace it). If it is the cause, a Bitmappy tile
-  starts a child process inside the Arcade, which the Arcade's "one process, no children"
-  rule and `tests/child_process_guard.py` care about; worth a look in sub-plan 6.
+- **`assert` in engine code, a class (the owner agreed it is a rule breach).** The class:
+  engine invariant checks written as `assert`, which `python -O` strips, with bandit's B101
+  filtered out of its configuration. Swept: `grep -E '^\s*assert\b'` over `src/` outside
+  `tests/` directories finds **154** (none in `glitchygames/testing/`): `src/apps/bitmappy` 37,
+  `glitchygames/scenes/scene.py` 24 (the owner remembered about ten, e.g. 2595, 2669, 2700),
+  `audio/library.py` 9, `game_objects/paddle.py` 7, `replay/driver.py` 6,
+  `replay/tools/golden_traces.py` 6, `replay/tools/compare.py` 6, `audio/assets.py` 5,
+  `ai_console.py` 5, `ui/dialogs.py` 4, `src/games/drawing-fire` 4, `src/games/brave-adventurer`
+  4, `inner_game.py` 3, and 29 more in 20 other files (the list is a one-line grep to redo).
+  Where it is filtered: ruff's S101 is **ignored for the whole project** at `pyproject.toml:495`
+  ("assert is used intentionally for type narrowing and runtime invariant checks"), and bandit
+  runs at medium severity and confidence (`pyproject.toml:780-787`, `noxfile.py:2358-2359`:
+  `-ll -ii`) with the comment "B101 (assert_used) is Low severity and gets filtered out by this.
+  TODO: Replace remaining assert usage with explicit raises, then tighten to low/low". Both
+  came in with `c9b9f5fa` (2026-03-21, "Miscellaneous Bug Fixes (#71)", `git log -S`); the TODO
+  still stands. This sub-plan fixes only the three in `inner_game.py` (Task 2). Fixing the rest
+  is its own task (raise a named error, then drop the S101 ignore and tighten bandit), and the
+  S101 ignore is a global suppression the owner's rules say to ask about.
+- **Spec correction:** done in the spec file (above).
+- **A Bitmappy tile starts a child process (confirmed), and my measuring script ran three
+  times because of it.** Evidence: a spy on `multiprocessing.process.BaseProcess.start` while a
+  Bitmappy tile was built as an `InnerGame` saw the call, from `ai_manager.py:182`
+  (`AIManager.setup`, started from `bitmappy/editor.py:866` during the scene's setup, reached
+  through `scenes/scene.py:2987, 1674, 1665`) and the child got a pid; it was in the host's
+  process tree. It happens in a headless replay too. The cause of the three runs: `main()` in
+  `editor.py:1643` sets the start method `spawn`, and a spawned child re-imports the parent's
+  `__main__`; my scratch script had no `__main__` guard, so each child ran it again. With a guard
+  it ran once. Also measured: the host's start method was None before the tile and `spawn`
+  after (a process-global leak, the same class as above). On this machine the worker was not
+  alive by the end of the build (`multiprocessing.active_children()` empty, no process left
+  after the tile finished, `ps` clean; I did not trace why it exits, so a configured AI backend
+  may keep it alive and I did not test that). So: it does not need a game change to wrap
+  Bitmappy, but it breaks the Arcade's "one process, no children" intent (the master plan, B and
+  D2 set aside) and would be caught by `tests/child_process_guard.py` if a test left it
+  running. Fix options for sub-plan 6 or the class fix above: no AI worker in an inner context
+  (`AIManager.setup` is Bitmappy's, so again an engine-side answer is needed, for example
+  `multiprocessing.current_process().name`, which the manager already tests), and a scoped
+  start-method answer. The Arcade should also make a tile's `finish()` reach the scene's
+  cleanup (`AIManager.cleanup`); I did not verify that it does.

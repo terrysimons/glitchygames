@@ -145,9 +145,14 @@ rebuilt on it. Guard: every existing replay, demo and instant-replay test passes
 - it loops: a demo reaching its end restarts from its own first frame, in its own context;
 - `fast_forward(to_frame=N)`: runs frames 0..N-1 as fast as the machine allows, unpresented,
   unpaced and silent, within a time budget per Arcade frame (so the screen stays responsive),
-  then shows frame N. It is the playback core's one fast-forward: the watched replay's rebuild
-  (frames 0..N-1 before it pauses) and instant replay (`MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS`)
-  use it too. Rewind is later (it needs the state snapshots in `plans/future-work.md`).
+  then shows frame N. The watched replay's rebuild (frames 0..N-1 before it pauses) shares its
+  time slice (`TickBudget`), and instant replay shares the frame-count function
+  (`fast_forward_frame_count`) and the silencer; neither runs on it (corrected 2026-11-20, see
+  [2026-11-20-arcade-5-playback-core.md](2026-11-20-arcade-5-playback-core.md)).
+  `MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS` is not a fast-forward: it is a cap on the whole
+  journal, checked once when instant replay is requested (`src/glitchygames/scenes/scene.py:3158`,
+  `src/glitchygames/replay/playback.py:1346`); a longer journal gets no instant replay. Rewind is
+  later (it needs the state snapshots in `plans/future-work.md`).
 
 **Poster frames.** At startup each tile picks a frame of its demo from the Arcade's seeded random
 stream (`random_stream('arcade-posters')`) and fast-forwards there; meanwhile it shows its title
