@@ -260,6 +260,24 @@ TITLE ──(idle 20 s)──► INTRO (loop showing) ──(its end)──► D
 - The attract scene's layout of code beyond `attract.py`, and how the intro is told where to
   hand over.
 
+## Deferred minors (the final review, 2026-11-19)
+
+The branch's final review found no Critical and one Important finding (fixed, with a Minor
+re-graded Important and fixed); these were set aside. Recorded here on 2026-11-20 because the
+ledger is gitignored; each was rechecked on main then and is still open.
+
+- `DemoPlan.routes` and `KidStretch` (`scripts/plan_neighborhood_route.py`) feed nothing that
+  ships since the demo steers live; only three plan tests read them.
+- A demo that ENDED diverged (a gameplay change without a re-record) goes to the title without a
+  WARNING; only a FAILED demo warns (`attract.py`).
+- The Pi's build time for the demo is unmeasured: the Mac's 940 ms first showing suggests the Pi
+  may pass the 1 s line (the Pi was down).
+- The press test stops at `SHORT_DEMO_FRAMES - 2`, not the demo's very last frame
+  (`test_zombies_aint_my_neighbors_attract.py`).
+
+A finding from Task 3, older than this feature, is in plans/future-work.md ("Bugs found and not
+fixed yet"): the neighborhood golden's route planner has the same open-loop flaw the demo's had.
+
 ---
 
 # Implementation plan
