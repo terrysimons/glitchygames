@@ -36,6 +36,7 @@ import pygame
 
 from glitchygames import engine_context, pixel_snap, process, randomness, sources
 from glitchygames.audio.engine import AUDIO_ENGINE_SLOT
+from glitchygames.audio.instruments import registry as instruments_registry
 from glitchygames.audio.library import ENGINE_SOUND_CACHE
 from glitchygames.audio.voices import release_channels
 from glitchygames.backgrounds import set_active_default_background_pattern
@@ -66,7 +67,7 @@ from tests.display_canvas import (
     show_canvas_on_new_display,
 )
 from tests.engine_source import ENGINE_DIRECTORY
-from tests.garbage_collection import process_peak_memory_collector, release_test_instance
+from tests.garbage_collection import process_memory_release, release_test_instance
 from tests.git_environment import clear_git_repository_variables
 from tests.hidden_test_windows import hide_test_windows
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
@@ -261,18 +262,19 @@ def _fail_on_entirely_black_frame(
 settings.register_profile('glitchygames', deadline=None)
 settings.load_profile('glitchygames')
 
-# This process's collector (None on Windows), made as the session starts
-_PEAK_MEMORY_COLLECTOR = process_peak_memory_collector()
+# This process's garbage collector and glibc heap trimmer, made as the session starts
+_MEMORY_RELEASE = process_memory_release()
 
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_protocol(item, nextitem):
-    """Free the finished test's memory: its class instance's state, then its garbage.
+    """Free the finished test's memory: its class instance's state, its garbage, the free heap.
 
     Once the test's reports are made and logged, pytest has dropped its fixture values, and
     ``release_test_instance`` empties the test class's instance, which pytest itself keeps for
     the rest of the run; so its scene and sprites are garbage, which the collector frees when
-    memory climbs (tests/garbage_collection.py).
+    memory climbs. On glibc Linux the free heap then goes back to the system (``malloc_trim``):
+    tests/garbage_collection.py.
 
     Returns:
         object: The wrapped hook's result.
@@ -282,8 +284,7 @@ def pytest_runtest_protocol(item, nextitem):
         return (yield)
     finally:
         release_test_instance(item=item)
-        if _PEAK_MEMORY_COLLECTOR is not None:
-            _PEAK_MEMORY_COLLECTOR.after_test()
+        _MEMORY_RELEASE.after_test()
 
 
 def pytest_configure(config):
@@ -481,6 +482,20 @@ def empty_engine_sound_cache():
     ENGINE_SOUND_CACHE.clear()
     yield
     ENGINE_SOUND_CACHE.clear()
+
+
+@pytest.fixture(autouse=True)
+def empty_instrument_catalog_builds():
+    """Start and end each test with no catalog instrument built (``instruments.get``'s cache).
+
+    A built instrument keeps a band-limited wave table for every band a note has read
+    (``Wave.band_limited_table``): kept for the whole run, the catalog's builds held 26 MiB of
+    them after the audio tests (2026-11-19, the Linux CI container), memory the Linux job's
+    guard counts. Within a test a build is still shared; no module keeps one past its test.
+    """
+    instruments_registry._built.cache_clear()
+    yield
+    instruments_registry._built.cache_clear()
 
 
 @pytest.fixture(autouse=True)
@@ -809,12 +824,28 @@ def per_context_state_resets(
 
 
 @pytest.fixture
+def engine_cache_resets(
+    empty_engine_sound_cache, empty_engine_sprite_cache, empty_instrument_catalog_builds
+):
+    """Group the emptying of the engine's process caches, for the leak check.
+
+    A group of its own inside engine_service_resets, which would otherwise take more arguments
+    than the lint allows.
+
+    Args:
+        empty_engine_sound_cache: Requested only to be torn down after the leak check.
+        empty_engine_sprite_cache: Requested only to be torn down after the leak check.
+        empty_instrument_catalog_builds: Requested only to be torn down after the leak check.
+
+    """
+
+
+@pytest.fixture
 def engine_service_resets(
     desktop_user_files,
     in_process_clipboard,
     restore_game_engine_class_state,
-    empty_engine_sound_cache,
-    empty_engine_sprite_cache,
+    engine_cache_resets,
 ):
     """Group the resets of the engine's other installed state, for the leak check.
 
@@ -822,8 +853,7 @@ def engine_service_resets(
         desktop_user_files: Requested only to be torn down after the leak check.
         in_process_clipboard: Requested only to be torn down after the leak check.
         restore_game_engine_class_state: Requested only to be torn down after the leak check.
-        empty_engine_sound_cache: Requested only to be torn down after the leak check.
-        empty_engine_sprite_cache: Requested only to be torn down after the leak check.
+        engine_cache_resets: Requested only to be torn down after the leak check.
 
     """
 

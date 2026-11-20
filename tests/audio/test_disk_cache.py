@@ -20,6 +20,8 @@ from glitchygames.audio.disk_cache import DiskSoundCache
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from pytest_mock import MockerFixture
+
 SAMPLE_RATE = 44100
 KEY = 'ab' + '0' * 30
 OTHER_KEY = 'cd' + '1' * 30
@@ -300,3 +302,47 @@ def test_a_game_name_that_is_not_one_plain_folder_name_is_refused(
     """A game's folder is one plain name inside the root, never a path out of it."""
     with pytest.raises(ValueError, match='game'):
         disk_cache.sounds_directory(root=tmp_path, game=game, render_version=7)
+
+
+def test_outside_the_browser_a_write_lock_is_a_lock_file(tmp_path: Path) -> None:
+    """On the desktop the lock is the sound's lock file, held through filelock (rule 5a)."""
+    cache = make_cache(tmp_path)
+
+    with cache.write_lock(identity_key=KEY) as held:
+        assert held is True
+        lock_path = tmp_path / KEY[:2] / f'{KEY}.wav{disk_cache.LOCK_SUFFIX}'
+        assert lock_path.exists()
+
+
+def test_in_the_browser_a_write_lock_takes_no_lock_and_needs_no_filelock(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """A page runs one Python process: the lock is held at once, no file and no filelock.
+
+    The browser bundle does not install filelock, so an import of it there stops the page.
+    """
+    mocker.patch.object(disk_cache, 'sys', mocker.Mock(platform=disk_cache.BROWSER_PLATFORM))
+    file_lock = mocker.patch('filelock.FileLock')
+    cache = make_cache(tmp_path)
+
+    with cache.write_lock(identity_key=KEY) as held:
+        assert held is True
+
+    file_lock.assert_not_called()
+    assert not list(tmp_path.rglob(f'*{disk_cache.LOCK_SUFFIX}'))
+
+
+def test_a_sound_written_in_the_browser_reads_back(tmp_path: Path, mocker: MockerFixture) -> None:
+    """Locking nothing changes nothing else: the write under it reads back exactly."""
+    mocker.patch.object(disk_cache, 'sys', mocker.Mock(platform=disk_cache.BROWSER_PLATFORM))
+    cache = make_cache(tmp_path)
+    written = samples()
+
+    with cache.write_lock(identity_key=KEY) as held:
+        assert held
+        cache.write(identity_key=KEY, samples_int16=written, peak=0.5, sample_rate=SAMPLE_RATE)
+
+    cached = cache.read(identity_key=KEY, sample_rate=SAMPLE_RATE, frame_count=len(written))
+    assert cached is not None
+    assert np.array_equal(cached.samples_int16, written)
+    assert cached.peak == 0.5
