@@ -229,4 +229,4 @@ class GameOverScene(RosterScene):
         # Imported here: the title leads, through the card and the neighborhood, back here
         from zombies_aint_my_neighbors.title import TitleScene
 
-        self.next_scene = TitleScene(options=self.options, roster=self.roster)
+        self.next_scene = TitleScene(options=self.options, roster=self.roster, opening=False)

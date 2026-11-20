@@ -755,6 +755,76 @@ def test_a_kid_out_of_lives_does_not_cheer(kid):
     assert kid.state is KidState.KNOCKED_OUT
 
 
+def knockout_frames() -> int:
+    """Return how many 60 Hz frames a knockout with lives left takes, down to back up.
+
+    Returns:
+        The frames.
+    """
+    return round((KNOCKOUT_SECONDS + LYING_SECONDS + RESPAWN_SECONDS) / SIXTIETH_OF_A_SECOND)
+
+
+@pytest.mark.parametrize(
+    'frames_into_the_knockout',
+    [0, round(KNOCKOUT_SECONDS / SIXTIETH_OF_A_SECOND) + 1, knockout_frames() - 2],
+    ids=['knocked-out', 'lying', 'respawning'],
+)
+def test_a_kid_knocked_out_at_the_clear_finishes_its_knockout_then_cheers(
+    kid, frames_into_the_knockout
+):
+    """Lives left: the knockout plays out, and the kid cheers as it gets up, never standing idle.
+
+    The stage clear's deferred Minor (feature plan 7's final review): it got back up during the
+    cheer and stood there.
+    """
+    kid.knock_out(last_life=False)
+    for _ in range(frames_into_the_knockout):
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+    knocked_out_state = kid.state
+
+    kid.cheer()
+    states = []
+    for _ in range(knockout_frames()):
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+        states.append(kid.state)
+
+    assert knocked_out_state is not KidState.ACTIVE
+    assert KidState.ACTIVE not in states
+    assert kid.state is KidState.CHEERING
+    assert kid.current_animation == 'cheer'
+    assert not kid.can_move
+    assert not kid.is_touchable
+
+
+def test_a_kid_out_of_lives_fades_out_through_the_cheer(kid):
+    """The last life's knockout still fades the kid out: it never cheers."""
+    kid.knock_out(last_life=True)
+    kid.cheer()
+    states = []
+    for _ in range(knockout_frames() * 2):
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+        states.append(kid.state)
+
+    assert KidState.CHEERING not in states
+    assert kid.state is KidState.OUT
+
+
+def test_a_kid_already_fading_when_the_stage_clears_fades_out(kid):
+    """Out of lives and fading as the stage clears: it goes on fading, and never cheers."""
+    kid.knock_out(last_life=True)
+    while kid.state is not KidState.FADING:
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+
+    kid.cheer()
+    states = []
+    for _ in range(knockout_frames()):
+        kid.dt_tick(SIXTIETH_OF_A_SECOND)
+        states.append(kid.state)
+
+    assert KidState.CHEERING not in states
+    assert kid.state is KidState.OUT
+
+
 # Shining the laser pointer (feature plan 8): hold fire with the laser pointer to shine; the
 # dot sits 160 px ahead of the kid's feet along its aim, kept inside the yard
 

@@ -173,7 +173,8 @@ def load_frames(*, path: Path) -> dict[str, tuple[pygame.Surface, ...]]:
     """
     sprite = AnimatedSprite(filename=str(path))
     return {
-        namespace: tuple(_with_transparency(frame.image) for frame in animation_frames)
+        # read_only_image: _with_transparency copies each frame; image would copy it first too
+        namespace: tuple(_with_transparency(frame.read_only_image) for frame in animation_frames)
         for namespace, animation_frames in sprite.animations.items()
     }
 

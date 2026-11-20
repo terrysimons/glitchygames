@@ -11,10 +11,11 @@ import sys
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
-from typing import NoReturn
+from typing import Any, NoReturn
 
 import pytest
 import yaml
+from pydantic import BaseModel, ConfigDict
 from scripts.workspace_packages import workspace_members
 
 from glitchygames.process import OutputCapture, run_command
@@ -936,14 +937,459 @@ def test_the_linux_job_installs_what_hidapis_source_build_needs():
     assert 'libusb-dev' not in packages
 
 
+APT_INSTALL_STEP_NAME = 'Install Linux system dependencies'
+APT_CACHE_KEY_PREFIX = 'apt-v2-'
+# The file a step writes this ISO week to, whose checksum ends the apt cache's key (git-ignored)
+APT_CACHE_WEEK_FILE = 'test-results/apt-cache-week'
+# How many times the fallback runs apt-get update before the step fails, and CircleCI's
+# no-output limit for a step that sets none: the waits between attempts stay under it
+APT_UPDATE_ATTEMPTS = 5
+CIRCLECI_DEFAULT_NO_OUTPUT_SECONDS = 600
+# The Ubuntu sources file of CircleCI's image (cimg/python:3.15.2, amd64): the step derives
+# the main-only sources apt reads from it
+UBUNTU_SOURCES = (
+    'Types: deb\n'
+    'URIs: http://archive.ubuntu.com/ubuntu/\n'
+    'Suites: resolute resolute-updates resolute-backports\n'
+    'Components: main universe restricted multiverse\n'
+    'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n'
+    '\n'
+    'Types: deb\n'
+    'URIs: http://security.ubuntu.com/ubuntu/\n'
+    'Suites: resolute-security\n'
+    'Components: main universe restricted multiverse\n'
+    'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n'
+)
+# The apt settings file the step writes, and the sources file it points apt at
+APT_SETTINGS_PATH = Path('etc/apt/apt.conf.d/80glitchygames-apt-cache')
+APT_MAIN_SOURCES_PATH = Path('etc/apt/glitchygames-ubuntu-main.sources')
+
+
+def linux_job_steps() -> list[Any]:
+    """Return the Linux test job's steps, parsed.
+
+    Returns:
+        The steps, in order.
+
+    """
+    steps = circleci_jobs()['test-python-3-15-linux']['steps']
+    assert isinstance(steps, list)
+    return steps
+
+
+def apt_install_step_index(*, steps: list[Any]) -> int:
+    """Return the index of the Linux job's system-package step.
+
+    Returns:
+        The index.
+
+    """
+    for index, step in enumerate(steps):
+        if isinstance(step, dict) and step.get('run', {}).get('name') == APT_INSTALL_STEP_NAME:
+            return index
+    pytest.fail(f'test-python-3-15-linux has no "{APT_INSTALL_STEP_NAME}" step')
+
+
+def apt_install_script() -> str:
+    """Return the Linux job's system-package step's shell script.
+
+    Returns:
+        The script.
+
+    """
+    steps = linux_job_steps()
+    script = steps[apt_install_step_index(steps=steps)]['run']['command']
+    assert isinstance(script, str)
+    return script
+
+
+def apt_cache_steps(*, steps: list[Any], kind: str) -> list[tuple[int, dict]]:
+    """Return the Linux job's restore_cache or save_cache steps for the apt cache.
+
+    Returns:
+        (index, the step's settings) for each one whose key starts with the apt prefix.
+
+    """
+    found = []
+    for index, step in enumerate(steps):
+        if not isinstance(step, dict) or kind not in step:
+            continue
+        settings = step[kind]
+        keys = settings.get('keys', [settings.get('key')])
+        if any(str(key).startswith(APT_CACHE_KEY_PREFIX) for key in keys):
+            found.append((index, settings))
+    return found
+
+
+def test_the_linux_job_restores_its_apt_cache_before_installing_and_saves_it_after():
+    """An Ubuntu mirror outage (jobs 3822, 3827) cannot stop a job whose packages are cached.
+
+    The owner, 2026-11-19 ("Yeah, 226"): cache apt's lists and the downloaded packages. One
+    restore before the install and one save after it, under the same key.
+    """
+    steps = linux_job_steps()
+    install = apt_install_step_index(steps=steps)
+    restores = apt_cache_steps(steps=steps, kind='restore_cache')
+    saves = apt_cache_steps(steps=steps, kind='save_cache')
+
+    assert len(restores) == 1
+    assert len(saves) == 1
+    (restore_index, restore), (save_index, save) = restores[0], saves[0]
+    assert restore_index < install < save_index
+    assert restore['keys'][0] == save['key']
+
+
+def test_the_apt_cache_key_turns_over_weekly_and_falls_back_to_the_last_one():
+    """CircleCI never overwrites a key: a key that never changed would freeze the first lists.
+
+    Once the mirror dropped a version those lists name, every run would install from the mirror
+    and none could save fresher lists (glitchygames-43's review, 2026-11-19). The key ends with
+    this ISO week's checksum, written by a step before the restore; the restore falls back to
+    the key without it, so a new week starts from last week's cache, and its run saves anew.
+    """
+    steps = linux_job_steps()
+    ((restore_index, restore),) = apt_cache_steps(steps=steps, kind='restore_cache')
+    ((_, save),) = apt_cache_steps(steps=steps, kind='save_cache')
+    week_file = APT_CACHE_WEEK_FILE
+    week_steps = [
+        index
+        for index, step in enumerate(steps)
+        if isinstance(step, dict)
+        and f'date +%G-%V > {week_file}' in str(step.get('run', {}).get('command', ''))
+    ]
+
+    assert len(week_steps) == 1
+    assert week_steps[0] < restore_index
+    assert save['key'].endswith(f'-{{{{ checksum "{week_file}" }}}}')
+    (current, fallback) = restore['keys']
+    assert current == save['key']
+    assert fallback != current
+    assert current.startswith(fallback)
+    assert fallback.endswith('-')
+
+
+def test_the_apt_cache_key_holds_the_image_the_arch_and_every_installed_package():
+    """Changing the packages, the image or the machine's architecture makes a new cache."""
+    import noxfile
+
+    steps = linux_job_steps()
+    ((_, save),) = apt_cache_steps(steps=steps, kind='save_cache')
+    key = save['key']
+    packages = noxfile._linux_ci_job_packages(
+        configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    )
+
+    assert '<< pipeline.parameters.PYTHON_VERSION >>' in key
+    assert '{{ arch }}' in key
+    assert [package for package in packages if package not in key] == []
+
+
+def test_apt_retries_and_keeps_its_lists_and_packages_in_the_cached_directory():
+    """Apt retries a flaky mirror and keeps what the cache saves where the cache saves it."""
+    steps = linux_job_steps()
+    ((_, save),) = apt_cache_steps(steps=steps, kind='save_cache')
+    (cached_directory,) = save['paths']
+    script = apt_install_script()
+    home_directory = cached_directory.replace('~', '$HOME', 1)
+
+    assert re.search(r'Acquire::Retries \\?"[1-9]\d*\\?"', script)
+    assert f'Dir::State::Lists \\"{home_directory}/lists\\"' in script
+    assert f'Dir::Cache::Archives \\"{home_directory}/archives\\"' in script
+    assert 'Keep-Downloaded-Packages \\"true\\"' in script
+
+
+def test_the_linux_job_has_exactly_one_install_line():
+    """Noxfile's test-linux-ci and these tests read the packages from that one line."""
+    script = apt_install_script()
+
+    assert len(re.findall(r'^\s*sudo apt-get install -y \S', script, flags=re.MULTILINE)) == 1
+
+
+class AptScriptRun(BaseModel):
+    """One run of the Linux job's system-package step with stand-ins (run_apt_install_script)."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    status: int
+    # Each apt-get call's arguments, in order
+    calls: tuple[str, ...]
+    # Each wait the script slept, in seconds, in order
+    sleeps: tuple[float, ...]
+    # Each time limit a command ran under (timeout's seconds), in order
+    timeouts: tuple[float, ...]
+    output: str
+
+    @property
+    def commands(self) -> list[str]:
+        """Each apt-get call's command (install, update, autoclean), in order."""
+        return [call.split()[0] for call in self.calls]
+
+
+def run_apt_install_script(
+    *,
+    tmp_path: Path,
+    cache_hit: bool,
+    mirror_up: bool,
+    failed_updates: int = 0,
+) -> AptScriptRun:
+    """Run the step's script with stand-ins for sudo, apt-get and sleep.
+
+    The stand-in apt-get installs when the cache was restored (cache_hit) or after an update
+    that reached the mirror; an install with neither fails, as apt-get does with no lists
+    ("Unable to locate package", exit 100). Its update reaches the mirror when mirror_up, after
+    the first failed_updates attempts fail. A failed update exits 100 only when given
+    ``APT::Update::Error-Mode=any``, as apt 3.2 on the job's image does; without it apt exits 0
+    after a failed fetch. sudo runs its command as this user, except that ``tee`` writes into
+    tmp_path instead of /etc: every argument under /etc/ is taken under tmp_path, where the
+    image's Ubuntu sources file (UBUNTU_SOURCES, amd64's, as CircleCI's machines are) is
+    written first. sleep records its seconds and returns at once; timeout records its seconds
+    and runs its command.
+
+    Returns:
+        AptScriptRun: The script's status, apt's calls, the waits and the output.
+
+    """
+    stand_ins = tmp_path / 'bin'
+    stand_ins.mkdir()
+    calls = tmp_path / 'apt-calls.txt'
+    sleeps = tmp_path / 'sleeps.txt'
+    timeouts = tmp_path / 'timeouts.txt'
+    image_sources = tmp_path / 'etc' / 'apt' / 'sources.list.d' / 'ubuntu.sources'
+    image_sources.parent.mkdir(parents=True)
+    image_sources.write_text(UBUNTU_SOURCES, encoding='utf-8')
+    (stand_ins / 'sudo').write_text(
+        '#!/bin/bash\n'
+        'arguments=()\n'
+        'for argument in "$@"; do\n'
+        '  case "$argument" in\n'
+        '    /etc/*) argument="$STAND_IN_ROOT$argument"; mkdir -p "$(dirname "$argument")" ;;\n'
+        '  esac\n'
+        '  arguments+=("$argument")\n'
+        'done\n'
+        'exec "${arguments[@]}"\n',
+        encoding='utf-8',
+    )
+    (stand_ins / 'timeout').write_text(
+        '#!/bin/bash\necho "$1" >> "$TIMEOUTS"\nshift\nexec "$@"\n',
+        encoding='utf-8',
+    )
+    (stand_ins / 'apt-get').write_text(
+        '#!/bin/bash\n'
+        'echo "$*" >> "$APT_CALLS"\n'
+        'if [ "$1" = autoclean ]; then exit 0; fi\n'
+        'if [ "$1" = update ]; then\n'
+        '  attempts_file="$STAND_IN_ROOT/update-attempts"\n'
+        '  attempt=$(( $(cat "$attempts_file" 2>/dev/null || echo 0) + 1 ))\n'
+        '  echo "$attempt" > "$attempts_file"\n'
+        '  if [ "$MIRROR_UP" = 1 ] && [ "$attempt" -gt "$FAILED_UPDATES" ]; then\n'
+        '    touch "$STAND_IN_ROOT/updated"; exit 0\n'
+        '  fi\n'
+        '  echo "E: Failed to fetch http://archive.ubuntu.com/ubuntu/dists/resolute/InRelease"'
+        ' >&2\n'
+        '  case "$*" in *APT::Update::Error-Mode=any*) exit 100 ;; esac\n'
+        '  exit 0\n'
+        'fi\n'
+        '[ "$CACHE_HIT" = 1 ] || [ -e "$STAND_IN_ROOT/updated" ] || exit 100\n',
+        encoding='utf-8',
+    )
+    (stand_ins / 'sleep').write_text(
+        '#!/bin/bash\necho "$1" >> "$SLEEPS"\n',
+        encoding='utf-8',
+    )
+    for stand_in in stand_ins.iterdir():
+        stand_in.chmod(0o755)
+    home = tmp_path / 'home'
+    home.mkdir()
+    result = run_command(
+        command=['bash', '-c', apt_install_script()],
+        environment={
+            # /usr/sbin and /sbin: chown is there on macOS
+            'PATH': f'{stand_ins}:/usr/bin:/bin:/usr/sbin:/sbin',
+            'HOME': str(home),
+            'STAND_IN_ROOT': str(tmp_path),
+            'APT_CALLS': str(calls),
+            'SLEEPS': str(sleeps),
+            'TIMEOUTS': str(timeouts),
+            'CACHE_HIT': '1' if cache_hit else '0',
+            'MIRROR_UP': '1' if mirror_up else '0',
+            'FAILED_UPDATES': str(failed_updates),
+        },
+        timeout_seconds=60,
+        capture_output=OutputCapture.TOGETHER,
+    )
+    return AptScriptRun(
+        status=result.returncode,
+        calls=tuple(calls.read_text(encoding='utf-8').splitlines()) if calls.exists() else (),
+        sleeps=tuple(float(line) for line in sleeps.read_text(encoding='utf-8').split())
+        if sleeps.exists()
+        else (),
+        timeouts=tuple(float(line) for line in timeouts.read_text(encoding='utf-8').split())
+        if timeouts.exists()
+        else (),
+        output=result.stdout or '',
+    )
+
+
+apt_script_needs_bash = pytest.mark.skipif(
+    sys.platform == 'win32' or shutil.which('bash') is None,
+    reason="the Linux job's script is bash; its stand-ins are bash scripts",
+)
+
+
+@apt_script_needs_bash
+def test_every_run_first_refreshes_from_the_mirror_and_prunes_before_the_save(tmp_path):
+    """Each run updates first, so its install takes our packages' newest versions, then prunes.
+
+    The owner, 2026-11-19: "Make the update/upgrade non-fatal if it fails", "But attempt it
+    every run", "just do it with the packages we care about": the install line upgrades an
+    installed package to the fresh lists' version, so no apt-get upgrade touches the image's
+    others. autoclean drops the packages the fresh lists no longer name, before the save.
+    """
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=True, mirror_up=True)
+
+    assert (run.status, run.commands) == (0, ['update', 'install', 'autoclean'])
+
+
+@apt_script_needs_bash
+def test_a_failed_refresh_installs_from_the_cache(tmp_path):
+    """The mirror down: the first update fails, is reported, and the cache installs anyway."""
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=True, mirror_up=False)
+
+    assert (run.status, run.commands) == (0, ['update', 'install'])
+    assert 'Refreshing from the mirror failed' in run.output
+
+
+@apt_script_needs_bash
+def test_the_first_refresh_gives_up_within_a_minute_and_never_retries(tmp_path):
+    """An outage costs a job at most a minute before the cache installs (the owner, 2026-11-19).
+
+    The first update runs under a time limit with apt's retries off: in the outage of
+    2026-11-19 one update kept trying for 7+ minutes.
+    """
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=True, mirror_up=False)
+
+    first_update = next(call for call in run.calls if call.startswith('update'))
+    assert 'Acquire::Retries=0' in first_update
+    assert len(run.timeouts) == 1
+    assert run.timeouts[0] <= 60
+
+
+@apt_script_needs_bash
+def test_apt_reads_only_the_main_component_of_ubuntus_own_sources(tmp_path):
+    """Our packages are all in Ubuntu's main: apt fetches nothing else (about 4 MB, not 27).
+
+    The image's Docker, git PPA and git-lfs sources and Ubuntu's other components are left
+    out, so neither their outages nor their size reach the step. The main-only file keeps
+    each source's URIs, suites and key, so amd64's and arm64's mirrors both work.
+    """
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=True, mirror_up=True)
+    settings = (tmp_path / APT_SETTINGS_PATH).read_text(encoding='utf-8')
+    main_sources = (tmp_path / APT_MAIN_SOURCES_PATH).read_text(encoding='utf-8')
+
+    assert run.status == 0
+    assert f'Dir::Etc::SourceList "/{APT_MAIN_SOURCES_PATH}";' in settings
+    assert re.search(r'Dir::Etc::SourceParts "/nonexistent[^"]*";', settings)
+    assert main_sources == UBUNTU_SOURCES.replace(
+        'Components: main universe restricted multiverse', 'Components: main'
+    )
+
+
+@apt_script_needs_bash
+def test_a_failed_cached_install_updates_from_the_mirror_and_installs_again(tmp_path):
+    """No cache (a new key) and the mirror up: the first refresh fetches the lists to install."""
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=False, mirror_up=True)
+
+    assert (run.status, run.commands) == (0, ['update', 'install', 'autoclean'])
+
+
+@apt_script_needs_bash
+def test_no_cache_and_no_mirror_fails_the_step_after_its_last_update(tmp_path):
+    """With nothing cached and the mirror down, every update fails, then the step does.
+
+    It never installs from lists it could not fetch, and it says it gave up.
+    """
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=False, mirror_up=False)
+
+    assert run.status != 0
+    assert run.commands == ['update', 'install'] + ['update'] * APT_UPDATE_ATTEMPTS
+    assert 'giving up' in run.output
+
+
+@apt_script_needs_bash
+def test_the_fallback_outlasts_a_few_failed_updates(tmp_path):
+    """The fallback's mirror answering on its third try: the job goes on.
+
+    Job 3840 died on one HTTP 520. The run's first refresh failed too, so its cache could not
+    install.
+    """
+    run = run_apt_install_script(
+        tmp_path=tmp_path, cache_hit=False, mirror_up=True, failed_updates=3
+    )
+
+    assert run.status == 0
+    assert run.commands == [
+        'update',
+        'install',
+        'update',
+        'update',
+        'update',
+        'install',
+        'autoclean',
+    ]
+    assert len(run.sleeps) == 2
+    assert run.output.count('apt-get update failed') == 2
+
+
+@apt_script_needs_bash
+def test_every_update_fails_on_a_failed_fetch(tmp_path):
+    """apt-get update exits 0 after a failed fetch unless told otherwise: each update says so."""
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=False, mirror_up=False)
+
+    updates = [call for call in run.calls if call.startswith('update')]
+    assert updates
+    assert all('APT::Update::Error-Mode=any' in update for update in updates)
+
+
+@apt_script_needs_bash
+def test_the_update_waits_grow_and_stay_under_the_no_output_limit(tmp_path):
+    """The waits outlast a 7-minute outage (2026-11-19) yet stay under the step's limit."""
+    steps = linux_job_steps()
+    install_step = steps[apt_install_step_index(steps=steps)]['run']
+    limit_seconds = CIRCLECI_DEFAULT_NO_OUTPUT_SECONDS
+    assert 'no_output_timeout' not in install_step
+
+    run = run_apt_install_script(tmp_path=tmp_path, cache_hit=False, mirror_up=False)
+
+    assert len(run.sleeps) == APT_UPDATE_ATTEMPTS - 1
+    assert list(run.sleeps) == sorted(run.sleeps)
+    assert sum(run.sleeps) > 7 * 60
+    assert sum(run.sleeps) < limit_seconds
+
+
+def test_the_install_line_is_the_one_noxfile_reads():
+    """The retry leaves the install line as noxfile's test-linux-ci and these tests read it."""
+    import noxfile
+
+    assert noxfile._linux_ci_job_packages(
+        configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    ) == ['fontconfig', 'libudev-dev', 'libusb-1.0-0-dev', 'pkg-config']
+
+
 def test_every_linux_job_installs_the_linux_jobs_system_packages():
-    """Every Linux test job installs exactly the Linux job's packages, so a new one can't drift."""
+    """Every Linux test job installs exactly the Linux job's packages, so a new one can't drift.
+
+    Since CI runs 3.15 only (2026-11-19) the Linux job is the only Linux test job, so today it is
+    compared with itself: the test guards a second Linux test job added later (another Python,
+    another image). The Linux job must be one of the test jobs it finds, so it never passes on
+    an empty list.
+    """
     import noxfile
 
     linux_jobs = jobs_that_run_tests(platform_marker=LINUX_IMAGE_MARKER)
     expected = noxfile._linux_ci_job_packages(
         configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     )
+    assert noxfile._CIRCLECI_LINUX_JOB in linux_jobs
     for name, job in linux_jobs.items():
         install = re.search(
             r'^\s+sudo apt-get install -y (?P<packages>\S.*)$', job, flags=re.MULTILINE
@@ -1054,11 +1500,99 @@ def test_a_one_python_job_installs_and_runs_only_its_python(name, python):
         assert pythons_of_session[session] == [python], (name, session)
 
 
+def build_step_command(*, command_name: str) -> str:
+    """Return the script of a CircleCI build command's build step.
+
+    Returns:
+        The step's ``command`` text.
+    """
+    configuration = yaml.safe_load(CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8'))
+    steps = configuration['commands'][command_name]['steps']
+    return next(step['run']['command'] for step in steps if 'run' in step)
+
+
+# (CIRCLE_NODE_INDEX, CIRCLE_NODE_TOTAL) and whether that machine builds: an unsplit job (the
+# macOS job) on its only machine, a split job (Linux, Windows) on its last, never twice
+BUILD_MACHINE_LAYOUTS = [
+    pytest.param(None, None, True, id='no-split-variables'),
+    pytest.param('0', '1', True, id='unsplit'),
+    pytest.param('0', '2', False, id='split-first-machine'),
+    pytest.param('1', '2', True, id='split-last-machine'),
+]
+
+
+def run_build_step(
+    *,
+    interpreter: list[str],
+    script: str,
+    node_index: str | None,
+    node_total: str | None,
+    home: Path,
+) -> str:
+    """Run a build step's script with ``nox -s build`` replaced by a marker, as one machine.
+
+    Returns:
+        What it printed.
+    """
+    environment = {'PATH': '/usr/bin:/bin', 'HOME': str(home), 'USERPROFILE': str(home)}
+    if node_index is not None and node_total is not None:
+        environment |= {'CIRCLE_NODE_INDEX': node_index, 'CIRCLE_NODE_TOTAL': node_total}
+    completed = run_command(
+        command=[*interpreter, script.replace('nox -s build', 'echo BUILDING')],
+        environment=environment,
+        timeout_seconds=60,
+        capture_output=OutputCapture.TOGETHER,
+    )
+    assert completed.returncode == 0, completed.stdout
+    return completed.stdout
+
+
+@pytest.mark.parametrize(('node_index', 'node_total', 'builds'), BUILD_MACHINE_LAYOUTS)
+def test_a_job_builds_on_its_last_machine_only(tmp_path, node_index, node_total, builds):
+    """The Linux and macOS build step: machine 1 of a split job, the only machine of the rest.
+
+    The owner, 2026-11-19: "move building the binary and wheel over to machine 1 for windows and
+    linux to help balance the build time out" (machine 0 also ran the build after its share of
+    the tests: 53 of the Linux job's 60 minutes on 66df986e). The last machine, not machine 1:
+    the macOS job is not split, and "machine 1" would never build there.
+    """
+    printed = run_build_step(
+        interpreter=['bash', '-c'],
+        script=build_step_command(command_name='nox-build'),
+        node_index=node_index,
+        node_total=node_total,
+        home=tmp_path,
+    )
+
+    assert ('BUILDING' in printed) is builds
+
+
+@pytest.mark.skipif(
+    shutil.which('pwsh') is None and shutil.which('powershell') is None,
+    reason='PowerShell is not installed here (the Windows job and macOS with pwsh run it)',
+)
+@pytest.mark.parametrize(('node_index', 'node_total', 'builds'), BUILD_MACHINE_LAYOUTS)
+def test_a_windows_job_builds_on_its_last_machine_only(tmp_path, node_index, node_total, builds):
+    """The Windows build step, run by PowerShell: as the Linux one (machine 1 of a split job)."""
+    powershell = shutil.which('pwsh') or shutil.which('powershell')
+    assert powershell is not None
+    printed = run_build_step(
+        interpreter=[powershell, '-NoProfile', '-NonInteractive', '-Command'],
+        script=build_step_command(command_name='nox-build-windows'),
+        node_index=node_index,
+        node_total=node_total,
+        home=tmp_path,
+    )
+
+    assert ('BUILDING' in printed) is builds
+
+
 def test_the_builds_are_on_3_15_once_an_os():
     """Build and build-binary run on 3.15; each OS builds in one running job, on one machine.
 
     The owner, 2026-11-18: "Switch the builds over to 3.15". A split job runs every step on each
-    machine, so its build runs on machine 0 only.
+    machine, so its build runs on one machine only (its last:
+    ``test_a_job_builds_on_its_last_machine_only``).
     """
     import noxfile
 
@@ -1900,19 +2434,20 @@ def test_taplo_leaves_the_worktrees_nested_in_this_checkout_alone():
 
 
 def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():
-    """The Linux job (2 GB, serial) stops a run past 1750 MiB, naming the test (memory_guard.py).
+    """The Linux job (2 GB, serial) stops a run past 1400 MiB, naming the test (memory_guard.py).
 
-    So does the Raspberry Pi's (real hardware, 3.7 GB with its desktop). The macOS and Windows
-    jobs have the memory, and the plugin needs Linux's ``/proc/self/statm`` anyway. The Linux
-    job's resource class and worker count stay as they were.
+    So does the Raspberry Pi's (real hardware, 3.7 GB with its desktop): one limit for every
+    Linux job (the owner, 2026-11-19). The macOS and Windows jobs have the memory, and the
+    plugin needs Linux's ``/proc/self/statm`` anyway. The Linux job's resource class and worker
+    count stay as they were.
     """
     linux_jobs = jobs_that_run_tests(platform_marker=LINUX_IMAGE_MARKER)
 
     # Every test job on the Linux image, so a new one can't miss them
     assert set(linux_jobs) == {'test-python-3-15-linux'}
-    assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"\n' in raspberry_pi_job()
+    assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1400"\n' in raspberry_pi_job()
     for name, job in linux_jobs.items():
-        assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"\n' in job, name
+        assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1400"\n' in job, name
         assert '    resource_class: small\n' in job, name
         assert '      PYTEST_WORKERS: "0"\n' in job, name
 
@@ -1998,7 +2533,7 @@ def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monke
     }
     assert {
         'PYTEST_WORKERS=0',
-        'GLITCHYGAMES_TEST_RSS_LIMIT_MB=1750',
+        'GLITCHYGAMES_TEST_RSS_LIMIT_MB=1400',
         'CI=true',
         'CIRCLECI=true',
     } <= environment

@@ -1156,6 +1156,7 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   3. ~~Move the wheel and binary build out of the 3.14 jobs into a job of its own.~~ **Done
      differently (2026-11-18, the owner: "Switch the builds over to 3.15"):** the builds run in
      the 3.15 jobs, on machine 0 of each split job, and in the macOS job; none is in a 3.14 job.
+     (Since 2026-11-19 on each job's last machine: machine 1 of a split job; item 3 below.)
 
 - **Move the code's oldest Python to 3.15 when a Pyodide on 3.15 ships.** Python 3.14 is gone from
   the tests, CI, the pre-push hooks and every nox session (the owner, 2026-11-19: "let's get rid of
@@ -1167,6 +1168,45 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   it, then move `requires-python` (the root's and every member's), ruff's `target-version`, ty's
   `python-version` and pyrightconfig.json's `pythonVersion` to 3.15, and the generated SBOM's
   supported environments (`scripts/generate_sbom.py`).
+
+- **Small follow-ups from the int16 sounds and the 3.15-only CI (found 2026-11-19):**
+  1. **DONE 2026-11-19 (feature/zombies-finish-level-1).** The tool resolves the source through
+     a `CacheMode.NONE` library and compiles one copy itself (`compile_sound` on a
+     `fresh_copy()`, inside the lookup's `try`), which keeps its float samples for
+     `render_to_file`. `CacheMode.NONE` alone was not enough: a recorded file's `sample_rate` is
+     read by decoding it under `none`, so a WAV still decoded twice. Tests in
+     `tests/replay/tools/test_sound_tools.py`: a sound file's sound compiles once, a WAV decodes
+     once, an OGG (refused only while compiling) exits `UNUSABLE_INPUT`. Left as it is: the
+     public `render_to_file(library_sound, ...)` still compiles a copy, by design
+     (`Sound.release_float_samples` trades that for memory). Original note:
+     **`glitchygames sound-render` compiles every sound twice.** `replay/tools/sound_tools.py`
+     (around line 118) gets the sound from a `CacheMode.RAM` library, which now keeps int16
+     samples only (`Sound.release_float_samples`), so `render_to_file` compiles a fresh copy for
+     the float samples (`offline._samples_at`): the first compile is wasted. Fix: the tool's
+     library uses `CacheMode.NONE` (it resolves the source and checks it, but compiles nothing),
+     so `render_to_file` compiles once. Then a compile-time failure (`SoundRenderError`,
+     `SoundAssetError`) surfaces in `render_to_file`, so catch it there too and exit
+     `UNUSABLE_INPUT` with its message, as the lookup's failures do. Tests first: the tool
+     compiles a sound exactly once (a spy on `compile_sound`; two calls today), the WAV equals
+     the compiled int16 samples, a sound that fails only while compiling exits `UNUSABLE_INPUT`.
+  2. **A CI test compares a job with itself.** `tests/test_ci_config.py::
+     test_every_linux_job_installs_the_linux_jobs_system_packages` checks each Linux test job's
+     apt line against the Linux job's, and there is one Linux test job now. Say that it guards a
+     second Linux job added later, or fold it into `test_the_linux_job_installs_what_hidapis_
+     source_build_needs`. **DONE 2026-11-19:** kept as that guard, its docstring says so, and it
+     now asserts the Linux job is among the test jobs it finds (never an empty pass).
+  3. **The Linux job's headroom.** `test-python-3-15-linux` took 53m 22s of CircleCI's 60 on
+     66df986e, split across two machines; machine 0 also builds after its tests (`nox-build`,
+     guarded to machine 0). Find which machine is slow (CircleCI's step timings); if it is the
+     build, move it to machine 1 or a job of its own. **Build moved 2026-11-19** (the owner:
+     "move building the binary and wheel over to machine 1 for windows and linux"): `nox-build`
+     and `nox-build-windows` build on a job's last machine (`CIRCLE_NODE_TOTAL` - 1), so machine
+     1 of the split Linux and Windows jobs and the macOS job's only machine; the guards are run
+     under each layout by `test_a_job_builds_on_its_last_machine_only` (bash) and
+     `test_a_windows_job_builds_on_its_last_machine_only` (PowerShell). The owner, 2026-11-19:
+     "It does make it faster." (step timings not read from this session).
+  4. `tests/audio/library_support.float_render` is annotated `np.ndarray`; the engine's
+     `FloatArray` is exact. **DONE 2026-11-19** (`audio.synth.FloatArray`).
 
 - Dropbox syncing test artefacts made the suite run in 10 minutes instead of 46 s. If Dropbox stays
   on, mark `test-results/`, `.coverage*`, `.venv` and cache directories as ignored
@@ -1526,6 +1566,11 @@ Loading and memory:
 
 ## Sprite color profiles and a glyph generator (the owner, 2026-11-16)
 
+Being built: the approved master plan is `plans/2026-11-17-sprite-color-profiles.md`, on
+`feature/sprite-color-profiles` (what ships first, the converter and the AI's tools, and in what
+order). Part 1, sprites as text, is done (2026-11-17); what it left is in the master plan's
+Follow-ups. This entry keeps the full tables it refers to.
+
 Its own branch after `feature/zombies-aint-my-neighbors`. Decided in conversation:
 
 - **Two separate settings: a profile (how many colors one sprite may use) and a color space
@@ -1743,9 +1788,22 @@ discussing it found and decided:
   still serve their recorded `dt`; the cost is twice the game work and no smoothing of uneven
   frames. The measurements decide whether that alone fixes the hitching before the fixed
   simulation is paid for.
+- **The pacer's wait also serves the AI** (2026-11-17): `--ai-stepping idle` services the AI's
+  network during that wait instead of only at the frame's fixed point. Designed, with valid uses
+  for `frame` and `idle`, in `plans/2026-11-17-sprite-color-profiles.md`, "Follow-ups"; built with
+  this pacer work.
 
 ## Code quality
 
+- **Bitmappy's AI sprites load from text, not a temp file** (shared sprite frames review,
+  2026-11-19). `ai_manager._detect_and_load_ai_sprite` writes the model's TOML to a temp file and
+  loads it with `SpriteFactory.load_sprite`; `load_sprite_from_text` gives the same sprite and
+  check from the text itself. A content check without a load is `sprite_toml.analyze_sprite_content`
+  with `is_one_sprite` (pygame-free); `SpriteFactory._analyze_file` only wraps it for a file.
+- **Bitmappy's film strip clears magenta a pixel at a time on every redraw** (shared sprite frames
+  review, 2026-11-19). `film_strip_rendering.convert_magenta_to_transparent` calls `get_at` and
+  `set_at` for each pixel of each thumbnail each time the strip renders: editor time, not memory.
+  A colorkey or `pygame.transform.threshold` does it in one call.
 - **Test-suite memory on the Linux CI job: the structural options** (the owner's call;
   bugs/2026-11-17-linux-test-memory-guard-stops.md). #218 brought the peak to 1341-1350 MiB of
   1600; what is left grows from 503 to 859 MiB over 274 files, spread thin. In order of

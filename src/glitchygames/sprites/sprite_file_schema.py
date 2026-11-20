@@ -96,6 +96,10 @@ class Sprite(_Section):
     description: str | None = None
     tags: list[str] | None = None
     frame_anchor: str | None = None
+    # A sprite's color profile and color space (plans/2026-11-17-sprite-color-profiles.md): any
+    # string until part 2 names their values; the writer already carries them (sprite_toml.py)
+    profile: str | None = None
+    color_space: str | None = None
     pixels: str | None = None
     hitbox: Hitbox | None = None
 

@@ -1,9 +1,10 @@
 """Every workspace member's sprite files pass the engine's checks of a bundled sprite file.
 
-The sprite files are discovered, not listed: every TOML sprite (a file with a ``sprite`` table)
-in any member's import packages. So a sprite that moves with its game into a member, or a new
-member's sprites, are checked without anyone adding them (Drawing Fire's soldier dropped out of
-the checks once when it left examples/: the Part 2 draft audit's M5). The checks are
+The sprite files are discovered, not listed (tests/workspace_sprite_files.py): every TOML sprite
+(a file with a ``sprite`` table) in any member's import packages. So a sprite that moves with its
+game into a member, or a new member's sprites, are checked without anyone adding them (Drawing
+Fire's soldier dropped out of the checks once when it left examples/: the Part 2 draft audit's
+M5). The checks are
 glitchygames.testing.sprite_files, which the engine runs on its own sprites
 (tests/sprites/test_engine_sprite_files.py); a member may also run them from its own tests
 (Papyrus's, and Bitmappy's sprite library), with checks of its own beside them.
@@ -13,57 +14,32 @@ The files are read from the source tree by path: nothing here imports a member.
 
 from __future__ import annotations
 
-import tomllib
 from pathlib import Path
 
 import pygame
 import pytest
-from scripts.workspace_packages import workspace_members
 
 from glitchygames.display_mode import set_display_mode
+from glitchygames.sprites import sprite_toml
+from glitchygames.sprites.sprite_toml import (
+    parse_sprite_toml,
+    split_sprite_text,
+    write_sprite_toml,
+)
 from glitchygames.testing import sprite_files
+from tests.workspace_sprite_files import (
+    MEMBER_ANIMATED_SPRITE_FILES,
+    MEMBER_SPRITE_FILES,
+    member_sprite_files,
+    sprite_file_id,
+)
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-# What makes a TOML file a sprite file: a [sprite] table (read as TOML, so a header written
-# '[ sprite ]' or with a comment counts too)
-SPRITE_TABLE = 'sprite'
-
-
-def member_sprite_files(*, project_root: Path) -> list[Path]:
-    """Return every sprite file in the workspace members' import packages, in path order.
-
-    Args:
-        project_root: The repository.
-
-    Returns:
-        The sprite files.
-
-    """
-    return sorted(
-        toml_file
-        for member in workspace_members(project_root=project_root)
-        for package_directory in member.package_directories
-        for toml_file in package_directory.rglob(sprite_files.SPRITE_FILE_PATTERN)
-        if SPRITE_TABLE in tomllib.loads(toml_file.read_text(encoding='utf-8'))
-    )
-
-
-MEMBER_SPRITE_FILES = member_sprite_files(project_root=PROJECT_ROOT)
-MEMBER_ANIMATED_SPRITE_FILES = [
-    sprite_file
-    for sprite_file in MEMBER_SPRITE_FILES
-    if sprite_files.ANIMATION_MARKER in sprite_file.read_text(encoding='utf-8')
+# The engine's own sprites (src/glitchygames/assets) join the members' for the text round trips
+SHIPPED_SPRITE_FILES = [
+    *sorted((Path(sprite_toml.__file__).parent.parent / 'assets').glob('*.toml')),
+    *MEMBER_SPRITE_FILES,
 ]
-
-
-def sprite_file_id(sprite_file: Path) -> str:
-    """Name a sprite file by its path below src/ (``games/drawing-fire/src/.../soldier.toml``).
-
-    Returns:
-        The path.
-
-    """
-    return sprite_file.relative_to(PROJECT_ROOT / 'src').as_posix()
+BITMAPPY_LIBRARY_PREFIX = 'apps/bitmappy/src/bitmappy/resources/sprites/'
 
 
 @pytest.fixture
@@ -82,6 +58,26 @@ def test_the_members_sprites_are_found():
     assert 'games/brave-adventurer/src/brave_adventurer_papyrus/sprites/cobra.toml' in found
     assert any(name.startswith('apps/bitmappy/src/bitmappy/resources/sprites/') for name in found)
     assert MEMBER_ANIMATED_SPRITE_FILES
+
+
+def test_an_installed_engine_sprite_is_named_without_the_repository(mocker, tmp_path):
+    """Under a non-editable install the engine's sprites are not below the repository's src/.
+
+    nox -s test installs the engine into site-packages, so SHIPPED_SPRITE_FILES points there:
+    the id is then the path below the engine's parent folder, the same under either install.
+    """
+    mocker.patch('tests.workspace_sprite_files.PROJECT_ROOT', tmp_path)
+    engine_sprite = next((Path(sprite_toml.__file__).parent.parent / 'assets').glob('*.toml'))
+
+    assert sprite_file_id(engine_sprite) == f'glitchygames/assets/{engine_sprite.name}'
+
+
+def test_the_bitmappy_library_is_among_the_files_checked():
+    """The checks below cover Bitmappy's sprite library (toadstool.toml among it) as well."""
+    found = {sprite_file_id(sprite_file) for sprite_file in MEMBER_SPRITE_FILES}
+
+    assert any(name.startswith(BITMAPPY_LIBRARY_PREFIX) for name in found)
+    assert 'toadstool.toml' in {sprite_file.name for sprite_file in MEMBER_SPRITE_FILES}
 
 
 def test_a_new_members_sprite_is_found_and_a_toml_without_a_sprite_is_not(tmp_path):
@@ -160,3 +156,54 @@ def test_transitions_survive_a_save_round_trip(sprite_file, tmp_path):
     sprite_files.check_transitions_survive_a_save_round_trip(
         sprite_file=sprite_file, directory=tmp_path
     )
+
+
+@pytest.mark.usefixtures('display')
+@pytest.mark.parametrize('sprite_file', MEMBER_SPRITE_FILES, ids=sprite_file_id)
+def test_text_and_file_loads_agree(sprite_file):
+    """The text of a sprite file loads to the sprite the file does (RGBA frames, metadata, ...)."""
+    sprite_files.check_text_and_file_loads_agree(sprite_file=sprite_file)
+
+
+@pytest.mark.parametrize('sprite_file', SHIPPED_SPRITE_FILES, ids=sprite_file_id)
+def test_every_shipped_sprite_file_round_trips(sprite_file):
+    """Parsing a shipped sprite, writing it and parsing the text gives an equal document."""
+    text = sprite_file.read_text(encoding='utf-8')
+    document = parse_sprite_toml(text=text, source_name=str(sprite_file))
+    written = write_sprite_toml(data=document)
+    assert parse_sprite_toml(text=written, source_name=str(sprite_file)) == document
+
+
+def test_a_shipped_multi_animation_sprite_splits_into_loadable_frames_with_equal_pixels():
+    """Every frame of a real sprite is written, loads, and keeps its source pixels."""
+    (sprite_file,) = [
+        path
+        for path in MEMBER_SPRITE_FILES
+        if path.as_posix().endswith('brave_adventurer_papyrus/sprites/player.toml')
+    ]
+    text = sprite_file.read_text(encoding='utf-8')
+    source = parse_sprite_toml(text=text, source_name='source')
+    source_pixels = [
+        frame['pixels'] for animation in source['animation'] for frame in animation['frame']
+    ]
+    assert len(source['animation']) > 1
+    written = [
+        parse_sprite_toml(text=each, source_name='split') for each in split_sprite_text(text=text)
+    ]
+    assert [document['sprite']['pixels'] for document in written] == source_pixels
+    for document in written:
+        assert set(document['colors']) <= set(source['colors'])
+
+
+@pytest.mark.usefixtures('display')
+@pytest.mark.parametrize('sprite_file', MEMBER_SPRITE_FILES, ids=sprite_file_id)
+def test_save_writes_the_sprites_text(sprite_file, tmp_path):
+    """Saving a loaded sprite writes exactly the text sprite_to_text gives for it."""
+    sprite_files.check_save_writes_the_sprites_text(sprite_file=sprite_file, directory=tmp_path)
+
+
+@pytest.mark.usefixtures('display')
+@pytest.mark.parametrize('sprite_file', MEMBER_SPRITE_FILES, ids=sprite_file_id)
+def test_save_keeps_the_parsed_document(sprite_file):
+    """Saving a loaded sprite gives back the document its file parses to, palette and all."""
+    sprite_files.check_save_keeps_the_parsed_document(sprite_file=sprite_file)

@@ -218,7 +218,8 @@ def _pixels_line(pixels: str) -> str:
 
     """
     if '\n' in pixels:
-        return f'pixels = {toml_pixel_block(pixels)}'
+        # toml_pixel_block writes the text as given: end the last row with a line break
+        return f'pixels = {toml_pixel_block(pixels.removesuffix(chr(10)) + chr(10))}'
     return f'pixels = {toml_basic_string(pixels)}'
 
 

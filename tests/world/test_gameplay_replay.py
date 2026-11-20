@@ -30,6 +30,7 @@ from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.engine_context import EngineContext
 from glitchygames.events import FPSEVENT, allow_every_event_type
+from glitchygames.events.sprite_spawn import SpriteSpawn, post_sprite_spawn
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.live_sources import LiveSources
@@ -804,6 +805,65 @@ class TestInputPosts:
         divergence = engine.replay_sources.result.divergence
         assert divergence is not None
         assert divergence.kind == EVENT_DIVERGENCE
+
+
+# A four-by-two sprite the console's /sprite could have made (plans/2026-11-17-sprite-command.md)
+SPAWNED_BAR_TEXT = """\
+[sprite]
+name = "bar"
+pixels = \"\"\"
+####
+####
+\"\"\"
+
+[colors."#"]
+red = 0
+green = 0
+blue = 255
+"""
+
+
+def post_bar_spawn() -> None:
+    """Post a spawn of the bar centered at world (100, 50), as /sprite does."""
+    post_sprite_spawn(
+        spawn=SpriteSpawn(
+            toml_text=SPAWNED_BAR_TEXT, sprite_name='bar', world_x=100.0, world_y=50.0
+        )
+    )
+
+
+def spawned_sprite_records(*, recording_path: Path) -> list[tuple[int, dict[str, Any]]]:
+    """Return the recorded spawned sprites, with the frame each is in.
+
+    Returns:
+        (frame number, sprite record) pairs.
+
+    """
+    return [
+        (frame_number, sprite)
+        for frame_number, frame in enumerate(read_trace_result(path=recording_path).trace['frames'])
+        for sprite in frame['sprites']
+        if str(sprite['id']).startswith('SpawnedSprite')
+    ]
+
+
+class TestSpriteSpawns:
+    """A /sprite spawn is recorded with its text, so a replay adds the same sprite, AI-free."""
+
+    def test_a_spawn_replays_at_its_frame_and_place(self, mocker, tmp_path):
+        """Recorded in the frame it was posted, at its point; the replay matches it."""
+        recording_path = record_session(
+            tmp_path=tmp_path, mocker=mocker, action=post_bar_spawn, action_frame=ACTION_FRAME
+        )
+
+        recorded = spawned_sprite_records(recording_path=recording_path)
+        assert [frame_number for frame_number, _sprite in recorded] == [ACTION_FRAME]
+        assert recorded[0][1]['rect'] == [98, 49, 4, 2]
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        assert engine.replay_sources is not None
+        result = engine.replay_sources.result
+        assert result.divergence is None, result.report()
+        assert result.end_reason == 'end_of_recording'
 
 
 # The frame the device dispatch scene's scripted presses are posted in, and the frame it quits
