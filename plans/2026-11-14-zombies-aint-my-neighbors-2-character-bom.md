@@ -321,7 +321,7 @@ The TV's `switch-off` is also the game-over screen (decision 5).
 | Lawn Zombie climbing out | 64x64 | `climb-out` | 4 | 0.12 | no | the intro cuts to the title |
 | Lamp | 32x32 | `still` | 1 | — | — | `flicker` with the TV's static |
 | | | `flicker` | 2 | 0.08 | yes | — |
-| Snack bowl | 32x32 | `still` | 1 | — | — | — |
+| Snack bowl | 32x32 | `intro_snacks` (a still: the static layout names its one animation after the sprite) | 1 | — | — | — |
 
 Total: 4 x (2 + 2) + (4 + 3 + 4 + 4 + 3) + 4 + 4 + (1 + 2) + 1 = 16 + 18 + 4 + 4 + 3 + 1 =
 **46 frames**, in 9 sprites.

@@ -75,7 +75,7 @@ INTRO_TIMELINE: Final[tuple[IntroCue, ...]] = (
     IntroCue(at_seconds=0.0, kind=CueKind.ANIMATE, actor='intro_bag_june', animation='sit'),
     IntroCue(at_seconds=0.0, kind=CueKind.ANIMATE, actor='intro_tv', animation='show'),
     IntroCue(at_seconds=0.0, kind=CueKind.ANIMATE, actor='intro_lamp', animation='still'),
-    IntroCue(at_seconds=0.0, kind=CueKind.ANIMATE, actor='intro_snacks', animation='still'),
+    IntroCue(at_seconds=0.0, kind=CueKind.ANIMATE, actor='intro_snacks', animation='intro_snacks'),
     IntroCue(at_seconds=4.0, kind=CueKind.ANIMATE, actor='intro_tv', animation='static'),
     IntroCue(at_seconds=4.0, kind=CueKind.ANIMATE, actor='intro_lamp', animation='flicker'),
     IntroCue(at_seconds=5.5, kind=CueKind.ANIMATE, actor='intro_tv', animation='bulge'),
