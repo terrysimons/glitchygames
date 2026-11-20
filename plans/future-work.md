@@ -1305,8 +1305,11 @@ changes the outer game's key repeat (the plan's Review Focus 4).
   - Not done: folding `test-random` into the comparison (shuffling one dummy run). The comparison
     passes on failing tests (`_PYTEST_FINISHED_CODES = [0, 1]`), and order-dependent frames would
     read as "varies between runs" rather than fail; little to save (80 s).
-- **Upgrade every locked dependency, then generate sounds on first use: one branch,
-  `chore/upgrade-and-sounds-on-first-use`** (the owner, 2026-11-14: one upgrade, not a
+- ~~**Upgrade every locked dependency, then generate sounds on first use: one branch,
+  `chore/upgrade-and-sounds-on-first-use`**~~ **Done**: the upgrade and the disk sound cache in
+  #213 (2026-11-15), the cache subcommands (`sound-cache-{list,size,verify,clear,fill}`) and the
+  listening WAVs in #214; a later upgrade on `chore/dependency-upgrade` (2026-11-20) moved 18
+  packages, none major. (The owner, 2026-11-14: one upgrade, not a
   tornado-only branch; sounds and the instrument and demo WAVs made on first use, never stored
   in the repository; the two combined). The upgrade lands first, as its own commit with every
   gate green, so a replay or sound that changes afterwards points at the cache code alone.
