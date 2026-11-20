@@ -898,14 +898,16 @@ def test_no_document_names_the_old_playbook():
         capture_output=OutputCapture.APART,
         timeout_seconds=GIT_TIMEOUT_SECONDS,
     )
+    # A tree git can't list fails here, not as an empty list that holds no old name
+    assert completed.returncode == 0, completed.stderr
     tracked = [name for name in completed.stdout.split('\0') if name]
     holders = [
         name
         for name in tracked
         if name.endswith(('.md', '.py', '.yml'))
         and not name.startswith(('plans/', '.superpowers/'))
-        # This file names them to look for them
-        and name != str(Path(__file__).relative_to(PROJECT_ROOT))
+        # This file names them to look for them (git names files with /, on Windows too)
+        and name != Path(__file__).relative_to(PROJECT_ROOT).as_posix()
         and (PROJECT_ROOT / name).is_file()
         and any(old in (PROJECT_ROOT / name).read_text(encoding='utf-8') for old in OLD_NAMES)
     ]
@@ -983,12 +985,13 @@ def test_no_role_names_the_old_install_root():
 def test_the_mac_roots_are_one_folder_and_unchanged(tmp_path: Path):
     """The Mac keeps its single folder, so nothing already installed moves."""
     variables = ansible_variables(system='Darwin', architecture='arm64', home=tmp_path)
-    folder = str(tmp_path / MAC_ROOT_NAME)
+    # The roots are the target's paths: the home as the host reports it, then / and the rest
+    folder = f'{tmp_path}/{MAC_ROOT_NAME}'
 
     assert variables['ai_program_root'] == folder
     assert variables['ai_user_root'] == folder
-    assert variables['ai_cache_root'] == str(tmp_path / 'Library/Caches/GlitchyGames/AI')
-    assert variables['ai_log_root'] == str(tmp_path / 'Library/Logs/GlitchyGames/AI')
+    assert variables['ai_cache_root'] == f'{tmp_path}/Library/Caches/GlitchyGames/AI'
+    assert variables['ai_log_root'] == f'{tmp_path}/Library/Logs/GlitchyGames/AI'
 
 
 @pytest.mark.parametrize('architecture', ['aarch64', 'x86_64'])
@@ -998,10 +1001,11 @@ def test_the_linux_roots_follow_the_design(
     """Programs under /opt (the .deb's), everything of the user's under the XDG folders."""
     variables = ansible_variables(system='Linux', architecture=architecture, home=tmp_path)
 
+    # The roots are the target's paths: the home as the host reports it, then / and the rest
     assert variables['ai_program_root'] == '/opt/glitchygames/ai'
-    assert variables['ai_user_root'] == str(tmp_path / '.local/share/glitchygames/ai')
-    assert variables['ai_cache_root'] == str(tmp_path / '.cache/glitchygames/ai')
-    assert variables['ai_log_root'] == str(tmp_path / '.local/state/glitchygames/ai/logs')
+    assert variables['ai_user_root'] == f'{tmp_path}/.local/share/glitchygames/ai'
+    assert variables['ai_cache_root'] == f'{tmp_path}/.cache/glitchygames/ai'
+    assert variables['ai_log_root'] == f'{tmp_path}/.local/state/glitchygames/ai/logs'
 
 
 def test_the_linux_xdg_folders_win_when_set(tmp_path: Path):
@@ -3976,12 +3980,14 @@ class PackageStaging:
         """Name every staged file by its path under the package folder.
 
         Returns:
-            The paths, sorted.
+            The paths, sorted, written with / as on the package's target, on Windows too.
         """
         package = ansible_variables(
             system=self.system, architecture=self.architecture, home=self.home
         )['ai_package_directory']
-        return sorted(str(Path(file.destination).relative_to(package)) for file in self.staged)
+        return sorted(
+            Path(file.destination).relative_to(package).as_posix() for file in self.staged
+        )
 
     def rendered(self, *, file: StagedFile) -> str:
         """Render a staged template as its task does.
@@ -5010,7 +5016,8 @@ def complete_deb_listing(*, staging: PackageStaging) -> list[str]:
         'ai_package_stage'
     ]
     for file in staging.staged:
-        relative = str(Path(file.destination).relative_to(stage))
+        # Written with /, as dpkg-deb lists it, on Windows too
+        relative = Path(file.destination).relative_to(stage).as_posix()
         if file.is_link:
             # As dpkg-deb lists a link
             paths.append(f'/{relative} -> {file.source}')
@@ -5298,7 +5305,7 @@ def test_on_linux_only_the_package_steps_take_root():
     (ansible/raspberry_pi_runner.yml) set up a machine, and take root for it.
     """
     raised = sorted(
-        (str(path.relative_to(ROLES)), task['name'])
+        (path.relative_to(ROLES).as_posix(), task['name'])
         for role in AI_ROLES
         for path in (ROLES / role).glob('tasks/*.yml')
         for task in walk_tasks(tasks=yaml.safe_load(path.read_text(encoding='utf-8')) or [])
