@@ -103,10 +103,9 @@ session again, and every frame's sprites are compared with the recorded frame. T
     watched replay is paced by its viewer (glitchygames/replay/viewer.py, whose docstring is the
     contract): an outer tick 60 times a second of real time
     (``glitchygames.clock.measured_seconds``, never replayed: it only decides when frames run,
-    never what they do) runs the inner recorded frames its accumulator pays for (real time times
-    the speed, consumed by each frame's recorded duration, bounded per tick only by real time,
-    the work budget; the owed time capped at ``MAX_OWED_INNER_FRAMES`` and a half frames, never
-    less than the floor of a frame plus a 60 Hz tick plus the tick paid for).
+    never what they do) runs the inner recorded frames the shared pacer owes
+    (``RecordedFramePacer``, glitchygames/replay/pacer.py, whose docstring is the contract: real
+    time times the speed, bounded per tick only by the real-time work budget).
 14. Watching (not ``--headless``): ``ReplayControls`` (glitchygames/replay/controls.py) take
     the viewer's real key presses and releases; none reaches the game. ``hold_frame`` drives
     the viewer: with no outer tick open it sleeps until the next one, drains the real queue
@@ -1699,7 +1698,7 @@ class ReplaySources:
 
         Opens the viewer's next outer tick when none is open (sleeping until it is due, then
         reading the viewer's keys and refreshing the status line), and runs inner frames from
-        the viewer's accumulator (glitchygames/replay/viewer.py).
+        the viewer's pacer (glitchygames/replay/pacer.py).
 
         While a restarted replay rebuilds (rule 15) no outer tick opens: frames run unheld,
         but for one hold every ``REBUILD_PROGRESS_INTERVAL_SECONDS`` of real time, which reads
@@ -2604,7 +2603,7 @@ class ReplaySources:
         """Report whether the inner game is running (not over, at the start screen or paused).
 
         Returns:
-            True when the viewer's accumulator should fill.
+            True when the pacer's accumulator should fill.
 
         """
         return not (self._is_inner_over() or self.controls.awaiting_start or self.controls.paused)

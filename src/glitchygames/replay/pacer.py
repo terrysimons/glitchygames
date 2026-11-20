@@ -1,9 +1,38 @@
 """Pacing a recording's frames to real time: the recorded-frame pacer and the tick budget.
 
 A player of a recording (the watched replay's viewer, glitchygames/replay/viewer.py; later an
-Arcade tile) ticks at its own rate and, each tick, runs the recorded frames that are owed. The
-rules are the viewer's contract (its module docstring, rules 1 and 2), carried here so every
-player shares one implementation:
+Arcade tile) ticks at its own rate and, each tick, runs the recorded frames that are owed. This
+docstring is the contract of the owing, so every player shares one implementation (the viewer's
+module docstring keeps the outer loop):
+
+- The accumulator: each tick adds the real time since the last tick, times the speed, and each
+  frame run consumes its recorded duration. Only while the player is running: paused, at a start
+  screen or over, the accumulator empties, and a restart seeds it with half a frame (so frame
+  boundaries never sit on a tick boundary).
+- Rule 2, one frame a tick unless behind: up to 1x (speed <= 1) a tick runs at most one frame
+  unless the player is genuinely behind: a second (or later) frame in the same tick runs only
+  when the accumulator holds its recorded duration plus a whole tick of inner time (the speed
+  times the nominal tick period); otherwise the tick closes and the frame runs next tick, the
+  owed time carried. So a live frame that ran long and the short frame its pacing caught up with
+  never share a tick (which would show only the short one): each is presented. After such a
+  catch-up the player stays about a tick behind real time: a constant lag, not a drift (it
+  never grows), which a pause resets. A recording faster than the tick rate (frames shorter than
+  a tick) owes more than that every tick, so a tick still runs several of its frames and
+  presents the last. Above 1x the same limit applies after a frame lasting at least a tick of
+  inner time at that speed (its recorded duration at least the speed times the tick period), so
+  fast-forward still shows it; after shorter frames a tick runs several and presents the last.
+- The budget is the only per-tick limit at every speed (no frame count), so on a real machine an
+  uncapped recording whose frames cost what they did live may still not keep up, and "can't keep
+  up" then means exactly that.
+- The owed limit: the accumulator never owes more than ``MAX_OWED_INNER_FRAMES`` and a half of
+  the next frame's duration (about half a second of 60 FPS frames), and never less than the
+  floor: the frame plus a nominal tick plus the tick paid for (the real time since the last
+  tick, at least a nominal tick; a stall over ``STALL_TICK_SECONDS`` counts as a nominal tick),
+  in inner time, so a recording of very short frames, or a slower display's ticks, keep their
+  rate. The excess is dropped (a long stall runs one bounded burst), and while time is dropped
+  or the budget cuts ticks short the player is behind (``is_behind``): a status bar then shows
+  the real speed (``effective_speed``). So 1x runs one frame a tick for a 60 FPS recording (but
+  for the true rate mismatch), 8x eight, 1/4x one every fourth tick, paused none.
 
 - ``RecordedFramePacer`` owes frames. Each tick the player pays it the real time since its last
   tick, times the speed (``pay``); then, frame by frame, it answers whether the next frame runs

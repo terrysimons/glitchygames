@@ -18,53 +18,29 @@ The contract between them, asked through ``EngineSources.hold_frame`` before eac
 1. No tick open: sleep until the next tick is due (while inner frames run, ``sleep_for``: the
    engine's high-resolution sleep-then-spin timer, glitchygames/timing.py ``FastTimer``; paused,
    at the start screen or over, ``sleep_coarsely``, which never spins), open it, let the doors
-   run the tick's work (keys), then add the real time since the last tick, times the speed, to
-   the accumulator. A tick within ``TICK_SNAP_WINDOW_SECONDS`` of one period counts as exactly
-   one period, the error carried to the next tick, so wake-up jitter does not turn 1x into ticks
-   of 0 and 2 frames. Only while the inner game is running: paused, at the start screen or over,
-   the accumulator empties, and a restart seeds it with half a frame (so frame boundaries never
-   sit on a tick boundary).
-2. Tick open: run one more inner frame (``should_run_inner_frame`` True) while the accumulator holds
-   the frame's recorded duration, which it then consumes, only within the tick's real-time work
-   budget (``INNER_FRAME_BUDGET_SECONDS``, 11 ms of the 16.7 ms tick), so keys, the status line and
-   presenting stay at 60 Hz however costly inner frames are. The budget is the only per-tick limit
-   at every speed (no frame count), so on a real machine an uncapped recording whose frames cost
-   what they did live may still not keep up, and "can't keep up" then means exactly that.
-
-   Rule 2, one frame a tick unless behind: up to 1x (speed <= 1) a tick runs at most one inner frame
-   unless the replay is genuinely behind: a second (or later) frame in the same tick runs only when
-   the accumulator holds its recorded duration plus a whole 60 Hz tick of inner time (the speed
-   times ``CONTROL_TICK_SECONDS``); otherwise the tick closes and the frame runs next tick, the owed
-   time carried. So a live frame that ran long and the short frame its pacing caught up with never
-   share a tick (which would show only the short one): each is presented. After such a catch-up the
-   replay stays about a tick behind real time: a constant lag, not a drift (it never grows), which a
-   pause resets. A recording faster than 60 FPS (frames shorter than a tick) owes more than that
-   every tick, so a tick still runs several of its frames and presents the last. Above 1x the same
-   limit applies after a frame lasting at least a tick of inner time at that speed (its recorded
-   duration at least the speed times the tick period: a 60 Hz refresh or more of real time), so
-   fast-forward still shows it; after shorter frames a tick runs several and presents the last.
-
-   The owed limit: the accumulator never owes more than ``MAX_OWED_INNER_FRAMES`` and a half of the
-   next frame's duration (about half a second of 60 FPS frames), and never less than the floor: the
-   frame plus a 60 Hz tick plus the tick paid for (the real time since the last tick, at least a
-   60 Hz tick; a stall over ``STALL_TICK_SECONDS`` counts as a 60 Hz tick), in inner time, so a
-   recording of very short frames, or a slower display's ticks, keep their rate. The excess is
-   dropped (a long stall runs one bounded burst), and while frames are dropped or the budget cuts
-   ticks short the viewer is behind (``is_behind``): the status bar then shows the real speed
-   (``effective_speed``). So 1x runs one inner frame a tick for a 60 FPS recording (but for the true
-   rate mismatch), 8x eight, 1/4x one every fourth tick, paused none. While paused a step (``.``)
-   runs exactly one inner frame. The start screen lets frame 0 run first, so its picture is behind
-   the message.
+   run the tick's work (keys), then pay the pacer the real time since the last tick (``accrue``;
+   the pacer multiplies by the speed). A tick within ``TICK_SNAP_WINDOW_SECONDS`` of one period
+   counts as exactly one period, the error carried to the next tick, so wake-up jitter does not
+   turn 1x into ticks of 0 and 2 frames. Paused, at the start screen or over, the pacer is told
+   the inner game is not running and empties instead.
+2. Tick open: run one more inner frame (``should_run_inner_frame`` True) while the pacer owes
+   one, within the tick's real-time work budget (``INNER_FRAME_BUDGET_SECONDS``, 11 ms of the
+   16.7 ms tick), so keys, the status line and presenting stay at 60 Hz however costly inner
+   frames are. While paused a step (``.``) runs exactly one inner frame. The start screen lets
+   frame 0 run first, so its picture is behind the message.
 3. Otherwise the tick closes: the doors refresh the status line, the loop presents the outer
    frame and asks again (step 1).
 
 The owing (rule 1's accumulator and all of rule 2 but the paused step and the start screen) is
-``RecordedFramePacer`` (glitchygames/replay/pacer.py), shared with every player of a recording;
-the viewer keeps the cadence, the keys, the snapping of tick times and the start screen, and
-tells the pacer the speed (``ReplayControls.speed``) and its tick period
-(``CONTROL_TICK_SECONDS``). Each tick's work budget is a ``TickBudget`` on the viewer's clock.
+``RecordedFramePacer`` (glitchygames/replay/pacer.py, whose docstring is the contract for it:
+the accumulator, the half-frame phase, one frame a tick unless behind, the owed limit and the
+effective speed), shared with every player of a recording. The viewer keeps the cadence, the
+keys, the snapping of tick times and the start screen, and tells the pacer the speed
+(``ReplayControls.speed``) and its tick period (``CONTROL_TICK_SECONDS``); the status bar shows
+the pacer's ``effective_speed`` while it is behind. Each tick's work budget is a ``TickBudget``
+on the viewer's clock.
 
-The accumulator only decides when inner frames run, never what they do, so a watched replay is
+The pacer only decides when inner frames run, never what they do, so a watched replay is
 as exact as a headless one. Headless replays have no viewer loop: they never hold and run
 unpaced. Step back restarts the replay process instead, which rebuilds the inner game up to
 frame N-1 before the viewer's first tick (glitchygames/replay/rebuild.py; no outer tick opens
@@ -412,7 +388,7 @@ async def run_watched_replay_async(
     tick of ``viewer`` (``ticks_externally``: the viewer never sleeps): the tick's inner frames
     run, then the viewer holds and the outer frame is presented (``SceneManager.run_frame_step``
     steps until ``last_step_was_held``). Frames run unpaced, as the blocking loop runs them in a
-    watched replay: the viewer's accumulator decides when they run.
+    watched replay: the pacer decides when they run.
 
     Args:
         scene_manager: The replayed game's scene manager.
