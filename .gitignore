@@ -13,6 +13,9 @@ __pycache__/
 # C extensions
 *.so
 
+# The website's CDK synthesis output (infra/; cdk synth, diff, deploy)
+infra/cdk.out/
+
 # Distribution / packaging
 .Python
 build/

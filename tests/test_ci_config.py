@@ -83,6 +83,21 @@ def test_circleci_pins_the_locked_version(parameter, package):
     assert pipeline_parameter_default(name=parameter) == locked_version(package=package)
 
 
+def test_every_pipeline_parameter_the_config_uses_is_declared():
+    """Each ``<< pipeline.parameters.NAME >>`` names a declared pipeline parameter.
+
+    CircleCI refuses the whole pipeline over one unknown name ("Unknown variable(s)"), and a
+    branch merged after a rename keeps the old one: the website's jobs still named
+    ``PYTHON_LATEST_VERSION`` after main renamed it ``PYTHON_VERSION``, and no job ran.
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    declared = set(yaml.safe_load(configuration)['parameters'])
+    used = set(re.findall(r'<<\s*pipeline\.parameters\.(\w+)\s*>>', configuration))
+
+    assert used, f'{CIRCLECI_CONFIG_PATH} uses no pipeline parameters: the pattern is stale'
+    assert used - declared == set()
+
+
 def test_the_raspberry_pi_playbook_pins_circlecis_uv():
     """The uv the owner measures with on the Pi is the one its CI job installs."""
     playbook = (PROJECT_ROOT / 'ansible' / 'raspberry_pi_runner.yml').read_text(encoding='utf-8')
@@ -2865,3 +2880,106 @@ def test_missing_syft_or_grype_fails_in_ci(mocker, monkeypatch, variable):
 
     with pytest.raises(AssertionError, match='syft and grype not found on PATH'):
         noxfile.security_scan(session)
+
+
+def circleci_job_definition(*, name: str) -> str:
+    """Return a job's definition under ``jobs:`` (its lines, as text).
+
+    Returns:
+        The definition, from its ``name:`` line to the next job's (or the workflows).
+
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    jobs = configuration[configuration.index('\njobs:\n') : configuration.index('\nworkflows:')]
+    # The body ends at the next line indented less than a job's contents: the next job, or a
+    # comment or key at the top level
+    match = re.search(
+        rf'^  {name}:\n(?P<body>(?:(?:    .*)?\n)+?)(?=^ {{0,2}}\S|\Z)', jobs + '\n', re.MULTILINE
+    )
+    assert match is not None, f'the configuration has no job {name}'
+    return match['body']
+
+
+def test_the_infra_tests_run_on_every_branch():
+    """The website's CDK app and publisher are tested on every branch, like the engine.
+
+    The workflow lists the job bare (``- test-infra``, no requires or filters).
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    workflow = configuration[configuration.index('\nworkflows:') :]
+
+    assert re.search(r'^      - test-infra\n', workflow, flags=re.MULTILINE)
+    assert 'nox -s infra-test' in circleci_job_definition(name='test-infra')
+
+
+def test_the_infra_sessions_node_tests_name_their_files_never_a_folder():
+    """``nox -s infra-test`` hands ``node --test`` files or globs that match every test file.
+
+    Node 26 searches a folder named after ``--test``, but Node 24 (CircleCI's ``-node`` image)
+    loads it as one module and fails with "Cannot find module" (every ``test-infra`` run from
+    2026-10-28 to 2026-11-20 failed so, while local runs on Node 26 passed). A glob works on
+    Node 22, 24 and 26.
+    """
+    import noxfile
+
+    session = RecordingSession(posargs=[])
+    noxfile.infra_test(session)
+    node_commands = [command for command in session.commands if command[0] == 'node']
+    assert len(node_commands) == 1, session.commands
+    node_command = node_commands[0]
+    assert node_command[1] == '--test'
+    patterns = node_command[2:]
+
+    named: set[Path] = set()
+    for pattern in patterns:
+        assert not (PROJECT_ROOT / pattern).is_dir(), f'{pattern} is a folder'
+        matches = {path for path in PROJECT_ROOT.glob(pattern) if path.is_file()}
+        assert matches, f'{pattern} matches no file'
+        named |= matches
+
+    test_files = set((PROJECT_ROOT / 'infra' / 'tests' / 'functions').rglob('*.test.mjs'))
+    assert test_files, 'infra/tests/functions holds no *.test.mjs: the check is stale'
+    assert named == test_files
+
+
+def test_the_site_deploys_from_main_after_the_docs_publish():
+    """play.glitchy.games is published from main only, after the docs publish and infra tests.
+
+    The owner (2026-10-28): "it should run on main after docs publish". deploy-docs itself
+    waits for the macOS job, so the site never publishes ahead of a passing build.
+    """
+    entry = circleci_workflow_job(name='deploy-site')
+
+    assert 'requires:\n            - deploy-docs\n            - test-infra\n' in entry
+    assert 'branches:\n              only: main\n' in entry
+    assert 'serial-group: << pipeline.project.slug >>/deploy-site' in entry
+    assert 'nox -s site-publish' in circleci_job_definition(name='deploy-site')
+
+
+def test_the_site_deploy_uses_oidc_not_stored_keys():
+    """The deploy assumes its role with CircleCI's OIDC token: no AWS keys anywhere in CI."""
+    definition = circleci_job_definition(name='deploy-site')
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+
+    assert 'CIRCLE_OIDC_TOKEN_V2' in definition
+    assert 'AWS_WEB_IDENTITY_TOKEN_FILE' in definition
+    assert 'AWS_ROLE_ARN' in definition
+    assert 'AWS_ACCESS_KEY_ID' not in configuration
+    assert 'AWS_SECRET_ACCESS_KEY' not in configuration
+
+
+def test_the_site_deploy_role_arn_stays_out_of_the_repository():
+    """The role's ARN names the AWS account, so it lives in CircleCI's project settings.
+
+    The owner (2026-10-28): "Make SITE_DEPLOY_ROLE_ARN private." The job reads the project
+    environment variable and refuses to run without it; the public configuration holds neither
+    a pipeline parameter for it nor any ARN.
+    """
+    definition = circleci_job_definition(name='deploy-site')
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+
+    assert 'pipeline.parameters.SITE_DEPLOY_ROLE_ARN' not in configuration
+    assert not re.search(r'^  SITE_DEPLOY_ROLE_ARN:', configuration, flags=re.MULTILINE)
+    assert 'arn:aws:' not in configuration
+    assert '"${SITE_DEPLOY_ROLE_ARN:-}"' in definition
+    assert 'Project Settings > Environment Variables' in definition

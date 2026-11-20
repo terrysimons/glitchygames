@@ -1,0 +1,60 @@
+<!doctype html>
+<!--
+  play.glitchy.games: for now, the owner's mockup of the GlitchyGames Arcade; the real site is
+  coded here later (docs/specs/2026-10-27-glitchy-games-website-design.md, What gets published
+  at launch). Published by nox -s site-publish. Self-contained: no outside scripts, styles or
+  fonts.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GlitchyGames Arcade — coming soon</title>
+  <meta name="description" content="The GlitchyGames Arcade: Python games that run in your browser. Coming soon.">
+  <style>
+    :root {
+      color-scheme: dark;
+      --background: #111317;
+      --text: #e8e6e1;
+      --muted: #9a9890;
+      --accent: #e8b84a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.25rem;
+      padding: 2rem 16px;
+      background: var(--background);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    img {
+      display: block;
+      width: 100%;
+      max-width: 1200px;
+      height: auto;
+      border-radius: 12px;
+      box-shadow: 0 12px 48px rgb(0 0 0 / 50%);
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(1.25rem, 3vw, 2rem);
+      letter-spacing: 0.02em;
+    }
+    p { margin: 0; color: var(--muted); text-align: center; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <img src="arcade-mockup.png" width="2000" height="1417"
+       alt="A mockup of the GlitchyGames Arcade: Drawing Fire, a pencil-and-paper battle, plays above a grid of ten game tiles including PaddleSlap, Brave Adventurer, Clockwork Keep, Mr. Muncher and Bitmappy">
+  <h1>GlitchyGames Arcade — coming soon</h1>
+  <p>Python games that run in your browser. Follow along on
+    <a href="https://github.com/terrysimons/glitchygames">GitHub</a>.</p>
+</body>
+</html>
