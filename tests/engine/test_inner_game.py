@@ -17,7 +17,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import pygame
 import pytest
@@ -139,8 +139,14 @@ TARGET_SIZE = (
 ANOTHER_SIZE = (TARGET_SIZE[0] + 16, TARGET_SIZE[1])
 # The frame a tampered copy first differs at
 TAMPERED_FRAME = 10
-# A fast-forward's budgets run on a fake clock on which each frame costs this (frame_cost_clock)
-FRAME_COST_SECONDS = 0.004
+# A fast-forward's budgets run on a fake clock on which each frame costs this (frame_cost_clock):
+# a power of two, so every multiple and difference of multiples is exact in a float and a k-frame
+# budget is spent by exactly k frames (0.004 is not: from frame 9 one frame left it unspent)
+FRAME_COST_SECONDS = 1 / 256
+# The start frames and budgets (in frames) the frame-cost clock is checked over: longer than any
+# recording a test fast-forwards
+FRAME_COST_CHECKED_START_FRAMES = 5000
+FRAME_COST_CHECKED_BUDGET_FRAMES = (1, 2, 3, 5, 8)
 # The frame the sliced fast-forwards go to, and the frames a slice allows: not a multiple of it
 SLICED_TO_FRAME = 10
 FRAMES_PER_SLICE = 3
@@ -982,7 +988,24 @@ class TestWhatAHostNeedsToPaceIt:
         assert inner_game.next_frame_seconds == 0.0
 
 
-def frame_cost_clock(inner_game: InnerGame) -> Callable[[], float]:
+class CountsFrames(Protocol):
+    """What the frame-cost clock reads: an inner game, or a counter standing in for one."""
+
+    @property
+    def frame_index(self) -> int:
+        """The frames run so far."""
+        ...
+
+
+class FrameCounter:
+    """A frame index set by hand, to check the frame-cost clock against ``TickBudget``."""
+
+    def __init__(self) -> None:
+        """Start at frame 0."""
+        self.frame_index = 0
+
+
+def frame_cost_clock(inner_game: CountsFrames) -> Callable[[], float]:
     """Return a fake real-time clock on which every frame the inner game runs costs one frame.
 
     A ``TickBudget`` of ``FRAME_COST_SECONDS`` on it is spent by exactly one frame, so a test
@@ -995,7 +1018,7 @@ def frame_cost_clock(inner_game: InnerGame) -> Callable[[], float]:
     return lambda: inner_game.frame_index * FRAME_COST_SECONDS
 
 
-def frame_budget(*, inner_game: InnerGame, frame_count: float) -> TickBudget:
+def frame_budget(*, inner_game: CountsFrames, frame_count: float) -> TickBudget:
     """Start a budget allowing ``frame_count`` frames on the frame-cost clock.
 
     Returns:
@@ -1029,6 +1052,28 @@ def fast_forward_in_slices(
         if reached:
             return frames_run_by_call
     pytest.fail(f'{inner_game.context.name} did not reach frame {to_frame} in {MOST_STEPS} calls')
+
+
+def test_the_frame_cost_clock_spends_a_k_frame_budget_in_exactly_k_frames():
+    """The double's own contract, for every start frame of a long recording.
+
+    ``TickBudget.is_spent`` compares a difference of clock readings with the length, so a frame
+    cost that floats cannot hold exactly (0.004) lets a "one-frame" budget run two frames from
+    some start frames; the tests above would then count frames the fast-forward never chose.
+    """
+    counter = FrameCounter()
+    wrong: list[tuple[int, int]] = []
+    for start_frame in range(FRAME_COST_CHECKED_START_FRAMES):
+        for budget_frames in FRAME_COST_CHECKED_BUDGET_FRAMES:
+            counter.frame_index = start_frame
+            budget = frame_budget(inner_game=counter, frame_count=budget_frames)
+            counter.frame_index = start_frame + budget_frames - 1
+            spent_a_frame_early = budget.is_spent
+            counter.frame_index = start_frame + budget_frames
+            if spent_a_frame_early or not budget.is_spent:
+                wrong.append((start_frame, budget_frames))
+
+    assert wrong == []
 
 
 class TestAFastForward:
