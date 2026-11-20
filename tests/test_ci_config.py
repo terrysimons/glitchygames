@@ -83,6 +83,21 @@ def test_circleci_pins_the_locked_version(parameter, package):
     assert pipeline_parameter_default(name=parameter) == locked_version(package=package)
 
 
+def test_every_pipeline_parameter_the_config_uses_is_declared():
+    """Each ``<< pipeline.parameters.NAME >>`` names a declared pipeline parameter.
+
+    CircleCI refuses the whole pipeline over one unknown name ("Unknown variable(s)"), and a
+    branch merged after a rename keeps the old one: the website's jobs still named
+    ``PYTHON_LATEST_VERSION`` after main renamed it ``PYTHON_VERSION``, and no job ran.
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    declared = set(yaml.safe_load(configuration)['parameters'])
+    used = set(re.findall(r'<<\s*pipeline\.parameters\.(\w+)\s*>>', configuration))
+
+    assert used, f'{CIRCLECI_CONFIG_PATH} uses no pipeline parameters: the pattern is stale'
+    assert used - declared == set()
+
+
 def test_the_raspberry_pi_playbook_pins_circlecis_uv():
     """The uv the owner measures with on the Pi is the one its CI job installs."""
     playbook = (PROJECT_ROOT / 'ansible' / 'raspberry_pi_runner.yml').read_text(encoding='utf-8')

@@ -490,11 +490,11 @@ test('directory URLs on the canonical host fetch their index', () => {
   - The role's ARN comes from the CircleCI project environment variable `SITE_DEPLOY_ROLE_ARN`
     (set by the owner in Task 8), not a pipeline parameter: it names the AWS account, and the
     configuration is public (the owner, 2026-10-28: "Make SITE_DEPLOY_ROLE_ARN private").
-  - Job `test-infra`: `cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>-node`
+  - Job `test-infra`: `cimg/python:<< pipeline.parameters.PYTHON_VERSION >>-node`
     (CDK's Python library needs Node), `resource_class: small`, `restore-uv-cache-posix`,
     `install-deps-posix`, `uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s infra-test`,
     `save-uv-cache-posix`. In the workflow with no filters (every branch).
-  - Job `deploy-site`: `cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>`,
+  - Job `deploy-site`: `cimg/python:<< pipeline.parameters.PYTHON_VERSION >>`,
     `resource_class: small`, `environment: AWS_REGION: us-east-1`, a step that writes
     `$CIRCLE_OIDC_TOKEN_V2` to a file and exports `AWS_WEB_IDENTITY_TOKEN_FILE` and
     `AWS_ROLE_ARN` (from `SITE_DEPLOY_ROLE_ARN`; refuses to run when it is unset, with a message

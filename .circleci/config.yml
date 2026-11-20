@@ -871,13 +871,14 @@ jobs:
   # The -node image: the CDK's Python library runs on Node, and the function's tests use node
   test-infra:
     docker:
-      - image: cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>-node
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>-node
     resource_class: small
 
     steps:
       - checkout
       - restore-uv-cache-posix
-      - install-deps-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
       - run:
           name: "Test the website's infrastructure (nox -s infra-test)"
           command: |
@@ -895,7 +896,7 @@ jobs:
   # owner, 2026-10-28): the GlitchyGamesSiteDeployRole stack's DeployRoleArn output
   deploy-site:
     docker:
-      - image: cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
     resource_class: small
 
     environment:
@@ -904,7 +905,8 @@ jobs:
     steps:
       - checkout
       - restore-uv-cache-posix
-      - install-deps-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
       - run:
           name: "Publish the site (nox -s site-publish)"
           command: |
