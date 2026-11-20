@@ -1066,3 +1066,144 @@ class TestControllerLayerButton:
 
         assert restored.get_action(_button_down(self.MIC)) == 'jump'
         assert restored.get_action(_joy_button_down(self.MIC)) == 'jump'
+
+
+TRIGGER_AXIS = pygame.CONTROLLER_AXIS_TRIGGERLEFT
+# Pulls as (controller layer raw value, joystick layer value, expected reading): SDL's joystick
+# layer rests a trigger at -1.0 (raw -32768); the controller layer rests it at 0
+TRIGGER_PULLS = [
+    pytest.param(0, -1.0, 0.0, id='rest'),
+    pytest.param(8192, -0.5, 0.25, id='quarter'),
+    pytest.param(16384, 0.0, 0.5, id='half'),
+    pytest.param(32767, 1.0, 1.0, id='full'),
+]
+
+
+def _trigger_reading(
+    *, layer: str, controller_raw: int, joystick_value: float, bound: bool
+) -> float:
+    """Return a trigger binding's axis value after one motion on the given layer."""
+    actions = ActionMap(input_mode='controller' if layer == 'controller' else 'joystick')
+    actions.bind('fire', controller_axis=(TRIGGER_AXIS, 0.5), trigger=bound)
+    if layer == 'controller':
+        actions.handle_event(_axis_motion(TRIGGER_AXIS, controller_raw))
+    else:
+        actions.handle_event(_joy_axis_motion(TRIGGER_AXIS, joystick_value))
+    return actions.axis_value('fire')
+
+
+class TestTriggerAxisBinding:
+    """BUGS.md #248: a trigger binding reads 0.0 (rest) to 1.0 on both layers."""
+
+    @pytest.mark.parametrize(('controller_raw', 'joystick_value', 'expected'), TRIGGER_PULLS)
+    @pytest.mark.parametrize('layer', ['controller', 'joystick'])
+    def test_pull_reads_the_same_on_both_layers(
+        self, layer: str, controller_raw: int, joystick_value: float, expected: float
+    ) -> None:
+        """Rest, quarter, half and full pull read the same on either layer."""
+        reading = _trigger_reading(
+            layer=layer,
+            controller_raw=controller_raw,
+            joystick_value=joystick_value,
+            bound=True,
+        )
+        assert reading == pytest.approx(expected, abs=1e-3)
+
+    def test_trigger_is_not_held_at_rest_on_the_joystick_layer(self) -> None:
+        """A resting joystick trigger (-1.0) holds neither a trigger binding nor reads pushed."""
+        actions = ActionMap(input_mode='joystick')
+        actions.bind('fire', controller_axis=(TRIGGER_AXIS, 0.05), trigger=True)
+        actions.handle_event(_joy_axis_motion(TRIGGER_AXIS, -1.0))
+        assert actions.is_held('fire') is False
+        assert actions.axis_value('fire') == 0.0
+
+    @pytest.mark.parametrize('layer', ['controller', 'joystick'])
+    def test_half_pull_fires_a_half_threshold_binding(self, layer: str) -> None:
+        """A +0.5 trigger binding fires at half pull on both layers, and not below it."""
+        actions = ActionMap(input_mode='controller' if layer == 'controller' else 'joystick')
+        actions.bind('fire', controller_axis=(TRIGGER_AXIS, 0.5), trigger=True)
+        quarter = _axis_motion(TRIGGER_AXIS, 8192) if layer == 'controller' else None
+        if quarter is None:
+            quarter = _joy_axis_motion(TRIGGER_AXIS, -0.5)
+        actions.handle_event(quarter)
+        assert actions.is_held('fire') is False
+        half = (
+            _axis_motion(TRIGGER_AXIS, 16384)
+            if layer == 'controller'
+            else _joy_axis_motion(TRIGGER_AXIS, 0.0)
+        )
+        actions.handle_event(half)
+        assert actions.is_held('fire') is True
+
+    def test_deadzone_applies_near_rest_for_a_trigger(self) -> None:
+        """A joystick trigger barely off rest (stretched below the deadzone) reads 0.0."""
+        actions = ActionMap(input_mode='joystick')
+        actions.bind('fire', controller_axis=(TRIGGER_AXIS, 0.5), trigger=True)
+        actions.handle_event(_joy_axis_motion(TRIGGER_AXIS, -0.9))  # stretched: 0.05
+        assert actions.axis_value('fire') == 0.0
+
+    def test_stick_axes_are_unchanged(self) -> None:
+        """Without trigger=True the joystick layer's value is used as it is."""
+        actions = ActionMap(input_mode='joystick')
+        actions.bind('left', controller_axis=(pygame.CONTROLLER_AXIS_LEFTX, -0.3))
+        actions.handle_event(_joy_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, -0.5))
+        assert actions.axis_value('left') == -0.5
+        assert actions.is_held('left') is True
+
+    def test_a_stick_and_a_trigger_on_one_axis_filter_separately(self) -> None:
+        """Two bindings on one axis each read their own scale."""
+        actions = ActionMap(input_mode='joystick')
+        actions.bind('stick', controller_axis=(TRIGGER_AXIS, 0.3))
+        actions.bind('trigger', controller_axis=(TRIGGER_AXIS, 0.3), trigger=True)
+        actions.handle_event(_joy_axis_motion(TRIGGER_AXIS, 0.0))
+        assert actions.axis_value('stick') == 0.0
+        assert actions.axis_value('trigger') == pytest.approx(0.5)
+
+    def test_flag_survives_a_save_and_load(self) -> None:
+        """The trigger flag is saved and loaded with the binding."""
+        original = ActionMap()
+        original.bind('fire', controller_axis=(TRIGGER_AXIS, 0.5), trigger=True)
+        original.bind('left', controller_axis=(pygame.CONTROLLER_AXIS_LEFTX, -0.3))
+        saved = original.to_dict()
+        assert saved['fire'][0]['trigger'] is True
+        assert 'trigger' not in saved['left'][0]
+        restored = ActionMap.from_dict(saved)
+        assert restored.to_dict() == saved
+
+    def test_old_saved_axis_loads_as_not_a_trigger(self) -> None:
+        """A saved axis binding without the flag loads as a stick."""
+        restored = ActionMap.from_dict({
+            'fire': [{'type': 'AxisMotion', 'axis': TRIGGER_AXIS, 'threshold': 0.5}]
+        })
+        assert 'trigger' not in restored.to_dict()['fire'][0]
+        restored_joystick = ActionMap.from_dict(
+            {'fire': [{'type': 'AxisMotion', 'axis': TRIGGER_AXIS, 'threshold': 0.5}]},
+            input_mode='joystick',
+        )
+        restored_joystick.handle_event(_joy_axis_motion(TRIGGER_AXIS, 0.0))
+        assert restored_joystick.axis_value('fire') == 0.0
+
+    def test_trigger_without_an_axis_is_refused(self) -> None:
+        """trigger=True with no controller_axis is an error, not silently ignored."""
+        with pytest.raises(ValueError, match='trigger=True'):
+            ActionMap().bind('fire', keyboard=pygame.K_SPACE, trigger=True)
+
+    @pytest.mark.parametrize('threshold', [-0.5, 0.0])
+    def test_trigger_with_a_threshold_that_is_not_positive_is_refused(
+        self, threshold: float
+    ) -> None:
+        """A trigger rests at 0.0, so a threshold of 0 or less would fire at rest."""
+        with pytest.raises(ValueError, match='must be positive'):
+            ActionMap().bind('fire', controller_axis=(TRIGGER_AXIS, threshold), trigger=True)
+
+    def test_a_saved_trigger_with_a_threshold_that_is_not_positive_is_skipped(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A bad saved trigger is skipped with a warning, like other unusable saved data."""
+        restored = ActionMap.from_dict({
+            'fire': [
+                {'type': 'AxisMotion', 'axis': TRIGGER_AXIS, 'threshold': -0.5, 'trigger': True}
+            ]
+        })
+        assert 'fire' not in restored.to_dict()
+        assert 'not positive' in caplog.text
