@@ -3,9 +3,11 @@
 Pyodide's filesystem is in memory: files written under ``Path.home()`` (where glitchygames.state
 keeps saves on this platform: ~/.local/share/<app>) vanish when the page reloads. IDBFS keeps a
 directory in IndexedDB, but only when told: ``FS.syncfs(True)`` loads it into memory before use,
-``FS.syncfs(False)`` writes changes back. browser/boot.py mounts it before the game starts,
-flushes after every save (glitchygames.state ``observe_disk_save_changes``) and when the page is
-hidden. Verified across reloads in Chromium and WebKit (../pygame-ce-wasm, results V1-*).
+``FS.syncfs(False)`` writes changes back. browser/boot.py mounts it before the game starts (over
+the saves' folder and the sound cache's), flushes after every save (glitchygames.state
+``observe_disk_save_changes``) and every burst of written sounds (glitchygames.audio.disk_cache
+``observe_sound_writes``, through ``flush_soon``), and when the page is hidden. Verified across
+reloads in Chromium and WebKit (../pygame-ce-wasm, results V1-*).
 """
 
 import asyncio
@@ -20,6 +22,10 @@ file_system = pyodide_js.FS
 # Flushes started without waiting for them (flush_in_background). Kept until done: the event
 # loop holds only weak references to tasks, and one nobody holds can be collected mid-flush
 _pending_flushes: set[asyncio.Task[str | None]] = set()
+
+# flush_soon's one flush at a time: 'scheduled' (not started yet: a request joins it), 'running'
+# (a request asks for one more pass after it), 'again' (that pass is owed)
+_sound_flush_state: set[str] = set()
 
 
 async def _sync(*, populate: bool) -> str | None:
@@ -72,6 +78,48 @@ def flush_in_background() -> None:
     task = asyncio.ensure_future(flush())
     _pending_flushes.add(task)
     task.add_done_callback(_pending_flushes.discard)
+
+
+def flush_soon() -> None:
+    """Flush soon, with at most one such flush in flight: one write-back for a burst of requests.
+
+    Sounds are written one at a time, across a scene's setup and later frames, and each asks to
+    flush. A request with nothing scheduled schedules a flush for the event loop's next turn; a
+    request while one is scheduled joins it; a request while one is running asks for one more
+    pass once it ends (its files changed after the running pass may have read them). So no two
+    of these FS.syncfs calls overlap, and none of the requested changes is left unwritten.
+    """
+    if 'scheduled' in _sound_flush_state:
+        return
+    if 'running' in _sound_flush_state:
+        _sound_flush_state.add('again')
+        return
+    _sound_flush_state.add('scheduled')
+    asyncio.get_running_loop().call_soon(_start_sound_flush)
+
+
+def _start_sound_flush() -> None:
+    _sound_flush_state.discard('scheduled')
+    _sound_flush_state.add('running')
+    task = asyncio.ensure_future(_sound_flush_passes())
+    _pending_flushes.add(task)
+    task.add_done_callback(_pending_flushes.discard)
+
+
+async def _sound_flush_passes() -> str | None:
+    """Flush, and flush again while requests arrived during the last pass.
+
+    Returns:
+        The last pass's error text, or None.
+    """
+    try:
+        while True:
+            _sound_flush_state.discard('again')
+            error = await flush()
+            if 'again' not in _sound_flush_state:
+                return error
+    finally:
+        _sound_flush_state.discard('running')
 
 
 def flush_on_page_hide() -> None:
