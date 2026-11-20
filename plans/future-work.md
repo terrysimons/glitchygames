@@ -1014,6 +1014,22 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   site, each page loaded, each picker clicked, no console error) would keep them working. The
   frame x commit heatmaps stay on each recording's own page; they could join the performance
   explorer as a chart of their own.
+- **Automated browser testing: Playwright for desktop, Appium for phones and iPads** (the owner,
+  2026-11-20). Today the play pages and docs explorers are checked by hand or by scratch
+  Playwright scripts. Recommended split:
+  - **Playwright** (Python), as a nox session and in CI: desktop Chromium, Firefox and WebKit,
+    plus mobile emulation (screen sizes, touch events, device profiles). Covers each game's play
+    page booting to its title with no Python or console error, the touch controls
+    (`browser/touch_controls.js`), Load and Save (including Save working like Load,
+    Bitmappy above), the IndexedDB sound cache across a reload, and this item's docs explorers.
+  - **Appium** for real devices: Safari on iPhone and iPad (XCUITest; the iOS simulator in CI
+    where it runs, real devices by hand or on a schedule) and Chrome on Android (UiAutomator2).
+    It covers what emulation cannot: the on-screen keyboard raised by text input
+    (`plans/2026-11-20-window-owner-events.md`, question 8), the iOS share sheet's Save to Files,
+    iOS audio unlock on the first tap, and the touch layout on real screens.
+  - **Selenium**: not planned. It would add only real desktop Safari (`safaridriver`), which
+    Playwright's WebKit approximates; add it if a bug shows in desktop Safari that WebKit misses
+    (Appium speaks the same WebDriver protocol, so it is a small step then).
 - **A per-game AI sweep of performance bottlenecks** (the owner, 2026-11-07). For each game, have the AI
   read what our benchmarks record (the run ledger in `quality/replay-ledger/`, each recording's
   `processing_seconds` and `FrameProfile`, the slowest frames and scenes in each `RunSummary`, and
