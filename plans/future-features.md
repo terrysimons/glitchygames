@@ -6402,6 +6402,31 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: TODO (filed 2026-11-19)
 - **Priority**: not set (the owner's call)
 
+### 92. Engine: Resolution From the Display, Up to a Maximum — TODO
+- **Description**: Every game comes up at 800x480, the engine's `--resolution` default
+  (`src/glitchygames/engine/game_engine.py`), which was chosen for the Raspberry Pi's 7" screen.
+  The owner (2026-11-19): "Let's make the screen resolution more dynamic. We capped it at 800x480
+  to handle the Rpi 7" screen. I think we can detect that and use it. Maybe we detect and use up
+  to a maximum resolution?" Not started.
+- **What exists today**: the window is opened `SCALED | RESIZABLE` (fullscreen adds
+  `FULLSCREEN`). A resized window or a fullscreen monitor already shows the whole game,
+  enlarged, but the canvas the game draws on stays 800x480.
+- **To settle in its design**:
+  - What a bigger screen should give: more of the world in view, or the same view drawn larger
+    and sharper (an integer scale of 800x480, for example 1600x960), or both. Each game lays
+    out by `screen_width` and `screen_height`, so a bigger canvas changes every game's look
+    and play (Zombies' camera would show more of the yard).
+  - Detection: the display's size from SDL (`pygame.display.get_desktop_sizes()`), the cap,
+    and how an explicit `--resolution` still wins. Then the headless, dummy-driver and browser
+    cases.
+  - Recordings: goldens and demos replay at their recorded size, and an inner game
+    (`inner_game.py`) is refused at any other. A host showing one at a different size must
+    scale it.
+  - Zombies' four-player split screen depends on it (the zombies master plan's Game TODOs and
+    wishlist #16).
+- **Status**: TODO (filed 2026-11-19)
+- **Priority**: not set (the owner's call)
+
 ## Notes
 
 - All features are currently in planning phase

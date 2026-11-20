@@ -14,6 +14,7 @@ decision 11).
 from __future__ import annotations
 
 import math
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Final, override
 
 from glitchygames.input.state import current_input
@@ -33,9 +34,9 @@ if TYPE_CHECKING:
 
 # Unjoined slots blink: shown this long, then hidden this long, all four in step
 BLINK_SECONDS: Final = 0.5
-# How long the title stands idle, nobody joined and no run, before the intro plays (feature plan
-# 12's idle loop: long enough to read it and pick up a pad, short enough to start while someone
-# is still looking)
+# How long the title stands idle, nobody joined and no run, before an attraction plays (feature
+# plan 12's idle loop: long enough to read it and pick up a pad, short enough to start while
+# someone is still looking)
 IDLE_SECONDS: Final = 20.0
 # The game's title, in the upper half of the screen
 TITLE_TEXT: Final = "ZOMBIES AIN'T MY NEIGHBORS"
@@ -54,6 +55,17 @@ DEVICE_TEXTS: Final[dict[DeviceKind, str]] = {
 }
 
 
+class Attraction(StrEnum):
+    """What an idle title shows next: the demo and the intro take turns (the owner, 2026-11-19).
+
+    The demo comes first, as the intro has just played at launch; the demo's scene hands back a
+    title owing the intro, and the intro a title owing the demo.
+    """
+
+    DEMO = 'demo'
+    INTRO = 'intro'
+
+
 def slot_label(*, slot_index: int) -> str:
     """Return a slot's player label: P1 to P4.
 
@@ -67,7 +79,10 @@ def slot_label(*, slot_index: int) -> str:
 class TitleScene(RosterScene):
     """Zombies Ain't My Neighbors' title screen."""
 
-    NAME = "Zombies Ain't My Neighbors"
+    NAME = text.GAME_NAME
+    # The attract demo (feature plan 13) replays as an inner game: the engine sets its sound
+    # channels aside when it is built for a run starting here (Scene.INNER_GAMES)
+    INNER_GAMES = 1
     VERSION = '1.0'
 
     @override
@@ -79,6 +94,7 @@ class TitleScene(RosterScene):
         run: RunState | dict[str, Any] | None = None,
         opening: bool = True,
         awaiting_release: bool = False,
+        next_attraction: Attraction | str = Attraction.DEMO,
     ) -> None:
         """Make the title screen.
 
@@ -96,12 +112,16 @@ class TitleScene(RosterScene):
             awaiting_release: Whether the keys and pad buttons held as it opens are ignored, each
                 until it is seen up (the title the intro hands back: the press that skipped it,
                 still held or repeating, must not join anyone).
+            next_attraction: What the title shows when it has stood idle for IDLE_SECONDS: the
+                attract demo (feature plan 13) or the intro. The demo's scene hands back a title
+                owing the intro; every other title owes the demo.
 
         """
         super().__init__(options=options, groups=groups, roster=roster)
         self.run = None if run is None else as_run(run)
         self.opening = opening
         self.awaiting_release = awaiting_release
+        self.next_attraction = Attraction(next_attraction)
         # What was held when the title opened, awaiting release: keys by scancode, and pad
         # buttons by (layer, instance id, button); each is dropped once it is seen up (None until
         # the title's first frame reads them)
@@ -117,11 +137,12 @@ class TitleScene(RosterScene):
 
     @override
     def replay_arguments(self) -> dict[str, Any]:
-        """Rebuild this title as it began: the roster, the run it keeps, and whether it opens.
+        """Rebuild this title as it began: its roster, run, opening and the attraction it owes.
 
         Returns:
             Them, as JSON reads them back (no run key when it keeps none, no opening key for the
-            opening title, so recordings made before feature plan 12 read the same).
+            opening title and no attraction key for a title owing the demo, so recordings made
+            before feature plans 12 and 13 read the same).
 
         """
         arguments = super().replay_arguments()
@@ -131,6 +152,8 @@ class TitleScene(RosterScene):
             arguments['opening'] = False
         if self.awaiting_release:
             arguments['awaiting_release'] = True
+        if self.next_attraction is not Attraction.DEMO:
+            arguments['next_attraction'] = self.next_attraction.value
         return arguments
 
     @property
@@ -217,7 +240,7 @@ class TitleScene(RosterScene):
         self._pose_slots()
         self._open_with_the_intro()
         self._wait_for_release()
-        self._loop_to_the_intro()
+        self._loop_to_the_next_attraction()
 
     def _wait_for_release(self) -> None:
         """Note what is held as the title opens, and forget each held input once it is up.
@@ -255,8 +278,8 @@ class TitleScene(RosterScene):
         """
         return self.awaiting_release and held_input in (self._held_at_the_start or set())
 
-    def _loop_to_the_intro(self) -> None:
-        """Idle long enough, nobody joined and no run: hand over to the intro, unattended."""
+    def _loop_to_the_next_attraction(self) -> None:
+        """Idle long enough, nobody joined and no run: show the attraction owed, unattended."""
         if (
             self.next_scene is not None
             or self.roster.joined_players
@@ -264,7 +287,12 @@ class TitleScene(RosterScene):
             or self.idle_seconds < IDLE_SECONDS - TIME_TOLERANCE
         ):
             return
-        # Imported here: the intro returns to a title in turn
+        # Imported here: the demo and the intro each return to a title in turn
+        if self.next_attraction is Attraction.DEMO:
+            from zombies_aint_my_neighbors.attract import AttractScene
+
+            self.next_scene = AttractScene(options=self.options)
+            return
         from zombies_aint_my_neighbors.intro import IntroScene, IntroShowing
 
         self.next_scene = IntroScene(options=self.options, showing=IntroShowing.LOOP)

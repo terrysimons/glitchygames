@@ -1803,6 +1803,15 @@ discussing it found and decided:
 
 ## Code quality
 
+- **The replay silencer stops every channel once, so a live voice's queued chunk can play under
+  it** (found 2026-11-19 with the harness's mixer leak, tests/harness.py `silence_every_channel`).
+  pygame starts a channel's queued sound the moment the channel is halted, so one stop leaves a
+  streamed sound's next chunk playing; the engine stops a live voice twice for that reason
+  (`audio/live.py` `stop_now`, `audio/voices.py`). `replay/silence.py` (rebuild and fast-forward)
+  calls `pygame.mixer.stop()` once, which may let a live sound's chunk be heard during a silent
+  rebuild. Not reproduced: reproduce it with a live voice playing at a rebuild, then stop twice
+  there too, and sweep `audio/voices.py`'s single `channel.stop()` calls for channels a live voice
+  can hold.
 - **Bitmappy's AI sprites load from text, not a temp file** (shared sprite frames review,
   2026-11-19). `ai_manager._detect_and_load_ai_sprite` writes the model's TOML to a temp file and
   loads it with `SpriteFactory.load_sprite`; `load_sprite_from_text` gives the same sprite and

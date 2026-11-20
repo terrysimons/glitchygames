@@ -134,6 +134,10 @@ extra; `tests/test_workspace_config.py` keeps each extra equal to its layer's me
   member, so the engine's `uv run pytest` replays each one.
 - **The browser build** ships a member's package as its own archive (`<package>.zip`) beside the
   engine's `glitchygames.zip` (`scripts/build_browser_bundle.py`, `GameSpecification.member_packages`).
+  The archive of a member's first package also carries the member's package metadata (its
+  `.dist-info`: name, version, console scripts), as its wheel would, so a game unpacked in the
+  browser is found by its command as an installed one is (an inner game, such as Zombies Ain't My
+  Neighbors' attract demo, finds the game it replays that way).
 - **API reference**: `scripts/gen_ref_pages.py` writes a page per member package
   (`<package>/index.md`), listed in `zensical.yml` under "Games API Reference", "Demos API
   Reference" or "Apps API Reference" by its layer.
