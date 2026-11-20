@@ -1,6 +1,6 @@
 # Game code that belongs in the engine — Master Plan and Sub-plan Order
 
-> **Status: a plan for the owner's review (written overnight, 2026-11-20); nothing is built.**
+> **Status: APPROVED by the owner (2026-11-20), with the decisions at the end; nothing is built.**
 > Each sub-plan below becomes its own detailed plan, one branch and one PR, when the owner picks
 > it. Open questions are at the end, and each decision marked "recommended" waits for the owner.
 

@@ -1,6 +1,6 @@
 # Window-Owner Events: Cursor Visibility, Key Repeat and Text Input — Plan
 
-> **Status: a plan for the owner's review (written overnight, 2026-11-20); nothing is built.**
+> **Status: APPROVED by the owner (2026-11-20), with the decisions at the end; nothing is built.**
 > Source: the owner's two to-dos of 2026-11-20 in plans/future-work.md ("A cursor show/hide
 > event" and "A key-repeat event", under Arcade sub-plan 3 follow-ups), the bugs-table row "A
 > tile changes the outer game's key repeat", and the text widgets' text input start and stop,
