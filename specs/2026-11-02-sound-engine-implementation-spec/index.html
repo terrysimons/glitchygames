@@ -241,9 +241,7 @@
 
 
 
-  
-
-<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="GlitchyGames" class="md-nav__button md-logo" aria-label="GlitchyGames" data-md-component="logo">
       
@@ -3504,6 +3502,752 @@
               </div>
             
             
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-repository-evidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Repository evidence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Layers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-data-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Data flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-backend-decision-d3-and-evidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Backend decision (D3) and evidence
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Backend decision (D3) and evidence">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-options-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 Options considered
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-why-a" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 Why A
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-what-a-gives-up-recorded-honestly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 What A gives up (recorded honestly)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-the-native-core-gate-m6-open" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 The native-core gate (M6) [Open]
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-execution-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Execution model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Execution model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-threads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Threads
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-bounded-work-per-frame" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Bounded work per frame
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-parameter-updates-coalescing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Parameter updates (coalescing)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-handles-and-stale-handle-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 Handles and stale-handle protection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45-resource-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5 Resource release
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-dsp-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. DSP decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-assets-library-and-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Assets, library and cache
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Assets, library and cache">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-schema-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 Schema (v1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-identity-and-cache-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 Identity and cache keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-seeds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 Seeds
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#64-the-cache-none-ram-or-disk-owner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.4 The cache: None, 'ram' or 'disk' [Owner]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#65-where-compiles-happen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.5 Where compiles happen
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#66-hot-reload-m4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.6 Hot reload (M4)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-voices-buses-and-the-mixer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Voices, buses and the mixer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Voices, buses and the mixer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-channel-table-and-the-legacy-partition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 Channel table and the legacy partition
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-volume-and-pan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 Volume and pan
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-voice-time-without-asking-the-device-fixes-the-builder-checks-first-finding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 Voice time without asking the device (fixes the builder check's first finding)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-buses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 Buses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#75-live-voices-m2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.5 Live voices (M2)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#76-streams-m5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.6 Streams (M5)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-api-settled-signatures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. API (settled signatures)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-determinism-and-offline-rendering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Determinism and offline rendering
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10. Integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#101-crt-power-on-sound-m1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.1 CRT power-on sound (M1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#102-engine-options-added-to-gameengineargs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.2 Engine options (added to GameEngine.args)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#103-replays-silence-scenes-shutdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.3 Replays, silence, scenes, shutdown
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#104-migration-and-clean-up-m2-and-legacy-parity-fixes-the-builder-checks-third-finding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.4 Migration and clean-up (M2), and legacy parity (fixes the builder check's third finding)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#105-the-audio-debug-panel-m1-live-section-m2-replay-comparison-m3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.5 The Audio debug panel (M1; live section M2; replay comparison M3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-performance-plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Performance plan
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="11. Performance plan">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#110-measurement-design-m3-accounting-from-m1-owner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.0 Measurement design (M3; accounting from M1) [Owner]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#111-benchmark-matrix-testsbenchmarkstest_sound_py-benchmark-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.1 Benchmark matrix (tests/benchmarks/test_sound_*.py, --benchmark-only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#112-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.2 Deployment
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-roadmap-and-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Roadmap and tasks
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="12. Roadmap and tasks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#m1-one-call-sound-api-crt-first-implementable-milestone" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        M1 — One-call sound API + CRT (first implementable milestone)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#m2-live-migration-and-clean-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        M2 — Live, migration and clean-up
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#m3-measurement-in-the-owners-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        M3 — Measurement (in the owner's order)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#m4-instrument-depth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        M4 — Instrument depth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#m5-music-and-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        M5 — Music and production
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#m6-authoring-and-targets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        M6 — Authoring and targets
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-decision-register" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. Decision register
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="13. Decision register">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#signal-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signal flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#14-requirement-traceability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. Requirement traceability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#15-risk-register-most-severe-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15. Risk register (most severe first)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#16-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        16. Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#appendix-a-feasibility-measurements-throwaway-not-in-the-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Appendix A — Feasibility measurements (throwaway; not in the repository)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Appendix A — Feasibility measurements (throwaway; not in the repository)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a1-uncontended-block-render-64-voices-48-khz-numpy-vectorized-across-voices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A.1 Uncontended block render (64 voices, 48 kHz, numpy vectorized across voices)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a2-python-render-in-a-device-callback-under-gil-contention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A.2 Python render in a device callback under GIL contention
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a3-render-ahead-worker-copy-only-callback-under-the-same-contention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A.3 Render-ahead worker + copy-only callback under the same contention
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a4-todays-main-thread-sound-costs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A.4 Today's main-thread sound costs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#appendix-b-dependencies-and-licensing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Appendix B — Dependencies and licensing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
           
           
             <div class="md-content" data-md-component="content">
@@ -6534,12 +7278,12 @@ would change this set, and would go through the license check and the <abbr titl
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
-        <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+        <script src="https://unpkg.com/mermaid@11.17.2/dist/mermaid.min.js"></script>
       
         <script src="../../js/mermaid-config.js"></script>
       

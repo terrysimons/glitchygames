@@ -241,9 +241,7 @@
 
 
 
-  
-
-<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="GlitchyGames" class="md-nav__button md-logo" aria-label="GlitchyGames" data-md-component="logo">
       
@@ -3402,6 +3400,652 @@
               </div>
             
             
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#event-dispatch-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event Dispatch Overview
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Event Dispatch Overview">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-proxy-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The proxy layers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#joysticks-and-controllers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Joysticks and controllers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#event-performance-tiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event performance tiers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-event-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom Event Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Custom Event Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-sprite-spawn-event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The sprite spawn event
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#extending-gameevent-in-your-game" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extending GAMEEVENT in your game
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#native-window-messages-syswmevent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Native window messages (SYSWMEVENT)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-manager-class-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event Manager Class Hierarchy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resourcemanager-proxy-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ResourceManager Proxy Pattern
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ResourceManager Proxy Pattern">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#proxy-resolution-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proxy resolution order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#proxy-lists-by-manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proxy lists by manager
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shared-instances" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shared instances
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hashableevent-wrapper" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HashableEvent Wrapper
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="HashableEvent Wrapper">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-problem-with-raw-pygame-event-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The problem with raw pygame event handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-unhandled-event-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The unhandled event problem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-one-frame-at-60-fps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: one frame at 60 FPS
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-warning-per-type-then-silence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One warning per type, then silence
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-hashableevent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why HashableEvent
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#typed-event-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Typed event classes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#immutability-and-the-cached-hash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Immutability and the cached hash
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JSON
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mouse-event-synthesis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mouse Event Synthesis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keyboard-chord-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keyboard Chord Detection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#controller-state-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Controller State Machine
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#complete-event-category-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete Event Category Map
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Complete Event Category Map">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#audioevents-audioeventstubs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AudioEvents → AudioEventStubs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#controllerevents-controllereventstubs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ControllerEvents → ControllerEventStubs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#keyboardevents-keyboardeventstubs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KeyboardEvents → KeyboardEventStubs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mouseevents-mouseeventstubs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MouseEvents → MouseEventStubs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#joystickevents-joystickeventstubs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JoystickEvents → JoystickEventStubs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#windowevents-windoweventstubs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WindowEvents → WindowEventStubs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dropevents-dropeventstubs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DropEvents → DropEventStubs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#touchevents-toucheventstubs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TouchEvents → TouchEventStubs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gameevents-gameeventstubs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GameEvents → GameEventStubs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#appevents-appeventstubs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AppEvents → AppEventStubs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#text-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Text Events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#midievents-midieventstubs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MidiEvents → MidiEventStubs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#joystick-vs-controller-two-input-subsystems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Joystick vs Controller: Two Input Subsystems
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Joystick vs Controller: Two Input Subsystems">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-two-subsystems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why two subsystems?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-device-one-event-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One device, one event layer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#joystickeventmanager-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JoystickEventManager architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#controllereventmanager-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ControllerEventManager architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#joystick-state-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Joystick state tracking
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#controller-state-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Controller state tracking
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unhandled-event-safety-net" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unhandled Event Safety Net
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scene-manager-event-forwarding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scene Manager Event Forwarding
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Scene Manager Event Forwarding">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scene-transitions-in-bitmappy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scene transitions in Bitmappy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event_handlers-dict-construction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EVENT_HANDLERS Dict Construction
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="EVENT_HANDLERS Dict Construction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-its-built" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it's built
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-it-dispatches-at-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it dispatches at runtime
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
           
           
             <div class="md-content" data-md-component="content">
@@ -6093,12 +6737,12 @@ the type and returns whether it handled it.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.annotate", "content.code.copy", "content.tabs.link", "content.tooltips", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest", "toc.follow"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
-        <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+        <script src="https://unpkg.com/mermaid@11.17.2/dist/mermaid.min.js"></script>
       
         <script src="../../js/mermaid-config.js"></script>
       
