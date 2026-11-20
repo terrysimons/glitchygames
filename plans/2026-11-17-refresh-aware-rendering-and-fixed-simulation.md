@@ -540,6 +540,24 @@ Build C, staged as D then blending, and put B's measurement first.
 
 ## Open questions for the owner
 
+### Decided by the owner (2026-11-20)
+
+- **Question 1 (the goal) waits for the measurement.** Measure first, then choose between B
+  alone and C staged as D.
+- **Question 2: the default simulation rate becomes exactly 60** (not 60.01). Committed
+  recordings are untouched: a replay serves its recorded `dt`.
+- **Question 8: the measurement baseline.** A Raspberry Pi 5 on its display at 1920x1080 and
+  120 Hz, CPU governor `performance`. The second case is the same display forced to 60 Hz
+  (same panel, cable and Pi, so only the refresh rate changes); it exercises B's ratio of 1
+  where 120 Hz exercises a ratio of 2. A Pi 4 is an optional extra only if `kmsprint` (or
+  `wlr-randr`) lists 1920x1080 at 120 Hz on it. The session also runs B at 60 Hz and at 120 Hz
+  and compares the engine's per-frame cost, to measure what 120 Hz scanout costs in memory
+  bandwidth (estimated at about 1 GB/s against 0.5 GB/s for 1080p, not measured). Measured with
+  `scripts/frame_phase_probe.py` once it is on main. The owner runs it later.
+- Questions 3 to 7, 9 and 10 gate only sub-plan 4 and later, and stay open.
+
+### The questions as asked
+
 1. Is the goal smoother motion at the display rate (120 distinct images), or removing hitching at
    60 Hz? B solves the second cheaply; only C does the first.
 2. Do you want the default simulation rate to stay 60.01 (today's) or become exactly 60? Exactly
