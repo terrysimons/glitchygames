@@ -334,11 +334,12 @@ since 2026-11-19 (the owner): the Pi's measured q8_0 figures (13.3; Bonsai 2B 1,
 about 1,905 at 128K, derived; Qwen 0.6B 1,717), the sizes the Pi hasn't run keeping the Mac-derived
 estimates; the Mac keeps the defaults' figures. All still provisional until 8.3 measures them again.
 The fit counts Bonsai's prompt cache at its tier's cap on every platform (6.4.1). Memory decides, not
-the machine: a 4 GB board installs the service and gets "not enough memory" at each game start, as
-a small Mac does; the inventory's `ai_enabled` only spares such a host the download (since the
-owner's 2026-11-19 decision every Pi has it on, 8.2). 6.4.1's
-tiers, built in Task 11, change that for 8 GB and 4 GB machines: the reserved figures are per tier
-(by context), and a machine below the smallest tier gets nothing at all, downloads included.
+the machine: the memory tiers (6.4.1, built in Task 11) give a 4 GB board Bonsai alone at 32K and an
+8 GB one Bonsai at 32K with Qwen, each when enough is free at the game's start, and a machine below
+the smallest tier (3,072 MiB) gets nothing at all, downloads included. (Before the tiers, a 4 GB
+board installed the service and got "not enough memory" at each game start.) The inventory's
+`ai_enabled` would only spare a host the download; since the owner's 2026-11-19 decision every Pi
+has it on (8.2).
 
 #### 6.4.1 Smaller-memory machines: the tiers (decided, built)
 
@@ -393,7 +394,9 @@ game's 768), against the tier's smallest real machine:
 | 12,288 MiB (16 GB) | 1,905 + 1,717 + 4,096 + 768 = 8,486 | 2,560 + 1,464 + 4,096 + 768 = 8,888 | Pi 5 16 GB, 16,179 total; 16 GB Mac, 16,384 |
 
 Every tier fits its smallest machine's total, so no tier's cache cap was lowered (the owner's
-ruling: lower it only if a tier didn't fit). Before the cache was counted a 4 GB machine needed
+ruling: lower it only if a tier didn't fit). That holds with Bonsai at its at-load reading (1,277);
+whether its growth after questions (to 1,614) is the prompt cache, already counted, is unmeasured
+(13.1, open): if it isn't, a 4 GB Pi needs about 2,894 MiB, above the 2.8 GB a desktop leaves. Before the cache was counted a 4 GB machine needed
 2,716 free (1,948 + 768); with the Mac-derived figures and the cache it would need 3,228, more than
 a 4 GB Pi with a desktop has, which the measured figures (2,557) avoid. On a Mac the start now asks
 for more free memory than before: 8,888 MiB instead of 4,792 on a 16 GB Mac (about 54% free, as
@@ -724,9 +727,11 @@ In `tests/test_ansible_macos_ai_service.py`, renamed with the playbook to
 `tests/test_ansible_ai_service.py` (the same subject, every platform):
 
 - The picker, run as rendered for Linux with faked memory: 16 GB total with 9 GB available picks 2B
-  and 0.6B; 16 GB with 6 GB available exits 3 ("nothing-fits"); 8 GB exits 3; a hand-picked size
-  that doesn't fit still gets nothing. The same table runs against the macOS rendering, so the two
-  can't drift.
+  and 0.6B; 16 GB with 6 GB available exits 3 ("nothing-fits"); 8 GB picks 2B and 0.6B at 32K when
+  4,786 MiB is free (5,204 on a Mac) and exits 3 below it; 4 GB picks 2B alone at 32K from 2,557
+  free; below 3,072 MiB total exits 3 (`memory-below-every-tier`); a hand-picked size that doesn't
+  fit still gets nothing. The same cases run against the macOS rendering, each at that platform's
+  figures (6.4, 6.4.1), so the one picker can't drift.
 - Both renderings of every shell template pass `sh -n` and shellcheck.
 - Every agent's unit has no `[Install]` section; only the setup unit is enabled; every unit listens
   on loopback through the shared ports table.
@@ -1058,6 +1063,7 @@ review findings deferred during the build are in the progress ledger (lines star
 | The game stays pinned to its core if the service stops later in the run (STOPPED, or a crash it doesn't recover from); it pins only once the service starts (final review) | Open | Restore the saved mask when the link reaches STOPPED |
 | Should uninstalling remove history too? `uninstall.sh` keeps `history/` even with `--remove-models`, so the user folder is never fully removed (Task 4 review) | Open | `--remove-models` (or a new `--all`) also removes history |
 | The Mac's start needs more free memory now that the prompt cache is counted: 8,888 MiB on a 16 GB Mac (about 54% free by `kern.memorystatus_level`), was 4,792; 5,204 on an 8 GB Mac, was 4,180. A busy 16 GB Mac that started the 2B before may now be refused (`nothing-fits`) | Open (owner-decisions wave, 2026-11-19): the Mac was not changed beyond counting the cache, as the owner ruled | Measure the Mac's figures at q8_0 and 128K (`ai_validate`): its reserved figures are the f16 ones less a calculated saving, so they may be high, as the Pi's were; or lower the 16 GB tier's cache cap on the Mac |
+| Does Bonsai's growth after load belong to the prompt cache? The fit counts Bonsai at its at-load reading, 1,277 MiB (32K, q8_0); after three questions it read 1,614 (13.3). If those 337 MiB are the prompt cache, the cap already counts them; if not (compute or KV pages touched for the first time), a 4 GB Pi needs about 1,614 + 512 + 768 = 2,894 MiB free over a long session, above the 2.8 GB one with a desktop has, while the start passes at 2,557 (review of the owner-decisions wave) | Open: unmeasured. The 4 GB tier's cap and the fit's figures are left as the owner set them (his decision) | Measure on the 4 GB rerun (13.2): resident memory after the questions with `--cache-ram 0` separates the two |
 | Another session's request: merge GitHub's `feature/zombies-aint-my-neighbors` into the local one and push (CI split `dc70fe4a`, for #215/#220/#221) | Declined by this session: not its branch, 29 uncommitted files of another session's sound work in that worktree, and pushes need the owner's own ask | The owner, or the session owning that branch |
 
 Resolved since (kept for the history):
@@ -1066,7 +1072,7 @@ Resolved since (kept for the history):
 |---|---|
 | Install `iproute2` (and `lsof`) in the CircleCI Linux image: CircleCI had neither `ss` nor `lsof`, so the real-socket port test ran nowhere in CI | Done (plan Task 12): `test-python-3-15-linux` installs both, on each of its split machines |
 | Add `ansible-core` as a development dependency group, so CI runs the Ansible `--syntax-check` tests | The owner chose route B (12): a `uv` tool in CI, not a project dependency; built (plan Task 12). Main's #215 has since added it to the `dev` extra and group anyway |
-| Count the prompt cache (`--cache-ram`: 512 MiB on 4 GB, 1,024 on 8 GB, 4,096 on 16 GB) in the memory fit? It was left out, so a 4 GB machine could run out of memory late in a long session as the cache filled; counting it fits every tier only with the Pi's measured Linux figures (Task 11 review, second final review) | Counted at its tier's cap on every platform, the Mac included, by `select_sizes`, the code that counts the models; `group_vars/linux.yml` holds the Pi's measured figures (Bonsai 2B 1,277 at 32K, about 1,905 at 128K; Qwen 1,717). Every tier fits its smallest real machine, so no cap was lowered. A Mac's start now needs more free memory (8,888 MiB on a 16 GB Mac, was 4,792): the open row below (the owner, 2026-11-19; 6.4.1) |
+| Count the prompt cache (`--cache-ram`: 512 MiB on 4 GB, 1,024 on 8 GB, 4,096 on 16 GB) in the memory fit? It was left out, so a 4 GB machine could run out of memory late in a long session as the cache filled; counting it fits every tier only with the Pi's measured Linux figures (Task 11 review, second final review) | Counted at its tier's cap on every platform, the Mac included, by `select_sizes`, the code that counts the models; `group_vars/linux.yml` holds the Pi's measured figures (Bonsai 2B 1,277 at 32K, about 1,905 at 128K; Qwen 1,717). Every tier fits its smallest real machine, so no cap was lowered. A Mac's start now needs more free memory (8,888 MiB on a 16 GB Mac, was 4,792): the open row above (the owner, 2026-11-19; 6.4.1) |
 | Should a reinstalled `.deb` unmask the setup job of a user who ran `uninstall-user.sh`? Today only Ansible's install unmasks it (for the owner); `apt install` and every upgrade leave the mask, so that user stays uninstalled (raised with the postinst's unmask moving to Ansible, 6.7) | Kept as it is, no code change (the owner, 2026-11-19; 12) |
 | Keep CI's `uv tool install "ansible-core==2.22.0"` now that main's `dev` extra holds ansible-core (12, route B)? The test sessions install it from `uv.lock` on every OS, and the syntax checks take the one beside the session's Python first, so the tool is not what they run (raised by the merge with main) | Dropped: the step, its `test-linux-ci` mirror and the pin half of the drift test (the owner, 2026-11-19; 12) |
 
@@ -1076,6 +1082,10 @@ Resolved since (kept for the history):
 - **The 4 GB Pi 4's speed:** it gets the AI since 2026-11-19 (8.2) but is unmeasured: a Cortex-A72
   (llama.cpp's `armv8.0_1` build, slower than the Pi 5's `armv8.2_2`), no fan, and it has throttled
   under load (`get_throttled 0xe0000`, 2026-11-14).
+- **The 4 GB Pi 4's first build:** with the AI on every Pi it now builds llama.cpp (and the sidecar
+  and `.deb`) on the Pi itself, with `--parallel` set to its 4 cores; that job count has not been
+  tried in 4 GB (the 16 GB Pi's spike build used two). The owner to watch the first install for the
+  out-of-memory killer.
 - **The game beside the models, pinned** (game core 0, models 2-3): frame times through the
   performance overlay (F3, F4) and audio underruns against `--no-ai`; whether one core is enough
   for the game's main loop, SDL's audio thread and the AI link's thread.

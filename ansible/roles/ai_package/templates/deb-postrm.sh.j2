@@ -10,8 +10,9 @@
 # prints no delete command at all (the owner, 2026-11-19): it says what stays and leaves what to
 # do with it to whoever reads it, and the script itself deletes nothing. It runs after the
 # package's files are gone, so it calls nothing the package shipped: only sh and Essential tools
-# (awk, du, sed, readlink, printf, and coreutils' timeout where present). It reads no file's contents (sizes only), and exits 0 whatever
-# happens: a maintainer script's failure must not block dpkg.
+# (awk, du, sed, readlink, printf, and coreutils' timeout where present). It reads no file's
+# contents (sizes only), and exits 0 whatever happens: a maintainer script's failure must not
+# block dpkg.
 #
 # The folders are the defaults under each home. A user's XDG_DATA_HOME, XDG_CACHE_HOME and
 # XDG_STATE_HOME are set in their session, which root can't see, so a user who moved them is
