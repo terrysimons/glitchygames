@@ -28,6 +28,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames import ai_link, clock
+from glitchygames.machine_state import in_continuous_integration
 from glitchygames.process import OutputCapture, run_command
 from tests.ansible_inventory import every_host
 from tests.ansible_rendering import (
@@ -5868,9 +5869,22 @@ def every_role_file_imported(*, directory: Path) -> Path:
     return playbook
 
 
-@pytest.fixture
-def ansible_playbook() -> list[str]:
-    """The ansible-playbook to run, or a skip saying why there is none.
+NO_ANSIBLE_PLAYBOOK = (
+    'no ansible-playbook runs here: none beside this Python (the dev extra installs '
+    'ansible-core) or on PATH, and uvx has no cached copy (uvx --from ansible-core '
+    'ansible-playbook --version fetches it)'
+)
+
+
+def find_ansible_playbook(*, environment: dict[str, str]) -> list[str]:
+    """Return the ansible-playbook to run; without one, skip locally and fail in CI.
+
+    CI (``in_continuous_integration``: CI, CIRCLECI or GITHUB_ACTIONS set) must run the checks,
+    so there a missing ansible-playbook is a failure; on a developer's machine it is a skip. Windows
+    skips everywhere: Ansible has no Windows control node.
+
+    Args:
+        environment: The environment variables.
 
     Returns:
         The command's first words.
@@ -5879,12 +5893,51 @@ def ansible_playbook() -> list[str]:
         pytest.skip('Ansible has no Windows control node')
     command = ansible_playbook_command()
     if command is None:
-        pytest.skip(
-            'no ansible-playbook runs here: none beside this Python (the dev extra installs '
-            'ansible-core) or on PATH, and uvx has no cached copy (uvx --from ansible-core '
-            'ansible-playbook --version fetches it)'
-        )
+        if in_continuous_integration(environment=environment):
+            pytest.fail(f'{NO_ANSIBLE_PLAYBOOK}; CI must run the Ansible checks')
+        pytest.skip(NO_ANSIBLE_PLAYBOOK)
     return command
+
+
+@pytest.fixture
+def ansible_playbook() -> list[str]:
+    """The ansible-playbook to run, or a skip saying why there is none.
+
+    Returns:
+        The command's first words.
+    """
+    return find_ansible_playbook(environment=dict(os.environ))
+
+
+def test_a_missing_ansible_playbook_skips_outside_ci(mocker: MockerFixture):
+    """On a developer's machine without Ansible the checks skip, saying how to get it."""
+    mocker.patch(f'{__name__}.ansible_playbook_command', return_value=None)
+    mocker.patch.object(sys, 'platform', 'linux')
+
+    with pytest.raises(pytest.skip.Exception, match='no ansible-playbook runs here'):
+        find_ansible_playbook(environment={})
+
+
+@pytest.mark.parametrize('variable', ['CI', 'CIRCLECI'])
+def test_a_missing_ansible_playbook_fails_in_ci(mocker: MockerFixture, variable: str):
+    """In CI the checks must run: a missing ansible-playbook fails, never skips (2026-11-19 review).
+
+    The dev extra (uv.lock) is CI's only copy since the separate tool step went, so a change that
+    drops it from the test session would otherwise turn every syntax check into a green skip.
+    """
+    mocker.patch(f'{__name__}.ansible_playbook_command', return_value=None)
+    mocker.patch.object(sys, 'platform', 'linux')
+
+    with pytest.raises(pytest.fail.Exception, match='no ansible-playbook runs here'):
+        find_ansible_playbook(environment={variable: 'true'})
+
+
+def test_windows_still_skips_in_ci(mocker: MockerFixture):
+    """Ansible has no Windows control node, so CI's Windows job skips the checks."""
+    mocker.patch.object(sys, 'platform', 'win32')
+
+    with pytest.raises(pytest.skip.Exception, match='no Windows control node'):
+        find_ansible_playbook(environment={'CIRCLECI': 'true'})
 
 
 def test_there_are_playbooks_to_check():

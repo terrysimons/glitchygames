@@ -806,6 +806,32 @@ def test_the_test_session_installs_a_stamped_engine():
     ]
 
 
+def test_the_test_session_installs_the_dev_extra_that_holds_ansible_core():
+    """Every test session gets ansible-playbook from uv.lock's dev extra, CI's only copy.
+
+    Since the separate ``uv tool install`` step went (the owner, 2026-11-19), the Ansible syntax
+    checks in tests/test_ansible_ai_service.py run the ansible-playbook beside the session's
+    Python, which only the dev extra installs: the session syncs with every extra, and the dev
+    extra, as written and as locked, names ansible-core. (Those checks also fail in CI when no
+    ansible-playbook is found.)
+    """
+    import noxfile
+
+    installed = '.nox/test-3-15/lib/python3.15/site-packages/glitchygames'
+    session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
+    noxfile.test(session)
+    (sync,) = [command for command in session.commands if command[:2] == ('uv', 'sync')]
+    project = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
+    written = project['project']['optional-dependencies']['dev']
+    lock = tomllib.loads((PROJECT_ROOT / 'uv.lock').read_text(encoding='utf-8'))
+    (engine,) = [package for package in lock['package'] if package['name'] == 'glitchygames']
+    locked = engine['optional-dependencies']['dev']
+
+    assert '--all-extras' in sync
+    assert [requirement for requirement in written if requirement.startswith('ansible-core')]
+    assert 'ansible-core' in {dependency['name'] for dependency in locked}
+
+
 def test_the_test_session_fails_when_it_cannot_find_its_installed_engine():
     """No package path printed: the session stops rather than run unstamped."""
     import noxfile
