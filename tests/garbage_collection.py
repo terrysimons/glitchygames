@@ -25,10 +25,19 @@ Bitmappy's tests, 79 ``BitmapEditorScene``s and 230 MiB of their surfaces (macOS
 job's serial run climbing to its peak in its last tests. ``release_test_instance`` empties the
 instance once the test's reports are made; then 3 MiB of surfaces were left.
 
+Freed memory is not memory handed back. On Linux, glibc keeps the heap's freed blocks for reuse,
+returning only what is free at the heap's top, so the memory guard (tests/memory_guard.py) and the
+2 GB container's kernel go on counting what a heavy test freed: 100 to 170 MiB of free heap held
+after the inner-game replays (2026-11-19, a 2 GB arm64 Ubuntu container with CI's arguments).
+``malloc_trim(0)`` after a test handed back about 100 MiB of it (the owner, 2026-11-19: "Yes,
+let's do the malloc_trim for the tests"). So on glibc the heap is also trimmed after every
+test, after any collection (``malloc_trimmer``, run by ``AfterTestMemoryRelease``); macOS's
+and Windows' allocators return freed memory on their own, and they have no such call.
+
 ``tests/harness.py``'s ``pytest_runtest_protocol`` wrapper calls ``release_test_instance``, then
-``after_test``, once per test: by then pytest has dropped the test's fixture values, so its
-scene is garbage. Never ``gc.freeze()`` here: Hypothesis warns about a ``register_random``
-object frozen out of view.
+``AfterTestMemoryRelease.after_test``, once per test: by then pytest has dropped the test's
+fixture values, so its scene is garbage. Never ``gc.freeze()`` here: Hypothesis warns about a
+``register_random`` object frozen out of view.
 """
 
 from __future__ import annotations
@@ -188,6 +197,35 @@ def malloc_bytes_in_use_reader(*, platform: str = sys.platform) -> Callable[[], 
         return None
 
 
+def malloc_trimmer(*, platform: str = sys.platform) -> Callable[[], int] | None:
+    """Return a call handing glibc's free heap back to the system, on Linux only.
+
+    ``malloc_trim(0)`` (glibc malloc.h) releases every free page of the heap, not only its top,
+    keeping no padding. It returns 1 when it released memory, else 0.
+
+    Args:
+        platform: ``sys.platform``.
+
+    Returns:
+        The trimmer, or None off Linux and with a C library without the call (musl).
+
+    """
+    if not platform.startswith('linux'):
+        return None
+    try:
+        malloc_trim = ctypes.CDLL(GLIBC_NAME).malloc_trim
+    except OSError, AttributeError:
+        # No such library (musl), or no such call
+        return None
+    malloc_trim.argtypes = (ctypes.c_size_t,)
+    malloc_trim.restype = ctypes.c_int
+
+    def trim_heap() -> int:
+        return malloc_trim(0)
+
+    return trim_heap
+
+
 def release_test_instance(*, item: pytest.Item) -> None:
     """Empty a finished test's class instance, which pytest keeps for the rest of the run.
 
@@ -235,4 +273,44 @@ def process_peak_memory_collector() -> PeakMemoryCollector | None:
         step_bytes=COLLECTION_STEP_BYTES,
         read_peak_bytes=read_peak_bytes,
         read_heap_bytes=malloc_bytes_in_use_reader(),
+    )
+
+
+class AfterTestMemoryRelease:
+    """Frees a finished test's memory: its garbage, when memory climbed, then glibc's free heap."""
+
+    def __init__(
+        self: Self,
+        *,
+        collector: PeakMemoryCollector | None,
+        trim_heap: Callable[[], int] | None,
+    ) -> None:
+        """Keep the collector and the trimmer, either of which a platform may lack.
+
+        Args:
+            collector: Collects garbage when memory climbed (None on Windows).
+            trim_heap: Hands malloc's free heap back to the system (``malloc_trimmer``; None
+                off glibc Linux).
+
+        """
+        self._collector = collector
+        self._trim_heap = trim_heap
+
+    def after_test(self: Self) -> None:
+        """Collect if memory climbed, then trim: the trim hands back what the collection freed."""
+        if self._collector is not None:
+            self._collector.after_test()
+        if self._trim_heap is not None:
+            self._trim_heap()
+
+
+def process_memory_release() -> AfterTestMemoryRelease:
+    """Return this process's release: its collector and, on glibc Linux, its heap trimmer.
+
+    Returns:
+        The release (on Windows it does nothing: no collector, no trimmer).
+
+    """
+    return AfterTestMemoryRelease(
+        collector=process_peak_memory_collector(), trim_heap=malloc_trimmer()
     )
