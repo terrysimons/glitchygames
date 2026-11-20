@@ -346,3 +346,58 @@ def test_a_sound_written_in_the_browser_reads_back(tmp_path: Path, mocker: Mocke
     assert cached is not None
     assert np.array_equal(cached.samples_int16, written)
     assert cached.peak == 0.5
+
+
+def test_a_written_sound_is_told_to_each_observer_once_it_is_in_place(tmp_path: Path) -> None:
+    """The browser's page flushes IndexedDB when told; the file must already be whole (rule 7)."""
+    cache = make_cache(tmp_path)
+    told: list[tuple[Path, bool]] = []
+
+    def observer(path: Path) -> None:
+        told.append((path, path.is_file()))
+
+    disk_cache.observe_sound_writes(observer=observer)
+    try:
+        written = cache.write(
+            identity_key=KEY, samples_int16=samples(), peak=0.5, sample_rate=SAMPLE_RATE
+        )
+    finally:
+        disk_cache.stop_observing_sound_writes(observer=observer)
+
+    assert written is True
+    assert told == [(cache.path_for(identity_key=KEY), True)]
+
+
+def test_a_refused_write_is_told_to_no_observer(tmp_path: Path, mocker: MockerFixture) -> None:
+    """Nothing new to keep: a write the system refused flushes nothing."""
+    cache = make_cache(tmp_path)
+    observer = mocker.Mock()
+    mocker.patch.object(disk_cache.Path, 'replace', side_effect=PermissionError('in use'))
+
+    disk_cache.observe_sound_writes(observer=observer)
+    try:
+        written = cache.write(
+            identity_key=KEY, samples_int16=samples(), peak=0.5, sample_rate=SAMPLE_RATE
+        )
+    finally:
+        disk_cache.stop_observing_sound_writes(observer=observer)
+
+    assert written is False
+    observer.assert_not_called()
+
+
+def test_an_observer_that_stopped_is_told_nothing_more(tmp_path: Path) -> None:
+    """Stopping twice is harmless, and an observer may stop while it is being told."""
+    cache = make_cache(tmp_path)
+    told: list[Path] = []
+
+    def observer(path: Path) -> None:
+        told.append(path)
+        disk_cache.stop_observing_sound_writes(observer=observer)
+
+    disk_cache.observe_sound_writes(observer=observer)
+    cache.write(identity_key=KEY, samples_int16=samples(), peak=0.5, sample_rate=SAMPLE_RATE)
+    cache.write(identity_key=OTHER_KEY, samples_int16=samples(), peak=0.5, sample_rate=SAMPLE_RATE)
+    disk_cache.stop_observing_sound_writes(observer=observer)
+
+    assert told == [cache.path_for(identity_key=KEY)]

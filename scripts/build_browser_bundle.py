@@ -27,7 +27,9 @@ It writes, into the output directory:
 The wheel is reused when ``dist-pyodide/build-info.json`` in the submodule says it was built
 from the submodule's current commit with no uncommitted changes; otherwise it is built with the
 submodule's ``buildconfig/glitchygames/build_pyodide_wheel.sh`` (about 2 GB of toolchain, cached
-under ~/.cache/glitchygames-pyodide-build; the first build takes several minutes).
+under ~/.cache/glitchygames-pyodide-build; the first build takes several minutes). Without
+``--wheel``, a submodule not checked out yet (``git worktree add`` leaves it empty) is checked
+out first, at the commit the repository records (``check_out_submodule``).
 
 ``all`` builds every game into one site (default build/browser/site): a directory per game
 and an index.html linking them, which ``nox -s docs-deploy`` publishes with the docs as play/
@@ -66,7 +68,7 @@ from typing import override
 
 from pydantic import BaseModel, ConfigDict
 
-from scripts.git_checkout import files_not_ignored
+from scripts.git_checkout import files_not_ignored, run_git
 from scripts.workspace_packages import workspace_members
 
 REPOSITORY_DIRECTORY = Path(__file__).resolve().parent.parent
@@ -737,6 +739,45 @@ def render_page(*, template: str, game: str) -> str:
     )
 
 
+def submodule_checked_out(*, pygame_ce_directory: Path) -> bool:
+    """Return whether the pygame-ce submodule is checked out (git's own ``.git`` marker is there).
+
+    ``git worktree add`` leaves submodules empty, and in an empty folder ``git -C ... rev-parse``
+    answers with the enclosing repository's commit, so nothing else can be trusted without it.
+
+    Returns:
+        True when the submodule's ``.git`` file or folder exists.
+
+    """
+    return (pygame_ce_directory / '.git').exists()
+
+
+def check_out_submodule(*, pygame_ce_directory: Path, repository_directory: Path) -> bool:
+    """Check out the pygame-ce submodule when it is not (a new worktree's), saying so.
+
+    Runs ``git submodule update --init`` for that one submodule, at the commit the repository
+    records. A failure is reported with what to do instead, never raised.
+
+    Returns:
+        Whether the submodule is checked out now.
+
+    """
+    if submodule_checked_out(pygame_ce_directory=pygame_ce_directory):
+        return True
+    relative_path = pygame_ce_directory.relative_to(repository_directory).as_posix()
+    report(f'{relative_path} is not checked out (a new worktree?): checking it out')
+    returncode, output = run_git(
+        arguments=['submodule', 'update', '--init', relative_path], directory=repository_directory
+    )
+    if returncode == 0 and submodule_checked_out(pygame_ce_directory=pygame_ce_directory):
+        return True
+    report(
+        f'Could not check out {relative_path} (git exited {returncode}): {output.strip()}\n'
+        f'Run "git submodule update --init {relative_path}" yourself, or pass --wheel'
+    )
+    return False
+
+
 def submodule_commit(*, pygame_ce_directory: Path) -> str:
     """Return the pygame-ce submodule's checked-out commit.
 
@@ -1060,6 +1101,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     wheel_path = arguments.wheel
     if wheel_path is None:
+        if not check_out_submodule(
+            pygame_ce_directory=PYGAME_CE_DIRECTORY, repository_directory=REPOSITORY_DIRECTORY
+        ):
+            return 1
         wheel_directory = PYGAME_CE_DIRECTORY / WHEEL_OUTPUT_DIRECTORY_NAME
         commit = submodule_commit(pygame_ce_directory=PYGAME_CE_DIRECTORY)
         wheel_path = (
