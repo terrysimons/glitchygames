@@ -90,6 +90,8 @@ dev = [
   "pytest<=9.1.1",
   "pytest-cov",
   "pytest-xdist",
+  # Only compare-drivers' native run turns it on (--timeout; noxfile._NATIVE_RUN_TIMEOUT_SECONDS)
+  "pytest-timeout",
   "pytest-benchmark",
   "pytest-mock",
   # Shuffled test order, only where asked for (addopts blocks it; nox -s test-random, the
@@ -863,6 +865,8 @@ DEP002 = [
   "mkdocs-git-revision-date-localized-plugin",
   "pytest-cov",
   "pytest-xdist",
+  # Only compare-drivers' native run turns it on (--timeout; noxfile._NATIVE_RUN_TIMEOUT_SECONDS)
+  "pytest-timeout",
   "pytest-benchmark",
   "pytest-mock",
   "pytest-randomly",

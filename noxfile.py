@@ -1985,6 +1985,26 @@ class _DifferingTests:
 # The configurations that are the machine's own driver (scripts/driver_configurations.py's
 # NATIVE_CONFIGURATIONS; the noxfile cannot import it, CI's nox lacks the project's packages)
 _NATIVE_CONFIGURATION_NAMES = ('cocoa', 'windows', 'wayland', 'x11')
+# A test on the native run that takes longer than this fails (pytest-timeout, the thread method).
+# Native runs only, never CI or a plain pytest: on 2026-11-20 a deadlocked CoreAudio
+# (pygame.mixer.init) hung the native run until it was killed by hand. The slowest healthy test
+# takes about 30 s, so 120 s is four times that. The thread method ends the worker process (xdist
+# reports the crash and replaces the worker) where the signal method would not interrupt a call
+# stuck inside a C library. Caveat: `os._exit` runs no fixture teardown, so a hung test's
+# children (in sessions of their own) may outlive the worker (not tested; the bug record
+# bugs/2026-11-20-native-run-burned-two-hours-on-a-broken-coreaudio.md)
+_NATIVE_RUN_TIMEOUT_SECONDS = 120
+# Ten seconds before that, faulthandler (pytest's faulthandler_timeout) writes every thread's
+# stack to the worker's real stderr. pytest-timeout's own stack dump goes through the terminal
+# writer, which an xdist worker does not forward (measured: nothing is shown), so without this
+# the failure would name the test and no stack
+_NATIVE_RUN_STACK_DUMP_SECONDS = _NATIVE_RUN_TIMEOUT_SECONDS - 10
+_NATIVE_RUN_TIMEOUT_ARGUMENTS = (
+    f'--timeout={_NATIVE_RUN_TIMEOUT_SECONDS}',
+    '--timeout-method=thread',
+    '-o',
+    f'faulthandler_timeout={_NATIVE_RUN_STACK_DUMP_SECONDS}',
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -2035,6 +2055,11 @@ def _run_fingerprinted_tests(
         _FRAME_FINGERPRINTS_PLUGIN,
         f'--frame-fingerprints={directory}',
         f'--frame-fingerprints-seed={_COMPARE_DRIVERS_SEED}',
+        *(
+            _NATIVE_RUN_TIMEOUT_ARGUMENTS
+            if configuration['name'] in _NATIVE_CONFIGURATION_NAMES
+            else ()
+        ),
         *arguments,
     ]
     if configuration['runs_in_linux_container']:
