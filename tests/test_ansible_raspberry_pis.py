@@ -34,6 +34,7 @@ from pydantic import BaseModel, ConfigDict
 
 from glitchygames.process import OutputCapture, run_command
 from tests.ansible_inventory import inventory_group, natural_key, raspberry_pi_hosts
+from tests.ansible_rendering import compiled_template
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLAYBOOK_PATH = PROJECT_ROOT / 'ansible' / 'raspberry_pi_runner.yml'
@@ -241,7 +242,7 @@ def render(template: str, **variables: Any) -> str:
         The rendered text.
 
     """
-    return ANSIBLE_TEMPLATES.from_string(template).render(**variables)
+    return compiled_template(environment=ANSIBLE_TEMPLATES, source=template).render(**variables)
 
 
 def holds(condition: str, **variables: Any) -> bool:

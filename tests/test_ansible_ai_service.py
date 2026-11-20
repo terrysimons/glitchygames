@@ -34,6 +34,7 @@ from tests.ansible_inventory import every_host
 from tests.ansible_rendering import (
     Architecture,
     ansible_variables,
+    compiled_template,
     host_architecture,
     render_expression,
     render_template,
@@ -1228,6 +1229,84 @@ def test_the_helper_fails_on_an_undefined_variable_as_ansible_would(tmp_path: Pa
         render_value(value='a task naming {{ no_such_variable }}', variables=variables)
     with pytest.raises(jinja2.UndefinedError):
         render_expression(expression="{{ {'aarch64': 1}['riscv64'] }}", variables=variables)
+
+
+def test_the_helper_compiles_each_template_source_once(tmp_path: Path, mocker: MockerFixture):
+    """The same template text is compiled once however often it is rendered.
+
+    Under coverage's sysmon core (the default on Python 3.14+) every compiled code object is kept
+    for the life of the process, so a compile per render held about 3 KiB each, past a gigabyte
+    over this file's 376,812 renders of 488 distinct sources (CI job 4020's memory guard).
+    """
+    compile_spy = mocker.spy(jinja2.Environment, 'compile')
+    template = tmp_path / 'compiled_once.j2'
+    template.write_text('{{ greeting }} from {{ place }}\n', encoding='utf-8')
+
+    first = render_template(path=template, variables={'greeting': 'hello', 'place': 'here'})
+    second = render_template(path=template, variables={'greeting': 'bye', 'place': 'there'})
+
+    assert compile_spy.call_count == 1
+    assert (first, second) == ('hello from here\n', 'bye from there\n')
+
+
+def test_a_compiled_template_still_fails_on_an_undefined_variable(tmp_path: Path):
+    """A template served from the compile cache stays strict: an undefined name still raises."""
+    template = tmp_path / 'strict.j2'
+    template.write_text('{{ defined_here }} and {{ undefined_here }}', encoding='utf-8')
+
+    for _ in range(2):
+        with pytest.raises(jinja2.UndefinedError, match='undefined_here'):
+            render_template(path=template, variables={'defined_here': 1})
+    for _ in range(2):
+        with pytest.raises(jinja2.UndefinedError, match='undefined_here'):
+            render_value(value='{{ undefined_here }}', variables={})
+    for _ in range(2):
+        with pytest.raises(jinja2.UndefinedError, match='undefined_here'):
+            render_expression(expression='{{ undefined_here }}', variables={})
+
+
+def plain_text_environment() -> jinja2.Environment:
+    """A strict Jinja environment of its own, for text rather than HTML.
+
+    Returns:
+        A new environment, sharing no compiled template with any other.
+    """
+    return jinja2.Environment(
+        undefined=jinja2.StrictUndefined,
+        autoescape=jinja2.select_autoescape(default_for_string=False, default=False),
+    )
+
+
+def test_the_compile_cache_holds_one_template_per_environment_and_source(mocker: MockerFixture):
+    """Two environments never share a compiled template; one environment compiles a text once."""
+    compile_spy = mocker.spy(jinja2.Environment, 'compile')
+    first_environment = plain_text_environment()
+    second_environment = plain_text_environment()
+
+    first = compiled_template(environment=first_environment, source='{{ number + 1 }}')
+    again = compiled_template(environment=first_environment, source='{{ number + 1 }}')
+    other = compiled_template(environment=second_environment, source='{{ number + 1 }}')
+
+    assert first is again
+    assert other is not first
+    assert other.environment is second_environment
+    assert compile_spy.call_count == 2
+    assert [first.render(number=1), again.render(number=41)] == ['2', '42']
+
+
+def test_render_value_and_render_expression_render_each_call_with_its_own_variables():
+    """A cached compile renders with whatever variables each call gives it."""
+    renders = [
+        render_value(value='{{ name }}-{{ count }}', variables={'name': name, 'count': count})
+        for name, count in (('first', 1), ('second', 2))
+    ]
+    values = [
+        render_expression(expression='{{ [count] * 2 }}', variables={'count': count})
+        for count in (3, 4)
+    ]
+
+    assert renders == ['first-1', 'second-2']
+    assert values == [[3, 3], [4, 4]]
 
 
 def test_the_helper_refuses_variables_that_never_settle(tmp_path: Path):

@@ -6,6 +6,7 @@ facts a host would report. Only the filters the roles use are provided; Ansible'
 implementations are the reference (https://docs.ansible.com/ansible/latest/collections/ansible/builtin/).
 """
 
+import functools
 import hashlib
 import json
 import re
@@ -198,18 +199,25 @@ def _zip(first: Any, *others: Any) -> list[tuple[Any, ...]]:
     return list(zip(first, *others, strict=False))
 
 
-def _environment(*, search_directories: list[Path] | None = None) -> jinja2.Environment:
-    """Build Jinja with the Ansible filters the roles use.
+@functools.cache
+def _environment(
+    *, search_directories: tuple[Path, ...] = (), keep_trailing_newline: bool = True
+) -> jinja2.Environment:
+    """Build Jinja with the Ansible filters the roles use, once per configuration.
+
+    Shared, so compiled_template's cache holds across renders; nothing changes an environment
+    after it is built (every setting is one of these arguments).
 
     Args:
         search_directories: Where `{% include %}` and `{% import %}` find a template, in order.
+        keep_trailing_newline: Keep a template's last line break.
 
     Returns:
-        The environment.
+        The environment, the same object for the same arguments.
     """
     environment = jinja2.Environment(  # ruff: ignore[jinja2-autoescape-false] - these render shell and plist text, not HTML
         undefined=jinja2.StrictUndefined,
-        keep_trailing_newline=True,
+        keep_trailing_newline=keep_trailing_newline,
         # The template module's default: a block tag's own line break is dropped
         trim_blocks=True,
         loader=jinja2.FileSystemLoader(search_directories) if search_directories else None,
@@ -238,6 +246,26 @@ def _environment(*, search_directories: list[Path] | None = None) -> jinja2.Envi
     return environment
 
 
+@functools.cache
+def compiled_template(*, environment: jinja2.Environment, source: str) -> jinja2.Template:
+    """Compile a template's text once per environment, however often it is rendered.
+
+    A compiled template is immutable and renders with whatever variables each call gives it, so
+    sharing one changes no result; an undefined name still fails when it is rendered. Compiling
+    on every render cost memory, not just time: coverage's sysmon core (the default on Python
+    3.14+) keeps every code object it sees for the life of the process, about 3 KiB a compile,
+    which took CI's Linux job past its memory guard (job 4020, 376,812 compiles of 488 sources).
+
+    Args:
+        environment: The Jinja environment the template belongs to (by identity).
+        source: The template's text.
+
+    Returns:
+        The compiled template, the same object on every call with these arguments.
+    """
+    return environment.from_string(source)
+
+
 def _resolve_string(
     *, text: str, variables: dict[str, Any], environment: jinja2.Environment
 ) -> Any:
@@ -255,9 +283,10 @@ def _resolve_string(
     lone_expression = re.fullmatch(r'\s*\{\{(?:(?!\{\{|\}\}).)*\}\}\s*', text, flags=re.DOTALL)
     if lone_expression:
         inner = text.strip().removeprefix('{{').removesuffix('}}')
-        rendered = environment.from_string('{{ (' + inner + ') | to_json }}').render(variables)
+        expression = '{{ (' + inner + ') | to_json }}'
+        rendered = compiled_template(environment=environment, source=expression).render(variables)
         return json.loads(rendered)
-    return environment.from_string(text).render(variables)
+    return compiled_template(environment=environment, source=text).render(variables)
 
 
 def _holds_jinja(*, value: Any) -> bool:
@@ -440,12 +469,13 @@ def render_template(*, path: Path, variables: dict[str, Any]) -> str:
     Returns:
         The rendered text.
     """
-    environment = _environment(search_directories=[path.parent, ANSIBLE_DIRECTORY])
     # As the template module does: an included template's last line break is dropped, and the
     # rendered file keeps its own
-    environment.keep_trailing_newline = False
+    environment = _environment(
+        search_directories=(path.parent, ANSIBLE_DIRECTORY), keep_trailing_newline=False
+    )
     source = path.read_text(encoding='utf-8')
-    rendered = environment.from_string(source).render(variables)
+    rendered = compiled_template(environment=environment, source=source).render(variables)
     return rendered + '\n' if source.endswith('\n') else rendered
 
 
@@ -466,5 +496,7 @@ def render_expression(*, expression: str, variables: dict[str, Any]) -> Any:
         The expression's value: a list stays a list and a dict a dict.
     """
     inner = expression.strip().removeprefix('{{').removesuffix('}}')
-    template = _environment().from_string('{{ (' + inner + ') | to_json }}')
+    template = compiled_template(
+        environment=_environment(), source='{{ (' + inner + ') | to_json }}'
+    )
     return json.loads(template.render(variables))
