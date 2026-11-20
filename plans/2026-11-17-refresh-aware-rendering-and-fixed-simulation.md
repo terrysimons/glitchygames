@@ -1,6 +1,6 @@
 # Refresh-aware rendering and fixed simulation: the owner's brief
 
-Status: TO-DO (2026-11-17), not started; findings and design options added 2026-11-20 (below the
+Status: APPROVED by the owner (2026-11-20) as findings with the measurement first: sub-plan 1 (the Pi measurement) may proceed when a Pi is on; the choice between B and C waits for its numbers (question 1). TO-DO (2026-11-17), not started; findings and design options added 2026-11-20 (below the
 brief), awaiting the owner's choice; audited the same day against main b7c2abd3 (see "Audit
 2026-11-20" at the end: line numbers, counts and two ordering problems corrected). The owner's brief, kept verbatim below; the findings and
 decisions from discussing it are in `plans/future-work.md`, "Refresh-aware rendering and fixed
