@@ -3106,7 +3106,8 @@ all of it (<code>tests/test_engine_doors.py</code>).</p>
 test, instead of the kernel killing the job silently (<code>tests/memory_guard.py</code>;
 <code>tests/test_memory_guard.py</code>).</p>
 <ul>
-<li>It is on only when <code>GLITCHYGAMES_TEST_RSS_LIMIT_MB</code> is set; CircleCI's Linux job sets 1750.</li>
+<li>It is on only when <code>GLITCHYGAMES_TEST_RSS_LIMIT_MB</code> is set; CircleCI's Linux and Raspberry Pi
+  jobs set 1400.</li>
 <li>A background thread samples memory every <code>SAMPLE_INTERVAL_SECONDS</code>, and each test's start and
   end are checked too.</li>
 <li>It reads the container's memory (cgroup v2) where there is one, else this process's resident
@@ -3123,9 +3124,12 @@ one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs
 <li>It is on only when <code>GLITCHYGAMES_TEST_SPLIT</code> is <code>circleci</code>; the split jobs set it, and any
   other value stops the run. It needs CircleCI's <code>CIRCLE_NODE_TOTAL</code>, <code>CIRCLE_NODE_INDEX</code> and
   <code>circleci</code> command, so it is never set locally (<code>nox -s test-linux-ci</code> leaves it out).</li>
-<li>After collection, every collected test's file, golden replays included, goes to <code>circleci tests
-  split --split-by=timings</code>, and the tests of the files it returns run; the rest are deselected.
-  The share is written to <code>test-results/test-split.txt</code>.</li>
+<li>Before collection, every test file pytest would collect, golden replays included, is listed
+  without importing any and goes to <code>circleci tests split --split-by=timings</code>. Only the files it
+  returns are collected; the rest are skipped before pytest imports them, which saves each
+  machine about 150 MiB over collecting everything and deselecting half. A test collected from a
+  file the listing missed stops the run, naming it. The share is written to
+  <code>test-results/test-split.txt</code>.</li>
 <li>CircleCI's timings come from the JUnit reports, which name each test's file
   (<code>junit_family=xunit1</code>, which the test session adds for a split job).</li>
 <li>No share reaches the 100% coverage rule alone, so the test session turns it off for a share;
@@ -3171,7 +3175,7 @@ one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 09:56:14 UTC">November 19, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 03:52:12 UTC">November 20, 2026</span>
   </span>
 
     
