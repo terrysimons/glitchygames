@@ -1309,6 +1309,10 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
     'tests/test_measure_staged_replays.py': ('scripts/measure_staged_replays.py',),
     'tests/test_microphone_capture_check.py': ('scripts/microphone_capture_check.py',),
     'tests/test_mkdocs_hooks_browser_games.py': ('scripts/mkdocs_hooks.py',),
+    'tests/test_native_audio_health.py': (
+        'scripts/driver_configurations.py',
+        'scripts/native_audio_health.py',
+    ),
     'tests/test_record_bundled_demos.py': (
         'scripts/record_bundled_demos.py',
         'scripts/demo_inputs.py',

@@ -99,6 +99,23 @@ complete one waits in `test-results/driver-comparison/nox-previous/`, and it goe
 `test-results/driver-comparison/nox/` when the comparison fails; the failed comparison's runs
 are kept in `test-results/driver-comparison/nox-failed/`.
 
+### When the machine's audio is broken
+
+macOS CoreAudio has broken under the native run (2026-11-20): once `pygame.mixer.init` hung, once
+every mixer start failed with `CoreAudio error (AudioQueueStart): -66681` (a 7202 s run instead of
+341 s, and 235 tests blamed for "different frames" that really had no audio). Two guards in
+`scripts/native_audio_health.py` keep that from looking like a change's fault:
+
+- Before any run, the session opens and closes one mixer (44100 Hz, signed 16-bit, stereo,
+  512 buffer) in a child process with a 30 s limit, for each configuration whose audio driver is
+  the machine's own (not `dummy`: Wayland, X11 and x11-macos need no probe; not the Linux
+  container). An error or a hang stops the session at once and says it is this machine's audio:
+  run it again, or `sudo killall coreaudiod`.
+- Tests found differing whose native-run failure says `CoreAudio error` or `mixer not
+  initialized` are reported as "audio failed in N test(s)", never as frame differences. A test
+  that fails for no-audio in another way (an assertion about a missing sound, with no message)
+  is not recognised.
+
 ### x11 on macOS: SDL built with x11
 
 pygame-ce's macOS wheel bundles an SDL without x11. SDL's dynamic API loads another SDL at run
