@@ -352,7 +352,10 @@ while #215 is open, saying it is stacked; rebase onto `main` once #215 lands.
   demos). Each needs its own feature plan (12 and on). **The intro is BUILT (feature plan 12,
   2026-11-19):** it opens every launch and plays in the title's idle loop; the browser rumble
   check (its Task 6, step 1) waits for the owner at a browser with a pad. **The attract demo is
-  feature plan 13** (not started): it fills the idle loop's second slot, after the intro.
+  BUILT (feature plan 13, 2026-11-19, branch `feature/zombies-attract-demo`):** four kids clear
+  stage 1 in the idle loop's second slot, after the intro (the owner approved its contact sheet:
+  "Looks great"). Still open: whether the demo plays in the browser build (no inner game has run
+  under Pyodide yet) and its build time on the Pi (down while it was built).
 - [ ] **Listen to the score and the effects, and watch a real launch** (feature plan 11): nobody
   has listened to the finished score, and the CRT power-on frame that builds it on a first launch
   has only been measured, not watched (`scripts/measure_sound_start.py`).
@@ -446,6 +449,11 @@ Each feature gets its own plan in `plans/`, linked here and linking back to this
    good."); the browser rumble check waits for the owner. The title plays the intro after 20 s idle, then (feature 13)
    the attract demo, arcade style; the intro also opens every launch, any key or button
    skipping it; pads rumble only then, never while unattended; built as one timeline of cues.
+13. [The attract demo](2026-11-19-zombies-aint-my-neighbors-13-attract-demo.md): BUILT
+   (2026-11-19), committed on `feature/zombies-attract-demo`. The bundled demo
+   `demos/neighborhood_four_kids.jsonl.gz` (four kids clear stage 1, steered live by the route
+   planner's steering) replays inside the game as an inner game, under a DEMO label, after the
+   loop's intro; any key or button returns to the title. The browser and the Pi are unchecked.
 
 ## Sources
 

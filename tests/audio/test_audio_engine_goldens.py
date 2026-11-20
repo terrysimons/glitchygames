@@ -72,6 +72,7 @@ SOUND_FOLDERS = {
     ('text-input-demo', 'typing.jsonl.gz'): None,
     ('zombies-aint-my-neighbors', 'golden.jsonl.gz'): 'zombies_aint_my_neighbors',
     ('zombies-aint-my-neighbors', 'golden-neighborhood.jsonl.gz'): 'zombies_aint_my_neighbors',
+    ('zombies-aint-my-neighbors', 'neighborhood_four_kids.jsonl.gz'): 'zombies_aint_my_neighbors',
 }
 
 

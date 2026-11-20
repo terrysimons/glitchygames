@@ -321,6 +321,21 @@ def test_a_press_on_the_hand_over_frame_still_returns_to_the_title(press):
     assert scene.next_scene.replay_arguments().get('awaiting_release') is True
 
 
+def test_the_loop_intros_end_never_replaces_a_skip():
+    """A skip chose the title: the intro's end, reached before the switch, leaves it chosen."""
+    from zombies_aint_my_neighbors.title import TitleScene
+
+    scene = intro(IntroShowing.LOOP)
+    run(scene, seconds=1.0)
+    scene.on_key_down_event(key_down(pygame.K_SPACE))
+    title = scene.next_scene
+
+    run(scene, seconds=INTRO_SECONDS)
+
+    assert isinstance(title, TitleScene)
+    assert scene.next_scene is title
+
+
 def test_the_pause_key_skips_like_any_other():
     """P pauses a stage, but the intro has no pause: it skips, as every key does."""
     from zombies_aint_my_neighbors.title import TitleScene

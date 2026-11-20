@@ -5,8 +5,24 @@ Master plan: [2026-11-14-zombies-aint-my-neighbors.md](2026-11-14-zombies-aint-m
 level 1"). It fills the second slot of feature 12's idle loop
 ([2026-11-19-zombies-aint-my-neighbors-12-intro-and-idle-loop.md](2026-11-19-zombies-aint-my-neighbors-12-intro-and-idle-loop.md)).
 
-Status: DESIGN APPROVED (2026-11-19), implementation plan below; not started. A builder
-check's seven questions were settled as Claude's calls (marked below).
+Status: BUILT (2026-11-19), Tasks 1 to 5 committed on `feature/zombies-attract-demo`; Task 6's
+browser check waits for the owner and its Pi measurement for the Pi. A builder check's seven
+questions were settled as Claude's calls (marked below). Rulings made while building are in the
+gitignored ledger (`.superpowers/sdd/2026-11-19-zombies-aint-my-neighbors-13-attract-demo/`) and
+summarised here:
+
+- **No walk out through the gate.** The game clears the stage when one kid touches the open
+  gate, then everyone freezes and cheers; the demo ends halfway through that cheer.
+- **The kids move as a group**, as the group's screen span makes them: steering each to its own
+  neighbor ran 87 s with kids pinned against the span.
+- **Steered live.** The recorder keeps real frame times and input reaches the kids a frame after
+  it is posted, so routes planned ahead drifted (the first recording saved one neighbor and
+  never cleared); the demo's input script steers from the running stage
+  (`ZombiesDemoSteering`), and the planner only sets its length.
+
+Measured (Task 6): building the demo (`AttractScene.setup()`) takes 224 to 336 ms on the development
+Mac (five runs; the first in a process 940 ms), and a frame of it about 2 ms. The intro's
+last frame holds on screen meanwhile. The Pi was down: not measured.
 
 ## Intent
 

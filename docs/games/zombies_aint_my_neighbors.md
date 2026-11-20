@@ -22,7 +22,8 @@ hedge; a kid through it clears the stage, and the next stage brings back only th
 rescued. Every life lost, or a stage with nobody rescued, and the TV switches off: game over.
 Every moment of a stage has its sound, and a theremin-and-organ score plays under it. An intro
 opens every launch: the kids at their sleepover, the TV bursting and a Lawn Zombie climbing out;
-it plays again, unattended, whenever the title stands idle, as an arcade cabinet's would.
+it plays again, unattended, whenever the title stands idle, followed by a demo of four kids
+clearing stage 1, as an arcade cabinet's would.
 The design, its decisions and
 the engine wishlist are in the master plan, `plans/2026-11-14-zombies-aint-my-neighbors.md`.
 
@@ -44,7 +45,7 @@ The game adds no options of its own; the engine's are in
 
 | Action | Keyboard | Gamepad |
 | --- | --- | --- |
-| Skip the intro | any key | any button |
+| Skip the intro, or the attract demo | any key | any button |
 | Join (a device that holds no slot) | `Enter` or keypad `Enter` | `START` |
 | Begin (a joined device), and skip the feature card | `Enter` or keypad `Enter` | `START` |
 | Back from the feature card to the title (between stages the run is kept: the next start returns to the same stage) | `Backspace` | `BACK` |
@@ -76,7 +77,9 @@ flowchart LR
     Launch(["launch"]) --> Title
     Title -- "first frame, at launch" --> Intro["IntroScene<br/>the sleepover, the TV bursts"]
     Title -- "20 s idle, nobody joined" --> Intro
-    Intro -- "8 s, or any key or button" --> Title
+    Intro -- "8 s at launch, or any key or button" --> Title
+    Intro -- "8 s, in the idle loop" --> Demo["AttractScene<br/>four kids clear stage 1"]
+    Demo -- "its end, or any key or button" --> Title
     Title["TitleScene<br/>4 slots: join"] -- "joined player's start" --> Card["FeatureCardScene<br/>who is playing"]
     Card -- "2 s, or start" --> Yard["NeighborhoodScene<br/>the kids walk"]
     Card -- "back" --> Title
@@ -116,11 +119,41 @@ fires each once, in order. Its nine sprites are drawn by `art/intro_rig.py`.
   every connected pad rumbles at the burst. Every other place that builds a title passes
   `opening=False`, so leaving a stage never replays it.
 - **The idle loop:** a title left `IDLE_SECONDS` (20 s) with no key, pad button or join, nobody
-  joined and no run held, plays the intro unattended: nothing rumbles. The attract demo will
-  follow it (feature plan 13).
-- **Any key or pad button skips it**, P included. The title it hands back ignores the keys and
+  joined and no run held, plays the intro unattended: nothing rumbles. The attract demo follows
+  it, then the title again.
+- **Any key or pad button skips it**, P included, even on the frame it hands over to the demo. The title it hands back ignores the keys and
   buttons held as it opens, each until it is seen up (`awaiting_release`), so the skipping press
   never joins anyone while every other key and button works at once.
+
+### The attract demo
+
+Feature plan 13 (`plans/2026-11-19-zombies-aint-my-neighbors-13-attract-demo.md`). The game's
+bundled demo,
+`src/games/zombies-aint-my-neighbors/src/zombies_aint_my_neighbors/demos/neighborhood_four_kids.jsonl.gz`,
+is four kids clearing stage 1 together:
+Dex on the keyboard, Marisol, Theo and June on stand-in pads. They zap their way round the yard,
+destroy two TVs and save four neighbors; one reaches the open gate and it ends halfway through
+the cheer, before the STAGE 2 card. The Arcade can play it on a tile like any bundled demo.
+
+- **Playing it:** `AttractScene` (`attract.py`) replays it as an inner game
+  (`glitchygames.inner_game`) at its recorded 800x480 and draws the picture scaled to the screen,
+  letterboxed when the shapes differ, under a DEMO label. It is heard; its pads are the
+  recording's, so nothing rumbles. Any key or pad button goes back to the title (which waits for
+  that input's release), as does the demo's end; a demo that can't play goes back with a
+  warning. The title declares the inner game (`INNER_GAMES = 1`) so the engine sets its sound
+  channels aside at startup. Building it takes about a quarter of a second on a Mac (the first
+  showing nearly a second), during which the intro's last frame stays on screen.
+- **Recording it:** the demo starts in `DemoNeighborhoodScene` (`demo_neighborhood.py`), the
+  stage with the four players already joined. `scripts/demo_inputs.py`'s `ZombiesDemoSteering`
+  steers the kids live as the recording runs, with the planner's own steering
+  (`scripts/plan_neighborhood_route.py`, `demo_steering`): the kids move as a group (the group's
+  screen span keeps them together) toward the neighbor nearest their middle, P4 breaks off for a
+  nearby TV, and all head for the gate once no neighbor stands. `plan_demo` plays the stage the
+  same way to set the demo's length (`--demo` prints it). Re-plan and re-record
+  (`scripts/record_bundled_demos.py --demo zombies_aint_my_neighbors_four_kids`) when gameplay
+  changes: `test_zombies_aint_my_neighbors_demo_route.py` fails until then, and checks that the
+  shipped demo, replayed as the attract scene replays it, still shows every kid walking and
+  zapping, a TV destroyed, a zombie zapped, neighbors saved and the clear with all four cheering.
 
 The title is the game's class for now, so its golden replay stays in one scene, as
 `tests/replay/test_golden_replays.py` requires. When gameplay arrives, the golden moves to the
