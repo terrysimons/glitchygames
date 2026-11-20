@@ -679,6 +679,22 @@ class RecordedFrames:
         """
         return float(self._frames[frame_index][DT_FIELD])
 
+    def next_frame_seconds(self: Self, *, frame_index: int) -> float:
+        """Return how long the frame starting at ``frame_index`` lasted when recorded (rule 4).
+
+        Args:
+            frame_index: The frame about to run.
+
+        Returns:
+            The next frame's recorded ``dt`` (the duration of this one), or this frame's own
+            for the last recorded frame; 0.0 past the end.
+
+        """
+        for candidate_index in (frame_index + 1, frame_index):
+            if self.frame(frame_index=candidate_index) is not None:
+                return self.recorded_dt(frame_index=candidate_index)
+        return 0.0
+
     def recorded_frame_fields(self: Self, *, frame_index: int) -> dict[str, Any]:
         """Return the recorded frame's save and device fields (rule 10; a rebaseline copies them).
 
@@ -1716,7 +1732,7 @@ class ReplaySources:
             self._run_control_tick(now=now)
             self.viewer.accrue(now=now, is_inner_running=self._is_inner_running())
         runs_inner_frame = self.viewer.should_run_inner_frame(
-            inner_frame_seconds=self._inner_frame_seconds(),
+            inner_frame_seconds=self.recording.next_frame_seconds(frame_index=self._frame_index),
             is_inner_over=self._is_inner_over(),
             is_first_inner_frame=self._frame_index == 0,
         )
@@ -2592,19 +2608,6 @@ class ReplaySources:
 
         """
         return not (self._is_inner_over() or self.controls.awaiting_start or self.controls.paused)
-
-    def _inner_frame_seconds(self: Self) -> float:
-        """Return how long the inner frame starting now lasted when recorded (rule 4).
-
-        Returns:
-            The next frame's recorded ``dt`` (the duration of this one), or this frame's own
-            for the last recorded frame; 0.0 past the end.
-
-        """
-        for frame_index in (self._frame_index + 1, self._frame_index):
-            if self.recording.frame(frame_index=frame_index) is not None:
-                return self.recording.recorded_dt(frame_index=frame_index)
-        return 0.0
 
     def _end_replay(self: Self, *, end_reason: str, banner: str) -> None:
         """End the comparison: stop a headless replay, pause a watched one there (rule 14).

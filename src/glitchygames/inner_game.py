@@ -140,6 +140,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from glitchygames.engine.game_engine import GameEngine
+    from glitchygames.replay.driver import RecordedFrames
 
 LOG = logging.getLogger('game.inner_game')
 
@@ -468,6 +469,8 @@ class InnerGame:
         self._engine: GameEngine | None = None
         self._frame_start_seconds = 0.0
         self._frames_run = 0
+        # What it replays, kept after the engine is gone so a finished game still answers
+        self._recording: RecordedFrames | None = None
         self._state = InnerGameState.RUNNING
         self._report: str | None = None
         self._diverged: bool | None = None
@@ -600,6 +603,42 @@ class InnerGame:
             diverged=self._diverged,
             error=self._error,
         )
+
+    @property
+    def frame_count(self: Self) -> int:
+        """How many frames the recording holds (0 when the game never got as far as reading it)."""
+        recording = self._replayed_recording()
+        return 0 if recording is None else recording.frame_count
+
+    @property
+    def frame_index(self: Self) -> int:
+        """The next frame to run: the frames run so far (``outcome.frames_run``)."""
+        return self._frames_run
+
+    @property
+    def next_frame_seconds(self: Self) -> float:
+        """How long the frame starting now lasted when recorded (``ReplaySources`` rule 4).
+
+        The next frame's recorded ``dt`` (the duration of this one), the current frame's for the
+        last, 0.0 past the end or when there is no recording. It is how a host that paces this
+        game (``RecordedFramePacer``) learns what the next frame is owed.
+        """
+        recording = self._replayed_recording()
+        if recording is None:
+            return 0.0
+        return recording.next_frame_seconds(frame_index=self._frames_run)
+
+    def _replayed_recording(self: Self) -> RecordedFrames | None:
+        """Return the recording the game replays: its engine's while running, else the kept one.
+
+        Returns:
+            The recorded frames, or None when the game never got as far as reading them.
+
+        """
+        engine = self._engine
+        if engine is not None and engine.replay_sources is not None:
+            return engine.replay_sources.recording
+        return self._recording
 
     def _unfinished_engine(self: Self) -> GameEngine:
         """Return the engine of a game that is not finished (one that was not finished was built).
@@ -817,6 +856,7 @@ class InnerGame:
         report = engine.settle_replay_report(
             replay_sources=replay_sources, run_ended_by=self._run_ended_by
         )
+        self._recording = replay_sources.recording
         self._report = report.text
         self._diverged = report.is_failure
         LOG.info('Inner game %s: %s', self._context.name, report.text)

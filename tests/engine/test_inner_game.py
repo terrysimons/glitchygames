@@ -70,7 +70,7 @@ from tests.audio.voice_support import (
     SAMPLE_RATE,
     unreserved_channel_ids,
 )
-from tests.replay.replay_helpers import tamper_first_sprite_rect
+from tests.replay.replay_helpers import rewrite_recording, tamper_first_sprite_rect
 from tests.stand_in_games import (
     STAND_IN_GAME_RESOLUTION,
     STAND_IN_SPAWN_POINT,
@@ -87,6 +87,7 @@ from tests.stand_in_games import (
 if TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
+    from typing import Any
 
     from pytest_mock import MockerFixture
 
@@ -869,6 +870,102 @@ class TestAReplayInsideItsContext:
             assert outcome.report is not None
             assert outcome.report.startswith('Replay matched'), outcome.report
         assert first.context is not second.context
+
+
+class TestWhatAHostNeedsToPaceIt:
+    """The recorded duration of the next frame, the frame count and the frame index."""
+
+    @staticmethod
+    def make_uneven(*, recording: Path) -> list[float]:
+        """Give the recording a different ``dt`` on every frame.
+
+        Returns:
+            The new ``dt`` of each frame, in order.
+
+        """
+        new_durations: list[float] = []
+
+        def change(trace: dict[str, Any]) -> None:
+            for position, frame in enumerate(trace['frames']):
+                frame['dt'] = 0.010 + 0.001 * position
+                new_durations.append(frame['dt'])
+
+        rewrite_recording(recording_path=recording, change=change)
+        return new_durations
+
+    def test_the_next_frames_duration_follows_the_viewers_rule_on_uneven_dts(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """The next frame's recorded dt; the current frame's for the last; 0.0 past the end."""
+        durations = self.make_uneven(recording=recording)
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+
+        assert inner_game.frame_count == len(durations)
+        seen: list[tuple[int, float]] = []
+        while True:
+            seen.append((inner_game.frame_index, inner_game.next_frame_seconds))
+            if not inner_game.step():
+                break
+
+        for frame_index, seconds in seen:
+            if frame_index + 1 < len(durations):
+                assert seconds == pytest.approx(durations[frame_index + 1])
+            elif frame_index < len(durations):
+                assert seconds == pytest.approx(durations[frame_index])
+        assert seen[0][1] == pytest.approx(durations[1])
+        assert seen[-1][0] <= len(durations)
+        assert inner_game.next_frame_seconds == 0.0
+
+    def test_the_frame_index_is_the_next_frame_and_equals_the_frames_run(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """Before frame 0 it is 0; each step adds one; it always equals outcome.frames_run."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        assert inner_game.frame_index == 0
+
+        while inner_game.step():
+            assert inner_game.frame_index == inner_game.outcome.frames_run
+        assert inner_game.frame_index == inner_game.outcome.frames_run
+        assert inner_game.frame_index == inner_game.frame_count
+
+    def test_all_three_read_as_defined_after_the_game_ended_early(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """A game finished before the end still answers by the recording it replayed."""
+        durations = self.make_uneven(recording=recording)
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        inner_game.step()
+        inner_game.finish()
+
+        assert inner_game.frame_count == len(durations)
+        assert inner_game.frame_index == 1
+        assert inner_game.next_frame_seconds == pytest.approx(durations[2])
+
+    def test_an_engine_without_replay_sources_has_no_frames_to_report(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """Nothing to read the recording from: 0 frames and 0.0 seconds, not an error."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        assert inner_game._engine is not None
+        replay_sources = inner_game._engine.replay_sources
+        inner_game._engine.replay_sources = None
+
+        assert inner_game.frame_count == 0
+        assert inner_game.next_frame_seconds == 0.0
+
+        inner_game._engine.replay_sources = replay_sources
+        inner_game.finish()
+
+    def test_a_game_that_failed_to_build_has_no_frames(self, recording: Path):
+        """No installed command: nothing recorded is known, so 0 frames and 0.0 seconds."""
+        inner_game = InnerGame.replay(
+            command='no-such-command-anywhere', path=recording, name='tile', size=TARGET_SIZE
+        )
+
+        assert inner_game.outcome.state is InnerGameState.FAILED
+        assert inner_game.frame_count == 0
+        assert inner_game.frame_index == 0
+        assert inner_game.next_frame_seconds == 0.0
 
 
 class TestARecordedQuit:
