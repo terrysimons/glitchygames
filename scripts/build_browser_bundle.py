@@ -13,7 +13,10 @@ It writes, into the output directory:
                       the clipboard, and the player's own files (a file picker, downloads)
   touch_controls.js   on-screen buttons on touch devices (the layout in boot_config.json)
   boot_config.json    which game to start, and its command-line arguments
-  <package>.zip       a member game's own package (mr_muncher.zip), unpacked beside the engine's
+  <package>.zip       a member game's own package (mr_muncher.zip), unpacked beside the engine's;
+                      a member's first package also holds the member's package metadata
+                      (``<distribution>-<version>.dist-info``: its name, version and console
+                      scripts), so a game is found by its command as an installed one is
   glitchygames.zip    the engine package, without what only desktop tools use (the API server
                       and its services, test helpers, project templates, the large PNG assets,
                       and Bitmappy unless the build is Bitmappy itself); unpacked by PyScript
@@ -49,10 +52,12 @@ import functools
 import html
 import importlib.metadata
 import json
+import re
 import shutil
 import string
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs the submodule's build script
 import sys
+import tomllib
 import webbrowser
 import zipfile
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -505,20 +510,71 @@ def bundled_package_files(
     )
 
 
+class DistributionMetadata(BaseModel):
+    """The package metadata an unpacked package carries, as its installed wheel's would.
+
+    Attributes:
+        name: The distribution's name (``zombies-aint-my-neighbors``).
+        version: Its version.
+        console_scripts: Its console scripts, each name to its entry point
+            (``zombies_aint_my_neighbors:main``).
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    name: str
+    version: str
+    console_scripts: dict[str, str] = {}
+
+
+def metadata_files(*, distribution: DistributionMetadata) -> list[tuple[str, bytes]]:
+    """Return a distribution's ``.dist-info`` files, as archive members, as a wheel names them.
+
+    ``importlib.metadata`` reads them where the archive is unpacked: METADATA gives the name and
+    version (a replay compares the engine's with the recording's), and entry_points.txt the
+    console scripts (an inner game finds the game it replays by its command,
+    ``glitchygames.replay.tools.children.game_entry_point``).
+
+    Returns:
+        Each file's archive name and contents: METADATA, then entry_points.txt when the
+        distribution has console scripts.
+
+    """
+    # The wheel's escaping of a name and version in its .dist-info directory (PEP 427)
+    directory = (
+        f'{re.sub(r"[-_.]+", "_", distribution.name)}-'
+        f'{distribution.version.replace("-", "_")}.dist-info'
+    )
+    metadata = (
+        f'Metadata-Version: 2.1\nName: {distribution.name}\nVersion: {distribution.version}\n'
+    )
+    files = [(f'{directory}/METADATA', metadata.encode('utf-8'))]
+    if distribution.console_scripts:
+        scripts = ''.join(
+            f'{name} = {value}\n' for name, value in sorted(distribution.console_scripts.items())
+        )
+        files.append((
+            f'{directory}/entry_points.txt',
+            f'[console_scripts]\n{scripts}'.encode(),
+        ))
+    return files
+
+
 def write_engine_archive(
     *,
     package_directory: Path,
     archive_path: Path,
     excluded_subpackages: frozenset[str] = EXCLUDED_SUBPACKAGES,
-    engine_version: str | None = None,
+    distribution: DistributionMetadata | None = None,
 ) -> int:
     """Zip a package's bundled files (the engine's or a member game's) with fixed timestamps.
 
     Entries are named after ``package_directory`` (``glitchygames/...``, ``mr_muncher/...``).
 
-    With ``engine_version``, the archive also holds the package's metadata
-    (``glitchygames-<version>.dist-info/METADATA``): the package is unpacked, not installed, and
-    ``importlib.metadata`` finds the version there (a replay compares it with the recording's).
+    With ``distribution``, the archive also holds that distribution's package metadata
+    (``metadata_files``): the package is unpacked, not installed, and ``importlib.metadata``
+    finds its version and console scripts there.
 
     Returns:
         How many package files were archived.
@@ -534,14 +590,8 @@ def write_engine_archive(
         )
         for relative_path in files
     ]
-    if engine_version is not None:
-        metadata = (
-            f'Metadata-Version: 2.1\nName: {package_directory.name}\nVersion: {engine_version}\n'
-        )
-        members.append((
-            f'{package_directory.name}-{engine_version}.dist-info/METADATA',
-            metadata.encode('utf-8'),
-        ))
+    if distribution is not None:
+        members.extend(metadata_files(distribution=distribution))
     with zipfile.ZipFile(archive_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         for name, contents in members:
             member = zipfile.ZipInfo(filename=name, date_time=ARCHIVE_TIMESTAMP)
@@ -561,6 +611,53 @@ def installed_engine_version() -> str | None:
         return importlib.metadata.version('glitchygames')
     except importlib.metadata.PackageNotFoundError:
         return None
+
+
+def engine_distribution() -> DistributionMetadata | None:
+    """Return the engine's package metadata for its archive: its name and installed version.
+
+    Returns:
+        The metadata, or None when the engine's package metadata is not installed.
+
+    """
+    version = installed_engine_version()
+    if version is None:
+        return None
+    return DistributionMetadata(name='glitchygames', version=version)
+
+
+def member_distribution(*, import_package: str) -> DistributionMetadata | None:
+    """Return a member's package metadata, from its pyproject.toml, for its first package.
+
+    A member's metadata goes in one archive, its first import package's (Brave Adventurer's
+    ``brave_adventurer_core``), as its wheel holds one ``.dist-info`` for all its packages.
+
+    Args:
+        import_package: The package being archived (``zombies_aint_my_neighbors``).
+
+    Returns:
+        The member's name, version and console scripts (``[project.scripts]``), or None when
+        the package is not its member's first.
+
+    Raises:
+        TypeError: If the member's pyproject.toml has no ``[project] version`` string.
+
+    """
+    for member in workspace_members(project_root=REPOSITORY_DIRECTORY):
+        if member.import_packages[0] != import_package:
+            continue
+        with (member.directory / 'pyproject.toml').open('rb') as pyproject_file:
+            project = tomllib.load(pyproject_file)['project']
+        version = project.get('version')
+        if not isinstance(version, str):
+            message = f'{member.distribution} has no [project] version in its pyproject.toml'
+            raise TypeError(message)
+        return DistributionMetadata(
+            name=member.distribution,
+            version=version,
+            console_scripts=project.get('scripts', {}),
+        )
+    return None
 
 
 def pyscript_config(
@@ -749,7 +846,7 @@ def write_bundle(
             package_directory=PACKAGE_DIRECTORY,
             archive_path=output_directory / 'glitchygames.zip',
             excluded_subpackages=EXCLUDED_SUBPACKAGES,
-            engine_version=installed_engine_version(),
+            distribution=engine_distribution(),
         )
     }
     for member_package in GAMES[game].member_packages:
@@ -757,6 +854,7 @@ def write_bundle(
             package_directory=member_package_directory(import_package=member_package),
             archive_path=output_directory / f'{member_package}.zip',
             excluded_subpackages=frozenset(),
+            distribution=member_distribution(import_package=member_package),
         )
     archives = ', '.join(f'{package} {count}' for package, count in file_counts.items())
     report(
