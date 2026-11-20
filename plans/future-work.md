@@ -1770,7 +1770,9 @@ discussing it found and decided:
 - **Steps are the recorded unit; frames are only drawing (the owner's idea, 2026-11-17).** A
   recording stays a list of steps, each with its `dt`. Existing recordings replay as they are, each
   recorded frame one step of its recorded `dt`, drawn at any refresh rate by blending between steps,
-  so the 25 golden replays and demos and the 5 golden-trace baselines keep their meaning and are
+  so the 19 golden replays and demos (8 goldens and 11 bundled demos, counted in
+  `tests/workspace_expectations.py`, 2026-11-20) and the 4 golden-trace baselines
+  (`tests/world/golden/`) keep their meaning and are
   never re-recorded for this. New live play steps at the fixed rate. One stepping path: live, the
   accumulator decides when to step; in a replay, the recording does. The game logic always replays
   at exactly the steps it was recorded with: re-stepping it at another rate changes outcomes
