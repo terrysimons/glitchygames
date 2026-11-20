@@ -320,7 +320,11 @@ recorded the same options; ten tiles with different games and resolutions make t
    `INNER_GAMES` declaring only the default sizes, and `pygame.mixer.music` (no game uses it).
 5. **One playback core, then `DemoPlayer`** (section 2 above), with engine context sub-plan 8:
    the replay viewer's inner game moves onto the core, in its own context. Looping,
-   fast-forward, poster frames, the frame budget.
+   fast-forward, poster frames, the frame budget. Planned 2026-11-20 in
+   [2026-11-20-arcade-5-playback-core.md](2026-11-20-arcade-5-playback-core.md) (for the owner's
+   review): the audit found no second runner to merge, so the core is the viewer's pacer plus a
+   shared time budget on `InnerGame`, and the viewer's own-context move is proposed as a later
+   sub-plan (its Open questions).
 6. **The Arcade screen, reel and chime:** the app `src/apps/arcade/`, `uv run arcade`, ten tiles
    in three visually separate sections (games, apps, demos; Decisions, 2026-11-12), the
    selected one shown in the showcase area at the top, the highlight, input, the idle time-out, each tile's debug overlay (the spike's
