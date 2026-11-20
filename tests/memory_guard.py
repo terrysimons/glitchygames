@@ -3,7 +3,7 @@
 CircleCI's Linux job (``resource_class: small``, 2 GB, serial) was killed with signal 9 when a
 test ran the process out of memory (BUGS.md #235): the job log ended mid-test, with no test named
 and no hint of what grew. This plugin is on only when ``GLITCHYGAMES_TEST_RSS_LIMIT_MB`` is set
-(the Linux and Raspberry Pi jobs set 1500; mebibytes, so 1500 is 1573 MB). A background thread
+(the Linux and Raspberry Pi jobs set 1400; mebibytes, so 1400 is 1468 MB). A background thread
 samples the memory every ``SAMPLE_INTERVAL_SECONDS``, and each test's start and end are checked
 too. Past the limit it
 stops the run (``os._exit``, ``LIMIT_EXIT_STATUS``) after writing, straight to the original
@@ -28,7 +28,8 @@ the run's summary and a stop's message name it beside the reading. It stays coun
 (the owner, 2026-10-28, with CircleCI's figures: "Keep counting the slab and keep reporting it"):
 CircleCI's Linux job peaked at 1121 MiB, 367 MiB of it slab, against the 1600 MiB limit; on
 2026-11-17 it stopped at 1604 MiB, 348 MiB of it slab, and the owner raised the limit to 1750;
-after the sprite and trace-reader memory fixes (#226) the owner lowered it to 1500 (2026-11-19).
+after the sprite and trace-reader memory fixes (#226) the owner lowered it to 1500, and after the
+memory follow-ups (#230) to 1400 (2026-11-19).
 
 Neither exists on macOS or Windows, so there the plugin does nothing, even with the variable set.
 Under pytest-xdist the workers make no guard (each would hold the whole limit for itself): the

@@ -160,7 +160,7 @@ test, instead of the kernel killing the job silently (`tests/memory_guard.py`;
 `tests/test_memory_guard.py`).
 
 - It is on only when `GLITCHYGAMES_TEST_RSS_LIMIT_MB` is set; CircleCI's Linux and Raspberry Pi
-  jobs set 1500.
+  jobs set 1400.
 - A background thread samples memory every `SAMPLE_INTERVAL_SECONDS`, and each test's start and
   end are checked too.
 - It reads the container's memory (cgroup v2) where there is one, else this process's resident
