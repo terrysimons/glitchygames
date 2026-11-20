@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from typing import TYPE_CHECKING
 
 import pytest
@@ -82,13 +83,18 @@ def stand_in_games(tmp_path_factory, monkeypatch, mocker) -> None:
 
 
 @pytest.fixture
-def repository(tmp_path: Path, stand_in_games) -> Path:
+def repository(tmp_path: Path, stand_in_games, monkeypatch) -> Path:
     """Return a repository with one commit of engine code, its goldens' games installed.
+
+    Every ``GIT_*`` variable of the surrounding run is cleared first (a hook's run exports them,
+    and ``GIT_INDEX_FILE`` changes which index the hook's code tree is made from).
 
     Returns:
         Its directory.
 
     """
+    for name in [name for name in os.environ if name.startswith('GIT_')]:
+        monkeypatch.delenv(name)
     git(repository=tmp_path, arguments=['init', '--quiet'])
     write(repository=tmp_path, relative_path='pyproject.toml', text=ROOT_PYPROJECT)
     write(repository=tmp_path, relative_path='src/glitchygames/game.py', text='speed = 1\n')
@@ -348,14 +354,32 @@ def test_an_untracked_member_recording_refuses_the_commit(mocker, repository, ca
     assert 'src/games/a-game/tests/fixtures/replays/golden.jsonl.gz' in capsys.readouterr().err
 
 
+# git's tree of nothing: what a code tree is made from when the index file it names is missing
+EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
+
+
 def test_a_partial_commit_that_needs_measuring_is_refused(mocker, repository, capsys):
-    """Git commit <path>: rows staged into its temporary index never reach the real one."""
+    """Git commit <path>: rows staged into its temporary index never reach the real one.
+
+    Git makes a partial commit on a copy of the index (``.git/next-index-<pid>.lock``) and runs
+    the hook with ``GIT_INDEX_FILE`` naming it. The copy here is real, so the hook's code tree is
+    the staged one (BUGS.md #261: a missing file made it git's empty tree, which no test noticed).
+    """
     measure = stand_in_measurement(mocker, repository=repository)
     write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 5\n')
-    mocker.patch.dict(os.environ, {'GIT_INDEX_FILE': '.git/next-index-12345.lock'})
+    paths = load_project_settings(project_root=repository).code_tree_paths
+    staged_tree = staged_code_tree(repository=repository, paths=paths)
+    next_index = repository / '.git' / 'next-index-12345.lock'
+    shutil.copyfile(repository / '.git' / 'index', next_index)
+    mocker.patch.dict(os.environ, {'GIT_INDEX_FILE': str(next_index)})
+    unmeasured = mocker.spy(measure_staged_replays, '_unmeasured')
 
+    assert staged_code_tree(repository=repository, paths=paths) == staged_tree != EMPTY_TREE
     assert run_hook(repository=repository) == ExitCode.OPTIONS_REFUSED
 
+    # The hook judged the staged tree, and found every recording unmeasured for it
+    assert unmeasured.call_args.kwargs['code_tree'] == staged_tree
+    assert len(unmeasured.spy_return) == MEASURED_RECORDING_COUNT
     measure.assert_not_called()
     assert 'git commit <path>' in capsys.readouterr().err
 
