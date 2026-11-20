@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import threading
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pygame
 import pytest
@@ -27,6 +28,9 @@ from glitchygames.ai_link import (
 )
 from glitchygames.host import HostSources
 from tests.ai_service_stand_in import SERVICE_KEY, install
+
+if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
 
 # Every install here runs its control script, on Windows too (tests/ai_service_stand_in.py)
 pytestmark = pytest.mark.usefixtures('stand_in_ai_control_scripts')
@@ -311,21 +315,50 @@ def test_a_service_that_is_down_is_retried_without_error(started_link, mocker):
     assert wait_until(lambda: link.state is LinkState.RECONNECTING)
 
 
-def test_waiting_to_reconnect_uses_the_engines_sleep_or_the_one_given(tmp_path):
+def refuse_every_connection_at_once(mocker: MockerFixture) -> Any:
+    """Make every connection attempt refused at once, as a closed port refuses it on a Mac.
+
+    websockets' sync connect lets socket.create_connection's ConnectionRefusedError through
+    (websockets 17.4, checked against 127.0.0.1:9). A real refused connect is no measure of
+    anything: on Windows one to a closed loopback port takes seconds, as the stack retries the
+    SYN after the reset (CI job 4022 ran out of its 10 s waiting for two).
+
+    Returns:
+        The patched connect, whose calls are the attempts.
+    """
+    return mocker.patch(
+        'websockets.sync.client.connect',
+        side_effect=ConnectionRefusedError(errno.ECONNREFUSED, 'Connection refused'),
+    )
+
+
+def test_waiting_to_reconnect_uses_the_engines_sleep_or_the_one_given(tmp_path, mocker):
     """The wait is injected, so a test or a caller can replace it."""
     install(root=tmp_path)
+    attempts = refuse_every_connection_at_once(mocker)
+    # Were the wait given ignored, the link would sleep on the engine's clock and never stop:
+    # this error ends the run instead (the link reports it as UNAVAILABLE)
+    mocker.patch.object(
+        clock, 'raw_sleep', side_effect=AssertionError('waited on the engine sleep, not the given')
+    )
     waits = []
+
+    def stop_after_the_second_wait(seconds: float) -> None:
+        waits.append(seconds)
+        if len(waits) == 2:
+            link.stop()
+
     link = AiLink(
         locations=ServiceLocations.in_one_folder(root=tmp_path),
         session_url='ws://127.0.0.1:9/v1/session',
-        sleep=waits.append,
+        sleep=stop_after_the_second_wait,
     )
 
-    link.start()
+    link._run()  # Run directly: the stop then comes from the same thread, deterministically
 
-    assert wait_until(lambda: len(waits) >= 2)
-    assert waits[0] == ai_link.RECONNECT_DELAY_SECONDS
-    link.stop()
+    assert waits == [ai_link.RECONNECT_DELAY_SECONDS] * 2
+    assert attempts.call_count == 2
+    assert link.state is LinkState.STOPPED
 
 
 def test_stop_closes_the_session_so_the_service_can_count_it(service, started_link):
