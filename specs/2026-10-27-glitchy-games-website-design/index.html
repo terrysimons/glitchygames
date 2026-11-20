@@ -1493,21 +1493,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#launch-monthly-us-east-1" class="md-nav__link">
+  <a href="#monthly-us-east-1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Launch (monthly, us-east-1)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#later-gpu-for-ai-work-not-built-now" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Later: GPU for AI work (not built now)
+        Monthly, us-east-1
       
     </span>
   </a>
@@ -3161,21 +3150,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#launch-monthly-us-east-1" class="md-nav__link">
+  <a href="#monthly-us-east-1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Launch (monthly, us-east-1)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#later-gpu-for-ai-work-not-built-now" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Later: GPU for AI work (not built now)
+        Monthly, us-east-1
       
     </span>
   </a>
@@ -3347,7 +3325,11 @@
 <h1 id="glitchygames-website-on-aws-design">glitchy.games website on AWS — Design<a class="headerlink" href="#glitchygames-website-on-aws-design" title="Permanent link">#</a></h1>
 <ul>
 <li><strong>Date:</strong> 2026-10-27</li>
-<li><strong>Status:</strong> DRAFT, awaiting the owner's review. Nothing is built yet.</li>
+<li><strong>Status:</strong> DRAFT, awaiting the owner's review (builder-checked 2026-10-28). Nothing is built
+  yet.</li>
+<li><strong>Later, separate plans:</strong> email at the domains; self-hosting PyScript/Pyodide (both in
+  <code>plans/future-work.md</code>, Website); a real home page at <code>glitchy.games</code>; <code>docs.glitchy.games</code>;
+  the other 24 domains.</li>
 <li><strong>Repo:</strong> <code>glitchygames</code> (this repo). The site and its AWS setup live here; no separate repo.</li>
 </ul>
 <h2 id="intent">Intent<a class="headerlink" href="#intent" title="Permanent link">#</a></h2>
@@ -3356,21 +3338,19 @@ arcade (the gallery in the owner's mockup: a featured demo with sound on top, a 
 silent demo tiles below, arrows / d-pad to browse, Enter / A to play). Every game runs in the
 visitor's own browser (Pyodide/WebAssembly; <code>plans/2026-10-23-game-host-and-browser-runner.md</code>,
 <code>scripts/build_browser_bundle.py</code>), so the server only serves files.</p>
-<p>Later, a <abbr title="Graphics processing unit">GPU</abbr> instance on AWS will run <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> work (e.g. Bitmappy's <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> sprite generation, <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> players
-driven through the outer <code>GameHost</code> layer). It is out of scope to build now, but it is scoped into
-the cost estimate.</p>
 <h2 id="goals">Goals<a class="headerlink" href="#goals" title="Permanent link">#</a></h2>
 <ol>
-<li><code>https://play.glitchy.games</code> serves the browser build, over HTTPS, fast worldwide.</li>
+<li><code>https://play.glitchy.games</code> serves the browser build, over HTTPS.</li>
 <li>Every push to <code>main</code> on GitHub publishes the site automatically.</li>
 <li>The AWS setup is code in this repo, reproducible from scratch.</li>
-<li>Launch cost stays around $1.50–2.50 / month.</li>
+<li><strong>The cheapest reasonable setup for a simple static site</strong> (the owner, 2026-10-28): $0 / month
+   expected, on CloudFront's Free flat-rate plan.</li>
 <li>The owner hears about it (email) before an AWS bill surprises them.</li>
 </ol>
 <h2 id="non-goals-for-now">Non-goals (for now)<a class="headerlink" href="#non-goals-for-now" title="Permanent link">#</a></h2>
 <ul>
-<li>No servers at launch: no EC2, Lightsail, containers or databases.</li>
-<li>No <abbr title="Graphics processing unit">GPU</abbr> instance yet (later phase, below).</li>
+<li>No servers: no EC2, Lightsail, containers, databases or <abbr title="Graphics processing unit">GPU</abbr> instance (the owner, 2026-10-28:
+  "We don't even need a <abbr title="Graphics processing unit">GPU</abbr> instance for this").</li>
 <li>No home page at <code>glitchy.games</code> yet — it redirects to <code>play.glitchy.games</code>.</li>
 <li>No docs site yet (<code>docs.glitchy.games</code> is reserved for the MkDocs site, later).</li>
 <li>The 24 other domains the owner holds at Namecheap (<code>glitchygames.*</code>, <code>twitchplaysglitchy*</code>)
@@ -3381,16 +3361,26 @@ the cost estimate.</p>
 <ul>
 <li>Long-lived AWS access keys stored in GitHub.</li>
 <li>A setup that only works because of hand-clicked console changes nobody can reproduce.</li>
-<li>A bill that can grow silently (runaway <abbr title="Graphics processing unit">GPU</abbr> instance, traffic spike) without an alert.</li>
+<li>A bill that can grow silently (a traffic spike, a forgotten resource) without an alert.</li>
 </ul>
 <h2 id="constraints-and-facts">Constraints and facts<a class="headerlink" href="#constraints-and-facts" title="Permanent link">#</a></h2>
 <ul>
 <li><strong>AWS account:</strong> the owner's existing, long-standing account. It is past the old 12-month free
   tier and was created before the July 15, 2025 credit-based free plan, so only the "Always Free"
-  allowances apply (CloudFront: 1 TB transfer and 10M requests / month; Lambda; DynamoDB).</li>
+  allowances apply (CloudFront: 1 TB transfer and 10M requests / month; Lambda; DynamoDB).
+  Being off the AWS Free Tier matters: an account on it can't subscribe to flat-rate plans.</li>
+<li><strong>CloudFront flat-rate Free plan</strong> (AWS docs, checked 2026-10-28): $0 / month, no overage
+  charges ever; 1M requests and 100 GB transfer / month; includes the ACM certificate,
+  CloudFront Functions, Origin Access Control, managed and custom response-header policies, the
+  attached Route 53 hosted zone (its monthly fee, records, queries; 50 records per zone) and
+  5 GB of S3 Standard storage credit. <strong>One distribution per plan, one apex domain per plan,
+  3 Free plans per account</strong> (quotas can't be raised). Over the allowance, AWS notifies and may
+  serve from fewer or more distant edges, but never bills. Origin Access Identity (OAI) is not
+  supported (use OAC). A CloudFront Function already associated with another distribution
+  can't be used by a plan's distribution, so each distribution gets its own function.</li>
 <li><strong>Domains:</strong> registered at Namecheap (namecheap.com). Two are in scope:
   <code>glitchy.games</code> and <code>glitchygames.ai</code>.</li>
-<li><strong>Region:</strong> us-east-1 (CloudFront certificates must live there; cheapest <abbr title="Graphics processing unit">GPU</abbr> pricing later).</li>
+<li><strong>Region:</strong> us-east-1 (CloudFront certificates must live there).</li>
 <li><strong>Browser build:</strong> <code>scripts/build_browser_bundle.py</code> (on <code>main</code>) writes
   <code>build/browser/&lt;game&gt;</code>: the page, the engine and our pygame-ce WebAssembly wheel. The wheel is
   built from the <code>third_party/pygame-ce</code> submodule and takes several minutes the first time.</li>
@@ -3450,12 +3440,20 @@ the cost estimate.</p>
 <td><code>docs/specs/</code></td>
 </tr>
 <tr>
-<td>Placeholder</td>
-<td>until the Arcade exists, the owner's mockup image is the placeholder</td>
+<td>The site</td>
+<td><code>src/website/</code>: its <code>index.html</code> and the owner's mockup image, until the real site is coded (2026-10-28)</td>
 </tr>
 <tr>
 <td><abbr title="Graphics processing unit">GPU</abbr></td>
-<td>later, for <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> work; include it in the cost picture only</td>
+<td>not needed; dropped (2026-10-28)</td>
+</tr>
+<tr>
+<td>Cost</td>
+<td>cheapest reasonable for a simple static site (2026-10-28)</td>
+</tr>
+<tr>
+<td>Self-hosting PyScript/Pyodide</td>
+<td>later; a backlog task needing a brainstorm (2026-10-28)</td>
 </tr>
 </tbody>
 </table>
@@ -3485,8 +3483,8 @@ the cost estimate.</p>
 <td>upgraded to <code>https://</code></td>
 </tr>
 <tr>
-<td><code>docs.glitchy.games</code>, <code>ai.glitchy.games</code></td>
-<td>reserved, later phases</td>
+<td><code>docs.glitchy.games</code></td>
+<td>reserved, later</td>
 </tr>
 </tbody>
 </table>
@@ -3498,24 +3496,46 @@ per-origin, so serving the site on two origins would split players' saves.</p>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                   | nameservers -&gt; Route 53
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                   v
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a> Route 53 zone: glitchy.games          Route 53 zone: glitchygames.ai
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>   play  -&gt; ALIAS site distribution      @, www -&gt; ALIAS redirect distribution
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>   @,www -&gt; ALIAS redirect distribution
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a> (attached to Free plan 1)             (attached to Free plan 2)
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>   play, @, www -&gt; ALIAS distribution 1  @, www -&gt; ALIAS distribution 2
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                   |                                   |
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                   v                                   v
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a> CloudFront "site" distribution        CloudFront "redirect" distribution
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>   - origin: private S3 bucket (OAC)     - no real origin; a CloudFront Function
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>   - HTTPS cert (ACM, us-east-1)           answers every request with a 301 to
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>   - compression on                        https://play.glitchy.games&lt;path&gt;
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>   - response headers policy             - HTTPS cert (ACM) for the four names
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>                   |
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>                   v
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a> S3 bucket (private, versioned) holding build/browser/...
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a> Distribution 1: glitchy.games         Distribution 2: glitchygames.ai
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a> (CloudFront Free plan 1)              (CloudFront Free plan 2)
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>   - origin: private S3 bucket (OAC)     - no real origin; its own CloudFront
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>   - cert: glitchy.games,                  Function answers every request with a
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>     www., play. (ACM)                     301 to https://play.glitchy.games&lt;path&gt;
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>   - CloudFront Function: Host not       - cert: glitchygames.ai, www. (ACM)
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>     play.glitchy.games -&gt; 301 to
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>     https://play.glitchy.games&lt;path&gt;
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>   - compression on
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>   - response headers policy
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>                   |
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>                   v
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a> S3 bucket (private, versioned) holding the site
 </span></code></pre></div>
+<p>Why this shape: a Free plan covers one distribution and one apex domain, so the
+<code>glitchy.games</code> names (one apex) share distribution 1, and <code>glitchygames.ai</code> (a second apex)
+needs distribution 2. That uses 2 of the account's 3 Free plans; the third is spare (e.g. a
+future apex domain). Both zones are attached to their distribution's plan, so Route 53 costs
+nothing either.</p>
 <ul>
 <li><strong>DNS:</strong> move the nameservers of both domains to Route 53 at Namecheap (one manual step per
-  domain, done once). Route 53 then holds every record as code. $0.50 / zone / month.</li>
+  domain, done once). Route 53 then holds every record as code; attached to the Free plans, the
+  zones cost $0 (50-record limit per zone: plenty).</li>
 <li><strong>Certificates:</strong> ACM in us-east-1, DNS-validated in Route 53 (automatic once the zones exist).
-  Six names total, under ACM's default 10-name limit. Free.</li>
+  One per distribution (3 names and 2 names). Free.</li>
+<li><strong>Plan subscription:</strong> CloudFormation/CDK support for subscribing a distribution to a
+  flat-rate plan and attaching a zone was not confirmed (aws-cdk issue #37857 asks for it). If
+  CDK can't, subscribing both distributions and attaching both zones is a one-time console step
+  (Manual steps). The distributions must not use anything the plan doesn't support (OAI,
+  real-time logs; the builder checks the AWS "Unsupported features" list).</li>
+<li><strong>WAF web ACL (found in the final review, 2026-10-28):</strong> a plan requires a WAF web ACL on its
+  distribution, used by no other distribution and not removable while the plan lasts. Each
+  stack defines its own (<code>glitchy_site.hosting.web_acl_for</code>: allow by default, one rule, AWS's
+  IP reputation list; the Free plan allows 5), so the plan adopts it and a later deploy never
+  detaches it. Covered by the plan; on pay-as-you-go it would cost $5 / month per ACL plus $1
+  per rule.</li>
 <li><strong>S3:</strong> private bucket, CloudFront Origin Access Control, Block Public Access on. Versioning on
   so a bad deploy can be rolled back; a lifecycle rule expires old versions after 30 days.</li>
 <li><strong>CloudFront (site):</strong></li>
@@ -3528,12 +3548,12 @@ per-origin, so serving the site on two origins would split players' saves.</p>
     SharedArrayBuffer. If that ever changes, the bundle must self-host PyScript first. No strict
     Content-Security-Policy for the same reason (or one that allows <code>pyscript.net</code> and
     Pyodide's CDN — builder's call).</li>
-<li>PriceClass_100 (North America + Europe edges) to keep costs down — Claude's call; widen
-    later if needed.</li>
-<li><strong>CloudFront (redirect):</strong> separate distribution with a CloudFront Function (viewer request)
-  returning the 301. Could instead be one distribution with a host-header check; two keeps the
-  site's config simple. Builder may merge if it's cleaner.</li>
-<li><strong>Budget alarm:</strong> AWS Budgets, monthly, email the owner at $10 actual and at forecast &gt; $10.</li>
+<li>Self-hosting PyScript and Pyodide (which would allow COOP/COEP and a strict CSP) is a later
+    task: <code>plans/future-work.md</code>, Website.</li>
+<li><strong>Budget alarm:</strong> AWS Budgets, monthly, whole account (the owner, 2026-10-28: nothing else
+  runs in it), emailing the owner at $10 actual and at forecast &gt; $10. The address (the owner
+  gave it 2026-10-28) is passed at deploy time (CDK context or an environment variable), never
+  written in the repo: this spec and the infra code are public.</li>
 </ul>
 <h2 id="infrastructure-as-code-claudes-call">Infrastructure as code (Claude's call)<a class="headerlink" href="#infrastructure-as-code-claudes-call" title="Permanent link">#</a></h2>
 <ul>
@@ -3541,7 +3561,8 @@ per-origin, so serving the site on two origins would split players' saves.</p>
   engine's dependencies don't change.</li>
 <li>nox sessions in the existing style: <code>nox -s infra-deploy</code>, <code>nox -s infra-diff</code>,
   <code>nox -s site-publish</code> (build + sync + invalidate, also usable locally).</li>
-<li>Stacks: <code>DnsAndCertificates</code>, <code>Site</code>, <code>Redirects</code>, <code>GitHubDeployRole</code>, <code>Budget</code>. Names are
+<li>Stacks: <code>GlitchyGamesSite</code> (zone, certificate, bucket, distribution 1), <code>GlitchyGamesAiRedirect</code>
+  (zone, certificate, distribution 2), <code>CircleCiDeployRole</code>, <code>Budget</code>. Names are
   the builder's to settle.</li>
 <li>First deploy (<code>cdk bootstrap</code> + deploy) runs from the owner's Mac with admin credentials.</li>
 </ul>
@@ -3553,11 +3574,16 @@ publishing to AWS joins that pipeline (Claude's call: no GitHub Actions, one <ab
   (<code>aws s3 sync --delete</code>, <code>.wasm</code> as <code>application/wasm</code>, short cache on <code>index.html</code> files,
   long on the rest) and invalidates the CloudFront distribution. Also runnable from the
   owner's Mac.</li>
-<li>CircleCI: after <code>docs-deploy</code> has built <code>build/browser/site</code>, run <code>nox -s site-publish</code> on
-  that same directory — either as a final step of the <code>deploy-docs</code> job (no second ~2 GB
-  toolchain restore) or a separate job that receives the directory through a workspace. The
-  builder picks; Claude's lean is a step in <code>deploy-docs</code>, since it already holds the build. A
-  failed AWS publish must not undo or block the GitHub Pages docs deploy that already pushed.</li>
+<li>CircleCI, at launch (mockup only, so nothing needs the browser build): a new lightweight
+  <code>deploy-site</code> job (Linux Docker image, no Pyodide toolchain or wheel cache) that runs
+  <code>nox -s site-publish</code> on <code>src/website/</code>. It runs on main after the docs publish (the owner,
+  2026-10-28: "it should run on main after docs publish"): <code>requires: deploy-docs, test-infra</code>,
+  <code>filters: branches: only: main</code>, its own <code>serial-group</code>. A failed docs deploy therefore skips
+  the site's publish until the next green merge; a failed site publish can't touch the docs,
+  which have already pushed.</li>
+<li>When the real site (the Arcade) replaces the mockup: the publish needs the browser build, so it moves to
+  a final step of <code>deploy-docs</code> (which already holds the build and its caches), or receives the
+  build through a CircleCI workspace. Decide then.</li>
 <li><strong>Credentials: CircleCI OIDC</strong> (no stored AWS keys). The AWS role trusts CircleCI's OIDC
   provider for this organization and project only, and may only write to the site bucket and
   create invalidations on the site distribution. The organization ID and project ID are values
@@ -3570,14 +3596,16 @@ publishing to AWS joins that pipeline (Claude's call: no GitHub Actions, one <ab
   GitHub Pages is a later cleanup.</li>
 </ul>
 <h2 id="what-gets-published-at-launch">What gets published at launch<a class="headerlink" href="#what-gets-published-at-launch" title="Permanent link">#</a></h2>
-<p>The Arcade does not exist yet. Until it does, <code>play.glitchy.games</code> serves a placeholder built
-around the owner's mockup image (the gallery screenshot), stored in the repo. When the Arcade
-app lands, the arcade bundle replaces it.</p>
-<p><strong>OPEN (owner):</strong> the games already build as a playable site (<code>build/browser/site</code>). The
-placeholder could link to them (each game at <code>play.glitchy.games/&lt;game&gt;/</code>), or the mockup could
-stand alone until the Arcade is ready.</p>
+<p>The site is <code>src/website/</code> (the owner, 2026-10-28: "src contains all source code pertaining to
+glitchygames, the engine, the games, the tools, the website"): for now just its <code>index.html</code>
+and the owner's mockup image (the gallery screenshot). The real site is coded later, in the same
+place. <code>src/website/</code> is in <code>[tool.glitchygames] unmeasured-paths</code>, since <code>measured-paths</code> holds
+all of <code>src/</code> and a site edit runs no game.</p>
+<p><strong>Owner (2026-10-28): mockup only.</strong> The page does not link to the already-built games
+(<code>build/browser/site</code>); they stay on GitHub Pages <code>play/</code> until the real site replaces the
+mockup.</p>
 <h2 id="costs">Costs<a class="headerlink" href="#costs" title="Permanent link">#</a></h2>
-<h3 id="launch-monthly-us-east-1">Launch (monthly, us-east-1)<a class="headerlink" href="#launch-monthly-us-east-1" title="Permanent link">#</a></h3>
+<h3 id="monthly-us-east-1">Monthly, us-east-1<a class="headerlink" href="#monthly-us-east-1" title="Permanent link">#</a></h3>
 <table>
 <thead>
 <tr>
@@ -3587,27 +3615,23 @@ stand alone until the Arcade is ready.</p>
 </thead>
 <tbody>
 <tr>
-<td>Route 53 hosted zones (2)</td>
-<td>$1.00</td>
-</tr>
-<tr>
-<td>Route 53 queries</td>
-<td>~$0</td>
-</tr>
-<tr>
-<td>S3 storage (~100 MB incl. versions) + requests</td>
-<td>~$0.05</td>
-</tr>
-<tr>
-<td>CloudFront (within Always Free 1 TB / 10M req)</td>
+<td>CloudFront, 2 distributions on Free plans (incl. certificates, Functions, response headers)</td>
 <td>$0</td>
 </tr>
 <tr>
-<td>ACM certificates</td>
+<td>Route 53, 2 zones attached to the plans (fees, records, queries)</td>
 <td>$0</td>
 </tr>
 <tr>
-<td>CloudFront Functions (2M free invocations / month)</td>
+<td>S3 storage (well under the 5 GB credit)</td>
+<td>$0</td>
+</tr>
+<tr>
+<td>S3 requests (a few hundred PUT/LIST per deploy, at $0.005 / 1,000)</td>
+<td>~$0.01</td>
+</tr>
+<tr>
+<td>CloudFront invalidations (first 1,000 paths / month free)</td>
 <td>$0</td>
 </tr>
 <tr>
@@ -3616,51 +3640,26 @@ stand alone until the Arcade is ready.</p>
 </tr>
 <tr>
 <td><strong>Total</strong></td>
-<td><strong>~$1.50–2.50</strong></td>
+<td><strong>~$0</strong></td>
 </tr>
 </tbody>
 </table>
-<p>Plus existing Namecheap renewals (unchanged). Pyodide-based pages are ~10–30 MB per first visit,
-so 1 TB covers roughly 35–100k first-time visitors / month before CloudFront charges (~$0.085/GB
-in NA/EU).</p>
-<h3 id="later-gpu-for-ai-work-not-built-now">Later: <abbr title="Graphics processing unit">GPU</abbr> for <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> work (not built now)<a class="headerlink" href="#later-gpu-for-ai-work-not-built-now" title="Permanent link">#</a></h3>
-<p>Prices from third-party trackers (verify on AWS before buying):</p>
-<table>
-<thead>
-<tr>
-<th>Instance</th>
-<th><abbr title="Graphics processing unit">GPU</abbr></th>
-<th>On-demand</th>
-<th>24/7</th>
-<th>Start/stop on demand</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>g4dn.xlarge</td>
-<td>NVIDIA T4, 16 GB</td>
-<td>~$0.53/hr</td>
-<td>~$384/mo</td>
-<td>~$20–60/mo</td>
-</tr>
-<tr>
-<td>g6.xlarge</td>
-<td>NVIDIA L4, 24 GB</td>
-<td>~$0.80/hr</td>
-<td>~$588/mo</td>
-<td>~$30–90/mo</td>
-</tr>
-</tbody>
-</table>
-<p>Plus EBS storage (~$8/mo per 100 GB gp3) and ~$3.60/mo for a public IPv4 while running. Spot
-pricing is often 60–70% lower. New accounts usually have a <abbr title="Graphics processing unit">GPU</abbr> (G-family) vCPU quota of 0 — check
-and request an increase well before it's needed. "Dedicated Instances" (AWS's single-tenant
-option) cost extra and aren't needed; a normal on-demand instance is the owner's own machine.</p>
+<p>Plus existing Namecheap renewals (unchanged). The Free plan's 100 GB / month is far more than a
+mockup page needs. When the Arcade ships, Pyodide-based pages are ~10–30 MB per first visit, so
+100 GB is roughly 3–10k first-time visitors / month; beyond that nothing is billed, but delivery
+may slow. Upgrading that distribution to Pro ($15 / month: 10M requests, 50 TB) is the
+step up when it matters.</p>
+<p>Fallback if the Free plans can't be used (e.g. a plan restriction found while building):
+pay-as-you-go CloudFront (Always Free 1 TB / 10M requests) costs the same $0 for traffic, plus
+$0.50 / month per Route 53 zone: about $1 / month, once the two web ACLs are removed from the
+stacks (they exist only for the plans; kept on pay-as-you-go they would add about $12 / month).</p>
 <h2 id="manual-steps-for-the-owner">Manual steps for the owner<a class="headerlink" href="#manual-steps-for-the-owner" title="Permanent link">#</a></h2>
 <ol>
 <li>Run the first <code>nox -s infra-deploy</code> with admin AWS credentials.</li>
 <li>At Namecheap, set custom nameservers for <code>glitchy.games</code> and <code>glitchygames.ai</code> to the four
    Route 53 nameservers each zone reports.</li>
+<li>Subscribe both distributions to the CloudFront Free plan and attach each Route 53 zone to its
+   plan (CloudFront console, Manage Plan), unless CDK can do it.</li>
 <li>Confirm the AWS Budgets email subscription.</li>
 </ol>
 <h2 id="todays-dns-checked-2026-10-27-with-dig">Today's DNS (checked 2026-10-27 with <code>dig</code>)<a class="headerlink" href="#todays-dns-checked-2026-10-27-with-dig" title="Permanent link">#</a></h2>
@@ -3671,10 +3670,11 @@ record (DNSSEC off)</strong>, so a nameserver move needs no DNSSEC step. Nothing
 is served, so propagation time costs nothing.</p>
 <h2 id="risks">Risks<a class="headerlink" href="#risks" title="Permanent link">#</a></h2>
 <ul>
-<li><strong>DNS cutover and email forwarding:</strong> see "Today's DNS". Namecheap's email forwarding is
-  configured in Namecheap's panel and expects Namecheap DNS; whether it keeps working with the MX
-  and SPF records copied into Route 53 must be verified (or the owner confirms the forwarding is
-  unused).</li>
+<li><strong>DNS cutover and email forwarding:</strong> see "Today's DNS". The owner does not use email at
+  either domain (2026-10-28), so the Route 53 zones do <strong>not</strong> copy the Namecheap forwarding MX
+  or SPF records; mail to these domains stops being accepted after the move. Email is a later,
+  separate plan (likely Amazon SES or another provider; it will add MX, SPF, DKIM and DMARC
+  records to the Route 53 zones).</li>
 <li><strong>.games / .ai nameserver changes</strong> can take up to 48 h to propagate; certificate validation
   waits on it.</li>
 <li><strong><abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> build time:</strong> already handled; <code>deploy-docs</code> caches the toolchain and wheel.</li>
@@ -3690,12 +3690,12 @@ is served, so propagation time costs nothing.</p>
 </ul>
 <h2 id="calls-claude-made-after-the-builder-check">Calls Claude made after the builder check<a class="headerlink" href="#calls-claude-made-after-the-builder-check" title="Permanent link">#</a></h2>
 <ul>
-<li><strong>Mockup image:</strong> the owner supplied it in conversation (not yet in the repo). It goes in
-  the repo at <code>site/placeholder/arcade-mockup.png</code> beside a minimal <code>index.html</code>; the owner
-  offered it as the placeholder, so publishing it is intended.</li>
-<li><strong>A failed AWS publish turns the CircleCI build red</strong> (so the owner hears about it), and runs
-  after the GitHub Pages push, so it can never undo the docs. A docs build failure also skips
-  the AWS publish; the site may fall behind until the next green merge, which is acceptable.</li>
+<li><strong>Mockup image:</strong> the owner supplied it in conversation. It is
+  <code>src/website/arcade-mockup.png</code> beside a minimal <code>index.html</code> (first built in
+  <code>web/placeholder/</code>; the owner moved the site to <code>src/website/</code> on 2026-10-28). The owner offered
+  it as the site's content for now, so publishing it is intended.</li>
+<li><strong>A failed AWS publish turns the CircleCI build red</strong> (so the owner hears about it). It is its
+  own job, run after the docs deploy (owner, 2026-10-28), so it can't undo the docs.</li>
 <li><strong>CDK bootstrap:</strong> the builder checks for an existing <code>CDKToolkit</code> stack, Route 53 zones, ACM
   certificates and a CircleCI OIDC provider in the account before creating any (read-only
   <code>aws</code> calls), and reuses what's there.</li>
@@ -3704,9 +3704,10 @@ is served, so propagation time costs nothing.</p>
 <ul>
 <li>AWS free tier changes: <a href="https://tech-insider.org/what-changed-in-the-aws-free-tier-for-2026/">https://tech-insider.org/what-changed-in-the-aws-free-tier-for-2026/</a> ,
   <a href="https://spot.rackspace.com/blog/aws-free-tier">https://spot.rackspace.com/blog/aws-free-tier</a></li>
-<li><abbr title="Graphics processing unit">GPU</abbr> pricing: <a href="https://calculator.holori.com/aws/ec2/g4dn.xlarge/us-east-1">https://calculator.holori.com/aws/ec2/g4dn.xlarge/us-east-1</a> ,
-  <a href="https://calculator.holori.com/aws/ec2/g6.xlarge/us-east-1">https://calculator.holori.com/aws/ec2/g6.xlarge/us-east-1</a></li>
-<li>Lightsail pricing (considered, not chosen): <a href="https://cloudburn.io/blog/amazon-lightsail-pricing">https://cloudburn.io/blog/amazon-lightsail-pricing</a></li>
+<li>CloudFront flat-rate plans (allowances, quotas, unsupported features):
+  <a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/flat-rate-pricing-plan.html">https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/flat-rate-pricing-plan.html</a></li>
+<li>CDK support for flat-rate plans (open request): <a href="https://github.com/aws/aws-cdk/issues/37857">https://github.com/aws/aws-cdk/issues/37857</a></li>
+<li>Lightsail and EC2 (considered, not chosen: a static site needs no server): <a href="https://cloudburn.io/blog/amazon-lightsail-pricing">https://cloudburn.io/blog/amazon-lightsail-pricing</a></li>
 </ul>
 
 
@@ -3728,7 +3729,7 @@ is served, so propagation time costs nothing.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 28, 2026 20:36:28 UTC">October 28, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:26:52 UTC">November 20, 2026</span>
   </span>
 
     
