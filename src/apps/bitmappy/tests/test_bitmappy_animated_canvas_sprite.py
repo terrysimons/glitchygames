@@ -19,6 +19,8 @@ from bitmappy.canvas_interfaces import (
 from bitmappy.file_io import FileIOManager
 from bitmappy.frame_operations import FrameOperationManager
 from bitmappy.pixel_sprite import BitmapPixelSprite
+from glitchygames.engine_context import EngineContext
+from glitchygames.render_target import set_render_target
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 # Constants
@@ -2035,6 +2037,31 @@ class TestLoading:
 
         assert canvas.pixel_width == 2
         assert canvas.rect.size == (256, 256)
+
+    def test_inside_another_game_the_canvas_fits_its_own_screen(self):
+        """In an Arcade tile the canvas is sized from the tile's render target, not the window.
+
+        The same 8x6 sprite fits the 800x600 display one way and a short 800x200 target another;
+        Bitmappy once read pygame.display.get_surface() here, the host's window inside a tile.
+        """
+        on_the_display, _ = _make_real_canvas()
+        on_the_display._resize_canvas_to_sprite_size(8, 6)
+        in_a_tile, _ = _make_real_canvas()
+
+        inner = EngineContext(name='tile')
+        with inner.active():
+            set_render_target(surface=pygame.Surface((800, 200)))
+            in_a_tile._resize_canvas_to_sprite_size(8, 6)
+
+        assert in_a_tile.pixel_height < on_the_display.pixel_height
+
+    def test_resizing_with_no_screen_says_so(self, mocker):
+        """No display and no render target: an error naming it, not an assert stripped by -O."""
+        canvas, _ = _make_real_canvas()
+        mocker.patch('bitmappy.animated_canvas.display_surface', return_value=None)
+
+        with pytest.raises(RuntimeError, match='Bitmappy has no screen'):
+            canvas._resize_canvas_to_sprite_size(8, 6)
 
     def test_missing_file_is_reported_without_raising(self, tmp_path):
         """A missing file is reported in the editor's debug text, where a load reports too."""

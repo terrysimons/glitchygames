@@ -98,13 +98,9 @@ RECORDINGS = every_golden_and_bundled_demo(project_root=PROJECT_ROOT)
 # Eight goldens and eleven bundled demos (tests/workspace_expectations.py)
 EXPECTED_RECORDING_COUNT = 19
 # The recordings known to diverge inside a tile, by (console script, file name), each with the
-# plans/future-work.md entry that says why
-DIVERGES_INSIDE_A_TILE: dict[tuple[str, str], str] = {
-    ('bitmappy', 'drawing.jsonl.gz'): (
-        'plans/future-work.md, "Bitmappy\'s Arcade tile diverges at frame 0": it sizes its film '
-        'strip from pygame.display.get_surface(), the outer window inside a tile'
-    ),
-}
+# plans/future-work.md entry that says why. None today: Bitmappy's, which read the host's window
+# (bugs/2026-11-20-bitmappy-tile-read-the-hosts-window.md), reads its own screen since 2026-11-20
+DIVERGES_INSIDE_A_TILE: dict[tuple[str, str], str] = {}
 # The recordings known to change the outer game's key repeat inside a tile, each with its entry
 CHANGES_THE_OUTER_KEY_REPEAT: dict[tuple[str, str], str] = {
     ('text-input-demo', 'typing.jsonl.gz'): (

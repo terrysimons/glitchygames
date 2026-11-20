@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
+from glitchygames.render_target import display_surface
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 from .constants import (
@@ -334,8 +335,13 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
     def _calculate_film_strip_dimensions(self) -> tuple[int, int]:
         """Calculate the x position and width for film strips.
 
+        The width runs to the right edge of the scene's own screen (``display_surface()``).
+
         Returns:
             Tuple of (film_strip_x, film_strip_width).
+
+        Raises:
+            RuntimeError: There is no screen yet (no display and no render target).
 
         """
         if hasattr(self.editor, 'color_well') and self.editor.color_well:
@@ -345,8 +351,12 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         else:
             film_strip_x = self.editor.canvas.rect.right + 4  # 4 pixels to the right of canvas edge
 
-        screen = pygame.display.get_surface()
-        assert screen is not None
+        # The scene's own screen: the window, or a render target when Bitmappy runs inside another
+        # game (an Arcade tile), where pygame.display.get_surface() is the host's window
+        screen = display_surface()
+        if screen is None:
+            message = 'Bitmappy has no screen: display_surface() is None (no display, no target)'
+            raise RuntimeError(message)
         screen_width = screen.get_width()
         available_width = screen_width - film_strip_x
         film_strip_width = max(300, available_width)

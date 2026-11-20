@@ -36,9 +36,14 @@ from tests.ast_scanning import (
     member_imports,
     module_name_of,
     path_to_package,
+    qualified_name,
 )
 from tests.engine_source import ENGINE_DIRECTORY
-from tests.workspace_sources import member_import_packages, scanned_source_files
+from tests.workspace_sources import (
+    member_import_packages,
+    scanned_source_files,
+    write_project_with_member_module,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -1229,4 +1234,79 @@ def test_an_optional_or_type_only_import_must_be_declared_too(tmp_path):
     assert undeclared_imports(member=member, owners=distributions_by_module(members=MEMBERS)) == [
         'space-game imports numpy (numpy) undeclared',
         'space-game imports pydantic (pydantic) undeclared',
+    ]
+
+
+# pygame calls a game, demo or app must not make: they answer for the whole process, not for the
+# game's own engine context, so inside another game (an Arcade tile) they reach the host's window.
+# The engine's answer is the one to use (bugs/2026-11-20-bitmappy-tile-read-the-hosts-window.md).
+# The cursor's visibility and the key repeat join this set once their engine events exist: see
+# the cursor show/hide event and the key-repeat event in plans/future-work.md
+CONTEXT_BLIND_PYGAME_CALLS = frozenset({'pygame.display.get_surface'})
+PYGAME_MODULES = frozenset({'pygame', 'pygame.display'})
+
+
+def context_blind_pygame_calls(*, project_root: Path) -> list[str]:
+    """Return ``<file>:<line>: <name>`` for each member's use of a context-blind pygame call.
+
+    Members are every game, demo and app: their packages' files, keyed from the repository
+    (``src/...``); the engine's own files are keyed from its package and are left out, since the
+    engine is what answers per context. A use is found however it is spelled:
+    ``pygame.display.get_surface()``, ``from pygame.display import get_surface`` or an alias.
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        The uses, in scan order.
+
+    """
+    uses = []
+    for key, source_path in scanned_source_files(project_root=project_root):
+        if not key.startswith('src/'):
+            continue
+        tree = ast.parse(source_path.read_text(encoding='utf-8'))
+        bindings = import_bindings(tree=tree, watched_modules=PYGAME_MODULES)
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Attribute, ast.Name)):
+                continue
+            name = qualified_name(node=node, bindings=bindings, watched_modules=PYGAME_MODULES)
+            if name in CONTEXT_BLIND_PYGAME_CALLS:
+                uses.append(f'{key}:{node.lineno}: {name}')
+    return uses
+
+
+def test_no_game_demo_or_app_reads_the_window_instead_of_its_own_screen():
+    """Members read their screen through the engine, so it is their own inside another game.
+
+    Bitmappy read pygame.display.get_surface(), the host's window inside an Arcade tile, and its
+    tile diverged at frame 0. ``glitchygames.render_target.display_surface()`` (or the scene's
+    screen) is the context's own: the window for a game that owns it, the render target for a tile.
+    """
+    uses = context_blind_pygame_calls(project_root=PROJECT_ROOT)
+
+    assert not uses, f'Members call pygame for the whole process, not their context: {uses}'
+
+
+def test_the_screen_guard_finds_every_spelling(tmp_path):
+    """The guard sees the attribute chain, a from-import and a module alias in a member."""
+    key = write_project_with_member_module(
+        project_root=tmp_path,
+        source=(
+            'import pygame\n'
+            'from pygame.display import get_surface\n'
+            'from pygame import display as screen_module\n'
+            'a = pygame.display.get_surface()\n'
+            'b = get_surface()\n'
+            'c = screen_module.get_surface()\n'
+            'd = pygame.display.get_window_size()\n'
+        ),
+    )
+
+    uses = context_blind_pygame_calls(project_root=tmp_path)
+
+    assert uses == [
+        f'{key}:4: pygame.display.get_surface',
+        f'{key}:5: pygame.display.get_surface',
+        f'{key}:6: pygame.display.get_surface',
     ]
