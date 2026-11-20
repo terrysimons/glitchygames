@@ -36,6 +36,7 @@ from scripts.build_browser_bundle import (
     bind_server,
     boot_config,
     bundled_package_files,
+    check_out_submodule,
     installed_engine_version,
     is_bundled,
     main,
@@ -651,6 +652,7 @@ class TestMain:
         """Without --wheel, a clean build of the submodule's commit is used, not rebuilt."""
         wheel_directory = tmp_path / 'pygame-ce' / 'dist-pyodide'
         wheel = TestReusableWheel.write_build(wheel_directory)
+        (tmp_path / 'pygame-ce' / '.git').write_text('gitdir: elsewhere\n')  # checked out
         mocker.patch.object(build_browser_bundle, 'PYGAME_CE_DIRECTORY', tmp_path / 'pygame-ce')
         mocker.patch.object(build_browser_bundle, 'submodule_commit', return_value=COMMIT)
         build_wheel = mocker.patch.object(build_browser_bundle, 'build_wheel')
@@ -975,3 +977,108 @@ def test_every_browser_game_imports_with_only_the_browser_packages(game: str):
     )
 
     assert result.returncode == 0, result.stdout
+
+
+def repository_with_an_unchecked_out_submodule(*, tmp_path: Path) -> Path:
+    """Return a clone of a repository whose submodule third_party/pygame-ce is left empty.
+
+    As ``git worktree add`` leaves it: the folder exists, nothing is checked out in it. The
+    submodule is a local repository, so git's file protocol is allowed in a HOME of the test's
+    own (git refuses local submodules by default since 2.38.1).
+
+    Returns:
+        The clone.
+
+    """
+    submodule = tmp_path / 'pygame-ce-origin'
+    submodule.mkdir()
+    (submodule / 'build.sh').write_bytes(b'echo build\n')
+    git(arguments=['init', '--quiet'], directory=submodule)
+    git(arguments=['add', '.'], directory=submodule)
+    git(
+        arguments=['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 's'],
+        directory=submodule,
+    )
+    origin = tmp_path / 'origin'
+    origin.mkdir()
+    git(arguments=['init', '--quiet'], directory=origin)
+    git(
+        arguments=[
+            '-c',
+            'protocol.file.allow=always',
+            'submodule',
+            'add',
+            '--quiet',
+            submodule.as_uri(),
+            'third_party/pygame-ce',
+        ],
+        directory=origin,
+    )
+    git(
+        arguments=['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'o'],
+        directory=origin,
+    )
+    clone = tmp_path / 'clone'
+    git(arguments=['clone', '--quiet', origin.as_uri(), str(clone)], directory=tmp_path)
+    return clone
+
+
+class TestTheSubmoduleIsCheckedOut:
+    """Without --wheel the build needs pygame-ce, which a new worktree has not checked out."""
+
+    def test_an_empty_submodule_is_checked_out(self, tmp_path, monkeypatch, capsys):
+        """A new worktree's empty third_party/pygame-ce is checked out at the recorded commit.
+
+        Once, nox -s browser in a new worktree failed with FileNotFoundError on the submodule's
+        build script, after naming the outer repository's commit as pygame-ce's.
+        """
+        clone = repository_with_an_unchecked_out_submodule(tmp_path=tmp_path)
+        home = tmp_path / 'home'
+        home.mkdir()
+        (home / '.gitconfig').write_text('[protocol "file"]\n\tallow = always\n')
+        monkeypatch.setenv('HOME', str(home))
+        submodule_directory = clone / 'third_party' / 'pygame-ce'
+        assert submodule_directory.is_dir()
+        assert not (submodule_directory / 'build.sh').exists()
+
+        checked_out = check_out_submodule(
+            pygame_ce_directory=submodule_directory, repository_directory=clone
+        )
+
+        assert checked_out is True
+        assert (submodule_directory / 'build.sh').is_file()
+        assert 'third_party/pygame-ce is not checked out' in capsys.readouterr().out
+
+    def test_a_checked_out_submodule_is_left_alone(self, tmp_path, mocker):
+        """No git call when the submodule's .git marker is there."""
+        submodule_directory = tmp_path / 'third_party' / 'pygame-ce'
+        submodule_directory.mkdir(parents=True)
+        (submodule_directory / '.git').write_text('gitdir: elsewhere\n')
+        run_git = mocker.patch.object(build_browser_bundle, 'run_git')
+
+        checked_out = check_out_submodule(
+            pygame_ce_directory=submodule_directory, repository_directory=tmp_path
+        )
+
+        assert checked_out is True
+        run_git.assert_not_called()
+
+    def test_a_failed_check_out_says_what_to_do_and_the_build_exits_1(
+        self, tmp_path, mocker, capsys
+    ):
+        """A failed git call is reported with the command to run, or --wheel; nothing is built."""
+        git(arguments=['init', '--quiet'], directory=tmp_path)  # no such submodule recorded
+        submodule_directory = tmp_path / 'third_party' / 'pygame-ce'
+        submodule_directory.mkdir(parents=True)
+        mocker.patch.object(build_browser_bundle, 'REPOSITORY_DIRECTORY', tmp_path)
+        mocker.patch.object(build_browser_bundle, 'PYGAME_CE_DIRECTORY', submodule_directory)
+        build_wheel = mocker.patch.object(build_browser_bundle, 'build_wheel')
+
+        exit_code = main(['paddleslap', '--output', str(tmp_path / 'site')])
+
+        assert exit_code == 1
+        build_wheel.assert_not_called()
+        output = capsys.readouterr().out
+        assert 'Could not check out third_party/pygame-ce' in output
+        assert 'git submodule update --init third_party/pygame-ce' in output
+        assert '--wheel' in output

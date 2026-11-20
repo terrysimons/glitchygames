@@ -43,6 +43,12 @@ plans/2026-11-14-sound-cache-on-first-use.md (built before M2, opt-in). The rule
    no test writes to a user's cache folder; a test that wants the disk sets it to its own
    folder. Sounds live under ``<root>/<game>/sounds/<render_version>/`` (``sounds_directory``).
 
+7. In the browser the layer works as on the desktop, in Pyodide's in-memory files, which the
+   page (browser/boot.py) mounts on IndexedDB at the cache root, so sounds outlive the page.
+   IndexedDB keeps those files only when told to: each written sound is told to the observers
+   ``observe_sound_writes`` registers (the page's flush), after the file is in place. Nothing
+   else in the engine knows about the browser's storage.
+
 This module imports numpy, pydantic, the standard library and ``glitchygames.state.paths``,
 and ``filelock`` only when it takes a write lock outside the browser (rule 5a).
 """
@@ -67,7 +73,39 @@ from pydantic import BaseModel, ConfigDict
 from glitchygames.state.paths import get_cache_directory
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Callable, Generator
+
+# Told the path of each sound file written, once it is in place (observe_sound_writes, rule 7):
+# the browser's page flushes its IndexedDB-backed files there
+_SOUND_WRITE_OBSERVERS: list[Callable[[Path], None]] = []
+
+
+def observe_sound_writes(*, observer: Callable[[Path], None]) -> None:
+    """Call ``observer`` with each sound file's path after a disk layer writes it (rule 7).
+
+    Args:
+        observer: Called with the written file's path, once it is in place.
+
+    """
+    _SOUND_WRITE_OBSERVERS.append(observer)
+
+
+def stop_observing_sound_writes(*, observer: Callable[[Path], None]) -> None:
+    """Stop calling ``observer`` (nothing if it was not observing).
+
+    Args:
+        observer: An observer given to ``observe_sound_writes``.
+
+    """
+    with contextlib.suppress(ValueError):
+        _SOUND_WRITE_OBSERVERS.remove(observer)
+
+
+def _notify_sound_written(*, path: Path) -> None:
+    # A copy: an observer may stop observing while it is told
+    for observer in _SOUND_WRITE_OBSERVERS.copy():
+        observer(path)
+
 
 # sys.platform in the browser (Pyodide): one Python process per page, so no write lock (rule 5a)
 BROWSER_PLATFORM: Final[str] = 'emscripten'
@@ -256,7 +294,8 @@ class DiskSoundCache:
             sample_rate: Its rate.
 
         Returns:
-            Whether it was written (a write the system refused is logged instead).
+            Whether it was written (a write the system refused is logged instead). A written
+            sound is told to ``observe_sound_writes``' observers (rule 7).
         """
         path = self.path_for(identity_key=identity_key)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -275,6 +314,7 @@ class DiskSoundCache:
             return False
         finally:
             temporary.unlink(missing_ok=True)
+        _notify_sound_written(path=path)
         return True
 
     def size_bytes(self) -> int:

@@ -790,6 +790,12 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             'the file changes; a value computed from its key, one cache per process.'
         ),
     },
+    'audio/disk_cache.py': {
+        '_SOUND_WRITE_OBSERVERS': (
+            "S11: the browser's IndexedDB flush, registered once by its page; no desktop code "
+            'registers one.'
+        ),
+    },
     'audio/engine.py': {
         'SYSTEM_OWNER': (
             "R16: the engine's own voices' owner, an identity sentinel with no state; every "

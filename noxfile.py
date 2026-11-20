@@ -2275,8 +2275,10 @@ def browser(session: nox.Session) -> None:
 
     scripts/build_browser_bundle.py writes build/browser/<game>: the page, the engine and our
     pygame-ce wheel. The wheel is built from the third_party/pygame-ce submodule the first time
-    (several minutes; run ``git submodule update --init`` first) and reused while the submodule
-    stays at the same commit. The page opens in the default browser; click it to play. Design:
+    (several minutes) and reused while the submodule stays at the same commit. A submodule not
+    checked out yet (a new worktree's) is checked out first; ``-- --wheel PATH`` uses a wheel
+    built elsewhere instead (another checkout's dist-pyodide/) and needs no submodule. The page
+    opens in the default browser; click it to play. Design:
     plans/2026-10-23-game-host-and-browser-runner.md.
 
     Usage:
