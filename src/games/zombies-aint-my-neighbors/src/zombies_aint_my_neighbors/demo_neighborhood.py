@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Final, override
 
+from zombies_aint_my_neighbors import text
 from zombies_aint_my_neighbors.neighborhood import NeighborhoodScene
 from zombies_aint_my_neighbors.roster import JoinRoster
 from zombies_aint_my_neighbors.roster_scene import KEYBOARD_IDENTITY, gamepad_identity
@@ -44,7 +45,7 @@ def demo_roster() -> JoinRoster:
 class DemoNeighborhoodScene(NeighborhoodScene):
     """Stage 1, its default players the demo's four."""
 
-    NAME = "Zombies Ain't My Neighbors: the attract demo"
+    NAME = f'{text.GAME_NAME} - Demo'
 
     @override
     def __init__(

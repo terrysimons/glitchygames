@@ -24,6 +24,7 @@ import pygame
 from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.sprites.root_sprite import RootSprite
+from zombies_aint_my_neighbors import text
 from zombies_aint_my_neighbors.art.intro_rig import INTRO_ANIMATIONS
 from zombies_aint_my_neighbors.intro_timeline import INTRO_TIMELINE, CueKind, IntroCue, cues_crossed
 from zombies_aint_my_neighbors.pad_tolerant import PadTolerantScene
@@ -133,7 +134,7 @@ class Oval(RootSprite):
 class IntroScene(PadTolerantScene):
     """The intro: the sleepover, the TV bursting, the Lawn Zombie climbing out."""
 
-    NAME = 'Intro'
+    NAME = f'{text.GAME_NAME} - Intro'
     VERSION = '1.0'
     SOUNDS = SOUND_REFERENCES
 

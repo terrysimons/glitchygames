@@ -454,7 +454,7 @@ Paths below are relative to `src/games/zombies-aint-my-neighbors/` unless they s
   - `attract_demo_path() -> Path | None`: the shipped demo through `glitchygames.bundled_demos`
     (package `zombies_aint_my_neighbors`), None when it isn't installed. Tests patch it through
     the module (`attract.attract_demo_path`), as feature 12's `launch_showing` is.
-  - `AttractScene(PadTolerantScene)`, `NAME = 'Attract demo'`, no constructor arguments beyond
+  - `AttractScene(PadTolerantScene)`, `NAME = 'Attract demo'` (since 2026-11-19 `f'{text.GAME_NAME} - Demo'`, the owner's naming), no constructor arguments beyond
     `options` and `groups`; `inner_game: InnerGame | None`.
   - `DemoPicture(RootSprite)`: full screen; each frame copies the inner surface, scaled to fit
     the screen, letterboxed in `BACKGROUND_COLOUR` when the aspect differs.

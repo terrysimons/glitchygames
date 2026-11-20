@@ -115,7 +115,7 @@ class DemoPicture(RootSprite):
 class AttractScene(PadTolerantScene):
     """The attract demo: the shipped demo replayed inside the game, under a DEMO label."""
 
-    NAME = 'Attract demo'
+    NAME = f'{text.GAME_NAME} - Demo'
     VERSION = '1.0'
 
     @override

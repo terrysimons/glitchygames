@@ -56,7 +56,7 @@ from glitchygames.camera import Camera2D
 from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.input.state import current_input
 from glitchygames.randomness import random_stream
-from zombies_aint_my_neighbors import music
+from zombies_aint_my_neighbors import music, text
 from zombies_aint_my_neighbors.art.palettes import KIDS
 from zombies_aint_my_neighbors.controls import DEFAULT_DEADZONE, player_direction, player_firing
 from zombies_aint_my_neighbors.exit_door import DOOR_SIZE, ExitDoor
@@ -283,7 +283,7 @@ def stage_needs(*, run: RunState, joined_slots: Collection[int]) -> Counter[Part
 class NeighborhoodScene(RosterScene):
     """The neighborhood: the joined kids walking a yard."""
 
-    NAME = "Zombies Ain't My Neighbors"
+    NAME = text.GAME_NAME
     VERSION = '1.0'
     # After a hitch the yard advances at most this much (as Clockwork Keep's does): a zap's step
     # (320 px/s) stays under 16 px, shorter than its hitbox and a zombie's together, so it never
