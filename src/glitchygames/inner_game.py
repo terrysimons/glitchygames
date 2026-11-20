@@ -223,6 +223,10 @@ class InnerGameRefusedError(ValueError):
     """The arguments ask for something other than a headless replay (rule 1)."""
 
 
+class InnerGameStateError(RuntimeError):
+    """The inner game is in a state its own code never reaches (a bug, not a game failure)."""
+
+
 class InnerGameStartError(RuntimeError):
     """The command could not be started inside the context; its message is the outcome's error."""
 
@@ -597,6 +601,22 @@ class InnerGame:
             error=self._error,
         )
 
+    def _unfinished_engine(self: Self) -> GameEngine:
+        """Return the engine of a game that is not finished (one that was not finished was built).
+
+        Returns:
+            The inner game's engine.
+
+        Raises:
+            InnerGameStateError: If the game has no engine though it is not finished.
+
+        """
+        engine = self._engine
+        if engine is None:
+            message = f'Inner game {self._context.name} is not finished but has no engine'
+            raise InnerGameStateError(message)
+        return engine
+
     def step(self: Self) -> bool:
         """Run one frame inside the game's context; finish it when that frame ended it.
 
@@ -606,8 +626,7 @@ class InnerGame:
         """
         if self._finished:
             return False
-        engine = self._engine
-        assert engine is not None  # a game not finished was built
+        engine = self._unfinished_engine()
         with self._context.active(), self._plain_plays_kept_off_the_mixer():
             scene_manager = engine.scene_manager
             try:
@@ -638,9 +657,8 @@ class InnerGame:
         """
         if self._finished:
             return self.outcome
+        engine = self._unfinished_engine()
         self._finished = True
-        engine = self._engine
-        assert engine is not None  # a game not finished was built
         with self._context.active(), self._plain_plays_kept_off_the_mixer():
             for finish_part in (
                 self._end_frames,
@@ -787,9 +805,15 @@ class InnerGame:
         Args:
             engine: The inner game's engine.
 
+        Raises:
+            InnerGameStateError: If the engine has no replay sources (an inner game always
+                replays).
+
         """
         replay_sources = engine.replay_sources
-        assert replay_sources is not None  # an inner game always replays (--replay-trace)
+        if replay_sources is None:
+            message = f'Inner game {self._context.name} has no replay sources (--replay-trace)'
+            raise InnerGameStateError(message)
         report = engine.settle_replay_report(
             replay_sources=replay_sources, run_ended_by=self._run_ended_by
         )

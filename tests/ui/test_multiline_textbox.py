@@ -10,10 +10,13 @@ import logging
 import pygame
 import pytest
 
+from glitchygames import clock
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.ui import MultiLineTextBox
 
 # Test constants
+# The cursor's height before it followed the font's line height
+FIXED_CURSOR_HEIGHT = 20
 TEST_TEXTBOX_X = 10
 TEST_TEXTBOX_Y = 20
 TEST_TEXTBOX_WIDTH = 300
@@ -504,6 +507,25 @@ class TestMultiLineTextBoxRealRendering:
         cursor_column = rgb_pixels[cursor_x, 6 : 5 + line_height]
         assert (cursor_column == BACKGROUND_RGB).all()
         del cursor_column, rgb_pixels
+
+    def test_the_cursor_is_as_tall_as_the_fonts_line(self):
+        """The cursor spans the line height of the font, not a fixed 20 px (BUGS.md #165)."""
+        textbox = _real_textbox(text='A')
+        textbox.is_active = True
+        textbox.cursor_visible = True
+        line_height = textbox._get_line_height()
+        assert line_height != FIXED_CURSOR_HEIGHT, 'the font must differ from the old 20 px'
+        # Visible at once: the blink timer has not run out
+        textbox.cursor_blink_time = clock.frame_clock_milliseconds()
+        cursor_x = textbox._get_text_width('A') + 5
+
+        textbox.update()
+
+        assert textbox.cursor_visible is True
+        assert _rgb_at(textbox.image, (cursor_x, 5 + line_height - 1)) == tuple(
+            textbox.cursor_color[:3]
+        )
+        assert _rgb_at(textbox.image, (cursor_x, 5 + line_height + 1)) == BACKGROUND_RGB
 
     def test_the_frame_dump_is_not_logged_without_debug_logging(self, caplog):
         """update() runs every frame: with DEBUG off it draws but logs no frame dump."""

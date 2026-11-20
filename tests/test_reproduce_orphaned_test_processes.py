@@ -16,7 +16,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 from scripts import reproduce_orphaned_test_processes as reproducer
-from scripts.reproduce_orphaned_test_processes import main, run_trial, swept_by_the_run
+from scripts.reproduce_orphaned_test_processes import (
+    main,
+    run_command_line,
+    run_trial,
+    swept_by_the_run,
+)
 
 from glitchygames.exit_codes import ExitCode
 
@@ -105,6 +110,27 @@ def test_the_runs_own_sweep_is_read_from_its_terminal_summary():
         'pid 13: python game.py',
     ]
     assert swept_by_the_run(log_text='1 passed\n') == []
+
+
+def test_a_test_outside_the_checkout_pins_the_runs_rootdir(tmp_path):
+    """Pytest picks the common ancestor of the cwd and the test as rootdir; it must not.
+
+    In a checkout under /private/tmp and a test under /private/var/..., that ancestor is
+    /private, and the inner run then took seconds to start its workers instead of well under
+    one (bugs/2026-11-13-never-ready-test-fails-under-private-tmp.md).
+    """
+    test_path = tmp_path / 'test_stand_in.py'
+
+    command = run_command_line(test=f'{test_path}::test_stand_in', basetemp=tmp_path / 'base')
+
+    assert f'--rootdir={tmp_path}' in command
+
+
+def test_a_test_node_of_the_checkout_keeps_the_checkouts_rootdir(tmp_path):
+    """A test named relative to the checkout (the default) leaves rootdir to its config file."""
+    command = run_command_line(test='tests/test_x.py::test_y', basetemp=tmp_path / 'base')
+
+    assert not [argument for argument in command if argument.startswith('--rootdir')]
 
 
 # Giving up ends the run's group (os.killpg), which Windows does not have; the script is POSIX

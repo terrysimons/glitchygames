@@ -51,6 +51,7 @@ from glitchygames.inner_game import (
     InnerGameOutcome,
     InnerGameRefusedError,
     InnerGameState,
+    InnerGameStateError,
     engine_option_actions,
     inherited_arguments,
     is_refused_argument,
@@ -792,6 +793,49 @@ class TestAReplayInsideItsContext:
         assert outcome.diverged is True
         assert outcome.report is not None
         assert outcome.report.startswith('Replay diverged at frame 1'), outcome.report
+
+    def test_an_unfinished_game_without_an_engine_raises_instead_of_asserting(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """step() and finish() on an unfinished game with no engine raise a named error."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        real_engine = inner_game._engine
+        inner_game._engine = None
+
+        with pytest.raises(InnerGameStateError, match='no engine'):
+            inner_game.step()
+        with pytest.raises(InnerGameStateError, match='no engine'):
+            inner_game.finish()
+
+        inner_game._engine = real_engine
+        inner_game.finish()
+
+    def test_finishing_an_engine_without_replay_sources_fails_the_game_with_a_named_error(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """An inner game always replays; if its engine has no replay sources, finish says so."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        assert inner_game._engine is not None
+        inner_game._engine.replay_sources = None
+
+        outcome = inner_game.finish()
+
+        assert outcome.state is InnerGameState.FAILED
+        assert outcome.error is not None
+        assert 'no replay sources' in outcome.error
+
+    def test_building_an_inner_game_registers_nothing_with_pygames_quit(
+        self, stand_in: StandInGame, recording: Path, mocker: MockerFixture
+    ):
+        """Pygame cannot unregister a quit callback, so each tile would add one for good."""
+        register_quit = mocker.patch('pygame.register_quit')
+
+        first = replay_stand_in(game=stand_in, path=recording, name='first')
+        second = replay_stand_in(game=stand_in, path=recording, name='second')
+
+        register_quit.assert_not_called()
+        first.finish()
+        second.finish()
 
     def test_a_game_whose_timer_failed_to_start_still_finishes(
         self, stand_in: StandInGame, recording: Path, mocker: MockerFixture

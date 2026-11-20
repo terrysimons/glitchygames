@@ -884,13 +884,6 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   context still gets its repeat; the event is recorded and replayed; and the workspace guard
   widens to `pygame.key.set_repeat`.
 
-- **Every engine build adds a `pygame.register_quit` entry that is never removed.**
-  `GameEngine.__init__` registers its `quit_game` (`src/glitchygames/engine/game_engine.py`,
-  `pygame.register_quit(self.quit_game)`, a classmethod), and pygame has no way to unregister
-  one, so every `InnerGame` adds one for the life of the process: an Arcade looping ten tiles
-  adds ten per loop, each called once at `pygame.quit()`. Harmless today (the classmethod holds
-  no engine), but the list only grows. Register once per process, or not at all in an inner
-  context (the host's own engine registers it).
 - **The hosted start skips `_begin_start` (and `_begin_run`).** An inner game's `start()`
   builds the game and returns (`render_target.hosted_start_requested()`), so the startup options
   block is never logged for it, and `--profile` (`_begin_start`) and `--list-input-devices`
@@ -915,11 +908,6 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   diverged**: a replay given another `--random-seed` (the reseeded summary), and a truncated
   recording that matched up to its cut-off (alone it exits UNUSABLE_INPUT, but `diverged` is
   False). Say so in `inner_game.py`'s docstring, or make `diverged` cover them.
-- **No guard stops a direct `pygame.event.set_allowed` or `set_blocked` in the engine.** Every
-  engine call that changes SDL's blocked types goes through `events.set_event_types_allowed`
-  (sub-plan 3's fix: an inner context never changes them), except `EventTypeBlock`. A future
-  direct call would bring the bug back quietly. Add a source-guard test like
-  `tests/test_engine_doors.py`'s.
 - Minor, from the same ledgers: refusal by prefix can over-refuse (a game's own flag that is a
   strict prefix of a refused one, such as `--rec`, would be refused; no engine flag is one), and
   an empty run is not handled specially (`step()` checks `should_run_frames()` only after each
@@ -1802,7 +1790,9 @@ discussing it found and decided:
 - **Steps are the recorded unit; frames are only drawing (the owner's idea, 2026-11-17).** A
   recording stays a list of steps, each with its `dt`. Existing recordings replay as they are, each
   recorded frame one step of its recorded `dt`, drawn at any refresh rate by blending between steps,
-  so the 25 golden replays and demos and the 5 golden-trace baselines keep their meaning and are
+  so the 19 golden replays and demos (8 goldens and 11 bundled demos, counted in
+  `tests/workspace_expectations.py`, 2026-11-20) and the 4 golden-trace baselines
+  (`tests/world/golden/`) keep their meaning and are
   never re-recorded for this. New live play steps at the fixed rate. One stepping path: live, the
   accumulator decides when to step; in a replay, the recording does. The game logic always replays
   at exactly the steps it was recorded with: re-stepping it at another rate changes outcomes

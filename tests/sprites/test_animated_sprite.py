@@ -3230,6 +3230,98 @@ class TestAnimatedSpriteFrameAnchor:
             AnimatedSprite._parse_frame_anchor('sideways')
 
 
+class TestColorProfileKeysRoundTrip:
+    """[sprite] profile and color_space survive a load and a save (bugs/2026-11-20-...)."""
+
+    STATIC_TEXT = """[sprite]
+name = "profiled"
+profile = "srgb"
+color_space = "display-p3"
+pixels = \"\"\"
+##
+##
+\"\"\"
+
+[colors."#"]
+red = 10
+green = 20
+blue = 30
+"""
+
+    ANIMATED_TEXT = """[sprite]
+name = "profiled_animated"
+profile = "srgb"
+color_space = "display-p3"
+
+[[animation]]
+namespace = "idle"
+frame_interval = 0.5
+loop = true
+
+[[animation.frame]]
+namespace = "idle"
+frame_index = 0
+pixels = \"\"\"
+##
+##
+\"\"\"
+
+[[animation.frame]]
+namespace = "idle"
+frame_index = 1
+pixels = \"\"\"
+#.
+.#
+\"\"\"
+
+[colors."#"]
+red = 10
+green = 20
+blue = 30
+
+[colors."."]
+red = 255
+green = 0
+blue = 255
+"""
+
+    @pytest.mark.parametrize('text_name', ['STATIC_TEXT', 'ANIMATED_TEXT'])
+    def test_saved_text_keeps_profile_and_color_space(self, text_name):
+        """Loading a file with both keys and writing it back keeps both, in either layout."""
+        sprite = AnimatedSprite()
+        sprite.load_text(text=getattr(self, text_name), source_name='profiled.toml')
+
+        saved = tomllib.loads(sprite.to_text())
+
+        assert saved['sprite']['profile'] == 'srgb'
+        assert saved['sprite']['color_space'] == 'display-p3'
+
+    def test_a_file_without_the_keys_is_written_without_them(self):
+        """Absent stays absent: the writer never defaults the keys."""
+        sprite = AnimatedSprite()
+        sprite.load_text(
+            text=self.STATIC_TEXT.replace('profile = "srgb"\n', '').replace(
+                'color_space = "display-p3"\n', ''
+            ),
+            source_name='plain.toml',
+        )
+
+        saved = tomllib.loads(sprite.to_text())
+
+        assert 'profile' not in saved['sprite']
+        assert 'color_space' not in saved['sprite']
+
+    def test_copy_sprite_metadata_carries_the_keys(self):
+        """Bitmappy builds the sprite it saves from a loaded one with copy_sprite_metadata_from."""
+        source = AnimatedSprite()
+        source.load_text(text=self.STATIC_TEXT, source_name='profiled.toml')
+        target = AnimatedSprite()
+
+        target.copy_sprite_metadata_from(source)
+
+        assert (target.profile, target.color_space) == ('srgb', 'display-p3')
+
+
 class TestHitboxTomlRoundTrip:
     """Test hitbox TOML load/save round-trip."""
 

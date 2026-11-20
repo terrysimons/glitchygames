@@ -1371,6 +1371,7 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/test_ci_config.py': "checks the CI configuration against the workspace's members",
     'tests/test_engine_context_source_guards.py': SOURCE_GUARD_REASON,
     'tests/test_engine_doors.py': SOURCE_GUARD_REASON,
+    'tests/test_event_blocking_source_guard.py': SOURCE_GUARD_REASON,
     'tests/test_engine_wheel.py': (
         'checks the engine wheel holds no member (read from the workspace)'
     ),

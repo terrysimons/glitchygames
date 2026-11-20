@@ -2450,12 +2450,16 @@ class TestMultiLineTextBoxUpdate:
         text_box.cursor_blink_time = clock.frame_clock_milliseconds()
         line_height = text_box._get_line_height()
         cursor_x = 5 + text_box._get_text_width('Line 2')
-        cursor_column = (cursor_x, 5 + line_height + 2, 1, 16)
+        # The cursor is one line tall: the rect reaches well past it, and only the line is lit
+        cursor_column = (cursor_x, 5 + line_height, 1, 2 * line_height)
 
         text_box.update()
 
         assert _rgb_at(text_box.image, (0, 0)) == (64, 64, 255)
-        assert _pixel_count_of(text_box.image, text_box.cursor_color, cursor_column) == 16
+        # pygame.draw.line includes both end points: the line height and one more row
+        assert (
+            _pixel_count_of(text_box.image, text_box.cursor_color, cursor_column) == line_height + 1
+        )
 
         text_box.cursor_visible = False
         text_box.cursor_blink_time = clock.frame_clock_milliseconds()

@@ -13,10 +13,6 @@ from glitchygames.sprites import (
 )
 from tests.logged_messages import logged_message, logged_messages
 
-# Test constants
-EXPECTED_ERROR_COUNT_2 = 2
-EXPECTED_ERROR_COUNT_3 = 3
-
 
 class TestBitmappySprite:
     """Test BitmappySprite functionality."""
@@ -261,17 +257,13 @@ class TestBitmappySprite:
             return_value={'A': (255, 0, 0), 'X': (255, 0, 255)},  # Missing second color
         )
 
-        # Use pytest logger wrapper to suppress logs during successful runs
         mock_log = mocker.patch.object(sprite, 'log')
-        result = sprite.deflate('toml')
-        assert result is not None
+        with pytest.raises(ValueError, match='not in the color map'):
+            sprite.deflate('toml')
 
-        # Verify the ERROR log messages were called
-        assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
-        # Check that the log messages contain the expected content
-        first_call, second_call = logged_messages(mock_log.error.call_args_list)
-        assert 'Pixels list length mismatch: 2 vs expected 1024' in first_call
-        assert 'not found in color_map' in second_call
+        # The length mismatch is still logged first; the missing color now raises, not '.'
+        (only_error,) = logged_messages(mock_log.error.call_args_list)
+        assert 'Pixels list length mismatch: 2 vs expected 1024' in only_error
 
     def test_bitmappy_sprite_inflate_method(self, tmp_path):
         """inflate_from_file reads a TOML file's name, size and pixels."""
@@ -340,29 +332,14 @@ class TestBitmappySprite:
 class TestBitmappySpriteHelpers:
     """Test BitmappySprite helper methods for save, pixel string, and color map."""
 
-    def test_bitmappy_sprite_process_pixel_rows_missing_color(self, mocker):
-        """Test BitmappySprite process_pixel_rows with missing color."""
+    def test_bitmappy_sprite_process_pixel_rows_missing_color_raises(self):
+        """A pixel whose color is not in the map raises, naming the pixel: no '.' stand-in."""
         sprite = BitmappySprite(width=2, height=2)  # 2x2 = 4 pixels
-        sprite.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]  # 4 pixels
+        sprite.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+        color_map = {'A': (255, 0, 0), 'X': (255, 0, 255)}  # Missing the other colors
 
-        mocker.patch(
-            'glitchygames.sprites.BitmappySprite._create_color_map',
-            return_value={'A': (255, 0, 0), 'X': (255, 0, 255)},  # Missing second color
-        )
-        color_map = {'A': (255, 0, 0), 'X': (255, 0, 255)}
-
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch.object(sprite, 'log')
-        result = sprite._process_pixel_rows(color_map)
-        assert result is not None
-
-        # Verify the ERROR log messages were called
-        assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_3
-        # Check that the log messages contain the expected content
-        first_call, second_call, third_call = logged_messages(mock_log.error.call_args_list)
-        assert 'not found in color_map' in first_call
-        assert 'not found in color_map' in second_call
-        assert 'not found in color_map' in third_call
+        with pytest.raises(ValueError, match=r'Pixel \(1, 0\) has color \(0, 255, 0\)'):
+            sprite._process_pixel_rows(color_map)
 
     def test_bitmappy_sprite_save_static_only_unsupported_format_error(self, mocker):
         """Test BitmappySprite save_static_only with unsupported format error."""
