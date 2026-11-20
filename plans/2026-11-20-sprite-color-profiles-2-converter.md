@@ -5,7 +5,7 @@
 > checkbox (`- [ ]`) syntax for tracking.
 
 - **Date:** 2026-11-20
-- **Status:** DRAFT for the owner's review. The master plan is approved (2026-11-17); the owner
+- **Status:** APPROVED by the owner (2026-11-20). The master plan is approved (2026-11-17); the owner
   decided all seven open questions on 2026-11-20 (see "Decided by the owner (2026-11-20)" under
   "Open questions"). Nothing built yet. Audited 2026-11-20 against origin/main
   b7c2abd3 (after #235, #237, #238, #239): see "Audit 2026-11-20" at the end.
