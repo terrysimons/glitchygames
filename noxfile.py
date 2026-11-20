@@ -2439,6 +2439,7 @@ def timer_report(session: nox.Session) -> None:
 _BENCHMARK_PATHS = [
     'tests/benchmarks',
     'src/apps/bitmappy/tests/test_bitmappy_benchmarks.py',
+    'src/games/drawing-fire/tests/test_drawing_fire_benchmarks.py',
 ]
 
 
