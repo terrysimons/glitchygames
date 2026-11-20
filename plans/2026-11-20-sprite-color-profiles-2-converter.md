@@ -5,8 +5,9 @@
 > checkbox (`- [ ]`) syntax for tracking.
 
 - **Date:** 2026-11-20
-- **Status:** DRAFT for the owner's review. The master plan is approved (2026-11-17); the open
-  questions below are the owner's. Nothing built yet. Audited 2026-11-20 against origin/main
+- **Status:** DRAFT for the owner's review. The master plan is approved (2026-11-17); the owner
+  decided all seven open questions on 2026-11-20 (see "Decided by the owner (2026-11-20)" under
+  "Open questions"). Nothing built yet. Audited 2026-11-20 against origin/main
   b7c2abd3 (after #235, #237, #238, #239): see "Audit 2026-11-20" at the end.
 - **Dependency, in flight:** the bug that `AnimatedSprite` drops `profile` and `color_space`
   (item 1 below) is being fixed separately tonight on `fix/bug-sweep-2026-11-20`
@@ -244,6 +245,34 @@ separate and does not block either way:
 - The palette features the master leaves out (swaps, cycling, fades) are #61 and the backlog.
 
 ## Open questions (the owner's)
+
+### Decided by the owner (2026-11-20)
+
+These answers win over the question text below wherever they differ.
+
+1. **Checked at load:** (a) an unknown `profile` or `color_space` id is refused, naming the valid
+   ids; (b) a file holding more than its profile allows loads, and the converter, the
+   conformance check and Bitmappy's save warning report it. Refusing (b) at load waits for
+   Bitmappy to enforce the profile while painting.
+2. **The file holds short ids** (`profile = "8-bit+"`, `color_space = "rgb9"`), and the ids are
+   the keys of the profile and color-space registry. Each registry entry carries its
+   human-readable label, derived from the id ("8-bit+ · 9-bit RGB" on screen and in the docs);
+   no label is ever stored in a file, so rewording one changes no file.
+3. **No labels on shipped sprites in this part.** `art.build` labels the Zombies sprites in the
+   step that holds the game to its profile.
+4. **Bitmappy: a warning only.** It keeps both keys through save and logs when a save no longer
+   conforms. A palette-limited canvas is a later part.
+5. **Snapping:** grid spaces (`rgb24`, `rgb15`, `rgb12`, `rgb9`, `rgb6`, `web-safe`) snap each
+   channel to its nearest level, ties up; the perceptual (OKLab) search is only for list
+   palettes (`nes`, the mono ramps).
+6. **One `rgb9`, the even grid** (0, 36, 73, 109, 146, 182, 219, 255), shipped in this part.
+   There is no `rgb9-measured`: a space's levels never change once files conform to them. A
+   console's authentic colors are a hardware palette named for the console (for example
+   `mega-drive`), a measured list from a credited source beside `nes`. The rule: grid spaces are
+   pure math, snapped per channel; hardware palettes are measured lists, searched perceptually.
+7. **Yes, the `convert-sprite` tool** (Task 7).
+
+### The questions as asked
 
 Each has a concrete case, a recommendation and the alternative. Tasks 1, 3 and 7 are written to the
 recommendation; a different answer changes the named task only.
@@ -573,7 +602,7 @@ of representative sprites).
 
 - [ ] Tests, implement, gates, commit.
 
-### Task 7: the `convert-sprite` tool (if the owner agrees: open question 7)
+### Task 7: the `convert-sprite` tool (agreed by the owner, 2026-11-20: open question 7)
 
 **Files:** `replay/tools/registry.py` (one `TOOLS` entry; the tool is also a flag/subcommand under
 the registry's one-description rule), its docs page, the registry-driven tests.
